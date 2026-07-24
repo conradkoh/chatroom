@@ -219,6 +219,119 @@ function ChatroomHeaderCenter(props: ChatroomTitleEditorProps) {
 // ─── Explorer Content Component ───────────────────────────────────────────────
 // Extracts shared file explorer UI to eliminate duplication between split/non-split views
 
+const EMPTY_SECONDARY_TAB_KEYS: string[] = [];
+
+interface ExplorerEditorTabContentProps {
+  tab: EditorTab;
+  workspaceId: string;
+  machineId: string;
+  workingDir: string;
+  autocompleteFiles: FileEntry[];
+  hasAutocompleteWorkspace: boolean;
+  onAtTriggerActivate: () => void;
+  agenticFocusToken: number;
+  onAgenticMetaChange: (meta: { title: string; mode: AgenticQueryMode }) => void;
+  onOpenPreview: (filePath: string) => void;
+  onOpenTableView: (filePath: string) => void;
+  onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
+  onOpenSelectionOnRemote: (filePath: string, selectedText: string) => void;
+}
+
+// fallow-ignore-next-line complexity
+const ExplorerEditorTabContent = memo(function ExplorerEditorTabContent({
+  tab,
+  workspaceId,
+  machineId,
+  workingDir,
+  autocompleteFiles,
+  hasAutocompleteWorkspace,
+  onAtTriggerActivate,
+  agenticFocusToken,
+  onAgenticMetaChange,
+  onOpenPreview,
+  onOpenTableView,
+  onSendSelectionToComposer,
+  onOpenSelectionOnRemote,
+}: ExplorerEditorTabContentProps) {
+  if (tab.kind === 'agentic-query') {
+    return (
+      <AgenticQueryPanel
+        key={editorTabKey(tab)}
+        queryId={tab.queryId}
+        mode={tab.mode}
+        workspaceId={workspaceId}
+        autocompleteFiles={autocompleteFiles}
+        hasAutocompleteWorkspace={hasAutocompleteWorkspace}
+        onAtTriggerActivate={onAtTriggerActivate}
+        focusToken={agenticFocusToken}
+        onMetaChange={onAgenticMetaChange}
+      />
+    );
+  }
+  if (tab.kind === 'file') {
+    if (isBinaryFile(tab.filePath)) {
+      return (
+        <FileContentViewer
+          key={tab.filePath}
+          machineId={machineId}
+          workingDir={workingDir}
+          filePath={tab.filePath}
+          onSendSelectionToComposer={onSendSelectionToComposer}
+          onOpenPreview={onOpenPreview}
+          onOpenTableView={onOpenTableView}
+          onOpenSelectionOnRemote={onOpenSelectionOnRemote}
+        />
+      );
+    }
+    if (shouldOpenInEditableExplorerPane(tab.filePath)) {
+      return (
+        <MarkdownFileEditorPane
+          key={tab.filePath}
+          machineId={machineId}
+          workingDir={workingDir}
+          filePath={tab.filePath}
+          onSendSelectionToComposer={onSendSelectionToComposer}
+          onOpenPreview={onOpenPreview}
+          onOpenSelectionOnRemote={onOpenSelectionOnRemote}
+        />
+      );
+    }
+    return (
+      <FileContentViewer
+        key={tab.filePath}
+        machineId={machineId}
+        workingDir={workingDir}
+        filePath={tab.filePath}
+        onSendSelectionToComposer={onSendSelectionToComposer}
+        onOpenPreview={onOpenPreview}
+        onOpenTableView={onOpenTableView}
+        onOpenSelectionOnRemote={onOpenSelectionOnRemote}
+      />
+    );
+  }
+  if (tab.kind === 'preview') {
+    return (
+      <MarkdownPreviewPane
+        key={editorTabKey(tab)}
+        machineId={machineId}
+        workingDir={workingDir}
+        filePath={tab.filePath}
+      />
+    );
+  }
+  if (tab.kind === 'table') {
+    return (
+      <CsvTablePane
+        key={editorTabKey(tab)}
+        machineId={machineId}
+        workingDir={workingDir}
+        filePath={tab.filePath}
+      />
+    );
+  }
+  return null;
+});
+
 interface ExplorerContentProps {
   fileTabs: UseFileTabsReturn;
   activeWorkspace: {
@@ -233,6 +346,43 @@ interface ExplorerContentProps {
   onOpenTableView: (filePath: string) => void;
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
   agenticFocusToken: number;
+}
+
+// fallow-ignore-next-line complexity
+function areExplorerContentStaticPropsEqual(
+  prev: ExplorerContentProps,
+  next: ExplorerContentProps
+): boolean {
+  return (
+    prev.activeWorkspace === next.activeWorkspace &&
+    prev.autocompleteFiles === next.autocompleteFiles &&
+    prev.hasAutocompleteWorkspace === next.hasAutocompleteWorkspace &&
+    prev.onAtTriggerActivate === next.onAtTriggerActivate &&
+    prev.onOpenPreview === next.onOpenPreview &&
+    prev.onOpenTableView === next.onOpenTableView &&
+    prev.onSendSelectionToComposer === next.onSendSelectionToComposer &&
+    prev.agenticFocusToken === next.agenticFocusToken
+  );
+}
+
+// fallow-ignore-next-line complexity
+function areExplorerContentPropsEqual(
+  prev: ExplorerContentProps,
+  next: ExplorerContentProps
+): boolean {
+  if (!areExplorerContentStaticPropsEqual(prev, next)) return false;
+  if (prev.fileTabs === next.fileTabs) return true;
+
+  const prevTabs = prev.fileTabs;
+  const nextTabs = next.fileTabs;
+  return (
+    prevTabs.tabs === nextTabs.tabs &&
+    prevTabs.activeTabKey === nextTabs.activeTabKey &&
+    prevTabs.editorSplit === nextTabs.editorSplit &&
+    prevTabs.editorSplitLayoutEpoch === nextTabs.editorSplitLayoutEpoch &&
+    prevTabs.expandedTabPath === nextTabs.expandedTabPath &&
+    prevTabs.expandedPane === nextTabs.expandedPane
+  );
 }
 
 // fallow-ignore-next-line complexity
@@ -263,8 +413,8 @@ const ExplorerContent = memo(function ExplorerContent({
   );
 
   const hasEditorSplit =
-    !!fileTabs.editorSplit?.enabled && fileTabs.editorSplit.secondaryTabKeys.length > 0;
-  const secondaryTabKeys = fileTabs.editorSplit?.secondaryTabKeys ?? [];
+    !!fileTabs.editorSplit?.enabled && (fileTabs.editorSplit.secondaryTabKeys.length ?? 0) > 0;
+  const secondaryTabKeys = fileTabs.editorSplit?.secondaryTabKeys ?? EMPTY_SECONDARY_TAB_KEYS;
   const hasSplit = hasEditorSplit && secondaryTabKeys.some(isViewTabKey);
   const editorExpanded = isEditorExpanded(
     hasSplit,
@@ -298,9 +448,7 @@ const ExplorerContent = memo(function ExplorerContent({
   const secondaryTabKeySet = useMemo(() => new Set(secondaryTabKeys), [secondaryTabKeys]);
   const secondaryTabs = useMemo(
     () =>
-      hasEditorSplit
-        ? fileTabs.tabs.filter((t) => secondaryTabKeys.includes(editorTabKey(t)))
-        : [],
+      hasEditorSplit ? fileTabs.tabs.filter((t) => secondaryTabKeys.includes(editorTabKey(t))) : [],
     [hasEditorSplit, fileTabs.tabs, secondaryTabKeys]
   );
   const primaryTabs = useMemo(
@@ -335,84 +483,19 @@ const ExplorerContent = memo(function ExplorerContent({
     />
   ) : null;
 
-  const renderEditorContent = (tab: EditorTab) => {
-    if (tab.kind === 'agentic-query') {
-      return (
-        <AgenticQueryPanel
-          key={editorTabKey(tab)}
-          queryId={tab.queryId}
-          mode={tab.mode}
-          workspaceId={activeWorkspace?.workspaceId ?? ''}
-          autocompleteFiles={autocompleteFiles}
-          hasAutocompleteWorkspace={hasAutocompleteWorkspace}
-          onAtTriggerActivate={onAtTriggerActivate}
-          focusToken={agenticFocusToken}
-          onMetaChange={handleAgenticMetaChange}
-        />
-      );
-    }
-    if (tab.kind === 'file') {
-      if (isBinaryFile(tab.filePath)) {
-        return (
-          <FileContentViewer
-            key={tab.filePath}
-            machineId={machineId}
-            workingDir={workingDir}
-            filePath={tab.filePath}
-            onSendSelectionToComposer={onSendSelectionToComposer}
-            onOpenPreview={onOpenPreview}
-            onOpenTableView={onOpenTableView}
-            onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
-          />
-        );
-      }
-      if (shouldOpenInEditableExplorerPane(tab.filePath)) {
-        return (
-          <MarkdownFileEditorPane
-            key={tab.filePath}
-            machineId={machineId}
-            workingDir={workingDir}
-            filePath={tab.filePath}
-            onSendSelectionToComposer={onSendSelectionToComposer}
-            onOpenPreview={onOpenPreview}
-            onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
-          />
-        );
-      }
-      return (
-        <FileContentViewer
-          key={tab.filePath}
-          machineId={machineId}
-          workingDir={workingDir}
-          filePath={tab.filePath}
-          onSendSelectionToComposer={onSendSelectionToComposer}
-          onOpenPreview={onOpenPreview}
-          onOpenTableView={onOpenTableView}
-          onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
-        />
-      );
-    }
-    if (tab.kind === 'preview') {
-      return (
-        <MarkdownPreviewPane
-          key={editorTabKey(tab)}
-          machineId={machineId}
-          workingDir={workingDir}
-          filePath={tab.filePath}
-        />
-      );
-    }
-    if (tab.kind === 'table') {
-      return (
-        <CsvTablePane
-          key={editorTabKey(tab)}
-          machineId={machineId}
-          workingDir={workingDir}
-          filePath={tab.filePath}
-        />
-      );
-    }
-    return null;
+  const editorTabContentProps = {
+    workspaceId: activeWorkspace?.workspaceId ?? '',
+    machineId,
+    workingDir,
+    autocompleteFiles,
+    hasAutocompleteWorkspace,
+    onAtTriggerActivate,
+    agenticFocusToken,
+    onAgenticMetaChange: handleAgenticMetaChange,
+    onOpenPreview,
+    onOpenTableView,
+    onSendSelectionToComposer,
+    onOpenSelectionOnRemote: handleOpenSelectionOnRemote,
   };
 
   const hasMachineAndDir = activeWorkspace?.machineId && activeWorkspace?.workingDir;
@@ -423,7 +506,7 @@ const ExplorerContent = memo(function ExplorerContent({
       {showTabBar && !hasEditorSplit && fileTabBar}
 
       {showContentArea ? (
-        <div className="flex-1 flex min-h-0 overflow-hidden">
+        <div className="flex-1 flex min-h-0 overflow-hidden [contain:layout]">
           <EditorSplitDropOverlay onSplitDrop={fileTabs.handleEditorSplitDrop}>
             {hasEditorSplit ? (
               <EditorSplitLayout
@@ -444,13 +527,18 @@ const ExplorerContent = memo(function ExplorerContent({
                       onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
                       enableDragSplit
                     />
-                    {activePrimaryTab ? renderEditorContent(activePrimaryTab) : null}
+                    {activePrimaryTab ? (
+                      <ExplorerEditorTabContent tab={activePrimaryTab} {...editorTabContentProps} />
+                    ) : null}
                   </div>
                 }
                 secondary={
                   activeSecondaryTab ? (
                     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-                      {renderEditorContent(activeSecondaryTab)}
+                      <ExplorerEditorTabContent
+                        tab={activeSecondaryTab}
+                        {...editorTabContentProps}
+                      />
                     </div>
                   ) : null
                 }
@@ -475,7 +563,9 @@ const ExplorerContent = memo(function ExplorerContent({
             ) : (
               <>
                 {fileTabBar}
-                {renderEditorContent(activeTab)}
+                {activeTab ? (
+                  <ExplorerEditorTabContent tab={activeTab} {...editorTabContentProps} />
+                ) : null}
               </>
             )}
           </EditorSplitDropOverlay>
@@ -494,7 +584,7 @@ const ExplorerContent = memo(function ExplorerContent({
       )}
     </>
   );
-});
+}, areExplorerContentPropsEqual);
 
 interface ModalState {
   isOpen: boolean;
