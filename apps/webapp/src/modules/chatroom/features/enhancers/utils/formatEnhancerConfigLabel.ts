@@ -10,6 +10,7 @@ export function formatEnhancerHarnessModelLabel(
 }
 
 /** Full label including target — for tooltips or non-target-scoped display. */
+// fallow-ignore-next-line unused-export
 export function formatEnhancerConfigLabel(entry: EnhancerConfigEntry): string {
   const target = ENHANCER_TARGETS.find((t) => t.id === entry.targetId);
   const targetLabel = target?.label ?? entry.targetId;
