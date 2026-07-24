@@ -525,6 +525,50 @@ describe('useFileTabs navigateActivePreview', () => {
   });
 });
 
+describe('useFileTabs openRight', () => {
+  it('moves source file to primary and opens preview in secondary when previewing a secondary tab', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('docs/readme.md');
+      result.current.pinTab('src/other.ts');
+      result.current.handleEditorSplitDrop('src/other.ts', 'right');
+    });
+
+    act(() => {
+      result.current.openRight('src/other.ts', 'preview');
+    });
+
+    expect(
+      result.current.tabs.some((t) => t.kind === 'preview' && t.filePath === 'src/other.ts')
+    ).toBe(true);
+    expect(result.current.editorSplit?.secondaryTabKeys).toEqual(['src/other.ts::preview']);
+    expect(result.current.editorSplit?.activeSecondaryTabKey).toBe('src/other.ts::preview');
+    expect(result.current.activeTabKey).toBe('src/other.ts');
+  });
+
+  it('keeps other secondary tabs when previewing a primary tab', () => {
+    const { result } = renderHook(() => useFileTabs({ chatroomId: CHATROOM_A }));
+
+    act(() => {
+      result.current.pinTab('docs/readme.md');
+      result.current.pinTab('src/other.ts');
+      result.current.handleEditorSplitDrop('src/other.ts', 'right');
+    });
+
+    act(() => {
+      result.current.openRight('docs/readme.md', 'preview');
+    });
+
+    expect(result.current.editorSplit?.secondaryTabKeys).toEqual([
+      'src/other.ts',
+      'docs/readme.md::preview',
+    ]);
+    expect(result.current.editorSplit?.activeSecondaryTabKey).toBe('docs/readme.md::preview');
+    expect(result.current.activeTabKey).toBe('docs/readme.md');
+  });
+});
+
 describe('computeEditorSplitDrop', () => {
   it('swaps panes when moving sole primary tab to secondary', () => {
     const result = computeEditorSplitDrop({

@@ -82,18 +82,16 @@ import { deriveChatStatus, type AgentPresence, type ChatStatus } from './utils/d
 import { isFocusModeActive } from './utils/focusMode';
 import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
+import { EditorSplitDropOverlay } from './workspace/components/EditorSplitDropOverlay';
+import { EditorSplitLayout } from './workspace/components/EditorSplitLayout';
 import { ExplorerSidebarResizeHandle } from './workspace/components/ExplorerSidebarResizeHandle';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
 import { FileExplorerPanelLoadingShell } from './workspace/components/FileExplorerPanelLoadingShell';
-import { EditorSplitDropOverlay } from './workspace/components/EditorSplitDropOverlay';
-import { EditorSplitLayout } from './workspace/components/EditorSplitLayout';
 import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownFileEditorPane } from './workspace/components/MarkdownFileEditorPane';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
-import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
-import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile, shouldOpenInEditableExplorerPane } from './workspace/file-renderers';
 import { useMultiWorkspaceFileSync } from './workspace/files';
@@ -101,16 +99,10 @@ import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
 import { useExplorerTabCloseShortcut } from './workspace/hooks/useExplorerTabCloseShortcut';
 import type { AgenticQueryMode, EditorTab, UseFileTabsReturn } from './workspace/hooks/useFileTabs';
-import { editorTabKey } from './workspace/hooks/useFileTabs';
+import { editorTabKey, isViewTabKey } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
-import {
-  editorPaneFlexClass,
-  isEditorExpanded,
-  isPreviewExpanded,
-  previewPaneFlexClass,
-} from './workspace/utils/editorExpandLayout';
-import { previewTabDoubleClickAction } from './workspace/utils/explorerExpandHandlers';
+import { isEditorExpanded, isPreviewExpanded } from './workspace/utils/editorExpandLayout';
 import type { FileLocation } from './workspace/utils/fileLocation';
 import { pendingHighlightForLocation } from './workspace/utils/openFileLocation';
 import { resolveWorkspaceFileLinkOpenTarget } from './workspace/utils/workspaceFileLink';
@@ -134,7 +126,6 @@ import { getAppTitle } from '@/lib/environment';
 import { exhaustive } from '@/lib/exhaustive';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { openExternalUrl } from '@/lib/navigation';
-import { cn } from '@/lib/utils';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 const AgentSettingsModal = dynamic(
@@ -270,7 +261,9 @@ const ExplorerContent = memo(function ExplorerContent({
     [openFileOnRemote]
   );
 
-  const hasSplit = fileTabs.rightTabs.length > 0;
+  const hasEditorSplit = !!fileTabs.editorSplit?.enabled;
+  const secondaryTabKeys = fileTabs.editorSplit?.secondaryTabKeys ?? [];
+  const hasSplit = hasEditorSplit && secondaryTabKeys.some(isViewTabKey);
   const editorExpanded = isEditorExpanded(
     hasSplit,
     fileTabs.expandedTabPath,
@@ -283,6 +276,12 @@ const ExplorerContent = memo(function ExplorerContent({
     fileTabs.expandedPane,
     activeFilePath
   );
+  const editorSplitDefaultLayout: [number, number] = editorExpanded
+    ? [90, 10]
+    : previewExpanded
+      ? [10, 90]
+      : [50, 50];
+  const editorSplitLayoutKey = `${fileTabs.editorSplitLayoutEpoch}-${editorExpanded ? 'editor' : previewExpanded ? 'preview' : 'even'}`;
 
   const activeAgenticQueryId = activeTab?.kind === 'agentic-query' ? activeTab.queryId : null;
 
@@ -294,8 +293,6 @@ const ExplorerContent = memo(function ExplorerContent({
     [activeAgenticQueryId, fileTabs]
   );
 
-  const hasEditorSplit = !!fileTabs.editorSplit?.enabled;
-  const secondaryTabKeys = hasEditorSplit ? fileTabs.editorSplit!.secondaryTabKeys : [];
   const secondaryTabKeySet = new Set(secondaryTabKeys);
   const secondaryTabs = hasEditorSplit
     ? fileTabs.tabs.filter((t) => secondaryTabKeys.includes(editorTabKey(t)))
@@ -385,6 +382,26 @@ const ExplorerContent = memo(function ExplorerContent({
         />
       );
     }
+    if (tab.kind === 'preview') {
+      return (
+        <MarkdownPreviewPane
+          key={editorTabKey(tab)}
+          machineId={machineId}
+          workingDir={workingDir}
+          filePath={tab.filePath}
+        />
+      );
+    }
+    if (tab.kind === 'table') {
+      return (
+        <CsvTablePane
+          key={editorTabKey(tab)}
+          machineId={machineId}
+          workingDir={workingDir}
+          filePath={tab.filePath}
+        />
+      );
+    }
     return null;
   };
 
@@ -393,132 +410,65 @@ const ExplorerContent = memo(function ExplorerContent({
 
   return (
     <>
-      {/* Full-width tab bar when no preview/table or editor split */}
-      {showTabBar && !hasSplit && !hasEditorSplit && fileTabBar}
+      {showTabBar && !hasEditorSplit && fileTabBar}
 
-      {/* Content Area — left pane + optional right pane */}
       {showContentArea ? (
         <div className="flex-1 flex min-h-0 overflow-hidden">
-          {/* Left column — editor content (with optional horizontal split) */}
-          <div
-            className={cn(
-              'flex flex-col min-h-0 overflow-hidden',
-              hasSplit
-                ? cn(
-                    editorPaneFlexClass(editorExpanded, previewExpanded, hasSplit),
-                    'border-r border-chatroom-border'
-                  )
-                : 'flex-1'
-            )}
-          >
-            <EditorSplitDropOverlay onSplitDrop={fileTabs.handleEditorSplitDrop}>
-              {hasEditorSplit ? (
-                <EditorSplitLayout
-                  key={fileTabs.editorSplitLayoutEpoch}
-                  defaultLayout={[50, 50]}
-                  primary={
+          <EditorSplitDropOverlay onSplitDrop={fileTabs.handleEditorSplitDrop}>
+            {hasEditorSplit ? (
+              <EditorSplitLayout
+                key={editorSplitLayoutKey}
+                defaultLayout={editorSplitDefaultLayout}
+                primary={
+                  <div className="flex flex-col h-full min-h-0 overflow-hidden">
+                    <FileTabBar
+                      tabs={primaryTabs}
+                      activeTabKey={fileTabs.activeTabKey}
+                      machineId={activeWorkspace?.machineId ?? null}
+                      workingDir={activeWorkspace?.workingDir ?? null}
+                      onActivate={fileTabs.setActiveTab}
+                      onClose={fileTabs.closeTab}
+                      onCloseOthers={fileTabs.closeOtherTabs}
+                      onPin={fileTabs.pinTab}
+                      onToggleExpanded={fileTabs.toggleExpanded}
+                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                      enableDragSplit
+                    />
+                    {activePrimaryTab ? renderEditorContent(activePrimaryTab) : null}
+                  </div>
+                }
+                secondary={
+                  activeSecondaryTab ? (
                     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-                      <FileTabBar
-                        tabs={primaryTabs}
-                        activeTabKey={fileTabs.activeTabKey}
-                        machineId={activeWorkspace?.machineId ?? null}
-                        workingDir={activeWorkspace?.workingDir ?? null}
-                        onActivate={fileTabs.setActiveTab}
-                        onClose={fileTabs.closeTab}
-                        onCloseOthers={fileTabs.closeOtherTabs}
-                        onPin={fileTabs.pinTab}
-                        onToggleExpanded={fileTabs.toggleExpanded}
-                        onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
-                        enableDragSplit
-                      />
-                      {activePrimaryTab ? renderEditorContent(activePrimaryTab) : null}
+                      {renderEditorContent(activeSecondaryTab)}
                     </div>
-                  }
-                  secondary={
-                    activeSecondaryTab ? (
-                      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                        {renderEditorContent(activeSecondaryTab)}
-                      </div>
-                    ) : null
-                  }
-                  secondaryTabBar={
-                    secondaryTabs.length > 0 ? (
-                      <FileTabBar
-                        tabs={secondaryTabs}
-                        activeTabKey={activeSecondaryTabKey}
-                        machineId={activeWorkspace?.machineId ?? null}
-                        workingDir={activeWorkspace?.workingDir ?? null}
-                        onActivate={(key) => fileTabs.moveTabToPrimaryPane(key)}
-                        onClose={fileTabs.closeTab}
-                        onCloseOthers={fileTabs.closeOtherTabs}
-                        onPin={fileTabs.pinTab}
-                        onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
-                        enableDragSplit
-                      />
-                    ) : null
-                  }
-                />
-              ) : (
-                <>
-                  {showTabBar && hasSplit && fileTabBar}
-                  {renderEditorContent(activeTab)}
-                </>
-              )}
-            </EditorSplitDropOverlay>
-          </div>
-
-          {/* Right Pane — preview/table */}
-          {hasSplit && (
-            <div
-              className={cn(
-                'flex flex-col min-h-0 overflow-hidden',
-                previewPaneFlexClass(editorExpanded, previewExpanded)
-              )}
-            >
-              <RightPaneTabBar
-                tabs={fileTabs.rightTabs}
-                activeTabKey={fileTabs.activeRightTabKey}
-                onActivate={fileTabs.setActiveRightTab}
-                onClose={fileTabs.closeRight}
-                onTabDoubleClick={(tab) => {
-                  const action = previewTabDoubleClickAction(tab.viewType, activeFilePath);
-                  if (action?.action === 'togglePreviewExpanded') {
-                    fileTabs.togglePreviewExpanded(action.filePath);
-                  }
-                }}
+                  ) : null
+                }
+                secondaryTabBar={
+                  secondaryTabs.length > 0 ? (
+                    <FileTabBar
+                      tabs={secondaryTabs}
+                      activeTabKey={activeSecondaryTabKey}
+                      machineId={activeWorkspace?.machineId ?? null}
+                      workingDir={activeWorkspace?.workingDir ?? null}
+                      onActivate={fileTabs.setActiveSecondaryTab}
+                      onClose={fileTabs.closeTab}
+                      onCloseOthers={fileTabs.closeOtherTabs}
+                      onPin={fileTabs.pinTab}
+                      onTogglePreviewExpanded={fileTabs.togglePreviewExpanded}
+                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                      enableDragSplit
+                    />
+                  ) : null
+                }
               />
-              {(() => {
-                const activeRight = fileTabs.rightTabs.find(
-                  (t) => t.key === fileTabs.activeRightTabKey
-                );
-                if (!activeRight) return null;
-                const mw = activeWorkspace?.machineId;
-                const wd = activeWorkspace?.workingDir;
-                if (!mw || !wd) return null;
-                if (activeRight.viewType === 'preview') {
-                  return (
-                    <MarkdownPreviewPane
-                      key={activeRight.key}
-                      machineId={mw}
-                      workingDir={wd}
-                      filePath={activeRight.filePath}
-                    />
-                  );
-                }
-                if (activeRight.viewType === 'table') {
-                  return (
-                    <CsvTablePane
-                      key={activeRight.key}
-                      machineId={mw}
-                      workingDir={wd}
-                      filePath={activeRight.filePath}
-                    />
-                  );
-                }
-                return null;
-              })()}
-            </div>
-          )}
+            ) : (
+              <>
+                {fileTabBar}
+                {renderEditorContent(activeTab)}
+              </>
+            )}
+          </EditorSplitDropOverlay>
         </div>
       ) : (
         /* Empty state — no files open in explorer view */
@@ -755,11 +705,11 @@ export function ChatroomDashboard({
   const handleFileSelect = useCallback(
     (filePath: string) => {
       fileTabs.openPreview(filePath);
-      if (isMarkdownFile(filePath) && fileTabs.rightTabs.some((t) => t.viewType === 'preview')) {
+      if (isMarkdownFile(filePath) && fileTabs.tabs.some((t) => t.kind === 'preview')) {
         fileTabs.navigateActivePreview(filePath);
       }
     },
-    [fileTabs.openPreview, fileTabs.navigateActivePreview, fileTabs.rightTabs]
+    [fileTabs.openPreview, fileTabs.navigateActivePreview, fileTabs.tabs]
   );
 
   const handleFileDoubleClick = useCallback(
@@ -1110,7 +1060,7 @@ export function ChatroomDashboard({
       if (target === 'explorer') {
         openFileLocationInExplorer(location);
         if (isMarkdownFile(location.filePath)) {
-          if (fileTabs.rightTabs.some((t) => t.viewType === 'preview')) {
+          if (fileTabs.tabs.some((t) => t.kind === 'preview')) {
             fileTabs.navigateActivePreview(location.filePath);
           } else {
             fileTabs.openRight(location.filePath, 'preview');

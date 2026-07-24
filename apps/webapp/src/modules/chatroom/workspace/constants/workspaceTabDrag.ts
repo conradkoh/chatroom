@@ -1,3 +1,4 @@
+// fallow-ignore-next-line unused-export
 export const WORKSPACE_TAB_DRAG_MIME = 'application/x-chatroom-workspace-tab';
 
 export function setWorkspaceTabDragData(dataTransfer: DataTransfer, tabKey: string): void {

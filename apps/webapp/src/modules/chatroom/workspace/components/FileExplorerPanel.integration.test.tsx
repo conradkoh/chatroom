@@ -145,6 +145,7 @@ const fileTabs = {
   editorSplit: null,
   moveTabToSecondaryPane: vi.fn(),
   moveTabToPrimaryPane: vi.fn(),
+  setActiveSecondaryTab: vi.fn(),
   closeSecondarySplit: vi.fn(),
   handleEditorSplitDrop: vi.fn(),
   editorSplitLayoutEpoch: 0,
