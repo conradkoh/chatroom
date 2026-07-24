@@ -3,6 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { getDaemonMachineAuth } from './auth';
 import { mutation, query } from '../../_generated/server';
+import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
 export const pendingForMachine = query({
   args: {
@@ -40,10 +41,7 @@ export const claimForSpawn = mutation({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const auth = await getDaemonMachineAuth(ctx, args.sessionId, args.machineId);
-    if (!auth) {
-      return { claimed: false as const };
-    }
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     const job = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
     if (!job || job.machineId !== args.machineId) {
