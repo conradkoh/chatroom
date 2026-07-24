@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, type SyntheticEvent } from 'react';
+import { useCallback, useState } from 'react';
 
 import { EnhancerConfigDialog } from './EnhancerConfigDialog';
 import { PlannerEnhancerToggleButton } from './PlannerEnhancerToggleButton';
@@ -59,10 +59,6 @@ export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancer
     [isActive, isEnhancing, config, disableEnhancer, disable, saveConfig]
   );
 
-  const stopRowActivation = useCallback((e: SyntheticEvent) => {
-    e.stopPropagation();
-  }, []);
-
   return (
     <>
       <PlannerEnhancerToggleButton
@@ -71,7 +67,6 @@ export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancer
         isDisabling={isDisabling}
         onToggle={handleToggle}
         onConfigure={() => setDialogOpen(true)}
-        stopRowActivation={stopRowActivation}
       />
 
       <EnhancerConfigDialog

@@ -1,7 +1,6 @@
 'use client';
 
 import { Sparkles } from 'lucide-react';
-import type { SyntheticEvent } from 'react';
 
 import {
   ContextMenu,
@@ -17,15 +16,14 @@ interface PlannerEnhancerToggleButtonProps {
   isDisabling: boolean;
   onToggle: () => void;
   onConfigure: () => void;
-  stopRowActivation: (e: SyntheticEvent) => void;
 }
 
-function toggleButtonClass(isActive: boolean, isEnhancing: boolean): string {
+function barClass(isActive: boolean, isEnhancing: boolean): string {
   return cn(
-    'flex items-center justify-center w-7 h-7 shrink-0 rounded-none transition-colors',
+    'w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer',
     isActive
-      ? 'text-chatroom-accent hover:bg-chatroom-bg-hover'
-      : 'text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover',
+      ? 'text-blue-500 dark:text-blue-400 bg-blue-500/10'
+      : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover',
     isEnhancing && 'animate-pulse'
   );
 }
@@ -36,29 +34,31 @@ export function PlannerEnhancerToggleButton({
   isDisabling,
   onToggle,
   onConfigure,
-  stopRowActivation,
 }: PlannerEnhancerToggleButtonProps) {
+  const label = isActive ? 'Enhancement Enabled' : 'Enhancement Disabled';
+
   return (
     <ContextMenu modal={false}>
       <ContextMenuTrigger asChild>
         <button
           type="button"
-          className={toggleButtonClass(isActive, isEnhancing)}
-          title={isActive ? 'Enhancer on — click to turn off' : 'Enhancer off — click to turn on'}
-          aria-label={isActive ? 'Enhancer enabled' : 'Enhancer disabled'}
+          className={barClass(isActive, isEnhancing)}
+          title={
+            isActive
+              ? 'Enhancement enabled — click to turn off'
+              : 'Enhancement disabled — click to turn on'
+          }
+          aria-label={label}
           aria-pressed={isActive}
           disabled={isDisabling}
           data-testid="planner-enhancer-toggle"
-          onClick={(e) => {
-            stopRowActivation(e);
-            onToggle();
-          }}
-          onKeyDown={stopRowActivation}
+          onClick={onToggle}
         >
           <Sparkles size={14} />
+          {label}
         </button>
       </ContextMenuTrigger>
-      <ContextMenuContent className="min-w-[160px] rounded-none" onClick={stopRowActivation}>
+      <ContextMenuContent className="min-w-[160px] rounded-none">
         <ContextMenuItem
           className="rounded-none"
           onSelect={onConfigure}

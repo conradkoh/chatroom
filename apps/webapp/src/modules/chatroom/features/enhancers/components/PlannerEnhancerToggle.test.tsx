@@ -64,6 +64,23 @@ describe('PlannerEnhancerToggle', () => {
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
 
     expect(screen.getByTestId('planner-enhancer-toggle')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('Enhancement Disabled')).toBeInTheDocument();
+  });
+
+  it('shows enabled label and blue styling when active', () => {
+    mockIsActive = true;
+
+    render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
+
+    expect(screen.getByText('Enhancement Enabled')).toBeInTheDocument();
+    expect(screen.getByTestId('planner-enhancer-toggle')).toHaveClass('text-blue-500');
+    expect(screen.getByTestId('planner-enhancer-toggle')).toHaveClass('bg-blue-500/10');
+  });
+
+  it('shows grey styling when disabled', () => {
+    render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
+
+    expect(screen.getByTestId('planner-enhancer-toggle')).toHaveClass('text-chatroom-text-muted');
   });
 
   it('opens config dialog when toggling on with no config', () => {

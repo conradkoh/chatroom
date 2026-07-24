@@ -44,7 +44,6 @@ interface AgentSidebarRowProps {
   agentConfig: AgentConfig | undefined;
   isLoadingStatuses: boolean;
   onOpen: () => void;
-  enhancerIndicator?: React.ReactNode;
 }
 
 interface AgentSidebarInfoProps {
@@ -96,7 +95,6 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
   agentConfig,
   isLoadingStatuses,
   onOpen,
-  enhancerIndicator,
 }: AgentSidebarRowProps) {
   const online_ = agentStatus?.online ?? false;
   const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
@@ -135,7 +133,6 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
           labelColorClass={labelColorClass}
           lastSeenLabel={lastSeenLabel}
         />
-        {enhancerIndicator}
         {/* View Indicator */}
         <div className="text-chatroom-text-muted">
           <ChevronRight size={14} />
@@ -238,21 +235,29 @@ export const AgentPanel = memo(function AgentPanel({
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
         {/* Each AgentSidebarRow is a proper component with key at the map level */}
-        {agentStatuses.map(({ role }) => (
-          <AgentSidebarRow
-            key={role}
-            role={role}
-            agentStatus={agentStatuses.find((a) => a.role === role)}
-            agentConfig={agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase())}
-            isLoadingStatuses={isLoadingStatuses}
-            onOpen={openAgentListModal}
-            enhancerIndicator={
-              role.toLowerCase() === 'planner' ? (
+        {agentStatuses.flatMap(({ role }) => {
+          const row = (
+            <AgentSidebarRow
+              key={role}
+              role={role}
+              agentStatus={agentStatuses.find((a) => a.role === role)}
+              agentConfig={agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase())}
+              isLoadingStatuses={isLoadingStatuses}
+              onOpen={openAgentListModal}
+            />
+          );
+
+          if (role.toLowerCase() === 'planner') {
+            return [
+              row,
+              <div key="planner-enhancer-bar" className="border-b border-chatroom-border">
                 <PlannerEnhancerToggle chatroomId={chatroomId} machineId={machineId} />
-              ) : undefined
-            }
-          />
-        ))}
+              </div>,
+            ];
+          }
+
+          return [row];
+        })}
       </div>
 
       {/* Unified Agent List Modal - shows ALL agents with inline config/controls */}
