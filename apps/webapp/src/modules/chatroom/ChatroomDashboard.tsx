@@ -262,7 +262,8 @@ const ExplorerContent = memo(function ExplorerContent({
     [openFileOnRemote]
   );
 
-  const hasEditorSplit = !!fileTabs.editorSplit?.enabled;
+  const hasEditorSplit =
+    !!fileTabs.editorSplit?.enabled && fileTabs.editorSplit.secondaryTabKeys.length > 0;
   const secondaryTabKeys = fileTabs.editorSplit?.secondaryTabKeys ?? [];
   const hasSplit = hasEditorSplit && secondaryTabKeys.some(isViewTabKey);
   const editorExpanded = isEditorExpanded(
@@ -294,13 +295,21 @@ const ExplorerContent = memo(function ExplorerContent({
     [activeAgenticQueryId, fileTabs]
   );
 
-  const secondaryTabKeySet = new Set(secondaryTabKeys);
-  const secondaryTabs = hasEditorSplit
-    ? fileTabs.tabs.filter((t) => secondaryTabKeys.includes(editorTabKey(t)))
-    : [];
-  const primaryTabs = hasEditorSplit
-    ? fileTabs.tabs.filter((t) => !secondaryTabKeySet.has(editorTabKey(t)))
-    : fileTabs.tabs;
+  const secondaryTabKeySet = useMemo(() => new Set(secondaryTabKeys), [secondaryTabKeys]);
+  const secondaryTabs = useMemo(
+    () =>
+      hasEditorSplit
+        ? fileTabs.tabs.filter((t) => secondaryTabKeys.includes(editorTabKey(t)))
+        : [],
+    [hasEditorSplit, fileTabs.tabs, secondaryTabKeys]
+  );
+  const primaryTabs = useMemo(
+    () =>
+      hasEditorSplit
+        ? fileTabs.tabs.filter((t) => !secondaryTabKeySet.has(editorTabKey(t)))
+        : fileTabs.tabs,
+    [hasEditorSplit, fileTabs.tabs, secondaryTabKeySet]
+  );
 
   const activeSecondaryTabKey = fileTabs.editorSplit?.activeSecondaryTabKey ?? null;
   const activeSecondaryTab =

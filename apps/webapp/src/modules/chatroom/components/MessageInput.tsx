@@ -239,12 +239,19 @@ export function MessageInput({
   const sendMessage = useSessionMutation(api.messages.sendMessage);
 
   // ── Auto-resize textarea ───────────────────────────────────────────────────
+  const lastTextareaHeightRef = useRef(0);
+
   const autoResize = useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    onBeforeResize?.();
+
     const nextHeight = measureTextareaContentHeightPx(textarea, effectiveMaxTextareaHeightPx);
     textarea.style.height = `${nextHeight}px`;
+
+    if (nextHeight === lastTextareaHeightRef.current) return;
+
+    onBeforeResize?.();
+    lastTextareaHeightRef.current = nextHeight;
     onAfterResize?.();
   }, [onBeforeResize, onAfterResize, effectiveMaxTextareaHeightPx]);
 

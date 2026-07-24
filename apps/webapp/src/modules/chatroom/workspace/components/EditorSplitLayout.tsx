@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
@@ -12,7 +12,7 @@ interface EditorSplitLayoutProps {
   onLayout?: (sizes: [number, number]) => void;
 }
 
-export function EditorSplitLayout({
+export const EditorSplitLayout = memo(function EditorSplitLayout({
   primary,
   secondary,
   secondaryTabBar,
@@ -43,4 +43,4 @@ export function EditorSplitLayout({
       </ResizablePanel>
     </ResizablePanelGroup>
   );
-}
+});
