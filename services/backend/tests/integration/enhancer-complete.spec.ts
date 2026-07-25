@@ -30,7 +30,7 @@ async function insertJob(
       userId,
       targetId: 'handoff:planner-to-builder',
       fromRole: 'planner',
-      toRole: 'builder',
+      toRole: 'enhancer',
       status: overrides.status ?? 'running',
       draftContent: 'Original draft',
       templateSnapshot: '# Template\n## Goal',
@@ -43,7 +43,7 @@ async function insertJob(
       createdAt: Date.now(),
       pendingHandoffArgs: {
         senderRole: 'planner',
-        targetRole: 'builder',
+        targetRole: 'planner',
       },
     });
   });

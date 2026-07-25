@@ -232,15 +232,15 @@ function isEnhancerInterceptedHandoff(params: {
   return (
     params.enhancerIntercepted === true &&
     params.role.toLowerCase() === 'planner' &&
-    params.nextRole.toLowerCase() === 'builder'
+    params.nextRole.toLowerCase() === 'enhancer'
   );
 }
 
 function getEnhancerInterceptedHandoffConfirmationLines(): string[] {
   return [
-    '✅ Delegation brief queued for handoff enhancement',
+    '✅ Enhancement draft queued for handoff enhancer',
     '',
-    'Your draft was sent to the handoff enhancer (async). The builder will receive the enhanced brief when enhancement completes.',
+    'Your draft was sent to the handoff enhancer (async). You will receive the enhanced delegation brief back as a planner task when enhancement completes.',
     '**Run get-next-task now and end your turn** — do not wait for enhancement, poll, or re-submit the handoff.',
   ];
 }
@@ -258,7 +258,7 @@ export function generateHandoffOutput(params: {
   chatroomId: string;
   convexUrl?: string;
   supportsNativeIntegration?: boolean;
-  /** When true, planner→builder handoff was queued for async enhancement. */
+  /** When true, planner→enhancer handoff was queued for async enhancement. */
   enhancerIntercepted?: boolean;
 }): string {
   const { role, nextRole, chatroomId, convexUrl, supportsNativeIntegration, enhancerIntercepted } =

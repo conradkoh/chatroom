@@ -12,7 +12,7 @@ export const getActiveJob = query({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const active = await findActiveEnhancerJob(ctx, args.chatroomId, 'planner', 'builder');
+    const active = await findActiveEnhancerJob(ctx, args.chatroomId, 'planner', 'enhancer');
     if (!active) return null;
     return {
       jobId: active._id,

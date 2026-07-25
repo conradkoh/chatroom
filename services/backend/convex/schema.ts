@@ -3061,6 +3061,7 @@ export default defineSchema({
     draftContent: v.string(),
     enhancedContent: v.optional(v.string()),
     templateSnapshot: v.string(),
+    inputTemplateSnapshot: v.optional(v.string()),
     agentHarness: agentHarnessValidator,
     model: v.string(),
     machineId: v.string(),

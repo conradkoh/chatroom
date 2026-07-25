@@ -34,7 +34,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'builder',
+      targetRole: 'enhancer',
       content: 'Original draft content',
     });
 
@@ -45,7 +45,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(job!.status).toBe('pending');
     expect(job!.draftContent).toBe('Original draft content');
     expect(job!.pendingHandoffArgs).toBeDefined();
-    expect(job!.pendingHandoffArgs!.senderRole).toBe('planner');
+    expect(job!.pendingHandoffArgs!.targetRole).toBe('planner');
 
     const plannerStatus = await t.run(async (ctx) => {
       const participant = await ctx.db
@@ -109,7 +109,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'builder',
+      targetRole: 'enhancer',
       content: 'First draft',
     });
 
@@ -118,13 +118,13 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         sessionId,
         chatroomId,
         senderRole: 'planner',
-        targetRole: 'builder',
+        targetRole: 'enhancer',
         content: 'Second draft',
       })
     ).rejects.toThrow(/ACTIVE_JOB_EXISTS|already active/i);
   });
 
-  test('complete delivers handoff with enhanced content (builder task has enhanced text)', async () => {
+  test('complete delivers enhanced brief to planner for review', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-deliver');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -141,7 +141,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'builder',
+      targetRole: 'enhancer',
       content: 'Original draft content',
     });
 
@@ -159,7 +159,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       enhancedContent: '## Goal\nEnhanced brief\n## Implementation\nDo the enhanced work\n',
     });
 
-    // Builder task should contain enhanced content, not draft
+    // Planner task should contain enhanced content, not draft
     const tasks = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_tasks')
@@ -168,12 +168,12 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         )
         .collect()
     );
-    const builderTask = tasks.find((t) => t.assignedTo === 'builder');
-    expect(builderTask).toBeDefined();
-    expect(builderTask!.content).toContain('Enhanced brief');
-    expect(builderTask!.content).not.toContain('Original draft');
+    const plannerTask = tasks.find((t) => t.assignedTo === 'planner');
+    expect(plannerTask).toBeDefined();
+    expect(plannerTask!.content).toContain('Enhanced brief');
+    expect(plannerTask!.content).not.toContain('Original draft');
 
-    // Handoff message should be enhancer→builder with enhanced content
+    // Handoff message should be enhancer→planner with enhanced content
     const handoffMessages = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_messages')
@@ -183,7 +183,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     const deliveryMsg = handoffMessages.find((m) => m.senderRole === 'enhancer');
     expect(deliveryMsg).toBeDefined();
-    expect(deliveryMsg!.targetRole).toBe('builder');
+    expect(deliveryMsg!.targetRole).toBe('planner');
     expect(deliveryMsg!.enhancerJobId).toBe(jobId);
     expect(deliveryMsg!.content).toContain('Enhanced brief');
     expect(deliveryMsg!.visibleInAllTabOnly).toBe(true);
@@ -212,7 +212,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'builder',
+      targetRole: 'enhancer',
       content: 'Original draft content',
     });
 
@@ -255,7 +255,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     const msg = handoffMessages.find((m) => m.senderRole === 'enhancer');
     expect(msg).toBeDefined();
-    expect(msg!.targetRole).toBe('builder');
+    expect(msg!.targetRole).toBe('planner');
     expect(msg!.content).toContain('Original draft');
     expect(msg!.enhancerJobId).toBe(jobId);
     expect(msg!.visibleInAllTabOnly).toBe(true);
@@ -275,7 +275,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         userId,
         targetId: 'handoff:planner-to-builder',
         fromRole: 'planner',
-        toRole: 'builder',
+        toRole: 'enhancer',
         status: 'running',
         draftContent: 'Original draft',
         templateSnapshot: '# Template\n## Goal',
@@ -289,7 +289,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         runningSince: Date.now(),
         pendingHandoffArgs: {
           senderRole: 'planner',
-          targetRole: 'builder',
+          targetRole: 'planner',
         },
       });
     });
@@ -380,9 +380,9 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         )
         .collect()
     );
-    const builderTask = tasks.find((t) => t.assignedTo === 'builder');
-    expect(builderTask).toBeDefined();
-    expect(builderTask!.content).toContain('Original draft');
+    const plannerTask = tasks.find((t) => t.assignedTo === 'planner');
+    expect(plannerTask).toBeDefined();
+    expect(plannerTask!.content).toContain('Original draft');
 
     // Handoff message should reference the enhancer job
     const handoffMessages = await t.run(async (ctx) =>
@@ -394,7 +394,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     const msg = handoffMessages.find((m) => m.senderRole === 'enhancer');
     expect(msg).toBeDefined();
-    expect(msg!.targetRole).toBe('builder');
+    expect(msg!.targetRole).toBe('planner');
     expect(msg!.content).toContain('Original draft');
     expect(msg!.enhancerJobId).toBe(jobId);
     expect(msg!.visibleInAllTabOnly).toBe(true);

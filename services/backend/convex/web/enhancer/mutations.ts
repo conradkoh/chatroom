@@ -6,6 +6,7 @@ import { deliverPendingHandoffFromJob } from './delivery';
 import {
   resolveWorkspaceForEnhancer,
   resolveHandoffTemplateSnapshot,
+  resolveEnhancerInputTemplateSnapshot,
   computeEnhancerBackoffMs,
   emitEnhancerEvent,
 } from './internal';
@@ -104,7 +105,7 @@ export const enqueueHandoff = mutation({
 
     if (
       args.senderRole.toLowerCase() !== 'planner' ||
-      args.targetRole.toLowerCase() !== 'builder'
+      args.targetRole.toLowerCase() !== 'enhancer'
     ) {
       throw new ConvexError({
         code: 'NOT_APPLICABLE',
@@ -122,7 +123,7 @@ export const enqueueHandoff = mutation({
       throw new ConvexError({ code: 'ENHANCER_NOT_ENABLED', message: 'Enhancer not enabled' });
     }
 
-    const existingActive = await findActiveEnhancerJob(ctx, args.chatroomId, 'planner', 'builder');
+    const existingActive = await findActiveEnhancerJob(ctx, args.chatroomId, 'planner', 'enhancer');
     if (existingActive) {
       throw new ConvexError({
         code: 'ACTIVE_JOB_EXISTS',
@@ -132,6 +133,7 @@ export const enqueueHandoff = mutation({
 
     const workspace = await resolveWorkspaceForEnhancer(ctx, args.chatroomId, config.machineId);
     const templateSnapshot = resolveHandoffTemplateSnapshot(chatroom, args.chatroomId);
+    const inputTemplateSnapshot = resolveEnhancerInputTemplateSnapshot(chatroom, args.chatroomId);
     const now = Date.now();
 
     const jobId = await ctx.db.insert('chatroom_enhancerJobs', {
@@ -139,10 +141,11 @@ export const enqueueHandoff = mutation({
       userId: session.userId,
       targetId: 'handoff:planner-to-builder',
       fromRole: 'planner',
-      toRole: 'builder',
+      toRole: 'enhancer',
       status: 'pending',
       draftContent: args.content,
       templateSnapshot,
+      inputTemplateSnapshot,
       agentHarness: config.agentHarness,
       model: config.model,
       machineId: config.machineId,
@@ -151,8 +154,8 @@ export const enqueueHandoff = mutation({
       maxAttempts: ENHANCER_MAX_ATTEMPTS,
       createdAt: now,
       pendingHandoffArgs: {
-        senderRole: args.senderRole,
-        targetRole: args.targetRole,
+        senderRole: 'planner',
+        targetRole: 'planner',
         attachedArtifactIds: args.attachedArtifactIds,
       },
     });

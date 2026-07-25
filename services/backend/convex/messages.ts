@@ -1638,7 +1638,21 @@ export const getTaskDeliveryPrompt = query({
 
     const availableRoles = waitingParticipants.map((p) => p.role);
     const currentClassification = await getLatestUserMessageClassification(ctx, args.chatroomId);
-    const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles);
+
+    const enhancerConfig = await ctx.db
+      .query('chatroom_enhancerConfigs')
+      .withIndex('by_chatroom_user', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
+      )
+      .unique();
+    const plannerEnhancerEnabled =
+      args.role.toLowerCase() === 'planner' &&
+      enhancerConfig?.enabled === true &&
+      enhancerConfig.targetId === 'handoff:planner-to-builder';
+
+    const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles, {
+      includeEnhancer: plannerEnhancerEnabled,
+    });
 
     // Get context window (reuse getContextWindow logic)
     // Fetch recent messages for context
@@ -1937,17 +1951,6 @@ export const getTaskDeliveryPrompt = query({
     const nativeIntegration = isNativeHarness(agentHarness);
 
     const standingInstructions = getActiveStandingInstructions(chatroom);
-
-    const enhancerConfig = await ctx.db
-      .query('chatroom_enhancerConfigs')
-      .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
-      )
-      .unique();
-    const plannerEnhancerEnabled =
-      args.role.toLowerCase() === 'planner' &&
-      enhancerConfig?.enabled === true &&
-      enhancerConfig.targetId === 'handoff:planner-to-builder';
 
     // Generate the complete CLI output (backend-generated, CLI just prints it)
     const fullCliOutput = generateFullCliOutput({

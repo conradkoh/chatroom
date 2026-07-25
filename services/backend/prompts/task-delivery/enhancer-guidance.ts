@@ -9,32 +9,63 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
   lines.push('<handoff-enhancer>');
   lines.push('## Handoff Enhancer (enabled)');
   lines.push('');
-  lines.push('This chatroom has the **handoff enhancer** enabled for planner→builder delegations.');
+  lines.push(
+    'This chatroom uses a **planner → enhancer → planner → builder** workflow for delegations.'
+  );
   lines.push('');
   lines.push('**How it works:**');
   lines.push(
-    'When you run `chatroom handoff --next-role=builder`, your draft delegation brief is sent to a separate enhancer model before delivery to the builder. Enhancement runs **asynchronously** — the handoff command returns immediately while the enhancer polishes your draft.'
+    '1. Hand off to `enhancer` using the **Handoff to `enhancer`** template (enhancement draft).'
+  );
+  lines.push(
+    '2. The enhancer polishes your draft into a full builder delegation brief **asynchronously** — the handoff command returns immediately.'
+  );
+  lines.push(
+    '3. When enhancement completes, you receive the enhanced brief as a new planner task.'
+  );
+  lines.push(
+    '4. Review the brief, edit if needed, then hand off to `builder` using the builder template (this step is **not** intercepted).'
   );
   lines.push('');
   lines.push(
-    '**The enhancer has no context.** It cannot see this session, prior messages, attachments, or the codebase — only the handoff template and your draft markdown. Anything the builder needs must be written into the delegation brief.'
+    '**The enhancer has no context.** It cannot see this session, prior messages, attachments, or the codebase — only the templates and your draft markdown.'
   );
   lines.push('');
-  lines.push('**Before you hand off to builder:**');
+  lines.push('**Before you hand off to enhancer:**');
   lines.push(
-    '- Write each delegation brief as **fully self-contained** — include all context, file paths, code snippets, and requirements.'
+    '- Follow the **Handoff to `enhancer`** template — include context, goals, and constraints the enhancer cannot infer.'
   );
   lines.push(
-    '- Follow the **Handoff to `builder`** template; the enhancer improves clarity and detail but does not research or add scope.'
+    '- Do not write the full builder delegation brief yet; the enhancer expands your draft into that format.'
   );
   lines.push('');
-  lines.push('**After handoff returns success:**');
+  lines.push('**After handoff to enhancer returns success:**');
   lines.push(
-    '- **Run get-next-task immediately** and end your turn — do not wait for enhancement, poll, or re-submit the handoff.'
+    '- **Run get-next-task immediately** and end your turn — do not wait for enhancement, poll, or re-submit.'
   );
   lines.push(
-    '- **Do not hand off to builder again** while an enhancer job is in progress (you will get an error).'
+    '- **Do not hand off to enhancer again** while a job is in progress (you will get an error).'
   );
   lines.push('');
   lines.push('</handoff-enhancer>');
+}
+
+/** Guidance when planner receives an enhanced brief back from the enhancer. */
+export function appendTaskDeliveryEnhancerReviewGuidance(lines: string[]): void {
+  lines.push('');
+  lines.push('<enhancer-review>');
+  lines.push('## Enhanced Brief Review');
+  lines.push('');
+  lines.push(
+    'This task contains the **enhanced delegation brief** returned by the handoff enhancer.'
+  );
+  lines.push('');
+  lines.push('**Your job:**');
+  lines.push('- Review the brief for accuracy, completeness, and alignment with user intent.');
+  lines.push('- Edit the content if anything is missing or wrong.');
+  lines.push(
+    '- When ready, hand off to `builder` using the **Handoff to `builder`** template with the reviewed brief.'
+  );
+  lines.push('');
+  lines.push('</enhancer-review>');
 }

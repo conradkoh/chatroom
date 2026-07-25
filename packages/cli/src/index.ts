@@ -214,9 +214,9 @@ handoffCommandGroup
       process.exit(1);
     }
 
-    // Check if enhancer should intercept planner→builder handoffs
+    // Check if enhancer should intercept planner→enhancer handoffs
     const shouldEnhance =
-      options.role.toLowerCase() === 'planner' && options.nextRole.toLowerCase() === 'builder';
+      options.role.toLowerCase() === 'planner' && options.nextRole.toLowerCase() === 'enhancer';
     if (shouldEnhance) {
       const { api } = await import('./api.js');
       const { getConvexClient } = await import('./infrastructure/convex/client.js');

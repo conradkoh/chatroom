@@ -36,6 +36,15 @@ export function inferPrimaryHandoffTarget(
 
   if (
     isEntryPoint &&
+    normalizedSender === 'enhancer' &&
+    normalizedRole === 'planner' &&
+    availableHandoffTargets.some((target) => target.toLowerCase() === 'builder')
+  ) {
+    return 'builder';
+  }
+
+  if (
+    isEntryPoint &&
     normalizedSender !== 'user' &&
     availableHandoffTargets.some((target) => target.toLowerCase() === 'user')
   ) {

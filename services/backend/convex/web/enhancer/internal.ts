@@ -56,3 +56,25 @@ export function resolveHandoffTemplateSnapshot(
   }
   return template;
 }
+
+/** Snapshot of the planner→enhancer draft template stored on the job at enqueue time. */
+export function resolveEnhancerInputTemplateSnapshot(
+  chatroom: Doc<'chatroom_rooms'>,
+  chatroomId: Id<'chatroom_rooms'>
+): string {
+  const template = getHandoffTemplate({
+    teamId: chatroom.teamId,
+    fromRole: 'planner',
+    toRole: 'enhancer',
+    nativeIntegration: false,
+    chatroomId,
+    role: 'planner',
+  });
+  if (!template) {
+    throw new ConvexError({
+      code: 'TEMPLATE_NOT_FOUND',
+      message: 'No handoff template for planner→enhancer',
+    });
+  }
+  return template;
+}

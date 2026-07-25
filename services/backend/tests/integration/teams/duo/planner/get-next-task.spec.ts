@@ -82,7 +82,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     });
 
     expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('enhancer has no context');
+    expect(output).toContain('planner → enhancer → planner → builder');
     expect(output).toContain('Run get-next-task immediately');
   });
 

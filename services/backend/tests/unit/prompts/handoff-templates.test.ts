@@ -12,6 +12,7 @@ import { describe, expect, test } from 'vitest';
 import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
 import { getBuilderToPlannerHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/builder-to-planner';
 import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
+import { getPlannerToEnhancerHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-enhancer';
 import { getPlannerToUserReportTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-user';
 import { getSoloToUserReportTemplate } from '../../../prompts/teams/solo/handoff-templates/solo-to-user';
 import {
@@ -23,6 +24,12 @@ describe('handoff-templates > resolver', () => {
   test('resolves planner → builder to the delegation brief', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'builder' })).toBe(
       getPlannerToBuilderHandoffTemplate()
+    );
+  });
+
+  test('resolves planner → enhancer to the enhancement draft template', () => {
+    expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'enhancer' })).toBe(
+      getPlannerToEnhancerHandoffTemplate()
     );
   });
 

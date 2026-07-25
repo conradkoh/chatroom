@@ -34,7 +34,7 @@ describe('daemon.enhancer.index', () => {
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'builder',
+      targetRole: 'enhancer',
       content: 'Draft content',
     });
 
@@ -60,7 +60,7 @@ describe('daemon.enhancer.index', () => {
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'builder',
+      targetRole: 'enhancer',
       content: 'Draft',
     });
 
@@ -102,7 +102,7 @@ describe('daemon.enhancer.index', () => {
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'builder',
+      targetRole: 'enhancer',
       content: 'Draft content here',
     });
 

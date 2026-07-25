@@ -43,7 +43,7 @@ describe('daemon.enhancer.index unauthorized access', () => {
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'builder',
+      targetRole: 'enhancer',
       content: 'Draft',
     });
 
@@ -74,7 +74,7 @@ describe('daemon.enhancer.index unauthorized access', () => {
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'builder',
+      targetRole: 'enhancer',
       content: 'Draft content',
     });
 
@@ -130,7 +130,7 @@ describe('web.enhancer.index job owner access', () => {
         runningSince: Date.now(),
         pendingHandoffArgs: {
           senderRole: 'planner',
-          targetRole: 'builder',
+          targetRole: 'enhancer',
         },
       });
     });

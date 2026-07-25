@@ -54,6 +54,6 @@ export async function hasActivePlannerEnhancerJob(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<boolean> {
-  const active = await findActiveEnhancerJob(ctx, chatroomId, 'planner', 'builder');
+  const active = await findActiveEnhancerJob(ctx, chatroomId, 'planner', 'enhancer');
   return active !== null;
 }

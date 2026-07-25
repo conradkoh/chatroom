@@ -17,10 +17,15 @@ const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
 
 function getNativeDeliveryTemplateTargets(
   teamId: string | undefined,
-  role: string
+  role: string,
+  includeEnhancerTemplate?: boolean
 ): readonly string[] {
   const key = `${(teamId ?? 'duo').toLowerCase()}:${role.toLowerCase()}`;
-  return NATIVE_DELIVERY_TEMPLATE_TARGETS[key] ?? [];
+  const base = NATIVE_DELIVERY_TEMPLATE_TARGETS[key] ?? [];
+  if (!includeEnhancerTemplate || role.toLowerCase() !== 'planner') {
+    return base;
+  }
+  return ['enhancer', ...base];
 }
 
 function renderNativeDeliveryTemplateBlock(
@@ -42,9 +47,19 @@ function renderNativeDeliveryTemplateBlock(
 
 export function appendNativeDeliveryHandoffTemplates(
   lines: string[],
-  params: { teamId?: string; role: string; chatroomId?: string; cliEnvPrefix?: string }
+  params: {
+    teamId?: string;
+    role: string;
+    chatroomId?: string;
+    cliEnvPrefix?: string;
+    includeEnhancerTemplate?: boolean;
+  }
 ): void {
-  const targets = getNativeDeliveryTemplateTargets(params.teamId, params.role);
+  const targets = getNativeDeliveryTemplateTargets(
+    params.teamId,
+    params.role,
+    params.includeEnhancerTemplate
+  );
   const blocks = targets.flatMap(
     (toRole) => renderNativeDeliveryTemplateBlock(params, toRole) ?? []
   );
