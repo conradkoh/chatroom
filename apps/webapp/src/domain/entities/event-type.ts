@@ -39,7 +39,7 @@ export const SUPPORTED_EVENT_TYPES = {
   'agent.stopTimeout': { label: 'Agent Stop Timeout', badge: 'warning' },
   'agent.harnessSessionIdUpdated': { label: 'Harness Session ID Updated', badge: 'info' },
   'agent.awaitingHandoff': { label: 'Awaiting Handoff', badge: 'warning' },
-  'agent.enhancing': { label: 'Enhancing Handoff', badge: 'info' },
+  'agent.enhancing': { label: 'Planning Review', badge: 'info' },
   'agent.taskDelivered': { label: 'Task Delivered', badge: 'success' },
   'agent.taskDeliveryFailed': { label: 'Task Delivery Failed', badge: 'error' },
   'machine.switched': { label: 'Machine Switched', badge: 'info' },
@@ -65,11 +65,11 @@ export const SUPPORTED_EVENT_TYPES = {
   'config.requestRemoval': { label: 'Config Request Removal', badge: 'warning' },
   'command.run': { label: 'Command Run', badge: 'warning' },
   'command.stop': { label: 'Command Stop', badge: 'error' },
-  'enhancer.job.created': { label: 'Enhancer Job Created', badge: 'info' },
-  'enhancer.attempt.failed': { label: 'Enhancer Attempt Failed', badge: 'warning' },
-  'enhancer.job.failed': { label: 'Enhancer Job Failed', badge: 'error' },
-  'enhancer.job.complete': { label: 'Enhancer Job Complete', badge: 'success' },
-  'enhancer.job.cancelled': { label: 'Enhancer Job Cancelled', badge: 'warning' },
+  'enhancer.job.created': { label: 'Planning Review Started', badge: 'info' },
+  'enhancer.attempt.failed': { label: 'Planning Review Attempt Failed', badge: 'warning' },
+  'enhancer.job.failed': { label: 'Planning Review Failed', badge: 'error' },
+  'enhancer.job.complete': { label: 'Planning Review Complete', badge: 'success' },
+  'enhancer.job.cancelled': { label: 'Planning Review Cancelled', badge: 'warning' },
 } as const satisfies Record<string, SupportedEventTypeMeta>;
 
 export type EventTypeName = keyof typeof SUPPORTED_EVENT_TYPES;

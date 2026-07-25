@@ -21,8 +21,8 @@ export function EnhancerActivityBarItem({ chatroomId, machineId }: EnhancerActiv
         type="button"
         className="relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100 text-chatroom-text-muted hover:text-chatroom-text-primary"
         onClick={openDialog}
-        title="Configure enhancer"
-        aria-label="Configure enhancer"
+        title="Configure planning review"
+        aria-label="Configure planning review"
         data-testid="enhancer-activity-bar-item"
       >
         <Sparkles size={20} />

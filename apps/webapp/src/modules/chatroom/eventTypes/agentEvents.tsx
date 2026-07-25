@@ -841,7 +841,7 @@ function renderAgentEnhancingCell(
   return (
     <EventRow
       type="agent.enhancing"
-      badgeText="Enhancing"
+      badgeText="Planning Review"
       badgeColor="info"
       primaryInfo={event.role}
       timestamp={event.timestamp}
@@ -854,7 +854,7 @@ function renderAgentEnhancingDetails(event: AgentEnhancingEvent): React.ReactNod
   return (
     <EventDetails
       eventId={event._id}
-      title="Enhancing Handoff"
+      title="Planning Review"
       timestamp={event.timestamp}
       type="agent.enhancing"
     >

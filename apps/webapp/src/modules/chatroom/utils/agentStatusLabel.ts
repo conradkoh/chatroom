@@ -16,7 +16,7 @@
  *   task.inProgress    | any             | WORKING         | Blue (pulse)
  *   task.completed     | any             | WAITING          | Green
  *   agent.awaitingHandoff | any         | AWAITING HANDOFF | Yellow
- *   agent.enhancing      | any          | ENHANCING        | Blue (pulse)
+ *   agent.enhancing      | any          | PLANNING REVIEW  | Blue (pulse)
  *   agent.exited       | stopped         | OFFLINE         | Grey
  *   agent.exited       | running/undef   | OFFLINE (ERROR) | Red
  *   agent.circuitOpen  | any             | OFFLINE (ERROR) | Red
@@ -83,7 +83,7 @@ const STATIC_STATUS_RESOLUTIONS: Record<StaticStatusEventType, ResolvedAgentStat
   'agent.circuitOpen': { label: 'OFFLINE (ERROR)', variant: 'error' },
   'agent.resumeStormAborted': { label: 'OFFLINE (ERROR)', variant: 'error' },
   'agent.awaitingHandoff': { label: 'AWAITING HANDOFF', variant: 'transitioning' },
-  'agent.enhancing': { label: 'ENHANCING', variant: 'working' },
+  'agent.enhancing': { label: 'PLANNING REVIEW', variant: 'working' },
   'agent.sessionResumeRequested': { label: 'RECONNECTING', variant: 'transitioning' },
   'agent.sessionResumed': { label: 'RECONNECTED', variant: 'ready' },
   'agent.sessionResumeFailed': { label: 'RECONNECT FAILED', variant: 'error' },

@@ -137,7 +137,7 @@ export function EnhancerConfigDialog({
         <DialogHeader>
           <DialogTitle>Enhancer configuration</DialogTitle>
           <DialogDescription>
-            Configure which handoff stage to enhance and which model to use.
+            Choose a planning review target and which enhancer model to use.
           </DialogDescription>
         </DialogHeader>
 

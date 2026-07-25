@@ -18,7 +18,7 @@ function renderJobCreatedCell(
   return (
     <EventRow
       type="enhancer.job.created"
-      badgeText="Enhancer"
+      badgeText="Review"
       badgeColor="info"
       primaryInfo={`Job ${event.jobId.slice(-8)}`}
       secondaryInfo={`Attempt ${event.attemptCount}/${event.maxAttempts}`}
@@ -35,7 +35,7 @@ function renderAttemptFailedCell(
   return (
     <EventRow
       type="enhancer.attempt.failed"
-      badgeText="Enhancer"
+      badgeText="Review"
       badgeColor="warning"
       primaryInfo={`Attempt ${event.attemptCount}`}
       secondaryInfo={event.error}
@@ -49,7 +49,7 @@ function renderJobFailedCell(event: EnhancerJobFailedEvent, isSelected: boolean)
   return (
     <EventRow
       type="enhancer.job.failed"
-      badgeText="Enhancer"
+      badgeText="Review"
       badgeColor="error"
       primaryInfo={event.jobId.slice(-8)}
       secondaryInfo={event.error}
@@ -66,7 +66,7 @@ function renderJobCompleteCell(
   return (
     <EventRow
       type="enhancer.job.complete"
-      badgeText="Enhancer"
+      badgeText="Review"
       badgeColor="success"
       primaryInfo={event.jobId.slice(-8)}
       secondaryInfo={`Attempt ${event.attemptCount}`}
@@ -83,7 +83,7 @@ function renderJobCancelledCell(
   return (
     <EventRow
       type="enhancer.job.cancelled"
-      badgeText="Enhancer"
+      badgeText="Review"
       badgeColor="warning"
       primaryInfo={event.jobId.slice(-8)}
       secondaryInfo={`Attempt ${event.attemptCount}`}
@@ -96,7 +96,7 @@ function renderJobCancelledCell(
 function renderJobCreatedDetails(event: EnhancerJobCreatedEvent): React.ReactNode {
   return (
     <EventDetails
-      title="Enhancer Job Created"
+      title="Planning Review Started"
       timestamp={event.timestamp}
       type="enhancer.job.created"
     >
@@ -109,7 +109,7 @@ function renderJobCreatedDetails(event: EnhancerJobCreatedEvent): React.ReactNod
 function renderAttemptFailedDetails(event: EnhancerAttemptFailedEvent): React.ReactNode {
   return (
     <EventDetails
-      title="Enhancer Attempt Failed"
+      title="Planning Review Attempt Failed"
       timestamp={event.timestamp}
       type="enhancer.attempt.failed"
     >
@@ -123,7 +123,7 @@ function renderAttemptFailedDetails(event: EnhancerAttemptFailedEvent): React.Re
 function renderJobFailedDetails(event: EnhancerJobFailedEvent): React.ReactNode {
   return (
     <EventDetails
-      title="Enhancer Job Failed"
+      title="Planning Review Failed"
       timestamp={event.timestamp}
       type="enhancer.job.failed"
     >
@@ -137,7 +137,7 @@ function renderJobFailedDetails(event: EnhancerJobFailedEvent): React.ReactNode 
 function renderJobCompleteDetails(event: EnhancerJobCompleteEvent): React.ReactNode {
   return (
     <EventDetails
-      title="Enhancer Job Complete"
+      title="Planning Review Complete"
       timestamp={event.timestamp}
       type="enhancer.job.complete"
     >
@@ -150,7 +150,7 @@ function renderJobCompleteDetails(event: EnhancerJobCompleteEvent): React.ReactN
 function renderJobCancelledDetails(event: EnhancerJobCancelledEvent): React.ReactNode {
   return (
     <EventDetails
-      title="Enhancer Job Cancelled"
+      title="Planning Review Cancelled"
       timestamp={event.timestamp}
       type="enhancer.job.cancelled"
     >

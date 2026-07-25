@@ -31,8 +31,8 @@ describe('EnhancerActivityBarItem', () => {
 
     const button = screen.getByTestId('enhancer-activity-bar-item');
     expect(button).not.toHaveAttribute('aria-pressed');
-    expect(button).toHaveAttribute('title', 'Configure enhancer');
-    expect(button).toHaveAttribute('aria-label', 'Configure enhancer');
+    expect(button).toHaveAttribute('title', 'Configure planning review');
+    expect(button).toHaveAttribute('aria-label', 'Configure planning review');
     expect(button.className).toContain('text-chatroom-text-muted');
   });
 
@@ -43,8 +43,8 @@ describe('EnhancerActivityBarItem', () => {
 
     const button = screen.getByTestId('enhancer-activity-bar-item');
     expect(button).not.toHaveAttribute('aria-pressed', 'true');
-    expect(button).toHaveAttribute('title', 'Configure enhancer');
-    expect(button).toHaveAttribute('aria-label', 'Configure enhancer');
+    expect(button).toHaveAttribute('title', 'Configure planning review');
+    expect(button).toHaveAttribute('aria-label', 'Configure planning review');
     expect(button.className).toContain('text-chatroom-text-muted');
     expect(button.querySelector('.bg-chatroom-accent')).toBeNull();
   });

@@ -39,9 +39,9 @@ describe('resolveAgentStatus', () => {
     expect(result).toEqual({ label: 'STOPPING', variant: 'transitioning' });
   });
 
-  it('maps agent.enhancing to ENHANCING with working variant', () => {
+  it('maps agent.enhancing to PLANNING REVIEW with working variant', () => {
     const result = resolveAgentStatus('agent.enhancing', 'running', true);
-    expect(result).toEqual({ label: 'ENHANCING', variant: 'working' });
+    expect(result).toEqual({ label: 'PLANNING REVIEW', variant: 'working' });
   });
 
   it('maps agent.waiting with running to WAITING', () => {
