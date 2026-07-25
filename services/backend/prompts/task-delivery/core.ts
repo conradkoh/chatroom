@@ -6,8 +6,10 @@
 
 import type { TaskDeliveryContextWindow } from './context-staleness';
 import {
+  appendPlanningReviewOutcomeGuidance,
   appendTaskDeliveryEnhancerGuidance,
   appendTaskDeliveryEnhancerReviewGuidance,
+  isPlanningReviewOutcomeContent,
 } from './enhancer-guidance.js';
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
@@ -31,11 +33,17 @@ export interface TaskDeliveryParams extends TaskDeliveryContextWindow {
 
 function appendPlannerEnhancerGuidanceForMessage(
   lines: string[],
-  message: { senderRole: string } | null | undefined
+  message: { senderRole: string; content?: string } | null | undefined,
+  taskContent?: string
 ): void {
   const senderRole = message?.senderRole.toLowerCase();
   if (senderRole === 'enhancer') {
-    appendTaskDeliveryEnhancerReviewGuidance(lines);
+    const body = taskContent ?? message?.content ?? '';
+    if (isPlanningReviewOutcomeContent(body)) {
+      appendPlanningReviewOutcomeGuidance(lines);
+    } else {
+      appendTaskDeliveryEnhancerReviewGuidance(lines);
+    }
     return;
   }
   if (senderRole === 'user') {
@@ -45,12 +53,12 @@ function appendPlannerEnhancerGuidanceForMessage(
 
 function appendTaskDeliveryEnhancerGuidanceIfEnabled(
   lines: string[],
-  params: Pick<TaskDeliveryParams, 'role' | 'plannerEnhancerEnabled' | 'message'>
+  params: Pick<TaskDeliveryParams, 'role' | 'plannerEnhancerEnabled' | 'message' | 'task'>
 ): void {
   if (!params.plannerEnhancerEnabled || params.role.toLowerCase() !== 'planner') {
     return;
   }
-  appendPlannerEnhancerGuidanceForMessage(lines, params.message);
+  appendPlannerEnhancerGuidanceForMessage(lines, params.message, params.task?.content);
 }
 
 function appendTaskDeliveryNextSteps(
@@ -175,7 +183,12 @@ export function appendTaskDeliveryHandoffSections(
     isEntryPoint,
     plannerEnhancerEnabled,
   });
-  appendTaskDeliveryEnhancerGuidanceIfEnabled(lines, { role, plannerEnhancerEnabled, message });
+  appendTaskDeliveryEnhancerGuidanceIfEnabled(lines, {
+    role,
+    plannerEnhancerEnabled,
+    message,
+    task,
+  });
   appendTaskDeliveryHandoffTemplates(lines, {
     teamId,
     role,

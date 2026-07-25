@@ -100,9 +100,26 @@ export function appendTaskDeliveryEnhancerReviewGuidance(lines: string[]): void 
   lines.push(
     '- When ready: delegate to `builder` (implementation) or hand off to `user` (delivery) using the matching template.'
   );
+  lines.push('</enhancer-review>');
+}
+
+export function isPlanningReviewOutcomeContent(content: string): boolean {
+  return /<planning-review-outcome\s/i.test(content);
+}
+
+export function appendPlanningReviewOutcomeGuidance(lines: string[]): void {
+  lines.push('');
+  lines.push('<planning-review-outcome-intake>');
+  lines.push('## Planning review did not complete');
+  lines.push('');
   lines.push(
-    '- If your conclusions changed significantly, **check in with the enhancer again** before proceeding.'
+    'This is **not** enhancer feedback. The review was cancelled or failed before the enhancer could return critiques.'
   );
   lines.push('');
-  lines.push('</enhancer-review>');
+  lines.push('**Your job:**');
+  lines.push('- Do **not** hand off to `enhancer` again for this user instruction.');
+  lines.push('- Continue the linear workflow: delegate to `builder` or hand off to `user`.');
+  lines.push('- Use your original check-in and existing research — no re-review step.');
+  lines.push('');
+  lines.push('</planning-review-outcome-intake>');
 }

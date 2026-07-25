@@ -13,6 +13,7 @@ import {
 import { findActiveEnhancerJob, assertEnhancerJobOwner } from './jobHelpers';
 import { insertPlannerToEnhancerDraftMessage } from './timelineMessages';
 import { ENHANCER_MAX_ATTEMPTS } from '../../../config/reliability';
+import { buildPlanningReviewOutcomeContent } from '../../../src/domain/usecase/enhancer/build-planning-review-outcome';
 import { completePlannerTasksOnEnhancerCheckIn } from '../../../src/domain/usecase/enhancer/complete-planner-tasks-on-check-in';
 import {
   transitionPlannerFromEnhancingToWaiting,
@@ -210,12 +211,12 @@ export const recordAttemptFailure = mutation({
     const now = Date.now();
     const attemptCount = job.attemptCount;
     if (attemptCount >= job.maxAttempts) {
-      // Terminal failure: deliver draft content via handoff before marking failed
+      // Terminal failure: deliver planning-review-outcome envelope before marking failed
       let error = args.error;
       const handoffResult = await deliverPendingHandoffFromJob(ctx, {
         sessionId: args.sessionId,
         job,
-        content: job.draftContent,
+        content: buildPlanningReviewOutcomeContent('failed', error),
       });
       if (!handoffResult.success) {
         error = `${error}; draft handoff delivery failed: ${handoffResult.error?.message}`;
@@ -323,12 +324,12 @@ export const cancelActiveJob = mutation({
     const handoffResult = await deliverPendingHandoffFromJob(ctx, {
       sessionId: args.sessionId,
       job,
-      content: job.draftContent,
+      content: buildPlanningReviewOutcomeContent('cancelled', 'cancelled_by_user'),
     });
     if (!handoffResult.success) {
       throw new ConvexError({
         code: 'HANDOFF_FAILED',
-        message: handoffResult.error?.message ?? 'Failed to deliver original handoff',
+        message: handoffResult.error?.message ?? 'Failed to deliver planning review outcome',
       });
     }
 

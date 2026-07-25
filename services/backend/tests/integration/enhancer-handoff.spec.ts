@@ -317,7 +317,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(draftMsg!.content).toContain('Original draft');
   });
 
-  test('cancelActiveJob delivers draft content and marks job cancelled', async () => {
+  test('cancelActiveJob delivers planning-review-outcome envelope and marks job cancelled', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-cancel');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -367,7 +367,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     expect(cancelEvents.length).toBeGreaterThanOrEqual(1);
 
-    // Handoff should have been delivered with draft content
+    // Handoff should have been delivered with outcome envelope, not draft content
     const handoffMessages = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_messages')
@@ -378,7 +378,9 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     const msg = handoffMessages.find((m) => m.senderRole === 'enhancer');
     expect(msg).toBeDefined();
     expect(msg!.targetRole).toBe('planner');
-    expect(msg!.content).toContain('Original draft');
+    expect(msg!.content).toContain('<planning-review-outcome');
+    expect(msg!.content).toContain('status="cancelled"');
+    expect(msg!.content).not.toContain('Original draft');
     expect(msg!.enhancerJobId).toBe(jobId);
     expect(msg!.visibleInAllTabOnly).toBe(true);
   });
@@ -493,7 +495,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     expect(failedEvents.length).toBeGreaterThanOrEqual(1);
 
-    // Verify handoff was delivered with draft content (terminal failure fallback)
+    // Verify handoff was delivered with planning-review-outcome envelope (not draft content)
     const tasks = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_tasks')
@@ -504,7 +506,9 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     const plannerTask = tasks.find((t) => t.assignedTo === 'planner');
     expect(plannerTask).toBeDefined();
-    expect(plannerTask!.content).toContain('Original draft');
+    expect(plannerTask!.content).toContain('<planning-review-outcome');
+    expect(plannerTask!.content).toContain('status="failed"');
+    expect(plannerTask!.content).not.toContain('Original draft');
 
     // Handoff message should reference the enhancer job
     const handoffMessages = await t.run(async (ctx) =>
@@ -517,7 +521,9 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     const msg = handoffMessages.find((m) => m.senderRole === 'enhancer');
     expect(msg).toBeDefined();
     expect(msg!.targetRole).toBe('planner');
-    expect(msg!.content).toContain('Original draft');
+    expect(msg!.content).toContain('<planning-review-outcome');
+    expect(msg!.content).toContain('status="failed"');
+    expect(msg!.content).not.toContain('Original draft');
     expect(msg!.enhancerJobId).toBe(jobId);
     expect(msg!.visibleInAllTabOnly).toBe(true);
   });
