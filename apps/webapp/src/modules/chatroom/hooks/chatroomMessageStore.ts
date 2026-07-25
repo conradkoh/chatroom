@@ -144,9 +144,16 @@ export function applyVisibleUpdates(existing: Message[], updates: VisibleUpdate[
   const next = existing.map((m) => {
     const u = byId.get(m._id);
     if (!u) return m;
-    if (m.taskStatus === u.taskStatus && sameProgress(m.latestProgress, u.latestProgress)) return m;
+
+    const nextTaskStatus = 'taskStatus' in u ? u.taskStatus : m.taskStatus;
+    const nextProgress = 'latestProgress' in u ? u.latestProgress : m.latestProgress;
+    if (m.taskStatus === nextTaskStatus && sameProgress(m.latestProgress, nextProgress)) return m;
+
     changed = true;
-    return { ...m, taskStatus: u.taskStatus, latestProgress: u.latestProgress };
+    const patched: Message = { ...m };
+    if ('taskStatus' in u) patched.taskStatus = u.taskStatus;
+    if ('latestProgress' in u) patched.latestProgress = u.latestProgress;
+    return patched;
   });
   return changed ? next : existing;
 }

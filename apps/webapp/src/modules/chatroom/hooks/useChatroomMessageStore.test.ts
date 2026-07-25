@@ -111,6 +111,15 @@ describe('applyVisibleUpdates', () => {
     const result = applyVisibleUpdates(existing, []);
     expect(result).toBe(existing);
   });
+
+  it('applies sparse updates without clearing omitted fields', () => {
+    const progress = { content: 'working', senderRole: 'builder', _creationTime: 200 };
+    const existing = [makeMsg('1', 'in_progress', progress)];
+    const updates = [{ _id: '1', taskStatus: 'completed' as Message['taskStatus'] }];
+    const result = applyVisibleUpdates(existing, updates);
+    expect(result[0].taskStatus).toBe('completed');
+    expect(result[0].latestProgress).toEqual(progress);
+  });
 });
 
 describe('removeMessagesForTaskId', () => {
