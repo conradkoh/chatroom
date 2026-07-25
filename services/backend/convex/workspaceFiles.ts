@@ -18,6 +18,10 @@ import {
   validateFilePath,
 } from './workspacePathSecurity';
 import { requireAccess } from '../modules/auth/accessCheck';
+import {
+  compactFileTreeDeltaOperationValidator,
+  expandFileTreeDeltaOperations,
+} from './lib/fileTreeDeltaOps';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -899,7 +903,8 @@ export const getFileTreeShardsV3 = query({
 // Incremental File Tree Sync — revisioned deltas over V2/V3 checkpoints
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const fileTreeDeltaOperationValidator = v.object({
+/** Legacy verbose validator — kept for read-path expansion of pre-compaction rows. */
+const verboseFileTreeDeltaOperationValidator = v.object({
   operation: v.union(v.literal('add'), v.literal('remove'), v.literal('type-change')),
   path: v.string(),
   entryType: v.optional(v.union(v.literal('file'), v.literal('directory'))),
@@ -947,7 +952,7 @@ export const applyFileTreeDeltaBatch = mutation({
     workingDir: v.string(),
     operationId: v.string(),
     baseRevision: v.number(),
-    operations: v.array(fileTreeDeltaOperationValidator),
+    operations: v.array(compactFileTreeDeltaOperationValidator),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -970,17 +975,13 @@ export const applyFileTreeDeltaBatch = mutation({
       throw new Error('File tree delta batch too large');
     }
     for (const operation of args.operations) {
-      validateFilePath(operation.path);
-      if (operation.operation === 'remove') {
-        if (
-          operation.entryType !== undefined ||
-          operation.size !== undefined ||
-          operation.modifiedAt !== undefined
-        ) {
+      validateFilePath(operation.p);
+      if (operation.o === 'r') {
+        if ('e' in operation || 's' in operation || 'm' in operation) {
           throw new Error('Remove operations must contain only a path');
         }
-      } else if (!operation.entryType) {
-        throw new Error(`${operation.operation} operations require entryType`);
+      } else if (!operation.e) {
+        throw new Error(`${operation.o} operations require entry type`);
       }
     }
 
@@ -1007,11 +1008,9 @@ export const applyFileTreeDeltaBatch = mutation({
     await ctx.db.insert('chatroom_workspaceFileTreeDelta', {
       machineId: args.machineId,
       workingDir,
-      operationId: args.operationId,
       baseRevision: args.baseRevision,
       revision,
       operations: args.operations,
-      createdAt: now,
     });
     await ctx.db.insert('chatroom_workspaceFileTreeDeltaOperation', {
       machineId: args.machineId,
@@ -1115,7 +1114,7 @@ export const getFileTreeDeltas = query({
       operationId: row.operationId,
       baseRevision: row.baseRevision,
       revision: row.revision,
-      operations: row.operations,
+      operations: expandFileTreeDeltaOperations(row.operations),
       createdAt: row.createdAt,
     }));
     return {
