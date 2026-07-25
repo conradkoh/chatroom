@@ -29,6 +29,20 @@ export interface TaskDeliveryParams extends TaskDeliveryContextWindow {
   plannerEnhancerEnabled?: boolean;
 }
 
+function appendPlannerEnhancerGuidanceForMessage(
+  lines: string[],
+  message: { senderRole: string } | null | undefined
+): void {
+  const senderRole = message?.senderRole.toLowerCase();
+  if (senderRole === 'enhancer') {
+    appendTaskDeliveryEnhancerReviewGuidance(lines);
+    return;
+  }
+  if (senderRole === 'user') {
+    appendTaskDeliveryEnhancerGuidance(lines);
+  }
+}
+
 function appendTaskDeliveryEnhancerGuidanceIfEnabled(
   lines: string[],
   params: Pick<TaskDeliveryParams, 'role' | 'plannerEnhancerEnabled' | 'message'>
@@ -36,11 +50,7 @@ function appendTaskDeliveryEnhancerGuidanceIfEnabled(
   if (!params.plannerEnhancerEnabled || params.role.toLowerCase() !== 'planner') {
     return;
   }
-  if (params.message?.senderRole.toLowerCase() === 'enhancer') {
-    appendTaskDeliveryEnhancerReviewGuidance(lines);
-    return;
-  }
-  appendTaskDeliveryEnhancerGuidance(lines);
+  appendPlannerEnhancerGuidanceForMessage(lines, params.message);
 }
 
 function appendTaskDeliveryNextSteps(
