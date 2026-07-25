@@ -18,11 +18,7 @@ import {
   appendCliTaskDeliveryFooter,
   appendCliTaskSection,
 } from '../../task-delivery/cli-task-section.js';
-import {
-  appendTaskDeliveryHandoffTargets,
-  appendTaskDeliveryHandoffTemplates,
-  appendTaskDeliveryNextSteps,
-} from '../../task-delivery/core.js';
+import { appendTaskDeliveryHandoffSections } from '../../task-delivery/core.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -77,6 +73,8 @@ export interface FullCliOutputParams {
   sourceAttachments?: PrimaryDeliveryAttachments;
   /** Standing instructions for this chatroom (null = none active). */
   standingInstructions?: string | null;
+  /** When true, planner task delivery includes handoff-enhancer guidance. */
+  plannerEnhancerEnabled?: boolean;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -97,6 +95,7 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     followUpCountSinceOrigin,
     originMessageCreatedAt,
     standingInstructions,
+    plannerEnhancerEnabled,
   } = params;
 
   return generateNativeTaskDeliveryOutput({
@@ -114,6 +113,7 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     followUpCountSinceOrigin,
     originMessageCreatedAt,
     standingInstructions,
+    plannerEnhancerEnabled,
   });
 }
 
@@ -129,34 +129,13 @@ function appendCliSharedHandoffSections(
     | 'message'
     | 'availableHandoffTargets'
     | 'isEntryPoint'
+    | 'plannerEnhancerEnabled'
   >
 ): void {
-  const {
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    teamId,
-    task,
-    message,
-    availableHandoffTargets,
-    isEntryPoint,
-  } = params;
-
-  appendTaskDeliveryNextSteps(lines, {
-    chatroomId,
-    role,
-    cliEnvPrefix,
+  const { message, ...rest } = params;
+  appendTaskDeliveryHandoffSections(lines, {
+    ...rest,
     message: message ? { _id: message._id, senderRole: message.senderRole } : null,
-    availableHandoffTargets,
-    task,
-    isEntryPoint,
-  });
-  appendTaskDeliveryHandoffTemplates(lines, { teamId, role, chatroomId, cliEnvPrefix });
-  appendTaskDeliveryHandoffTargets(lines, {
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    availableHandoffTargets,
   });
 }
 
@@ -183,6 +162,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     nativeIntegration = false,
     sourceAttachments,
     standingInstructions,
+    plannerEnhancerEnabled,
   } = params;
 
   if (nativeIntegration) {
@@ -214,6 +194,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     message,
     availableHandoffTargets,
     isEntryPoint,
+    plannerEnhancerEnabled,
   });
   appendCliTaskDeliveryFooter(lines, { chatroomId, role, cliEnvPrefix });
 

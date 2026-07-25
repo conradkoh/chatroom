@@ -1591,7 +1591,7 @@ export const getTaskDeliveryPrompt = query({
   },
   handler: async (ctx, args): Promise<TaskDeliveryPromptResponse> => {
     // Validate session and check chatroom access
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Fetch current context (time-based staleness only — no message reads).
     const currentContext = await loadCurrentContext(ctx, args.chatroomId);
@@ -1938,6 +1938,17 @@ export const getTaskDeliveryPrompt = query({
 
     const standingInstructions = getActiveStandingInstructions(chatroom);
 
+    const enhancerConfig = await ctx.db
+      .query('chatroom_enhancerConfigs')
+      .withIndex('by_chatroom_user', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
+      )
+      .unique();
+    const plannerEnhancerEnabled =
+      args.role.toLowerCase() === 'planner' &&
+      enhancerConfig?.enabled === true &&
+      enhancerConfig.targetId === 'handoff:planner-to-builder';
+
     // Generate the complete CLI output (backend-generated, CLI just prints it)
     const fullCliOutput = generateFullCliOutput({
       chatroomId: args.chatroomId,
@@ -1970,6 +1981,7 @@ export const getTaskDeliveryPrompt = query({
       nativeIntegration,
       sourceAttachments,
       standingInstructions,
+      plannerEnhancerEnabled,
     });
 
     return {

@@ -203,6 +203,55 @@ describe('generateFullCliOutput — snippet attachments in primary delivery', ()
   });
 });
 
+describe('generateFullCliOutput — planner enhancer guidance', () => {
+  const plannerParams = {
+    ...BASE_PARAMS,
+    teamId: 'duo',
+    role: 'planner',
+    isEntryPoint: true,
+    availableHandoffTargets: ['builder', 'user'],
+    message: {
+      _id: 'test-message-id',
+      senderRole: 'user',
+      content: 'Please implement',
+    },
+    originMessage: {
+      senderRole: 'user',
+      content: 'Please implement',
+      classification: null,
+    },
+  };
+
+  test('includes enhancer section when plannerEnhancerEnabled', () => {
+    const output = generateFullCliOutput({
+      ...plannerParams,
+      plannerEnhancerEnabled: true,
+    });
+
+    expect(output).toContain('<handoff-enhancer>');
+    expect(output).toContain('asynchronously');
+  });
+
+  test('omits enhancer section when disabled', () => {
+    const output = generateFullCliOutput({
+      ...plannerParams,
+      plannerEnhancerEnabled: false,
+    });
+
+    expect(output).not.toContain('<handoff-enhancer>');
+  });
+
+  test('native mode includes enhancer section when enabled', () => {
+    const output = generateFullCliOutput({
+      ...plannerParams,
+      nativeIntegration: true,
+      plannerEnhancerEnabled: true,
+    });
+
+    expect(output).toContain('<handoff-enhancer>');
+  });
+});
+
 describe('generateFullCliOutput — standing instructions', () => {
   const attachments = {
     attachedBacklogItems: [

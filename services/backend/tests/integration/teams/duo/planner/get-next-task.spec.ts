@@ -65,6 +65,46 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('```mermaid');
   });
 
+  test('includes enhancer guidance when plannerEnhancerEnabled', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      plannerEnhancerEnabled: true,
+      message: {
+        _id: 'test-message-id',
+        senderRole: 'user',
+        content: 'Please implement dark mode for the settings page',
+      },
+      originMessage: {
+        senderRole: 'user',
+        content: 'Please implement dark mode for the settings page',
+        classification: null,
+      },
+    });
+
+    expect(output).toContain('<handoff-enhancer>');
+    expect(output).toContain('enhancer has no context');
+    expect(output).toContain('Run get-next-task immediately');
+  });
+
+  test('omits enhancer guidance when plannerEnhancerEnabled is false', () => {
+    const output = generateFullCliOutput({
+      ...BASE_PARAMS,
+      plannerEnhancerEnabled: false,
+      message: {
+        _id: 'test-message-id',
+        senderRole: 'user',
+        content: 'Please implement dark mode for the settings page',
+      },
+      originMessage: {
+        senderRole: 'user',
+        content: 'Please implement dark mode for the settings page',
+        classification: null,
+      },
+    });
+
+    expect(output).not.toContain('<handoff-enhancer>');
+  });
+
   test('task from team member', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,

@@ -11,9 +11,7 @@ import {
   getNativeTaskStartedPromptForHandoffRecipient,
 } from './task-started-content';
 import {
-  appendTaskDeliveryHandoffTargets,
-  appendTaskDeliveryHandoffTemplates,
-  appendTaskDeliveryNextSteps,
+  appendTaskDeliveryHandoffSections,
   type TaskDeliveryParams,
 } from '../task-delivery/core.js';
 import { renderTaskEnvelopeLines } from '../task-delivery/render-task-envelope.js';
@@ -86,6 +84,7 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     followUpCountSinceOrigin,
     originMessageCreatedAt,
     standingInstructions,
+    plannerEnhancerEnabled,
   } = params;
 
   const lines: string[] = [];
@@ -111,21 +110,16 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     isEntryPoint,
     message,
   });
-  appendTaskDeliveryNextSteps(lines, {
+  appendTaskDeliveryHandoffSections(lines, {
     chatroomId,
     role,
     cliEnvPrefix,
+    teamId,
+    task,
     message,
     availableHandoffTargets,
-    task,
     isEntryPoint,
-  });
-  appendTaskDeliveryHandoffTemplates(lines, { teamId, role, chatroomId, cliEnvPrefix });
-  appendTaskDeliveryHandoffTargets(lines, {
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    availableHandoffTargets,
+    plannerEnhancerEnabled,
   });
 
   return lines.join('\n').trim();
