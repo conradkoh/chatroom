@@ -13,8 +13,10 @@ import {
 import React, { useEffect, useCallback, memo } from 'react';
 import Markdown from 'react-markdown';
 
+import { HandoffEnvelopeView } from './timeline/HandoffEnvelopeView';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
+import { hasHandoffEnvelope } from '../utils/parseHandoffEnvelope';
 import type { Message } from '../types/message';
 
 interface MessageDetailModalProps {
@@ -214,12 +216,16 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   </span>
                 </div>
                 <div className={proseClassNames}>
-                  <Markdown
-                    remarkPlugins={chatroomRemarkPlugins}
-                    components={fullMarkdownComponents}
-                  >
-                    {message.content}
-                  </Markdown>
+                  {message.type === 'handoff' && hasHandoffEnvelope(message.content) ? (
+                    <HandoffEnvelopeView content={message.content} variant="detail" />
+                  ) : (
+                    <Markdown
+                      remarkPlugins={chatroomRemarkPlugins}
+                      components={fullMarkdownComponents}
+                    >
+                      {message.content}
+                    </Markdown>
+                  )}
                 </div>
               </div>
               ) : ( // Question/Follow-up: show full message content
@@ -231,12 +237,16 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   </span>
                 </div>
                 <div className={proseClassNames}>
-                  <Markdown
-                    remarkPlugins={chatroomRemarkPlugins}
-                    components={fullMarkdownComponents}
-                  >
-                    {message.content}
-                  </Markdown>
+                  {message.type === 'handoff' && hasHandoffEnvelope(message.content) ? (
+                    <HandoffEnvelopeView content={message.content} variant="detail" />
+                  ) : (
+                    <Markdown
+                      remarkPlugins={chatroomRemarkPlugins}
+                      components={fullMarkdownComponents}
+                    >
+                      {message.content}
+                    </Markdown>
+                  )}
                 </div>
               </div>
             </>
@@ -250,9 +260,16 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                 </span>
               </div>
               <div className={proseClassNames}>
-                <Markdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
-                  {message.content}
-                </Markdown>
+                {message.type === 'handoff' && hasHandoffEnvelope(message.content) ? (
+                  <HandoffEnvelopeView content={message.content} variant="detail" />
+                ) : (
+                  <Markdown
+                    remarkPlugins={chatroomRemarkPlugins}
+                    components={fullMarkdownComponents}
+                  >
+                    {message.content}
+                  </Markdown>
+                )}
               </div>
             </div>
           )}
