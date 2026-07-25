@@ -31,14 +31,14 @@ export async function getWorkspacesForMachine(
   }
 
   try {
-    const workspaces = (await deps.backend.query(
+    const workingDirs = (await deps.backend.query(
       api.workspaces.listRecentlyObservedWorkspacesForMachine,
       {
         sessionId: deps.sessionId,
         machineId: deps.machineId,
       }
-    )) as { workingDir: string }[];
-    const mapped = workspaces.map((ws) => ({ workingDir: ws.workingDir }));
+    )) as string[] | null;
+    const mapped = (workingDirs ?? []).map((workingDir) => ({ workingDir }));
     if (store) {
       store.workspaces = mapped;
       store.updatedAt = Date.now();
