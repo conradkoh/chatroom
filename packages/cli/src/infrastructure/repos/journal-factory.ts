@@ -15,20 +15,20 @@
  */
 
 import type {
-  SessionJournal,
-  JournalFactory,
-} from '../../domain/direct-harness/usecases/open-session.js';
-import type {
   OutputRepository,
   OutputChunk,
 } from '../../domain/direct-harness/ports/output-repository.js';
+import type {
+  SessionJournal,
+  JournalFactory,
+} from '../../domain/direct-harness/usecases/open-session.js';
 
 export interface BufferedJournalFactoryOptions {
   readonly outputRepository: OutputRepository;
   /** Flush interval in milliseconds. Default 500ms. */
   readonly flushIntervalMs?: number;
-  /** Optional logger for debug/warnings + per-chunk record traces. */
-  readonly logger?: Pick<Console, 'warn'> & Partial<Pick<Console, 'log'>>;
+  /** Optional logger for warnings (flush failures). */
+  readonly logger?: Pick<Console, 'warn'>;
 }
 
 export class BufferedJournalFactory implements JournalFactory {
@@ -56,7 +56,6 @@ export class BufferedJournalFactory implements JournalFactory {
       flushInProgress = true;
 
       const batch = buffer.splice(0);
-      console.log(`[journal] Flushing ${batch.length} chunks for session ${harnessSessionId}`);
       outputRepository
         .appendChunks(harnessSessionId, batch)
         .catch((err) => {
@@ -89,11 +88,6 @@ export class BufferedJournalFactory implements JournalFactory {
           messageId: chunk.messageId,
           partType: chunk.partType,
         });
-        // Per-chunk trace so the daemon log shows individual chunks arriving
-        // (the periodic flush log only fires every flushIntervalMs ms).
-        logger.log?.(
-          `[journal] chunk recorded session=${harnessSessionId} messageId=${chunk.messageId ?? '-'} partType=${chunk.partType ?? 'text'} bytes=${chunk.content.length}`
-        );
       },
 
       async flush(): Promise<void> {
