@@ -713,6 +713,61 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     ).rejects.toThrow(/NO_PLANNER_USER_TASK/i);
   });
 
+  test('enqueueHandoff completes only planner tasks, not builder in_progress', async () => {
+    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-only-planner');
+
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId,
+    });
+
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await createPlannerUserMessageAndTask(sessionId, chatroomId, 'Planner task');
+
+    // Create builder in_progress task
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'planner',
+        content: 'Builder task',
+        status: 'in_progress',
+        assignedTo: 'builder',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        queuePosition: 2,
+      });
+    });
+
+    await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: '<user-message>test</user-message>',
+    });
+
+    // Planner task should be completed
+    const allTasks = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+    const plannerTask = allTasks.find((t) => t.createdBy === 'user');
+    expect(plannerTask!.status).toBe('completed');
+
+    // Builder task should still be in_progress
+    const builderTask = allTasks.find((t) => t.assignedTo === 'builder');
+    expect(builderTask).toBeDefined();
+    expect(builderTask!.status).toBe('in_progress');
+  });
+
   test('enqueueHandoff rejects second check-in after cancel', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupWorkspaceForSession('enh-no-cancel-double');
