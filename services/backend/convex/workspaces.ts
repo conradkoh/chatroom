@@ -100,6 +100,7 @@ export const removeWorkspace = mutation({
 /**
  * Observation-first workspace list for a machine (daemon subscription target).
  * Only returns workspaces whose chatroom was observed within `recencyWindowMs`.
+ * Returns workingDir strings only (not full workspace objects) and null when idle.
  */
 export const listRecentlyObservedWorkspacesForMachine = query({
   args: {
@@ -115,10 +116,14 @@ export const listRecentlyObservedWorkspacesForMachine = query({
       resource: { type: 'machine', id: args.machineId },
       permission: 'write-access',
     });
-    return listRecentlyObservedWorkspacesForMachineUseCase(ctx, {
+    const workspaces = await listRecentlyObservedWorkspacesForMachineUseCase(ctx, {
       machineId: args.machineId,
       recencyWindowMs: args.recencyWindowMs ?? WORKSPACE_RECENCY_WINDOW_MS,
     });
+    if (workspaces.length === 0) {
+      return null;
+    }
+    return workspaces.map((ws) => ws.workingDir);
   },
 });
 
