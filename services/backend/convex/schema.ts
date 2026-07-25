@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { compactFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
 import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
 
 const attachedSnippetValidator = v.object({
@@ -2550,25 +2551,17 @@ export default defineSchema({
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
-   * Append-only, ordered file-tree changes after a checkpoint. operationId is
-   * daemon-generated and unique within a workspace, making retries idempotent.
+   * Append-only, ordered file-tree changes after a checkpoint. operationId and
+   * createdAt on the delta row are optional — the receipt table keeps them.
    */
   chatroom_workspaceFileTreeDelta: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
-    operationId: v.string(),
+    operationId: v.optional(v.string()),
     baseRevision: v.number(),
     revision: v.number(),
-    operations: v.array(
-      v.object({
-        operation: v.union(v.literal('add'), v.literal('remove'), v.literal('type-change')),
-        path: v.string(),
-        entryType: v.optional(v.union(v.literal('file'), v.literal('directory'))),
-        size: v.optional(v.number()),
-        modifiedAt: v.optional(v.number()),
-      })
-    ),
-    createdAt: v.number(),
+    operations: v.array(compactFileTreeDeltaOperationValidator),
+    createdAt: v.optional(v.number()),
   })
     .index('by_machine_workingDir_revision', ['machineId', 'workingDir', 'revision'])
     .index('by_machine_workingDir_operationId', ['machineId', 'workingDir', 'operationId']),
