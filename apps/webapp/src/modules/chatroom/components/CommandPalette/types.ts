@@ -40,4 +40,5 @@ export type SettingsTab =
   | 'agents'
   | 'workspaces'
   | 'skills'
-  | 'integrations';
+  | 'integrations'
+  | 'scheduled';

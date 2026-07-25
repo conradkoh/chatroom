@@ -48,7 +48,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const [isStarting, setIsStarting] = useState(false);
   const sendCommand = useSessionMutation(api.machines.sendCommand);
   const restartOfflineAgents = useSessionMutation(api.machines.restartOfflineAgentsFromConfig);
-  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
+  const archiveChatroom = useSessionMutation(api.chatrooms.archive);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
 
@@ -100,14 +100,13 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
 
   const handleArchive = useCallback(async () => {
     try {
-      await updateStatus({
+      await archiveChatroom({
         chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-        status: 'completed',
       });
     } catch (error) {
       console.error('Failed to archive chat:', error);
     }
-  }, [updateStatus, chatroom._id]);
+  }, [archiveChatroom, chatroom._id]);
 
   const handleToggleReadStatus = useCallback(async () => {
     try {

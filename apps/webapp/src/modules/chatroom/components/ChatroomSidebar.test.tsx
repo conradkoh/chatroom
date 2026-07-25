@@ -7,7 +7,7 @@ import { useChatroomListing } from '../context/ChatroomListingContext';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const mockUpdateStatus = vi.fn().mockResolvedValue(undefined);
+const mockArchiveChatroom = vi.fn().mockResolvedValue({ success: true, disabledPromptCount: 0 });
 const mockSendCommand = vi.fn().mockResolvedValue(undefined);
 const mockRestartOfflineAgents = vi.fn().mockResolvedValue({ restartedRoles: ['builder'] });
 const mockMarkAsUnread = vi.fn().mockResolvedValue(undefined);
@@ -41,8 +41,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
       if (name === 'markAsRead') {
         return mockMarkAsRead;
       }
-      if (name === 'updateStatus') {
-        return mockUpdateStatus;
+      if (name === 'archive') {
+        return mockArchiveChatroom;
       }
       if (name === 'sendCommand') {
         return mockSendCommand;
@@ -58,7 +58,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     chatrooms: {
-      updateStatus: { name: 'updateStatus' },
+      archive: { name: 'archive' },
       markAsUnread: { name: 'markAsUnread' },
       markAsRead: { name: 'markAsRead' },
     },
@@ -135,8 +135,8 @@ const renderSidebar = (chatrooms: TestChatroom[]) => {
 
 describe('ChatroomSidebar', () => {
   beforeEach(() => {
-    mockUpdateStatus.mockReset();
-    mockUpdateStatus.mockResolvedValue(undefined);
+    mockArchiveChatroom.mockReset();
+    mockArchiveChatroom.mockResolvedValue({ success: true, disabledPromptCount: 0 });
     mockSendCommand.mockReset();
     mockSendCommand.mockResolvedValue(undefined);
     mockRestartOfflineAgents.mockReset();
@@ -172,7 +172,7 @@ describe('ChatroomSidebar', () => {
     });
   });
 
-  it('selecting "Archive Chat" calls updateStatus with status completed', async () => {
+  it('selecting "Archive Chat" calls archive mutation with chatroomId', async () => {
     const chatroom = makeChatroom();
     renderSidebar([chatroom]);
 
@@ -190,9 +190,8 @@ describe('ChatroomSidebar', () => {
     fireEvent.click(archiveMenuItem);
 
     await waitFor(() => {
-      expect(mockUpdateStatus).toHaveBeenCalledWith({
+      expect(mockArchiveChatroom).toHaveBeenCalledWith({
         chatroomId: chatroom._id,
-        status: 'completed',
       });
     });
   });

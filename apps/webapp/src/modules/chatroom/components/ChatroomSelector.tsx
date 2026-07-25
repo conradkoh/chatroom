@@ -404,7 +404,7 @@ const ChatroomCard = memo(function ChatroomCard({
   onSelect,
   activeTab,
 }: ChatroomCardProps) {
-  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
+  const archiveChatroom = useSessionMutation(api.chatrooms.archive);
   const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
 
   const handleToggleFavorite = useCallback(
@@ -425,15 +425,14 @@ const ChatroomCard = memo(function ChatroomCard({
     async (e: React.MouseEvent) => {
       e.stopPropagation(); // Prevent card click
       try {
-        await updateStatus({
+        await archiveChatroom({
           chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-          status: 'completed',
         });
       } catch (error) {
         console.error('Failed to archive chat:', error);
       }
     },
-    [updateStatus, chatroom._id]
+    [archiveChatroom, chatroom._id]
   );
 
   // Use computed chatStatus from context (single source of truth via deriveChatStatus)
@@ -529,7 +528,7 @@ const ChatroomTable = memo(function ChatroomTable({
   onSelect,
   activeTab,
 }: ChatroomTableProps) {
-  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
+  const archiveChatroom = useSessionMutation(api.chatrooms.archive);
   const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
 
   const handleToggleFavorite = useCallback(
@@ -550,15 +549,14 @@ const ChatroomTable = memo(function ChatroomTable({
     async (e: React.MouseEvent, chatroomId: string) => {
       e.stopPropagation();
       try {
-        await updateStatus({
+        await archiveChatroom({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          status: 'completed',
         });
       } catch (error) {
         console.error('Failed to archive chat:', error);
       }
     },
-    [updateStatus]
+    [archiveChatroom]
   );
 
   // Filter chatrooms based on active tab
