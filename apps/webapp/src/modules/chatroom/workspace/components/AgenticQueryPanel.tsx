@@ -151,9 +151,6 @@ export function AgenticQueryPanel({
     refreshCapabilities(workspaceId as Id<'chatroom_workspaces'>);
   }, [workspaceId, refreshCapabilities]);
 
-  const latestTurn = turns.length > 0 ? turns[turns.length - 1] : null;
-  const olderTurns = turns.length > 1 ? turns.slice(0, -1).reverse() : [];
-
   useEffect(() => {
     if (!query?.title || !onMetaChange) return;
     const next = { title: query.title, mode: query.mode };
@@ -279,21 +276,12 @@ export function AgenticQueryPanel({
         className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4"
         data-testid="agentic-query-results"
       >
-        {latestTurn ? (
-          <AgenticTurnBlock
-            turn={latestTurn}
-            isLatest
-            isRunning={isRunning}
-            activeRunId={activeRunId}
-          />
-        ) : null}
-
-        {olderTurns.map((turn) => (
+        {turns.map((turn, index) => (
           <AgenticTurnBlock
             key={turn._id}
             turn={turn}
-            isLatest={false}
-            isRunning={false}
+            isLatest={index === turns.length - 1}
+            isRunning={index === turns.length - 1 && isRunning}
             activeRunId={activeRunId}
           />
         ))}
