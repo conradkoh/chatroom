@@ -13,6 +13,7 @@ import {
 import { findActiveEnhancerJob, assertEnhancerJobOwner } from './jobHelpers';
 import { insertPlannerToEnhancerDraftMessage } from './timelineMessages';
 import { ENHANCER_MAX_ATTEMPTS } from '../../../config/reliability';
+import { completePlannerTasksOnEnhancerCheckIn } from '../../../src/domain/usecase/enhancer/complete-planner-tasks-on-check-in';
 import {
   transitionPlannerFromEnhancingToWaiting,
   transitionPlannerToEnhancing,
@@ -181,6 +182,8 @@ export const enqueueHandoff = mutation({
       jobId,
       attachedArtifactIds: args.attachedArtifactIds,
     });
+
+    await completePlannerTasksOnEnhancerCheckIn(ctx, args.chatroomId);
 
     return { jobId };
   },

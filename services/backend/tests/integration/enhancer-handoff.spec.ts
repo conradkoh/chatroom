@@ -521,4 +521,84 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(msg!.enhancerJobId).toBe(jobId);
     expect(msg!.visibleInAllTabOnly).toBe(true);
   });
+
+  test('enqueueHandoff completes planner in_progress task to prevent get-next-task loop', async () => {
+    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-no-loop');
+
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId,
+    });
+
+    await joinParticipant(sessionId, chatroomId, 'planner');
+
+    // Create an in_progress task assigned to planner (simulating claimed task)
+    let taskId: Id<'chatroom_tasks'>;
+    await t.run(async (ctx) => {
+      taskId = await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'send a test message to the builder.',
+        status: 'in_progress',
+        assignedTo: 'planner',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        queuePosition: 1,
+      });
+    });
+
+    const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: '<user-message>test</user-message>',
+    });
+
+    const task = await t.run(async (ctx) => ctx.db.get(taskId!));
+    expect(task!.status).toBe('completed');
+
+    const activePlannerTasks = await t.run(async (ctx) => {
+      const all = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+      return all.filter(
+        (t) =>
+          t.assignedTo === 'planner' &&
+          ['pending', 'acknowledged', 'in_progress'].includes(t.status)
+      );
+    });
+    expect(activePlannerTasks).toHaveLength(0);
+
+    // After enhancer completes, planner gets NEW task (not the old one)
+    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId,
+      machineId,
+    });
+
+    await t.mutation(api.web.enhancer.index.complete, {
+      sessionId,
+      chatroomId,
+      jobId,
+      enhancedContent: '## Summary\nFeedback\n',
+    });
+
+    const pendingPlanner = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'pending')
+        )
+        .collect()
+    );
+    expect(pendingPlanner.some((t) => t.assignedTo === 'planner')).toBe(true);
+    expect(pendingPlanner.find((t) => t.assignedTo === 'planner')!._id).not.toBe(taskId!);
+  });
 });
