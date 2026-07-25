@@ -28,7 +28,10 @@ import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/r
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
-import { transitionPlannerFromEnhancingToWaiting } from '../src/domain/usecase/enhancer/planner-enhancing-status';
+import {
+  hasActivePlannerEnhancerJob,
+  transitionPlannerFromEnhancingToWaiting,
+} from '../src/domain/usecase/enhancer/planner-enhancing-status';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
 import {
   createTask as createTaskUsecase,
@@ -552,6 +555,27 @@ async function _handoffHandler(
 
   const normalizedTargetRole = args.targetRole.toLowerCase();
   const isHandoffToUser = normalizedTargetRole === 'user';
+
+  if (
+    normalizedSenderRole === 'planner' &&
+    (normalizedTargetRole === 'builder' || isHandoffToUser)
+  ) {
+    const enhancerReviewInProgress = await hasActivePlannerEnhancerJob(ctx, args.chatroomId);
+    if (enhancerReviewInProgress) {
+      return {
+        success: false,
+        error: {
+          code: 'ENHANCER_REVIEW_IN_PROGRESS',
+          message:
+            'Cannot hand off to builder or user while enhancer review is in progress. Run get-next-task and wait for planning feedback, then incorporate it before proceeding.',
+        },
+        messageId: null,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+      };
+    }
+  }
 
   // Validate targetRole is a known team member (or user)
   if (!isHandoffToUser) {

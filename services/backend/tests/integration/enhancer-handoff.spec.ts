@@ -124,6 +124,43 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     ).rejects.toThrow(/ACTIVE_JOB_EXISTS|already active/i);
   });
 
+  test('rejects planner handoff to builder while enhancer review is in progress', async () => {
+    const { sessionId, chatroomId, machineId } =
+      await setupWorkspaceForSession('enh-block-builder');
+
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId,
+    });
+
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: 'Check-in draft',
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'builder',
+      content: 'Too early — enhancer still reviewing',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('ENHANCER_REVIEW_IN_PROGRESS');
+  });
+
   test('complete delivers enhanced brief to planner for review', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-deliver');
 
