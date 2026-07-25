@@ -1,69 +1,37 @@
 # Enhancers — Requirements & Implementation Plan
 
-**Branch:** `feat/enhancers` (from `release/v1.74.0`)  
-**PR:** #1085  
-**Status:** Implemented (slices 1–2 complete)
+**Branch:** `feat/planner-enhancer-task-delivery`  
+**PR:** #1113  
+**Status:** Planner-aware workflow implemented (slices 2.0–2.6)
 
 ## Problem
 
-Planner→builder handoffs are the primary delegation surface in duo teams. Planners often use capable but cheaper models for ongoing work; the delegation brief quality varies with context pressure and model capability. We want to optionally route handoff text through a **single-turn enhancement pass** using a more capable (expensive) model — improving fidelity and detail **without** running that model for full agentic work (code editing, tool use, multi-turn sessions).
+Planner→builder handoffs are the primary delegation surface in duo teams. Planners often use capable but cheaper models for ongoing work; the delegation brief quality varies with context pressure and model capability. We want an **optional planning review phase** between planner and builder — the planner checks in with the enhancer, receives planning feedback, then proceeds to builder when ready. The enhancer critiques and improves the planning, but does not rewrite the builder brief.
 
 ## Goals
 
-| #   | Goal                    | Summary                                                                                                                        |
-| --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Single-turn enhancement | One completion call; no tools, no research, no subagents                                                                       |
-| 2   | Template-aware          | Enhancer sees the **canonical handoff template** for the sender→target pair **and** the **filled handoff** to enhance          |
-| 3   | Same output shape       | Enhanced result remains a valid handoff in the **same markdown structure** as the input (delegation brief for planner→builder) |
-| 4   | CLI delivery            | Enhancer agent submits output via `chatroom enhancer complete` before session disposal                                         |
-| 5   | User control            | User enables enhancer per chatroom, picks target phase + harness/model (slice 1 UI)                                            |
+| #   | Goal                                      | Summary                                                                                       |
+| --- | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 1   | Single-turn planning critique             | One completion call; no tools, no research, no subagents                                      |
+| 2   | Template-aware                            | Enhancer sees reference planner→builder template + produces planning feedback output          |
+| 3   | Returns planning feedback to planner      | Enhancer output is a checklist/notes for planner review, not a rewritten builder brief        |
+| 4   | CLI async queue on planner→enhancer       | Planner checks in via `chatroom handoff --next-role=enhancer`; daemon spawns enhancer session |
+| 5   | User opt-in per chatroom, per instruction | User enables enhancer per chatroom; enhancer role injected via `buildAvailableHandoffRoles`   |
 
 ## Non-goals (v1)
 
-- Enhancing user-facing handoffs (planner→user) — first target is planner→builder only
+- Rewriting planner briefs into builder-ready handoffs
 - Multi-turn enhancer sessions or tool use
 - Enhancer doing its own codebase research
-- Replacing the planner agent or changing handoff FSM semantics beyond intercept-and-continue
-
----
+- Replacing the planner agent — explicit planner check-in required when enabled
 
 ## Architecture Overview
 
-```mermaid
-flowchart TD
-    subgraph Planner
-        P[Planner runs chatroom handoff]
-    end
+See **[Shipped architecture](#shipped-architecture)** below — the mermaid diagram and module table there describe the production flow.
 
-    subgraph Intercept
-        I{Enhancer enabled for\nhandoff:planner-to-builder?}
-        I -->|no| D[Direct handoff mutation]
-        I -->|yes| Q[Queue enhancer job]
-    end
+**Workflow:** `user → planner → enhancer → planner → builder → user`
 
-    subgraph EnhancerSession
-        T[getHandoffTemplate\nplanner → builder]
-        F[Filled handoff draft]
-        E[Single-turn LLM completion\nno tools]
-        C[chatroom enhancer complete]
-        T --> E
-        F --> E
-        E --> C
-    end
-
-    subgraph Delivery
-        H[handoff mutation with\nenhanced content]
-        B[Builder receives task]
-    end
-
-    P --> I
-    Q --> EnhancerSession
-    C --> H
-    H --> B
-    D --> B
-```
-
-**Pattern:** Mirror **agentic query** (web/daemon command → harness session → task envelope → CLI complete) but domain is **handoff enhancement**, not workspace search.
+The remaining sections of this doc detail each component of the shipped flow.
 
 ## Shipped architecture
 
@@ -114,9 +82,11 @@ The target id `handoff:planner-to-builder` remains as a feature toggle id — it
 
 The enhancer prompt **must** include:
 
-### 1. Handoff template (structure contract)
+### 1. Handoff template (reference contract)
 
-Resolved server-side via `getHandoffTemplate()`:
+The enhancer receives the planner→builder handoff template as a **reference only** — to understand what the builder expects. The enhancer does not generate a builder brief; it generates **planning feedback** for the planner. The enhancer→planner feedback template is built into the enhancer system prompt.
+
+Planner→builder template resolved server-side via `getHandoffTemplate()`:
 
 ```typescript
 getHandoffTemplate({
@@ -132,8 +102,6 @@ getHandoffTemplate({
 
 Source: [services/backend/prompts/cli/handoff-templates/index.ts](services/backend/prompts/cli/handoff-templates/index.ts)  
 Duo planner→builder body: [services/backend/prompts/teams/duo/handoff-templates/planner-to-builder.ts](services/backend/prompts/teams/duo/handoff-templates/planner-to-builder.ts)
-
-The template tells the enhancer **what sections and quality bar** the output must satisfy.
 
 ### 2. Planner check-in (content to review)
 
@@ -240,15 +208,15 @@ Not a new command table — enhancer jobs are claimed via `claimForSpawn` mutati
 
 ## Implementation phases
 
-| Phase | Slice            | Deliverable                                                     | Commit             |
-| ----- | ---------------- | --------------------------------------------------------------- | ------------------ |
-| 0     | **2.0 (this)**   | `docs/plans/enhancers.md`                                       | `d6bbde8b9`        |
-| 1     | **2.1**          | Convex schema + `enhancerConfigs` sync from webapp              | `84dd9be85`        |
-| 2     | **2.2**          | `chatroom enhancer complete` CLI + prompts + mutation           | `ee43e71a0`        |
-| 3     | **2.3**          | Handoff CLI interception + job lifecycle + retries + delivery   | `bd2647605`        |
-| 4     | **2.4**          | Daemon spawn + single-turn session lifecycle                    | `0dc4eae1a`        |
-| 5     | **2.5** (merged) | Combined with 2.4 — same daemon lifecycle                       | —                  |
-| 6     | **2.6** (merged) | Integration tests (config, complete, handoff, spawn — 17 tests) | Across all commits |
+| Phase | Slice            | Deliverable                                                                       | Commit             |
+| ----- | ---------------- | --------------------------------------------------------------------------------- | ------------------ |
+| 0     | **2.0 (this)**   | `docs/plans/enhancers.md`                                                         | `d6bbde8b9`        |
+| 1     | **2.1**          | Convex schema + `enhancerConfigs` sync from webapp                                | `84dd9be85`        |
+| 2     | **2.2**          | `chatroom enhancer complete` CLI + prompts + mutation                             | `ee43e71a0`        |
+| 3     | **2.3**          | CLI async queue on planner→enhancer check-in + job lifecycle + retries + delivery | `bd2647605`        |
+| 4     | **2.4**          | Daemon spawn + single-turn session lifecycle                                      | `0dc4eae1a`        |
+| 5     | **2.5** (merged) | Combined with 2.4 — same daemon lifecycle                                         | —                  |
+| 6     | **2.6** (merged) | Integration tests (config, complete, handoff, spawn — 17 tests)                   | Across all commits |
 
 ---
 
@@ -256,18 +224,28 @@ Not a new command table — enhancer jobs are claimed via `claimForSpawn` mutati
 
 **Path (proposed):** `services/backend/prompts/enhancer/render-task-envelope.ts`
 
+The XML envelope delivered to the enhancer includes a `<planner-check-in>` section with three subsections (`user-message`, `grounding`, `builder-handoff`) instead of a flat `<draft-handoff>`:
+
 ```xml
 <enhancer-job job-id="..." target="handoff:planner-to-builder">
   <handoff-template>
-  ... resolved getHandoffTemplate output ...
+  ... resolved getHandoffTemplate output (reference) ...
   </handoff-template>
-  <draft-handoff>
-  ... planner draft markdown ...
-  </draft-handoff>
+  <planner-check-in>
+    <user-message>
+    ... original user instruction that triggered this work ...
+    </user-message>
+    <grounding>
+    ... relevant context/background for the planning review ...
+    </grounding>
+    <builder-handoff>
+    ... planner's draft builder brief for critique ...
+    </builder-handoff>
+  </planner-check-in>
   <requirements>
   - Single-turn only. No tools. No research.
-  - Output must follow handoff-template structure exactly.
-  - Improve detail and fidelity; do not change scope.
+  - Return planning feedback for the planner (not a rewritten builder brief).
+  - Highlight gaps, risks, and improvement suggestions.
   </requirements>
   <cli-complete-command>
   chatroom enhancer complete --chatroom-id=... --job-id=... << 'CHATROOM_ENHANCER_END'

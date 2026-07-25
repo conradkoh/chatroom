@@ -278,7 +278,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       sessionId,
       chatroomId,
       jobId,
-      enhancedContent: '## Goal\nEnhanced brief\n## Implementation\nDo the enhanced work\n',
+      enhancedContent: '## Summary\nPlanning feedback\n## User intent assessment\nLooks good\n',
     });
 
     // Planner task should contain enhanced content, not draft
@@ -292,10 +292,10 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     const plannerTask = tasks.find((t) => t.assignedTo === 'planner');
     expect(plannerTask).toBeDefined();
-    expect(plannerTask!.content).toContain('Enhanced brief');
+    expect(plannerTask!.content).toContain('Planning feedback');
     expect(plannerTask!.content).not.toContain('Original draft');
 
-    // Handoff message should be enhancer→planner with enhanced content
+    // Handoff message should be enhancer→planner with planning feedback
     const handoffMessages = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_messages')
@@ -307,7 +307,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(deliveryMsg).toBeDefined();
     expect(deliveryMsg!.targetRole).toBe('planner');
     expect(deliveryMsg!.enhancerJobId).toBe(jobId);
-    expect(deliveryMsg!.content).toContain('Enhanced brief');
+    expect(deliveryMsg!.content).toContain('Planning feedback');
     expect(deliveryMsg!.visibleInAllTabOnly).toBe(true);
 
     const draftMsg = handoffMessages.find(

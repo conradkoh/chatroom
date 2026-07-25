@@ -147,7 +147,7 @@ describe('web.enhancer.index job owner access', () => {
         sessionId,
         chatroomId,
         jobId,
-        enhancedContent: '## Goal\nEnhanced\n',
+        enhancedContent: '## Summary\nPlanning feedback\n',
       })
     ).rejects.toThrow(/NOT_AUTHORIZED_JOB/);
   });

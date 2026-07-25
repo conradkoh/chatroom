@@ -59,14 +59,14 @@ describe('web.enhancer.index.complete', () => {
       sessionId,
       chatroomId,
       jobId,
-      enhancedContent: '## Goal\nEnhanced brief content\n',
+      enhancedContent: '## Summary\nPlanning feedback content\n',
     });
 
     expect(result.success).toBe(true);
 
     const job = await t.run(async (ctx) => ctx.db.get(jobId));
     expect(job!.status).toBe('complete');
-    expect(job!.enhancedContent).toBe('## Goal\nEnhanced brief content');
+    expect(job!.enhancedContent).toBe('## Summary\nPlanning feedback content');
     expect(job!.completedAt).toBeDefined();
   });
 
