@@ -2351,6 +2351,28 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_platform', ['chatroomId', 'platform']),
 
+  /**
+   * Scheduled prompts that fire as user messages on interval/daily schedules.
+   */
+  chatroom_scheduledPrompts: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    name: v.optional(v.string()),
+    prompt: v.string(),
+    scheduleKind: v.union(v.literal('interval'), v.literal('daily')),
+    intervalMinutes: v.optional(v.number()),
+    hourUTC: v.optional(v.number()),
+    minuteUTC: v.optional(v.number()),
+    disabledReason: v.optional(v.union(v.literal('user'), v.literal('archive'))),
+    isRunnable: v.boolean(),
+    nextRunAt: v.optional(v.number()),
+    lastRunAt: v.optional(v.number()),
+    createdBy: v.id('users'),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_isRunnable_nextRunAt', ['isRunnable', 'nextRunAt']),
+
   // ─── Command Runner ─────────────────────────────────────────────────────────
   // Synced commands discovered from package.json scripts and turbo.json tasks.
 

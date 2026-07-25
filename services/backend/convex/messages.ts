@@ -24,8 +24,8 @@ import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
-import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
+import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
 import {
@@ -37,14 +37,10 @@ import {
   collectActiveTasks,
   completeTasks,
 } from '../src/domain/usecase/task/complete-active-tasks';
-import {
-  createTask as createTaskUsecase,
-  shouldEnqueueMessage,
-} from '../src/domain/usecase/task/create-task';
+import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { deleteUserMessageOrTask as deleteUserMessageOrTaskUsecase } from '../src/domain/usecase/task/delete-user-message-or-task';
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
 import { resolveUserMessageRef } from '../src/domain/usecase/task/resolve-user-message-task-link';
-import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
 import { type TaskStatus } from '../src/domain/usecase/task/transition-task';
 import { updateUserMessageOrTask as updateUserMessageOrTaskUsecase } from '../src/domain/usecase/task/update-user-message-or-task';
 
@@ -99,8 +95,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
-    | undefined;
+    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -117,8 +112,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached artifacts
   let attachedArtifacts:
-    | { _id: string; filename: string; description?: string; mimeType?: string }[]
-    | undefined;
+    { _id: string; filename: string; description?: string; mimeType?: string }[] | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
       msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
@@ -378,63 +372,35 @@ async function _sendMessageHandler(
     args.type === 'handoff' && targetRole && targetRole.toLowerCase() !== 'user';
 
   if (isUserMessage) {
-    const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
-    const assignedTo = getTeamEntryPoint(chatroom ?? {}) ?? undefined;
-    const enqueue = await shouldEnqueueMessage(ctx, args.chatroomId);
-
-    if (enqueue) {
-      // ─── Queued path: store in chatroom_messageQueue only — no task created yet ──
-      // Tasks are created at promotion time (when the queued message is promoted to active).
-      const queuedMessageId = await ctx.db.insert('chatroom_messageQueue', {
-        chatroomId: args.chatroomId,
-        senderRole: args.senderRole,
-        targetRole,
-        content: args.content,
-        type: 'message' as const,
-        queuePosition,
-        ...messageAttachmentInsertFields(args),
+    const result = await sendAutomatedUserMessage(ctx, {
+      chatroomId: args.chatroomId,
+      content: args.content,
+      ...(args.attachedTaskIds?.length ? { attachedTaskIds: args.attachedTaskIds } : {}),
+      ...(args.attachedBacklogItemIds?.length
+        ? { attachedBacklogItemIds: args.attachedBacklogItemIds }
+        : {}),
+      ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
+      ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
+    });
+    if (!result.ok) {
+      if (result.reason === 'empty_content') {
+        throw new ConvexError({
+          code: 'EMPTY_CONTENT',
+          message: 'Message content cannot be empty',
+        });
+      }
+      if (result.reason === 'content_too_long') {
+        throw new ConvexError({
+          code: 'CONTENT_TOO_LONG',
+          message: `Message must be 10000 chars or less`,
+        });
+      }
+      throw new ConvexError({
+        code: 'CHATROOM_NOT_ACTIVE',
+        message: 'Chatroom is not active',
       });
-
-      // Update materialized queue count
-      await adjustTaskCount(ctx, args.chatroomId, 'queueSize', 1);
-
-      // Update chatroom lastActivityAt
-      await ctx.db.patch('chatroom_rooms', args.chatroomId, {
-        lastActivityAt: Date.now(),
-      });
-
-      return queuedMessageId; // Return queue record ID as opaque message ID
     }
-    // ─── Pending path: existing flow (store in chatroom_messages) ────────
-    const messageId = await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: args.senderRole,
-      content: args.content,
-      targetRole,
-      type: args.type,
-      ...messageAttachmentInsertFields(args),
-    });
-
-    await ctx.db.patch('chatroom_rooms', args.chatroomId, {
-      lastActivityAt: Date.now(),
-    });
-
-    const { taskId } = await createTaskUsecase(ctx, {
-      chatroomId: args.chatroomId,
-      createdBy: 'user',
-      content: args.content,
-      forceStatus: undefined,
-      assignedTo,
-      sourceMessageId: messageId,
-      attachedTaskIds: args.attachedTaskIds,
-      queuePosition,
-    });
-
-    await ctx.db.patch('chatroom_messages', messageId, { taskId });
-
-    await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
-
-    return messageId;
+    return result.messageId;
   }
   // ─── Non-user messages: always write to chatroom_messages ────────────────
   const messageId = await ctx.db.insert('chatroom_messages', {
@@ -483,24 +449,6 @@ const attachedSnippetArgsValidator = v.object({
   fileSource: v.string(),
   selectedContent: v.string(),
 });
-
-type MessageAttachmentInserts = {
-  attachedTaskIds?: Id<'chatroom_tasks'>[];
-  attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
-  attachedMessageIds?: Id<'chatroom_messages'>[];
-  attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
-};
-
-function messageAttachmentInsertFields(args: MessageAttachmentInserts) {
-  return {
-    ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
-    ...(args.attachedBacklogItemIds?.length && {
-      attachedBacklogItemIds: args.attachedBacklogItemIds,
-    }),
-    ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
-    ...(args.attachedSnippets?.length && { attachedSnippets: args.attachedSnippets }),
-  };
-}
 
 const sendMessageMutationArgs = {
   ...SessionIdArg,
@@ -620,7 +568,7 @@ async function _handoffHandler(
   const now = Date.now();
 
   // Step 1: Complete ALL in_progress and acknowledged tasks
-  let tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
+  const tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
 
   if (isHandoffToUser) {
     const pendingForSender = await ctx.db

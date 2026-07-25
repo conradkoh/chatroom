@@ -48,6 +48,8 @@ const ACCESS_CHECK_PATTERNS = [
   'requireBacklogItemForChatroom',
   // savedCommandsAuth.ts — scope-aware access for saved commands
   'requireSavedCommandAccess',
+  // scheduledPrompts.ts — delegates to requireChatroomAccess
+  'requireScheduledPromptAccess',
   'validateSession',
   'checkSession',
   'getAuthenticatedWebUser',
