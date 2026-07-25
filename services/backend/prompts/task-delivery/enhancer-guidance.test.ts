@@ -12,7 +12,7 @@ describe('appendTaskDeliveryEnhancerGuidance', () => {
     const output = lines.join('\n');
 
     expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('planner → enhancer → planner → builder');
+    expect(output).toContain('You MUST check in with the enhancer');
     expect(output).toContain('Handoff to `enhancer`');
     expect(output).toContain('enhancer has no context');
     expect(output).toContain('asynchronously');
@@ -29,8 +29,8 @@ describe('appendTaskDeliveryEnhancerReviewGuidance', () => {
     const output = lines.join('\n');
 
     expect(output).toContain('<enhancer-review>');
-    expect(output).toContain('Enhanced Brief Review');
-    expect(output).toContain('hand off to `builder`');
+    expect(output).toContain('Enhancer Planning Feedback');
+    expect(output).toContain('delegate to `builder`');
     expect(output).toContain('</enhancer-review>');
   });
 });
