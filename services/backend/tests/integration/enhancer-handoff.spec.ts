@@ -161,6 +161,91 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(result.error?.code).toBe('ENHANCER_REVIEW_IN_PROGRESS');
   });
 
+  test('rejects planner handoff to user while enhancer review is in progress', async () => {
+    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-block-user');
+
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId,
+    });
+
+    await joinParticipant(sessionId, chatroomId, 'planner');
+
+    await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: 'Check-in draft',
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'user',
+      content: 'Too early — enhancer still reviewing',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('ENHANCER_REVIEW_IN_PROGRESS');
+  });
+
+  test('allows planner handoff to builder after enhancer job completes', async () => {
+    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession(
+      'enh-allow-after-complete'
+    );
+
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId,
+    });
+
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: 'Check-in draft',
+    });
+
+    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId,
+      machineId,
+    });
+
+    await t.mutation(api.web.enhancer.index.complete, {
+      sessionId,
+      chatroomId,
+      jobId,
+      enhancedContent: '## Summary\nFeedback incorporated',
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'builder',
+      content: 'Delegation after enhancer feedback',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   test('complete delivers enhanced brief to planner for review', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-deliver');
 
