@@ -90,7 +90,10 @@ ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
 
 ${getUnresolvedDecisionsSectionBlock()}
 
-## Notes / Next steps
-<anything the user should know, follow-ups, or open questions>
+## Notes
+<anything the user should know — context, caveats, or observations not covered above. Omit if none.>
+
+## Next steps
+<follow-up actions for the user or team. Omit if none.>
 \`\`\``;
 }

@@ -167,8 +167,11 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - <decision or question — options considered, recommendation if any>
       <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
-      ## Notes / Next steps
-      <anything the user should know, follow-ups, or open questions>
+      ## Notes
+      <anything the user should know — context, caveats, or observations not covered above. Omit if none.>
+
+      ## Next steps
+      <follow-up actions for the user or team. Omit if none.>
       \`\`\`"
     `);
   });
@@ -538,8 +541,11 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - <decision or question — options considered, recommendation if any>
       <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
-      ## Notes / Next steps
-      <anything the user should know, follow-ups, or open questions>
+      ## Notes
+      <anything the user should know — context, caveats, or observations not covered above. Omit if none.>
+
+      ## Next steps
+      <follow-up actions for the user or team. Omit if none.>
       \`\`\`"
     `);
   });
