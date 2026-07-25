@@ -58,12 +58,9 @@ vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => 
   }),
 }));
 
+const mockUseAgenticQueryRunTurnStore = vi.fn();
 vi.mock('../hooks/useAgenticQueryRunTurnStore', () => ({
-  useAgenticQueryRunTurnStore: () => ({
-    turns: [],
-    streamingOverlay: null,
-    isLoading: false,
-  }),
+  useAgenticQueryRunTurnStore: (...args: unknown[]) => mockUseAgenticQueryRunTurnStore(...args),
 }));
 
 Object.defineProperty(window, 'matchMedia', {
@@ -85,6 +82,11 @@ describe('AgenticQueryPanel', () => {
     vi.clearAllMocks();
     mockSubmit.mockResolvedValue(undefined);
     mockToSubmitSelection.mockReturnValue({ harnessName: 'opencode-sdk' });
+    mockUseAgenticQueryRunTurnStore.mockReturnValue({
+      turns: [],
+      streamingOverlay: null,
+      isLoading: false,
+    });
     mockUseAgenticQuery.mockReturnValue({
       query: { status: 'draft', mode: 'search', title: 'Agentic Search' },
       turns: [],
@@ -146,7 +148,7 @@ describe('AgenticQueryPanel', () => {
     expect(screen.getByTestId('agentic-query-config-bar')).toBeInTheDocument();
   });
 
-  it('keeps the composer above results with latest response directly below', () => {
+  it('keeps the composer below results with latest response directly above', () => {
     mockUseAgenticQuery.mockReturnValue({
       query: { status: 'complete', mode: 'search', title: 'How auth works' },
       turns: [
@@ -181,12 +183,41 @@ describe('AgenticQueryPanel', () => {
     const latestTurn = screen.getByTestId('agentic-query-latest-turn');
 
     expect(
-      composer.compareDocumentPosition(results) & Node.DOCUMENT_POSITION_FOLLOWING
+      results.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(latestTurn).toHaveTextContent('Latest question');
     expect(latestTurn).toHaveTextContent('Latest answer');
     expect(screen.getByText('First answer')).toBeInTheDocument();
     expect(screen.getByText('First question')).toBeInTheDocument();
+  });
+
+  it('shows collapsed thinking block while streaming reasoning tokens', () => {
+    mockUseAgenticQueryRunTurnStore.mockReturnValue({
+      turns: [],
+      streamingOverlay: {
+        turnId: 'turn-stream',
+        textContent: '',
+        reasoningContent: 'Let me search the codebase...',
+      },
+      isLoading: false,
+    });
+
+    mockUseAgenticQuery.mockReturnValue({
+      query: { status: 'running', mode: 'search', title: 'Search' },
+      turns: [{ _id: 'turn-1', seq: 0, userMessage: 'find auth', createdAt: 1 }],
+      isLoading: false,
+      isRunning: true,
+      isDraft: false,
+      canFollowUp: false,
+      canSubmit: false,
+      activeRunId: 'run-1',
+      submit: mockSubmit,
+    });
+
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+    expect(screen.getByText('Thinking')).toBeInTheDocument();
+    expect(screen.queryByText('Let me search the codebase...')).not.toBeInTheDocument();
   });
 
   it('submits on Enter', async () => {
