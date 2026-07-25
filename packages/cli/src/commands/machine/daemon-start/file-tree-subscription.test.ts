@@ -159,9 +159,9 @@ describe('startFileTreeSubscriptionEffect', () => {
         operationId: 'operation-1',
         baseRevision: 3,
         operations: [
-          { operation: 'add', path: 'new.ts', entryType: 'file' },
-          { operation: 'remove', path: 'old.ts' },
-          { operation: 'type-change', path: 'src', entryType: 'directory' },
+          { o: 'a', p: 'new.ts', e: 'f' },
+          { o: 'r', p: 'old.ts' },
+          { o: 't', p: 'src', e: 'd' },
         ],
       })
     );

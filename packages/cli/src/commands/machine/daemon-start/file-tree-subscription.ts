@@ -60,18 +60,18 @@ async function syncScannedFileTree(
 function toDeltaOperations(delta: WorkspacePendingDelta) {
   return [
     ...delta.added.map((entry) => ({
-      operation: 'add' as const,
-      path: entry.path,
-      entryType: entry.type,
+      o: 'a' as const,
+      p: entry.path,
+      e: entry.type === 'directory' ? ('d' as const) : ('f' as const),
     })),
     ...delta.removed.map((entryPath) => ({
-      operation: 'remove' as const,
-      path: entryPath,
+      o: 'r' as const,
+      p: entryPath,
     })),
     ...delta.typeChanged.map((entry) => ({
-      operation: 'type-change' as const,
-      path: entry.path,
-      entryType: entry.type,
+      o: 't' as const,
+      p: entry.path,
+      e: entry.type === 'directory' ? ('d' as const) : ('f' as const),
     })),
   ];
 }
