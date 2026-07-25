@@ -42,9 +42,10 @@ describe('renderEnhancerTaskEnvelope', () => {
     expect(result).toContain('do not investigate the repository');
   });
 
-  it('focuses on immediate handoff improvements', () => {
+  it('focuses on planning critique', () => {
     const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('immediate improvements to the handoff');
+    expect(result).toContain('user-intent assessment');
+    expect(result).toContain('knowledge gaps');
   });
 
   it('contains requirements list', () => {

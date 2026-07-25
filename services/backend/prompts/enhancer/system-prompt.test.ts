@@ -28,9 +28,10 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).toContain('Do NOT explore the codebase');
   });
 
-  it('focuses on immediate handoff improvements', () => {
+  it('focuses on planning review', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('immediate, actionable improvements');
+    expect(result).toContain('planning reviewer');
+    expect(result).toContain('knowledge gaps');
   });
 
   it('does not contain hard-coded role references', () => {

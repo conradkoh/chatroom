@@ -42,16 +42,16 @@ export function resolveHandoffTemplateSnapshot(
 ): string {
   const template = getHandoffTemplate({
     teamId: chatroom.teamId,
-    fromRole: 'planner',
-    toRole: 'builder',
+    fromRole: 'enhancer',
+    toRole: 'planner',
     nativeIntegration: false,
     chatroomId,
-    role: 'planner',
+    role: 'enhancer',
   });
   if (!template) {
     throw new ConvexError({
       code: 'TEMPLATE_NOT_FOUND',
-      message: 'No handoff template for planner→builder',
+      message: 'No handoff template for enhancer→planner',
     });
   }
   return template;
