@@ -186,7 +186,17 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
     })
   );
 
-  // Batch enhancer job lookups removed — draft/enhanced content now shown as separate timeline messages.
+  // Batch enhancer job lookups: fetch draftContent for messages linked to enhancer jobs
+  const uniqueJobIds = [
+    ...new Set(messages.flatMap((m) => (m.enhancerJobId != null ? [m.enhancerJobId] : []))),
+  ];
+  const jobDraftMap = new Map<string, string>();
+  await Promise.all(
+    uniqueJobIds.map(async (id) => {
+      const job = await ctx.db.get('chatroom_enhancerJobs', id);
+      if (job?.draftContent) jobDraftMap.set(id.toString(), job.draftContent);
+    })
+  );
 
   const enrichedMessages = await Promise.all(
     messages.map(async (message) => {
@@ -204,11 +214,17 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
         ? progressByTaskId.get(message.taskId.toString())
         : undefined;
 
+      const enhancerOriginalContent =
+        message.enhancerJobId != null
+          ? jobDraftMap.get(message.enhancerJobId.toString())
+          : undefined;
+
       return {
         ...message,
         ...(taskStatus && { taskStatus }),
         ...attachments,
         ...(latestProgress && { latestProgress }),
+        ...(enhancerOriginalContent && { enhancerOriginalContent }),
       };
     })
   );

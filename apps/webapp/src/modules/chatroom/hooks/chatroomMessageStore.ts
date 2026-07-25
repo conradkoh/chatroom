@@ -56,6 +56,7 @@ export function toMessage(m: any): Message {
     latestProgress: m.latestProgress,
     isQueued: m.isQueued,
     contextCreatedBy: m.contextCreatedBy,
+    enhancerOriginalContent: m.enhancerOriginalContent,
   };
 }
 
