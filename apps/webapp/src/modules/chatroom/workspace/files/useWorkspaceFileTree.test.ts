@@ -44,8 +44,6 @@ const mocks = vi.hoisted(() => ({
   deltaResult: undefined as
     | {
         status: 'ok';
-        checkpointRevision: number;
-        currentRevision: number;
         deltas: {
           baseRevision: number;
           revision: number;
@@ -58,7 +56,7 @@ const mocks = vi.hoisted(() => ({
             | { operation: 'remove'; path: string }
           )[];
         }[];
-        hasMore: boolean;
+        hasMore?: true;
       }
     | null
     | undefined,
@@ -307,8 +305,6 @@ describe('useWorkspaceFileTree', () => {
     });
     mocks.deltaResult = {
       status: 'ok',
-      checkpointRevision: 3,
-      currentRevision: 4,
       deltas: [
         {
           baseRevision: 3,
@@ -319,7 +315,6 @@ describe('useWorkspaceFileTree', () => {
           ],
         },
       ],
-      hasMore: false,
     };
 
     const { result } = renderHook(() => useWorkspaceFileTree(args));
