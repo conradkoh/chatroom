@@ -148,7 +148,7 @@ describe('AgenticQueryPanel', () => {
     expect(screen.getByTestId('agentic-query-config-bar')).toBeInTheDocument();
   });
 
-  it('keeps the composer below results with latest response directly above', () => {
+  it('renders turns in chronological order with newest at bottom', () => {
     mockUseAgenticQuery.mockReturnValue({
       query: { status: 'complete', mode: 'search', title: 'How auth works' },
       turns: [
@@ -181,9 +181,18 @@ describe('AgenticQueryPanel', () => {
     const composer = screen.getByTestId('agentic-query-composer');
     const results = screen.getByTestId('agentic-query-results');
     const latestTurn = screen.getByTestId('agentic-query-latest-turn');
+    const historyTurn = screen.getByTestId('agentic-query-history-turn');
 
     expect(
       results.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    // Oldest turn appears before newest in document order
+    expect(
+      historyTurn.compareDocumentPosition(latestTurn) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    // Newest turn is last in results, directly above composer
+    expect(
+      latestTurn.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(latestTurn).toHaveTextContent('Latest question');
     expect(latestTurn).toHaveTextContent('Latest answer');
