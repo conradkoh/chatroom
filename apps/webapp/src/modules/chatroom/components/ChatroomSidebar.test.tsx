@@ -26,6 +26,24 @@ vi.mock('./AgentPanel/UnifiedAgentListModal', () => ({
     isOpen ? <div data-testid="start-agent-modal">Start Agent Modal</div> : null,
 }));
 
+vi.mock('./LifecycleConfirmDialog', () => ({
+  LifecycleConfirmDialog: ({ open, onOpenChange }: any) =>
+    open ? (
+      <div data-testid="archive-dialog">
+        <span>Archive this chat?</span>
+        <button onClick={() => onOpenChange(false)}>Cancel</button>
+        <button
+          onClick={() => {
+            // Simulate confirm
+            onOpenChange(false);
+          }}
+        >
+          Archive
+        </button>
+      </div>
+    ) : null,
+}));
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
 }));
@@ -59,6 +77,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     chatrooms: {
       archive: { name: 'archive' },
+      getLifecycleImpacts: { name: 'getLifecycleImpacts' },
       markAsUnread: { name: 'markAsUnread' },
       markAsRead: { name: 'markAsRead' },
     },
@@ -172,7 +191,7 @@ describe('ChatroomSidebar', () => {
     });
   });
 
-  it('selecting "Archive Chat" calls archive mutation with chatroomId', async () => {
+  it('selecting "Archive Chat" opens archive confirmation dialog (does not call mutation directly)', async () => {
     const chatroom = makeChatroom();
     renderSidebar([chatroom]);
 
@@ -190,10 +209,11 @@ describe('ChatroomSidebar', () => {
     fireEvent.click(archiveMenuItem);
 
     await waitFor(() => {
-      expect(mockArchiveChatroom).toHaveBeenCalledWith({
-        chatroomId: chatroom._id,
-      });
+      expect(screen.getByTestId('archive-dialog')).toBeInTheDocument();
     });
+
+    // Mutation should NOT be called on menu select — only on dialog confirm
+    expect(mockArchiveChatroom).not.toHaveBeenCalled();
   });
 
   it('shows "Mark as Unread" in context menu for active chatrooms', async () => {
