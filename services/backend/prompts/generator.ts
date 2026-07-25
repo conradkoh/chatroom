@@ -238,10 +238,10 @@ function isEnhancerInterceptedHandoff(params: {
 
 function getEnhancerInterceptedHandoffConfirmationLines(): string[] {
   return [
-    '✅ Enhancement draft queued for handoff enhancer',
+    '✅ Planning check-in queued for handoff enhancer',
     '',
-    'Your draft was sent to the handoff enhancer (async). You will receive the enhanced delegation brief back as a planner task when enhancement completes.',
-    '**Run get-next-task now and end your turn** — do not wait for enhancement, poll, or re-submit the handoff.',
+    'Your check-in was sent to the handoff enhancer (async). You will receive planning feedback back as a planner task when review completes.',
+    '**Run get-next-task now and end your turn** — do not wait for feedback, poll, or re-submit the handoff.',
   ];
 }
 
