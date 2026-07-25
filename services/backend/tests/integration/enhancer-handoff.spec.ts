@@ -11,6 +11,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { setupWorkspaceForSession } from './direct-harness/fixtures';
+import { joinParticipant } from '../helpers/integration';
 
 describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle', () => {
   test('enqueueHandoff creates job and enhancer.job.created event', async () => {
@@ -26,6 +27,8 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       model: 'anthropic/claude-opus-4',
       machineId,
     });
+
+    await joinParticipant(sessionId, chatroomId, 'planner');
 
     const result = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
       sessionId,
@@ -43,6 +46,21 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(job!.draftContent).toBe('Original draft content');
     expect(job!.pendingHandoffArgs).toBeDefined();
     expect(job!.pendingHandoffArgs!.senderRole).toBe('planner');
+
+    const plannerStatus = await t.run(async (ctx) => {
+      const participant = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'planner')
+        )
+        .unique();
+      return {
+        lastStatus: participant?.lastStatus ?? null,
+        exists: participant !== null,
+      };
+    });
+    expect(plannerStatus.exists).toBe(true);
+    expect(plannerStatus.lastStatus).toBe('agent.enhancing');
 
     const events = await t.run(async (ctx) =>
       ctx.db

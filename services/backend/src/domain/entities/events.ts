@@ -229,6 +229,13 @@ export type AgentAwaitingHandoffEvent = {
   timestamp: number;
 };
 
+export type AgentEnhancingEvent = {
+  type: 'agent.enhancing';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  timestamp: number;
+};
+
 export type TaskAcknowledgedEvent = {
   type: 'task.acknowledged';
   chatroomId: Id<'chatroom_rooms'>;
@@ -339,6 +346,7 @@ export type ChatroomEvent =
   | AgentRestartLimitReachedEvent
   | AgentStopTimeoutEvent
   | AgentAwaitingHandoffEvent
+  | AgentEnhancingEvent
   | EnhancerJobCreatedEvent
   | EnhancerAttemptFailedEvent
   | EnhancerJobFailedEvent

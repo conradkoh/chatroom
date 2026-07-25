@@ -1677,6 +1677,12 @@ export default defineSchema({
         role: v.string(),
         timestamp: v.number(),
       }),
+      v.object({
+        type: v.literal('agent.enhancing'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        timestamp: v.number(),
+      }),
       // Enhancer job created for planner→builder handoff
       v.object({
         type: v.literal('enhancer.job.created'),

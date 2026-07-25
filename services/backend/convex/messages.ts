@@ -28,6 +28,7 @@ import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/r
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
+import { transitionPlannerFromEnhancingToWaiting } from '../src/domain/usecase/enhancer/planner-enhancing-status';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
 import {
   createTask as createTaskUsecase,
@@ -711,6 +712,10 @@ async function _handoffHandler(
       lastSeenAt: Date.now(),
       ...(isHandoffToUser ? { lastInFlightTaskId: undefined } : {}),
     });
+  }
+
+  if (args.enhancerJobId && normalizedSenderRole === 'planner') {
+    await transitionPlannerFromEnhancingToWaiting(ctx, args.chatroomId);
   }
 
   // Step 5: Attached backlog items remain in their current status on handoff.

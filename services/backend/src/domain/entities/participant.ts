@@ -46,6 +46,7 @@ const ONLINE_OR_STARTING_STATUSES = new Set([
   'task.completed',
   'agent.requestStop',
   'agent.awaitingHandoff',
+  'agent.enhancing',
 ]);
 
 function isOnlineOrStartingStatus(status: string | null): boolean {

@@ -11,6 +11,10 @@ import {
 } from './internal';
 import { findActiveEnhancerJob, assertEnhancerJobOwner } from './jobHelpers';
 import { ENHANCER_MAX_ATTEMPTS } from '../../../config/reliability';
+import {
+  transitionPlannerFromEnhancingToWaiting,
+  transitionPlannerToEnhancing,
+} from '../../../src/domain/usecase/enhancer/planner-enhancing-status';
 import { mutation } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
 import { agentHarnessValidator } from '../../schema';
@@ -165,6 +169,8 @@ export const enqueueHandoff = mutation({
       now
     );
 
+    await transitionPlannerToEnhancing(ctx, args.chatroomId);
+
     return { jobId };
   },
 });
@@ -218,6 +224,7 @@ export const recordAttemptFailure = mutation({
         },
         now
       );
+      await transitionPlannerFromEnhancingToWaiting(ctx, args.chatroomId);
       return { terminal: true, status: 'failed' as const };
     }
 
