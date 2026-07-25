@@ -57,6 +57,9 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
   lines.push(
     '- **Do not hand off to enhancer again** while a job is in progress (you will get an error).'
   );
+  lines.push(
+    '- **Do not hand off to builder or user** while enhancer review is in progress — wait for feedback first (the server will reject early handoffs).'
+  );
   lines.push('');
   lines.push('</handoff-enhancer>');
 }
@@ -73,8 +76,16 @@ export function appendTaskDeliveryEnhancerReviewGuidance(lines: string[]): void 
   lines.push('');
   lines.push('**Your job:**');
   lines.push('- Read each feedback section (user intent, knowledge gaps, reasoning, alignment).');
-  lines.push('- Update your understanding, research, or conclusions based on valid critiques.');
+  lines.push(
+    '- **Do not run `context new`** — continue the user task context (`context read` only if needed).'
+  );
+  lines.push(
+    '- Update your understanding, research, or builder handoff draft based on valid critiques.'
+  );
   lines.push('- If gaps remain, do more research before proceeding.');
+  lines.push(
+    '- If you **already delegated to builder** before this feedback arrived, wait for the builder handback — do not delegate again.'
+  );
   lines.push(
     '- When ready: delegate to `builder` (implementation) or hand off to `user` (delivery) using the matching template.'
   );

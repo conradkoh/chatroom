@@ -6,6 +6,7 @@
  * delivers work; the agent completes it and hands off.
  */
 
+import { getNativeEnhancerReviewTaskIntake } from './enhancer-review-intake';
 import {
   getNativeTaskStartedPrompt,
   getNativeTaskStartedPromptForHandoffRecipient,
@@ -18,6 +19,27 @@ import { renderTaskEnvelopeLines } from '../task-delivery/render-task-envelope.j
 
 export type NativeTaskDeliveryParams = TaskDeliveryParams;
 
+function resolveNativeTaskIntakeContent(
+  params: Pick<
+    NativeTaskDeliveryParams,
+    'chatroomId' | 'role' | 'cliEnvPrefix' | 'isEntryPoint' | 'message'
+  >
+): string {
+  const { chatroomId, role, cliEnvPrefix, isEntryPoint, message } = params;
+  if (!isEntryPoint) {
+    return getNativeTaskStartedPromptForHandoffRecipient();
+  }
+  if (message?.senderRole.toLowerCase() === 'enhancer') {
+    return getNativeEnhancerReviewTaskIntake();
+  }
+  return getNativeTaskStartedPrompt({
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    triggerMessageId: message?._id,
+  });
+}
+
 function appendNativeTaskIntake(
   lines: string[],
   params: Pick<
@@ -25,18 +47,7 @@ function appendNativeTaskIntake(
     'chatroomId' | 'role' | 'cliEnvPrefix' | 'teamId' | 'isEntryPoint' | 'message'
   >
 ): void {
-  const { chatroomId, role, cliEnvPrefix, isEntryPoint, message } = params;
-
-  const taskIntakeContent = isEntryPoint
-    ? getNativeTaskStartedPrompt({
-        chatroomId,
-        role,
-        cliEnvPrefix,
-        triggerMessageId: message?._id,
-      })
-    : getNativeTaskStartedPromptForHandoffRecipient();
-
-  lines.push('', '<task-intake>', taskIntakeContent, '</task-intake>');
+  lines.push('', '<task-intake>', resolveNativeTaskIntakeContent(params), '</task-intake>');
 }
 
 function appendNativeTaskSection(

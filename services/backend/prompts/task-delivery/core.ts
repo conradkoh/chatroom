@@ -171,7 +171,10 @@ export function appendTaskDeliveryHandoffSections(
     role,
     chatroomId,
     cliEnvPrefix,
-    includeEnhancerTemplate: plannerEnhancerEnabled && role.toLowerCase() === 'planner',
+    includeEnhancerTemplate:
+      plannerEnhancerEnabled &&
+      role.toLowerCase() === 'planner' &&
+      message?.senderRole.toLowerCase() !== 'enhancer',
   });
   appendTaskDeliveryHandoffTargets(lines, {
     chatroomId,
