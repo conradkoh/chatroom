@@ -12,6 +12,9 @@ describe('appendTaskDeliveryEnhancerGuidance', () => {
     const output = lines.join('\n');
 
     expect(output).toContain('<handoff-enhancer>');
+    expect(output).toContain('enhancement enabled for this user instruction');
+    expect(output).toContain('this user instruction only');
+    expect(output).toContain('user → planner → enhancer → planner → builder → user');
     expect(output).toContain('You MUST check in with the enhancer');
     expect(output).toContain('<user-message>');
     expect(output).toContain('<grounding>');

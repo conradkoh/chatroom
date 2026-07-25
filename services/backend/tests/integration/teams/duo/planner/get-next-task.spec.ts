@@ -83,6 +83,8 @@ describe('Duo Team > Planner > Get Next Task', () => {
     });
 
     expect(output).toContain('<handoff-enhancer>');
+    expect(output).toContain('enhancement enabled for this user instruction');
+    expect(output).toContain('user → planner → enhancer → planner → builder → user');
     expect(output).toContain('You MUST check in with the enhancer');
     expect(output).toContain('--next-role="enhancer"');
     expect(output).toContain('Run get-next-task immediately');

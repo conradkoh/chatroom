@@ -7,19 +7,29 @@
 export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
   lines.push('');
   lines.push('<handoff-enhancer>');
-  lines.push('## Handoff Enhancer (enabled — mandatory check-in)');
+  lines.push('## Handoff Enhancer (enhancement enabled for this user instruction)');
   lines.push('');
   lines.push(
-    'This chatroom requires a **planner → enhancer → planner** review loop before you delegate to builder or hand off to the user.'
+    '**Enhancement is enabled for this user instruction only** — it applies to this run, not to later follow-ups unless a new user message triggers it again.'
+  );
+  lines.push('');
+  lines.push('**Required linear workflow for this instruction:**');
+  lines.push('');
+  lines.push('```');
+  lines.push('user → planner → enhancer → planner → builder → user');
+  lines.push('```');
+  lines.push('');
+  lines.push(
+    'Follow this sequence in order. Do not skip steps or hand off out of order — do not delegate to `builder` or deliver to `user` until enhancer feedback has been incorporated.'
   );
   lines.push('');
   lines.push(
-    '**You MUST check in with the enhancer** — there is no option to skip this step while the enhancer is enabled.'
+    '**You MUST check in with the enhancer** — there is no option to skip this step for this user instruction.'
   );
   lines.push('');
   lines.push('**How it works:**');
   lines.push(
-    '1. **Before** delegating to builder or delivering to user, hand off to `enhancer` using the **Handoff to `enhancer`** template.'
+    '1. Hand off to `enhancer` using the **Handoff to `enhancer`** template (your first handoff this turn).'
   );
   lines.push(
     '2. Structure your check-in with three XML sections: `<user-message>`, `<grounding>`, and `<builder-handoff>`.'
@@ -28,8 +38,9 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
     '3. The enhancer returns structured **planning feedback** asynchronously — the handoff command returns immediately.'
   );
   lines.push(
-    '4. When feedback arrives, address it in a new planner task, then proceed to `builder` or `user`.'
+    '4. When feedback arrives (new planner task), incorporate it, then hand off to `builder`.'
   );
+  lines.push('5. After builder returns, hand off to `user` with your report.');
   lines.push('');
   lines.push(
     '**The enhancer has no context.** It cannot see this session, prior messages, attachments, or the codebase — only your check-in markdown.'
