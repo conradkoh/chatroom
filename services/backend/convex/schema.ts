@@ -439,6 +439,9 @@ export default defineSchema({
     // Link to the enhancer job that produced this message (for enhanced handoffs)
     enhancerJobId: v.optional(v.id('chatroom_enhancerJobs')),
 
+    // When true, message appears only in the ALL timeline tab (not role-filtered views)
+    visibleInAllTabOnly: v.optional(v.boolean()),
+
     // Attached backlog tasks for context
     // User can attach multiple backlog tasks to a message for agent context
     // Attached tasks remain in 'backlog' status until agent hands off to user,

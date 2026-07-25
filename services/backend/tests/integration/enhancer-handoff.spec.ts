@@ -72,6 +72,24 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     expect(events.length).toBeGreaterThanOrEqual(1);
     expect(events[0].jobId).toBe(result.jobId);
+
+    const draftMessages = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) =>
+          q.and(
+            q.eq(q.field('type'), 'handoff'),
+            q.eq(q.field('senderRole'), 'planner'),
+            q.eq(q.field('targetRole'), 'enhancer')
+          )
+        )
+        .collect()
+    );
+    expect(draftMessages.length).toBe(1);
+    expect(draftMessages[0]!.content).toBe('Original draft content');
+    expect(draftMessages[0]!.visibleInAllTabOnly).toBe(true);
+    expect(draftMessages[0]!.enhancerJobId).toBe(result.jobId);
   });
 
   test('enqueueHandoff rejects when an active job already exists', async () => {
@@ -155,7 +173,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(builderTask!.content).toContain('Enhanced brief');
     expect(builderTask!.content).not.toContain('Original draft');
 
-    // Handoff message should have enhancerJobId set
+    // Handoff message should be enhancer→builder with enhanced content
     const handoffMessages = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_messages')
@@ -163,10 +181,18 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         .filter((q) => q.eq(q.field('type'), 'handoff'))
         .collect()
     );
-    const msg = handoffMessages.find((m) => m.senderRole === 'planner');
-    expect(msg).toBeDefined();
-    expect(msg!.enhancerJobId).toBe(jobId);
-    expect(msg!.content).toContain('Enhanced brief');
+    const deliveryMsg = handoffMessages.find((m) => m.senderRole === 'enhancer');
+    expect(deliveryMsg).toBeDefined();
+    expect(deliveryMsg!.targetRole).toBe('builder');
+    expect(deliveryMsg!.enhancerJobId).toBe(jobId);
+    expect(deliveryMsg!.content).toContain('Enhanced brief');
+    expect(deliveryMsg!.visibleInAllTabOnly).toBe(true);
+
+    const draftMsg = handoffMessages.find(
+      (m) => m.senderRole === 'planner' && m.targetRole === 'enhancer'
+    );
+    expect(draftMsg).toBeDefined();
+    expect(draftMsg!.content).toContain('Original draft');
   });
 
   test('cancelActiveJob delivers draft content and marks job cancelled', async () => {
@@ -227,10 +253,12 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         .filter((q) => q.eq(q.field('type'), 'handoff'))
         .collect()
     );
-    const msg = handoffMessages.find((m) => m.senderRole === 'planner');
+    const msg = handoffMessages.find((m) => m.senderRole === 'enhancer');
     expect(msg).toBeDefined();
+    expect(msg!.targetRole).toBe('builder');
     expect(msg!.content).toContain('Original draft');
     expect(msg!.enhancerJobId).toBe(jobId);
+    expect(msg!.visibleInAllTabOnly).toBe(true);
   });
 
   test('recordAttemptFailure retries with backoff then fails after max attempts', async () => {
@@ -364,9 +392,11 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         .filter((q) => q.eq(q.field('type'), 'handoff'))
         .collect()
     );
-    const msg = handoffMessages.find((m) => m.senderRole === 'planner');
+    const msg = handoffMessages.find((m) => m.senderRole === 'enhancer');
     expect(msg).toBeDefined();
+    expect(msg!.targetRole).toBe('builder');
     expect(msg!.content).toContain('Original draft');
     expect(msg!.enhancerJobId).toBe(jobId);
+    expect(msg!.visibleInAllTabOnly).toBe(true);
   });
 });

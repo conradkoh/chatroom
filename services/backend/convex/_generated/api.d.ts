@@ -132,6 +132,7 @@ import type * as web_enhancer_internal from "../web/enhancer/internal.js";
 import type * as web_enhancer_jobHelpers from "../web/enhancer/jobHelpers.js";
 import type * as web_enhancer_mutations from "../web/enhancer/mutations.js";
 import type * as web_enhancer_queries from "../web/enhancer/queries.js";
+import type * as web_enhancer_timelineMessages from "../web/enhancer/timelineMessages.js";
 import type * as workspaceFiles from "../workspaceFiles.js";
 import type * as workspacePathSecurity from "../workspacePathSecurity.js";
 import type * as workspaces from "../workspaces.js";
@@ -267,6 +268,7 @@ declare const fullApi: ApiFromModules<{
   "web/enhancer/jobHelpers": typeof web_enhancer_jobHelpers;
   "web/enhancer/mutations": typeof web_enhancer_mutations;
   "web/enhancer/queries": typeof web_enhancer_queries;
+  "web/enhancer/timelineMessages": typeof web_enhancer_timelineMessages;
   workspaceFiles: typeof workspaceFiles;
   workspacePathSecurity: typeof workspacePathSecurity;
   workspaces: typeof workspaces;

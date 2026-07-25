@@ -10,6 +10,7 @@ import {
   emitEnhancerEvent,
 } from './internal';
 import { findActiveEnhancerJob, assertEnhancerJobOwner } from './jobHelpers';
+import { insertPlannerToEnhancerDraftMessage } from './timelineMessages';
 import { ENHANCER_MAX_ATTEMPTS } from '../../../config/reliability';
 import {
   transitionPlannerFromEnhancingToWaiting,
@@ -170,6 +171,13 @@ export const enqueueHandoff = mutation({
     );
 
     await transitionPlannerToEnhancing(ctx, args.chatroomId);
+
+    await insertPlannerToEnhancerDraftMessage(ctx, {
+      chatroomId: args.chatroomId,
+      content: args.content,
+      jobId,
+      attachedArtifactIds: args.attachedArtifactIds,
+    });
 
     return { jobId };
   },

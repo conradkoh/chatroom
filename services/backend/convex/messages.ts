@@ -177,17 +177,7 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
     })
   );
 
-  // Batch enhancer job lookups: fetch draftContent for messages linked to enhancer jobs
-  const uniqueJobIds = [
-    ...new Set(messages.flatMap((m) => (m.enhancerJobId != null ? [m.enhancerJobId] : []))),
-  ];
-  const jobDraftMap = new Map<string, string>();
-  await Promise.all(
-    uniqueJobIds.map(async (id) => {
-      const job = await ctx.db.get('chatroom_enhancerJobs', id);
-      if (job?.draftContent) jobDraftMap.set(id.toString(), job.draftContent);
-    })
-  );
+  // Batch enhancer job lookups removed — draft/enhanced content now shown as separate timeline messages.
 
   const enrichedMessages = await Promise.all(
     messages.map(async (message) => {
@@ -205,18 +195,11 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
         ? progressByTaskId.get(message.taskId.toString())
         : undefined;
 
-      // Resolve enhancer original content (draft from enhancer job)
-      const enhancerOriginalContent =
-        message.enhancerJobId != null
-          ? jobDraftMap.get(message.enhancerJobId.toString())
-          : undefined;
-
       return {
         ...message,
         ...(taskStatus && { taskStatus }),
         ...attachments,
         ...(latestProgress && { latestProgress }),
-        ...(enhancerOriginalContent && { enhancerOriginalContent }),
       };
     })
   );
@@ -526,6 +509,7 @@ async function _handoffHandler(
     targetRole: string;
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
     enhancerJobId?: Id<'chatroom_enhancerJobs'>;
+    visibleInAllTabOnly?: boolean;
   }
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
@@ -551,7 +535,8 @@ async function _handoffHandler(
   // Validate senderRole
   const normalizedSenderRole = args.senderRole.toLowerCase();
   const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
-  if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
+  const isEnhancerDelivery = normalizedSenderRole === 'enhancer';
+  if (!isEnhancerDelivery && !normalizedTeamRoles.includes(normalizedSenderRole)) {
     return {
       success: false,
       error: {
@@ -670,6 +655,7 @@ async function _handoffHandler(
     ...(args.attachedArtifactIds &&
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
     ...(args.enhancerJobId && { enhancerJobId: args.enhancerJobId }),
+    ...(args.visibleInAllTabOnly && { visibleInAllTabOnly: true }),
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -707,14 +693,14 @@ async function _handoffHandler(
     )
     .unique();
 
-  if (participant) {
+  if (participant && !isEnhancerDelivery) {
     await ctx.db.patch('chatroom_participants', participant._id, {
       lastSeenAt: Date.now(),
       ...(isHandoffToUser ? { lastInFlightTaskId: undefined } : {}),
     });
   }
 
-  if (args.enhancerJobId && normalizedSenderRole === 'planner') {
+  if (args.enhancerJobId) {
     await transitionPlannerFromEnhancingToWaiting(ctx, args.chatroomId);
   }
 
@@ -805,7 +791,16 @@ export async function performHandoffFromEnhancer(
     jobId: Id<'chatroom_enhancerJobs'>;
   }
 ) {
-  return _handoffHandler(ctx, { ...args, enhancerJobId: args.jobId });
+  return _handoffHandler(ctx, {
+    sessionId: args.sessionId,
+    chatroomId: args.chatroomId,
+    senderRole: 'enhancer',
+    targetRole: args.targetRole,
+    content: args.content,
+    attachedArtifactIds: args.attachedArtifactIds,
+    enhancerJobId: args.jobId,
+    visibleInAllTabOnly: true,
+  });
 }
 
 /** Returns the allowed handoff roles for a given role based on the current message classification. */
@@ -2145,9 +2140,12 @@ export const listMessagesBySenderRolePaginated = query({
           .query('chatroom_messages')
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
           .filter((q) =>
-            q.or(
-              q.and(q.eq(q.field('senderRole'), 'user'), q.eq(q.field('type'), 'message')),
-              q.and(q.eq(q.field('type'), 'handoff'), q.eq(q.field('targetRole'), 'user'))
+            q.and(
+              q.or(
+                q.and(q.eq(q.field('senderRole'), 'user'), q.eq(q.field('type'), 'message')),
+                q.and(q.eq(q.field('type'), 'handoff'), q.eq(q.field('targetRole'), 'user'))
+              ),
+              q.neq(q.field('visibleInAllTabOnly'), true)
             )
           )
           .order('desc')
@@ -2157,7 +2155,12 @@ export const listMessagesBySenderRolePaginated = query({
           .withIndex('by_chatroom_senderRole_createdAt', (q) =>
             q.eq('chatroomId', args.chatroomId).eq('senderRole', args.senderRole)
           )
-          .filter((q) => q.or(q.eq(q.field('type'), 'message'), q.eq(q.field('type'), 'handoff')))
+          .filter((q) =>
+            q.and(
+              q.or(q.eq(q.field('type'), 'message'), q.eq(q.field('type'), 'handoff')),
+              q.neq(q.field('visibleInAllTabOnly'), true)
+            )
+          )
           .order('desc')
           .paginate(args.paginationOpts);
 
