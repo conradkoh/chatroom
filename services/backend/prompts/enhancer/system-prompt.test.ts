@@ -28,10 +28,11 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).toContain('Do NOT explore the codebase');
   });
 
-  it('focuses on planning review', () => {
+  it('focuses on planning review with handoff-templates', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('<user-message>');
-    expect(result).toContain('<builder-handoff>');
+    expect(result).toContain('<handoff-templates>');
+    expect(result).toContain('Handoff to `planner`');
+    expect(result).toContain('Handoff to `builder`');
   });
 
   it('does not contain hard-coded role references', () => {
