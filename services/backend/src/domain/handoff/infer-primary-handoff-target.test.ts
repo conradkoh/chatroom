@@ -13,7 +13,7 @@ describe('inferPrimaryHandoffTarget', () => {
     ).toBe('planner');
   });
 
-  test('entry point planner receiving enhanced brief from enhancer targets builder', () => {
+  test('entry point planner receiving planning feedback from enhancer targets builder', () => {
     expect(
       inferPrimaryHandoffTarget({
         senderRole: 'enhancer',

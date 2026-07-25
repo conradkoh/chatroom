@@ -39,11 +39,11 @@ describe('Duo Team > Planner > Handoff Output', () => {
     `);
   });
 
-  test('handoff to enhancer with enhancer interception', () => {
+  test('handoff to enhancer queues async check-in', () => {
     const output = generateHandoffOutput({
       ...BASE_PARAMS,
       nextRole: 'enhancer',
-      enhancerIntercepted: true,
+      enhancerCheckInQueued: true,
     });
 
     expect(output).toContain('queued for handoff enhancer');

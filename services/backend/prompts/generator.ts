@@ -224,19 +224,19 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   return composeSections(buildInitPromptSections(input, selectorCtx));
 }
 
-function isEnhancerInterceptedHandoff(params: {
+function isEnhancerCheckInQueuedHandoff(params: {
   role: string;
   nextRole: string;
-  enhancerIntercepted?: boolean;
+  enhancerCheckInQueued?: boolean;
 }): boolean {
   return (
-    params.enhancerIntercepted === true &&
+    params.enhancerCheckInQueued === true &&
     params.role.toLowerCase() === 'planner' &&
     params.nextRole.toLowerCase() === 'enhancer'
   );
 }
 
-function getEnhancerInterceptedHandoffConfirmationLines(): string[] {
+function getEnhancerCheckInQueuedConfirmationLines(): string[] {
   return [
     '✅ Planning check-in queued for handoff enhancer',
     '',
@@ -258,16 +258,22 @@ export function generateHandoffOutput(params: {
   chatroomId: string;
   convexUrl?: string;
   supportsNativeIntegration?: boolean;
-  /** When true, planner→enhancer handoff was queued for async enhancement. */
-  enhancerIntercepted?: boolean;
+  /** When true, planner→enhancer handoff queued async check-in. */
+  enhancerCheckInQueued?: boolean;
 }): string {
-  const { role, nextRole, chatroomId, convexUrl, supportsNativeIntegration, enhancerIntercepted } =
-    params;
+  const {
+    role,
+    nextRole,
+    chatroomId,
+    convexUrl,
+    supportsNativeIntegration,
+    enhancerCheckInQueued,
+  } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   const lines: string[] = [];
-  if (isEnhancerInterceptedHandoff({ role, nextRole, enhancerIntercepted })) {
-    lines.push(...getEnhancerInterceptedHandoffConfirmationLines());
+  if (isEnhancerCheckInQueuedHandoff({ role, nextRole, enhancerCheckInQueued })) {
+    lines.push(...getEnhancerCheckInQueuedConfirmationLines());
   } else {
     lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
   }

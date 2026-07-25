@@ -246,7 +246,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(result.success).toBe(true);
   });
 
-  test('complete delivers enhanced brief to planner for review', async () => {
+  test('complete delivers planning feedback to planner', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-deliver');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
