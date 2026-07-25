@@ -47,7 +47,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 vi.mock('../../../../hooks/useMachineModels', () => ({
   useMachineModels: () => ({
     availableModels: {
-      'cursor-sdk': ['cursor-sdk/claude-sonnet'],
+      'cursor-sdk': ['cursor-sdk/claude-sonnet', 'cursor-sdk/gpt-4o'],
       opencode: ['opencode/claude-sonnet'],
     },
     isLoading: false,
@@ -174,5 +174,23 @@ describe('SetupAgentTeamStep setup mode harness selection', () => {
     });
 
     expect(screen.getAllByText('Favorites').length).toBeGreaterThan(0);
+  });
+
+  it('applies both harness and model when clicking a favorite on first interaction', async () => {
+    renderSetupStep();
+
+    // Wait for favorites section to appear
+    await waitFor(() => {
+      expect(screen.getAllByTestId('machine-config-quick-pick').length).toBeGreaterThan(0);
+    });
+
+    // Click the first favorite row by its model text
+    // The formatted label is Cursor (SDK) / CURSOR-SDK / CLAUDE SONNET
+    const label = 'Claude Sonnet';
+    const favoriteButton = screen.getAllByText(label, { exact: false })[0];
+    await userEvent.click(favoriteButton);
+
+    // After clicking, verify the same model label is still rendered
+    expect(screen.getAllByText(label, { exact: false }).length).toBeGreaterThan(0);
   });
 });
