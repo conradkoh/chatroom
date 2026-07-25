@@ -32,7 +32,6 @@ import {
   getTimelineItemKey,
   jumpToNewMessagesBottomOffset,
   shouldTriggerLoadOlder,
-  TIMELINE_EAGER_MEASURE_MAX_COUNT,
   TIMELINE_ESTIMATE_SIZE,
   TIMELINE_OVERSCAN,
   TIMELINE_PADDING_END,
@@ -42,13 +41,6 @@ import { SelectableUserMessageRow, UserTabConversationShell } from './userTabCon
 import { MESSAGE_STORE_LIMIT } from '../../hooks/chatroomMessageStore';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
-
-function timelineOverscan(eventCount: number): number {
-  if (eventCount <= TIMELINE_EAGER_MEASURE_MAX_COUNT) {
-    return Math.max(TIMELINE_OVERSCAN, eventCount);
-  }
-  return TIMELINE_OVERSCAN;
-}
 
 export interface ChatroomTimelineFeedProps {
   chatroomId: string;
@@ -166,7 +158,7 @@ export function ChatroomTimelineFeed({
       if (!event) return TIMELINE_ESTIMATE_SIZE;
       return measurementCacheRef.current.get(event.id) ?? TIMELINE_ESTIMATE_SIZE;
     },
-    overscan: timelineOverscan(events.length),
+    overscan: TIMELINE_OVERSCAN,
     scrollMargin: topChromeHeight,
     paddingEnd: TIMELINE_PADDING_END,
     getItemKey: (index) => getTimelineItemKey(index, events),

@@ -12,7 +12,6 @@ import { afterAll, beforeAll, describe, it, expect, vi, beforeEach } from 'vites
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 import {
   jumpToNewMessagesBottomOffset,
-  TIMELINE_EAGER_MEASURE_MAX_COUNT,
   TIMELINE_OVERSCAN,
   TIMELINE_PADDING_END,
 } from './timelineVirtualizerConfig';
@@ -422,12 +421,12 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     timelineIsLoadingOlder = false;
   });
 
-  it('disables scroll adjustment on row measurement and expands overscan for small feeds', async () => {
+  it('disables scroll adjustment on row measurement and uses fixed overscan for small feeds', async () => {
     timelineEvents = buildEvents(20);
     renderFeed();
     await flushRaf();
 
-    expect(virtualizerOptions.at(-1)?.overscan).toBe(20);
+    expect(virtualizerOptions.at(-1)?.overscan).toBe(TIMELINE_OVERSCAN);
     const shouldAdjust = lastVirtualizerInstance?.shouldAdjustScrollPositionOnItemSizeChange as
       | ((
           item: { start: number },
@@ -444,7 +443,7 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
   });
 
   it('uses default overscan for large feeds', () => {
-    timelineEvents = buildEvents(TIMELINE_EAGER_MEASURE_MAX_COUNT + 10);
+    timelineEvents = buildEvents(50);
     renderFeed();
     expect(virtualizerOptions.at(-1)?.overscan).toBe(TIMELINE_OVERSCAN);
   });
