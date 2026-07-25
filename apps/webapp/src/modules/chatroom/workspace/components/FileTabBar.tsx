@@ -1,7 +1,7 @@
 'use client';
 
 import { Search } from 'lucide-react';
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 
 import { WorkspaceTabBarItem, WorkspaceTabBarShell } from './WorkspaceTabBar';
 import { setWorkspaceTabDragData } from '../constants/workspaceTabDrag';
@@ -62,11 +62,20 @@ export const FileTabBar = memo(function FileTabBar({
     []
   );
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !activeTabKey) return;
+    const activeEl = container.querySelector('[data-active-tab="true"]');
+    activeEl?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [activeTabKey, tabs.length]);
+
   if (tabs.length === 0) return null;
 
   return (
     <>
-      <WorkspaceTabBarShell testId="file-tab-bar">
+      <WorkspaceTabBarShell testId="file-tab-bar" scrollRef={scrollRef}>
         {tabs.map((tab) => {
           const key = editorTabKey(tab);
           return (
@@ -105,7 +114,25 @@ export const FileTabBar = memo(function FileTabBar({
                         },
                       });
                     }
-                  : undefined
+                  : tab.kind === 'agentic-query'
+                    ? (_tabKey, event) => {
+                        openAtPointer(event, {
+                          state: { relativePath: key, workingDir: null },
+                          handlers: {
+                            onCloseOthers: () => handleCloseOthers(key),
+                          },
+                          visibility: {
+                            copyFileName: false,
+                            copyRelativePath: false,
+                            copyFullPath: false,
+                            copyFileContent: false,
+                            openFileOnRemote: false,
+                            closeOthers: true,
+                            closeOthersDisabled: tabs.length <= 1,
+                          },
+                        });
+                      }
+                    : undefined
               }
             />
           );
@@ -125,7 +152,7 @@ interface FileTabItemProps {
   onPin: (filePath: string) => void;
   onToggleExpanded?: (filePath: string) => void;
   onTogglePreviewExpanded?: (filePath: string) => void;
-  onContextMenu?: (filePath: string, event: React.MouseEvent) => void;
+  onContextMenu?: (tabKey: string, event: React.MouseEvent) => void;
   draggable?: boolean;
   onDragStart?: (event: React.DragEvent) => void;
 }
@@ -186,11 +213,7 @@ const FileTabItem = memo(function FileTabItem({
       onDragStart={onDragStart}
       onClick={() => onActivate(tabKey)}
       onDoubleClick={handleDoubleClick}
-      onContextMenu={
-        onContextMenu && tab.kind === 'file'
-          ? (event) => onContextMenu(tab.filePath, event)
-          : undefined
-      }
+      onContextMenu={onContextMenu ? (event) => onContextMenu(tabKey, event) : undefined}
       onClose={(event) => {
         event.stopPropagation();
         onClose(tabKey);
