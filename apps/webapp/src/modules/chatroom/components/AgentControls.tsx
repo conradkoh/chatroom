@@ -572,14 +572,15 @@ export function useAgentControls({
 
   // Wrapper for user manually selecting a model — stored per harness
   const handleModelChange = useCallback(
-    (model: string | null) => {
-      if (!selectedHarness) return;
+    (model: string | null, harnessOverride?: AgentHarness | null) => {
+      const harness = harnessOverride ?? selectedHarness;
+      if (!harness) return;
       if (model) {
-        setUserModelByHarness((prev) => ({ ...prev, [selectedHarness]: model }));
+        setUserModelByHarness((prev) => ({ ...prev, [harness]: model }));
       } else {
         setUserModelByHarness((prev) => {
           const next = { ...prev };
-          delete next[selectedHarness];
+          delete next[harness];
           return next;
         });
       }
@@ -763,8 +764,8 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 
   const handleApplyMachineConfig = useCallback(
     (entry: { agentHarness: AgentHarness; model: string }) => {
-      handleModelChange(entry.model);
       handleHarnessChange(entry.agentHarness);
+      handleModelChange(entry.model, entry.agentHarness);
       recordMachineConfigUsageOnApply(entry);
     },
     [handleHarnessChange, handleModelChange, recordMachineConfigUsageOnApply]
