@@ -131,7 +131,7 @@ describe('SetupAgentTeamStep setup mode harness selection', () => {
     const harnessButtons = screen.getAllByTitle('Select Harness');
     await userEvent.click(harnessButtons[0]!);
 
-    const harnessOption = await screen.findByText('Cursor (SDK)');
+    const harnessOption = await screen.findByRole('option', { name: 'Cursor (SDK)' });
     await userEvent.click(harnessOption);
 
     await waitFor(() => {
@@ -156,7 +156,7 @@ describe('SetupAgentTeamStep setup mode harness selection', () => {
     const harnessButtons = screen.getAllByTitle('Select Harness');
     await userEvent.click(harnessButtons[1]!);
 
-    const harnessOption = await screen.findByText('Cursor (SDK)');
+    const harnessOption = await screen.findByRole('option', { name: 'Cursor (SDK)' });
     await userEvent.click(harnessOption);
 
     await waitFor(() => {
