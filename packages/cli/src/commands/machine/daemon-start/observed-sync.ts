@@ -123,7 +123,7 @@ export const startObservedSyncSubscriptionEffect = (
       },
     };
 
-    function collectWorkingDirChanges(observed: ObservedChatrooms): {
+    function collectWorkingDirChanges(observed: NonNullable<ObservedChatrooms>): {
       newWorkingDirs: Set<string>;
       refreshedWorkingDirs: Set<string>;
     } {
@@ -155,7 +155,7 @@ export const startObservedSyncSubscriptionEffect = (
       return { newWorkingDirs, refreshedWorkingDirs };
     }
 
-    function pruneStaleChatroomRefreshState(observed: ObservedChatrooms): void {
+    function pruneStaleChatroomRefreshState(observed: NonNullable<ObservedChatrooms>): void {
       for (const [chatroomId] of chatroomRefreshState) {
         const stillObserved = observed.some((c) => c.chatroomId === chatroomId);
         if (!stillObserved) {
@@ -225,7 +225,7 @@ export const startObservedSyncSubscriptionEffect = (
       }
     }
 
-    function handleObservedChange(observed: ObservedChatrooms): void {
+    function handleObservedChange(observed: NonNullable<ObservedChatrooms>): void {
       const { newWorkingDirs, refreshedWorkingDirs } = collectWorkingDirChanges(observed);
       pruneStaleChatroomRefreshState(observed);
 
