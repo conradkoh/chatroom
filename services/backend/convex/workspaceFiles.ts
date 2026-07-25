@@ -903,15 +903,6 @@ export const getFileTreeShardsV3 = query({
 // Incremental File Tree Sync — revisioned deltas over V2/V3 checkpoints
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** Legacy verbose validator — kept for read-path expansion of pre-compaction rows. */
-const verboseFileTreeDeltaOperationValidator = v.object({
-  operation: v.union(v.literal('add'), v.literal('remove'), v.literal('type-change')),
-  path: v.string(),
-  entryType: v.optional(v.union(v.literal('file'), v.literal('directory'))),
-  size: v.optional(v.number()),
-  modifiedAt: v.optional(v.number()),
-});
-
 async function getCurrentFileTreeRevision(
   ctx: QueryCtx | MutationCtx,
   machineId: string,
