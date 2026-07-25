@@ -69,6 +69,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       plannerEnhancerEnabled: true,
+      availableHandoffTargets: ['enhancer', 'builder', 'user'],
       message: {
         _id: 'test-message-id',
         senderRole: 'user',
@@ -82,7 +83,8 @@ describe('Duo Team > Planner > Get Next Task', () => {
     });
 
     expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('planner → enhancer → planner → builder');
+    expect(output).toContain('You MUST check in with the enhancer');
+    expect(output).toContain('--next-role="enhancer"');
     expect(output).toContain('Run get-next-task immediately');
   });
 

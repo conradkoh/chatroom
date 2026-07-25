@@ -54,14 +54,24 @@ function appendTaskDeliveryNextSteps(
     | 'availableHandoffTargets'
     | 'task'
     | 'isEntryPoint'
+    | 'plannerEnhancerEnabled'
   >
 ): void {
-  const { chatroomId, role, cliEnvPrefix, message, availableHandoffTargets, isEntryPoint } = params;
+  const {
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    message,
+    availableHandoffTargets,
+    isEntryPoint,
+    plannerEnhancerEnabled,
+  } = params;
   const primaryTarget = inferPrimaryHandoffTarget({
     senderRole: message?.senderRole,
     role,
     availableHandoffTargets,
     isEntryPoint,
+    plannerEnhancerEnabled,
   });
 
   lines.push('');
@@ -153,6 +163,7 @@ export function appendTaskDeliveryHandoffSections(
     availableHandoffTargets,
     task,
     isEntryPoint,
+    plannerEnhancerEnabled,
   });
   appendTaskDeliveryEnhancerGuidanceIfEnabled(lines, { role, plannerEnhancerEnabled, message });
   appendTaskDeliveryHandoffTemplates(lines, {

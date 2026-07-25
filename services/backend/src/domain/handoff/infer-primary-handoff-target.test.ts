@@ -24,10 +24,22 @@ describe('inferPrimaryHandoffTarget', () => {
     ).toBe('builder');
   });
 
-  test('entry point planner receiving builder handback delivers to user', () => {
+  test('entry point planner receiving user message targets enhancer when enabled', () => {
     expect(
       inferPrimaryHandoffTarget({
-        senderRole: 'builder',
+        senderRole: 'user',
+        role: 'planner',
+        availableHandoffTargets: ['enhancer', 'builder', 'user'],
+        isEntryPoint: true,
+        plannerEnhancerEnabled: true,
+      })
+    ).toBe('enhancer');
+  });
+
+  test('entry point planner receiving user message targets user when enhancer disabled', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'user',
         role: 'planner',
         availableHandoffTargets: ['builder', 'user'],
         isEntryPoint: true,
@@ -35,10 +47,10 @@ describe('inferPrimaryHandoffTarget', () => {
     ).toBe('user');
   });
 
-  test('planner receiving user message targets user', () => {
+  test('entry point planner receiving builder handback delivers to user', () => {
     expect(
       inferPrimaryHandoffTarget({
-        senderRole: 'user',
+        senderRole: 'builder',
         role: 'planner',
         availableHandoffTargets: ['builder', 'user'],
         isEntryPoint: true,

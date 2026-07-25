@@ -15,6 +15,7 @@ const NATIVE_DELIVERY_TEMPLATE_TARGETS: Record<string, readonly string[]> = {
   'duo:builder': ['planner'],
 };
 
+// fallow-ignore-next-line complexity
 function getNativeDeliveryTemplateTargets(
   teamId: string | undefined,
   role: string,
