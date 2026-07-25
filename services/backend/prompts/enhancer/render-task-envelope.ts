@@ -21,7 +21,7 @@ export function renderEnhancerTaskEnvelope(params: RenderEnhancerTaskEnvelopePar
     '<requirements>',
     '- Single-turn only. No tools. No codebase exploration. No file reads. No shell commands. No research. No subagents.',
     '- Work only from <handoff-template> and <draft-handoff> — do not investigate the repository.',
-    '- Critique the planner check-in: user-intent assessment, knowledge gaps, reasoning errors, and alignment toward planner→user handoff.',
+    '- Critique the planner check-in (`<user-message>`, `<grounding>`, draft `<builder-handoff>`): user-intent assessment, knowledge gaps, reasoning errors, and delegation quality.',
     '- Output must follow handoff-template structure exactly (planning feedback, not a builder delegation brief).',
     '- Tighten and correct within the existing scope; do not add new requirements.',
     '- Return only the feedback markdown — no preamble.',

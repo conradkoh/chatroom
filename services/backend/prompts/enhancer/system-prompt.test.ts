@@ -30,8 +30,8 @@ describe('renderEnhancerSystemPrompt', () => {
 
   it('focuses on planning review', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('planning reviewer');
-    expect(result).toContain('knowledge gaps');
+    expect(result).toContain('<user-message>');
+    expect(result).toContain('<builder-handoff>');
   });
 
   it('does not contain hard-coded role references', () => {

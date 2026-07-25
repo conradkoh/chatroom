@@ -18,7 +18,7 @@ export function getEnhancerToPlannerHandoffTemplate(): string {
 
 ${getHandoffReportTemplateIntro('Planning Feedback (Enhancer → Planner)')}
 
-The planner sent you their understanding of the user request, research, and conclusions. Your job is **critical review** — tighten their thinking toward a high-quality eventual handoff to the user. Do not explore the codebase or invent new scope.
+The planner sent you three XML sections: \`<user-message>\`, \`<grounding>\`, and a draft \`<builder-handoff>\`. Your job is **critical review** of all three — tighten their thinking toward a high-quality eventual handoff to the user. Do not explore the codebase or invent new scope.
 
 \`\`\`markdown
 ## Summary

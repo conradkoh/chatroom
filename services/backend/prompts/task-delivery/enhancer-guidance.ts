@@ -22,7 +22,7 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
     '1. **Before** delegating to builder or delivering to user, hand off to `enhancer` using the **Handoff to `enhancer`** template.'
   );
   lines.push(
-    '2. Include **full context** the enhancer cannot see: what the user said, your research, and your suggestions/conclusions.'
+    '2. Structure your check-in with three XML sections: `<user-message>`, `<grounding>`, and `<builder-handoff>`.'
   );
   lines.push(
     '3. The enhancer returns structured **planning feedback** asynchronously — the handoff command returns immediately.'
@@ -35,10 +35,14 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
     '**The enhancer has no context.** It cannot see this session, prior messages, attachments, or the codebase — only your check-in markdown.'
   );
   lines.push('');
-  lines.push('**Your check-in MUST include:**');
-  lines.push('- **What the user said** — request, constraints, and priorities');
-  lines.push('- **Research collected** — what you investigated and learned');
-  lines.push('- **Suggestions & conclusions** — your proposed direction and reasoning');
+  lines.push('**Your check-in MUST use these XML sections:**');
+  lines.push("- `<user-message>` — the user's request (verbatim or faithful quote)");
+  lines.push(
+    '- `<grounding>` — code examples, file references, technology choices, and detailed observations from your research'
+  );
+  lines.push(
+    '- `<builder-handoff>` — your complete, filled-in planner→builder Delegation Brief (for review, not placeholders)'
+  );
   lines.push('');
   lines.push('**The enhancer will critique:**');
   lines.push('- Mistakes in assessing what the user may want');

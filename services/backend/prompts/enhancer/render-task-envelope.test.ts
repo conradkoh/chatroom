@@ -44,8 +44,8 @@ describe('renderEnhancerTaskEnvelope', () => {
 
   it('focuses on planning critique', () => {
     const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('user-intent assessment');
-    expect(result).toContain('knowledge gaps');
+    expect(result).toContain('user-message');
+    expect(result).toContain('builder-handoff');
   });
 
   it('contains requirements list', () => {
