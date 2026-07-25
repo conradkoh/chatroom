@@ -52,7 +52,7 @@ export const getSpawnPayload = query({
       chatroomId: job.chatroomId,
       targetId: 'handoff:planner-to-builder',
       referenceHandoffTemplatesContent,
-      draftHandoff: job.draftContent,
+      plannerCheckIn: job.draftContent,
       cliCompleteCommand,
     });
     const systemPrompt = renderEnhancerSystemPrompt({

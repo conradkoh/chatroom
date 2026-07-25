@@ -125,7 +125,7 @@ describe('daemon.enhancer.index', () => {
     expect(payload.taskEnvelope).toContain('### Handoff to `planner` (your output)');
     expect(payload.taskEnvelope).toContain('### Handoff to `builder` (planner reference)');
     expect(payload.taskEnvelope).toContain('### Handoff to `user` (planner reference)');
-    expect(payload.taskEnvelope).toContain('<draft-handoff>');
+    expect(payload.taskEnvelope).toContain('<planner-check-in>');
     expect(payload.taskEnvelope).toContain('Draft content here');
   });
 

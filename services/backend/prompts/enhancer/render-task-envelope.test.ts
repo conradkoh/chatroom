@@ -16,7 +16,7 @@ describe('renderEnhancerTaskEnvelope', () => {
       '### Handoff to `user` (planner reference)',
       '# Planner → User',
     ].join('\n'),
-    draftHandoff: '# Draft\n\nDo this work\n',
+    plannerCheckIn: '# Draft\n\nDo this work\n',
     cliCompleteCommand:
       "chatroom enhancer complete --chatroom-id=room-abc --job-id=job-123 << 'CHATROOM_ENHANCER_END'",
   };
@@ -35,10 +35,10 @@ describe('renderEnhancerTaskEnvelope', () => {
     expect(result).toContain('### Handoff to `user` (planner reference)');
   });
 
-  it('contains <draft-handoff> section', () => {
+  it('contains <planner-check-in> section', () => {
     const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('<draft-handoff>');
-    expect(result).toContain('</draft-handoff>');
+    expect(result).toContain('<planner-check-in>');
+    expect(result).toContain('</planner-check-in>');
   });
 
   it('contains escaped template content', () => {
