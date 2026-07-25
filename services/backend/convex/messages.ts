@@ -34,6 +34,10 @@ import {
 } from '../src/domain/usecase/enhancer/planner-enhancing-status';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
 import {
+  collectActiveTasks,
+  completeTasks,
+} from '../src/domain/usecase/task/complete-active-tasks';
+import {
   createTask as createTaskUsecase,
   shouldEnqueueMessage,
 } from '../src/domain/usecase/task/create-task';
@@ -41,7 +45,7 @@ import { deleteUserMessageOrTask as deleteUserMessageOrTaskUsecase } from '../sr
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
 import { resolveUserMessageRef } from '../src/domain/usecase/task/resolve-user-message-task-link';
 import { adjustTaskCount } from '../src/domain/usecase/task/task-counts';
-import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
+import { type TaskStatus } from '../src/domain/usecase/task/transition-task';
 import { updateUserMessageOrTask as updateUserMessageOrTaskUsecase } from '../src/domain/usecase/task/update-user-message-or-task';
 
 const config = getConfig();
@@ -600,21 +604,7 @@ async function _handoffHandler(
   const now = Date.now();
 
   // Step 1: Complete ALL in_progress and acknowledged tasks
-  const [inProgressTasks, acknowledgedTasks] = await Promise.all([
-    ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-      )
-      .collect(),
-    ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
-      )
-      .collect(),
-  ]);
-  const tasksToComplete = [...inProgressTasks, ...acknowledgedTasks];
+  let tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
 
   if (isHandoffToUser) {
     const pendingForSender = await ctx.db
@@ -643,27 +633,7 @@ async function _handoffHandler(
     }
   }
 
-  const completedTaskIds: Id<'chatroom_tasks'>[] = [];
-
-  for (const task of tasksToComplete) {
-    // All tasks complete to 'completed' status
-    const newStatus = 'completed' as const;
-    const completionTrigger = task.status === 'pending' ? 'completeTaskById' : 'completeTask';
-
-    // Use FSM for transition — skip auto-promotion because the handoff handler
-    // manages promotion explicitly (Step 6 for handoff-to-user).
-    await transitionTask(ctx, task._id, newStatus, completionTrigger, undefined, {
-      skipAutoPromotion: true,
-    });
-    completedTaskIds.push(task._id);
-
-    // Set completedAt on the source message (lifecycle tracking)
-    if (task.sourceMessageId) {
-      await ctx.db.patch('chatroom_messages', task.sourceMessageId, {
-        completedAt: now,
-      });
-    }
-  }
+  const completedTaskIds = await completeTasks(ctx, tasksToComplete, { skipAutoPromotion: true });
 
   if (tasksToComplete.length > 1) {
     console.warn(
