@@ -42,10 +42,6 @@ import {
 import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
 import { buildSelectorContext } from './selector-context';
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
-import {
-  getEnhancerInterceptedHandoffConfirmationLines,
-  isEnhancerInterceptedHandoff,
-} from './task-delivery/enhancer-guidance.js';
 import type { ComposedInitPrompt, InitPromptInput } from './types/init-prompt';
 import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
@@ -226,6 +222,27 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   });
 
   return composeSections(buildInitPromptSections(input, selectorCtx));
+}
+
+function isEnhancerInterceptedHandoff(params: {
+  role: string;
+  nextRole: string;
+  enhancerIntercepted?: boolean;
+}): boolean {
+  return (
+    params.enhancerIntercepted === true &&
+    params.role.toLowerCase() === 'planner' &&
+    params.nextRole.toLowerCase() === 'builder'
+  );
+}
+
+function getEnhancerInterceptedHandoffConfirmationLines(): string[] {
+  return [
+    '✅ Delegation brief queued for handoff enhancement',
+    '',
+    'Your draft was sent to the handoff enhancer (async). The builder will receive the enhanced brief when enhancement completes.',
+    '**Run get-next-task now and end your turn** — do not wait for enhancement, poll, or re-submit the handoff.',
+  ];
 }
 
 /**

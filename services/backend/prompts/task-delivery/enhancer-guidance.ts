@@ -4,27 +4,6 @@
  * Only included when enhancer is enabled for planner→builder handoffs in the chatroom.
  */
 
-export function isEnhancerInterceptedHandoff(params: {
-  role: string;
-  nextRole: string;
-  enhancerIntercepted?: boolean;
-}): boolean {
-  return (
-    params.enhancerIntercepted === true &&
-    params.role.toLowerCase() === 'planner' &&
-    params.nextRole.toLowerCase() === 'builder'
-  );
-}
-
-export function getEnhancerInterceptedHandoffConfirmationLines(): string[] {
-  return [
-    '✅ Delegation brief queued for handoff enhancement',
-    '',
-    'Your draft was sent to the handoff enhancer (async). The builder will receive the enhanced brief when enhancement completes.',
-    '**Run get-next-task now and end your turn** — do not wait for enhancement, poll, or re-submit the handoff.',
-  ];
-}
-
 export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
   lines.push('');
   lines.push('<handoff-enhancer>');
