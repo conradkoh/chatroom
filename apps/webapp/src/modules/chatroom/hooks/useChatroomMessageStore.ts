@@ -30,6 +30,7 @@ import {
   VISIBLE_UPDATE_WINDOW,
   type ChatroomMessageStoreAction,
   type ChatroomMessageStoreState,
+  type VisibleUpdate,
 } from './chatroomMessageStore';
 import { logLoadOlder } from '../components/timeline/timelineLoadOlderDebug';
 import type { Message } from '../types/message';
@@ -95,11 +96,12 @@ function useTimelineDeltaSubscriptions(
     if (!visibleUpdatesData) return;
     dispatch({
       type: 'APPLY_VISIBLE_UPDATES',
-      updates: visibleUpdatesData.map((u) => ({
-        _id: u._id,
-        taskStatus: u.taskStatus as Message['taskStatus'],
-        latestProgress: u.latestProgress,
-      })),
+      updates: visibleUpdatesData.map((u) => {
+        const update: VisibleUpdate = { _id: u._id };
+        if ('taskStatus' in u) update.taskStatus = u.taskStatus as Message['taskStatus'];
+        if ('latestProgress' in u) update.latestProgress = u.latestProgress;
+        return update;
+      }),
     });
   }, [visibleUpdatesData, dispatch]);
 }
