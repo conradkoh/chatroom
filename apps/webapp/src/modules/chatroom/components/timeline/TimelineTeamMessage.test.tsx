@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TimelineTeamMessage } from './TimelineTeamMessage';
@@ -40,91 +40,17 @@ const BASE_MESSAGE: Message = {
   _id: 'msg-1',
   type: 'handoff',
   senderRole: 'planner',
-  content: 'Enhanced handoff content',
+  targetRole: 'enhancer',
+  content: 'Draft handoff content',
   _creationTime: 1000,
 };
 
-describe('TimelineTeamMessage enhancer toggle', () => {
-  it('shows no toggle when message has no enhancerOriginalContent', () => {
+describe('TimelineTeamMessage', () => {
+  it('renders sender, target, and message body', () => {
     render(<TimelineTeamMessage message={BASE_MESSAGE} chatroomId="room-1" />);
 
-    expect(screen.queryByTestId('enhancer-content-toggle')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('timeline-enhanced-indicator')).not.toBeInTheDocument();
-    expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
-      'Enhanced handoff content'
-    );
-  });
-
-  it('shows toggle and enhanced content by default when enhancerOriginalContent exists', () => {
-    render(
-      <TimelineTeamMessage
-        message={{
-          ...BASE_MESSAGE,
-          enhancerOriginalContent: 'Original draft content',
-        }}
-        chatroomId="room-1"
-      />
-    );
-
-    expect(screen.getByTestId('enhancer-content-toggle')).toBeInTheDocument();
-    expect(screen.getByTestId('timeline-enhanced-indicator')).toBeInTheDocument();
-    expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
-      'Enhanced handoff content'
-    );
-  });
-
-  it('clicking toggle switches body to original content', () => {
-    render(
-      <TimelineTeamMessage
-        message={{
-          ...BASE_MESSAGE,
-          enhancerOriginalContent: 'Original draft content',
-        }}
-        chatroomId="room-1"
-      />
-    );
-
-    fireEvent.click(screen.getByTestId('enhancer-content-toggle'));
-
-    expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
-      'Original draft content'
-    );
-  });
-
-  it('clicking toggle twice switches back to enhanced content', () => {
-    render(
-      <TimelineTeamMessage
-        message={{
-          ...BASE_MESSAGE,
-          enhancerOriginalContent: 'Original draft content',
-        }}
-        chatroomId="room-1"
-      />
-    );
-
-    fireEvent.click(screen.getByTestId('enhancer-content-toggle'));
-    fireEvent.click(screen.getByTestId('enhancer-content-toggle'));
-
-    expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
-      'Enhanced handoff content'
-    );
-  });
-
-  it('clicking enhanced indicator opens diff panel', () => {
-    render(
-      <TimelineTeamMessage
-        message={{
-          ...BASE_MESSAGE,
-          enhancerOriginalContent: 'Original draft content',
-        }}
-        chatroomId="room-1"
-      />
-    );
-
-    fireEvent.click(screen.getByTestId('timeline-enhanced-indicator'));
-
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Enhancement diff')).toBeInTheDocument();
-    expect(screen.getByTestId('enhancer-unified-diff-view')).toBeInTheDocument();
+    expect(screen.getByText('planner')).toBeInTheDocument();
+    expect(screen.getByText('enhancer')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent('Draft handoff content');
   });
 });

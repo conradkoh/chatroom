@@ -15,16 +15,13 @@ import type { Message } from '../../types/message';
 
 interface MessageDownloadMenuProps {
   message: Message;
-  /** When set, export uses this content instead of message.content (e.g. enhancer toggle). */
-  contentOverride?: string;
 }
 
-export function MessageDownloadMenu({ message, contentOverride }: MessageDownloadMenuProps) {
+export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const exportMessage =
-    contentOverride != null ? { ...message, content: contentOverride } : message;
+  const exportMessage = message;
 
   const handleMarkdown = useCallback(async () => {
     const result = await saveTextFile(
