@@ -34,20 +34,22 @@ export const WORKSPACE_HEADER_ROW_CLASS = cn(
 const WORKSPACE_TAB_BAR_CLASS = cn(
   WORKSPACE_HEADER_ROW_BASE_CLASS,
   WORKSPACE_HEADER_ROW_HEIGHT_CLASS,
-  'items-stretch flex-wrap overflow-x-hidden overflow-y-auto'
+  'items-stretch flex-nowrap overflow-x-auto overflow-y-hidden min-w-0'
 );
 
 interface WorkspaceTabBarShellProps {
   testId?: string;
   children: ReactNode;
+  scrollRef?: React.Ref<HTMLDivElement>;
 }
 
 export const WorkspaceTabBarShell = memo(function WorkspaceTabBarShell({
   testId,
   children,
+  scrollRef,
 }: WorkspaceTabBarShellProps) {
   return (
-    <div data-testid={testId} className={WORKSPACE_TAB_BAR_CLASS}>
+    <div ref={scrollRef} data-testid={testId} className={WORKSPACE_TAB_BAR_CLASS}>
       {children}
     </div>
   );
@@ -105,6 +107,7 @@ export const WorkspaceTabBarItem = memo(function WorkspaceTabBarItem({
 }: WorkspaceTabBarItemProps) {
   return (
     <div
+      data-active-tab={isActive ? 'true' : undefined}
       className={cn(
         'group flex h-full shrink-0 items-center gap-1.5 px-3 cursor-pointer select-none box-border',
         'border-r border-chatroom-border text-[13px] min-w-0 max-w-[180px]',
