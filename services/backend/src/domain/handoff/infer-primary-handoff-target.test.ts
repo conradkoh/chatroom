@@ -58,6 +58,18 @@ describe('inferPrimaryHandoffTarget', () => {
     ).toBe('user');
   });
 
+  test('entry point planner receiving builder handback delivers to user when enhancer enabled', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'builder',
+        role: 'planner',
+        availableHandoffTargets: ['enhancer', 'builder', 'user'],
+        isEntryPoint: true,
+        plannerEnhancerEnabled: true,
+      })
+    ).toBe('user');
+  });
+
   test('non-entry-point does not redirect team sender to user', () => {
     expect(
       inferPrimaryHandoffTarget({

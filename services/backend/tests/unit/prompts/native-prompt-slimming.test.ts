@@ -82,6 +82,46 @@ describe('native task-started content', () => {
     expect(output).toContain('<enhancer-review>');
     expect(output).toContain('Handoff to `builder`');
   });
+
+  test('enhancer enabled user task includes linear workflow guidance', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: 'Implement feature' },
+      message: { _id: 'user-msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      isEntryPoint: true,
+      plannerEnhancerEnabled: true,
+    });
+
+    expect(output).toContain('<handoff-enhancer>');
+    expect(output).toContain('enhancement enabled for this user instruction');
+    expect(output).toContain('user → planner → enhancer → planner → builder → user');
+    expect(output).toContain('--next-role="enhancer"');
+    expect(output).toContain('Handoff to `enhancer`');
+    expect(output).toContain('--trigger-message-id="user-msg-id"');
+    expect(output).not.toContain('<enhancer-review>');
+  });
+
+  test('enhancer disabled user task omits enhancer sections', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: 'Implement feature' },
+      message: { _id: 'user-msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'user'],
+      isEntryPoint: true,
+      plannerEnhancerEnabled: false,
+    });
+
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).toContain('--next-role="user"');
+  });
 });
 
 describe('native init', () => {
