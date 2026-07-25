@@ -24,6 +24,7 @@ import {
   chatroomIndustrialButtonSecondaryClassName,
 } from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { TimelineMarkdownBody } from '@/modules/chatroom/components/timeline/TimelineMarkdownBody';
+import { ThinkingBlock } from '@/modules/chatroom/direct-harness/components/ThinkingBlock';
 import { useFileReferenceAutocomplete } from '@/modules/chatroom/hooks/useFileReferenceAutocomplete';
 
 export interface AgenticQueryPanelProps {
@@ -51,9 +52,11 @@ function AgenticStreamingBody({ runId }: { runId: Id<'chatroom_agenticQueryRuns'
   const { turns, streamingOverlay, isLoading } = useAgenticQueryRunTurnStore(runId);
   const latestAssistant = [...turns].reverse().find((t) => t.role === 'assistant');
   const streamText = streamingOverlay?.textContent?.trim();
+  const streamReasoning = streamingOverlay?.reasoningContent?.trim();
   const content = streamText || latestAssistant?.textContent?.trim();
+  const reasoning = streamReasoning || latestAssistant?.reasoningContent?.trim();
 
-  if (isLoading && !content) {
+  if (isLoading && !content && !reasoning) {
     return (
       <div className="flex items-center gap-2 text-xs text-chatroom-text-muted">
         <Loader2 className="size-3 animate-spin" />
@@ -62,11 +65,16 @@ function AgenticStreamingBody({ runId }: { runId: Id<'chatroom_agenticQueryRuns'
     );
   }
 
-  if (!content) {
+  if (!content && !reasoning) {
     return <p className="text-xs text-chatroom-text-muted">Waiting for agent response…</p>;
   }
 
-  return <TimelineMarkdownBody content={content} />;
+  return (
+    <div className="space-y-2">
+      {reasoning ? <ThinkingBlock content={reasoning} /> : null}
+      {content ? <TimelineMarkdownBody content={content} /> : null}
+    </div>
+  );
 }
 
 function AgenticTurnBlock({
@@ -226,7 +234,7 @@ export function AgenticQueryPanel({
     files: autocompleteFiles,
     hasWorkspace: hasAutocompleteWorkspace,
     onAtTriggerActivate,
-    dropdownPlacement: 'below',
+    dropdownPlacement: 'above',
     textareaRef: composerRef,
     anchorRef: composerAnchorRef,
     text: composerText,
@@ -268,7 +276,31 @@ export function AgenticQueryPanel({
       />
 
       <div
-        className="shrink-0 p-4 gap-4 flex flex-col border-b border-chatroom-border bg-chatroom-bg-primary"
+        className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4"
+        data-testid="agentic-query-results"
+      >
+        {latestTurn ? (
+          <AgenticTurnBlock
+            turn={latestTurn}
+            isLatest
+            isRunning={isRunning}
+            activeRunId={activeRunId}
+          />
+        ) : null}
+
+        {olderTurns.map((turn) => (
+          <AgenticTurnBlock
+            key={turn._id}
+            turn={turn}
+            isLatest={false}
+            isRunning={false}
+            activeRunId={activeRunId}
+          />
+        ))}
+      </div>
+
+      <div
+        className="shrink-0 p-4 gap-4 flex flex-col border-t border-chatroom-border bg-chatroom-bg-primary"
         data-testid="agentic-query-composer"
       >
         <div className="flex items-center gap-2">
@@ -315,7 +347,7 @@ export function AgenticQueryPanel({
             onSelect={fileAutocomplete.handleFileSelect}
             onHoverItem={fileAutocomplete.setSelectedIndex}
             visible={fileAutocomplete.autocompleteState.visible}
-            placement="below"
+            placement="above"
           />
           <textarea
             ref={composerRef}
@@ -355,30 +387,6 @@ export function AgenticQueryPanel({
         </div>
 
         {error ? <p className="text-xs text-red-500">{error}</p> : null}
-      </div>
-
-      <div
-        className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4"
-        data-testid="agentic-query-results"
-      >
-        {latestTurn ? (
-          <AgenticTurnBlock
-            turn={latestTurn}
-            isLatest
-            isRunning={isRunning}
-            activeRunId={activeRunId}
-          />
-        ) : null}
-
-        {olderTurns.map((turn) => (
-          <AgenticTurnBlock
-            key={turn._id}
-            turn={turn}
-            isLatest={false}
-            isRunning={false}
-            activeRunId={activeRunId}
-          />
-        ))}
       </div>
     </div>
   );
