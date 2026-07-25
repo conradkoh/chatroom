@@ -62,19 +62,19 @@ The target id `handoff:planner-to-builder` remains as a feature toggle id — it
 
 ### Key modules
 
-| Layer             | Path                                                                        | Purpose                                                     |
-| ----------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Schema            | `services/backend/convex/schema.ts`                                         | `chatroom_enhancerConfigs` + `chatroom_enhancerJobs` tables |
-| Config sync       | `services/backend/convex/web/enhancer/mutations.ts`                         | `upsertConfig`, `disableConfig`                             |
-| Complete mutation | `services/backend/convex/web/enhancer/completeLogic.ts`                     | `applyEnhancerComplete` + planning feedback delivery        |
-| CLI async queue   | `packages/cli/src/index.ts`                                                 | Commander action handler for `chatroom handoff`             |
-| Polling           | `packages/cli/src/commands/enhancer/wait-for-job.ts`                        | CLI poll loop with timeout + retry                          |
-| Daemon jobs       | `services/backend/convex/daemon/enhancer/jobs.ts`                           | `pendingForMachine`, `claimForSpawn`                        |
-| Spawn payload     | `services/backend/convex/daemon/enhancer/spawnPayload.ts`                   | `getSpawnPayload` with envelope + prompt                    |
-| Daemon subscriber | `packages/cli/src/commands/machine/daemon-start/enhancer/job-subscriber.ts` | `pendingForMachine` subscription → spawn                    |
-| System prompt     | `services/backend/prompts/enhancer/system-prompt.ts`                        | `renderEnhancerSystemPrompt`                                |
-| Task envelope     | `services/backend/prompts/enhancer/render-task-envelope.ts`                 | `renderEnhancerTaskEnvelope`                                |
-| Event types       | `apps/webapp/src/modules/chatroom/eventTypes/enhancerEvents.tsx`            | 4 event stream variants                                     |
+| Layer             | Path                                                                        | Purpose                                                           |
+| ----------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Schema            | `services/backend/convex/schema.ts`                                         | `chatroom_enhancerConfigs` + `chatroom_enhancerJobs` tables       |
+| Config sync       | `services/backend/convex/web/enhancer/mutations.ts`                         | `upsertConfig`, `disableConfig`                                   |
+| Complete mutation | `services/backend/convex/web/enhancer/completeLogic.ts`                     | `applyEnhancerComplete` + planning feedback delivery              |
+| CLI async queue   | `packages/cli/src/index.ts`                                                 | Commander action handler for `chatroom handoff`                   |
+| Async delivery    | `packages/cli/src/commands/machine/daemon-start/enhancer/job-subscriber.ts` | Daemon claims jobs; planner receives feedback via `get-next-task` |
+| Daemon jobs       | `services/backend/convex/daemon/enhancer/jobs.ts`                           | `pendingForMachine`, `claimForSpawn`                              |
+| Spawn payload     | `services/backend/convex/daemon/enhancer/spawnPayload.ts`                   | `getSpawnPayload` with envelope + prompt                          |
+| Daemon subscriber | `packages/cli/src/commands/machine/daemon-start/enhancer/job-subscriber.ts` | `pendingForMachine` subscription → spawn                          |
+| System prompt     | `services/backend/prompts/enhancer/system-prompt.ts`                        | `renderEnhancerSystemPrompt`                                      |
+| Task envelope     | `services/backend/prompts/enhancer/render-task-envelope.ts`                 | `renderEnhancerTaskEnvelope`                                      |
+| Event types       | `apps/webapp/src/modules/chatroom/eventTypes/enhancerEvents.tsx`            | 4 event stream variants                                           |
 
 ---
 
@@ -275,8 +275,7 @@ The XML envelope delivered to the enhancer includes a `<planner-check-in>` secti
 - Daemon enhancer module: [services/backend/convex/daemon/enhancer/](services/backend/convex/daemon/enhancer/)
 - Enhancer prompts: [services/backend/prompts/enhancer/](services/backend/prompts/enhancer/)
 - CLI complete command: [packages/cli/src/commands/enhancer/complete.ts](packages/cli/src/commands/enhancer/complete.ts)
-- CLI wait-for-job: [packages/cli/src/commands/enhancer/wait-for-job.ts](packages/cli/src/commands/enhancer/wait-for-job.ts)
-- Daemon subscriber: [packages/cli/src/commands/machine/daemon-start/enhancer/](packages/cli/src/commands/machine/daemon-start/enhancer/)
+- Daemon subscriber: [packages/cli/src/commands/machine/daemon-start/enhancer/](packages/cli/src/commands/machine/daemon-start/enhancer/) (async job delivery — no CLI poll loop)
 - Handoff templates: [services/backend/prompts/cli/handoff-templates/](services/backend/prompts/cli/handoff-templates/)
 - Agentic query plan: [docs/plans/agentic-search-ask.md](docs/plans/agentic-search-ask.md)
 - Handoff mutation: [services/backend/convex/messages.ts](services/backend/convex/messages.ts) (`_handoffHandler` | `performHandoffFromEnhancer`)
