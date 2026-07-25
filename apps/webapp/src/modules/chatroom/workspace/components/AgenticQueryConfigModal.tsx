@@ -4,17 +4,17 @@ import { Star, Plus } from 'lucide-react';
 
 import { AgenticQueryHarnessControls } from './AgenticQueryHarnessControls';
 
+import { ModelFilterButton } from '@/modules/chatroom/components/model-selection';
+import type { UseMachineModelFilterResult } from '@/modules/chatroom/components/model-selection';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/modules/chatroom/components/ui/dialog';
-import { ModelFilterButton } from '@/modules/chatroom/components/model-selection';
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
 import { WorkspaceCapabilitiesRefreshButton } from '@/modules/chatroom/direct-harness/components/WorkspaceCapabilitiesRefreshButton';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
-import type { UseMachineModelFilterResult } from '@/modules/chatroom/components/model-selection';
 import { SearchConfigFavoritesList } from '@/modules/chatroom/features/search-config/components/SearchConfigFavoritesList';
 import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
 
@@ -65,10 +65,7 @@ export function AgenticQueryConfigModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
-      <DialogContent
-        data-testid="agentic-query-config-modal"
-        className="sm:max-w-2xl overflow-hidden"
-      >
+      <DialogContent data-testid="agentic-query-config-modal" className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Search configuration</DialogTitle>
         </DialogHeader>
