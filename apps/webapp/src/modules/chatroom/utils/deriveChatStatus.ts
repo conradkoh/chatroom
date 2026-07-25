@@ -23,6 +23,7 @@ export interface AgentPresence {
  */
 function isAgentWorkingForChatStatus(agent: AgentPresence): boolean {
   if (agent.lastStatus === 'agent.awaitingHandoff') return true;
+  if (agent.lastStatus === 'agent.enhancing') return true;
   return resolveAgentStatus(agent.lastStatus, agent.lastDesiredState, true).variant === 'working';
 }
 

@@ -24,6 +24,7 @@ import type {
   AgentStopTimeoutEvent,
   AgentHarnessSessionIdUpdatedEvent,
   AgentAwaitingHandoffEvent,
+  AgentEnhancingEvent,
   AgentTaskDeliveredEvent,
   AgentTaskDeliveryFailedEvent,
   MachineSwitchedEvent,
@@ -831,6 +832,38 @@ function renderAgentAwaitingHandoffDetails(event: AgentAwaitingHandoffEvent): Re
   );
 }
 
+// ─── Agent Enhancing ──────────────────────────────────────────────────────────
+
+function renderAgentEnhancingCell(
+  event: AgentEnhancingEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.enhancing"
+      badgeText="Enhancing"
+      badgeColor="info"
+      primaryInfo={event.role}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentEnhancingDetails(event: AgentEnhancingEvent): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Enhancing Handoff"
+      timestamp={event.timestamp}
+      type="agent.enhancing"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Agent Task Delivered ─────────────────────────────────────────────────────
 
 function renderAgentTaskDeliveredCell(
@@ -963,6 +996,7 @@ export const agentEventDefinitions: Pick<
   | 'agent.stopTimeout'
   | 'agent.harnessSessionIdUpdated'
   | 'agent.awaitingHandoff'
+  | 'agent.enhancing'
   | 'agent.taskDelivered'
   | 'agent.taskDeliveryFailed'
   | 'machine.switched'
@@ -1042,6 +1076,10 @@ export const agentEventDefinitions: Pick<
   'agent.awaitingHandoff': {
     cellRenderer: renderAgentAwaitingHandoffCell,
     detailsRenderer: renderAgentAwaitingHandoffDetails,
+  },
+  'agent.enhancing': {
+    cellRenderer: renderAgentEnhancingCell,
+    detailsRenderer: renderAgentEnhancingDetails,
   },
   'agent.taskDelivered': {
     cellRenderer: renderAgentTaskDeliveredCell,

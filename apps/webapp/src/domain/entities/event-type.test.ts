@@ -8,12 +8,13 @@ import {
 
 describe('event-type', () => {
   it('lists every chatroom_eventStream type surfaced in the event stream UI', () => {
-    expect(SUPPORTED_EVENT_TYPE_NAMES).toHaveLength(49);
-    expect(Object.keys(SUPPORTED_EVENT_TYPES)).toHaveLength(49);
+    expect(SUPPORTED_EVENT_TYPE_NAMES).toHaveLength(50);
+    expect(Object.keys(SUPPORTED_EVENT_TYPES)).toHaveLength(50);
   });
 
   it('includes recently added agent lifecycle event types', () => {
     expect(isSupportedEventType('agent.awaitingHandoff')).toBe(true);
+    expect(isSupportedEventType('agent.enhancing')).toBe(true);
     expect(isSupportedEventType('agent.stopTimeout')).toBe(true);
     expect(isSupportedEventType('agent.harnessSessionIdUpdated')).toBe(true);
     expect(isSupportedEventType('agent.taskDelivered')).toBe(true);

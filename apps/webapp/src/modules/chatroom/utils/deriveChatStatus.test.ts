@@ -41,6 +41,10 @@ describe('deriveChatStatus', () => {
     expect(deriveChatStatus('active', [agent({ lastStatus: 'task.completed' })])).toBe('active');
   });
 
+  it('returns working when planner is enhancing (agent.enhancing)', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.enhancing' })])).toBe('working');
+  });
+
   it('returns working when an agent is awaiting handoff (agent.awaitingHandoff)', () => {
     expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.awaitingHandoff' })])).toBe(
       'working'

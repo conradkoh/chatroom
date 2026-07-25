@@ -30,6 +30,7 @@ describe('deriveAgentIsWorking', () => {
     expectAligned('task.inProgress', null, true, 'working');
     expectAligned('task.completed', null, true, 'ready');
     expectAligned('agent.awaitingHandoff', null, true, 'transitioning');
+    expectAligned('agent.enhancing', null, true, 'working');
     expectAligned('agent.exited', 'stopped', true, 'offline');
     expectAligned('agent.exited', 'running', true, 'error');
     expectAligned('agent.circuitOpen', null, true, 'error');

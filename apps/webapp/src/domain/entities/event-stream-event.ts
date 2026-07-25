@@ -208,6 +208,12 @@ export interface AgentAwaitingHandoffEvent extends EventStreamEventBase {
   chatroomId: string;
 }
 
+export interface AgentEnhancingEvent extends EventStreamEventBase {
+  type: 'agent.enhancing';
+  role: string;
+  chatroomId: string;
+}
+
 export interface AgentTaskDeliveredEvent extends EventStreamEventBase {
   type: 'agent.taskDelivered';
   chatroomId: string;
@@ -495,6 +501,7 @@ export type EventStreamEvent =
   | AgentStopTimeoutEvent
   | AgentHarnessSessionIdUpdatedEvent
   | AgentAwaitingHandoffEvent
+  | AgentEnhancingEvent
   | AgentTaskDeliveredEvent
   | AgentTaskDeliveryFailedEvent
   | MachineSwitchedEvent
