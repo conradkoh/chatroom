@@ -177,7 +177,7 @@ async function resolveVisibleMessageUpdate(
 ): Promise<VisibleMessageUpdate | null> {
   const message = await ctx.db.get('chatroom_messages', id);
   if (!message || message.chatroomId !== chatroomId) return null;
-  if (!message.taskId) return { _id: id, taskStatus: undefined, latestProgress: undefined };
+  if (!message.taskId) return null;
 
   const task = await ctx.db.get('chatroom_tasks', message.taskId);
 
@@ -189,17 +189,18 @@ async function resolveVisibleMessageUpdate(
     .take(1);
   const progress = progressRows[0];
 
-  return {
-    _id: id,
-    taskStatus: task?.status,
-    latestProgress: progress
-      ? {
-          content: progress.content,
-          senderRole: progress.senderRole,
-          _creationTime: progress._creationTime,
-        }
-      : undefined,
-  };
+  const update: VisibleMessageUpdate = { _id: id };
+  if (task?.status !== undefined) {
+    update.taskStatus = task.status;
+  }
+  if (progress) {
+    update.latestProgress = {
+      content: progress.content,
+      senderRole: progress.senderRole,
+      _creationTime: progress._creationTime,
+    };
+  }
+  return update;
 }
 
 /**
@@ -224,7 +225,12 @@ export const subscribeVisibleMessageUpdates = query({
       ids.map((id) => resolveVisibleMessageUpdate(ctx, args.chatroomId, id))
     );
 
-    return results.filter((r): r is VisibleMessageUpdate => r !== null);
+    const updates = results.filter((r): r is VisibleMessageUpdate => r !== null);
+    // Return null when idle to suppress subscription bandwidth (same pattern as getFileTreeDeltas)
+    if (updates.length === 0) {
+      return null;
+    }
+    return updates;
   },
 });
 

@@ -257,7 +257,7 @@ describe('subscribeVisibleMessageUpdates — lightweight delta', () => {
     expect(progress?.senderRole).toBe('builder');
   });
 
-  test('returns undefined fields for a message with no task', async () => {
+  test('returns null for a message with no task', async () => {
     const { sessionId } = await createTestSession('visible-updates-2');
     const chatroomId = await createChatroom(sessionId);
 
@@ -269,10 +269,7 @@ describe('subscribeVisibleMessageUpdates — lightweight delta', () => {
       messageIds: [ids[0]],
     });
 
-    expect(result.length).toBe(1);
-    expect(result[0]._id).toBe(ids[0]);
-    expect(result[0].taskStatus).toBeUndefined();
-    expect(result[0].latestProgress).toBeUndefined();
+    expect(result).toBeNull();
   });
 
   test('ignores ids from a different chatroom', async () => {
@@ -288,7 +285,21 @@ describe('subscribeVisibleMessageUpdates — lightweight delta', () => {
       messageIds: [idsA[0]],
     });
 
-    expect(result.length).toBe(0);
+    expect(result).toBeNull();
+  });
+
+  test('returns null when no requested ids have a task', async () => {
+    const { sessionId } = await createTestSession('visible-updates-no-task');
+    const chatroomId = await createChatroom(sessionId);
+    const ids = await seedMessages(chatroomId, 3);
+
+    const result = await t.query(api.messageList.subscribeVisibleMessageUpdates, {
+      sessionId,
+      chatroomId,
+      messageIds: ids,
+    });
+
+    expect(result).toBeNull();
   });
 
   test('caps input at MAX_VISIBLE_UPDATE_IDS (100)', async () => {
@@ -304,6 +315,6 @@ describe('subscribeVisibleMessageUpdates — lightweight delta', () => {
     });
 
     // Should be capped at 100 (no throw, max 100 results)
-    expect(result.length).toBeLessThanOrEqual(100);
+    expect(result).toBeNull();
   });
 });
