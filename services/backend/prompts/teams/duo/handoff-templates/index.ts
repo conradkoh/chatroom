@@ -1,4 +1,5 @@
 import { getBuilderToPlannerHandoffTemplate } from './builder-to-planner';
+import { getEnhancerToPlannerHandoffTemplate } from './enhancer-to-planner';
 import { getPlannerToBuilderHandoffTemplate } from './planner-to-builder';
 import { getPlannerToEnhancerHandoffTemplate } from './planner-to-enhancer';
 import { getPlannerToUserReportTemplate } from './planner-to-user';
@@ -15,6 +16,7 @@ export interface DuoHandoffTemplateQuery {
 const DUO_HANDOFF_TEMPLATES: Record<string, (query: DuoHandoffTemplateQuery) => string> = {
   'planner:builder': (query) => getPlannerToBuilderHandoffTemplate(query.nativeIntegration),
   'planner:enhancer': () => getPlannerToEnhancerHandoffTemplate(),
+  'enhancer:planner': () => getEnhancerToPlannerHandoffTemplate(),
   'planner:user': (query) =>
     getPlannerToUserReportTemplate({
       chatroomId: query.chatroomId,

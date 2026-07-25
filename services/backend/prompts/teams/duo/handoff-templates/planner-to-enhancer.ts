@@ -1,48 +1,41 @@
 /**
- * Handoff template: Duo planner → enhancer (enhancement draft).
+ * Handoff template: Duo planner → enhancer (mandatory planning check-in).
  *
- * Lighter than the builder delegation brief. The planner sends context and
- * rough intent; the enhancer expands it into a full planner→builder brief.
+ * The planner must always check in with the enhancer when enabled, providing
+ * full context the enhancer cannot see from the session.
  */
 
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { getFileReferenceGuidanceComment } from '../../../utils/file-reference-guidance';
 
 /**
- * Returns the markdown draft template the planner uses when sending work to the
- * handoff enhancer for polishing before builder delegation.
+ * Returns the markdown check-in template the planner uses when handing work
+ * to the handoff enhancer for critical review.
  */
 export function getPlannerToEnhancerHandoffTemplate(): string {
   return `${getHandoffRecipientVisibilityCallout('enhancer')}
 
-**Enhancement Draft (Planner → Enhancer)** — paste into the handoff message. Include every field that applies. **Omit fields that do not apply** — do not write \`Not Applicable\` as filler.
+**Mandatory Planning Check-in (Planner → Enhancer)** — paste into the handoff message. Include every section below. **Do not skip this check-in** when the enhancer is enabled.
 
-The enhancer has **no session context** — only this draft and the builder handoff template. Include enough detail for the enhancer to produce a complete delegation brief.
+The enhancer has **no session context** — only this message. Include everything it needs to critique your understanding, research, and conclusions.
 
 \`\`\`markdown
-## Summary
-<what you want built or changed, in plain language — background the enhancer cannot infer>
+## What the user said
+<quote or faithfully paraphrase the user's request, constraints, and priorities — include classification context if relevant>
 
-## Goal
-<one sentence outcome for the builder slice>
-
-## Context & constraints
-- <domain facts, user expectations, invariants to preserve>
-- <relevant file paths, modules, or prior decisions>
-
-## Rough implementation notes
-- <bullets on approach, APIs, or files to touch — does not need file-level snippets yet>
+## Research collected
+<summarize what you investigated, read, or learned — cite sources, files, or evidence where possible>
 ${getFileReferenceGuidanceComment()}
 
-## Acceptance criteria (draft)
-- <verifiable outcomes the enhanced brief should preserve or refine>
+## Suggestions & conclusions
+<your current proposed direction, tradeoffs considered, and what you plan to recommend or build>
 
-## Open questions / areas to expand
-- <where the enhancer should add specificity, structure, or missing detail>
+## Open uncertainties
+<what you are unsure about and want the enhancer to scrutinize>
 
-## Out of scope
-- <what the builder must NOT do in this slice>
+## Intended next step after feedback
+<whether you expect to delegate to builder, hand off to user, or re-check with enhancer — helps the reviewer focus>
 \`\`\`
 
-After enhancement completes, you will receive the polished brief back as a planner task. Review it, edit if needed, then hand off to \`builder\` using the **Handoff to \`builder\`** template.`;
+After the enhancer returns feedback, you will receive it as a new planner task. Address the feedback, then proceed to \`builder\` or \`user\` as appropriate.`;
 }
