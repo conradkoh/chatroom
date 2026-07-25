@@ -75,12 +75,9 @@ vi.mock('../../direct-harness/hooks/useRefreshCapabilities', () => ({
   useRefreshCapabilities: () => ({ refresh: vi.fn() }),
 }));
 
+const mockUseAgenticQueryRunTurnStore = vi.fn();
 vi.mock('../hooks/useAgenticQueryRunTurnStore', () => ({
-  useAgenticQueryRunTurnStore: () => ({
-    turns: [],
-    streamingOverlay: null,
-    isLoading: false,
-  }),
+  useAgenticQueryRunTurnStore: (...args: unknown[]) => mockUseAgenticQueryRunTurnStore(...args),
 }));
 
 const REGISTRY_WORKSPACE_ID = 'jd7fake_registry_workspace_id';
@@ -106,6 +103,11 @@ describe('AgenticQueryPanel @ trigger', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSubmit.mockResolvedValue(undefined);
+    mockUseAgenticQueryRunTurnStore.mockReturnValue({
+      turns: [],
+      streamingOverlay: null,
+      isLoading: false,
+    });
   });
 
   it('shows file results when typing @ with shared autocomplete files', async () => {
@@ -169,7 +171,7 @@ describe('AgenticQueryPanel @ trigger', () => {
     });
   });
 
-  it('positions the dropdown below the composer (top anchor)', async () => {
+  it('positions the dropdown above the composer (bottom anchor)', async () => {
     renderAgenticComposer([{ path: 'src/a.ts', type: 'file' }]);
 
     const textarea = screen.getByTestId('agentic-query-composer-input');
@@ -179,8 +181,8 @@ describe('AgenticQueryPanel @ trigger', () => {
       const dropdown = document.querySelector('[data-autocomplete-item]')?.parentElement
         ?.parentElement;
       expect(dropdown).toBeTruthy();
-      expect(dropdown?.style.top).not.toBe('');
-      expect(dropdown?.style.bottom).toBe('');
+      expect(dropdown?.style.bottom).not.toBe('');
+      expect(dropdown?.style.top).toBe('');
     });
   });
 });
