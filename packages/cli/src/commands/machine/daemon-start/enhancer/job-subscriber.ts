@@ -1,6 +1,7 @@
 import type { ConvexClient } from 'convex/browser';
 
 import { ENHANCER_AGENT_ROLE } from './constants.js';
+import { writeEnhancerLog } from './enhancer-log.js';
 import { api, type Id } from '../../../../api.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import type { RemoteAgentService } from '../../../../infrastructure/services/remote-agents/remote-agent-service.js';
@@ -39,6 +40,7 @@ export function startEnhancerJobSubscriber(
             })) as { claimed: boolean };
             if (!claim.claimed) return;
             claimed = true;
+            writeEnhancerLog(`claimed job=${job.jobId} chatroom=${job.chatroomId}`);
 
             const payload = (await backend.query(api.daemon.enhancer.index.getSpawnPayload, {
               sessionId,
@@ -54,6 +56,10 @@ export function startEnhancerJobSubscriber(
             };
             chatroomId = payload.chatroomId;
             jobId = payload.jobId;
+
+            writeEnhancerLog(
+              `spawning harness=${payload.agentHarness} model=${payload.model} job=${payload.jobId}`
+            );
 
             const service = agentServices.get(payload.agentHarness);
             if (!service) {
@@ -79,9 +85,12 @@ export function startEnhancerJobSubscriber(
               resolvedConvexUrl: convexUrl,
             });
 
-            // Stream harness output to daemon logs (same pattern as AgentProcessManager)
             spawnResult.onLogLine?.((line) => {
-              process.stdout.write(`${line}\n`);
+              writeEnhancerLog(line);
+            });
+
+            spawnResult.onAssistantText?.((text) => {
+              if (text) writeEnhancerLog(`text] ${text}`);
             });
 
             await new Promise<void>((resolve) => {
@@ -94,6 +103,10 @@ export function startEnhancerJobSubscriber(
               jobId: payload.jobId,
             })) as { status: string } | null;
 
+            if (status?.status === 'complete') {
+              writeEnhancerLog(`completed job=${payload.jobId}`);
+            }
+
             if (status?.status === 'running') {
               await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
                 sessionId,
@@ -103,10 +116,7 @@ export function startEnhancerJobSubscriber(
               });
             }
           } catch (err) {
-            console.warn(
-              '[enhancer] spawn error:',
-              err instanceof Error ? err.message : String(err)
-            );
+            writeEnhancerLog(`error: ${err instanceof Error ? err.message : String(err)}`);
             if (claimed) {
               await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
                 sessionId,
