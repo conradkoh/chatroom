@@ -2,7 +2,8 @@
  * Handoff template: Duo planner → enhancer (mandatory planning check-in).
  *
  * The planner must always check in with the enhancer when enabled, providing
- * full context the enhancer cannot see from the session.
+ * full context the enhancer cannot see from the session. Three XML-delimited
+ * sections remove ambiguity: user message, grounding, and draft builder handoff.
  */
 
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
@@ -15,27 +16,32 @@ import { getFileReferenceGuidanceComment } from '../../../utils/file-reference-g
 export function getPlannerToEnhancerHandoffTemplate(): string {
   return `${getHandoffRecipientVisibilityCallout('enhancer')}
 
-**Mandatory Planning Check-in (Planner → Enhancer)** — paste into the handoff message. Include every section below. **Do not skip this check-in** when the enhancer is enabled.
+**Mandatory Planning Check-in (Planner → Enhancer)** — paste into the handoff message. **Do not skip this check-in** when the enhancer is enabled.
 
-The enhancer has **no session context** — only this message. Include everything it needs to critique your understanding, research, and conclusions.
+The enhancer has **no session context** — only this message. Use the three XML sections below **exactly** — they delimit what the enhancer will review.
 
 \`\`\`markdown
-## What the user said
-<quote or faithfully paraphrase the user's request, constraints, and priorities — include classification context if relevant>
+<user-message>
+<verbatim or faithful quote of the user's request — include constraints, priorities, and classification context if relevant>
+</user-message>
 
-## Research collected
-<summarize what you investigated, read, or learned — cite sources, files, or evidence where possible>
+<grounding>
+<fully detailed research the enhancer cannot see from your session — be exhaustive>
+
+Include:
+- **Existing code examples** — relevant snippets, patterns, and conventions already in the codebase
+- **File references** — paths to every file you investigated or plan to change
+- **Technology choices** — libraries, frameworks, APIs, and why they apply here
+- **Observations** — what you learned, edge cases, risks, and open questions from investigation
 ${getFileReferenceGuidanceComment()}
+</grounding>
 
-## Suggestions & conclusions
-<your current proposed direction, tradeoffs considered, and what you plan to recommend or build>
+<builder-handoff>
+<your complete, filled-in Delegation Brief for builder review — every section with real content, not placeholders>
 
-## Open uncertainties
-<what you are unsure about and want the enhancer to scrutinize>
-
-## Intended next step after feedback
-<whether you expect to delegate to builder, hand off to user, or re-check with enhancer — helps the reviewer focus>
+Follow the **Handoff to \`builder\`** template structure (Summary, Goal, Files to implement, Requirements, etc.). The enhancer critiques this draft before you delegate.
+</builder-handoff>
 \`\`\`
 
-After the enhancer returns feedback, you will receive it as a new planner task. Address the feedback, then proceed to \`builder\` or \`user\` as appropriate.`;
+After the enhancer returns feedback, you will receive it as a new planner task. Revise grounding and the builder handoff as needed, then proceed to \`builder\` or \`user\` as appropriate.`;
 }
