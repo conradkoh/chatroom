@@ -150,4 +150,50 @@ describe('getObservedChatroomsForMachine scoping', () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.lastRefreshedAt).toBe(now - 10_000);
   });
+
+  test('returns null when all observations are stale', async () => {
+    const { sessionId: sid } = await createTestSession('test-obs-stale-all');
+    const machineId = 'machine-obs-stale-all';
+    await registerMachineWithDaemon(sid, machineId);
+
+    const room = await createDuoTeamChatroom(sid);
+    await registerWorkspace(sid, room, machineId, '/ws/stale');
+
+    await setObservedAt(room, Date.now() - 2 * OBSERVATION_TTL_MS);
+
+    const result = await getObservedForMachine(sid, machineId);
+    expect(result).toBeNull();
+  });
+
+  test('returns null when machine has workspaces but no observation rows', async () => {
+    const { sessionId: sid } = await createTestSession('test-obs-none');
+    const machineId = 'machine-obs-none';
+    await registerMachineWithDaemon(sid, machineId);
+
+    const room = await createDuoTeamChatroom(sid);
+    await registerWorkspace(sid, room, machineId, '/ws/unobserved');
+    // intentionally no setObservedAt
+
+    const result = await getObservedForMachine(sid, machineId);
+    expect(result).toBeNull();
+  });
+
+  test('omits lastRefreshedAt when not set on observation', async () => {
+    const { sessionId: sid } = await createTestSession('test-obs-no-refresh');
+    const machineId = 'machine-obs-no-refresh';
+    await registerMachineWithDaemon(sid, machineId);
+
+    const room = await createDuoTeamChatroom(sid);
+    await registerWorkspace(sid, room, machineId, '/ws/no-refresh');
+
+    await setObservedAt(room, Date.now());
+
+    const result = await getObservedForMachine(sid, machineId);
+    expect(result).toHaveLength(1);
+    expect(result![0]).toEqual({
+      chatroomId: room,
+      workingDirs: ['/ws/no-refresh'],
+    });
+    expect(result![0]).not.toHaveProperty('lastRefreshedAt');
+  });
 });

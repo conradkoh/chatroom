@@ -3441,7 +3441,7 @@ export const getObservedChatroomsForMachine = query({
     const result: {
       chatroomId: Id<'chatroom_rooms'>;
       workingDirs: string[];
-      lastRefreshedAt: number | null;
+      lastRefreshedAt?: number;
     }[] = [];
     for (const [chatroomId, workingDirs] of chatroomWorkingDirsMap) {
       const obs = observationMap.get(chatroomId);
@@ -3449,11 +3449,15 @@ export const getObservedChatroomsForMachine = query({
         result.push({
           chatroomId,
           workingDirs,
-          lastRefreshedAt: obs.lastRefreshedAt ?? null,
+          ...(obs.lastRefreshedAt !== undefined ? { lastRefreshedAt: obs.lastRefreshedAt } : {}),
         });
       }
     }
 
+    // Return null when idle to suppress subscription bandwidth (same pattern as getFileTreeDeltas)
+    if (result.length === 0) {
+      return null;
+    }
     return result;
   },
 });
