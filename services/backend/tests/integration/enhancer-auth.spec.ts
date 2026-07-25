@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { createTestSession } from '../helpers/integration';
+import { createTestSession, joinParticipant } from '../helpers/integration';
 import { setupWorkspaceForSession } from './direct-harness/fixtures';
 
 describe('daemon.enhancer.index unauthorized access', () => {
@@ -37,6 +37,28 @@ describe('daemon.enhancer.index unauthorized access', () => {
       agentHarness: 'opencode',
       model: 'anthropic/claude-opus-4',
       machineId,
+    });
+
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await t.run(async (ctx) => {
+      const msgId = await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'Auth test message',
+        targetRole: 'planner',
+        type: 'message',
+      });
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'Auth test message',
+        status: 'in_progress',
+        assignedTo: 'planner',
+        sourceMessageId: msgId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        queuePosition: 1,
+      });
     });
 
     const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
@@ -68,6 +90,28 @@ describe('daemon.enhancer.index unauthorized access', () => {
       agentHarness: 'opencode',
       model: 'anthropic/claude-opus-4',
       machineId,
+    });
+
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await t.run(async (ctx) => {
+      const msgId = await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'Auth test message',
+        targetRole: 'planner',
+        type: 'message',
+      });
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'Auth test message',
+        status: 'in_progress',
+        assignedTo: 'planner',
+        sourceMessageId: msgId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        queuePosition: 1,
+      });
     });
 
     const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {

@@ -15,6 +15,7 @@ import { insertPlannerToEnhancerDraftMessage } from './timelineMessages';
 import { ENHANCER_MAX_ATTEMPTS } from '../../../config/reliability';
 import { buildPlanningReviewOutcomeContent } from '../../../src/domain/usecase/enhancer/build-planning-review-outcome';
 import { completePlannerTasksOnEnhancerCheckIn } from '../../../src/domain/usecase/enhancer/complete-planner-tasks-on-check-in';
+import { resolveOriginUserMessageIdForPlannerCheckIn } from '../../../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import {
   transitionPlannerFromEnhancingToWaiting,
   transitionPlannerToEnhancing,
@@ -125,6 +126,32 @@ export const enqueueHandoff = mutation({
       throw new ConvexError({ code: 'ENHANCER_NOT_ENABLED', message: 'Enhancer not enabled' });
     }
 
+    const originUserMessageId = await resolveOriginUserMessageIdForPlannerCheckIn(
+      ctx,
+      args.chatroomId
+    );
+    if (!originUserMessageId) {
+      throw new ConvexError({
+        code: 'NO_PLANNER_USER_TASK',
+        message:
+          'Cannot queue enhancer check-in without an active planner task from a user instruction',
+      });
+    }
+
+    const priorJob = await ctx.db
+      .query('chatroom_enhancerJobs')
+      .withIndex('by_chatroom_originUserMessageId', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('originUserMessageId', originUserMessageId)
+      )
+      .first();
+    if (priorJob) {
+      throw new ConvexError({
+        code: 'ENHANCER_ALREADY_CHECKED_IN',
+        message:
+          'Enhancer check-in already used for this user instruction. Proceed to builder or user — workflow is linear.',
+      });
+    }
+
     const existingActive = await findActiveEnhancerJob(ctx, args.chatroomId, 'planner', 'enhancer');
     if (existingActive) {
       throw new ConvexError({
@@ -155,6 +182,7 @@ export const enqueueHandoff = mutation({
       attemptCount: 1,
       maxAttempts: ENHANCER_MAX_ATTEMPTS,
       createdAt: now,
+      originUserMessageId,
       pendingHandoffArgs: {
         senderRole: 'planner',
         targetRole: 'planner',
@@ -175,8 +203,6 @@ export const enqueueHandoff = mutation({
       now
     );
 
-    await transitionPlannerToEnhancing(ctx, args.chatroomId);
-
     await insertPlannerToEnhancerDraftMessage(ctx, {
       chatroomId: args.chatroomId,
       content: args.content,
@@ -185,6 +211,8 @@ export const enqueueHandoff = mutation({
     });
 
     await completePlannerTasksOnEnhancerCheckIn(ctx, args.chatroomId);
+
+    await transitionPlannerToEnhancing(ctx, args.chatroomId);
 
     return { jobId };
   },

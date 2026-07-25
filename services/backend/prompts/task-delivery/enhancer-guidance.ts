@@ -26,6 +26,9 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
   lines.push(
     '**You MUST check in with the enhancer** — there is no option to skip this step for this user instruction.'
   );
+  lines.push(
+    '**One check-in per user instruction** — after your check-in is queued (success or failure), you cannot hand off to `enhancer` again for this instruction.'
+  );
   lines.push('');
   lines.push('**How it works:**');
   lines.push(

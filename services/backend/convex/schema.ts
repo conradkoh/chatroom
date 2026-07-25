@@ -3073,6 +3073,7 @@ export default defineSchema({
     lastError: v.optional(v.string()),
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
+    originUserMessageId: v.optional(v.id('chatroom_messages')),
     pendingHandoffArgs: v.optional(
       v.object({
         senderRole: v.string(),
@@ -3083,7 +3084,8 @@ export default defineSchema({
   })
     .index('by_chatroom_status', ['chatroomId', 'status'])
     .index('by_machine_status', ['machineId', 'status'])
-    .index('by_status_nextRetryAt', ['status', 'nextRetryAt']),
+    .index('by_status_nextRetryAt', ['status', 'nextRetryAt'])
+    .index('by_chatroom_originUserMessageId', ['chatroomId', 'originUserMessageId']),
 
   /**
    * Messages produced by a harness session (both user prompts and assistant

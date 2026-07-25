@@ -119,6 +119,27 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     await enableEnhancer(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
+    await t.run(async (ctx) => {
+      const msgId = await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'Delivery task test',
+        targetRole: 'planner',
+        type: 'message',
+      });
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'Delivery task test',
+        status: 'in_progress',
+        assignedTo: 'planner',
+        sourceMessageId: msgId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        queuePosition: 1,
+      });
+    });
+
     const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
       sessionId,
       chatroomId,

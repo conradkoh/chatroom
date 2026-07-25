@@ -12,9 +12,38 @@ import { t } from '../../test.setup';
 import {
   createTestSession,
   createDuoTeamChatroom,
+  joinParticipant,
   registerMachineWithDaemon,
 } from '../helpers/integration';
 import { setupWorkspaceForSession } from './direct-harness/fixtures';
+
+async function createPlannerUserMessageAndTask(
+  sessionId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  content: string
+): Promise<void> {
+  await joinParticipant(sessionId, chatroomId, 'planner');
+  await t.run(async (ctx) => {
+    const msgId = await ctx.db.insert('chatroom_messages', {
+      chatroomId,
+      senderRole: 'user',
+      content,
+      targetRole: 'planner',
+      type: 'message',
+    });
+    await ctx.db.insert('chatroom_tasks', {
+      chatroomId,
+      createdBy: 'user',
+      content,
+      status: 'in_progress',
+      assignedTo: 'planner',
+      sourceMessageId: msgId,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      queuePosition: 1,
+    });
+  });
+}
 
 describe('daemon.enhancer.index', () => {
   test('enqueueHandoff creates job with status pending', async () => {
@@ -29,6 +58,8 @@ describe('daemon.enhancer.index', () => {
       model: 'anthropic/claude-opus-4',
       machineId,
     });
+
+    await createPlannerUserMessageAndTask(sessionId, chatroomId, 'Spawn test message');
 
     const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
       sessionId,
@@ -55,6 +86,8 @@ describe('daemon.enhancer.index', () => {
       model: 'anthropic/claude-opus-4',
       machineId,
     });
+
+    await createPlannerUserMessageAndTask(sessionId, chatroomId, 'Claim test message');
 
     const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
       sessionId,
@@ -97,6 +130,8 @@ describe('daemon.enhancer.index', () => {
       model: 'anthropic/claude-opus-4',
       machineId,
     });
+
+    await createPlannerUserMessageAndTask(sessionId, chatroomId, 'Payload test message');
 
     const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
       sessionId,
