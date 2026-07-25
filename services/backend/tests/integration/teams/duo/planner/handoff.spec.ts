@@ -39,6 +39,19 @@ describe('Duo Team > Planner > Handoff Output', () => {
     `);
   });
 
+  test('handoff to builder with enhancer interception', () => {
+    const output = generateHandoffOutput({
+      ...BASE_PARAMS,
+      nextRole: 'builder',
+      enhancerIntercepted: true,
+    });
+
+    expect(output).toContain('queued for handoff enhancement');
+    expect(output).toContain('Run get-next-task now');
+    expect(output).toContain('get-next-task');
+    expect(output).not.toContain('handed off to builder');
+  });
+
   test('handoff to user', () => {
     const output = generateHandoffOutput({
       ...BASE_PARAMS,

@@ -256,6 +256,7 @@ handoffCommandGroup
                 nextRole: options.nextRole,
                 chatroomId: options.chatroomId,
                 convexUrl,
+                enhancerIntercepted: true,
               })
             );
             return;

@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'vitest';
 
-import { appendTaskDeliveryEnhancerGuidance } from './enhancer-guidance';
+import {
+  appendTaskDeliveryEnhancerGuidance,
+  isEnhancerInterceptedHandoff,
+} from './enhancer-guidance';
 
 describe('appendTaskDeliveryEnhancerGuidance', () => {
   test('includes enhancer context and async handoff rules', () => {
@@ -15,5 +18,22 @@ describe('appendTaskDeliveryEnhancerGuidance', () => {
     expect(output).toContain('Run get-next-task immediately');
     expect(output).toContain('Do not hand off to builder again');
     expect(output).toContain('</handoff-enhancer>');
+  });
+
+  test('isEnhancerInterceptedHandoff identifies planner→builder interception', () => {
+    expect(
+      isEnhancerInterceptedHandoff({
+        role: 'planner',
+        nextRole: 'builder',
+        enhancerIntercepted: true,
+      })
+    ).toBe(true);
+    expect(
+      isEnhancerInterceptedHandoff({
+        role: 'planner',
+        nextRole: 'user',
+        enhancerIntercepted: true,
+      })
+    ).toBe(false);
   });
 });

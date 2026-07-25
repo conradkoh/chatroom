@@ -42,6 +42,10 @@ import {
 import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
 import { buildSelectorContext } from './selector-context';
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
+import {
+  getEnhancerInterceptedHandoffConfirmationLines,
+  isEnhancerInterceptedHandoff,
+} from './task-delivery/enhancer-guidance.js';
 import type { ComposedInitPrompt, InitPromptInput } from './types/init-prompt';
 import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
@@ -237,12 +241,19 @@ export function generateHandoffOutput(params: {
   chatroomId: string;
   convexUrl?: string;
   supportsNativeIntegration?: boolean;
+  /** When true, planner→builder handoff was queued for async enhancement. */
+  enhancerIntercepted?: boolean;
 }): string {
-  const { role, nextRole, chatroomId, convexUrl, supportsNativeIntegration } = params;
+  const { role, nextRole, chatroomId, convexUrl, supportsNativeIntegration, enhancerIntercepted } =
+    params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   const lines: string[] = [];
-  lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
+  if (isEnhancerInterceptedHandoff({ role, nextRole, enhancerIntercepted })) {
+    lines.push(...getEnhancerInterceptedHandoffConfirmationLines());
+  } else {
+    lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
+  }
 
   if (supportsNativeIntegration) {
     lines.push(getNativeHandoffTurnEndGuidance(nextRole));
