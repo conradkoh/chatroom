@@ -1,17 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import { renderEnhancerReferenceHandoffTemplatesContent } from './reference-handoff-templates';
-import {
-  HANDOFF_TEMPLATE_FIXTURE_CHATROOM_ID,
-  HANDOFF_TEMPLATE_FIXTURE_CLI_ENV_PREFIX,
-} from '../../tests/helpers/handoff-template-fixtures';
+
+const FIXTURE_CHATROOM_ID = '000000000000010002chatroom_rooms';
+const FIXTURE_CLI_ENV_PREFIX = 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ';
 
 describe('renderEnhancerReferenceHandoffTemplatesContent', () => {
   const baseParams = {
     teamId: 'duo',
-    chatroomId: HANDOFF_TEMPLATE_FIXTURE_CHATROOM_ID,
+    chatroomId: FIXTURE_CHATROOM_ID,
     outputTemplate: '## Summary\nEnhancer output template',
-    cliEnvPrefix: HANDOFF_TEMPLATE_FIXTURE_CLI_ENV_PREFIX,
+    cliEnvPrefix: FIXTURE_CLI_ENV_PREFIX,
     nativeIntegration: true,
   };
 
