@@ -82,7 +82,6 @@ describe('incremental workspace file tree', () => {
       hasMore: false,
       deltas: [
         {
-          operationId: 'watch-batch-1',
           baseRevision: 0,
           revision: 1,
           operations: [EXPECTED_ADD_OPERATION],
