@@ -67,20 +67,25 @@ describe('incremental workspace file tree', () => {
       workingDir: WORKING_DIR,
       afterRevision: 0,
     });
-    expect(result).toMatchObject({
+    expect(result).toEqual({
       status: 'ok',
-      checkpointRevision: 0,
-      currentRevision: 1,
-      hasMore: false,
       deltas: [
         {
-          operationId: 'watch-batch-1',
           baseRevision: 0,
           revision: 1,
           operations: [ADD_OPERATION],
         },
       ],
     });
+
+    // Caught-up query returns null
+    const caughtUp = await t.query(api.workspaceFiles.getFileTreeDeltas, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      afterRevision: 1,
+    });
+    expect(caughtUp).toBeNull();
 
     // Idempotency is checked before base revision, as required for network retries.
     const duplicate = await t.mutation(api.workspaceFiles.applyFileTreeDeltaBatch, {
