@@ -3,7 +3,7 @@
 // fallow-ignore-file complexity
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Loader2, Search, Send } from 'lucide-react';
+import { ChevronDown, Loader2, Search, Send } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { AgenticQueryConfigBar } from './AgenticQueryConfigBar';
@@ -25,6 +25,8 @@ import {
 } from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { TimelineMarkdownBody } from '@/modules/chatroom/components/timeline/TimelineMarkdownBody';
 import { ThinkingBlock } from '@/modules/chatroom/direct-harness/components/ThinkingBlock';
+import { JUMP_TO_NEW_MESSAGES_GAP_PX } from '@/modules/chatroom/components/timeline/timelineVirtualizerConfig';
+import { useScrollController } from '@/modules/chatroom/hooks/useScrollController';
 import { useFileReferenceAutocomplete } from '@/modules/chatroom/hooks/useFileReferenceAutocomplete';
 
 export interface AgenticQueryPanelProps {
@@ -120,6 +122,34 @@ function AgenticTurnBlock({
   );
 }
 
+function AgenticQueryStreamScrollSync({
+  runId,
+  controller,
+  feedRef,
+}: {
+  runId: Id<'chatroom_agenticQueryRuns'>;
+  controller: React.MutableRefObject<
+    import('@/modules/chatroom/hooks/useScrollController').ScrollController
+  >;
+  feedRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const { streamingOverlay } = useAgenticQueryRunTurnStore(runId);
+  const prevScrollHeightRef = useRef(0);
+
+  useLayoutEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    const newScrollHeight = el.scrollHeight;
+    const heightDiff = newScrollHeight - prevScrollHeightRef.current;
+    if (heightDiff > 0 && prevScrollHeightRef.current > 0) {
+      controller.current.onNewMessages(heightDiff, false, false);
+    }
+    prevScrollHeightRef.current = newScrollHeight;
+  }, [streamingOverlay?.textContent, streamingOverlay?.reasoningContent, controller, feedRef]);
+
+  return null;
+}
+
 // fallow-ignore-next-line complexity
 export function AgenticQueryPanel({
   queryId,
@@ -198,15 +228,52 @@ export function AgenticQueryPanel({
     }
   }, [canCompose, composerText, harnessSelection, isFollowUpMode, submit]);
 
+  // ── Scroll controller ──────────────────────────────────────────────────
+  const { controller, isPinned, scrollToBottom, beginResize, endResize } = useScrollController();
+  const resultsRef = useRef<HTMLDivElement | null>(null);
+  const prevScrollHeightRef = useRef(0);
+  const prevTurnCountRef = useRef(0);
+
+  const resultsRefCallback = useCallback(
+    (node: HTMLDivElement | null) => {
+      resultsRef.current = node;
+      if (node) {
+        controller.current.attach(node);
+      } else {
+        controller.current.detach();
+      }
+    },
+    [controller]
+  );
+
+  useLayoutEffect(() => {
+    const el = resultsRef.current;
+    if (!el) return;
+    const newScrollHeight = el.scrollHeight;
+    const heightDiff = newScrollHeight - prevScrollHeightRef.current;
+    const turnsAdded = turns.length > prevTurnCountRef.current;
+
+    if (turnsAdded && heightDiff > 0 && prevScrollHeightRef.current > 0) {
+      controller.current.onNewMessages(heightDiff, false, false);
+    } else if (prevScrollHeightRef.current === 0 && turns.length > 0) {
+      controller.current.snapToBottom();
+    }
+
+    prevScrollHeightRef.current = newScrollHeight;
+    prevTurnCountRef.current = turns.length;
+  }, [turns.length, controller]);
+
   const AGENTIC_COMPOSER_MAX_HEIGHT_PX = 192;
   const AGENTIC_COMPOSER_MIN_HEIGHT_PX = 40;
 
   const adjustComposerHeight = useCallback(() => {
     const el = composerRef.current;
     if (!el) return;
+    beginResize();
     const measured = measureTextareaContentHeightPx(el, AGENTIC_COMPOSER_MAX_HEIGHT_PX);
     el.style.height = `${Math.max(measured, AGENTIC_COMPOSER_MIN_HEIGHT_PX)}px`;
-  }, []);
+    endResize();
+  }, [beginResize, endResize]);
 
   useLayoutEffect(() => {
     adjustComposerHeight();
@@ -272,19 +339,44 @@ export function AgenticQueryPanel({
         activeRunId={activeRunId}
       />
 
-      <div
-        className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4"
-        data-testid="agentic-query-results"
-      >
-        {turns.map((turn, index) => (
-          <AgenticTurnBlock
-            key={turn._id}
-            turn={turn}
-            isLatest={index === turns.length - 1}
-            isRunning={index === turns.length - 1 && isRunning}
-            activeRunId={activeRunId}
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={resultsRefCallback}
+          className="h-full overflow-y-auto p-4 space-y-4"
+          data-testid="agentic-query-results"
+        >
+          {turns.map((turn, index) => (
+            <AgenticTurnBlock
+              key={turn._id}
+              turn={turn}
+              isLatest={index === turns.length - 1}
+              isRunning={index === turns.length - 1 && isRunning}
+              activeRunId={activeRunId}
+            />
+          ))}
+        </div>
+
+        {activeRunId ? (
+          <AgenticQueryStreamScrollSync
+            runId={activeRunId}
+            controller={controller}
+            feedRef={resultsRef}
           />
-        ))}
+        ) : null}
+
+        {!isPinned ? (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            style={{ bottom: JUMP_TO_NEW_MESSAGES_GAP_PX }}
+            className="absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
+            aria-label="Jump to new messages"
+            data-testid="agentic-query-jump-to-new"
+          >
+            <ChevronDown size={16} />
+            <span className="text-xs font-medium">Jump to new messages</span>
+          </button>
+        ) : null}
       </div>
 
       <div
