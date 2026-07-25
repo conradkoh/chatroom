@@ -1,7 +1,7 @@
 /**
  * Task-delivery section informing the planner about handoff enhancer behavior.
  *
- * Only included when enhancer is enabled for planner→builder handoffs in the chatroom.
+ * Only included when enhancement is enabled for the current user instruction (planner entry-point tasks from user).
  */
 
 export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {

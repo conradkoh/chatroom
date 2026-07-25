@@ -3,8 +3,8 @@ import type { EnhancerTarget } from '../types/enhancer';
 export const ENHANCER_TARGETS: readonly EnhancerTarget[] = [
   {
     id: 'handoff:planner-to-builder',
-    label: 'Handoff: Planner → Builder',
+    label: 'Planning review (before builder)',
     description:
-      'Enhance planner drafts into builder delegation briefs; planner reviews before builder handoff.',
+      'Require a planner check-in with the enhancer before delegating to builder. Applies only while enabled for each user instruction.',
   },
 ] as const;

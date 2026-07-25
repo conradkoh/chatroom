@@ -214,7 +214,7 @@ handoffCommandGroup
       process.exit(1);
     }
 
-    // Check if enhancer should intercept planner→enhancer handoffs
+    // Check if enhancer should queue async check-in for planner→enhancer handoffs
     const shouldEnhance =
       options.role.toLowerCase() === 'planner' && options.nextRole.toLowerCase() === 'enhancer';
     if (shouldEnhance) {
@@ -265,7 +265,7 @@ handoffCommandGroup
           const error = err as { data?: { code?: string; message?: string } };
           if (error?.data?.code !== 'ENHANCER_NOT_ENABLED') {
             // Ignore "not enabled" — fall through to normal handoff
-            console.error(`\n❌ ERROR: Enhancer interception failed`);
+            console.error(`\n❌ ERROR: Enhancer check-in failed`);
             console.error(`\n${error?.data?.message ?? (err as Error).message}`);
             process.exit(1);
           }

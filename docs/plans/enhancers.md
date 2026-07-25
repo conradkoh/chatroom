@@ -69,17 +69,28 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    P[Planner: chatroom handoff --next-role=builder] --> C{Enhancer enabled?}
-    C -->|no| H[Direct handoff mutation]
-    C -->|yes| E[enqueueHandoff → pending job]
-    E --> D[Daemon: claimForSpawn + RemoteAgentService.spawn]
-    D --> A[Single-turn enhancer agent]
-    A --> X[chatroom enhancer complete]
-    X --> F[performHandoffFromEnhancer with enhanced content]
-    F --> B[Builder receives enhanced brief]
+    P[Planner: chatroom handoff --next-role=enhancer] --> Q{Enhancer enabled?}
+    Q -->|no| H[Direct handoff mutation to builder]
+    Q -->|yes| E[enqueueHandoff → pending job]
+
+    subgraph Async queue
+        E --> D[Daemon: claimForSpawn + RemoteAgentService.spawn]
+        D --> A[Single-turn enhancer agent]
+        A --> C[chatroom enhancer complete]
+    end
+
+    C --> F[Planning feedback delivered to planner as task]
+    F --> P2[Planner reviews feedback, then handoff to builder]
+    P2 --> B[Builder receives brief]
     H --> B
     E -->|retries exhausted| FAIL[CLI error — no draft fallback]
 ```
+
+**Flow:** `user → planner → enhancer → planner → builder → user`
+
+Enhancement is **user-instruction scoped** ("enhancement enabled for this user instruction"). Planner **explicitly** hands off to `enhancer` (not `builder`). Enhancer returns **planning feedback** to planner, not an enhanced builder brief. Planner reviews feedback and proceeds to builder.
+
+The target id `handoff:planner-to-builder` remains as a feature toggle id — it gates the planning-review phase before builder delegation, not a brief-rewriting operation.
 
 ### Key modules
 
@@ -87,8 +98,8 @@ flowchart TD
 | ----------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | Schema            | `services/backend/convex/schema.ts`                                         | `chatroom_enhancerConfigs` + `chatroom_enhancerJobs` tables |
 | Config sync       | `services/backend/convex/web/enhancer/mutations.ts`                         | `upsertConfig`, `disableConfig`                             |
-| Complete mutation | `services/backend/convex/web/enhancer/completeLogic.ts`                     | `applyEnhancerComplete` + handoff delivery                  |
-| Interception      | `packages/cli/src/index.ts`                                                 | Commander action handler for `chatroom handoff`             |
+| Complete mutation | `services/backend/convex/web/enhancer/completeLogic.ts`                     | `applyEnhancerComplete` + planning feedback delivery        |
+| CLI async queue   | `packages/cli/src/index.ts`                                                 | Commander action handler for `chatroom handoff`             |
 | Polling           | `packages/cli/src/commands/enhancer/wait-for-job.ts`                        | CLI poll loop with timeout + retry                          |
 | Daemon jobs       | `services/backend/convex/daemon/enhancer/jobs.ts`                           | `pendingForMachine`, `claimForSpawn`                        |
 | Spawn payload     | `services/backend/convex/daemon/enhancer/spawnPayload.ts`                   | `getSpawnPayload` with envelope + prompt                    |
@@ -124,9 +135,9 @@ Duo planner→builder body: [services/backend/prompts/teams/duo/handoff-template
 
 The template tells the enhancer **what sections and quality bar** the output must satisfy.
 
-### 2. Filled handoff (content to enhance)
+### 2. Planner check-in (content to review)
 
-The planner's draft handoff message body (markdown inside `---MESSAGE---` / heredoc), **before** it is delivered to the builder.
+The planner's draft handoff message body (markdown inside `---MESSAGE---` / heredoc), **before** it is delivered to the builder. The enhancer receives this as an XML check-in with three sections: `user-message`, `grounding`, `builder-handoff`.
 
 ### 3. Enhancement instructions (system)
 
@@ -135,7 +146,7 @@ Fixed system prompt constraints:
 - Improve clarity, detail, and fidelity; preserve intent
 - **Do not** add research, file reads, or new scope
 - **Do not** change the handoff format — output must match template structure
-- Return only the enhanced handoff markdown (no preamble)
+- Return only the planning feedback markdown (no preamble)
 
 ---
 
@@ -149,7 +160,7 @@ chatroom enhancer complete \
   --job-id=<id> \
   << 'CHATROOM_ENHANCER_END'
 ---MESSAGE---
-<enhanced handoff markdown — same structure as planner→builder delegation brief>
+<planning feedback markdown — review notes for planner, not a builder brief>
 CHATROOM_ENHANCER_END
 ```
 
@@ -159,32 +170,32 @@ CHATROOM_ENHANCER_END
 
 1. Authenticate session
 2. Validate job exists and is `running`
-3. Validate enhanced body (non-empty; optional: section headers match template expectations)
-4. Persist enhanced content on job record
-5. Trigger **delivery handoff** to builder with enhanced content (not the draft)
+3. Validate planning feedback body (non-empty; optional: section headers match expectations)
+4. Persist feedback content on job record
+5. Trigger delivery to planner as a planning review task (not a builder brief)
 6. Mark job `complete`; dispose enhancer session
 
 **Enhancer agent system prompt** must embed the complete command (like [renderAgenticQuerySystemPrompt](services/backend/prompts/agentic-query/system-prompt.ts)).
 
 ---
 
-## Interception point
+## Async queue: planner→enhancer check-in
 
-**Recommended:** Intercept in `chatroom handoff` CLI **before** calling `messages.handoff` mutation when:
+**Triggered in** `chatroom handoff` CLI **before** calling `messages.handoff` mutation when:
 
-- `nextRole === 'builder'` and `role === 'planner'`
+- `nextRole === 'enhancer'` and `role === 'planner'`
 - Chatroom has active enhancer config for `handoff:planner-to-builder`
 - Enhancer config includes `agentHarness` + `model`
 
 **Flow:**
 
-1. Planner runs `chatroom handoff --next-role=builder` with draft message
-2. CLI/backend detects enhancer enabled → creates `chatroom_enhancerJobs` row (status `pending`)
+1. Planner runs `chatroom handoff --next-role=enhancer` with planning check-in
+2. CLI queues enhancer job (`chatroom_enhancerJobs`, status `pending`) via `enqueueHandoff`
 3. Daemon spawns enhancer harness session (user-selected harness/model from config)
-4. Task envelope delivered with template + draft + complete command
+4. Task envelope delivered with template + check-in + complete command
 5. Enhancer runs single turn → `chatroom enhancer complete`
-6. Backend performs normal handoff mutation with **enhanced** content
-7. Planner sees success output (same as today); builder receives enhanced brief
+6. Backend delivers **planning feedback** to planner as a new task
+7. Planner reviews feedback, then handoff to builder when ready
 
 **Enhancer failure behavior:** When enhancer enabled, **no fallback to draft**. Retries with exponential backoff (`ENHANCER_RETRY_BASE_MS` in `services/backend/config/reliability.ts`). After `ENHANCER_MAX_ATTEMPTS` retries, the CLI exits with error — the builder never receives the original draft.
 

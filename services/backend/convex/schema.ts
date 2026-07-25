@@ -3026,7 +3026,7 @@ export default defineSchema({
 
   /**
    * Per-user-per-chatroom enhancer configuration.
-   * Synced from webapp; read by handoff CLI at interception time.
+   * Synced from webapp; read by handoff CLI when planner queues an enhancer check-in.
    */
   chatroom_enhancerConfigs: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -3042,7 +3042,7 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId']),
 
   /**
-   * One-shot enhancer job per intercepted handoff.
+   * One-shot enhancer job per planner→enhancer check-in.
    * Populated in slice 2.3; schema now so migrations are stable.
    */
   chatroom_enhancerJobs: defineTable({

@@ -68,7 +68,7 @@ describe('EnhancerConfigDialog', () => {
     );
 
     expect(screen.getByText('Enhancer configuration')).toBeDefined();
-    expect(screen.getByText('Handoff: Planner → Builder')).toBeDefined();
+    expect(screen.getByText('Planning review (before builder)')).toBeDefined();
   });
 
   it('shows helper text when no machineId provided', () => {
@@ -104,7 +104,7 @@ describe('EnhancerConfigDialog', () => {
       />
     );
 
-    const targetButton = screen.getByText('Handoff: Planner → Builder');
+    const targetButton = screen.getByText('Planning review (before builder)');
     fireEvent.click(targetButton);
 
     const enableButton = screen.getByText('Enable');

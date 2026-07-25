@@ -20,7 +20,7 @@ describe('formatEnhancerConfigLabel', () => {
 
   it('formatEnhancerConfigLabel includes target prefix', () => {
     expect(formatEnhancerConfigLabel(entry)).toBe(
-      'Handoff: Planner → Builder / OpenCode (CLI) / ANTHROPIC / CLAUDE OPUS 4'
+      'Planning review (before builder) / OpenCode (CLI) / ANTHROPIC / CLAUDE OPUS 4'
     );
   });
 });
