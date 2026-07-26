@@ -21,9 +21,14 @@ describe('buildPlanningReviewOutcomeContent', () => {
     expect(result).toContain('Timeout on attempt 3');
   });
 
-  test('includes linear workflow guidance', () => {
+  test('includes delegation-loop workflow guidance for failed check-in', () => {
     const result = buildPlanningReviewOutcomeContent('cancelled');
-    expect(result).toContain('Do not hand off to enhancer again');
-    expect(result).toContain('user → planner → enhancer → planner → builder → user');
+    expect(result).toContain('Do not retry the enhancer for this check-in');
+    expect(result).toContain(
+      'user → [loop planner → enhancer → planner → builder → planner] → user'
+    );
+    expect(result).toContain('builder handback');
+    expect(result).not.toContain('strictly linear');
+    expect(result).not.toContain('for this user instruction');
   });
 });

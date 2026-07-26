@@ -93,6 +93,9 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     expect(output).toContain('--next-role="enhancer"');
     expect(output).toContain('Handoff to `enhancer`');
     expect(output).toContain('**enhancer**');
+    expect(output).toContain(
+      'user → [loop planner → enhancer → planner → builder → planner] → user'
+    );
   });
 
   test('planner user task omits enhancer guidance when config disabled', async () => {

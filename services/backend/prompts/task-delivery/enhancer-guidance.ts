@@ -5,19 +5,34 @@
  * (initial user task or mid-task slice continuation after builder handback).
  */
 
+import {
+  ENHANCER_DELEGATION_ROUND_WORKFLOW,
+  ENHANCER_ENABLED_USER_WORKFLOW,
+} from '../../src/domain/usecase/enhancer/enhancer-workflow';
+
 export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
   lines.push('');
   lines.push('<handoff-enhancer>');
   lines.push('## Handoff Enhancer (enabled)');
   lines.push('');
+  lines.push('**Workflow (activity diagram):**');
+  lines.push('');
+  lines.push('```');
+  lines.push(ENHANCER_ENABLED_USER_WORKFLOW);
+  lines.push('```');
+  lines.push('');
+  lines.push(
+    '**Loop semantics:** Each loop iteration is one builder delegation round (slice/phase). **Next slice** (new delegation after builder handback) repeats the loop including enhancer. **Same-slice rework** (planner → builder with feedback, no new slice) skips the enhancer — go directly to `builder` via `<handoffs>`.'
+  );
+  lines.push('');
   lines.push(
     '**One check-in per builder delegation.** Before handing off to `builder` — for any slice — check in with the enhancer first.'
   );
   lines.push('');
-  lines.push('**Workflow per slice:**');
+  lines.push('**One loop iteration (enhancer enabled):**');
   lines.push('');
   lines.push('```');
-  lines.push('planner → enhancer → planner → builder → planner (review) → [next slice or user]');
+  lines.push(`${ENHANCER_DELEGATION_ROUND_WORKFLOW} → [next slice or user]`);
   lines.push('```');
   lines.push('');
   lines.push('**Multi-slice tasks:**');
@@ -139,7 +154,13 @@ export function appendPlanningReviewOutcomeGuidance(lines: string[]): void {
   );
   lines.push('');
   lines.push('**Your job:**');
-  lines.push('- Proceed with your delegation brief using existing research — no re-review step.');
+  lines.push(
+    '- Proceed with your delegation brief using existing research — no re-review step for this check-in.'
+  );
+  lines.push('- **Do not retry the enhancer** for this failed check-in.');
+  lines.push(
+    '- A **new** enhancer check-in is only appropriate after a **builder handback** when delegating the next slice/phase.'
+  );
   lines.push('- Delegate to `builder` or hand off to `user` as appropriate.');
   lines.push('');
   lines.push('</planning-review-outcome-intake>');

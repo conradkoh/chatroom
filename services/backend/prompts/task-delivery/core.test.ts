@@ -37,6 +37,9 @@ describe('appendTaskDeliveryHandoffSections — enhancer enabled', () => {
     expect(output).toContain('--next-role="enhancer"');
     expect(output).toContain('Handoff to `enhancer`');
     expect(output).not.toContain('<enhancer-review>');
+    expect(output).toContain(
+      'user → [loop planner → enhancer → planner → builder → planner] → user'
+    );
   });
 
   test('builder handback includes enhancer guidance for next slice delegation', () => {

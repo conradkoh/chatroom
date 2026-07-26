@@ -4,6 +4,10 @@ import {
   appendTaskDeliveryEnhancerGuidance,
   appendTaskDeliveryEnhancerReviewGuidance,
 } from './enhancer-guidance';
+import {
+  ENHANCER_DELEGATION_ROUND_WORKFLOW,
+  ENHANCER_ENABLED_USER_WORKFLOW,
+} from '../../src/domain/usecase/enhancer/enhancer-workflow';
 
 describe('appendTaskDeliveryEnhancerGuidance', () => {
   test('includes per-delegation enhancer context and async handoff rules', () => {
@@ -26,6 +30,20 @@ describe('appendTaskDeliveryEnhancerGuidance', () => {
     expect(output).toContain('Do not hand off to builder or user');
     expect(output).not.toContain('one check-in per user instruction');
     expect(output).toContain('</handoff-enhancer>');
+    expect(output).toContain(
+      'user → [loop planner → enhancer → planner → builder → planner] → user'
+    );
+    expect(output).toContain('Next slice');
+    expect(output).toContain('Same-slice rework');
+    expect(output).not.toContain('strictly linear');
+  });
+
+  test('emits SSOT workflow constants verbatim', () => {
+    const lines: string[] = [];
+    appendTaskDeliveryEnhancerGuidance(lines);
+    const output = lines.join('\n');
+    expect(output).toContain(ENHANCER_ENABLED_USER_WORKFLOW);
+    expect(output).toContain(ENHANCER_DELEGATION_ROUND_WORKFLOW);
   });
 });
 

@@ -1,5 +1,5 @@
 /**
- * enhancer linear workflow — Integration Tests
+ * enhancer delegation-loop workflow — Integration Tests
  *
  * Full happy path: user message → enqueue → complete → planner feedback → builder handoff.
  */
@@ -58,7 +58,7 @@ async function createPlannerUserMessageAndTask(
   return msgId;
 }
 
-describe('enhancer linear workflow', () => {
+describe('enhancer delegation-loop workflow', () => {
   test('user task → enqueue → complete → planner feedback → builder handoff allowed', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-linear');
     await enableEnhancer(sessionId, chatroomId, machineId);
