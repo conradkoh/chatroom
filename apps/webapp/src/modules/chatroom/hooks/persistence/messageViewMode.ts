@@ -12,7 +12,7 @@ export function getMessageFilterRoles(teamRoles: string[]): string[] {
   const roles = [
     ...new Set(['user', ...teamRoles.filter((role) => role.toLowerCase() !== 'user')]),
   ];
-  if (rolesInclude(teamRoles, 'planner') && !rolesInclude(roles, ENHANCER_FILTER_ROLE)) {
+  if (teamSupportsEnhancer(teamRoles) && !rolesInclude(roles, ENHANCER_FILTER_ROLE)) {
     roles.push(ENHANCER_FILTER_ROLE);
   }
   return roles;
@@ -33,6 +33,10 @@ export function isFilteredMessageViewMode(
   mode: MessageViewMode
 ): mode is Exclude<MessageViewMode, 'all'> {
   return mode !== 'all';
+}
+
+export function teamSupportsEnhancer(teamRoles: readonly string[]): boolean {
+  return rolesInclude(teamRoles, 'planner');
 }
 
 function isRoleMessageViewMode(value: string): boolean {

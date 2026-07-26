@@ -2042,7 +2042,6 @@ export function ChatroomDashboard({
                       onTeamChange={handleTeamChange}
                       agentConfigs={agentPanelData.machineConfigs}
                       onOpenAgents={handleOpenAgents}
-                      machineId={activeWorkspace?.machineId ?? null}
                     />
                     <WorkQueue
                       chatroomId={chatroomId as Id<'chatroom_rooms'>}

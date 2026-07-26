@@ -157,8 +157,8 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-vi.mock('../StandingInstructionsBar', () => ({
-  StandingInstructionsBar: () => null,
+vi.mock('./ComposerPreflightBar', () => ({
+  ComposerPreflightBar: () => <div data-testid="composer-preflight-bar" />,
 }));
 
 vi.mock('../QueuedMessagesIndicator', () => ({
