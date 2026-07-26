@@ -11,6 +11,7 @@ import {
 describe('scheduledPromptTimezone', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it('getBrowserTimezone returns IANA timezone', () => {
@@ -24,21 +25,7 @@ describe('scheduledPromptTimezone', () => {
   });
 
   it('localDailyTimeToUtc and utcDailyTimeToLocal round-trip in UTC', () => {
-    vi.stubGlobal(
-      'Intl',
-      new Proxy(Intl, {
-        get(target, prop) {
-          if (prop === 'DateTimeFormat') {
-            return class extends target.DateTimeFormat {
-              resolvedOptions() {
-                return { ...super.resolvedOptions(), timeZone: 'UTC' };
-              }
-            };
-          }
-          return Reflect.get(target, prop);
-        },
-      })
-    );
+    vi.stubEnv('TZ', 'UTC');
     const utc = localDailyTimeToUtc(9, 30);
     expect(utc).toEqual({ hourUTC: 9, minuteUTC: 30 });
     const local = utcDailyTimeToLocal(9, 30);
