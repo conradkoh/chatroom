@@ -9,6 +9,7 @@ import {
   stripOverflowFromClassName,
 } from './dialog';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
+import { OverlayPortalContainerProvider } from '../shared/overlayPortalContainer';
 
 describe('stripOverflowFromClassName', () => {
   it('removes overflow utilities', () => {
@@ -102,5 +103,16 @@ describe('DialogContent z-index', () => {
       </Dialog>
     );
     expect(screen.getByTestId('floating-dialog').className).toContain('z-[100]');
+  });
+
+  it('auto-elevates to z-[100] when nested in portal context', () => {
+    render(
+      <OverlayPortalContainerProvider container={document.createElement('div')}>
+        <Dialog open onOpenChange={vi.fn()}>
+          <DialogContent data-testid="nested-dialog">Content</DialogContent>
+        </Dialog>
+      </OverlayPortalContainerProvider>
+    );
+    expect(screen.getByTestId('nested-dialog').className).toContain('z-[100]');
   });
 });

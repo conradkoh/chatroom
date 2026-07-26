@@ -21,7 +21,10 @@ import {
   chatroomIndustrialModalContentClassName,
   chatroomIndustrialOverlayClassName,
 } from '../shared/industrialDialogStyles';
-import { OverlayPortalContainerProvider } from '../shared/overlayPortalContainer';
+import {
+  OverlayPortalContainerProvider,
+  useOverlayPortalContainer,
+} from '../shared/overlayPortalContainer';
 
 import { useAllowTouchSelection } from '@/hooks/useAllowTouchSelection';
 import { cn } from '@/lib/utils';
@@ -88,16 +91,18 @@ function DialogContent({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & { floating?: boolean }) {
   useAllowTouchSelection();
+  const portalContainer = useOverlayPortalContainer();
+  const isFloating = floating ?? portalContainer != null;
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const safeClassName = stripOverflowFromClassName(className);
 
   return (
     <DialogPortal>
-      <DialogOverlay floating={floating} />
+      <DialogOverlay floating={isFloating} />
       <DialogPrimitive.Content
         data-slot="chatroom-dialog-content"
         className={cn(
-          floating
+          isFloating
             ? chatroomIndustrialFloatingModalContentClassName
             : chatroomIndustrialModalContentClassName,
           safeClassName,

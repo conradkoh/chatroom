@@ -473,16 +473,24 @@ const typography = {
 
 Z-index layers for portaled UI. SSOT: `apps/webapp/src/modules/chatroom/components/shared/overlayLayers.ts`.
 
-| Layer         | Constant          | Value   | Use                                             |
-| ------------- | ----------------- | ------- | ----------------------------------------------- |
-| Layout chrome | `Z_LAYOUT_CHROME` | z-30    | Mobile nav scrims                               |
-| Panel         | `Z_PANEL`         | z-40    | Side panels, light backdrops                    |
-| Modal         | `Z_MODAL`         | z-50    | Dialogs, FixedModal base                        |
-| Floating      | `Z_FLOATING`      | z-[100] | Portaled menus, popovers, drawers inside modals |
+| Layer         | Constant          | Value   | Use                                            |
+| ------------- | ----------------- | ------- | ---------------------------------------------- |
+| Layout chrome | `Z_LAYOUT_CHROME` | z-30    | Mobile nav scrims                              |
+| Panel         | `Z_PANEL`         | z-40    | Side panels, light backdrops                   |
+| Base modal    | `Z_MODAL`         | z-50    | FixedModal, page-level Dialogs, portaled menus |
+| Floating      | `Z_FLOATING`      | z-[100] | Nested modals/dialogs above parent modal       |
+| Confirmation  | `Z_CONFIRMATION`  | z-[110] | Alert/confirm dialogs above floating menus     |
+
+**Auto-elevate:** Components inside a parent modal's `OverlayPortalContainerProvider` context auto-elevate:
+
+- `DialogContent` → `Z_FLOATING` (z-[100])
+- `AlertDialogContent` → `Z_CONFIRMATION` (z-[110])
+- `FixedModal` overlay + content → `Z_FLOATING` (z-[100])
+- `Drawer` overlay + content → `Z_FLOATING` (z-[100])
+
+Portaled menus stay at `Z_MODAL` (z-50); inside modals they elevate via the portal host at z-[60].
 
 **Rule:** Any portaled interactive UI that opens _inside_ a modal must use `Z_FLOATING`. Base modals use `Z_MODAL` (z-50); nested/floating dialogs stack above via z-[100].
-
-**Responsive pickers:** Use `ResponsivePickerShell` for select-style pickers — Popover on desktop, Drawer on mobile — so mobile gets drawer UX consistently.
 
 ## Responsive Behavior
 

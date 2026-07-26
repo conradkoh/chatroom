@@ -10,8 +10,11 @@ import {
   popOverlayDismiss,
   pushOverlayDismiss,
 } from '@/modules/chatroom/components/shared/overlayDismissStack';
-import { Z_MODAL } from '@/modules/chatroom/components/shared/overlayLayers';
-import { OverlayPortalContainerProvider } from '@/modules/chatroom/components/shared/overlayPortalContainer';
+import { Z_FLOATING, Z_MODAL } from '@/modules/chatroom/components/shared/overlayLayers';
+import {
+  OverlayPortalContainerProvider,
+  useOverlayPortalContainer,
+} from '@/modules/chatroom/components/shared/overlayPortalContainer';
 
 // Reference-counted body scroll lock for nested/stacked modals.
 let scrollLockCount = 0;
@@ -238,6 +241,9 @@ const FixedModal = memo(function FixedModal({
   // Portal host ref — dedicated overflow-visible node for nested overlays (Drawer/Popover)
   // to portal into this modal's FocusScope rather than document.body.
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
+  const parentPortalContainer = useOverlayPortalContainer();
+  const isNested = parentPortalContainer != null;
+  const modalZ = isNested ? Z_FLOATING : Z_MODAL;
 
   // Lock body scroll when modal is open (reference-counted for stacked modals)
   useEffect(() => {
@@ -277,7 +283,7 @@ const FixedModal = memo(function FixedModal({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
           className={cn(
-            Z_MODAL,
+            modalZ,
             'fixed inset-0 flex items-center justify-center bg-black/50 p-0 sm:p-4',
             'data-[state=open]:animate-in data-[state=closed]:animate-out',
             'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
@@ -287,7 +293,7 @@ const FixedModal = memo(function FixedModal({
         <DialogPrimitive.Content
           className={cn(
             'chatroom-root',
-            Z_MODAL,
+            modalZ,
             'fixed left-1/2 top-1/2 flex w-full -translate-x-1/2 -translate-y-1/2',
             'bg-chatroom-bg-primary border-0 sm:border-2 border-chatroom-border-strong overflow-visible',
             'h-full sm:h-[70vh] flex flex-col',

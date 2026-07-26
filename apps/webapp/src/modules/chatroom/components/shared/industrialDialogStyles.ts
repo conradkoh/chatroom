@@ -3,7 +3,7 @@
  * See docs/application/design/theme.md — sharp corners, 2px borders, chatroom palette.
  */
 
-import { Z_FLOATING } from './overlayLayers';
+import { Z_CONFIRMATION, Z_FLOATING } from './overlayLayers';
 
 const chatroomIndustrialBorderClassName = 'border-2 border-chatroom-border-strong';
 
@@ -70,7 +70,18 @@ export const chatroomPortaledMenuSurfaceClassName =
   'bg-chatroom-bg-primary text-chatroom-text-primary border border-chatroom-border rounded-none shadow-md';
 
 /**
- * Base classes for portaled menu panels — z-[100] (float above modal z-50).
+ * Base classes for portaled menu panels — z-50 (elevate via portal host z-[60] inside modals).
  */
 // fallow-ignore-next-line unused-export
-export const chatroomPortaledMenuFloatingClassName = `${Z_FLOATING} pointer-events-auto outline-none ${chatroomPortaledMenuSurfaceClassName}`;
+export const chatroomPortaledMenuFloatingClassName = `z-50 pointer-events-auto outline-none ${chatroomPortaledMenuSurfaceClassName}`;
+
+/** Confirmation overlay — above floating menus and nested modals. */
+export const chatroomIndustrialConfirmationOverlayClassName = `${chatroomIndustrialOverlayAnimationClassName} ${Z_CONFIRMATION} bg-black/60`;
+
+export const chatroomIndustrialConfirmationModalContentClassName = [
+  ...chatroomIndustrialModalContentAnimationClassName,
+  Z_CONFIRMATION,
+  'rounded-none',
+  chatroomIndustrialBorderClassName,
+  chatroomIndustrialSurfaceClassName,
+] as const;

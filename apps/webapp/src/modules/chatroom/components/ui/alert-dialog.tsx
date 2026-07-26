@@ -9,12 +9,15 @@ import type * as React from 'react';
 import {
   chatroomIndustrialButtonDestructiveClassName,
   chatroomIndustrialButtonSecondaryClassName,
+  chatroomIndustrialConfirmationModalContentClassName,
+  chatroomIndustrialConfirmationOverlayClassName,
   chatroomIndustrialDialogDescriptionClassName,
   chatroomIndustrialDialogFooterClassName,
   chatroomIndustrialDialogTitleClassName,
   chatroomIndustrialModalContentClassName,
   chatroomIndustrialOverlayClassName,
 } from '../shared/industrialDialogStyles';
+import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
 
 import { useAllowTouchSelection } from '@/hooks/useAllowTouchSelection';
 import { cn } from '@/lib/utils';
@@ -37,10 +40,16 @@ function AlertDialogOverlay({
   className,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
+  const portalContainer = useOverlayPortalContainer();
   return (
     <AlertDialogPrimitive.Overlay
       data-slot="chatroom-alert-dialog-overlay"
-      className={cn(chatroomIndustrialOverlayClassName, className)}
+      className={cn(
+        portalContainer != null
+          ? chatroomIndustrialConfirmationOverlayClassName
+          : chatroomIndustrialOverlayClassName,
+        className
+      )}
       {...props}
     />
   );
@@ -51,13 +60,19 @@ function AlertDialogContent({
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
   useAllowTouchSelection();
+  const portalContainer = useOverlayPortalContainer();
 
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Content
         data-slot="chatroom-alert-dialog-content"
-        className={cn(chatroomIndustrialModalContentClassName, className)}
+        className={cn(
+          portalContainer != null
+            ? chatroomIndustrialConfirmationModalContentClassName
+            : chatroomIndustrialModalContentClassName,
+          className
+        )}
         {...props}
       />
     </AlertDialogPortal>
