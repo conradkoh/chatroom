@@ -54,8 +54,8 @@ export const startWorkspaceListSubscriptionEffect = (
       api.workspaces.listRecentlyObservedWorkspacesForMachine,
       queryArgs,
       (workspaces) => {
-        if (stopped) return;
-        applyList(workspaces ?? []);
+        if (stopped || workspaces == null) return;
+        applyList(workspaces);
       },
       (err: unknown) => {
         console.warn(
@@ -70,7 +70,7 @@ export const startWorkspaceListSubscriptionEffect = (
       session.backend
         .query(api.workspaces.listRecentlyObservedWorkspacesForMachine, queryArgs)
         .then((workspaces) => {
-          if (!stopped) applyList(workspaces ?? []);
+          if (!stopped && workspaces != null) applyList(workspaces);
         })
         .catch((err: unknown) => {
           console.warn(
