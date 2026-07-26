@@ -185,7 +185,7 @@ describe('promoteQueuedMessage', () => {
   });
 
   test('propagates scheduledPromptId from queue record to promoted message', async () => {
-    const { sessionId } = await createTestSession('promote-sp-id');
+    const { sessionId, userId } = await createTestSession('promote-sp-id');
     const chatroomId = await createChatroom(sessionId);
 
     const promptId = await t.run(async (ctx) => {
@@ -196,7 +196,7 @@ describe('promoteQueuedMessage', () => {
         intervalMinutes: 30,
         disabledReason: undefined,
         isRunnable: true,
-        createdBy: sessionId,
+        createdBy: userId,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });

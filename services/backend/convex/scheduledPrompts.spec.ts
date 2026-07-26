@@ -203,23 +203,27 @@ describe('scheduled prompts', () => {
       });
     });
 
-    // Insert two messages linked to the prompt, with different timestamps
+    // Insert two messages linked to the prompt (no createdAt — uses _creationTime)
+    await Promise.all([
+      t.run(async (ctx) => {
+        await ctx.db.insert('chatroom_messages', {
+          chatroomId,
+          senderRole: 'user',
+          content: 'first',
+          type: 'message',
+          scheduledPromptId: id,
+        });
+      }),
+      // Small delay so _creationTime order differs
+      new Promise((r) => setTimeout(r, 5)),
+    ]);
     await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_messages', {
-        chatroomId,
-        senderRole: 'user',
-        content: 'first',
-        type: 'message',
-        scheduledPromptId: id,
-        createdAt: now - 2000,
-      });
       await ctx.db.insert('chatroom_messages', {
         chatroomId,
         senderRole: 'user',
         content: 'second',
         type: 'message',
         scheduledPromptId: id,
-        createdAt: now - 1000,
       });
     });
 
