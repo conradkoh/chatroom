@@ -312,11 +312,14 @@ describe('Duo Team > Planner > System Prompt', () => {
       - Send back with specific feedback if requirements aren't met.
       - Feed slices to the builder incrementally — one at a time, not all at once.
 
+      **When enhancement is enabled** (see \`<handoff-enhancer>\` in task delivery): check in with the enhancer before **each** builder delegation, including slice 2 and beyond. Final delivery to \`user\` does not go through the enhancer. Rework on the same slice does not require re-enhancement.
+
       **Handoff Rules:**
 
       ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
+      - **When enhancement is enabled** → Check in with \`enhancer\` before each \`builder\` delegation
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
       - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
