@@ -10,13 +10,12 @@ import { toast } from 'sonner';
 import { formatSchedule, formatTime } from '../utils/scheduledPromptFormat';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  FixedModal,
+  FixedModalBody,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+} from '@/components/ui/fixed-modal';
 
 interface ScheduledPromptDetailDialogProps {
   open: boolean;
@@ -39,6 +38,8 @@ export function ScheduledPromptDetailDialog({
 
   const isActive = prompt?.disabledReason === undefined;
   const canDisable = prompt !== undefined && isActive;
+
+  const handleClose = useCallback(() => onOpenChange(false), [onOpenChange]);
 
   const handleDisable = useCallback(async () => {
     setDisabling(true);
@@ -64,73 +65,81 @@ export function ScheduledPromptDetailDialog({
         : 'Active';
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden min-w-0">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <FixedModal isOpen={open} onClose={handleClose} maxWidth="max-w-lg">
+      <FixedModalContent>
+        <FixedModalHeader onClose={handleClose}>
+          <div className="flex items-center gap-2">
             <Clock size={16} />
-            {displayName || 'Scheduled Prompt'}
-          </DialogTitle>
-          <DialogDescription>Schedule details and trigger history.</DialogDescription>
-        </DialogHeader>
-
-        {prompt === undefined ? (
-          <div className="flex justify-center py-8">
-            <Loader2 size={20} className="animate-spin text-chatroom-text-muted" />
+            <FixedModalTitle>{displayName || 'Scheduled Prompt'}</FixedModalTitle>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <p className="text-xs text-chatroom-text-muted">{formatSchedule(prompt)}</p>
-              <p className="text-[11px] text-chatroom-text-muted">
-                Status: <span className="font-bold">{statusLabel}</span>
-              </p>
-              {prompt.lastRunAt && (
-                <p className="text-[11px] text-chatroom-text-muted">
-                  Last run: {formatTime(prompt.lastRunAt)}
-                </p>
-              )}
-              {prompt.nextRunAt && isActive && (
-                <p className="text-[11px] text-chatroom-text-muted">
-                  Next run: {formatTime(prompt.nextRunAt)}
-                </p>
-              )}
-            </div>
+        </FixedModalHeader>
+        <p className="px-4 pt-1 pb-2 text-xs text-chatroom-text-muted">
+          Schedule details and trigger history.
+        </p>
+        <FixedModalBody>
+          <div className="px-4 pb-4">
+            {prompt === undefined ? (
+              <div className="flex justify-center py-8">
+                <Loader2 size={20} className="animate-spin text-chatroom-text-muted" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-chatroom-text-muted">{formatSchedule(prompt)}</p>
+                  <p className="text-[11px] text-chatroom-text-muted">
+                    Status: <span className="font-bold">{statusLabel}</span>
+                  </p>
+                  {prompt.lastRunAt && (
+                    <p className="text-[11px] text-chatroom-text-muted">
+                      Last run: {formatTime(prompt.lastRunAt)}
+                    </p>
+                  )}
+                  {prompt.nextRunAt && isActive && (
+                    <p className="text-[11px] text-chatroom-text-muted">
+                      Next run: {formatTime(prompt.nextRunAt)}
+                    </p>
+                  )}
+                </div>
 
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary mb-2">
-                Trigger history
-              </h4>
-              {triggered === undefined ? (
-                <Loader2 size={16} className="animate-spin text-chatroom-text-muted" />
-              ) : triggered.length === 0 ? (
-                <p className="text-xs text-chatroom-text-muted">No messages triggered yet.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {triggered.map((msg) => (
-                    <li
-                      key={msg._id}
-                      className="text-xs border border-chatroom-border p-2 bg-chatroom-bg-secondary"
-                    >
-                      <span className="text-[10px] text-chatroom-text-muted block mb-0.5">
-                        {formatTime(msg._creationTime)}
-                      </span>
-                      <span className="text-chatroom-text-primary line-clamp-2">
-                        {msg.content.length > 80 ? msg.content.slice(0, 80) + '...' : msg.content}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {triggered && triggered.length > 0 && (
-                <p className="text-[10px] text-chatroom-text-muted mt-2">Showing last 20 runs.</p>
-              )}
-            </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary mb-2">
+                    Trigger history
+                  </h4>
+                  {triggered === undefined ? (
+                    <Loader2 size={16} className="animate-spin text-chatroom-text-muted" />
+                  ) : triggered.length === 0 ? (
+                    <p className="text-xs text-chatroom-text-muted">No messages triggered yet.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {triggered.map((msg) => (
+                        <li
+                          key={msg._id}
+                          className="text-xs border border-chatroom-border p-2 bg-chatroom-bg-secondary"
+                        >
+                          <span className="text-[10px] text-chatroom-text-muted block mb-0.5">
+                            {formatTime(msg._creationTime)}
+                          </span>
+                          <span className="text-chatroom-text-primary line-clamp-2">
+                            {msg.content.length > 80
+                              ? msg.content.slice(0, 80) + '...'
+                              : msg.content}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {triggered && triggered.length > 0 && (
+                    <p className="text-[10px] text-chatroom-text-muted mt-2">
+                      Showing last 20 runs.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-
+        </FixedModalBody>
         {canDisable && (
-          <DialogFooter className="flex-col items-stretch gap-1 sm:flex-col">
+          <div className="p-4 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex flex-col items-stretch gap-1 flex-shrink-0">
             <Button
               variant="destructive"
               size="sm"
@@ -144,9 +153,9 @@ export function ScheduledPromptDetailDialog({
               Stops future runs. Existing messages are kept. Re-enable from the Scheduled prompts
               panel.
             </p>
-          </DialogFooter>
+          </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </FixedModalContent>
+    </FixedModal>
   );
 }
