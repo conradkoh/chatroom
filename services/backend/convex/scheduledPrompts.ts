@@ -4,7 +4,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { internalMutation, mutation, query } from './_generated/server';
-import type { MutationCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import {
   computeNextRunAt,
@@ -19,7 +19,7 @@ const SCAN_BATCH_SIZE = 10;
 // ─── Access helper ───
 
 async function requireScheduledPromptAccess(
-  ctx: MutationCtx,
+  ctx: QueryCtx | MutationCtx,
   sessionId: string,
   scheduledPromptId: Id<'chatroom_scheduledPrompts'>
 ) {
@@ -90,6 +90,30 @@ export const list = query({
       .query('chatroom_scheduledPrompts')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
+  },
+});
+
+export const get = query({
+  args: { ...SessionIdArg, scheduledPromptId: v.id('chatroom_scheduledPrompts') },
+  handler: async (ctx, args) => {
+    return await requireScheduledPromptAccess(ctx, args.sessionId, args.scheduledPromptId);
+  },
+});
+
+export const listTriggeredMessages = query({
+  args: {
+    ...SessionIdArg,
+    scheduledPromptId: v.id('chatroom_scheduledPrompts'),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const row = await requireScheduledPromptAccess(ctx, args.sessionId, args.scheduledPromptId);
+    const limit = Math.min(args.limit ?? 20, 50);
+    return await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_scheduledPromptId', (q) => q.eq('scheduledPromptId', row._id))
+      .order('desc')
+      .take(limit);
   },
 });
 
@@ -312,6 +336,7 @@ export const fireOne = internalMutation({
       chatroomId: row.chatroomId,
       content: row.prompt,
       sourcePlatform: 'scheduled',
+      scheduledPromptId: row._id,
     });
     if (!result.ok) return;
 

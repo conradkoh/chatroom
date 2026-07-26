@@ -145,6 +145,124 @@ describe('scheduled prompts', () => {
     expect(row!.nextRunAt).toBeGreaterThan(now);
   });
 
+  test('fireOne creates message with scheduledPromptId and sourcePlatform', async () => {
+    const { sessionId, userId } = await createTestSession('sp-fire-one-link');
+    const chatroomId = await createChatroom(sessionId);
+
+    const now = Date.now();
+    const id = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'linked scheduled message',
+        scheduleKind: 'interval',
+        intervalMinutes: 30,
+        disabledReason: undefined,
+        isRunnable: true,
+        nextRunAt: now - 1000,
+        createdBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    await t.mutation(api.scheduledPrompts.fireOne as any, {
+      scheduledPromptId: id,
+    });
+
+    const messages = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    expect(messages.length).toBeGreaterThanOrEqual(1);
+    const msg = messages.find((m) => m.sourcePlatform === 'scheduled');
+    expect(msg).toBeDefined();
+    expect(msg!.content).toBe('linked scheduled message');
+    expect(msg!.sourcePlatform).toBe('scheduled');
+    expect(msg!.scheduledPromptId).toBe(id);
+  });
+
+  test('listTriggeredMessages returns messages linked to prompt, ordered desc', async () => {
+    const { sessionId, userId } = await createTestSession('sp-list-triggered');
+    const chatroomId = await createChatroom(sessionId);
+
+    const now = Date.now();
+    const id = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'list test prompt',
+        scheduleKind: 'interval',
+        intervalMinutes: 30,
+        disabledReason: undefined,
+        isRunnable: true,
+        nextRunAt: now + 60000,
+        createdBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    // Insert two messages linked to the prompt, with different timestamps
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'first',
+        type: 'message',
+        scheduledPromptId: id,
+        createdAt: now - 2000,
+      });
+      await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'second',
+        type: 'message',
+        scheduledPromptId: id,
+        createdAt: now - 1000,
+      });
+    });
+
+    const result = await t.query(api.scheduledPrompts.listTriggeredMessages, {
+      sessionId,
+      scheduledPromptId: id,
+      limit: 10,
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result[0].content).toBe('second');
+    expect(result[1].content).toBe('first');
+  });
+
+  test('listTriggeredMessages access denied for wrong session', async () => {
+    const { sessionId, userId } = await createTestSession('sp-list-denied');
+    const { sessionId: otherSession } = await createTestSession('sp-list-denied-other');
+    const chatroomId = await createChatroom(sessionId);
+
+    const now = Date.now();
+    const id = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'denied prompt',
+        scheduleKind: 'interval',
+        intervalMinutes: 30,
+        disabledReason: undefined,
+        isRunnable: true,
+        nextRunAt: now + 60000,
+        createdBy: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    await expect(
+      t.query(api.scheduledPrompts.listTriggeredMessages, {
+        sessionId: otherSession,
+        scheduledPromptId: id,
+      })
+    ).rejects.toThrow();
+  });
+
   test('runDue does not pick up isRunnable: false rows', async () => {
     const { sessionId, userId } = await createTestSession('sp-run-due-skip');
     const chatroomId = await createChatroom(sessionId);

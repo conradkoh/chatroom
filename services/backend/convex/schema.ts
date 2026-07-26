@@ -465,6 +465,9 @@ export default defineSchema({
     // current app code. Retained so existing documents continue to validate.
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
 
+    // Link to the scheduled prompt that triggered this message
+    scheduledPromptId: v.optional(v.id('chatroom_scheduledPrompts')),
+
     // Message lifecycle tracking
     // acknowledgedAt: When an agent received and started working on this message
     acknowledgedAt: v.optional(v.number()),
@@ -478,7 +481,8 @@ export default defineSchema({
     // Index for efficient origin message lookup (non-follow-up user messages)
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type'])
-    .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole']),
+    .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole'])
+    .index('by_scheduledPromptId', ['scheduledPromptId']),
 
   /**
    * Staging table for queued user messages.
@@ -513,6 +517,8 @@ export default defineSchema({
     content: v.string(),
     // Always 'message' - only user messages get staged
     type: v.literal('message'),
+    // Source platform for messages from external integrations (e.g. "scheduled", "telegram")
+    sourcePlatform: v.optional(v.string()),
     // Attached backlog tasks for context
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
     // Attached backlog items for context
@@ -526,6 +532,8 @@ export default defineSchema({
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
     // Queue ordering (lower = earlier in queue, older message)
     queuePosition: v.number(),
+    // Scheduled prompt ID that triggered this queued message
+    scheduledPromptId: v.optional(v.id('chatroom_scheduledPrompts')),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
