@@ -1,9 +1,12 @@
 'use client';
 
+import { useEffect } from 'react';
+
 import type { MessageViewMode } from '../../hooks/persistence/messageViewMode';
 import {
   formatMessageViewRoleLabel,
   getMessageFilterRoles,
+  messageViewModeToSenderRole,
   messageViewModeTitle,
   roleToMessageViewMode,
 } from '../../hooks/persistence/messageViewMode';
@@ -24,6 +27,16 @@ export function MessageViewToggle({
   className,
 }: MessageViewToggleProps) {
   const filterRoles = getMessageFilterRoles(teamRoles);
+
+  // Sanitize persisted mode: reset to 'all' if the active role is no longer in filter roles
+  useEffect(() => {
+    if (mode === 'all') return;
+    const activeRole = messageViewModeToSenderRole(mode);
+    if (activeRole && !filterRoles.some((r) => r.toLowerCase() === activeRole.toLowerCase())) {
+      onChange('all');
+    }
+  }, [mode, filterRoles, onChange]);
+
   const options: { value: MessageViewMode; label: string }[] = [
     { value: 'all', label: 'All' },
     ...filterRoles.map((role) => ({

@@ -26,6 +26,33 @@ describe('MessageViewToggle', () => {
     expect(onChange).toHaveBeenCalledWith('user-only');
   });
 
+  it('renders Enhancer tab when team has planner', () => {
+    render(<MessageViewToggle mode="all" onChange={vi.fn()} teamRoles={['planner', 'builder']} />);
+    expect(screen.getByRole('tab', { name: 'Enhancer' })).toBeInTheDocument();
+  });
+
+  it('does not render Enhancer tab when team has no planner', () => {
+    render(<MessageViewToggle mode="all" onChange={vi.fn()} teamRoles={['builder']} />);
+    expect(screen.queryByRole('tab', { name: 'Enhancer' })).not.toBeInTheDocument();
+  });
+
+  it('clicking Enhancer tab calls onChange with role:enhancer', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(<MessageViewToggle mode="all" onChange={onChange} teamRoles={['planner', 'builder']} />);
+
+    await user.click(screen.getByRole('tab', { name: 'Enhancer' }));
+    expect(onChange).toHaveBeenCalledWith('role:enhancer');
+  });
+
+  it('resets stale role:enhancer to all when enhancer tab unavailable', () => {
+    const onChange = vi.fn();
+    // Mount with mode=role:enhancer but team has no planner
+    render(<MessageViewToggle mode="role:enhancer" onChange={onChange} teamRoles={['builder']} />);
+    expect(onChange).toHaveBeenCalledWith('all');
+  });
+
   it('fits within header row without expanding the container', () => {
     render(<MessageViewToggle mode="all" onChange={vi.fn()} teamRoles={['planner', 'builder']} />);
 
