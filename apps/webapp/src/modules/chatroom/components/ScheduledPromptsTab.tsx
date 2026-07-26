@@ -17,6 +17,7 @@ import {
   formatSchedule,
   formatTime,
 } from '../features/scheduled-prompts/utils/scheduledPromptFormat';
+import { ScheduledPromptDetailDialog } from '../features/scheduled-prompts/components/ScheduledPromptDetailDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -152,6 +153,7 @@ const ScheduledPromptCard = memo(function ScheduledPromptCard({
   const [isToggling, setIsToggling] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const isArchiveDisabled = prompt.disabledReason === 'archive';
   const isActive = prompt.disabledReason === undefined;
@@ -226,6 +228,14 @@ const ScheduledPromptCard = memo(function ScheduledPromptCard({
               </span>
             )}
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDetailOpen(true)}
+            className="text-[10px] h-6 px-2 mt-2 text-chatroom-text-muted hover:text-chatroom-accent"
+          >
+            View trigger history
+          </Button>
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
@@ -280,6 +290,13 @@ const ScheduledPromptCard = memo(function ScheduledPromptCard({
           )}
         </div>
       </div>
+      {detailOpen && (
+        <ScheduledPromptDetailDialog
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+          scheduledPromptId={prompt._id}
+        />
+      )}
     </div>
   );
 });
