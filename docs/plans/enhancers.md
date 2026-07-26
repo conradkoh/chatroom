@@ -29,7 +29,9 @@ Planner→builder handoffs are the primary delegation surface in duo teams. Plan
 
 See **[Shipped architecture](#shipped-architecture)** below — the mermaid diagram and module table there describe the production flow.
 
-**Workflow:** `user → planner → enhancer → planner → builder → user`
+**Workflow (enhancer enabled):** `user → [loop planner → enhancer → planner → builder → planner] → user`
+
+**Workflow (enhancer disabled):** `user → [loop planner → builder → planner] → user`
 
 The remaining sections of this doc detail each component of the shipped flow.
 
@@ -54,9 +56,11 @@ flowchart TD
     E -->|retries exhausted| FAIL[CLI error — no draft fallback]
 ```
 
-**Flow:** `user → planner → enhancer → planner → builder → user`
+**Flow (enhancer enabled):** `user → [loop planner → enhancer → planner → builder → planner] → user` — one loop iteration per builder delegation round.
 
-Enhancement is **per builder delegation** when enabled. Planner **explicitly** hands off to `enhancer` before each `builder` delegation (including slice 2+ in multi-step tasks). Enhancer returns **planning feedback** to planner, not an enhanced builder brief. Planner reviews feedback and proceeds to builder.
+**Flow (enhancer disabled):** `user → [loop planner → builder → planner] → user`
+
+Enhancement is **per builder delegation** when enabled. Planner **explicitly** hands off to `enhancer` before each `builder` delegation (including slice 2+ in multi-step tasks). **Same-slice rework** (planner → builder with feedback) does **not** re-trigger the enhancer. Enhancer returns **planning feedback** to planner, not an enhanced builder brief. Planner reviews feedback and proceeds to builder.
 
 The target id `handoff:planner-to-builder` remains as a feature toggle id — it gates the planning-review phase before builder delegation, not a brief-rewriting operation.
 
