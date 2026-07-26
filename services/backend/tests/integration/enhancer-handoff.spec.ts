@@ -820,6 +820,10 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
   test('handoff message has taskOriginMessageId pointing to user message', async () => {
     const { sessionId, chatroomId } = await setupWorkspaceForSession('ho-origin-msg');
 
+    // Join planner as a participant so collectActiveTasks can find the task
+    const { joinParticipant } = await import('../helpers/integration');
+    await joinParticipant(sessionId, chatroomId, 'planner');
+
     // Create a user message and in_progress task
     const userMsgId = await t.run(async (ctx) => {
       const msgId = await ctx.db.insert('chatroom_messages', {
@@ -843,14 +847,15 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       return msgId;
     });
 
-    // Handoff to enhancer — should set taskOriginMessageId
-    await t.mutation(api.messages.handoff, {
+    // Handoff to builder — should set taskOriginMessageId from completed task
+    const handoffResult = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
       senderRole: 'planner',
-      targetRole: 'enhancer',
-      content: '<user-message>Check-in</user-message>',
+      targetRole: 'builder',
+      content: 'Slice complete',
     });
+    expect(handoffResult).toHaveProperty('messageId');
 
     const handoffMsg = await t.run(async (ctx) => {
       const msgs = await ctx.db
