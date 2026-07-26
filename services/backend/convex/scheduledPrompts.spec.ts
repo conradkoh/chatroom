@@ -296,6 +296,51 @@ describe('scheduled prompts', () => {
     expect(row!.nextRunAt).toBeLessThan(Date.now() + intervalMs - 4000);
   });
 
+  test('setEnabled(true) preserves interval cadence from lastRunAt', async () => {
+    const { sessionId } = await createTestSession('sp-reenable');
+    const chatroomId = await createChatroom(sessionId);
+
+    const intervalMs = 60_000;
+    const lastRunAt = Date.now() - 30_000;
+
+    const id = await t.mutation(api.scheduledPrompts.create, {
+      sessionId,
+      chatroomId,
+      prompt: 'reenable test',
+      scheduleKind: 'interval',
+      intervalMinutes: 1,
+    });
+
+    // Seed lastRunAt with a cadence-aligned nextRunAt that hasn't fired yet
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>, {
+        lastRunAt,
+        nextRunAt: lastRunAt + intervalMs,
+      });
+    });
+
+    // Disable then re-enable (simulates user toggling off/on before next slot)
+    await t.mutation(api.scheduledPrompts.setEnabled, {
+      sessionId,
+      scheduledPromptId: id as Id<'chatroom_scheduledPrompts'>,
+      enabled: false,
+    });
+
+    await t.mutation(api.scheduledPrompts.setEnabled, {
+      sessionId,
+      scheduledPromptId: id as Id<'chatroom_scheduledPrompts'>,
+      enabled: true,
+    });
+
+    const row = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>)
+    );
+    expect(row!.isRunnable).toBe(true);
+    expect(row!.disabledReason).toBeUndefined();
+    // Must preserve cadence: next slot is lastRunAt + interval, NOT now + interval
+    expect(row!.nextRunAt).toBe(lastRunAt + intervalMs);
+  });
+
   test('runDue does not pick up isRunnable: false rows', async () => {
     const { sessionId, userId } = await createTestSession('sp-run-due-skip');
     const chatroomId = await createChatroom(sessionId);

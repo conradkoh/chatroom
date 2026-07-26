@@ -268,10 +268,11 @@ export const setEnabled = mutation({
       return;
     }
     const schedule = toScheduleRow(row);
+    const anchor = schedule.scheduleKind === 'interval' ? row.lastRunAt : undefined;
     await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
       disabledReason: undefined,
       isRunnable: true,
-      nextRunAt: computeNextRunAt(schedule, now),
+      nextRunAt: computeNextRunAt(schedule, now, anchor),
       updatedAt: now,
     });
   },
