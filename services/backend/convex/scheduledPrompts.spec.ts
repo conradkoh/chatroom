@@ -301,7 +301,9 @@ describe('scheduled prompts', () => {
     const chatroomId = await createChatroom(sessionId);
 
     const intervalMs = 60_000;
-    const lastRunAt = Date.now() - 30_000;
+    // Use a minute-aligned timestamp so ceiled now matches exactly
+    const now = Math.ceil(Date.now() / 60_000) * 60_000;
+    const lastRunAt = now - intervalMs + 50_000; // cadence slot is now + 50_000 (after ceiled now)
 
     const id = await t.mutation(api.scheduledPrompts.create, {
       sessionId,
@@ -337,7 +339,7 @@ describe('scheduled prompts', () => {
     );
     expect(row!.isRunnable).toBe(true);
     expect(row!.disabledReason).toBeUndefined();
-    // Must preserve cadence: next slot is lastRunAt + interval, NOT now + interval
+    // Must preserve cadence: next slot is lastRunAt + interval (which is after ceiled now)
     expect(row!.nextRunAt).toBe(lastRunAt + intervalMs);
   });
 

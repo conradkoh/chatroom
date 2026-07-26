@@ -8,6 +8,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import {
   computeNextRunAt,
+  computeNextRunAtForEnable,
   type ScheduledPromptSchedule,
 } from '../src/domain/usecase/chatroom/compute-next-run-at';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
@@ -143,7 +144,7 @@ export const create = mutation({
     validateSchedule(args);
     const now = Date.now();
     const schedule = toScheduleRow(args);
-    const nextRunAt = computeNextRunAt(schedule, now);
+    const nextRunAt = computeNextRunAtForEnable(schedule, now);
     return await ctx.db.insert('chatroom_scheduledPrompts', {
       chatroomId: args.chatroomId,
       name: args.name?.trim() || undefined,
@@ -224,7 +225,7 @@ export const update = mutation({
         validateSchedule(fullSchedule);
         Object.assign(patch, fullSchedule);
         if (row.isRunnable) {
-          patch.nextRunAt = computeNextRunAt(fullSchedule, now);
+          patch.nextRunAt = computeNextRunAtForEnable(fullSchedule, now);
         }
       } else {
         const fullSchedule = {
@@ -235,7 +236,7 @@ export const update = mutation({
         validateSchedule(fullSchedule);
         Object.assign(patch, fullSchedule);
         if (row.isRunnable) {
-          patch.nextRunAt = computeNextRunAt(fullSchedule, now);
+          patch.nextRunAt = computeNextRunAtForEnable(fullSchedule, now);
         }
       }
     }
@@ -272,7 +273,7 @@ export const setEnabled = mutation({
     await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
       disabledReason: undefined,
       isRunnable: true,
-      nextRunAt: computeNextRunAt(schedule, now, anchor),
+      nextRunAt: computeNextRunAtForEnable(schedule, now, anchor),
       updatedAt: now,
     });
   },

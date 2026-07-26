@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest';
 
-import { computeNextRunAt } from './compute-next-run-at';
+import {
+  ceilToNextMinute,
+  computeNextRunAt,
+  computeNextRunAtForEnable,
+} from './compute-next-run-at';
 
 describe('computeNextRunAt', () => {
   test('interval 5min from t=1000 returns 301000', () => {
@@ -51,5 +55,32 @@ describe('computeNextRunAt', () => {
     expect(computeNextRunAt({ scheduleKind: 'interval', intervalMinutes: 1 }, 50_000)).toBe(
       110_000
     );
+  });
+
+  test('ceilToNextMinute rounds up sub-minute timestamps', () => {
+    expect(ceilToNextMinute(60_000 + 20_000)).toBe(120_000); // :20s → next minute
+    expect(ceilToNextMinute(60_000)).toBe(60_000); // exact boundary unchanged
+  });
+
+  test('computeNextRunAtForEnable never returns before ceiled now', () => {
+    const now = Date.UTC(2026, 0, 15, 14, 30, 20, 0); // 14:30:20
+    const ceiled = Date.UTC(2026, 0, 15, 14, 31, 0, 0);
+    const result = computeNextRunAtForEnable(
+      { scheduleKind: 'daily', hourUTC: 14, minuteUTC: 30 },
+      now
+    );
+    expect(result).toBeGreaterThanOrEqual(ceiled);
+  });
+
+  test('computeNextRunAtForEnable interval bumps cadence slot before ceiled now', () => {
+    const now = Date.UTC(2026, 0, 15, 14, 30, 20, 0);
+    const lastRunAt = Date.UTC(2026, 0, 15, 14, 29, 0, 0);
+    const ceiled = Date.UTC(2026, 0, 15, 14, 31, 0, 0);
+    const result = computeNextRunAtForEnable(
+      { scheduleKind: 'interval', intervalMinutes: 1 },
+      now,
+      lastRunAt
+    );
+    expect(result).toBe(ceiled);
   });
 });

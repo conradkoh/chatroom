@@ -30,3 +30,22 @@ export function computeNextRunAt(
   );
   return candidate > fromMs ? candidate : candidate + 24 * 60 * 60_000;
 }
+
+/** Ceil a timestamp to the next whole-minute boundary (UTC). Exact minute boundaries are unchanged. */
+export function ceilToNextMinute(ms: number): number {
+  return Math.ceil(ms / 60_000) * 60_000;
+}
+
+/**
+ * Compute nextRunAt for create/enable/schedule-change.
+ * Ceils now to the next minute before scheduling so the first fire aligns with cron granularity.
+ */
+export function computeNextRunAtForEnable(
+  schedule: ScheduledPromptSchedule,
+  nowMs: number,
+  previousScheduledAt?: number
+): number {
+  const fromMs = ceilToNextMinute(nowMs);
+  const next = computeNextRunAt(schedule, fromMs, previousScheduledAt);
+  return Math.max(next, fromMs);
+}
