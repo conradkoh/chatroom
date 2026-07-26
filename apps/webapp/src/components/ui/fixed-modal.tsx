@@ -235,9 +235,9 @@ const FixedModal = memo(function FixedModal({
   // Stable handler wrapper — delegates to latest onCloseRef.current
   const dismissHandler = useCallback(() => onCloseRef.current(), []);
 
-  // Portal container ref — Dialog.Content DOM node, used by nested overlays (Drawer/Popover)
+  // Portal host ref — dedicated overflow-visible node for nested overlays (Drawer/Popover)
   // to portal into this modal's FocusScope rather than document.body.
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
 
   // Lock body scroll when modal is open (reference-counted for stacked modals)
   useEffect(() => {
@@ -285,13 +285,12 @@ const FixedModal = memo(function FixedModal({
           onClick={closeOnBackdrop ? undefined : (e) => e.preventDefault()}
         />
         <DialogPrimitive.Content
-          ref={(node) => setPortalContainer(node)}
           className={cn(
             'chatroom-root',
             Z_MODAL,
             'fixed left-1/2 top-1/2 flex w-full -translate-x-1/2 -translate-y-1/2',
-            'bg-chatroom-bg-primary border-0 sm:border-2 border-chatroom-border-strong overflow-hidden',
-            'h-full sm:h-[70vh]',
+            'bg-chatroom-bg-primary border-0 sm:border-2 border-chatroom-border-strong overflow-visible',
+            'h-full sm:h-[70vh] flex flex-col',
             maxWidth,
             className
           )}
@@ -307,7 +306,12 @@ const FixedModal = memo(function FixedModal({
             }
           }}
         >
-          <OverlayPortalContainerProvider container={portalContainer}>
+          <div
+            ref={setPortalHost}
+            data-slot="chatroom-dialog-portal-host"
+            className="pointer-events-none fixed inset-0 overflow-visible z-[60]"
+          />
+          <OverlayPortalContainerProvider container={portalHost}>
             {children}
           </OverlayPortalContainerProvider>
         </DialogPrimitive.Content>
