@@ -43,6 +43,10 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
     '**Only one enhancer job at a time** — wait for feedback before submitting the next check-in.'
   );
   lines.push('');
+  lines.push(
+    '**After builder handback:** Primary target is `user` (deliver results). If more delegations remain, your **next** handoff is `enhancer` — not `builder` directly. Use `<handoffs>` to check in before delegating the next slice.'
+  );
+  lines.push('');
   lines.push('**How it works:**');
   lines.push(
     '1. Hand off to `enhancer` using the **Handoff to `enhancer`** template with your delegation brief.'

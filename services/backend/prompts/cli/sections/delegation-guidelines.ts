@@ -77,7 +77,7 @@ flowchart TD
 - Send back with specific feedback if requirements aren't met.
 - ${feedingNote}.
 
-**When enhancement is enabled** (see \`<handoff-enhancer>\` in task delivery): check in with the enhancer before **each** builder delegation, including slice 2 and beyond. Final delivery to \`user\` does not go through the enhancer. Rework on the same slice does not require re-enhancement.`;
+**When enhancement is enabled:** See \`<handoff-enhancer>\` in task delivery — one check-in per delegation before builder.`;
 }
 
 /**

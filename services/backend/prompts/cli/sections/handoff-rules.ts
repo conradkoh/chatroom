@@ -11,7 +11,7 @@ function buildHandoffRuleLines(config: TeamCompositionConfig): string {
       ? '- **To delegate implementation** → Hand off to `builder` with clear requirements'
       : '- **To implement** → Work on the chatroom task directly (you are acting as implementer)',
     config.hasBuilder
-      ? '- **When enhancement is enabled** → Check in with `enhancer` before each `builder` delegation'
+      ? '- **When enhancement is enabled** → See `<handoff-enhancer>` in task delivery before each builder delegation'
       : null,
     '- **To deliver to user** → Hand off to `user` with a complete, standalone summary\n  ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.',
     config.hasBuilder
