@@ -92,8 +92,5 @@ ${getUnresolvedDecisionsSectionBlock()}
 
 ## Notes
 <anything the user should know — context, caveats, or observations not covered above. Omit if none.>
-
-## Next steps
-<follow-up actions for the user or team. Omit if none.>
 \`\`\``;
 }
