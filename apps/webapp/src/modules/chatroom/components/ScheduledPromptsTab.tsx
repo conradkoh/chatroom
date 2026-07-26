@@ -326,8 +326,8 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
       setError('Prompt must be 10000 characters or less');
       return;
     }
-    if (scheduleKind === 'interval' && (!intervalMinutes || intervalMinutes < 5)) {
-      setError('Interval must be at least 5 minutes');
+    if (scheduleKind === 'interval' && (!intervalMinutes || intervalMinutes < 1)) {
+      setError('Interval must be at least 1 minute');
       return;
     }
     if (
@@ -432,7 +432,7 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
             </label>
             <Input
               type="number"
-              min={5}
+              min={1}
               value={intervalMinutes}
               onChange={(e) => setIntervalMinutes(Number(e.target.value))}
               className="text-xs bg-chatroom-bg-primary border-chatroom-border w-24"

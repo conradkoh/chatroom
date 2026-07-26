@@ -13,7 +13,7 @@ import {
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 
 const MAX_PROMPT_LENGTH = 10_000;
-const MIN_INTERVAL_MINUTES = 5;
+const MIN_INTERVAL_MINUTES = 1;
 const SCAN_BATCH_SIZE = 10;
 
 // ─── Access helper ───
