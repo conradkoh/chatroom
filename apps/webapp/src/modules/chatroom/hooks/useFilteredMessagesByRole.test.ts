@@ -55,10 +55,30 @@ describe('useFilteredMessagesByRole', () => {
   });
 
   it('loads older pages using the shared timeline page size', () => {
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [],
+      status: 'CanLoadMore',
+      loadMore: mockLoadMore,
+    });
     const { result } = renderHook(() => useFilteredMessagesByRole('room-1', 'planner', true));
 
     result.current.loadMore();
 
     expect(mockLoadMore).toHaveBeenCalledWith(MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE);
+  });
+
+  it('blocks rapid consecutive loadMore while in-flight', () => {
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [],
+      status: 'CanLoadMore',
+      loadMore: mockLoadMore,
+    });
+    const { result } = renderHook(() => useFilteredMessagesByRole('room-1', 'planner', true));
+
+    result.current.loadMore();
+    result.current.loadMore();
+    result.current.loadMore();
+
+    expect(mockLoadMore).toHaveBeenCalledTimes(1);
   });
 });
