@@ -128,4 +128,20 @@ describe('ScheduledPromptDetailDialog', () => {
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+
+  it('hides disable button while prompt is loading', () => {
+    mocks.get.mockReturnValue(undefined);
+    mocks.listTriggeredMessages.mockReturnValue(undefined);
+
+    render(
+      <ScheduledPromptDetailDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        scheduledPromptId={'prompt-1' as any}
+      />
+    );
+
+    expect(screen.queryByText('Disable schedule')).not.toBeInTheDocument();
+    expect(document.querySelector('.animate-spin')).toBeInTheDocument();
+  });
 });
