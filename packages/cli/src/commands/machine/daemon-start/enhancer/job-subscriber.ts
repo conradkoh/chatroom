@@ -2,6 +2,7 @@ import type { ConvexClient } from 'convex/browser';
 
 import { ENHANCER_AGENT_ROLE } from './constants.js';
 import { writeEnhancerLog } from './enhancer-log.js';
+import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
 import { api, type Id } from '../../../../api.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import type { RemoteAgentService } from '../../../../infrastructure/services/remote-agents/remote-agent-service.js';
@@ -32,6 +33,8 @@ export function startEnhancerJobSubscriber(
           let claimed = false;
           let chatroomId = job.chatroomId;
           let jobId = job.jobId;
+          let spawnResult: Awaited<ReturnType<RemoteAgentService['spawn']>> | null = null;
+          let service: RemoteAgentService | null = null;
           try {
             const claim = (await backend.mutation(api.daemon.enhancer.index.claimForSpawn, {
               sessionId,
@@ -61,7 +64,7 @@ export function startEnhancerJobSubscriber(
               `spawning harness=${payload.agentHarness} model=${payload.model} job=${payload.jobId}`
             );
 
-            const service = agentServices.get(payload.agentHarness);
+            service = agentServices.get(payload.agentHarness);
             if (!service) {
               await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
                 sessionId,
@@ -72,7 +75,7 @@ export function startEnhancerJobSubscriber(
               return;
             }
 
-            const spawnResult = await service.spawn({
+            spawnResult = await service.spawn({
               workingDir: payload.workingDir,
               prompt: createSpawnPrompt(payload.taskEnvelope),
               systemPrompt: payload.systemPrompt,
@@ -89,32 +92,28 @@ export function startEnhancerJobSubscriber(
               writeEnhancerLog(line);
             });
 
-            spawnResult.onAssistantText?.((text) => {
-              if (text) writeEnhancerLog(`text] ${text}`);
-            });
-
-            await new Promise<void>((resolve) => {
-              spawnResult.onExit(() => resolve());
-            });
-
-            const status = (await backend.query(api.web.enhancer.index.getJob, {
+            const outcome = await waitForEnhancerJobResolution({
               sessionId,
               chatroomId: payload.chatroomId,
               jobId: payload.jobId,
-            })) as { status: string } | null;
+              backend,
+              onAssistantText: spawnResult.onAssistantText
+                ? (cb) => spawnResult.onAssistantText!(cb)
+                : undefined,
+              onAgentEnd: spawnResult.onAgentEnd ? (cb) => spawnResult.onAgentEnd!(cb) : undefined,
+              onExit: (cb) => spawnResult!.onExit(() => cb()),
+              onFailure: async (error, forceTerminal) => {
+                await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
+                  sessionId,
+                  chatroomId: payload.chatroomId,
+                  jobId: payload.jobId,
+                  error,
+                  ...(forceTerminal ? { forceTerminal: true } : {}),
+                });
+              },
+            });
 
-            if (status?.status === 'complete') {
-              writeEnhancerLog(`completed job=${payload.jobId}`);
-            }
-
-            if (status?.status === 'running') {
-              await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
-                sessionId,
-                chatroomId: payload.chatroomId,
-                jobId: payload.jobId,
-                error: 'Agent exited without completing enhancer job',
-              });
-            }
+            writeEnhancerLog(`completed job=${jobId}`);
           } catch (err) {
             writeEnhancerLog(`error: ${err instanceof Error ? err.message : String(err)}`);
             if (claimed) {
@@ -127,6 +126,13 @@ export function startEnhancerJobSubscriber(
             }
           } finally {
             inFlight.delete(job.jobId);
+            if (spawnResult && service) {
+              try {
+                await service.stop(spawnResult.pid);
+              } catch {
+                // Best-effort stop
+              }
+            }
           }
         })();
       }
