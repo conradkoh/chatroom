@@ -643,6 +643,30 @@ messagesCommand
     }
   );
 
+messagesCommand
+  .command('export')
+  .description('Export chatroom message history to local .md files for grep/search')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--output-dir <path>', 'Output directory (default: .chatroom/exports/{chatroomId})')
+  .option('--limit <n>', 'Max messages to export (1-5000, default 5000)')
+  .action(
+    async (options: { chatroomId: string; role: string; outputDir?: string; limit?: string }) => {
+      await maybeRequireAuth();
+      const parsedLimit = options.limit ? parseInt(options.limit, 10) : undefined;
+      if (options.limit && (!Number.isFinite(parsedLimit) || parsedLimit! < 1)) {
+        console.error('❌ --limit must be a positive integer (1-5000)');
+        process.exit(1);
+      }
+      const { exportMessages } = await import('./commands/messages/export.js');
+      await exportMessages(options.chatroomId, {
+        role: options.role,
+        outputDir: options.outputDir,
+        limit: parsedLimit,
+      });
+    }
+  );
+
 // ============================================================================
 // CONTEXT COMMANDS (auth required)
 // ============================================================================

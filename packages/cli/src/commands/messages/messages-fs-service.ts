@@ -9,6 +9,10 @@ export interface MessagesFsServiceShape {
     path: string,
     options?: { recursive?: boolean }
   ) => Effect.Effect<string | undefined, Error>;
+  rm: (
+    path: string,
+    options?: { recursive?: boolean; force?: boolean }
+  ) => Effect.Effect<void, Error>;
 }
 
 export class MessagesFsService extends Context.Tag('MessagesFsService')<
@@ -27,6 +31,11 @@ export const MessagesFsServiceLive: Layer.Layer<MessagesFsService> = Layer.succe
     mkdir: (path, opts) =>
       Effect.tryPromise({
         try: () => nodeFs.mkdir(path, opts) as Promise<string | undefined>,
+        catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+      }),
+    rm: (path, opts) =>
+      Effect.tryPromise({
+        try: () => nodeFs.rm(path, opts) as Promise<void>,
         catch: (e) => (e instanceof Error ? e : new Error(String(e))),
       }),
   }
@@ -58,4 +67,20 @@ export function buildMessageMarkdown(msg: {
   parts.push('');
   parts.push(msg.content);
   return parts.join('\n');
+}
+
+export function buildTranscriptMarkdown(
+  messages: Array<{ _creationTime: number; senderRole: string; content: string; _id: string }>
+): string {
+  return messages
+    .map((msg) => {
+      const ts = new Date(msg._creationTime).toISOString();
+      return `## ${ts} | ${msg.senderRole} | ${msg._id}\n\n${msg.content}`;
+    })
+    .join('\n\n---\n\n');
+}
+
+export function messageFilename(msg: { _id: string; _creationTime: number }): string {
+  const ts = new Date(msg._creationTime).toISOString().replace(/[:.]/g, '-');
+  return `${ts}_${msg._id}.md`;
 }
