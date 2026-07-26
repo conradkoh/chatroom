@@ -34,7 +34,8 @@ export interface TaskDeliveryParams extends TaskDeliveryContextWindow {
 function appendPlannerEnhancerGuidanceForMessage(
   lines: string[],
   message: { senderRole: string; content?: string } | null | undefined,
-  taskContent?: string
+  taskContent?: string,
+  plannerEnhancerEnabled?: boolean
 ): void {
   const senderRole = message?.senderRole.toLowerCase();
   if (senderRole === 'enhancer') {
@@ -46,7 +47,7 @@ function appendPlannerEnhancerGuidanceForMessage(
     }
     return;
   }
-  if (senderRole === 'user') {
+  if (plannerEnhancerEnabled && (senderRole === 'user' || senderRole === 'builder')) {
     appendTaskDeliveryEnhancerGuidance(lines);
   }
 }
@@ -58,7 +59,12 @@ function appendTaskDeliveryEnhancerGuidanceIfEnabled(
   if (!params.plannerEnhancerEnabled || params.role.toLowerCase() !== 'planner') {
     return;
   }
-  appendPlannerEnhancerGuidanceForMessage(lines, params.message, params.task?.content);
+  appendPlannerEnhancerGuidanceForMessage(
+    lines,
+    params.message,
+    params.task?.content,
+    params.plannerEnhancerEnabled
+  );
 }
 
 function appendTaskDeliveryNextSteps(

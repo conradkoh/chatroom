@@ -32,11 +32,24 @@ describe('appendTaskDeliveryHandoffSections — enhancer enabled', () => {
     });
 
     expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('enhancement enabled for this user instruction');
-    expect(output).toContain('user → planner → enhancer → planner → builder → user');
+    expect(output).toContain('One check-in per builder delegation');
+    expect(output).toContain('planner → enhancer → planner → builder');
     expect(output).toContain('--next-role="enhancer"');
     expect(output).toContain('Handoff to `enhancer`');
     expect(output).not.toContain('<enhancer-review>');
+  });
+
+  test('builder handback includes enhancer guidance for next slice delegation', () => {
+    const output = renderHandoffSections({
+      ...enhancerParams,
+      message: { _id: 'builder-msg', senderRole: 'builder' },
+    });
+
+    expect(output).toContain('<handoff-enhancer>');
+    expect(output).toContain('One check-in per builder delegation');
+    expect(output).toContain('Handoff to `enhancer`');
+    expect(output).not.toContain('<enhancer-review>');
+    expect(output).toContain('--next-role="user"');
   });
 
   test('enhancer feedback includes review guidance and omits enhancer check-in template', () => {
@@ -52,9 +65,10 @@ describe('appendTaskDeliveryHandoffSections — enhancer enabled', () => {
     expect(output).toContain('Handoff to `builder`');
   });
 
-  test('builder handback omits enhancer guidance and targets user', () => {
+  test('builder handback omits enhancer guidance when disabled', () => {
     const output = renderHandoffSections({
       ...enhancerParams,
+      plannerEnhancerEnabled: false,
       message: { _id: 'builder-msg', senderRole: 'builder' },
     });
 

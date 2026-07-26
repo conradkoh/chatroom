@@ -75,7 +75,9 @@ flowchart TD
 **Review loop:**
 - Review completed work before moving to the next slice.
 - Send back with specific feedback if requirements aren't met.
-- ${feedingNote}.`;
+- ${feedingNote}.
+
+**When enhancement is enabled** (see \`<handoff-enhancer>\` in task delivery): check in with the enhancer before **each** builder delegation, including slice 2 and beyond. Final delivery to \`user\` does not go through the enhancer. Rework on the same slice does not require re-enhancement.`;
 }
 
 /**
