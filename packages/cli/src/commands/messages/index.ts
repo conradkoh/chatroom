@@ -4,9 +4,15 @@
  * Phase 8: Migrated to Effect-TS services with typed error handling.
  */
 
-import { Effect } from 'effect';
+import { Effect, Layer } from 'effect';
 
 import type { MessagesDeps } from './deps.js';
+import {
+  MessagesFsService,
+  MessagesFsServiceLive,
+  buildMessageMarkdown,
+} from './messages-fs-service.js';
+import * as nodePath from 'node:path';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
@@ -232,6 +238,102 @@ export const listSinceMessageEffect = (
     });
   });
 
+// ─── Export ─────────────────────────────────────────────────────────────────
+
+export interface ExportMessagesOptions {
+  limit: number;
+  senderRole?: string;
+  exportPath?: string;
+}
+
+// fallow-ignore-next-line unused-export
+// fallow-ignore-next-line unused-export
+export const exportMessagesEffect = (
+  chatroomId: string,
+  options: ExportMessagesOptions
+): Effect.Effect<
+  void,
+  Error | MessagesError,
+  BackendService | SessionService | MessagesFsService
+> =>
+  Effect.gen(function* () {
+    const backend = yield* BackendService;
+    const fs = yield* MessagesFsService;
+
+    const sessionId = yield* requireSessionIdEffect((a) => ({
+      _tag: 'NotAuthenticated' as const,
+      convexUrl: a.convexUrl,
+      otherUrls: a.otherUrls,
+    }));
+
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
+
+    const messagesResult = yield* Effect.either(
+      backend.query<
+        Array<{
+          _id: string;
+          _creationTime: number;
+          senderRole: string;
+          type: string;
+          content: string;
+          targetRole?: string | null;
+          classification?: string | null;
+          taskStatus?: string | null;
+          featureTitle?: string | null;
+        }>
+      >(api.messages.listBySenderRole, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        senderRole: options.senderRole || 'planner',
+        limit: options.limit,
+      })
+    );
+    if (messagesResult._tag === 'Left') {
+      return yield* Effect.fail<MessagesError>({
+        _tag: 'QueryFailed',
+        cause: messagesResult.left,
+      });
+    }
+    const messages = messagesResult.right;
+
+    if (messages.length === 0) {
+      yield* Effect.sync(() => console.log('No messages to export.'));
+      return;
+    }
+
+    const dir = options.exportPath || `.chatroom/exports/messages/${chatroomId}`;
+    yield* fs.mkdir(dir, { recursive: true });
+
+    const manifest: Array<{
+      id: string;
+      senderRole: string;
+      createdAt: number;
+      filename: string;
+    }> = [];
+
+    for (const msg of messages) {
+      const filename = `${msg._creationTime}-${msg.senderRole}-${msg._id.slice(0, 8)}.md`;
+      const markdown = buildMessageMarkdown(msg);
+      yield* fs.writeFile(nodePath.join(dir, filename), markdown);
+      manifest.push({
+        id: msg._id,
+        senderRole: msg.senderRole,
+        createdAt: msg._creationTime,
+        filename,
+      });
+    }
+
+    yield* fs.writeFile(nodePath.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+
+    yield* Effect.sync(() => {
+      console.log(`\n📨 Exported ${messages.length} messages to ${dir}`);
+      console.log(`   Manifest: ${dir}/manifest.json`);
+    });
+  });
+
 // ─── Error Handlers ────────────────────────────────────────────────────────
 
 /**
@@ -306,6 +408,33 @@ export async function listSinceMessage(
     listSinceMessageEffect(chatroomId, options).pipe(
       Effect.catchAll((err) => handleMessagesError(err)),
       Effect.provide(layer)
+    )
+  );
+}
+
+/**
+ * Export messages to a local directory for grep.
+ */
+export async function exportMessages(
+  chatroomId: string,
+  options: ExportMessagesOptions,
+  deps?: MessagesDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const layer = commandServicesLayerFromDeps(d);
+
+  await Effect.runPromise(
+    exportMessagesEffect(chatroomId, options).pipe(
+      Effect.catchAll((err) => {
+        if ('_tag' in err) {
+          return handleMessagesError(err as MessagesError);
+        }
+        return Effect.sync(() => {
+          console.error(`\n❌ Export failed: ${err.message}`);
+          process.exit(1);
+        });
+      }),
+      Effect.provide(Layer.mergeAll(layer, MessagesFsServiceLive))
     )
   );
 }
