@@ -137,4 +137,49 @@ describe('waitForEnhancerJobResolution', () => {
       false
     );
   });
+
+  it('agent_end without complete salvages accumulated text', async () => {
+    let salvaged = false;
+    const getJob = vi.fn().mockImplementation(() => {
+      return Promise.resolve({ status: salvaged ? 'complete' : 'running' });
+    });
+    const backend = { query: getJob };
+    const onFailure = vi.fn();
+    const onSalvageComplete = vi.fn().mockImplementation(async () => {
+      salvaged = true;
+    });
+    const onAgentEndCb: (() => void)[] = [];
+    const onAssistantTextCb: ((text: string) => void)[] = [];
+
+    const promise = waitForEnhancerJobResolution({
+      sessionId: 'session',
+      chatroomId: 'room1',
+      jobId: 'job1',
+      backend: backend as any,
+      onFailure,
+      onSalvageComplete,
+      onAgentEnd: (cb) => {
+        onAgentEndCb.push(cb);
+      },
+      onAssistantText: (cb) => {
+        onAssistantTextCb.push(cb);
+      },
+      onExit: vi.fn(),
+    });
+
+    // Simulate assistant text deltas
+    onAssistantTextCb[0]('## Summary\n');
+    onAssistantTextCb[0]('Planning feedback');
+
+    onAgentEndCb[0]();
+
+    // Run all pending timers and microtasks
+    await vi.runAllTimersAsync();
+
+    const result = await promise;
+    console.log(`[test] result = ${result}`);
+    expect(result).toBe('complete');
+    expect(onSalvageComplete).toHaveBeenCalledWith('## Summary\nPlanning feedback');
+    expect(onFailure).not.toHaveBeenCalled();
+  });
 });

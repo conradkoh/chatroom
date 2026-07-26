@@ -101,6 +101,14 @@ export function startEnhancerJobSubscriber(
               onAssistantText: sr.onAssistantText ? (cb) => sr.onAssistantText!(cb) : undefined,
               onAgentEnd: sr.onAgentEnd ? (cb) => sr.onAgentEnd!(cb) : undefined,
               onExit: (cb) => sr.onExit(() => cb()),
+              onSalvageComplete: async (content) => {
+                await backend.mutation(api.web.enhancer.index.complete, {
+                  sessionId,
+                  chatroomId: payload.chatroomId,
+                  jobId: payload.jobId,
+                  enhancedContent: content,
+                });
+              },
               onFailure: async (error, forceTerminal) => {
                 await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
                   sessionId,
