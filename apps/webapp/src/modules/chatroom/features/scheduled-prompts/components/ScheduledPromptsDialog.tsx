@@ -22,7 +22,7 @@ export function ScheduledPromptsDialog({
 }: ScheduledPromptsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto overflow-x-hidden min-w-0">
         <DialogHeader>
           <DialogTitle>Scheduled Prompts</DialogTitle>
           <DialogDescription>Automatically send messages on a schedule.</DialogDescription>

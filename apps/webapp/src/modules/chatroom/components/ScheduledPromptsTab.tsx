@@ -87,7 +87,7 @@ export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0">
       <div className="flex items-center justify-between">
         {hasPrompts && !showForm && (
           <Button variant="outline" size="sm" onClick={handleAdd} className="text-xs gap-1.5">
@@ -189,15 +189,15 @@ const ScheduledPromptCard = memo(function ScheduledPromptCard({
     prompt.name || prompt.prompt.slice(0, 60) + (prompt.prompt.length > 60 ? '...' : '');
 
   return (
-    <div className="border border-chatroom-border rounded-none p-4 bg-chatroom-bg-secondary">
-      <div className="flex items-center justify-between">
+    <div className="border border-chatroom-border rounded-none p-4 bg-chatroom-bg-secondary overflow-hidden min-w-0">
+      <div className="flex items-start justify-between gap-3 min-w-0">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm font-bold text-chatroom-text-primary truncate">
+          <div className="flex items-center gap-2 mb-1 min-w-0">
+            <span className="text-sm font-bold text-chatroom-text-primary truncate min-w-0">
               {displayName}
             </span>
             <span
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider ${
+              className={`inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider ${
                 isActive
                   ? 'bg-green-500/10 text-green-500 dark:bg-green-500/20 dark:text-green-400'
                   : isArchiveDisabled
@@ -221,22 +221,24 @@ const ScheduledPromptCard = memo(function ScheduledPromptCard({
             </span>
           </div>
           <p className="text-xs text-chatroom-text-primary truncate">{prompt.prompt}</p>
-          <div className="flex items-center gap-3 mt-1">
-            <span className="text-[11px] text-chatroom-text-muted">{formatSchedule(prompt)}</span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 min-w-0">
+            <span className="text-[11px] text-chatroom-text-muted break-words">
+              {formatSchedule(prompt)}
+            </span>
             {prompt.lastRunAt && (
-              <span className="text-[11px] text-chatroom-text-muted">
+              <span className="text-[11px] text-chatroom-text-muted break-words">
                 Last run: {formatTime(prompt.lastRunAt)}
               </span>
             )}
             {prompt.nextRunAt && isActive && (
-              <span className="text-[11px] text-chatroom-text-muted">
+              <span className="text-[11px] text-chatroom-text-muted break-words">
                 Next run: {formatTime(prompt.nextRunAt)}
               </span>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0 ml-4">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <Switch
             checked={isActive}
             onCheckedChange={handleToggle}
