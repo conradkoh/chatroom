@@ -5,8 +5,8 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
-  setEnabled: vi.fn(),
-  remove: vi.fn(),
+  setEnabled: vi.fn().mockResolvedValue(undefined),
+  remove: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
@@ -45,13 +45,17 @@ vi.mock('@/components/ui/button', () => ({
 }));
 
 vi.mock('@/components/ui/switch', () => ({
-  Switch: ({ checked, onCheckedChange, disabled }: any) => (
+  Switch: ({ checked, onCheckedChange, disabled, onClick }: any) => (
     <input
       type="checkbox"
       checked={checked}
-      onChange={(e) => onCheckedChange?.(e.target.checked)}
+      onChange={(e) => {
+        onCheckedChange?.(e.target.checked);
+      }}
       disabled={disabled}
+      onClick={onClick}
       role="switch"
+      data-testid="switch"
     />
   ),
 }));
@@ -68,6 +72,15 @@ vi.mock('@/components/ui/input', () => ({
       className={className}
     />
   ),
+}));
+
+vi.mock('@/components/ui/drawer', () => ({
+  Drawer: ({ children, open }: any) => (open ? <div data-testid="drawer">{children}</div> : null),
+  DrawerContent: ({ children }: any) => <div data-testid="drawer-content">{children}</div>,
+  DrawerHeader: ({ children }: any) => <div>{children}</div>,
+  DrawerTitle: ({ children }: any) => <div>{children}</div>,
+  DrawerFooter: ({ children }: any) => <div>{children}</div>,
+  DrawerClose: ({ children }: any) => <div>{children}</div>,
 }));
 
 const PROMPT_ACTIVE = {
@@ -140,9 +153,11 @@ describe('ScheduledPromptsTab', () => {
     });
 
     fireEvent.click(screen.getByRole('switch'));
-    expect(mocks.setEnabled).toHaveBeenCalledWith({
-      scheduledPromptId: 'prompt-1',
-      enabled: false,
+    await waitFor(() => {
+      expect(mocks.setEnabled).toHaveBeenCalledWith({
+        scheduledPromptId: 'prompt-1',
+        enabled: false,
+      });
     });
   });
 
@@ -157,5 +172,21 @@ describe('ScheduledPromptsTab', () => {
 
     const switchEl = screen.getByRole('switch') as HTMLInputElement;
     expect(switchEl.disabled).toBe(true);
+  });
+
+  it('shows singular interval text for 1-minute prompts', async () => {
+    const intervalPrompt = {
+      ...PROMPT_ACTIVE,
+      _id: 'prompt-4',
+      scheduleKind: 'interval' as const,
+      intervalMinutes: 1,
+    };
+    mocks.list.mockReturnValue([intervalPrompt]);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Every minute')).toBeDefined();
+    });
   });
 });

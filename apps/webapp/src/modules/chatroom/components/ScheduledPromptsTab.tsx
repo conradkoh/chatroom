@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Clock, Loader2, Plus, Power, PowerOff, Trash2 } from 'lucide-react';
+import { Clock, Loader2, Plus } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
 
 import {
@@ -11,14 +11,9 @@ import {
   localDailyTimeToUtc,
   utcDailyTimeToLocal,
 } from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
-import {
-  formatSchedule,
-  formatTime,
-} from '../features/scheduled-prompts/utils/scheduledPromptFormat';
-import { ScheduledPromptDetailDialog } from '../features/scheduled-prompts/components/ScheduledPromptDetailDialog';
+import { ScheduledPromptCard } from '../features/scheduled-prompts/components/ScheduledPromptCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
 
 interface ScheduledPromptsTabProps {
   chatroomId: string;
@@ -133,168 +128,6 @@ const EmptyState = memo(function EmptyState({ onAdd }: { onAdd: () => void }) {
         <Plus size={14} />
         Add Scheduled Prompt
       </Button>
-    </div>
-  );
-});
-
-const ScheduledPromptCard = memo(function ScheduledPromptCard({
-  prompt,
-  onEdit,
-  setEnabled,
-  removePrompt,
-}: {
-  prompt: any;
-  onEdit: (id: Id<'chatroom_scheduledPrompts'>) => void;
-  setEnabled: any;
-  removePrompt: any;
-}) {
-  const [isToggling, setIsToggling] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-
-  const isArchiveDisabled = prompt.disabledReason === 'archive';
-  const isActive = prompt.disabledReason === undefined;
-
-  const handleToggle = useCallback(async () => {
-    setIsToggling(true);
-    try {
-      await setEnabled({ scheduledPromptId: prompt._id, enabled: !isActive });
-    } finally {
-      setIsToggling(false);
-    }
-  }, [prompt._id, isActive, setEnabled]);
-
-  const handleDelete = useCallback(async () => {
-    setIsDeleting(true);
-    try {
-      await removePrompt({ scheduledPromptId: prompt._id });
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteConfirm(false);
-    }
-  }, [prompt._id, removePrompt]);
-
-  const displayName =
-    prompt.name || prompt.prompt.slice(0, 60) + (prompt.prompt.length > 60 ? '...' : '');
-
-  return (
-    <div className="border border-chatroom-border rounded-none p-4 bg-chatroom-bg-secondary overflow-hidden min-w-0">
-      <div className="flex items-start justify-between gap-3 min-w-0">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1 min-w-0">
-            <span className="text-sm font-bold text-chatroom-text-primary truncate min-w-0">
-              {displayName}
-            </span>
-            <span
-              className={`inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wider ${
-                isActive
-                  ? 'bg-green-500/10 text-green-500 dark:bg-green-500/20 dark:text-green-400'
-                  : isArchiveDisabled
-                    ? 'bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
-                    : 'bg-chatroom-bg-tertiary text-chatroom-text-muted'
-              }`}
-            >
-              {isActive ? (
-                <>
-                  <Power size={10} />
-                  Active
-                </>
-              ) : isArchiveDisabled ? (
-                'Disabled by archive'
-              ) : (
-                <>
-                  <PowerOff size={10} />
-                  Disabled
-                </>
-              )}
-            </span>
-          </div>
-          <p className="text-xs text-chatroom-text-primary truncate">{prompt.prompt}</p>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 min-w-0">
-            <span className="text-[11px] text-chatroom-text-muted break-words">
-              {formatSchedule(prompt)}
-            </span>
-            {prompt.lastRunAt && (
-              <span className="text-[11px] text-chatroom-text-muted break-words">
-                Last run: {formatTime(prompt.lastRunAt)}
-              </span>
-            )}
-            {prompt.nextRunAt && isActive && (
-              <span className="text-[11px] text-chatroom-text-muted break-words">
-                Next run: {formatTime(prompt.nextRunAt)}
-              </span>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setDetailOpen(true)}
-            className="text-[10px] h-6 px-2 mt-2 text-chatroom-text-muted hover:text-chatroom-accent"
-          >
-            View trigger history
-          </Button>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <Switch
-            checked={isActive}
-            onCheckedChange={handleToggle}
-            disabled={isToggling || isArchiveDisabled}
-          />
-          {!isArchiveDisabled && (
-            <>
-              {showDeleteConfirm ? (
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="text-xs h-7 px-2"
-                  >
-                    {isDeleting ? <Loader2 size={12} className="animate-spin" /> : 'Delete'}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="text-xs h-7 px-2"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onEdit(prompt._id)}
-                    className="text-xs h-7 px-2 text-chatroom-text-muted hover:text-chatroom-accent"
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 h-7 w-7 p-0"
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-      {detailOpen && (
-        <ScheduledPromptDetailDialog
-          open={detailOpen}
-          onOpenChange={setDetailOpen}
-          scheduledPromptId={prompt._id}
-        />
-      )}
     </div>
   );
 });
