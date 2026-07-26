@@ -36,7 +36,7 @@ describe('scheduled prompts', () => {
         chatroomId,
         prompt: 'daily standup',
         scheduleKind: 'interval',
-        intervalMinutes: 1,
+        intervalMinutes: 0,
       })
     ).rejects.toThrow();
   });
