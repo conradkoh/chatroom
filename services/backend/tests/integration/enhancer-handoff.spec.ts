@@ -816,4 +816,53 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       })
     ).rejects.toThrow(/NO_PLANNER_USER_TASK/i);
   });
+
+  test('handoff message has taskOriginMessageId pointing to user message', async () => {
+    const { sessionId } = await createTestSession('ho-origin-msg');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Create a user message and in_progress task
+    const userMsgId = await t.run(async (ctx) => {
+      const msgId = await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'Build feature X',
+        targetRole: 'planner',
+        type: 'message',
+      });
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'Build feature X',
+        status: 'in_progress',
+        assignedTo: 'planner',
+        sourceMessageId: msgId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        queuePosition: 1,
+      });
+      return msgId;
+    });
+
+    // Handoff to enhancer — should set taskOriginMessageId
+    await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: '<user-message>Check-in</user-message>',
+    });
+
+    const handoffMsg = await t.run(async (ctx) => {
+      const msgs = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .order('desc')
+        .take(5);
+      return msgs.find((m) => m.type === 'handoff' && m.senderRole === 'planner');
+    });
+
+    expect(handoffMsg).toBeDefined();
+    expect(handoffMsg!.taskOriginMessageId).toBe(userMsgId);
+  });
 });

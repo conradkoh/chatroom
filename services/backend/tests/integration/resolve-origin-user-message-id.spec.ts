@@ -88,4 +88,46 @@ describe('resolve-origin-user-message-id', () => {
     const resolved = await t.run(async (ctx) => walkToUserMessageId(ctx, msgId));
     expect(resolved).toBeNull();
   });
+
+  test('resolves origin through builder handback with taskOriginMessageId', async () => {
+    const { chatroomId } = await setupWorkspaceForSession('resolve-builder-handback');
+
+    const userMsgId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'Original request',
+        targetRole: 'planner',
+        type: 'message',
+      });
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'Original request',
+        status: 'completed',
+        assignedTo: 'planner',
+        sourceMessageId: id,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        queuePosition: 1,
+      });
+      return id;
+    });
+
+    // Insert a builder handback message with taskOriginMessageId pointing to the user message
+    const handbackMsgId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'builder',
+        content: 'Slice complete',
+        targetRole: 'planner',
+        type: 'handoff',
+        taskOriginMessageId: userMsgId,
+      })
+    );
+
+    // Walking from a task whose sourceMessageId is the handback should resolve to user message
+    const resolved = await t.run(async (ctx) => walkToUserMessageId(ctx, handbackMsgId));
+    expect(resolved).toBe(userMsgId);
+  });
 });
