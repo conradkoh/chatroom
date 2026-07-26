@@ -32,6 +32,7 @@ async function insertTimelineMessage(
     classification?: 'question' | 'new_feature' | 'follow_up';
     type?: 'message' | 'handoff' | 'join' | 'progress';
     targetRole?: string;
+    visibleInAllTabOnly?: boolean;
   }
 ): Promise<Id<'chatroom_messages'>> {
   return await t.run(async (ctx) => {
@@ -42,6 +43,7 @@ async function insertTimelineMessage(
       type: extra?.type ?? 'message',
       ...(extra?.classification ? { classification: extra.classification } : {}),
       ...(extra?.targetRole ? { targetRole: extra.targetRole } : {}),
+      ...(extra?.visibleInAllTabOnly ? { visibleInAllTabOnly: true } : {}),
     })) as Id<'chatroom_messages'>;
   });
 }
@@ -113,6 +115,58 @@ describe('listMessagesBySenderRolePaginated', () => {
     expect(result.page).toHaveLength(3);
     expect(result.page.every((m) => m.senderRole === 'planner')).toBe(true);
     expect(result.page.map((m) => m.content)).toEqual(expect.arrayContaining(['p1', 'p2', 'p3']));
+  });
+
+  test('enhancer filter includes enhancer handoffs and planner→enhancer drafts with visibleInAllTabOnly', async () => {
+    const { sessionId } = await createTestSession('pag-role-enhancer');
+    const chatroomId = await createChatroom(sessionId);
+
+    await insertTimelineMessage(chatroomId, 'planner', 'check-in to enhancer', {
+      type: 'handoff',
+      targetRole: 'enhancer',
+      visibleInAllTabOnly: true,
+    });
+    await insertTimelineMessage(chatroomId, 'enhancer', 'planning feedback', {
+      type: 'handoff',
+      targetRole: 'planner',
+      visibleInAllTabOnly: true,
+    });
+    await insertTimelineMessage(chatroomId, 'planner', 'noise to builder', {
+      type: 'handoff',
+      targetRole: 'builder',
+    });
+
+    const result = await t.query(api.messages.listMessagesBySenderRolePaginated, {
+      sessionId,
+      chatroomId,
+      senderRole: 'enhancer',
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    expect(result.page).toHaveLength(2);
+    const contents = result.page.map((m) => m.content);
+    expect(contents).toEqual(expect.arrayContaining(['check-in to enhancer', 'planning feedback']));
+  });
+
+  test('planner filter still excludes visibleInAllTabOnly planner→enhancer drafts', async () => {
+    const { sessionId } = await createTestSession('pag-role-planner-excl');
+    const chatroomId = await createChatroom(sessionId);
+    await insertTimelineMessage(chatroomId, 'planner', 'normal planner msg', { type: 'message' });
+    await insertTimelineMessage(chatroomId, 'planner', 'enhancer draft', {
+      type: 'handoff',
+      targetRole: 'enhancer',
+      visibleInAllTabOnly: true,
+    });
+
+    const result = await t.query(api.messages.listMessagesBySenderRolePaginated, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    expect(result.page).toHaveLength(1);
+    expect(result.page[0].content).toBe('normal planner msg');
   });
 
   test('user filter includes handoffs to user and user messages, newest first', async () => {

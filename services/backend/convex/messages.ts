@@ -2178,35 +2178,56 @@ export const listMessagesBySenderRolePaginated = query({
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const isUser = args.senderRole.toLowerCase() === 'user';
-    const result = isUser
-      ? await ctx.db
-          .query('chatroom_messages')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-          .filter((q) =>
+    const normalizedRole = args.senderRole.toLowerCase();
+    let result;
+
+    if (normalizedRole === 'user') {
+      result = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .filter((q) =>
+          q.and(
+            q.or(
+              q.and(q.eq(q.field('senderRole'), 'user'), q.eq(q.field('type'), 'message')),
+              q.and(q.eq(q.field('type'), 'handoff'), q.eq(q.field('targetRole'), 'user'))
+            ),
+            q.neq(q.field('visibleInAllTabOnly'), true)
+          )
+        )
+        .order('desc')
+        .paginate(args.paginationOpts);
+    } else if (normalizedRole === 'enhancer') {
+      // Must match messageMatchesSenderRoleFilter enhancer branch (messageViewMode.ts).
+      // Includes visibleInAllTabOnly enhancer workflow messages.
+      result = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .filter((q) =>
+          q.or(
             q.and(
-              q.or(
-                q.and(q.eq(q.field('senderRole'), 'user'), q.eq(q.field('type'), 'message')),
-                q.and(q.eq(q.field('type'), 'handoff'), q.eq(q.field('targetRole'), 'user'))
-              ),
-              q.neq(q.field('visibleInAllTabOnly'), true)
-            )
+              q.eq(q.field('senderRole'), 'enhancer'),
+              q.or(q.eq(q.field('type'), 'message'), q.eq(q.field('type'), 'handoff'))
+            ),
+            q.and(q.eq(q.field('type'), 'handoff'), q.eq(q.field('targetRole'), 'enhancer'))
           )
-          .order('desc')
-          .paginate(args.paginationOpts)
-      : await ctx.db
-          .query('chatroom_messages')
-          .withIndex('by_chatroom_senderRole_createdAt', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('senderRole', args.senderRole)
+        )
+        .order('desc')
+        .paginate(args.paginationOpts);
+    } else {
+      result = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom_senderRole_createdAt', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('senderRole', args.senderRole)
+        )
+        .filter((q) =>
+          q.and(
+            q.or(q.eq(q.field('type'), 'message'), q.eq(q.field('type'), 'handoff')),
+            q.neq(q.field('visibleInAllTabOnly'), true)
           )
-          .filter((q) =>
-            q.and(
-              q.or(q.eq(q.field('type'), 'message'), q.eq(q.field('type'), 'handoff')),
-              q.neq(q.field('visibleInAllTabOnly'), true)
-            )
-          )
-          .order('desc')
-          .paginate(args.paginationOpts);
+        )
+        .order('desc')
+        .paginate(args.paginationOpts);
+    }
 
     const page = await enrichMessages(ctx, result.page);
     return { ...result, page };
