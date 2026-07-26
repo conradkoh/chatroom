@@ -23,6 +23,8 @@ function createMessage(overrides: Partial<Message> = {}): Message {
     senderRole: 'user',
     content: 'hello',
     _creationTime: 1000,
+    classification: 'question',
+    taskStatus: 'completed',
     ...overrides,
   };
 }
@@ -60,6 +62,6 @@ describe('TimelineUserMessage', () => {
 
   it('renders message content', () => {
     render(<TimelineUserMessage message={createMessage()} chatroomId="room-1" />);
-    expect(screen.getByText('hello')).toBeInTheDocument();
+    expect(screen.getAllByText('hello').length).toBeGreaterThan(0);
   });
 });

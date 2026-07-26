@@ -108,7 +108,7 @@ interface TimelineUserMessageProps {
 
 export const TimelineUserMessage = memo(function TimelineUserMessage({
   message,
-  chatroomId,
+  chatroomId: _chatroomId,
 }: TimelineUserMessageProps) {
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);

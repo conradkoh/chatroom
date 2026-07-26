@@ -8,7 +8,7 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
 import { formatSchedule, formatTime } from '../utils/scheduledPromptFormat';
-import { Button } from '../../../components/ui/button';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '../../../components/ui/dialog';
+} from '@/components/ui/dialog';
 
 interface ScheduledPromptDetailDialogProps {
   open: boolean;

@@ -7,8 +7,6 @@ import { Clock, Loader2, Plus, Power, PowerOff, Trash2 } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
 
 import {
-  formatDailyScheduleLocal,
-  formatTimestampLocal,
   formatTimezoneLabel,
   localDailyTimeToUtc,
   utcDailyTimeToLocal,

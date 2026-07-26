@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -64,9 +64,7 @@ describe('ScheduledPromptDetailDialog', () => {
       <ScheduledPromptDetailDialog
         open={true}
         onOpenChange={vi.fn()}
-        scheduledPromptId="prompt-1"
-        as
-        any
+        scheduledPromptId={'prompt-1' as any}
       />
     );
 
@@ -85,9 +83,7 @@ describe('ScheduledPromptDetailDialog', () => {
       <ScheduledPromptDetailDialog
         open={true}
         onOpenChange={vi.fn()}
-        scheduledPromptId="prompt-1"
-        as
-        any
+        scheduledPromptId={'prompt-1' as any}
       />
     );
 
@@ -102,9 +98,7 @@ describe('ScheduledPromptDetailDialog', () => {
       <ScheduledPromptDetailDialog
         open={true}
         onOpenChange={vi.fn()}
-        scheduledPromptId="prompt-1"
-        as
-        any
+        scheduledPromptId={'prompt-1' as any}
       />
     );
 
@@ -121,9 +115,7 @@ describe('ScheduledPromptDetailDialog', () => {
       <ScheduledPromptDetailDialog
         open={true}
         onOpenChange={onOpenChange}
-        scheduledPromptId="prompt-1"
-        as
-        any
+        scheduledPromptId={'prompt-1' as any}
       />
     );
 
