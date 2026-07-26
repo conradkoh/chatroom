@@ -13,26 +13,16 @@ import {
   localDailyTimeToUtc,
   utcDailyTimeToLocal,
 } from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
+import {
+  formatSchedule,
+  formatTime,
+} from '../features/scheduled-prompts/utils/scheduledPromptFormat';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 
 interface ScheduledPromptsTabProps {
   chatroomId: string;
-}
-
-function formatSchedule(prompt: {
-  scheduleKind: 'interval' | 'daily';
-  intervalMinutes?: number;
-  hourUTC?: number;
-  minuteUTC?: number;
-}): string {
-  if (prompt.scheduleKind === 'interval') return `Every ${prompt.intervalMinutes} minutes`;
-  return formatDailyScheduleLocal(prompt.hourUTC ?? 0, prompt.minuteUTC ?? 0);
-}
-
-function formatTime(ts: number): string {
-  return formatTimestampLocal(ts);
 }
 
 export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
