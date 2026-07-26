@@ -22,7 +22,7 @@ import { useChatroomTimelineFeedData } from '../../hooks/useChatroomTimelineFeed
 import type { EventStreamEvent } from '../../viewModels/eventStreamViewModel';
 import { EventStreamModal } from '../EventStreamModal';
 import { QueuedMessagesIndicator } from '../QueuedMessagesIndicator';
-import { StandingInstructionsBar } from '../StandingInstructionsBar';
+import { ComposerPreflightBar } from './ComposerPreflightBar';
 import { TimelineEventCountMenu } from './TimelineEventCountMenu';
 import { TimelineEventRow } from './TimelineEventRow';
 import { TimelineLatestEventTicker } from './TimelineLatestEventTicker';
@@ -389,7 +389,7 @@ export function ChatroomTimelineFeed({
 
   const footerChrome = (
     <div ref={footerChromeRefCallback} data-testid="timeline-footer-chrome">
-      <StandingInstructionsBar chatroomId={chatroomId as Id<'chatroom_rooms'>} />
+      <ComposerPreflightBar chatroomId={chatroomId as Id<'chatroom_rooms'>} />
       <QueuedMessagesIndicator chatroomId={chatroomId as Id<'chatroom_rooms'>} />
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
         <TimelineLatestEventTicker
