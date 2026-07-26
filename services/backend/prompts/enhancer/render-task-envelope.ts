@@ -27,6 +27,8 @@ export function renderEnhancerTaskEnvelope(params: RenderEnhancerTaskEnvelopePar
     '- Use **Handoff to `builder`** and **Handoff to `user`** in <handoff-templates> to assess alignment with downstream delivery principles.',
     '- Tighten and correct within the existing scope; do not add new requirements.',
     '- Return only the feedback markdown — no preamble.',
+    '- **Run the CLI complete command** as your final action. Stdout alone does NOT deliver feedback — the planner only receives feedback after you run complete.',
+    '- If the plan needs no changes, still run complete with a brief "no changes needed" message. Skipping complete = your work is discarded.',
     '</requirements>',
     '<cli-complete-command>',
     escapeXmlText(params.cliCompleteCommand),

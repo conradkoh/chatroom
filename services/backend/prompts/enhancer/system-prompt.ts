@@ -31,7 +31,11 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
     '- Do NOT research or invent new scope — work only from the check-in and <handoff-templates>.',
     '- Output must match the **Handoff to `planner`** section in <handoff-templates>.',
     '',
-    '## Complete command (run as your final action)',
+    '## Complete command (MANDATORY — run as your final action)',
+    'You MUST run this command after delivering your planning feedback to deliver your response to the planner.',
+    'If the plan needs no changes, still run complete with a brief "no changes needed" message.',
+    'Your stdout output alone does NOT deliver a response — only the complete command does.',
+    'Failure to run complete means your work is lost and the planner will be told you failed.',
     completeCmd,
   ].join('\n');
 }
