@@ -46,8 +46,8 @@ describe('waitForEnhancerJobResolution', () => {
       },
     });
 
-    // Advance past poll interval to get second poll result
-    await vi.advanceTimersByTimeAsync(600);
+    // Advance well past poll interval to get second poll result
+    await vi.advanceTimersByTimeAsync(10_000);
     await vi.advanceTimersByTimeAsync(10);
 
     const result = await promise;

@@ -64,7 +64,7 @@ export function startEnhancerJobSubscriber(
               `spawning harness=${payload.agentHarness} model=${payload.model} job=${payload.jobId}`
             );
 
-            service = agentServices.get(payload.agentHarness);
+            service = agentServices.get(payload.agentHarness) ?? null;
             if (!service) {
               await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
                 sessionId,
@@ -92,16 +92,15 @@ export function startEnhancerJobSubscriber(
               writeEnhancerLog(line);
             });
 
+            const sr = spawnResult!;
             const outcome = await waitForEnhancerJobResolution({
               sessionId,
               chatroomId: payload.chatroomId,
               jobId: payload.jobId,
               backend,
-              onAssistantText: spawnResult.onAssistantText
-                ? (cb) => spawnResult.onAssistantText!(cb)
-                : undefined,
-              onAgentEnd: spawnResult.onAgentEnd ? (cb) => spawnResult.onAgentEnd!(cb) : undefined,
-              onExit: (cb) => spawnResult!.onExit(() => cb()),
+              onAssistantText: sr.onAssistantText ? (cb) => sr.onAssistantText!(cb) : undefined,
+              onAgentEnd: sr.onAgentEnd ? (cb) => sr.onAgentEnd!(cb) : undefined,
+              onExit: (cb) => sr.onExit(() => cb()),
               onFailure: async (error, forceTerminal) => {
                 await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
                   sessionId,
