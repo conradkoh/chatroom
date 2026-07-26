@@ -32,8 +32,9 @@ describe('scheduledPromptTimezone', () => {
     expect(local).toEqual({ hour: 9, minute: 30 });
   });
 
-  it('formatDailyScheduleLocal shows local time with timezone', () => {
+  it('formatDailyScheduleLocal shows local time without timezone suffix', () => {
+    vi.stubEnv('TZ', 'UTC');
     const result = formatDailyScheduleLocal(9, 0);
-    expect(result).toMatch(/^Daily at \d{2}:\d{2} \(/);
+    expect(result).toBe('Daily at 09:00');
   });
 });

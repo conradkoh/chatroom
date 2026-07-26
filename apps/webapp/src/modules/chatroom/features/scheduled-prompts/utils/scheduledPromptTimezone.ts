@@ -36,16 +36,35 @@ export function utcDailyTimeToLocal(
   return { hour: d.getHours(), minute: d.getMinutes() };
 }
 
-export function formatDailyScheduleLocal(hourUTC: number, minuteUTC: number): string {
-  const { hour, minute } = utcDailyTimeToLocal(hourUTC, minuteUTC);
-  const h = String(hour).padStart(2, '0');
-  const m = String(minute).padStart(2, '0');
-  return `Daily at ${h}:${m} (${formatTimezoneLabel()})`;
-}
-
+/** Format epoch ms as HH:MM in browser local time. No TZ suffix — assumed local. */
 export function formatTimestampLocal(ts: number): string {
   const d = new Date(ts);
   const h = String(d.getHours()).padStart(2, '0');
   const m = String(d.getMinutes()).padStart(2, '0');
-  return `${h}:${m} ${formatTimezoneLabel()}`;
+  return `${h}:${m}`;
+}
+
+/** Format daily schedule in browser local time. No TZ suffix — assumed local. */
+export function formatDailyScheduleLocal(hourUTC: number, minuteUTC: number): string {
+  const { hour, minute } = utcDailyTimeToLocal(hourUTC, minuteUTC);
+  const h = String(hour).padStart(2, '0');
+  const m = String(minute).padStart(2, '0');
+  return `Daily at ${h}:${m}`;
+}
+
+/** Only use when displaying a time explicitly in a non-browser timezone. */
+export function formatTimestampInTimezone(ts: number, timeZone: string): string {
+  const d = new Date(ts);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(d);
+  const h = parts.find((p) => p.type === 'hour')?.value ?? '00';
+  const m = parts.find((p) => p.type === 'minute')?.value ?? '00';
+  const label = formatTimezoneLabel(timeZone);
+  const browserTz = getBrowserTimezone();
+  if (timeZone === browserTz) return `${h}:${m}`;
+  return `${h}:${m} (${label})`;
 }
