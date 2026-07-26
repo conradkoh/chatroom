@@ -10,12 +10,18 @@ import {
 } from './messageViewMode';
 
 describe('messageViewMode helpers', () => {
-  it('getMessageFilterRoles includes user and dedupes team roles', () => {
-    expect(getMessageFilterRoles(['planner', 'builder'])).toEqual(['user', 'planner', 'builder']);
+  it('getMessageFilterRoles includes user, dedupes team roles, and adds enhancer for planner teams', () => {
+    expect(getMessageFilterRoles(['planner', 'builder'])).toEqual([
+      'user',
+      'planner',
+      'builder',
+      'enhancer',
+    ]);
     expect(getMessageFilterRoles(['user', 'planner', 'builder'])).toEqual([
       'user',
       'planner',
       'builder',
+      'enhancer',
     ]);
   });
 
