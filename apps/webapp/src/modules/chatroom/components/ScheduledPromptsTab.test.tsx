@@ -74,6 +74,69 @@ vi.mock('@/components/ui/input', () => ({
   ),
 }));
 
+const desktopMock = vi.hoisted(() => ({ value: false }));
+vi.mock('@/hooks/useIsDesktop', () => ({
+  useIsDesktop: () => desktopMock.value,
+}));
+
+vi.mock('../features/scheduled-prompts/components/ScheduledPromptCard', () => {
+  const React = require('react');
+  return {
+    ScheduledPromptCard: ({ prompt, setEnabled }: any) => {
+      const [actionsOpen, setActionsOpen] = React.useState(false);
+      const isArchiveDisabled = prompt.disabledReason === 'archive';
+      const isActive = prompt.disabledReason === undefined;
+      const displayName = prompt.name || prompt.prompt.slice(0, 60);
+      const isDesktop = desktopMock.value;
+
+      return React.createElement(
+        'div',
+        {
+          'data-testid': 'scheduled-prompt-card',
+          onClick: () => !isArchiveDisabled && setActionsOpen(true),
+        },
+        React.createElement('span', null, displayName),
+        React.createElement(
+          'span',
+          null,
+          isActive
+            ? 'Active'
+            : prompt.disabledReason === 'archive'
+              ? 'Disabled by archive'
+              : 'Disabled'
+        ),
+        React.createElement(
+          'span',
+          { 'data-testid': 'schedule-text' },
+          prompt.scheduleKind === 'interval'
+            ? prompt.intervalMinutes === 1
+              ? 'Every minute'
+              : `Every ${prompt.intervalMinutes} minutes`
+            : 'Daily schedule'
+        ),
+        React.createElement('input', {
+          type: 'checkbox',
+          role: 'switch',
+          checked: isActive,
+          disabled: isArchiveDisabled,
+          onChange: (e: any) => {
+            if (e.target.checked !== isActive) {
+              setEnabled({ scheduledPromptId: prompt._id, enabled: e.target.checked });
+            }
+          },
+          onClick: (e: any) => e.stopPropagation(),
+          'data-testid': 'switch',
+        }),
+        actionsOpen &&
+          !isArchiveDisabled &&
+          (isDesktop
+            ? React.createElement('div', { 'data-testid': 'popover-content' }, 'Edit')
+            : React.createElement('div', { 'data-testid': 'drawer-content' }, 'Edit'))
+      );
+    },
+  };
+});
+
 vi.mock('@/components/ui/drawer', () => ({
   Drawer: ({ children, open }: any) => (open ? <div data-testid="drawer">{children}</div> : null),
   DrawerContent: ({ children }: any) => <div data-testid="drawer-content">{children}</div>,
@@ -188,5 +251,23 @@ describe('ScheduledPromptsTab', () => {
     await waitFor(() => {
       expect(screen.getByText('Every minute')).toBeDefined();
     });
+  });
+
+  it('shows popover on desktop when card is tapped', async () => {
+    desktopMock.value = true;
+
+    mocks.list.mockReturnValue([PROMPT_ACTIVE]);
+    const { ScheduledPromptsTab } = await import('./ScheduledPromptsTab');
+    render(<ScheduledPromptsTab chatroomId="room-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('scheduled-prompt-card')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByTestId('scheduled-prompt-card'));
+    await waitFor(() => {
+      expect(screen.getByTestId('popover-content')).toBeDefined();
+    });
+    expect(screen.getByText('Edit')).toBeDefined();
   });
 });

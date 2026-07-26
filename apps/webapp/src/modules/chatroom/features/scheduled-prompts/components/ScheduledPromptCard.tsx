@@ -2,7 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Loader2, Power, PowerOff, Trash2 } from 'lucide-react';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 
 import { formatSchedule, formatTime } from '../utils/scheduledPromptFormat';
 import { ScheduledPromptDetailDialog } from './ScheduledPromptDetailDialog';
@@ -16,6 +16,10 @@ import {
   DrawerClose,
 } from '@/components/ui/drawer';
 import { Switch } from '@/components/ui/switch';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useOverlayDismissStack } from '../../../hooks/useOverlayDismissStack';
+import { useOverlayPortalContainer } from '../../../components/shared/overlayPortalContainer';
+import { Popover, PopoverAnchor, PopoverContent } from '../../../components/ui/popover';
 
 interface ScheduledPromptCardProps {
   prompt: {
@@ -38,6 +42,72 @@ interface ScheduledPromptCardProps {
   removePrompt: (args: { scheduledPromptId: Id<'chatroom_scheduledPrompts'> }) => Promise<unknown>;
 }
 
+export function ActionsMenuContent({
+  showDeleteConfirm,
+  setShowDeleteConfirm,
+  onEdit,
+  onDelete,
+  isDeleting,
+  isArchiveDisabled,
+  onClose,
+}: {
+  showDeleteConfirm: boolean;
+  setShowDeleteConfirm: (v: boolean) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  isDeleting: boolean;
+  isArchiveDisabled: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full text-xs justify-start"
+        onClick={() => {
+          onEdit();
+          onClose();
+        }}
+      >
+        Edit
+      </Button>
+      {showDeleteConfirm ? (
+        <div className="flex gap-2">
+          <Button
+            variant="destructive"
+            size="sm"
+            className="flex-1 text-xs"
+            onClick={onDelete}
+            disabled={isDeleting}
+          >
+            {isDeleting ? <Loader2 size={12} className="animate-spin" /> : 'Confirm Delete'}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 text-xs"
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full text-xs justify-start text-red-500 hover:text-red-400"
+          onClick={() => setShowDeleteConfirm(true)}
+          disabled={isArchiveDisabled}
+        >
+          <Trash2 size={12} className="mr-2" />
+          Delete
+        </Button>
+      )}
+    </>
+  );
+}
+
 export function ScheduledPromptCard({
   prompt,
   onEdit,
@@ -47,17 +117,22 @@ export function ScheduledPromptCard({
   const [isToggling, setIsToggling] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const isArchiveDisabled = prompt.disabledReason === 'archive';
   const isActive = prompt.disabledReason === undefined;
+  const isDesktop = useIsDesktop();
+  const portalContainer = useOverlayPortalContainer();
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useOverlayDismissStack(!isDesktop && actionsOpen, () => setActionsOpen(false));
 
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
     try {
       await removePrompt({ scheduledPromptId: prompt._id });
-      setDrawerOpen(false);
+      setActionsOpen(false);
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
@@ -65,7 +140,7 @@ export function ScheduledPromptCard({
   }, [prompt._id, removePrompt]);
 
   const handleCardTap = useCallback(() => {
-    if (!isArchiveDisabled) setDrawerOpen(true);
+    if (!isArchiveDisabled) setActionsOpen(true);
   }, [isArchiveDisabled]);
 
   const handleHistoryClick = useCallback((e: React.MouseEvent) => {
@@ -76,9 +151,26 @@ export function ScheduledPromptCard({
   const displayName =
     prompt.name || prompt.prompt.slice(0, 60) + (prompt.prompt.length > 60 ? '...' : '');
 
+  const editHandler = useCallback(() => {
+    onEdit(prompt._id);
+  }, [onEdit, prompt._id]);
+
+  const menuContent = (
+    <ActionsMenuContent
+      showDeleteConfirm={showDeleteConfirm}
+      setShowDeleteConfirm={setShowDeleteConfirm}
+      onEdit={editHandler}
+      onDelete={handleDelete}
+      isDeleting={isDeleting}
+      isArchiveDisabled={isArchiveDisabled}
+      onClose={() => setActionsOpen(false)}
+    />
+  );
+
   return (
     <>
       <div
+        ref={cardRef}
         className="border border-chatroom-border rounded-none p-4 bg-chatroom-bg-secondary overflow-hidden min-w-0 cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
         onClick={handleCardTap}
         role="button"
@@ -156,67 +248,43 @@ export function ScheduledPromptCard({
         </div>
       </div>
 
-      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <DrawerContent className="rounded-none border-chatroom-border bg-chatroom-bg-secondary">
-          <DrawerHeader>
-            <DrawerTitle className="text-sm font-bold text-chatroom-text-primary">
-              {displayName}
-            </DrawerTitle>
-          </DrawerHeader>
-          <div className="px-4 pb-4 space-y-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full text-xs justify-start"
-              onClick={() => {
-                onEdit(prompt._id);
-                setDrawerOpen(false);
-              }}
-            >
-              Edit
-            </Button>
-            {showDeleteConfirm ? (
-              <div className="flex gap-2">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="flex-1 text-xs"
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? <Loader2 size={12} className="animate-spin" /> : 'Confirm Delete'}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex-1 text-xs"
-                  onClick={() => setShowDeleteConfirm(false)}
-                >
+      {isDesktop ? (
+        <Popover open={actionsOpen} onOpenChange={setActionsOpen}>
+          <PopoverAnchor virtualRef={cardRef as any} />
+          <PopoverContent
+            side="bottom"
+            align="end"
+            className="w-56 p-2 rounded-none border-chatroom-border bg-chatroom-bg-secondary"
+            onOpenAutoFocus={(e: Event) => e.preventDefault()}
+          >
+            <div className="space-y-2">{menuContent}</div>
+          </PopoverContent>
+        </Popover>
+      ) : (
+        <Drawer
+          open={actionsOpen}
+          onOpenChange={setActionsOpen}
+          nested
+          repositionInputs={false}
+          container={portalContainer ?? undefined}
+        >
+          <DrawerContent className="rounded-none border-chatroom-border bg-chatroom-bg-secondary">
+            <DrawerHeader>
+              <DrawerTitle className="text-sm font-bold text-chatroom-text-primary">
+                {displayName}
+              </DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-4 space-y-2">{menuContent}</div>
+            <DrawerFooter>
+              <DrawerClose asChild>
+                <Button variant="ghost" size="sm" className="w-full text-xs">
                   Cancel
                 </Button>
-              </div>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full text-xs justify-start text-red-500 hover:text-red-400"
-                onClick={() => setShowDeleteConfirm(true)}
-                disabled={isArchiveDisabled}
-              >
-                <Trash2 size={12} className="mr-2" />
-                Delete
-              </Button>
-            )}
-          </div>
-          <DrawerFooter>
-            <DrawerClose asChild>
-              <Button variant="ghost" size="sm" className="w-full text-xs">
-                Cancel
-              </Button>
-            </DrawerClose>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+              </DrawerClose>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      )}
 
       {detailOpen && (
         <ScheduledPromptDetailDialog
