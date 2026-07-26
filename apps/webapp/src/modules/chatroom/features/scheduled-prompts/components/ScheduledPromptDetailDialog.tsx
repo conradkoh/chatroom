@@ -38,7 +38,7 @@ export function ScheduledPromptDetailDialog({
   const [disabling, setDisabling] = useState(false);
 
   const isActive = prompt?.disabledReason === undefined;
-  const canDisable = isActive;
+  const canDisable = prompt !== undefined && isActive;
 
   const handleDisable = useCallback(async () => {
     setDisabling(true);
