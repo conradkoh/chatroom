@@ -11,27 +11,26 @@ import { promoteQueuedMessage } from '../../src/domain/usecase/task/promote-queu
 import type { MutationCtx } from '../_generated/server';
 
 /**
+ * Checks that no tasks with an active status (pending, acknowledged, in_progress)
+ * exist in the chatroom — the authoritative guard against premature promotion.
+ */
+export async function canPromote(ctx: MutationCtx, chatroomId: string): Promise<boolean> {
+  for (const status of ['pending', 'acknowledged', 'in_progress'] as const) {
+    const task = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId).eq('status', status))
+      .first();
+    if (task) return false;
+  }
+  return true;
+}
+
+/**
  * Creates PromoteNextTaskDeps wired to the given Convex mutation context.
- *
- * `canPromote` checks that no tasks with an active status (pending,
- * acknowledged, in_progress) exist in the chatroom — this is the
- * authoritative guard against premature promotion.
  */
 export function makePromoteNextTaskDeps(ctx: MutationCtx): PromoteNextTaskDeps {
   return {
-    canPromote: async (chatroomId) => {
-      // Check each active status with short-circuit — stop as soon as one is found.
-      for (const status of ['pending', 'acknowledged', 'in_progress'] as const) {
-        const task = await ctx.db
-          .query('chatroom_tasks')
-          .withIndex('by_chatroom_status', (q) =>
-            q.eq('chatroomId', chatroomId).eq('status', status)
-          )
-          .first();
-        if (task) return false;
-      }
-      return true;
-    },
+    canPromote: (chatroomId) => canPromote(ctx, chatroomId),
     getOldestQueuedMessage: async (chatroomId) => {
       return await ctx.db
         .query('chatroom_messageQueue')

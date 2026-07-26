@@ -21,6 +21,7 @@ import {
 } from '../src/domain/usecase/task/create-task';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
+import { canPromote } from './lib/promoteNextTaskDeps';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
 import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
@@ -714,23 +715,9 @@ export const promoteSpecificTask = mutation({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, queueRecord.chatroomId);
 
-    // Check for active tasks — cannot promote if another task is pending/in_progress
-    const [pendingTask, inProgressTask] = await Promise.all([
-      ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', queueRecord.chatroomId).eq('status', 'pending')
-        )
-        .first(),
-      ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', queueRecord.chatroomId).eq('status', 'in_progress')
-        )
-        .first(),
-    ]);
-
-    if (pendingTask || inProgressTask) {
+    // Check for active tasks using shared canPromote guard
+    const promotable = await canPromote(ctx, queueRecord.chatroomId);
+    if (!promotable) {
       return {
         promoted: false,
         reason: 'active_task_exists' as const,

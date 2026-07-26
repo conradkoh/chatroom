@@ -237,4 +237,39 @@ describe('promoteSpecificTask', () => {
     expect(messages.length).toBe(1);
     expect(messages[0]?.content).toBe('test message content');
   });
+
+  test('returns active_task_exists when an acknowledged task exists', async () => {
+    const { sessionId } = await createTestSession('promote-specific-6');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Create an acknowledged task
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'acknowledged task',
+        status: 'acknowledged',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 0,
+      });
+    });
+
+    const queuedMessageId = await createQueueRecord(chatroomId, 'queued task');
+
+    const result = await t.mutation(api.tasks.promoteSpecificTask, {
+      sessionId,
+      queuedMessageId,
+    });
+
+    expect(result.promoted).toBe(false);
+    expect(result.reason).toBe('active_task_exists');
+
+    // Verify queue record still exists
+    const queueRecord = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_messageQueue', queuedMessageId)
+    );
+    expect(queueRecord).toBeDefined();
+  });
 });
