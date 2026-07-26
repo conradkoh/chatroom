@@ -1,6 +1,9 @@
 /**
  * Chatroom-local Dialog — industrial theme (sharp corners, chatroom palette).
  * Use for modals inside the chatroom UI instead of @/components/ui/dialog.
+ *
+ * Do not pass overflow-* classes to DialogContent — use DialogScrollBody for
+ * scrollable body. Overflow classes are stripped from DialogContent className.
  */
 'use client';
 
@@ -50,6 +53,27 @@ function DialogOverlay({
   );
 }
 
+/** Strip overflow-* utilities — DialogContent must stay overflow-visible. */
+export function stripOverflowFromClassName(className?: string): string {
+  if (!className) return '';
+  return className
+    .split(/\s+/)
+    .filter((token) => token && !/^!?overflow(-[xy])?(-\w+)?$/.test(token))
+    .join(' ');
+}
+
+export function DialogScrollBody({ className, children, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="chatroom-dialog-scroll-body"
+      className={cn('min-h-0 flex-1 overflow-y-auto overflow-x-hidden', className)}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
 function DialogContent({
   className,
   children,
@@ -57,19 +81,28 @@ function DialogContent({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content>) {
   useAllowTouchSelection();
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
+  const safeClassName = stripOverflowFromClassName(className);
 
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
-        ref={(node) => setPortalContainer(node)}
         data-slot="chatroom-dialog-content"
-        className={cn(chatroomIndustrialModalContentClassName, className)}
+        className={cn(
+          chatroomIndustrialModalContentClassName,
+          safeClassName,
+          'overflow-visible relative flex flex-col'
+        )}
         onEscapeKeyDown={onEscapeKeyDown}
         {...props}
       >
-        <OverlayPortalContainerProvider container={portalContainer}>
+        <div
+          ref={setPortalHost}
+          data-slot="chatroom-dialog-portal-host"
+          className="pointer-events-none fixed inset-0 overflow-visible z-[60]"
+        />
+        <OverlayPortalContainerProvider container={portalHost}>
           {children}
         </OverlayPortalContainerProvider>
         <DialogPrimitive.Close className="absolute top-4 right-4 rounded-none opacity-70 transition-opacity hover:opacity-100 text-chatroom-text-muted hover:text-chatroom-text-primary focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
