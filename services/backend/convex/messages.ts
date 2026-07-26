@@ -20,6 +20,7 @@ import {
   resolvePrimaryDeliveryAssemblyInput,
 } from '../src/domain/entities/assemble-primary-delivery-attachments';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
+import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
@@ -99,7 +100,8 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
+    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
+    | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -116,7 +118,8 @@ async function enrichMessageAttachments(
 
   // Resolve attached artifacts
   let attachedArtifacts:
-    { _id: string; filename: string; description?: string; mimeType?: string }[] | undefined;
+    | { _id: string; filename: string; description?: string; mimeType?: string }[]
+    | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
       msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
@@ -655,6 +658,29 @@ async function _handoffHandler(
     );
   }
 
+  // Resolve user-instruction origin for enhancer correlation on any handoff
+  let taskOriginMessageId: Id<'chatroom_messages'> | undefined;
+  for (const task of tasksToComplete) {
+    if (!task.sourceMessageId) continue;
+    const originId = await walkToUserMessageId(ctx, task.sourceMessageId);
+    if (originId) {
+      taskOriginMessageId = originId;
+      break;
+    }
+  }
+  // Fallback: most recent acknowledged non-follow-up user message in chatroom
+  if (!taskOriginMessageId) {
+    const recentUser = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .order('desc')
+      .take(10);
+    const origin = recentUser.find((m) => m.acknowledgedAt && m.classification !== 'follow_up');
+    if (origin) taskOriginMessageId = origin._id;
+  }
+
   // Step 2: Send the handoff message
   const messageId = await ctx.db.insert('chatroom_messages', {
     chatroomId: args.chatroomId,
@@ -666,6 +692,7 @@ async function _handoffHandler(
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
     ...(args.enhancerJobId && { enhancerJobId: args.enhancerJobId }),
     ...(args.visibleInAllTabOnly && { visibleInAllTabOnly: true }),
+    ...(taskOriginMessageId && { taskOriginMessageId }),
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -1661,8 +1688,11 @@ export const getTaskDeliveryPrompt = query({
       enhancerConfig?.enabled === true &&
       enhancerConfig.targetId === 'handoff:planner-to-builder';
 
+    const deliveryMessageSenderRole =
+      message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
+
     const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles, {
-      includeEnhancer: plannerEnhancerEnabled,
+      includeEnhancer: plannerEnhancerEnabled && deliveryMessageSenderRole !== 'enhancer',
     });
 
     // Get context window (reuse getContextWindow logic)
