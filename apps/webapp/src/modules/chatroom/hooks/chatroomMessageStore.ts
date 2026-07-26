@@ -57,6 +57,7 @@ export function toMessage(m: any): Message {
     isQueued: m.isQueued,
     contextCreatedBy: m.contextCreatedBy,
     enhancerOriginalContent: m.enhancerOriginalContent,
+    scheduledPromptId: m.scheduledPromptId,
   };
 }
 

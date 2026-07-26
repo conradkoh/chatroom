@@ -78,4 +78,6 @@ export interface Message {
   contextCreatedBy?: string;
   /** Original planner draft before enhancer (from job.draftContent); not stored on message row */
   enhancerOriginalContent?: string;
+  /** Scheduled prompt ID that triggered this message */
+  scheduledPromptId?: string;
 }

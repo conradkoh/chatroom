@@ -10,7 +10,7 @@ import {
   Sparkles,
   XCircle,
 } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useState } from 'react';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { TimelineMessageFooter } from './TimelineMessageFooter';
@@ -22,6 +22,9 @@ import {
 } from './timelineRowStyles';
 import { MessageAttachmentChips } from '../../attachments';
 import type { Message, MessageClassification } from '../../types/message';
+import { ScheduledMessageBadge } from '../../features/scheduled-prompts/components/ScheduledMessageBadge';
+import { ScheduledPromptDetailDialog } from '../../features/scheduled-prompts/components/ScheduledPromptDetailDialog';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 function getClassificationBadge(classification: MessageClassification | undefined) {
   if (!classification) return null;
@@ -105,12 +108,15 @@ interface TimelineUserMessageProps {
 
 export const TimelineUserMessage = memo(function TimelineUserMessage({
   message,
-  chatroomId: _chatroomId,
+  chatroomId,
 }: TimelineUserMessageProps) {
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
   const isTaskFinished = message.taskStatus === 'completed' || message.taskStatus === 'cancelled';
   const isAwaitingClassification = !message.classification && !isTaskFinished;
+  const showScheduledBadge =
+    message.sourcePlatform === 'scheduled' || message.scheduledPromptId != null;
+  const [detailOpen, setDetailOpen] = useState(false);
 
   return (
     <div className={`${TIMELINE_ROW_BORDER} bg-transparent`} data-testid="timeline-user-message">
@@ -145,6 +151,12 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
                       Telegram
                     </span>
                   )}
+                  {showScheduledBadge && (
+                    <ScheduledMessageBadge
+                      scheduledPromptId={message.scheduledPromptId}
+                      onClick={message.scheduledPromptId ? () => setDetailOpen(true) : undefined}
+                    />
+                  )}
                   <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
                     {getDisplayText(message)}
                   </span>
@@ -168,6 +180,14 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
         </div>
         <TimelineMessageFooter message={message} />
       </div>
+
+      {detailOpen && message.scheduledPromptId && (
+        <ScheduledPromptDetailDialog
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+          scheduledPromptId={message.scheduledPromptId as Id<'chatroom_scheduledPrompts'>}
+        />
+      )}
     </div>
   );
 });
