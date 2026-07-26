@@ -6,6 +6,13 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { Clock, Loader2, Plus, Power, PowerOff, Trash2 } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
 
+import {
+  formatDailyScheduleLocal,
+  formatTimestampLocal,
+  formatTimezoneLabel,
+  localDailyTimeToUtc,
+  utcDailyTimeToLocal,
+} from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -21,16 +28,11 @@ function formatSchedule(prompt: {
   minuteUTC?: number;
 }): string {
   if (prompt.scheduleKind === 'interval') return `Every ${prompt.intervalMinutes} minutes`;
-  const h = String(prompt.hourUTC ?? 0).padStart(2, '0');
-  const m = String(prompt.minuteUTC ?? 0).padStart(2, '0');
-  return `Daily at ${h}:${m} UTC`;
+  return formatDailyScheduleLocal(prompt.hourUTC ?? 0, prompt.minuteUTC ?? 0);
 }
 
 function formatTime(ts: number): string {
-  const d = new Date(ts);
-  const h = String(d.getUTCHours()).padStart(2, '0');
-  const m = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${h}:${m} UTC`;
+  return formatTimestampLocal(ts);
 }
 
 export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
@@ -312,8 +314,9 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
     initial?.scheduleKind ?? 'interval'
   );
   const [intervalMinutes, setIntervalMinutes] = useState(initial?.intervalMinutes ?? 30);
-  const [hourUTC, setHourUTC] = useState(initial?.hourUTC ?? 9);
-  const [minuteUTC, setMinuteUTC] = useState(initial?.minuteUTC ?? 0);
+  const localInit = utcDailyTimeToLocal(initial?.hourUTC ?? 9, initial?.minuteUTC ?? 0);
+  const [hourLocal, setHourLocal] = useState(localInit.hour);
+  const [minuteLocal, setMinuteLocal] = useState(localInit.minute);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -332,12 +335,12 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
     }
     if (
       scheduleKind === 'daily' &&
-      (hourUTC === undefined ||
-        minuteUTC === undefined ||
-        hourUTC < 0 ||
-        hourUTC > 23 ||
-        minuteUTC < 0 ||
-        minuteUTC > 59)
+      (hourLocal === undefined ||
+        minuteLocal === undefined ||
+        hourLocal < 0 ||
+        hourLocal > 23 ||
+        minuteLocal < 0 ||
+        minuteLocal > 59)
     ) {
       setError('Daily schedule requires valid hour (0-23) and minute (0-59)');
       return;
@@ -353,6 +356,7 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
       if (scheduleKind === 'interval') {
         data.intervalMinutes = intervalMinutes;
       } else {
+        const { hourUTC, minuteUTC } = localDailyTimeToUtc(hourLocal, minuteLocal);
         data.hourUTC = hourUTC;
         data.minuteUTC = minuteUTC;
       }
@@ -362,7 +366,7 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
     } finally {
       setSaving(false);
     }
-  }, [name, prompt, scheduleKind, intervalMinutes, hourUTC, minuteUTC, onSave]);
+  }, [name, prompt, scheduleKind, intervalMinutes, hourLocal, minuteLocal, onSave]);
 
   return (
     <div className="border border-chatroom-border rounded-none bg-chatroom-bg-secondary overflow-hidden">
@@ -439,33 +443,38 @@ const ScheduledPromptForm = memo(function ScheduledPromptForm({
             />
           </div>
         ) : (
-          <div className="flex gap-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider">
-                Hour UTC
-              </label>
-              <Input
-                type="number"
-                min={0}
-                max={23}
-                value={hourUTC}
-                onChange={(e) => setHourUTC(Number(e.target.value))}
-                className="text-xs bg-chatroom-bg-primary border-chatroom-border w-20"
-              />
+          <div className="space-y-2">
+            <div className="flex gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider">
+                  Hour
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={hourLocal}
+                  onChange={(e) => setHourLocal(Number(e.target.value))}
+                  className="text-xs bg-chatroom-bg-primary border-chatroom-border w-20"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider">
+                  Minute
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={minuteLocal}
+                  onChange={(e) => setMinuteLocal(Number(e.target.value))}
+                  className="text-xs bg-chatroom-bg-primary border-chatroom-border w-20"
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wider">
-                Minute UTC
-              </label>
-              <Input
-                type="number"
-                min={0}
-                max={59}
-                value={minuteUTC}
-                onChange={(e) => setMinuteUTC(Number(e.target.value))}
-                className="text-xs bg-chatroom-bg-primary border-chatroom-border w-20"
-              />
-            </div>
+            <p className="text-[10px] text-chatroom-text-muted">
+              Your timezone: {formatTimezoneLabel()}
+            </p>
           </div>
         )}
 
