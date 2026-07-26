@@ -18,6 +18,7 @@ import React, { memo, useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
+import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { getChatStatusIndicatorClasses } from '../utils/chatStatusDisplay';
@@ -45,10 +46,10 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
 }: ChatroomSidebarItemProps) {
   const displayName = getChatroomDisplayName(chatroom);
   const [startModalOpen, setStartModalOpen] = useState(false);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const sendCommand = useSessionMutation(api.machines.sendCommand);
   const restartOfflineAgents = useSessionMutation(api.machines.restartOfflineAgentsFromConfig);
-  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
 
@@ -98,16 +99,9 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     [chatroom._id, isStarting, restartOfflineAgents]
   );
 
-  const handleArchive = useCallback(async () => {
-    try {
-      await updateStatus({
-        chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-        status: 'completed',
-      });
-    } catch (error) {
-      console.error('Failed to archive chat:', error);
-    }
-  }, [updateStatus, chatroom._id]);
+  const handleArchive = useCallback(() => {
+    setArchiveDialogOpen(true);
+  }, []);
 
   const handleToggleReadStatus = useCallback(async () => {
     try {
@@ -220,6 +214,13 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           chatroomId={chatroom._id}
         />
       )}
+
+      <LifecycleConfirmDialog
+        open={archiveDialogOpen}
+        onOpenChange={setArchiveDialogOpen}
+        chatroomId={chatroom._id as Id<'chatroom_rooms'>}
+        action="archive"
+      />
     </>
   );
 });

@@ -106,4 +106,7 @@ crons.interval(
   internal.enhancerJobReaper.purgeTerminalEnhancerJobs
 );
 
+// Scheduled prompts — fire due prompts every minute
+crons.interval('run scheduled prompts', { minutes: 1 }, internal.scheduledPrompts.runDue);
+
 export default crons;

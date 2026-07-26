@@ -17,6 +17,7 @@ import {
   Trash2,
   Database,
   FileText,
+  Clock,
 } from 'lucide-react';
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
@@ -27,6 +28,8 @@ import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
 import type { SettingsTab } from './CommandPalette/types';
 import { IntegrationsTab } from './IntegrationsTab';
+import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
+import { ScheduledPromptsTab } from './ScheduledPromptsTab';
 import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './picker';
 import { SkillsTab } from './SkillsTab';
 import { useTeamConfigs } from '../hooks/use-team-configs';
@@ -71,6 +74,7 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'workspaces', label: 'Workspaces', icon: <HardDrive size={16} /> },
   { id: 'skills', label: 'Skills', icon: <FileText size={16} /> },
   { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
+  { id: 'scheduled', label: 'Scheduled', icon: <Clock size={16} /> },
 ];
 
 // ─── Tab Content Components ─────────────────────────────────────────────
@@ -78,11 +82,15 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
 /**
  * Setup tab — shows the chatroom ID and basic setup information
  */
-const SetupContent = memo(function SetupContent({ chatroomId }: { chatroomId: string }) {
+const SetupContent = memo(function SetupContent({
+  chatroomId,
+  onArchiveComplete,
+}: {
+  chatroomId: string;
+  onArchiveComplete?: () => void;
+}) {
   const [copied, setCopied] = useState(false);
-  const [isArchiving, setIsArchiving] = useState(false);
-
-  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(chatroomId);
@@ -90,19 +98,9 @@ const SetupContent = memo(function SetupContent({ chatroomId }: { chatroomId: st
     setTimeout(() => setCopied(false), 2000);
   }, [chatroomId]);
 
-  const handleArchive = useCallback(async () => {
-    setIsArchiving(true);
-    try {
-      await updateStatus({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        status: 'completed',
-      });
-    } catch (error) {
-      console.error('Failed to archive chat:', error);
-    } finally {
-      setIsArchiving(false);
-    }
-  }, [updateStatus, chatroomId]);
+  const handleArchive = useCallback(() => {
+    setArchiveDialogOpen(true);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -153,12 +151,19 @@ const SetupContent = memo(function SetupContent({ chatroomId }: { chatroomId: st
         </p>
         <button
           onClick={handleArchive}
-          disabled={isArchiving}
-          className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors"
         >
-          {isArchiving ? 'Archiving...' : 'Archive Chat'}
+          Archive Chat
         </button>
       </div>
+
+      <LifecycleConfirmDialog
+        open={archiveDialogOpen}
+        onOpenChange={setArchiveDialogOpen}
+        chatroomId={chatroomId as Id<'chatroom_rooms'>}
+        action="archive"
+        onConfirmed={onArchiveComplete}
+      />
     </div>
   );
 });
@@ -998,7 +1003,9 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
         </div>
 
         <FixedModalBody className="p-6">
-          {activeTab === 'setup' && <SetupContent chatroomId={chatroomId} />}
+          {activeTab === 'setup' && (
+            <SetupContent chatroomId={chatroomId} onArchiveComplete={onClose} />
+          )}
           {activeTab === 'team' && (
             <TeamConfigContent
               chatroomId={chatroomId}
@@ -1011,6 +1018,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
           {activeTab === 'skills' && <SkillsTab chatroomId={chatroomId} />}
           {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}
+          {activeTab === 'scheduled' && <ScheduledPromptsTab chatroomId={chatroomId} />}
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>
