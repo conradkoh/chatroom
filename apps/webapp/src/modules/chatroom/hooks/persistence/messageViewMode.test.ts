@@ -155,6 +155,24 @@ describe('messageViewMode helpers', () => {
       ).toBe(false);
     });
 
+    it('includes planner→enhancer handoffs for planner filter', () => {
+      expect(
+        messageMatchesSenderRoleFilter(
+          { senderRole: 'planner', type: 'handoff', targetRole: 'enhancer' },
+          'planner'
+        )
+      ).toBe(true);
+    });
+
+    it('includes builder→enhancer handoffs for builder filter', () => {
+      expect(
+        messageMatchesSenderRoleFilter(
+          { senderRole: 'builder', type: 'handoff', targetRole: 'enhancer' },
+          'builder'
+        )
+      ).toBe(true);
+    });
+
     // --- Parity fixtures (must match listMessagesBySenderRolePaginated) ---
 
     const FIXTURES: {
@@ -186,9 +204,20 @@ describe('messageViewMode helpers', () => {
         filterRole: 'enhancer',
         expected: false,
       },
+      // Planner filter
+      {
+        message: { senderRole: 'planner', type: 'handoff', targetRole: 'enhancer' },
+        filterRole: 'planner',
+        expected: true,
+      },
       // Builder filter
       {
         message: { senderRole: 'builder', type: 'handoff' },
+        filterRole: 'builder',
+        expected: true,
+      },
+      {
+        message: { senderRole: 'builder', type: 'handoff', targetRole: 'enhancer' },
         filterRole: 'builder',
         expected: true,
       },

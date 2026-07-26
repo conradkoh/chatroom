@@ -148,7 +148,7 @@ describe('listMessagesBySenderRolePaginated', () => {
     expect(contents).toEqual(expect.arrayContaining(['check-in to enhancer', 'planning feedback']));
   });
 
-  test('planner filter still excludes visibleInAllTabOnly planner→enhancer drafts', async () => {
+  test('planner filter includes visibleInAllTabOnly planner→enhancer drafts', async () => {
     const { sessionId } = await createTestSession('pag-role-planner-excl');
     const chatroomId = await createChatroom(sessionId);
     await insertTimelineMessage(chatroomId, 'planner', 'normal planner msg', { type: 'message' });
@@ -165,8 +165,33 @@ describe('listMessagesBySenderRolePaginated', () => {
       paginationOpts: { numItems: 10, cursor: null },
     });
 
-    expect(result.page).toHaveLength(1);
-    expect(result.page[0].content).toBe('normal planner msg');
+    expect(result.page).toHaveLength(2);
+    expect(result.page.map((m) => m.content)).toEqual(
+      expect.arrayContaining(['normal planner msg', 'enhancer draft'])
+    );
+  });
+
+  test('builder filter includes visibleInAllTabOnly builder→enhancer drafts', async () => {
+    const { sessionId } = await createTestSession('pag-role-builder-enh');
+    const chatroomId = await createChatroom(sessionId);
+    await insertTimelineMessage(chatroomId, 'builder', 'normal builder msg', { type: 'message' });
+    await insertTimelineMessage(chatroomId, 'builder', 'enhancer check-in', {
+      type: 'handoff',
+      targetRole: 'enhancer',
+      visibleInAllTabOnly: true,
+    });
+
+    const result = await t.query(api.messages.listMessagesBySenderRolePaginated, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    expect(result.page).toHaveLength(2);
+    expect(result.page.map((m) => m.content)).toEqual(
+      expect.arrayContaining(['normal builder msg', 'enhancer check-in'])
+    );
   });
 
   test('user filter includes handoffs to user and user messages, newest first', async () => {

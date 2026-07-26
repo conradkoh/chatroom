@@ -50,7 +50,8 @@ export function isValidMessageViewMode(v: unknown): v is MessageViewMode {
 
 /**
  * Whether a timeline message belongs in a role-filtered view.
- *
+ * Sender-role filters include visibleInAllTabOnly messages from that sender
+ * (e.g. outbound enhancer check-in handoffs from planner).
  * Must match listMessagesBySenderRolePaginated handler in messages.ts.
  */
 // fallow-ignore-next-line complexity
