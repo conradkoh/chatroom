@@ -818,8 +818,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
   });
 
   test('handoff message has taskOriginMessageId pointing to user message', async () => {
-    const { sessionId } = await createTestSession('ho-origin-msg');
-    const chatroomId = await createChatroom(sessionId);
+    const { sessionId, chatroomId } = await setupWorkspaceForSession('ho-origin-msg');
 
     // Create a user message and in_progress task
     const userMsgId = await t.run(async (ctx) => {
