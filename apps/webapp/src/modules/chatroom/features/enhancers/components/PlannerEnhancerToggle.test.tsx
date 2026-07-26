@@ -8,6 +8,11 @@ const mockSaveConfig = vi.fn();
 const mockDisable = vi.fn();
 const mockDisableEnhancer = vi.fn();
 const mockOpenDialog = vi.fn();
+const mockToastMessage = vi.fn();
+
+vi.mock('sonner', () => ({
+  toast: { message: (...args: unknown[]) => mockToastMessage(...args) },
+}));
 
 let mockConfig: EnhancerConfig | null = null;
 let mockIsActive = false;
@@ -99,5 +104,29 @@ describe('PlannerEnhancerToggle', () => {
 
     fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
     await waitFor(() => expect(mockDisableEnhancer).toHaveBeenCalled());
+  });
+
+  it('unsupported click calls toast message', async () => {
+    render(
+      <PlannerEnhancerToggle
+        chatroomId="room-1"
+        machineId="machine-1"
+        teamSupportState="unsupported"
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
+    await waitFor(() => expect(mockToastMessage).toHaveBeenCalled());
+    expect(mockOpenDialog).not.toHaveBeenCalled();
+  });
+
+  it('loading click does nothing', async () => {
+    render(
+      <PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" teamSupportState="loading" />
+    );
+
+    fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
+    expect(mockOpenDialog).not.toHaveBeenCalled();
+    expect(mockToastMessage).not.toHaveBeenCalled();
   });
 });

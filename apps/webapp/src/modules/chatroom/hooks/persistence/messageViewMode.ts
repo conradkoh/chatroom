@@ -1,8 +1,14 @@
 export type MessageViewMode = 'all' | 'user-only' | `role:${string}`;
 
-/** Roles shown as filter tabs: user first, then team roles (deduped). */
+/** Roles shown as filter tabs: user first, then team roles (deduped), then enhancer when planner team. */
 export function getMessageFilterRoles(teamRoles: string[]): string[] {
-  return [...new Set(['user', ...teamRoles.filter((role) => role.toLowerCase() !== 'user')])];
+  const roles = [
+    ...new Set(['user', ...teamRoles.filter((role) => role.toLowerCase() !== 'user')]),
+  ];
+  if (teamSupportsEnhancer(teamRoles) && !rolesInclude(roles, 'enhancer')) {
+    roles.push('enhancer');
+  }
+  return roles;
 }
 
 export function roleToMessageViewMode(role: string): MessageViewMode {
@@ -20,6 +26,15 @@ export function isFilteredMessageViewMode(
   mode: MessageViewMode
 ): mode is Exclude<MessageViewMode, 'all'> {
   return mode !== 'all';
+}
+
+function rolesInclude(teamRoles: readonly string[], role: string): boolean {
+  const needle = role.toLowerCase();
+  return teamRoles.some((r) => r.toLowerCase() === needle);
+}
+
+export function teamSupportsEnhancer(teamRoles: readonly string[]): boolean {
+  return rolesInclude(teamRoles, 'planner');
 }
 
 function isRoleMessageViewMode(value: string): boolean {

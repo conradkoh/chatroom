@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback } from 'react';
+import { toast } from 'sonner';
 
-import { PlannerEnhancerToggleButton } from './PlannerEnhancerToggleButton';
+import { PlannerEnhancerToggleButton, type TeamSupportState } from './PlannerEnhancerToggleButton';
 import { useActiveEnhancerJob } from '../hooks/useActiveEnhancerJob';
 import { useEnhancerConfigDialogHost } from '../hooks/useEnhancerConfigDialogHost';
 import type { EnhancerConfig } from '../types/enhancer';
@@ -10,6 +11,7 @@ import type { EnhancerConfig } from '../types/enhancer';
 interface PlannerEnhancerToggleProps {
   chatroomId: string;
   machineId: string | null | undefined;
+  teamSupportState?: TeamSupportState;
 }
 
 /** True when config has the fields needed to enable without opening the dialog. */
@@ -39,7 +41,11 @@ async function toggleEnhancerState(args: {
   args.openDialog();
 }
 
-export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancerToggleProps) {
+export function PlannerEnhancerToggle({
+  chatroomId,
+  machineId,
+  teamSupportState = 'supported',
+}: PlannerEnhancerToggleProps) {
   const { config, isActive, saveConfig, disable, openDialog, dialog } = useEnhancerConfigDialogHost(
     { chatroomId, workspaceMachineId: machineId }
   );
@@ -59,14 +65,36 @@ export function PlannerEnhancerToggle({ chatroomId, machineId }: PlannerEnhancer
     [isActive, isEnhancing, config, disableEnhancer, disable, saveConfig, openDialog]
   );
 
+  const handleUnsupportedClick = useCallback(() => {
+    toast.message(
+      'Enhancer is only available on teams with a planner role. It supplements the planner workflow before delegating to the builder — use a Duo-style team to enable it.'
+    );
+  }, []);
+
+  if (teamSupportState !== 'supported') {
+    return (
+      <PlannerEnhancerToggleButton
+        isActive={false}
+        isEnhancing={false}
+        isDisabling={false}
+        teamSupportState={teamSupportState}
+        onToggle={() => {}}
+        onConfigure={() => {}}
+        onUnsupportedClick={handleUnsupportedClick}
+      />
+    );
+  }
+
   return (
     <>
       <PlannerEnhancerToggleButton
         isActive={isActive}
         isEnhancing={isEnhancing}
         isDisabling={isDisabling}
+        teamSupportState="supported"
         onToggle={handleToggle}
         onConfigure={openDialog}
+        onUnsupportedClick={handleUnsupportedClick}
       />
 
       {dialog}
