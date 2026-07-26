@@ -58,6 +58,7 @@ ${getNextTaskReminder()}
 
 **Reference commands:**
 - List recent messages: \`${cliEnvPrefix}chatroom messages list --chatroom-id="${params.chatroomId}" --role="${params.role}" --sender-role=user --limit=5 --full\`
+- Export message history (grep): \`${cliEnvPrefix}chatroom messages export --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):
@@ -68,9 +69,7 @@ ${getNextTaskReminder()}
   return createSection('commands-reference', 'knowledge', content);
 }
 
-/**
- * Commands reference for native-integration harnesses (handoff only).
- */
+/** ... */
 export function getNativeCommandsReferenceSection(params: CommandsReferenceParams): PromptSection {
   const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
 
@@ -95,6 +94,7 @@ ${HANDOFF_BODY_GUIDANCE}
 
 **Reference commands:**
 - List recent messages: \`${cliEnvPrefix}chatroom messages list --chatroom-id="${params.chatroomId}" --role="${params.role}" --sender-role=user --limit=5 --full\`
+- Export message history (grep): \`${cliEnvPrefix}chatroom messages export --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):

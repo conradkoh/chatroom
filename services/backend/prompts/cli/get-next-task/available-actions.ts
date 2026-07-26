@@ -42,6 +42,15 @@ Query specific messages with filters.
 ${cliEnvPrefix}chatroom messages list --chatroom-id="${chatroomId}" --role="${role}" --sender-role=user --limit=5 --full
 \`\`\`
 
+### Export Message History
+Download full chatroom history to local .md files for grep/search. Output includes per-message files and \`transcript.md\` for context.
+
+\`\`\`bash
+${cliEnvPrefix}chatroom messages export --chatroom-id="${chatroomId}" --role="${role}"
+rg "pattern" .chatroom/exports/${chatroomId}/
+rg -C 3 "pattern" .chatroom/exports/${chatroomId}/transcript.md
+\`\`\`
+
 ### View Code Changes
 Check recent commits for implementation context.
 

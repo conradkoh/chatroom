@@ -320,6 +320,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --sender-role=user --limit=5 --full\`
+      - Export message history (grep): \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages export --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
