@@ -16,6 +16,8 @@ import {
   chatroomIndustrialDialogDescriptionClassName,
   chatroomIndustrialDialogFooterClassName,
   chatroomIndustrialDialogTitleClassName,
+  chatroomIndustrialFloatingModalContentClassName,
+  chatroomIndustrialFloatingOverlayClassName,
   chatroomIndustrialModalContentClassName,
   chatroomIndustrialOverlayClassName,
 } from '../shared/industrialDialogStyles';
@@ -42,12 +44,16 @@ function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.C
 
 function DialogOverlay({
   className,
+  floating,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+}: React.ComponentProps<typeof DialogPrimitive.Overlay> & { floating?: boolean }) {
   return (
     <DialogPrimitive.Overlay
       data-slot="chatroom-dialog-overlay"
-      className={cn(chatroomIndustrialOverlayClassName, className)}
+      className={cn(
+        floating ? chatroomIndustrialFloatingOverlayClassName : chatroomIndustrialOverlayClassName,
+        className
+      )}
       {...props}
     />
   );
@@ -77,20 +83,23 @@ export function DialogScrollBody({ className, children, ...props }: React.Compon
 function DialogContent({
   className,
   children,
+  floating,
   onEscapeKeyDown,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content>) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> & { floating?: boolean }) {
   useAllowTouchSelection();
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const safeClassName = stripOverflowFromClassName(className);
 
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay floating={floating} />
       <DialogPrimitive.Content
         data-slot="chatroom-dialog-content"
         className={cn(
-          chatroomIndustrialModalContentClassName,
+          floating
+            ? chatroomIndustrialFloatingModalContentClassName
+            : chatroomIndustrialModalContentClassName,
           safeClassName,
           'overflow-visible relative flex flex-col'
         )}

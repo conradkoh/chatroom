@@ -92,4 +92,15 @@ describe('DialogContent z-index', () => {
     expect(scrollBody).not.toBeNull();
     expect(scrollBody).not.toContainElement(popover);
   });
+
+  it('renders floating content with z-[100] above base modal band', () => {
+    render(
+      <Dialog open onOpenChange={vi.fn()}>
+        <DialogContent floating data-testid="floating-dialog">
+          Content
+        </DialogContent>
+      </Dialog>
+    );
+    expect(screen.getByTestId('floating-dialog').className).toContain('z-[100]');
+  });
 });

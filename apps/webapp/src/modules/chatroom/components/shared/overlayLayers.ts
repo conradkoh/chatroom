@@ -15,3 +15,6 @@ export const Z_PANEL = 'z-40';
 
 /** Base modals/dialogs and portaled menus — stacking via portal DOM order */
 export const Z_MODAL = 'z-50';
+
+/** Dialogs/alerts opened above an existing modal (FixedModal, another dialog) */
+export const Z_FLOATING = 'z-[100]';

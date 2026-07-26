@@ -133,7 +133,7 @@ export function EnhancerConfigDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent floating className="sm:max-w-md max-h-[min(90dvh,100%)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Enhancer configuration</DialogTitle>
           <DialogDescription>

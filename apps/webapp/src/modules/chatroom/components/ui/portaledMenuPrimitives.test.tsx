@@ -37,7 +37,7 @@ describe('chatroomPortaledMenuSurfaceClassName', () => {
 
 describe('chatroomPortaledMenuFloatingClassName', () => {
   it('uses z-index above FixedModal base layer', () => {
-    expect(chatroomPortaledMenuFloatingClassName).toContain('z-50');
+    expect(chatroomPortaledMenuFloatingClassName).toContain('z-[100]');
     expect(chatroomPortaledMenuFloatingClassName).toContain('pointer-events-auto');
     expectOpaquePortaledSurface(chatroomPortaledMenuFloatingClassName);
   });
@@ -108,8 +108,8 @@ describe('PopoverContent', () => {
     );
 
     const popoverContent = screen.getByTestId('popover-content');
-    expect(popoverContent.className).toContain(Z_MODAL);
-    expect(popoverContent.className).toContain('z-50');
+    expect(popoverContent.className).toContain('z-[100]');
+    expect(popoverContent.className).not.toContain('z-50');
 
     const modalContent = document.body.querySelector<HTMLElement>('.chatroom-root');
     expect(modalContent).not.toBeNull();
