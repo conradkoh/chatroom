@@ -13,6 +13,7 @@ import {
 } from '../src/domain/entities/standing-instructions';
 
 const MAX_CONTENT_LENGTH = 10_000;
+const MAX_NAME_LENGTH = 120;
 
 // ─── Internal helpers ─────────────────────────────────────────────────────
 
@@ -66,6 +67,7 @@ export const get = query({
     return {
       content: room?.standingInstructions ?? '',
       enabled: room?.standingInstructionsEnabled ?? false,
+      name: room?.standingInstructionsName ?? '',
     };
   },
 });
@@ -95,6 +97,7 @@ export const upsert = mutation({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     content: v.string(),
+    name: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -105,9 +108,17 @@ export const upsert = mutation({
         message: `Standing instructions must be ${MAX_CONTENT_LENGTH} characters or less`,
       });
     }
+    const trimmedName = args.name?.trim() ?? '';
+    if (trimmedName.length > MAX_NAME_LENGTH) {
+      throw new ConvexError({
+        code: 'NAME_TOO_LONG',
+        message: `Standing instruction name must be ${MAX_NAME_LENGTH} characters or less`,
+      });
+    }
     await ctx.db.patch('chatroom_rooms', args.chatroomId, {
       standingInstructions: trimmed,
       standingInstructionsEnabled: trimmed.length > 0,
+      standingInstructionsName: trimmedName.length > 0 ? trimmedName : undefined,
     });
     if (trimmed.length > 0) {
       await recordStandingInstructionHistory(ctx, session.userId, trimmed, Date.now());
@@ -167,6 +178,7 @@ export const clear = mutation({
     await ctx.db.patch('chatroom_rooms', args.chatroomId, {
       standingInstructions: '',
       standingInstructionsEnabled: false,
+      standingInstructionsName: undefined,
     });
   },
 });
