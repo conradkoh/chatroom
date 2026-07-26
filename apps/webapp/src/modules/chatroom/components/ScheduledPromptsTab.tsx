@@ -87,11 +87,6 @@ export const ScheduledPromptsTab = memo(function ScheduledPromptsTab({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-chatroom-text-muted">
-            Automatically send messages on a schedule.
-          </p>
-        </div>
         {hasPrompts && !showForm && (
           <Button variant="outline" size="sm" onClick={handleAdd} className="text-xs gap-1.5">
             <Plus size={14} />

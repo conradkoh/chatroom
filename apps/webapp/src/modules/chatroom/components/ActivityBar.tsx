@@ -6,6 +6,7 @@ import { SiGithub } from 'react-icons/si';
 import { VscSourceControl } from 'react-icons/vsc';
 
 import { EnhancerActivityBarItem } from '../features/enhancers/components/EnhancerActivityBarItem';
+import { ScheduledPromptsActivityBarItem } from '../features/scheduled-prompts/components/ScheduledPromptsActivityBarItem';
 import { useCommandDialog } from '../context/CommandDialogContext';
 
 import { cn } from '@/lib/utils';
@@ -74,10 +75,12 @@ const ActivityBarItem = memo(function ActivityBarItem({
  * Views (top to bottom):
  * 1. Explorer   — file browser
  * 2. Messages   — chatroom messages
- * 3. Direct Harness — direct AI harness
- * 4. Source Control — git diff + history (new)
- * 5. Pull Requests  — GitHub PR list (new)
- * 6. Processes  — command launcher / process manager (new)
+ * 3. Scheduled Prompts — scheduled prompts (Clock)
+ * 4. Enhancer   — enhancer configuration (Sparkles)
+ * 5. Direct Harness — direct AI harness
+ * 6. Source Control — git diff + history
+ * 7. Pull Requests  — GitHub PR list
+ * 8. Processes  — command launcher / process manager
  *
  * On mobile (hidden via CSS):
  * - Shows a command palette trigger at the bottom (Cmd+Shift+P equivalent)
@@ -104,6 +107,7 @@ export const ActivityBar = memo(function ActivityBar({
         isActive={activeView === 'messages'}
         onClick={() => onViewChange('messages')}
       />
+      {chatroomId && <ScheduledPromptsActivityBarItem chatroomId={chatroomId} />}
       {chatroomId && (
         <EnhancerActivityBarItem chatroomId={chatroomId} machineId={machineId ?? null} />
       )}

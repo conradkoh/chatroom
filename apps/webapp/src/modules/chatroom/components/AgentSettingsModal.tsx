@@ -17,7 +17,6 @@ import {
   Trash2,
   Database,
   FileText,
-  Clock,
 } from 'lucide-react';
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
@@ -29,7 +28,6 @@ import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
 import type { SettingsTab } from './CommandPalette/types';
 import { IntegrationsTab } from './IntegrationsTab';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
-import { ScheduledPromptsTab } from './ScheduledPromptsTab';
 import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './picker';
 import { SkillsTab } from './SkillsTab';
 import { useTeamConfigs } from '../hooks/use-team-configs';
@@ -74,7 +72,6 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'workspaces', label: 'Workspaces', icon: <HardDrive size={16} /> },
   { id: 'skills', label: 'Skills', icon: <FileText size={16} /> },
   { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
-  { id: 'scheduled', label: 'Scheduled', icon: <Clock size={16} /> },
 ];
 
 // ─── Tab Content Components ─────────────────────────────────────────────
@@ -1018,7 +1015,6 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
           {activeTab === 'skills' && <SkillsTab chatroomId={chatroomId} />}
           {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}
-          {activeTab === 'scheduled' && <ScheduledPromptsTab chatroomId={chatroomId} />}
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>
