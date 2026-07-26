@@ -299,13 +299,14 @@ describe('Duo Team > Planner > System Prompt', () => {
       - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
       - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
       - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
+      - **A slice is shippable only when it is verified end-to-end** — the user-facing entry point works (CLI command runnable, API reachable, UI action functional). Helper or infra files alone do not constitute a complete slice.
       - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
       **Code review:** For code-producing work, review before delivering. Activate the review framework with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
 
       **Backlog items:** When the task originates from a backlog item, activate the backlog skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
 
-      **If stuck:** After 2 failed rework attempts → step back, replan the slice, or deliver partial results with a clear explanation.
+      **If stuck:** After 2 failed rework attempts → step back, replan the slice, or hand back to the planner as blocked. Do not raise a PR, run \`mark-for-review\`, or deliver to the user with partial implementation — unless the user explicitly requested a draft or incremental PR.
 
       **Review loop:**
       - Review completed work before moving to the next slice.
@@ -327,8 +328,9 @@ describe('Duo Team > Planner > System Prompt', () => {
       **When you receive work back from team members:**
       1. Review the completed work against the original user request
       2. If requirements are met → deliver to \`user\`
-      3. If requirements are NOT met → hand back to \`builder\` for rework
+      3. If requirements are NOT met — including partial implementation (missing Required files, or entry point not verified end-to-end) → hand back to \`builder\` for rework
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
+      5. **Partial implementation is an automatic handback** — never deliver a partial PR to the user.
 
       ### Handoff Options
       Available targets: builder, user

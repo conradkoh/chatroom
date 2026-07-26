@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { getBuilderGuidance } from '../../../prompts/cli/roles/builder';
 import { getPlannerGuidance } from '../../../prompts/cli/roles/planner';
+import { getDelegationGuidelinesSection } from '../../../prompts/cli/sections/delegation-guidelines';
 import { composeSystemPrompt } from '../../../prompts/generator';
 import {
   getHandoffContinuityRule,
@@ -151,5 +152,44 @@ describe('native session continuity', () => {
   test('getNativePlannerDelegationWaitNote', () => {
     expect(getNativePlannerDelegationWaitNote()).toMatch(/last action/i);
     expect(getNativePlannerDelegationWaitNote()).toContain('messages list');
+  });
+});
+
+describe('completion-gates guidance', () => {
+  const builderParams = {
+    role: 'builder',
+    teamRoles: ['planner', 'builder'],
+    isEntryPoint: false,
+    convexUrl: 'http://127.0.0.1:3210',
+    codeChangesTarget: 'planner',
+    questionTarget: 'planner',
+  } as const;
+
+  const plannerParams = {
+    role: 'planner',
+    teamRoles: ['planner', 'builder'],
+    isEntryPoint: true,
+    convexUrl: 'http://127.0.0.1:3210',
+    chatroomId: 'test-room',
+  } as const;
+
+  test('builder guidance includes completion gates', () => {
+    const guidance = getBuilderGuidance(builderParams);
+    expect(guidance).toContain('Completion gates');
+    expect(guidance).toContain('verified end-to-end');
+    expect(guidance).toContain('mark-for-review');
+  });
+
+  test('planner guidance forbids partial PR delivery', () => {
+    const guidance = getPlannerGuidance(plannerParams);
+    expect(guidance).toContain('verified end-to-end');
+    expect(guidance).not.toContain('deliver partial results');
+    expect(guidance).toContain('Partial implementation is an automatic handback');
+  });
+
+  test('delegation guidelines define shippable slice', () => {
+    const section = getDelegationGuidelinesSection({ hasBuilder: true });
+    expect(section).toContain('verified end-to-end');
+    expect(section).not.toContain('deliver partial results');
   });
 });

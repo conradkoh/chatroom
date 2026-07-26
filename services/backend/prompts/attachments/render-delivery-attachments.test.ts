@@ -76,6 +76,18 @@ describe('backlog attachment hint', () => {
     const block = lines.join('\n');
     expect(block).toContain('<content>foo &amp; bar &lt;baz&gt;</content>');
   });
+
+  test('hint requires verified end-to-end before mark-for-review', () => {
+    const lines = renderDeliveryAttachmentsBlock(
+      {
+        attachedBacklogItems: [{ _id: 'item-111', content: 'Add login page', status: 'pending' }],
+      },
+      { chatroomId: 'test-chatroom-456', role: 'planner' }
+    );
+    const block = lines.join('\n');
+    expect(block).toContain('verified end-to-end');
+    expect(block).not.toContain('When done:');
+  });
 });
 
 describe('snippet attachments', () => {
