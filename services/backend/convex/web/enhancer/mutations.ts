@@ -210,6 +210,7 @@ export const recordAttemptFailure = mutation({
     chatroomId: v.id('chatroom_rooms'),
     jobId: v.id('chatroom_enhancerJobs'),
     error: v.string(),
+    forceTerminal: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -224,7 +225,7 @@ export const recordAttemptFailure = mutation({
 
     const now = Date.now();
     const attemptCount = job.attemptCount;
-    if (attemptCount >= job.maxAttempts) {
+    if (args.forceTerminal || attemptCount >= job.maxAttempts) {
       // Terminal failure: deliver planning-review-outcome envelope before marking failed
       let error = args.error;
       const handoffResult = await deliverPendingHandoffFromJob(ctx, {
