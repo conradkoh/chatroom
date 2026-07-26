@@ -99,8 +99,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
-    | undefined;
+    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -117,8 +116,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached artifacts
   let attachedArtifacts:
-    | { _id: string; filename: string; description?: string; mimeType?: string }[]
-    | undefined;
+    { _id: string; filename: string; description?: string; mimeType?: string }[] | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
       msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
@@ -620,7 +618,7 @@ async function _handoffHandler(
   const now = Date.now();
 
   // Step 1: Complete ALL in_progress and acknowledged tasks
-  let tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
+  const tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
 
   if (isHandoffToUser) {
     const pendingForSender = await ctx.db
@@ -1657,8 +1655,6 @@ export const getTaskDeliveryPrompt = query({
         q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
       )
       .unique();
-    const deliveryMessageSenderRole =
-      message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
 
     const plannerEnhancerEnabled =
       args.role.toLowerCase() === 'planner' &&
@@ -1666,7 +1662,7 @@ export const getTaskDeliveryPrompt = query({
       enhancerConfig.targetId === 'handoff:planner-to-builder';
 
     const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles, {
-      includeEnhancer: plannerEnhancerEnabled && deliveryMessageSenderRole === 'user',
+      includeEnhancer: plannerEnhancerEnabled,
     });
 
     // Get context window (reuse getContextWindow logic)
