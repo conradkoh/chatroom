@@ -56,7 +56,7 @@ flowchart TD
 
 **Flow:** `user → planner → enhancer → planner → builder → user`
 
-Enhancement is **user-instruction scoped** ("enhancement enabled for this user instruction"). Planner **explicitly** hands off to `enhancer` (not `builder`). Enhancer returns **planning feedback** to planner, not an enhanced builder brief. Planner reviews feedback and proceeds to builder.
+Enhancement is **per builder delegation** when enabled. Planner **explicitly** hands off to `enhancer` before each `builder` delegation (including slice 2+ in multi-step tasks). Enhancer returns **planning feedback** to planner, not an enhanced builder brief. Planner reviews feedback and proceeds to builder.
 
 The target id `handoff:planner-to-builder` remains as a feature toggle id — it gates the planning-review phase before builder delegation, not a brief-rewriting operation.
 
