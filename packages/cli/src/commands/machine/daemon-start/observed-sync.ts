@@ -66,8 +66,8 @@ export const startObservedSyncSubscriptionEffect = (
         machineId: session.machineId,
       },
       (observed) => {
-        if (stopped) return;
-        handleObservedChange(observed ?? []);
+        if (stopped || observed == null) return;
+        handleObservedChange(observed);
       },
       (err: unknown) => {
         console.warn(
@@ -86,7 +86,7 @@ export const startObservedSyncSubscriptionEffect = (
           machineId: session.machineId,
         })
         .then((observed) => {
-          if (!stopped) handleObservedChange(observed ?? []);
+          if (!stopped && observed != null) handleObservedChange(observed);
         })
         .catch((err: unknown) => {
           console.warn(
