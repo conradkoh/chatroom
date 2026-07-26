@@ -30,4 +30,26 @@ describe('computeNextRunAt', () => {
       expected
     );
   });
+
+  test('interval 1min with anchor preserves cadence when execution is late', () => {
+    const scheduledAt = 60_000;
+    const executedAt = 62_000;
+    expect(
+      computeNextRunAt({ scheduleKind: 'interval', intervalMinutes: 1 }, executedAt, scheduledAt)
+    ).toBe(120_000);
+  });
+
+  test('interval catches up when multiple ticks missed', () => {
+    const scheduledAt = 60_000;
+    const executedAt = 240_000;
+    expect(
+      computeNextRunAt({ scheduleKind: 'interval', intervalMinutes: 1 }, executedAt, scheduledAt)
+    ).toBe(240_000);
+  });
+
+  test('interval without anchor still uses fromMs + interval', () => {
+    expect(computeNextRunAt({ scheduleKind: 'interval', intervalMinutes: 1 }, 50_000)).toBe(
+      110_000
+    );
+  });
 });

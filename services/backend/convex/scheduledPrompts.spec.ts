@@ -267,6 +267,35 @@ describe('scheduled prompts', () => {
     ).rejects.toThrow();
   });
 
+  test('fireOne sets nextRunAt from scheduled anchor not execution time', async () => {
+    const { sessionId, userId } = await createTestSession('sp-anchor');
+    const chatroomId = await createChatroom(sessionId);
+
+    const scheduledAt = Date.now() - 5000;
+    const intervalMs = 60_000;
+    const id = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'anchor test',
+        scheduleKind: 'interval',
+        intervalMinutes: 1,
+        isRunnable: true,
+        nextRunAt: scheduledAt,
+        createdBy: userId,
+        createdAt: scheduledAt,
+        updatedAt: scheduledAt,
+      });
+    });
+
+    await t.mutation(api.scheduledPrompts.fireOne as any, { scheduledPromptId: id });
+
+    const row = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_scheduledPrompts', id as Id<'chatroom_scheduledPrompts'>)
+    );
+    expect(row!.nextRunAt).toBe(scheduledAt + intervalMs);
+    expect(row!.nextRunAt).toBeLessThan(Date.now() + intervalMs - 4000);
+  });
+
   test('runDue does not pick up isRunnable: false rows', async () => {
     const { sessionId, userId } = await createTestSession('sp-run-due-skip');
     const chatroomId = await createChatroom(sessionId);

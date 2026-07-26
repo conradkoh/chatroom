@@ -344,7 +344,7 @@ export const fireOne = internalMutation({
     const schedule = toScheduleRow(row);
     await ctx.db.patch('chatroom_scheduledPrompts', row._id, {
       lastRunAt: now,
-      nextRunAt: computeNextRunAt(schedule, now),
+      nextRunAt: computeNextRunAt(schedule, now, row.nextRunAt),
       updatedAt: now,
     });
   },

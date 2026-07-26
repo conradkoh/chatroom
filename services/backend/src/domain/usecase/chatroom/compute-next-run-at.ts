@@ -2,9 +2,21 @@ export type ScheduledPromptSchedule =
   | { scheduleKind: 'interval'; intervalMinutes: number }
   | { scheduleKind: 'daily'; hourUTC: number; minuteUTC: number };
 
-export function computeNextRunAt(schedule: ScheduledPromptSchedule, fromMs: number): number {
+export function computeNextRunAt(
+  schedule: ScheduledPromptSchedule,
+  fromMs: number,
+  previousScheduledAt?: number
+): number {
   if (schedule.scheduleKind === 'interval') {
-    return fromMs + schedule.intervalMinutes * 60_000;
+    const intervalMs = schedule.intervalMinutes * 60_000;
+    if (previousScheduledAt === undefined) {
+      return fromMs + intervalMs;
+    }
+    let next = previousScheduledAt + intervalMs;
+    while (next < fromMs) {
+      next += intervalMs;
+    }
+    return next;
   }
   const base = new Date(fromMs);
   const candidate = Date.UTC(
