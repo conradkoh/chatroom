@@ -48,7 +48,7 @@ function renderBacklogAttachments(
     lines.push(`  <attachment type="backlog" backlog-item-id="${escapeXmlAttribute(item._id)}">`);
     lines.push(...xmlTextElement('content', item.content, '    '));
     lines.push(
-      `    <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="${escapeXmlAttribute(ctx.chatroomId)}" --role="${escapeXmlAttribute(ctx.role)}" --backlog-item-id=${item._id}</hint>`
+      `    <hint>Work on this item. When verified end-to-end and a PR is ready for review: chatroom backlog mark-for-review --chatroom-id="${escapeXmlAttribute(ctx.chatroomId)}" --role="${escapeXmlAttribute(ctx.role)}" --backlog-item-id=${item._id}</hint>`
     );
     lines.push(`  </attachment>`);
   }

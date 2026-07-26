@@ -16,7 +16,7 @@
  *     principle and proof of completion as sub-sections.
  *  3. Backlog tasks implemented — backlog items addressed by this work.
  *  4. Backlog pending user review confirmation — attestation that implemented
- *     backlog items were moved to pending_user_review when a PR was raised.
+ *     backlog items were moved to pending_user_review after verified end-to-end and a PR was raised.
  *  5. Key technical decisions, tradeoffs, tech debt, and system design.
  *  6. Unresolved decisions — open questions carried forward until the user resolves them.
  */
@@ -76,7 +76,7 @@ ${getFileReferenceProofOfCompletionExample()}
 <Omit if no backlog items were in scope.>
 
 ## Backlog Pending User Review Confirmation
-- [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` because a PR has been raised for user review
+- [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` after the feature was verified end-to-end and a PR was raised for user review
 - PR URL(s): <link to PR(s)>
 <Omit this section if no backlog items apply.>
 

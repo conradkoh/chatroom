@@ -45,7 +45,7 @@ ${getDelegationBriefIntro()}
 <choices that greatly simplify the solution while preserving long-term maintainability — reuse existing abstractions, avoid unnecessary layers, leverage platform conventions>
 
 ## Files to implement (exhaustive, file-level)
-List **every** file in this slice. For each file, state the exact change and paste the code the builder should match (no guessing).
+List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
 ${getFileReferenceGuidanceComment()}
 
 ### \`apps/webapp/src/path/to/file.ts\`
@@ -80,6 +80,7 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
+- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>

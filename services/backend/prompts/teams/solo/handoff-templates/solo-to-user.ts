@@ -64,7 +64,7 @@ ${getFileReferenceProofOfCompletionExample()}
 <Omit if no backlog items were in scope.>
 
 ## Backlog Pending User Review Confirmation
-- [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` because a PR has been raised for user review
+- [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` after the feature was verified end-to-end and a PR was raised for user review
 - PR URL(s): <link to PR(s)>
 <Omit this section if no backlog items apply.>
 
