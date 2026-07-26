@@ -15,12 +15,13 @@ export function getWhenWorkComesBackSection(
   config: Pick<TeamCompositionConfig, 'hasBuilder'>
 ): string {
   const reworkLine = config.hasBuilder
-    ? '3. If requirements are NOT met → hand back to `builder` for rework'
-    : '3. If requirements are NOT met → revise your own implementation and re-validate';
+    ? '3. If requirements are NOT met — including partial implementation (missing Required files, or entry point not verified end-to-end) → hand back to `builder` for rework'
+    : '3. If requirements are NOT met — including partial implementation → revise your own implementation and re-validate';
 
   return `**When you receive work back from team members:**
 1. Review the completed work against the original user request
 2. If requirements are met → deliver to \`user\`
 ${reworkLine}
-4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.`;
+4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
+5. **Partial implementation is an automatic handback** — never deliver a partial PR to the user.`;
 }

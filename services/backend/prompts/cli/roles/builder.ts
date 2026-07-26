@@ -63,5 +63,12 @@ ${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
 - Follow established patterns and best practices from the codebase
 - Handle edge cases and error scenarios
 - Commit work with descriptive, atomic commit messages
+
+**Completion gates (mandatory before PR or handoff):**
+- Every **(Required)** file in the delegation brief is implemented
+- All acceptance criteria pass, including at least one check that the feature is **verified end-to-end** (run the actual CLI command, call the API, or exercise the UI)
+- Do not self-reduce scope — if the brief is too large, hand back to the planner under ## Blockers / questions
+- Do not raise a PR or run \`chatroom backlog mark-for-review\` until the above are true — unless the user explicitly requested a draft or incremental PR
+- If any acceptance criterion is unmet, use ## Blockers / questions — do NOT raise a PR
 `;
 }
