@@ -6,15 +6,15 @@ import {
 } from './enhancer-guidance';
 
 describe('appendTaskDeliveryEnhancerGuidance', () => {
-  test('includes enhancer context and async handoff rules', () => {
+  test('includes per-delegation enhancer context and async handoff rules', () => {
     const lines: string[] = [];
     appendTaskDeliveryEnhancerGuidance(lines);
     const output = lines.join('\n');
 
     expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('enhancement enabled for this user instruction');
-    expect(output).toContain('this user instruction only');
-    expect(output).toContain('user → planner → enhancer → planner → builder → user');
+    expect(output).toContain('One check-in per builder delegation');
+    expect(output).toContain('Multi-slice tasks');
+    expect(output).toContain('planner → enhancer → planner → builder');
     expect(output).toContain('You MUST check in with the enhancer');
     expect(output).toContain('<user-message>');
     expect(output).toContain('<grounding>');
@@ -24,6 +24,7 @@ describe('appendTaskDeliveryEnhancerGuidance', () => {
     expect(output).toContain('Run get-next-task immediately');
     expect(output).toContain('Do not hand off to enhancer again');
     expect(output).toContain('Do not hand off to builder or user');
+    expect(output).not.toContain('one check-in per user instruction');
     expect(output).toContain('</handoff-enhancer>');
   });
 });

@@ -88,8 +88,8 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     const output = await getPlannerDeliveryPrompt(sessionId, chatroomId, taskId, messageId);
 
     expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('enhancement enabled for this user instruction');
-    expect(output).toContain('user → planner → enhancer → planner → builder → user');
+    expect(output).toContain('One check-in per builder delegation');
+    expect(output).toContain('planner → enhancer → planner → builder');
     expect(output).toContain('--next-role="enhancer"');
     expect(output).toContain('Handoff to `enhancer`');
     expect(output).toContain('**enhancer**');

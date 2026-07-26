@@ -20,6 +20,7 @@ import {
   resolvePrimaryDeliveryAssemblyInput,
 } from '../src/domain/entities/assemble-primary-delivery-attachments';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
+import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
@@ -620,7 +621,7 @@ async function _handoffHandler(
   const now = Date.now();
 
   // Step 1: Complete ALL in_progress and acknowledged tasks
-  let tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
+  const tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
 
   if (isHandoffToUser) {
     const pendingForSender = await ctx.db
@@ -657,6 +658,29 @@ async function _handoffHandler(
     );
   }
 
+  // Resolve user-instruction origin for enhancer correlation on any handoff
+  let taskOriginMessageId: Id<'chatroom_messages'> | undefined;
+  for (const task of tasksToComplete) {
+    if (!task.sourceMessageId) continue;
+    const originId = await walkToUserMessageId(ctx, task.sourceMessageId);
+    if (originId) {
+      taskOriginMessageId = originId;
+      break;
+    }
+  }
+  // Fallback: most recent acknowledged non-follow-up user message in chatroom
+  if (!taskOriginMessageId) {
+    const recentUser = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .order('desc')
+      .take(10);
+    const origin = recentUser.find((m) => m.acknowledgedAt && m.classification !== 'follow_up');
+    if (origin) taskOriginMessageId = origin._id;
+  }
+
   // Step 2: Send the handoff message
   const messageId = await ctx.db.insert('chatroom_messages', {
     chatroomId: args.chatroomId,
@@ -668,6 +692,7 @@ async function _handoffHandler(
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
     ...(args.enhancerJobId && { enhancerJobId: args.enhancerJobId }),
     ...(args.visibleInAllTabOnly && { visibleInAllTabOnly: true }),
+    ...(taskOriginMessageId && { taskOriginMessageId }),
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -1657,16 +1682,17 @@ export const getTaskDeliveryPrompt = query({
         q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
       )
       .unique();
-    const deliveryMessageSenderRole =
-      message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
 
     const plannerEnhancerEnabled =
       args.role.toLowerCase() === 'planner' &&
       enhancerConfig?.enabled === true &&
       enhancerConfig.targetId === 'handoff:planner-to-builder';
 
+    const deliveryMessageSenderRole =
+      message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
+
     const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles, {
-      includeEnhancer: plannerEnhancerEnabled && deliveryMessageSenderRole === 'user',
+      includeEnhancer: plannerEnhancerEnabled && deliveryMessageSenderRole !== 'enhancer',
     });
 
     // Get context window (reuse getContextWindow logic)

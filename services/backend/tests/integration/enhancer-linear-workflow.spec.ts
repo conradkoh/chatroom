@@ -152,4 +152,73 @@ describe('enhancer linear workflow', () => {
     });
     expect(handoff.success).toBe(true);
   });
+
+  test('second enhancer check-in succeeds for next slice after first job completes', async () => {
+    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-multi');
+    await enableEnhancer(sessionId, chatroomId, machineId);
+    await joinParticipant(sessionId, chatroomId, 'planner');
+
+    const userMessageId = await createPlannerUserMessageAndTask(
+      sessionId,
+      chatroomId,
+      'Build multi-slice feature'
+    );
+
+    const { jobId: firstJobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: '<user-message>Slice 1</user-message>',
+    });
+
+    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId: firstJobId,
+      machineId,
+    });
+    await t.mutation(api.web.enhancer.index.complete, {
+      sessionId,
+      chatroomId,
+      jobId: firstJobId,
+      enhancedContent: '## Summary\nSlice 1 feedback',
+    });
+
+    // Simulate builder handback — planner has active task for slice 2
+    await t.run(async (ctx) => {
+      const builderMsgId = await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'builder',
+        content: 'Slice 1 complete',
+        targetRole: 'planner',
+        type: 'handoff',
+        taskOriginMessageId: userMessageId,
+      });
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'builder',
+        content: 'Slice 1 complete — ready for slice 2',
+        status: 'in_progress',
+        assignedTo: 'planner',
+        sourceMessageId: builderMsgId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        queuePosition: 2,
+      });
+    });
+
+    const { jobId: secondJobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: '<user-message>Slice 2</user-message>',
+    });
+
+    expect(secondJobId).toBeDefined();
+    expect(secondJobId).not.toBe(firstJobId);
+
+    const secondJob = await t.run(async (ctx) => ctx.db.get(secondJobId));
+    expect(secondJob!.originUserMessageId).toBe(userMessageId);
+  });
 });

@@ -229,7 +229,7 @@ describe('generateFullCliOutput — planner enhancer guidance', () => {
     });
 
     expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('enhancement enabled for this user instruction');
+    expect(output).toContain('One check-in per builder delegation');
     expect(output).toContain('asynchronously');
   });
 
