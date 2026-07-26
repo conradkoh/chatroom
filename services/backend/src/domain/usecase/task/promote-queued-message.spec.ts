@@ -36,7 +36,8 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 
 async function createQueueRecord(
   chatroomId: Id<'chatroom_rooms'>,
-  content = 'queued message content'
+  content = 'queued message content',
+  extra?: { sourcePlatform?: string; scheduledPromptId?: Id<'chatroom_scheduledPrompts'> }
 ): Promise<Id<'chatroom_messageQueue'>> {
   return await t.run(async (ctx) => {
     return await ctx.db.insert('chatroom_messageQueue', {
@@ -46,6 +47,8 @@ async function createQueueRecord(
       content,
       type: 'message',
       queuePosition: 1,
+      ...(extra?.sourcePlatform ? { sourcePlatform: extra.sourcePlatform } : {}),
+      ...(extra?.scheduledPromptId ? { scheduledPromptId: extra.scheduledPromptId } : {}),
     });
   });
 }
@@ -160,6 +163,58 @@ describe('promoteQueuedMessage', () => {
       return await ctx.db.get('chatroom_messageQueue', queuedMessageId);
     });
     expect(queueRecordAfter).toBeNull();
+  });
+
+  test('propagates sourcePlatform from queue record to promoted message', async () => {
+    const { sessionId } = await createTestSession('promote-source-platform');
+    const chatroomId = await createChatroom(sessionId);
+
+    const queuedMessageId = await createQueueRecord(chatroomId, 'scheduled msg', {
+      sourcePlatform: 'scheduled',
+    });
+
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, queuedMessageId);
+    });
+
+    expect(result).toBeDefined();
+    const message = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messages', result!.messageId);
+    });
+    expect(message?.sourcePlatform).toBe('scheduled');
+  });
+
+  test('propagates scheduledPromptId from queue record to promoted message', async () => {
+    const { sessionId } = await createTestSession('promote-sp-id');
+    const chatroomId = await createChatroom(sessionId);
+
+    const promptId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_scheduledPrompts', {
+        chatroomId,
+        prompt: 'test',
+        scheduleKind: 'interval',
+        intervalMinutes: 30,
+        disabledReason: undefined,
+        isRunnable: true,
+        createdBy: sessionId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    const queuedMessageId = await createQueueRecord(chatroomId, 'scheduled msg', {
+      scheduledPromptId: promptId as Id<'chatroom_scheduledPrompts'>,
+    });
+
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, queuedMessageId);
+    });
+
+    expect(result).toBeDefined();
+    const message = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messages', result!.messageId);
+    });
+    expect(message?.scheduledPromptId).toBe(promptId);
   });
 
   test('returns null if queue record does not exist', async () => {

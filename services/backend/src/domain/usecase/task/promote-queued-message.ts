@@ -55,6 +55,8 @@ export async function promoteQueuedMessage(
     ...(queueRecord.attachedWorkflowIds?.length && {
       attachedWorkflowIds: queueRecord.attachedWorkflowIds,
     }),
+    ...(queueRecord.sourcePlatform ? { sourcePlatform: queueRecord.sourcePlatform } : {}),
+    ...(queueRecord.scheduledPromptId ? { scheduledPromptId: queueRecord.scheduledPromptId } : {}),
   });
 
   // Note: acknowledgedAt is intentionally NOT set here.

@@ -18,6 +18,7 @@ export async function sendAutomatedUserMessage(
     chatroomId: Id<'chatroom_rooms'>;
     content: string;
     sourcePlatform?: string;
+    scheduledPromptId?: Id<'chatroom_scheduledPrompts'>;
     attachedTaskIds?: Id<'chatroom_tasks'>[];
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
     attachedMessageIds?: Id<'chatroom_messages'>[];
@@ -50,6 +51,8 @@ export async function sendAutomatedUserMessage(
         : {}),
       ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
       ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
+      ...(args.sourcePlatform ? { sourcePlatform: args.sourcePlatform } : {}),
+      ...(args.scheduledPromptId ? { scheduledPromptId: args.scheduledPromptId } : {}),
     });
     await adjustTaskCount(ctx, args.chatroomId, 'queueSize', 1);
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: Date.now() });
@@ -63,6 +66,7 @@ export async function sendAutomatedUserMessage(
     targetRole,
     type: 'message' as const,
     ...(args.sourcePlatform ? { sourcePlatform: args.sourcePlatform } : {}),
+    ...(args.scheduledPromptId ? { scheduledPromptId: args.scheduledPromptId } : {}),
     ...(args.attachedTaskIds?.length ? { attachedTaskIds: args.attachedTaskIds } : {}),
     ...(args.attachedBacklogItemIds?.length
       ? { attachedBacklogItemIds: args.attachedBacklogItemIds }
