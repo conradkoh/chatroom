@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogScrollBody,
 } from '../../../components/ui/dialog';
 import {
   isTopOverlayDismiss,
@@ -43,7 +44,7 @@ export function ScheduledPromptsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-2xl max-h-[85vh] overflow-y-auto overflow-x-hidden min-w-0"
+        className="max-w-2xl max-h-[85vh] flex flex-col min-w-0"
         onEscapeKeyDown={(e: Event) => {
           if (!isTopOverlayDismiss(dismissHandler)) {
             e.preventDefault();
@@ -54,7 +55,9 @@ export function ScheduledPromptsDialog({
           <DialogTitle>Scheduled Prompts</DialogTitle>
           <DialogDescription>Automatically send messages on a schedule.</DialogDescription>
         </DialogHeader>
-        <ScheduledPromptsTab chatroomId={chatroomId} />
+        <DialogScrollBody>
+          <ScheduledPromptsTab chatroomId={chatroomId} />
+        </DialogScrollBody>
       </DialogContent>
     </Dialog>
   );
