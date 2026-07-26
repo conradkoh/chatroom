@@ -74,6 +74,22 @@ function onStandingEditorKeyDown(
   onConfirm();
 }
 
+function NameInput(props: { value: string; onChange: (value: string) => void; mobile?: boolean }) {
+  const { value, onChange, mobile } = props;
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="Name (optional)"
+      maxLength={120}
+      className={`w-full bg-chatroom-bg-primary border border-chatroom-border placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent ${
+        mobile ? 'px-3 py-2 text-sm' : 'px-2 py-1 text-xs'
+      }`}
+    />
+  );
+}
+
 type AddSelection = HistoryItem['_id'] | 'create-new' | null;
 
 function HistorySelectionList(props: {
@@ -147,7 +163,9 @@ function AddingPanel(props: {
   historyTop3: HistoryItem[];
   selection: AddSelection;
   draft: string;
+  draftName: string;
   onDraftChange: (value: string) => void;
+  onDraftNameChange: (value: string) => void;
   onSelectHistory: (item: HistoryItem) => void;
   onSelectCreateNew: () => void;
   onViewMore: () => void;
@@ -159,7 +177,9 @@ function AddingPanel(props: {
     historyTop3,
     selection,
     draft,
+    draftName,
     onDraftChange,
+    onDraftNameChange,
     onSelectHistory,
     onSelectCreateNew,
     onViewMore,
@@ -181,15 +201,18 @@ function AddingPanel(props: {
       />
       <CreateNewButton selected={selection === 'create-new'} onSelect={onSelectCreateNew} />
       {selection === 'create-new' ? (
-        <textarea
-          autoFocus
-          value={draft}
-          onChange={(e) => onDraftChange(e.target.value)}
-          onKeyDown={(e) => onStandingEditorKeyDown(e, onCancel, onConfirm)}
-          placeholder="Enter standing instructions…"
-          className="w-full bg-chatroom-bg-primary border border-chatroom-border px-2 py-1 text-xs text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent resize-none"
-          rows={3}
-        />
+        <>
+          <NameInput value={draftName} onChange={onDraftNameChange} />
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            onKeyDown={(e) => onStandingEditorKeyDown(e, onCancel, onConfirm)}
+            placeholder="Enter standing instructions…"
+            className="w-full bg-chatroom-bg-primary border border-chatroom-border px-2 py-1 text-xs text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent resize-none"
+            rows={3}
+          />
+        </>
       ) : null}
       <div className="flex items-center gap-2">
         <button
@@ -217,7 +240,9 @@ function MobileAddingDrawer(props: {
   historyTop3: HistoryItem[];
   selection: AddSelection;
   draft: string;
+  draftName: string;
   onDraftChange: (value: string) => void;
+  onDraftNameChange: (value: string) => void;
   onSelectHistory: (item: HistoryItem) => void;
   onSelectCreateNew: () => void;
   onViewMore: () => void;
@@ -230,7 +255,9 @@ function MobileAddingDrawer(props: {
     historyTop3,
     selection,
     draft,
+    draftName,
     onDraftChange,
+    onDraftNameChange,
     onSelectHistory,
     onSelectCreateNew,
     onViewMore,
@@ -283,15 +310,18 @@ function MobileAddingDrawer(props: {
             mobile
           />
           {selection === 'create-new' ? (
-            <textarea
-              autoFocus
-              value={draft}
-              onChange={(e) => onDraftChange(e.target.value)}
-              onKeyDown={(e) => onStandingEditorKeyDown(e, onCancel, onConfirm)}
-              placeholder="Enter standing instructions…"
-              rows={5}
-              className="w-full min-h-[120px] bg-chatroom-bg-primary border border-chatroom-border px-3 py-3 text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent resize-none"
-            />
+            <>
+              <NameInput value={draftName} onChange={onDraftNameChange} mobile />
+              <textarea
+                autoFocus
+                value={draft}
+                onChange={(e) => onDraftChange(e.target.value)}
+                onKeyDown={(e) => onStandingEditorKeyDown(e, onCancel, onConfirm)}
+                placeholder="Enter standing instructions…"
+                rows={5}
+                className="w-full min-h-[120px] bg-chatroom-bg-primary border border-chatroom-border px-3 py-3 text-sm text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent resize-none"
+              />
+            </>
           ) : null}
           <div className="flex items-stretch gap-2">
             <button
@@ -361,16 +391,19 @@ function HistoryFullPicker(props: {
 
 function EditingPanel(props: {
   draft: string;
+  draftName: string;
   onDraftChange: (value: string) => void;
+  onDraftNameChange: (value: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const { draft, onDraftChange, onConfirm, onCancel } = props;
+  const { draft, draftName, onDraftChange, onDraftNameChange, onConfirm, onCancel } = props;
   return (
     <div
       className={`${PANEL_CHROME} flex flex-col gap-1.5`}
       data-testid="standing-instructions-editing-panel"
     >
+      <NameInput value={draftName} onChange={onDraftNameChange} />
       <textarea
         autoFocus
         value={draft}
@@ -403,11 +436,13 @@ function EditingPanel(props: {
 function MobileEditingDrawer(props: {
   open: boolean;
   draft: string;
+  draftName: string;
   onDraftChange: (value: string) => void;
+  onDraftNameChange: (value: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const { open, draft, onDraftChange, onConfirm, onCancel } = props;
+  const { open, draft, draftName, onDraftChange, onDraftNameChange, onConfirm, onCancel } = props;
   const keyboardInsetPx = useVisualViewportKeyboardInset(open);
   const portalContainer = useOverlayPortalContainer();
 
@@ -431,6 +466,7 @@ function MobileEditingDrawer(props: {
         </DrawerHeader>
         <PickerPanelHeader title="Edit standing instructions" />
         <div className="flex flex-col gap-3 p-3">
+          <NameInput value={draftName} onChange={onDraftNameChange} mobile />
           <textarea
             autoFocus
             value={draft}
@@ -469,6 +505,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const actionRowClassName = isDesktop ? undefined : 'min-h-11 py-3 text-sm';
   const queryResult = useSessionQuery(api.standingInstructions.get, { chatroomId });
   const storedContent = queryResult?.content ?? '';
+  const storedName = queryResult?.name ?? '';
   const enabled = queryResult?.enabled ?? false;
   const isActive =
     getActiveStandingInstructions({
@@ -476,6 +513,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       standingInstructionsEnabled: enabled,
     }) !== null;
   const hasContent = storedContent.trim().length > 0;
+  const displayText = storedName.trim() ? storedName.trim() : storedContent;
 
   const upsertMutation = useSessionMutation(api.standingInstructions.upsert);
   const setEnabledMutation = useSessionMutation(api.standingInstructions.setEnabled);
@@ -488,29 +526,32 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const [isAdding, setIsAdding] = useState(false);
   const [addSelection, setAddSelection] = useState<AddSelection>(null);
   const [draft, setDraft] = useState(storedContent);
+  const [draftName, setDraftName] = useState(storedName);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [historyPickerOpen, setHistoryPickerOpen] = useState(false);
 
   const handleConfirm = useCallback(async () => {
-    await upsertMutation({ chatroomId, content: draft });
+    await upsertMutation({ chatroomId, content: draft, name: draftName });
     setEditing(false);
     setIsAdding(false);
     setAddSelection(null);
-  }, [chatroomId, draft, upsertMutation]);
+  }, [chatroomId, draft, draftName, upsertMutation]);
 
   const handleCancel = useCallback(() => {
     setDraft(storedContent);
+    setDraftName(storedName);
     setEditing(false);
     setIsAdding(false);
     setAddSelection(null);
-  }, [storedContent]);
+  }, [storedContent, storedName]);
 
   const startEditing = useCallback(() => {
     setDraft(storedContent);
+    setDraftName(storedName);
     setActionsOpen(false);
     setIsAdding(false);
     setEditing(true);
-  }, [storedContent]);
+  }, [storedContent, storedName]);
 
   const handleDisable = useCallback(async () => {
     setActionsOpen(false);
@@ -526,6 +567,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     setActionsOpen(false);
     await clearMutation({ chatroomId });
     setDraft('');
+    setDraftName('');
     setEditing(false);
     setIsAdding(false);
   }, [chatroomId, clearMutation]);
@@ -554,7 +596,9 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     historyTop3,
     selection: addSelection,
     draft,
+    draftName,
     onDraftChange: setDraft,
+    onDraftNameChange: setDraftName,
     onSelectHistory: (item: HistoryItem) => {
       void handleSelectHistory(item);
     },
@@ -569,7 +613,9 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
 
   const editorHandlers = {
     draft,
+    draftName,
     onDraftChange: setDraft,
+    onDraftNameChange: setDraftName,
     onConfirm: () => {
       void handleConfirm();
     },
@@ -620,6 +666,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       <>
         <button
           type="button"
+          aria-label="Add standing instructions"
           onClick={() => {
             setDraft('');
             setAddSelection(null);
@@ -633,7 +680,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
             className="shrink-0 text-chatroom-status-success"
           />
           <span
-            className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider text-chatroom-status-success`}
+            className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider text-chatroom-status-success hidden sm:inline`}
           >
             Add standing instructions
           </span>
@@ -656,6 +703,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
         trigger={
           <button
             type="button"
+            aria-label={isActive ? 'Standing instructions' : 'Standing instructions (disabled)'}
             className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
           >
             <BookOpen
@@ -663,12 +711,15 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
               className={`shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
             />
             <span
-              className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+              className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider shrink-0 hidden sm:inline ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
             >
               Standing instructions{isActive ? '' : ' (disabled)'}
             </span>
             <span className="text-xs text-chatroom-text-secondary truncate flex-1">
-              {storedContent}
+              {displayText}
+              {!isActive ? (
+                <span className="sm:hidden text-chatroom-text-muted shrink-0"> (off)</span>
+              ) : null}
             </span>
           </button>
         }

@@ -10,7 +10,11 @@ const mockSetEnabled = vi.fn();
 const mockClear = vi.fn();
 const mockRecordUse = vi.fn();
 const mockUseIsDesktop = vi.fn(() => true);
-let mockQueryResult: { content: string; enabled: boolean } = { content: '', enabled: false };
+let mockQueryResult: { content: string; enabled: boolean; name: string } = {
+  content: '',
+  enabled: false,
+  name: '',
+};
 let mockHistory: {
   _id: string;
   content: string;
@@ -60,7 +64,7 @@ const ROOM_ID = 'room1' as Id<'chatroom_rooms'>;
 describe('StandingInstructionsBar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockQueryResult = { content: '', enabled: false };
+    mockQueryResult = { content: '', enabled: false, name: '' };
     mockHistory = [];
     mockUseIsDesktop.mockReturnValue(true);
     mockRecordUse.mockResolvedValue({ content: 'Always use TypeScript' });
@@ -72,14 +76,14 @@ describe('StandingInstructionsBar', () => {
   });
 
   it('shows active bar with label and content', () => {
-    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: '' };
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     expect(screen.getByText('Standing instructions')).toBeInTheDocument();
     expect(screen.getByText('Always use TypeScript')).toBeInTheDocument();
   });
 
   it('shows disabled bar with label suffix and content', () => {
-    mockQueryResult = { content: 'Always use TypeScript', enabled: false };
+    mockQueryResult = { content: 'Always use TypeScript', enabled: false, name: '' };
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     expect(screen.getByText('Standing instructions (disabled)')).toBeInTheDocument();
     expect(screen.getByText('Always use TypeScript')).toBeInTheDocument();
@@ -122,7 +126,7 @@ describe('StandingInstructionsBar', () => {
 
   describe('menu open and actions — active state', () => {
     beforeEach(() => {
-      mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+      mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: '' };
     });
 
     it('active bar does not show actions before click', () => {
@@ -196,7 +200,7 @@ describe('StandingInstructionsBar', () => {
         { _id: 'h1', content: 'Use async/await', useCount: 5, lastUsedAt: 1000 },
         { _id: 'h2', content: 'Write tests', useCount: 3, lastUsedAt: 2000 },
       ];
-      mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+      mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: '' };
       mockUseIsDesktop.mockReturnValue(true);
       render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
       await user.click(screen.getByText('Standing instructions'));
@@ -208,7 +212,7 @@ describe('StandingInstructionsBar', () => {
 
   describe('menu open and actions — disabled with content', () => {
     beforeEach(() => {
-      mockQueryResult = { content: 'Always use TypeScript', enabled: false };
+      mockQueryResult = { content: 'Always use TypeScript', enabled: false, name: '' };
     });
 
     it('shows Enable instead of Disable in menu', async () => {
@@ -270,6 +274,7 @@ describe('StandingInstructionsBar', () => {
       expect(mockUpsert).toHaveBeenCalledWith({
         chatroomId: ROOM_ID,
         content: 'Write unit tests first',
+        name: '',
       });
     });
 
@@ -296,7 +301,7 @@ describe('StandingInstructionsBar', () => {
 
     it('does not show history section when editing existing content', async () => {
       const user = userEvent.setup();
-      mockQueryResult = { content: 'Existing instruction', enabled: true };
+      mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: '' };
       render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
       await user.click(screen.getByText('Standing instructions'));
       await user.click(screen.getByText('Edit'));
@@ -307,7 +312,7 @@ describe('StandingInstructionsBar', () => {
 
   it('includes PickerPanelHeader in the actions menu', async () => {
     const user = userEvent.setup();
-    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: '' };
     mockUseIsDesktop.mockReturnValue(true);
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     await user.click(screen.getByText('Standing instructions'));
@@ -318,7 +323,7 @@ describe('StandingInstructionsBar', () => {
 
   it('uses larger action row classes on mobile', async () => {
     const user = userEvent.setup();
-    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: '' };
     mockUseIsDesktop.mockReturnValue(false);
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     await user.click(screen.getByText('Standing instructions'));
@@ -329,7 +334,7 @@ describe('StandingInstructionsBar', () => {
 
   it('keeps compact action rows on desktop', async () => {
     const user = userEvent.setup();
-    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: '' };
     mockUseIsDesktop.mockReturnValue(true);
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     await user.click(screen.getByText('Standing instructions'));
@@ -399,7 +404,7 @@ describe('StandingInstructionsBar', () => {
 
   it('opens edit drawer on mobile when Edit is chosen from actions', async () => {
     const user = userEvent.setup();
-    mockQueryResult = { content: 'Always use TypeScript', enabled: true };
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: '' };
     mockUseIsDesktop.mockReturnValue(false);
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     await user.click(screen.getByText('Standing instructions'));
@@ -446,6 +451,49 @@ describe('StandingInstructionsBar', () => {
     expect(mockUpsert).toHaveBeenCalledWith({
       chatroomId: ROOM_ID,
       content: 'updated instruction',
+      name: '',
     });
+  });
+
+  it('upsert called with name when user fills name in create flow', async () => {
+    const user = userEvent.setup();
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    await user.click(screen.getByText('Add standing instructions'));
+    await user.click(screen.getByTestId('standing-instructions-create-new'));
+
+    const textarea = screen.getByPlaceholderText('Enter standing instructions…');
+    await user.type(textarea, 'test content');
+
+    const nameInput = screen.getByPlaceholderText('Name (optional)');
+    await user.type(nameInput, 'My Rule');
+
+    fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true });
+
+    expect(mockUpsert).toHaveBeenCalledWith({
+      chatroomId: ROOM_ID,
+      content: 'test content',
+      name: 'My Rule',
+    });
+  });
+
+  it('label span has hidden sm:inline class', () => {
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: '' };
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    const label = screen.getByText('Standing instructions');
+    expect(label.className).toContain('hidden');
+    expect(label.className).toContain('sm:inline');
+  });
+
+  it('with name set shows name not full content', () => {
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: 'Team rules' };
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    expect(screen.getByText('Team rules')).toBeInTheDocument();
+    expect(screen.queryByText('Always use TypeScript')).not.toBeInTheDocument();
+  });
+
+  it('without name shows full content', () => {
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: '' };
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+    expect(screen.getByText('Always use TypeScript')).toBeInTheDocument();
   });
 });
