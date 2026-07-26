@@ -180,11 +180,17 @@ describe('completion-gates guidance', () => {
     expect(guidance).toContain('mark-for-review');
   });
 
-  test('planner guidance forbids partial PR delivery', () => {
-    const guidance = getPlannerGuidance(plannerParams);
-    expect(guidance).toContain('verified end-to-end');
+  test('planner guidance includes partial-work handback rule', () => {
+    const guidance = getPlannerGuidance({
+      role: 'planner',
+      teamRoles: ['planner', 'builder'],
+      isEntryPoint: true,
+      convexUrl: 'http://127.0.0.1:3210',
+      chatroomId: 'test-room',
+    });
+    expect(guidance).toContain('partial work');
+    expect(guidance).not.toContain('Partial implementation is an automatic handback');
     expect(guidance).not.toContain('deliver partial results');
-    expect(guidance).toContain('Partial implementation is an automatic handback');
   });
 
   test('delegation guidelines define shippable slice', () => {

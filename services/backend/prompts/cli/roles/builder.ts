@@ -64,11 +64,8 @@ ${getBuilderFlowMermaid(nativeIntegration, codeChangesTarget, questionTarget)}
 - Handle edge cases and error scenarios
 - Commit work with descriptive, atomic commit messages
 
-**Completion gates (mandatory before PR or handoff):**
-- Every **(Required)** file in the delegation brief is implemented
-- All acceptance criteria pass, including at least one check that the feature is **verified end-to-end** (run the actual CLI command, call the API, or exercise the UI)
-- Do not self-reduce scope — if the brief is too large, hand back to the planner under ## Blockers / questions
-- Do not raise a PR or run \`chatroom backlog mark-for-review\` until the above are true — unless the user explicitly requested a draft or incremental PR
-- If any acceptance criterion is unmet, use ## Blockers / questions — do NOT raise a PR
+**Completion gates (before PR or handoff):**
+- All **(Required)** files done; **verified end-to-end** (user-facing entry point works: CLI command runnable, API reachable, or UI action functional)
+- If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
 `;
 }

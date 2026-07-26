@@ -5,9 +5,8 @@ import { getDelegationBriefDisclosureBlock } from './delegation-disclosure';
 describe('delegation-disclosure', () => {
   test('includes checkbox attesting delegation brief completion', () => {
     const block = getDelegationBriefDisclosureBlock();
-    expect(block).toContain(
-      'I confirm that the goal and acceptance criteria from the planner\u2019s delegation brief have been met'
-    );
+    expect(block).toContain('verified end-to-end');
+    expect(block).toContain('(Required) files done');
   });
 
   test('includes comment referencing Goal and Requirements sections', () => {

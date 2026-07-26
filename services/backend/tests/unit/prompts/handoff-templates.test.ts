@@ -233,9 +233,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
       ## Proof of Completion
-      - [ ] I confirm that the goal and acceptance criteria from the planner’s delegation brief have been met
-      - [ ] I confirm the feature is verified end-to-end (CLI command runnable, API reachable, or UI action functional — not just helper files or unit tests)
-      - [ ] I confirm no (Required) files from the delegation brief were deferred or skipped
+      - [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
       <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
@@ -627,8 +625,19 @@ describe('handoff-templates > invariants', () => {
       '<!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->'
     );
     expect(template).toContain(
-      'I confirm that the goal and acceptance criteria from the planner\u2019s delegation brief have been met'
+      'all (Required) files done, verified end-to-end, acceptance criteria pass'
     );
+  });
+
+  test('builder → planner includes verified end-to-end completion checkboxes', () => {
+    const template = resolveDeliveredHandoffTemplate({
+      teamId: 'duo',
+      fromRole: 'builder',
+      toRole: 'planner',
+      role: 'builder',
+    });
+    expect(template).toContain('verified end-to-end');
+    expect(template).toContain('(Required) files done');
   });
 
   test('planner → user includes context-read HTML comment with resolved command', () => {
@@ -688,7 +697,7 @@ describe('handoff-templates > invariants', () => {
       role: 'builder',
     });
     expect(template).toContain('verified end-to-end');
-    expect(template).toContain('no (Required) files from the delegation brief were deferred');
+    expect(template).toContain('(Required) files done');
   });
 
   test('planner → user backlog attestation requires verified end-to-end', () => {
