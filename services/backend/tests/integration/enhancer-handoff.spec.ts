@@ -753,7 +753,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       content: '<user-message>test</user-message>',
     });
 
-    // Planner task should be completed
+    // Planner task should be reassigned to enhancer, not completed
     const allTasks = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_tasks')
@@ -761,7 +761,8 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         .collect()
     );
     const plannerTask = allTasks.find((t) => t.createdBy === 'user');
-    expect(plannerTask!.status).toBe('completed');
+    expect(plannerTask!.status).toBe('in_progress');
+    expect(plannerTask!.assignedTo).toBe('enhancer');
 
     // Builder task should still be in_progress
     const builderTask = allTasks.find((t) => t.assignedTo === 'builder');
