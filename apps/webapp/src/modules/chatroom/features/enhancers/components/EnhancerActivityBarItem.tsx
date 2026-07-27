@@ -20,7 +20,7 @@ export function EnhancerActivityBarItem({ chatroomId, machineId }: EnhancerActiv
       <button
         type="button"
         className="relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100 text-chatroom-text-muted hover:text-chatroom-text-primary"
-        onClick={openDialog}
+        onClick={() => openDialog()}
         title="Configure planning review"
         aria-label="Configure planning review"
         data-testid="enhancer-activity-bar-item"
