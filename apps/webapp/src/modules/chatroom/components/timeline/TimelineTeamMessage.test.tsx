@@ -166,4 +166,25 @@ describe('TimelineTeamMessage enhancer toggle', () => {
     expect(screen.getByTestId('handoff-envelope-view')).toBeInTheDocument();
     expect(screen.queryByTestId('timeline-markdown-body')).not.toBeInTheDocument();
   });
+
+  it('renders HandoffReportView for enhancer feedback with XML sections', () => {
+    const enhancerFeedback: Message = {
+      ...BASE_MESSAGE,
+      senderRole: 'enhancer',
+      targetRole: 'planner',
+      content: `<handoff-overview>
+## Summary
+Looks good overall
+</handoff-overview>
+
+<handoff-action>
+## Risks & failure modes
+Edge case X
+</handoff-action>`,
+    };
+    render(<TimelineTeamMessage message={enhancerFeedback} chatroomId="room-1" />);
+    expect(screen.getByTestId('handoff-report-view')).toBeInTheDocument();
+    expect(screen.getByTestId('handoff-section-overview')).toBeInTheDocument();
+    expect(screen.getByTestId('handoff-section-action')).toBeInTheDocument();
+  });
 });
