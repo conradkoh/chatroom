@@ -7,16 +7,16 @@ describe('resolveDefaultWantResume', () => {
     expect(resolveDefaultWantResume('duo', 'builder')).toBe(false);
   });
 
-  test('duo planner returns true', () => {
-    expect(resolveDefaultWantResume('duo', 'planner')).toBe(true);
+  test('duo planner returns false', () => {
+    expect(resolveDefaultWantResume('duo', 'planner')).toBe(false);
   });
 
-  test('solo returns true', () => {
-    expect(resolveDefaultWantResume('solo', 'solo')).toBe(true);
+  test('solo returns false', () => {
+    expect(resolveDefaultWantResume('solo', 'solo')).toBe(false);
   });
 
   test('is case-insensitive', () => {
     expect(resolveDefaultWantResume('DUO', 'Builder')).toBe(false);
-    expect(resolveDefaultWantResume('Duo', 'PLANNER')).toBe(true);
+    expect(resolveDefaultWantResume('Duo', 'PLANNER')).toBe(false);
   });
 });

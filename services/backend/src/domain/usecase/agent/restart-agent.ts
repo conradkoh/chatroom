@@ -47,7 +47,8 @@ export async function restartAgent(
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   const resolvedWantResume =
-    input.wantResume ?? (chatroom?.teamId ? resolveDefaultWantResume(chatroom.teamId, role) : true);
+    input.wantResume ??
+    (chatroom?.teamId ? resolveDefaultWantResume(chatroom.teamId, role) : false);
   const now = Date.now();
   const correlationId = crypto.randomUUID();
 
