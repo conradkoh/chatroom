@@ -14,7 +14,7 @@ import { findActiveEnhancerJob, assertEnhancerJobOwner } from './jobHelpers';
 import { insertPlannerToEnhancerDraftMessage } from './timelineMessages';
 import { ENHANCER_MAX_ATTEMPTS } from '../../../config/reliability';
 import { buildPlanningReviewOutcomeContent } from '../../../src/domain/usecase/enhancer/build-planning-review-outcome';
-import { completePlannerTasksOnEnhancerCheckIn } from '../../../src/domain/usecase/enhancer/complete-planner-tasks-on-check-in';
+import { reassignPlannerTasksToEnhancerOnCheckIn } from '../../../src/domain/usecase/enhancer/reassign-planner-tasks-to-enhancer-on-check-in';
 import {
   transitionPlannerFromEnhancingToWaiting,
   transitionPlannerToEnhancing,
@@ -196,7 +196,7 @@ export const enqueueHandoff = mutation({
       attachedArtifactIds: args.attachedArtifactIds,
     });
 
-    await completePlannerTasksOnEnhancerCheckIn(ctx, args.chatroomId);
+    await reassignPlannerTasksToEnhancerOnCheckIn(ctx, args.chatroomId);
 
     await transitionPlannerToEnhancing(ctx, args.chatroomId);
 

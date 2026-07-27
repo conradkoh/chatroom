@@ -27,6 +27,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { resolveTaskRole } from '../../entities/task';
 import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
+import { hasActivePlannerEnhancerJob } from '../enhancer/planner-enhancing-status';
 
 type MaterializedTaskCounts = {
   pending: number;
@@ -72,6 +73,10 @@ export async function shouldEnqueueMessage(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<boolean> {
+  if (await hasActivePlannerEnhancerJob(ctx, chatroomId)) {
+    return true;
+  }
+
   const materializedCounts = await ctx.db
     .query('chatroom_taskCounts')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
