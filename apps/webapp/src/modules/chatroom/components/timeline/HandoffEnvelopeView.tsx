@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
+import { HandoffCollapsibleSection } from './HandoffCollapsibleSection';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { parseHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
 
@@ -97,26 +98,14 @@ export const HandoffEnvelopeView = memo(function HandoffEnvelopeView({
           {parsed.sections.map((section) => {
             const isOpen = openSections.has(section.id);
             return (
-              <div
+              <HandoffCollapsibleSection
                 key={section.id}
-                className="border border-chatroom-border overflow-hidden"
-                data-testid={`handoff-section-${section.id}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => toggleSection(section.id)}
-                  className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:bg-chatroom-bg-hover"
-                  aria-expanded={isOpen}
-                >
-                  {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  {section.label}
-                </button>
-                {isOpen && (
-                  <div className="px-3 py-2 border-t border-chatroom-border">
-                    <TimelineMarkdownBody content={section.body} />
-                  </div>
-                )}
-              </div>
+                id={section.id}
+                label={section.label}
+                body={section.body}
+                isOpen={isOpen}
+                onToggle={() => toggleSection(section.id)}
+              />
             );
           })}
         </div>
