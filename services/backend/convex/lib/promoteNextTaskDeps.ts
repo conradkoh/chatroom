@@ -9,12 +9,16 @@
 import type { PromoteNextTaskDeps } from '../../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../../src/domain/usecase/task/promote-queued-message';
 import type { MutationCtx } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
 
 /**
  * Checks that no tasks with an active status (pending, acknowledged, in_progress)
  * exist in the chatroom — the authoritative guard against premature promotion.
  */
-export async function canPromote(ctx: MutationCtx, chatroomId: string): Promise<boolean> {
+export async function canPromote(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<boolean> {
   for (const status of ['pending', 'acknowledged', 'in_progress'] as const) {
     const task = await ctx.db
       .query('chatroom_tasks')
