@@ -32,7 +32,7 @@ export function useRichTextEditor({
     content,
     editable,
     onUpdate: ({ editor }) => {
-      const md = editor.storage.markdown.getMarkdown();
+      const md = editor.getMarkdown();
       onUpdate(md);
     },
   });
