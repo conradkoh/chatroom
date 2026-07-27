@@ -40,6 +40,13 @@ describe('handoff-templates > resolver', () => {
     );
   });
 
+  test('enhancer → planner template uses XML section wrappers', () => {
+    const template = getEnhancerToPlannerHandoffTemplate();
+    expect(template).toContain('<handoff-overview>');
+    expect(template).toContain('<handoff-action>');
+    expect(template).toContain('## Risks & failure modes');
+  });
+
   test('resolves planner → user to the report template', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'user' })).toBe(
       getPlannerToUserReportTemplate()

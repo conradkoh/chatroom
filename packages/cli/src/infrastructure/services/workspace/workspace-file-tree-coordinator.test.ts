@@ -259,10 +259,10 @@ describe('workspace-file-tree-coordinator', () => {
     await writeFile(join(rootDir, 'temp.md'), 'temp');
     await waitFor(() => coordinator.getTree().entries.some((e) => e.path === 'temp.md'), 5_000);
     await unlink(join(rootDir, 'temp.md'));
-    await waitFor(
-      () => coordinator.getTree().entries.find((e) => e.path === 'temp.md') === undefined,
-      5_000
-    );
+    await waitFor(() => {
+      const calls = deltas.mock.calls as [{ removed?: string[] }?][];
+      return calls.some((call) => call[0]?.removed?.includes('temp.md'));
+    }, 5_000);
     expect(deltas).toHaveBeenCalledWith(
       expect.objectContaining({
         removed: expect.arrayContaining(['temp.md']),

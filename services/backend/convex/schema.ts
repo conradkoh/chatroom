@@ -3099,6 +3099,10 @@ export default defineSchema({
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
     originUserMessageId: v.optional(v.id('chatroom_messages')),
+    /** Task row created by traditional planner→enhancer handoff. */
+    taskId: v.optional(v.id('chatroom_tasks')),
+    /** Handoff message that created the enhancer task. */
+    handoffMessageId: v.optional(v.id('chatroom_messages')),
     pendingHandoffArgs: v.optional(
       v.object({
         senderRole: v.string(),

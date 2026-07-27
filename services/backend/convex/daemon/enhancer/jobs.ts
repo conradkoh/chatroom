@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { getDaemonMachineAuth } from './auth';
+import { startEnhancerJobWork } from '../../../src/domain/usecase/enhancer/start-enhancer-job-work';
 import { mutation, query } from '../../_generated/server';
 import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
@@ -58,6 +59,12 @@ export const claimForSpawn = mutation({
       status: 'running',
       runningSince: Date.now(),
     });
+
+    const runningJob = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
+    if (runningJob) {
+      await startEnhancerJobWork(ctx, runningJob);
+    }
+
     return { claimed: true as const };
   },
 });

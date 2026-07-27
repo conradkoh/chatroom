@@ -371,6 +371,7 @@ export function startSessionEventForwarder(
       }
       case 'busy': {
         clearRetryIdleTimeout();
+        options.onActivity?.();
         return;
       }
       default: {

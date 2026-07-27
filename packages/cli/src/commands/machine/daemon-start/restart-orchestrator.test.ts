@@ -65,7 +65,7 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean; harnessSessionId?:
 
 describe('runRestartOrchestrator', () => {
   test('success path calls emitRestartCompleted once and does not call emitRestartPhase', async () => {
-    const { deps, backendMock } = createMockDeps();
+    const { deps, mutationLog } = createMockDeps();
 
     await runRestartOrchestrator(deps as any, {
       chatroomId: 'test-chatroom',
@@ -77,19 +77,15 @@ describe('runRestartOrchestrator', () => {
       wantResume: true,
     });
 
-    const restartCompletedCalls = backendMock.mutation.mock.calls.filter(
-      ([fn]: [string]) => fn === 'emitRestartCompleted'
-    );
+    const restartCompletedCalls = mutationLog.filter((call) => call.fn === 'emitRestartCompleted');
     expect(restartCompletedCalls).toHaveLength(1);
 
-    const phaseCalls = backendMock.mutation.mock.calls.filter(
-      ([fn]: [string]) => fn === 'emitRestartPhase'
-    );
+    const phaseCalls = mutationLog.filter((call) => call.fn === 'emitRestartPhase');
     expect(phaseCalls).toHaveLength(0);
   });
 
   test('failure path calls emitRestartPhase with failed exactly once', async () => {
-    const { deps, backendMock } = createMockDeps({ spawnSuccess: false });
+    const { deps, mutationLog } = createMockDeps({ spawnSuccess: false });
 
     await runRestartOrchestrator(deps as any, {
       chatroomId: 'test-chatroom',
@@ -101,15 +97,13 @@ describe('runRestartOrchestrator', () => {
       wantResume: true,
     });
 
-    const phaseCalls = backendMock.mutation.mock.calls.filter(
-      ([fn, args]: [string, { phase?: string }]) =>
-        fn === 'emitRestartPhase' && args.phase === 'failed'
+    const phaseCalls = mutationLog.filter(
+      (call) =>
+        call.fn === 'emitRestartPhase' && (call.args as { phase?: string }).phase === 'failed'
     );
     expect(phaseCalls).toHaveLength(1);
 
-    const restartCompletedCalls = backendMock.mutation.mock.calls.filter(
-      ([fn]: [string]) => fn === 'emitRestartCompleted'
-    );
+    const restartCompletedCalls = mutationLog.filter((call) => call.fn === 'emitRestartCompleted');
     expect(restartCompletedCalls).toHaveLength(0);
   });
 });

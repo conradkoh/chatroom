@@ -1195,11 +1195,15 @@ describe('SessionEventForwarder', () => {
     vi.useRealTimers();
   }, 10000);
 
-  it('session.status busy logs busy and does not emit agent_end', async () => {
+  it('session.status busy logs busy, fires onActivity, and does not emit agent_end', async () => {
     vi.useFakeTimers();
     const ps = createPushStream();
     const fakeClient = createMockClient(ps.stream);
-    const handle = startSessionEventForwarder(fakeClient as never, baseOptions);
+    const onActivity = vi.fn();
+    const handle = startSessionEventForwarder(fakeClient as never, {
+      ...baseOptions,
+      onActivity,
+    });
     const onEnd = vi.fn();
     handle.onAgentEnd(onEnd);
 
@@ -1209,6 +1213,7 @@ describe('SessionEventForwarder', () => {
     });
     await vi.advanceTimersByTimeAsync(10);
     expect(target.write).toHaveBeenCalledWith('[fake-ts] role:builder status] busy\n');
+    expect(onActivity).toHaveBeenCalled();
     expect(onEnd).not.toHaveBeenCalled();
 
     ps.end();

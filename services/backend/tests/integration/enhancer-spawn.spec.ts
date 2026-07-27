@@ -109,6 +109,13 @@ describe('daemon.enhancer.index', () => {
     expect(job!.status).toBe('running');
     expect(job!.runningSince).toBeDefined();
 
+    const enhancerTask = await t.run(async (ctx) => {
+      if (!job!.taskId) return null;
+      return ctx.db.get(job!.taskId);
+    });
+    expect(enhancerTask?.status).toBe('in_progress');
+    expect(enhancerTask?.assignedTo).toBe('enhancer');
+
     // Second claim returns false
     const claim2 = await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
       sessionId,

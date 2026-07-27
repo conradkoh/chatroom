@@ -24,6 +24,10 @@ import {
   NATIVE_HANDOFF_REMINDER,
   NATIVE_WAITING_ACTION,
 } from '@workspace/backend/src/domain/entities/participant.js';
+import {
+  emitNativeWaitingAfterSpawn,
+  wireThrottledTokenActivityOnOutput,
+} from '../remote-agents/native-spawn-presence.js';
 import { Effect } from 'effect';
 
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
@@ -1822,19 +1826,13 @@ export class AgentProcessManager {
       });
     }
 
-    let lastReportedTokenAt = 0;
-    spawnResult.onOutput(() => {
-      const now = this.deps.clock.now();
-      if (lastReportedTokenAt === 0 || now - lastReportedTokenAt >= 30_000) {
-        lastReportedTokenAt = now;
-        this.deps.backend
-          .mutation(api.participants.updateTokenActivity, {
-            sessionId: this.deps.sessionId,
-            chatroomId: opts.chatroomId,
-            role: opts.role,
-          })
-          .catch(() => {});
-      }
+    wireThrottledTokenActivityOnOutput({
+      backend: this.deps.backend,
+      sessionId: this.deps.sessionId,
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      spawnResult,
+      now: () => this.deps.clock.now(),
     });
   }
 
@@ -1874,20 +1872,20 @@ export class AgentProcessManager {
     role: string,
     harness: AgentHarness
   ): Promise<boolean> {
-    if (!getHarnessCapabilities(harness).supportsNativeIntegration) return false;
-
-    try {
-      await this.deps.backend.mutation(api.participants.join, {
+    return emitNativeWaitingAfterSpawn(
+      {
+        backend: this.deps.backend,
         sessionId: this.deps.sessionId,
         chatroomId,
         role,
-        action: NATIVE_WAITING_ACTION,
-      });
-      return true;
-    } catch (err) {
-      console.log(`   ⚠️  Failed to emit native:waiting for ${role}: ${(err as Error).message}`);
-      return false;
-    }
+      },
+      harness,
+      {
+        onError: (err) => {
+          console.log(`   ⚠️  Failed to emit native:waiting for ${role}: ${err.message}`);
+        },
+      }
+    );
   }
 
   private async doEnsureRunning(

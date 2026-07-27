@@ -206,7 +206,7 @@ describe('workspace file write requests', () => {
     );
     const filePath = 'to-delete.ts';
 
-    await t.mutation(api.workspaceFiles.requestFileWrite, {
+    const { requestId: createRequestId } = await t.mutation(api.workspaceFiles.requestFileWrite, {
       sessionId,
       machineId,
       workingDir: WORKING_DIR,
@@ -215,7 +215,13 @@ describe('workspace file write requests', () => {
       data: gzipContent('delete me'),
     });
 
-    const { requestId } = await t.mutation(api.workspaceFiles.requestFileWrite, {
+    await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
+      sessionId,
+      requestId: createRequestId,
+      status: 'done',
+    });
+
+    const { requestId: deleteRequestId } = await t.mutation(api.workspaceFiles.requestFileWrite, {
       sessionId,
       machineId,
       workingDir: WORKING_DIR,
@@ -225,7 +231,7 @@ describe('workspace file write requests', () => {
 
     await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
       sessionId,
-      requestId,
+      requestId: deleteRequestId,
       status: 'done',
     });
 

@@ -75,7 +75,7 @@ export function startEnhancerJobSubscriber(
               return;
             }
 
-            spawnResult = await service.spawn({
+            const spawned = await service.spawn({
               workingDir: payload.workingDir,
               prompt: createSpawnPrompt(payload.taskEnvelope),
               systemPrompt: payload.systemPrompt,
@@ -87,20 +87,22 @@ export function startEnhancerJobSubscriber(
               },
               resolvedConvexUrl: convexUrl,
             });
+            spawnResult = spawned;
 
-            spawnResult.onLogLine?.((line) => {
+            spawned.onLogLine?.((line) => {
               writeEnhancerLog(line);
             });
 
-            const sr = spawnResult!;
-            const outcome = await waitForEnhancerJobResolution({
+            await waitForEnhancerJobResolution({
               sessionId,
               chatroomId: payload.chatroomId,
               jobId: payload.jobId,
               backend,
-              onAssistantText: sr.onAssistantText ? (cb) => sr.onAssistantText!(cb) : undefined,
-              onAgentEnd: sr.onAgentEnd ? (cb) => sr.onAgentEnd!(cb) : undefined,
-              onExit: (cb) => sr.onExit(() => cb()),
+              onAssistantText: spawned.onAssistantText
+                ? (cb) => spawned.onAssistantText?.(cb)
+                : undefined,
+              onAgentEnd: spawned.onAgentEnd ? (cb) => spawned.onAgentEnd?.(cb) : undefined,
+              onExit: (cb) => spawned.onExit(() => cb()),
               onSalvageComplete: async (content) => {
                 await backend.mutation(api.web.enhancer.index.complete, {
                   sessionId,

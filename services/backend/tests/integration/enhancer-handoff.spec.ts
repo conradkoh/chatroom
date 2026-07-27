@@ -123,11 +123,28 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     expect(draftMessages.length).toBe(1);
     expect(draftMessages[0]!.content).toBe('Original draft content');
-    expect(draftMessages[0]!.visibleInAllTabOnly).toBe(true);
+    expect(draftMessages[0]!.visibleInAllTabOnly).toBeUndefined();
     expect(draftMessages[0]!.enhancerJobId).toBe(result.jobId);
+    expect(draftMessages[0]!.taskId).toBeDefined();
+
+    const enhancerTasks = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status_assignedTo', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'pending').eq('assignedTo', 'enhancer')
+        )
+        .collect()
+    );
+    expect(enhancerTasks.length).toBe(1);
+    expect(enhancerTasks[0]!._id).toBe(job!.taskId);
+
+    const { shouldEnqueueMessage } =
+      await import('../../../src/domain/usecase/task/create-task');
+    const shouldQueue = await t.run(async (ctx) => shouldEnqueueMessage(ctx, chatroomId));
+    expect(shouldQueue).toBe(true);
   });
 
-  test('enqueueHandoff rejects when no active planner task exists (first job completed it)', async () => {
+  test('enqueueHandoff rejects duplicate check-in while enhancer job is active', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-dup');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -151,8 +168,6 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       content: 'First draft',
     });
 
-    // The first enqueue completed the planner task, so a second enqueue
-    // cannot find an active task → NO_PLANNER_USER_TASK
     await expect(
       t.mutation(api.web.enhancer.index.enqueueHandoff, {
         sessionId,
@@ -161,7 +176,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         targetRole: 'enhancer',
         content: 'Second draft',
       })
-    ).rejects.toThrow(/NO_PLANNER_USER_TASK/i);
+    ).rejects.toThrow(/ACTIVE_JOB_EXISTS/i);
   });
 
   test('rejects planner handoff to builder while enhancer review is in progress', async () => {
@@ -713,7 +728,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     ).rejects.toThrow(/NO_PLANNER_USER_TASK/i);
   });
 
-  test('enqueueHandoff completes only planner tasks, not builder in_progress', async () => {
+  test('enqueueHandoff completes all active tasks including builder (traditional handoff)', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-only-planner');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -762,10 +777,14 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     const plannerTask = allTasks.find((t) => t.createdBy === 'user');
     expect(plannerTask!.status).toBe('completed');
 
-    // Builder task should still be in_progress
+    // Traditional handoff completes all in_progress/acknowledged tasks
     const builderTask = allTasks.find((t) => t.assignedTo === 'builder');
     expect(builderTask).toBeDefined();
-    expect(builderTask!.status).toBe('in_progress');
+    expect(builderTask!.status).toBe('completed');
+
+    const enhancerTask = allTasks.find((t) => t.assignedTo === 'enhancer');
+    expect(enhancerTask).toBeDefined();
+    expect(enhancerTask!.status).toBe('pending');
   });
 
   test('enqueueHandoff rejects second check-in after cancel', async () => {
