@@ -612,18 +612,28 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
       try {
         const { machineId, workingDir } = purgeDialogWs;
         const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
-        await mutationFn({
-          machineId,
-          workingDir: normalizedWorkingDir,
-        });
 
         if (category === 'fileTree') {
+          let complete = false;
+          while (!complete) {
+            const result = (await mutationFn({
+              machineId,
+              workingDir: normalizedWorkingDir,
+            })) as { complete: boolean };
+            complete = result.complete;
+          }
+
           clearWorkspaceFileTreeCache(machineId, normalizedWorkingDir);
           await requestFileTreeMutation({
             machineId,
             workingDir: normalizedWorkingDir,
             force: true,
           }).catch(() => {});
+        } else {
+          await mutationFn({
+            machineId,
+            workingDir: normalizedWorkingDir,
+          });
         }
 
         setPurgedCategories((prev) => new Set(prev).add(category));

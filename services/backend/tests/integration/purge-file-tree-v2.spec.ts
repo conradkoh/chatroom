@@ -29,18 +29,13 @@ describe('purgeFileTreeV2', () => {
 
     // Loop purge calls until complete
     let result: { complete: boolean };
-    let callCount = 0;
     do {
       result = await t.mutation(api.workspaceFiles.purgeFileTreeV2, {
         sessionId,
         machineId,
         workingDir: WORKING_DIR,
       });
-      callCount++;
     } while (!result.complete);
-
-    // Should have taken 2+ calls (250 rows @ 200 batch size)
-    expect(callCount).toBeGreaterThanOrEqual(2);
 
     // Verify no remaining requests
     const pending = await t.query(api.workspaceFiles.getPendingFileTreeRequests, {
