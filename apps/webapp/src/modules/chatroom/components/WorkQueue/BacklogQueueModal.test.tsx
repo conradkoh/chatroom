@@ -15,6 +15,32 @@ import { BacklogQueueModal } from './BacklogQueueModal';
 
 import { resetOverlayDismissStackForTests } from '@/modules/chatroom/components/shared/overlayDismissStack';
 
+vi.mock('next/dynamic', () => ({
+  default: () => {
+    const MockComponent = (props: Record<string, unknown>) => {
+      const { value, onChange, onCmdEnter, ...rest } = props as {
+        value: string;
+        onChange: (md: string) => void;
+        onCmdEnter?: () => void;
+      };
+      return (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              onCmdEnter?.();
+            }
+          }}
+          {...rest}
+        />
+      );
+    };
+    MockComponent.displayName = 'MockDynamicComponent';
+    return MockComponent;
+  },
+}));
+
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
   useSessionQuery: () => undefined,
@@ -128,12 +154,12 @@ describe('BacklogQueueModal stacked escape', () => {
     render(<StackedBacklogModals />);
 
     fireEvent.click(screen.getByText('Edit'));
-    expect(screen.getByPlaceholderText('Write your markdown here...')).toBeInTheDocument();
+    expect(screen.getByText('Save')).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'Escape' });
 
     expect(screen.getByText(/Backlog \(1 items\)/)).toBeInTheDocument();
     expect(screen.getByText('Backlog Item')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('Write your markdown here...')).not.toBeInTheDocument();
+    expect(screen.queryByText('Save')).not.toBeInTheDocument();
   });
 });
