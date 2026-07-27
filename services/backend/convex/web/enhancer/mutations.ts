@@ -3,26 +3,16 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { applyEnhancerComplete } from './completeLogic';
 import { deliverPendingHandoffFromJob } from './delivery';
-import {
-  resolveWorkspaceForEnhancer,
-  resolveHandoffTemplateSnapshot,
-  resolveEnhancerInputTemplateSnapshot,
-  computeEnhancerBackoffMs,
-  emitEnhancerEvent,
-} from './internal';
-import { findActiveEnhancerJob, assertEnhancerJobOwner } from './jobHelpers';
-import { insertPlannerToEnhancerDraftMessage } from './timelineMessages';
-import { ENHANCER_MAX_ATTEMPTS } from '../../../config/reliability';
+import { enqueueHandoff } from './enqueueHandoff';
+import { computeEnhancerBackoffMs, emitEnhancerEvent } from './internal';
+import { assertEnhancerJobOwner } from './jobHelpers';
 import { buildPlanningReviewOutcomeContent } from '../../../src/domain/usecase/enhancer/build-planning-review-outcome';
-import { completePlannerTasksOnEnhancerCheckIn } from '../../../src/domain/usecase/enhancer/complete-planner-tasks-on-check-in';
-import {
-  transitionPlannerFromEnhancingToWaiting,
-  transitionPlannerToEnhancing,
-} from '../../../src/domain/usecase/enhancer/planner-enhancing-status';
-import { resolveOriginUserMessageIdForPlannerCheckIn } from '../../../src/domain/usecase/enhancer/resolve-origin-user-message-id';
+import { transitionPlannerFromEnhancingToWaiting } from '../../../src/domain/usecase/enhancer/planner-enhancing-status';
 import { mutation } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
 import { agentHarnessValidator } from '../../schema';
+
+export { enqueueHandoff };
 
 export const upsertConfig = mutation({
   args: {
@@ -91,116 +81,6 @@ export const disableConfig = mutation({
       updatedAt: Date.now(),
     });
     return { disabled: true as const };
-  },
-});
-
-export const enqueueHandoff = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    senderRole: v.string(),
-    targetRole: v.string(),
-    content: v.string(),
-    attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
-  },
-  handler: async (ctx, args) => {
-    const { session, chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    if (
-      args.senderRole.toLowerCase() !== 'planner' ||
-      args.targetRole.toLowerCase() !== 'enhancer'
-    ) {
-      throw new ConvexError({
-        code: 'NOT_APPLICABLE',
-        message: 'Enhancer not applicable for this handoff',
-      });
-    }
-
-    const config = await ctx.db
-      .query('chatroom_enhancerConfigs')
-      .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
-      )
-      .unique();
-    if (!config?.enabled || config.targetId !== 'handoff:planner-to-builder') {
-      throw new ConvexError({ code: 'ENHANCER_NOT_ENABLED', message: 'Enhancer not enabled' });
-    }
-
-    const originUserMessageId = await resolveOriginUserMessageIdForPlannerCheckIn(
-      ctx,
-      args.chatroomId
-    );
-    if (!originUserMessageId) {
-      throw new ConvexError({
-        code: 'NO_PLANNER_USER_TASK',
-        message:
-          'Cannot queue enhancer check-in without an active planner task from a user instruction',
-      });
-    }
-
-    const existingActive = await findActiveEnhancerJob(ctx, args.chatroomId, 'planner', 'enhancer');
-    if (existingActive) {
-      throw new ConvexError({
-        code: 'ACTIVE_JOB_EXISTS',
-        message: 'An enhancer job is already active for this handoff',
-      });
-    }
-
-    const workspace = await resolveWorkspaceForEnhancer(ctx, args.chatroomId, config.machineId);
-    const templateSnapshot = resolveHandoffTemplateSnapshot(chatroom, args.chatroomId);
-    const inputTemplateSnapshot = resolveEnhancerInputTemplateSnapshot(chatroom, args.chatroomId);
-    const now = Date.now();
-
-    const jobId = await ctx.db.insert('chatroom_enhancerJobs', {
-      chatroomId: args.chatroomId,
-      userId: session.userId,
-      targetId: 'handoff:planner-to-builder',
-      fromRole: 'planner',
-      toRole: 'enhancer',
-      status: 'pending',
-      draftContent: args.content,
-      templateSnapshot,
-      inputTemplateSnapshot,
-      agentHarness: config.agentHarness,
-      model: config.model,
-      machineId: config.machineId,
-      workingDir: workspace.workingDir,
-      attemptCount: 1,
-      maxAttempts: ENHANCER_MAX_ATTEMPTS,
-      createdAt: now,
-      originUserMessageId,
-      pendingHandoffArgs: {
-        senderRole: 'planner',
-        targetRole: 'planner',
-        attachedArtifactIds: args.attachedArtifactIds,
-      },
-    });
-
-    await emitEnhancerEvent(
-      ctx,
-      {
-        type: 'enhancer.job.created' as const,
-        chatroomId: args.chatroomId,
-        jobId,
-        userId: session.userId,
-        attemptCount: 1,
-        maxAttempts: ENHANCER_MAX_ATTEMPTS,
-      },
-      now
-    );
-
-    await insertPlannerToEnhancerDraftMessage(ctx, {
-      chatroomId: args.chatroomId,
-      content: args.content,
-      jobId,
-      attachedArtifactIds: args.attachedArtifactIds,
-    });
-
-    await completePlannerTasksOnEnhancerCheckIn(ctx, args.chatroomId);
-
-    await transitionPlannerToEnhancing(ctx, args.chatroomId);
-
-    return { jobId };
   },
 });
 

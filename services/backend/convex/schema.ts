@@ -1657,6 +1657,7 @@ export default defineSchema({
           v.literal('open-vscode'),
           v.literal('open-finder'),
           v.literal('open-github-desktop'),
+          v.literal('open-cursor'),
           v.literal('git-discard-file'),
           v.literal('git-discard-all'),
           v.literal('git-pull'),
@@ -3098,6 +3099,10 @@ export default defineSchema({
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
     originUserMessageId: v.optional(v.id('chatroom_messages')),
+    /** Task row created by traditional planner→enhancer handoff. */
+    taskId: v.optional(v.id('chatroom_tasks')),
+    /** Handoff message that created the enhancer task. */
+    handoffMessageId: v.optional(v.id('chatroom_messages')),
     pendingHandoffArgs: v.optional(
       v.object({
         senderRole: v.string(),

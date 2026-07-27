@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
 import { HandoffCollapsibleSection } from './HandoffCollapsibleSection';
@@ -14,17 +14,11 @@ export interface HandoffEnvelopeViewProps {
   variant?: HandoffEnvelopeViewVariant;
 }
 
-function previewText(text: string, maxLen = 120): string {
-  const oneLine = text.replace(/\s+/g, ' ').trim();
-  return oneLine.length <= maxLen ? oneLine : `${oneLine.slice(0, maxLen)}…`;
-}
-
 export const HandoffEnvelopeView = memo(function HandoffEnvelopeView({
   content,
   variant = 'timeline',
 }: HandoffEnvelopeViewProps) {
   const parsed = useMemo(() => parseHandoffEnvelope(content), [content]);
-  const [expanded, setExpanded] = useState(variant === 'detail');
   const [showRaw, setShowRaw] = useState(false);
   const [openSections, setOpenSections] = useState<Set<string>>(() =>
     variant === 'detail' ? new Set(parsed.sections.map((s) => s.id)) : new Set()
@@ -39,28 +33,9 @@ export const HandoffEnvelopeView = memo(function HandoffEnvelopeView({
     });
   };
 
-  const userPreview = parsed.sections.find((s) => s.id === 'user-message')?.body ?? '';
-
   return (
     <div data-testid="handoff-envelope-view" className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        {variant === 'timeline' && (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-text-primary"
-            aria-expanded={expanded}
-            data-testid="handoff-envelope-toggle"
-          >
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            <span>{parsed.sections.length} sections</span>
-            {!expanded && userPreview && (
-              <span className="font-normal normal-case text-chatroom-text-secondary ml-1">
-                — {previewText(userPreview)}
-              </span>
-            )}
-          </button>
-        )}
         <button
           type="button"
           onClick={() => setShowRaw((v) => !v)}
@@ -88,7 +63,7 @@ export const HandoffEnvelopeView = memo(function HandoffEnvelopeView({
         >
           {content}
         </pre>
-      ) : expanded ? (
+      ) : (
         <div className="space-y-2" data-testid="handoff-envelope-sections">
           {parsed.preamble && (
             <div className="text-xs text-chatroom-text-muted italic border-l-2 border-chatroom-border pl-3">
@@ -109,7 +84,7 @@ export const HandoffEnvelopeView = memo(function HandoffEnvelopeView({
             );
           })}
         </div>
-      ) : null}
+      )}
     </div>
   );
 });

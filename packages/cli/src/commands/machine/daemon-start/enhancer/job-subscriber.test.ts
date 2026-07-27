@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { startEnhancerJobSubscriber } from './job-subscriber.js';
+
 vi.mock('../../../../api.js', () => {
   const api: Record<string, unknown> = {};
   // Build a nested object structure mimicking Convex API paths
@@ -17,16 +19,15 @@ vi.mock('../../../../api.js', () => {
   setPath(api, ['web', 'enhancer', 'index', 'complete'], 'complete');
   setPath(api, ['web', 'enhancer', 'index', 'getJob'], 'getJob');
   setPath(api, ['daemon', 'enhancer', 'index', 'pendingForMachine'], 'pendingForMachine');
+  setPath(api, ['participants', 'join'], 'participantsJoin');
+  setPath(api, ['participants', 'updateTokenActivity'], 'updateTokenActivity');
   return { api };
 });
-
-import { startEnhancerJobSubscriber } from './job-subscriber.js';
 
 describe('startEnhancerJobSubscriber', () => {
   it('records attempt failure when harness exits without completing job', async () => {
     vi.useFakeTimers();
 
-    let getJobCalls = 0;
     const recordFailure = vi.fn().mockResolvedValue(undefined);
     const mutationFn = vi.fn().mockImplementation((endpoint: string, args: unknown) => {
       if (endpoint === 'claimForSpawn') return { claimed: true };
@@ -45,7 +46,6 @@ describe('startEnhancerJobSubscriber', () => {
           taskEnvelope: 'task',
         };
       }
-      getJobCalls++;
       return Promise.resolve({ status: 'running' });
     });
 
@@ -258,6 +258,78 @@ describe('startEnhancerJobSubscriber', () => {
     const callArgs = completeFn.mock.calls[0][0] as Record<string, unknown>;
     expect(callArgs.enhancedContent).toBe('## Summary\nPlanning feedback');
     expect(recordFailure).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
+
+  it('does not call participants.join or updateTokenActivity (enhancer is a worker, not a team agent)', async () => {
+    vi.useFakeTimers();
+
+    let outputCallback: (() => void) | undefined;
+    const updateTokenActivity = vi.fn().mockResolvedValue(undefined);
+    const participantsJoin = vi.fn().mockResolvedValue(undefined);
+    const mutationFn = vi.fn().mockImplementation((endpoint: string) => {
+      if (endpoint === 'claimForSpawn') return { claimed: true };
+      if (endpoint === 'participantsJoin') return participantsJoin();
+      if (endpoint === 'updateTokenActivity') return updateTokenActivity();
+      return undefined;
+    });
+    const queryFn = vi.fn().mockImplementation((endpoint: string) => {
+      if (endpoint === 'getSpawnPayload') {
+        return {
+          chatroomId: 'room1',
+          jobId: 'job1',
+          agentHarness: 'opencode-sdk',
+          model: 'm',
+          workingDir: '/tmp',
+          systemPrompt: 'sys',
+          taskEnvelope: 'task',
+        };
+      }
+      return Promise.resolve({ status: 'running' });
+    });
+
+    const backend = { mutation: mutationFn, query: queryFn };
+
+    let onUpdateCb: (jobs: unknown[]) => void = () => {};
+    const wsClient = {
+      onUpdate: vi.fn((_api: unknown, _args: unknown, cb: (jobs: unknown[]) => void) => {
+        onUpdateCb = cb;
+        return vi.fn();
+      }),
+    };
+
+    const spawn = vi.fn().mockReturnValue({
+      onExit: vi.fn(),
+      onOutput: (fn: () => void) => {
+        outputCallback = fn;
+      },
+      onLogLine: vi.fn(),
+      onAssistantText: vi.fn(),
+      pid: 123,
+    });
+    const agentServices = new Map([['opencode-sdk', { spawn, stop: vi.fn() }]]);
+
+    startEnhancerJobSubscriber(
+      'session',
+      'machine',
+      'http://localhost',
+      backend as any,
+      wsClient as any,
+      agentServices as any
+    );
+
+    onUpdateCb([{ jobId: 'job1', chatroomId: 'room1' }]);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(participantsJoin).not.toHaveBeenCalled();
+    expect(updateTokenActivity).not.toHaveBeenCalled();
+
+    outputCallback?.();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(participantsJoin).not.toHaveBeenCalled();
+    expect(updateTokenActivity).not.toHaveBeenCalled();
 
     vi.useRealTimers();
   });

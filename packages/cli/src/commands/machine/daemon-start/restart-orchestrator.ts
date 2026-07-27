@@ -21,6 +21,10 @@ import { runNativeInjectionEffect } from './native-task-injector.js';
 import type { AgentHarness } from './types.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import {
+  markRestartOrchestratorInFlight,
+  clearRestartOrchestratorInFlight,
+} from './restart-orchestrator-in-flight.js';
 
 interface RestartOrchestratorEvent {
   chatroomId: string;
@@ -78,15 +82,6 @@ async function waitForHarnessSessionId(
     return initial.harnessSessionId;
   }
 
-  await deps.session.backend.mutation(api.machines.emitHarnessSessionAwaiting, {
-    sessionId: deps.session.sessionId,
-    machineId: deps.session.machineId,
-    chatroomId: event.chatroomId,
-    role: event.role,
-    pid,
-    timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS,
-  });
-
   const deadline = Date.now() + HARNESS_SESSION_READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
@@ -95,15 +90,6 @@ async function waitForHarnessSessionId(
     }
     await sleep(100);
   }
-
-  await deps.session.backend.mutation(api.machines.emitHarnessSessionTimeout, {
-    sessionId: deps.session.sessionId,
-    machineId: deps.session.machineId,
-    chatroomId: event.chatroomId,
-    role: event.role,
-    pid,
-    timeoutMs: HARNESS_SESSION_READY_TIMEOUT_MS,
-  });
 
   await deps.agentMgr.stop({
     chatroomId: event.chatroomId,
@@ -243,8 +229,8 @@ export async function runRestartOrchestrator(
 ): Promise<void> {
   const { chatroomId, role } = event;
 
+  markRestartOrchestratorInFlight(chatroomId, role, event.correlationId);
   try {
-    await emitPhase(deps, event, 'reset');
     resetRoleDeliveryState(chatroomId, role);
 
     await deps.agentMgr.stop({
@@ -253,7 +239,6 @@ export async function runRestartOrchestrator(
       reason: 'user.restart',
     });
 
-    await emitPhase(deps, event, 'spawn');
     const spawnResult = await Effect.runPromise(
       deps.agentMgr.ensureRunning({
         chatroomId,
@@ -271,26 +256,14 @@ export async function runRestartOrchestrator(
       return;
     }
 
-    await emitPhase(deps, event, 'await_session');
     const harnessSessionId = await waitForHarnessSessionId(deps, event, spawnResult.pid);
     if (!harnessSessionId) {
       await emitPhase(deps, event, 'failed', 'harnessSessionId timeout');
       return;
     }
 
-    await deps.session.backend.mutation(api.machines.emitHarnessSessionReady, {
-      sessionId: deps.session.sessionId,
-      machineId: deps.session.machineId,
-      chatroomId,
-      role,
-      harnessSessionId,
-      pid: spawnResult.pid,
-    });
-
     await forceNativeWaiting(deps, event);
-    await emitPhase(deps, event, 'ready');
 
-    await emitPhase(deps, event, 'deliver');
     const deliveredTaskIds = await deliverPendingTasks(deps, event);
 
     await deps.session.backend.mutation(api.machines.emitRestartCompleted, {
@@ -301,9 +274,10 @@ export async function runRestartOrchestrator(
       correlationId: event.correlationId,
       deliveredTaskIds,
     });
-    await emitPhase(deps, event, 'completed');
   } catch (err) {
     console.warn(`[RestartOrchestrator] failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`);
     await emitPhase(deps, event, 'failed', getErrorMessage(err));
+  } finally {
+    clearRestartOrchestratorInFlight(chatroomId, role, event.correlationId);
   }
 }

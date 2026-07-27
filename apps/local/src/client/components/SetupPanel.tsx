@@ -68,7 +68,7 @@ export function SetupPanel({
   };
 
   return (
-    <div className="flex h-dvh items-center justify-center bg-chatroom-bg-primary p-8">
+    <div className="flex h-full items-center justify-center bg-chatroom-bg-primary p-8">
       <div className="w-full max-w-md space-y-6">
         <h1 className="text-lg font-bold uppercase tracking-wider text-chatroom-text-primary">
           Chatroom Local Dev

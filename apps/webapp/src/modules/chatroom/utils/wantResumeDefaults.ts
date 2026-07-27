@@ -1,9 +1,8 @@
 import type { AgentHarness } from '../types/machine';
 import { harnessSupportsDaemonMemoryResume } from '../types/machine';
 
-export function resolveDefaultWantResume(teamId: string | undefined, role: string): boolean {
-  if (teamId?.toLowerCase() === 'duo' && role.toLowerCase() === 'builder') return false;
-  return true;
+export function resolveDefaultWantResume(_teamId: string | undefined, _role: string): boolean {
+  return false;
 }
 
 export function shouldShowResumeSessionToggle(

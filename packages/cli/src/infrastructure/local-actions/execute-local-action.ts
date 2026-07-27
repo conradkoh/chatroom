@@ -119,6 +119,19 @@ async function openFinder(workingDir: string): Promise<LocalActionResult> {
   return { success: true };
 }
 
+async function openCursor(workingDir: string): Promise<LocalActionResult> {
+  const available = await isCliAvailable('cursor');
+  if (!available) {
+    return {
+      success: false,
+      error:
+        "Cursor CLI (cursor) not found. Install via: Cursor → Cmd+Shift+P → 'Shell Command: Install cursor in PATH'",
+    };
+  }
+  execFireAndForget(`cursor ${escapeShellArg(workingDir)}`, 'open-cursor');
+  return { success: true };
+}
+
 async function openGithubDesktop(workingDir: string): Promise<LocalActionResult> {
   const available = await isCliAvailable('github');
   if (!available) {
@@ -186,6 +199,7 @@ async function gitSyncAction(workingDir: string): Promise<LocalActionResult> {
 const actionHandlers: Record<string, (dir: string) => Promise<LocalActionResult>> = {
   'open-vscode': openVscode,
   'open-finder': openFinder,
+  'open-cursor': openCursor,
   'open-github-desktop': openGithubDesktop,
   'git-discard-file': gitDiscardFileAction,
   'git-discard-all': gitDiscardAllAction,

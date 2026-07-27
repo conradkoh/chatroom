@@ -2,8 +2,8 @@ import { Copy, RotateCcw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { BackupsPanel } from './components/BackupsPanel';
-import { LogViewer } from './components/LogViewer';
 import { LogUrlBar } from './components/LogUrlBar';
+import { LogViewer } from './components/LogViewer';
 import { SetupPanel } from './components/SetupPanel';
 import { UpdateBanner } from './components/UpdateBanner';
 import { collectUrlsFromLogLines, stripAnsi } from './log-text';
@@ -104,7 +104,7 @@ function DashboardView({
   const isRunning = phase === 'running';
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div className="flex h-full min-h-0 overflow-hidden">
       <aside className="flex w-80 shrink-0 flex-col gap-2 overflow-hidden border-r-2 border-chatroom-border bg-chatroom-bg-secondary p-4">
         <h1 className="text-sm font-bold uppercase tracking-wider">Chatroom Local</h1>
         <div className="flex items-center gap-1.5 text-[11px] text-chatroom-text-muted">

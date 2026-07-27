@@ -349,12 +349,9 @@ ${taskDeliveryPrompt.fullCliOutput}
       - Handle edge cases and error scenarios
       - Commit work with descriptive, atomic commit messages
 
-      **Completion gates (mandatory before PR or handoff):**
-      - Every **(Required)** file in the delegation brief is implemented
-      - All acceptance criteria pass, including at least one check that the feature is **verified end-to-end** (run the actual CLI command, call the API, or exercise the UI)
-      - Do not self-reduce scope — if the brief is too large, hand back to the planner under ## Blockers / questions
-      - Do not raise a PR or run \`chatroom backlog mark-for-review\` until the above are true — unless the user explicitly requested a draft or incremental PR
-      - If any acceptance criterion is unmet, use ## Blockers / questions — do NOT raise a PR
+      **Completion gates (before PR or handoff):**
+      - All **(Required)** files done; **verified end-to-end** (user-facing entry point works: CLI command runnable, API reachable, or UI action functional)
+      - If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
 
        
 
@@ -415,7 +412,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Add backlog section to get-next-task
           </content>
-          <hint>Work on this item. When verified end-to-end and a PR is ready for review: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --backlog-item-id=0000000000010005chatroom_backlog</hint>
+          <hint>Work on this item. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --backlog-item-id=0000000000010005chatroom_backlog</hint>
         </attachment>
       </attachments>
       <message sender="user" message-id="000000000010006chatroom_messages">
@@ -462,7 +459,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ---
 
-      **Handoff Template (Builder → Planner)** — include every section that applies to this handoff. **Omit sections that do not apply** — do not write \`Not Applicable\` as filler:
+      **Handoff Template (Builder → Planner)** — complete every section below. Do not omit sections, principles, or XML wrappers:
 
       \`\`\`markdown
       ## Summary
@@ -474,20 +471,27 @@ ${taskDeliveryPrompt.fullCliOutput}
       <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Principles
-      <!-- Demonstrate adherence to:
-      - Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms.
-      - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
-      - Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently.
-      - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
-      - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
-      - Leave It Better: leave the code in a slightly better state than before when touching files.
-      -->
-      <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
+      <!-- REQUIRED: Complete every principle below. Write an explanation or "Not Applicable" for each — do not omit this section or skip any principle bullet. -->
+      - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
+      <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+      - **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or Not Applicable>
+      <!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+      - **Reducing Optionality:** <how this work demonstrates reducing optionality, or Not Applicable>
+      <!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+      - **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or Not Applicable>
+      <!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+      - **No Revisit:** <how this work demonstrates no revisit, or Not Applicable>
+      <!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+      - **Leave It Better:** <how this work demonstrates leave it better, or Not Applicable>
+      <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
       ## Proof of Completion
-      - [ ] I confirm that the goal and acceptance criteria from the planner’s delegation brief have been met
-      - [ ] I confirm the feature is verified end-to-end (CLI command runnable, API reachable, or UI action functional — not just helper files or unit tests)
-      - [ ] I confirm no (Required) files from the delegation brief were deferred or skipped
+      - [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
       <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
@@ -497,10 +501,12 @@ ${taskDeliveryPrompt.fullCliOutput}
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Blockers / questions
-      <anything needing planner decision. Omit if none.>
+      <!-- REQUIRED. List blockers, or write "Not Applicable". Do not omit this section. -->
+      <anything needing planner decision>
 
       ## Notes for review
-      <specific areas for planner to check. Omit if none.>
+      <!-- REQUIRED. List review notes, or write "Not Applicable". Do not omit this section. -->
+      <specific areas for planner to check>
       \`\`\`
 
       </handoff-templates>

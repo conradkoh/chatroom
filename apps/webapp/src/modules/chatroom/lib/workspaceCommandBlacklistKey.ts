@@ -1,6 +1,9 @@
 export const WORKSPACE_COMMAND_ACTIONS = [
   'open-github-desktop',
   'open-vscode',
+  'open-finder',
+  'open-cursor',
+  'copy-workspace-path',
   'view-github-prs',
   'view-current-pr',
   'review-prs',

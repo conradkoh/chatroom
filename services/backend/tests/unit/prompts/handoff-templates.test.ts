@@ -40,6 +40,13 @@ describe('handoff-templates > resolver', () => {
     );
   });
 
+  test('enhancer → planner template uses XML section wrappers', () => {
+    const template = getEnhancerToPlannerHandoffTemplate();
+    expect(template).toContain('<handoff-overview>');
+    expect(template).toContain('<handoff-action>');
+    expect(template).toContain('## Risks & failure modes');
+  });
+
   test('resolves planner → user to the report template', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'user' })).toBe(
       getPlannerToUserReportTemplate()
@@ -204,10 +211,18 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <handoff-action>
       ## Tech Debt Observed
       <!-- REQUIRED. List tech debt, or write "Not Applicable". Do not omit this section. -->
+      <!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+      - [high] <critical issue — blocks correctness, security, or release>
+      - [medium] <meaningful debt — should address soon>
+      - [low] <minor cleanup — nice to have>
       - <issues noticed but intentionally left out of scope of this change>
 
       ## Unresolved Decisions
       <!-- REQUIRED. List open decisions needing user input, or write "Not Applicable" if none. Do not omit this section. -->
+      <!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+      - [high] <critical issue — blocks correctness, security, or release>
+      - [medium] <meaningful debt — should address soon>
+      - [low] <minor cleanup — nice to have>
       - <decision or question — options considered, recommendation if any>
       <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
@@ -620,10 +635,18 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <handoff-action>
       ## Tech Debt Observed
       <!-- REQUIRED. List tech debt, or write "Not Applicable". Do not omit this section. -->
+      <!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+      - [high] <critical issue — blocks correctness, security, or release>
+      - [medium] <meaningful debt — should address soon>
+      - [low] <minor cleanup — nice to have>
       - <issues noticed but intentionally left out of scope of this change>
 
       ## Unresolved Decisions
       <!-- REQUIRED. List open decisions needing user input, or write "Not Applicable" if none. Do not omit this section. -->
+      <!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
+      - [high] <critical issue — blocks correctness, security, or release>
+      - [medium] <meaningful debt — should address soon>
+      - [low] <minor cleanup — nice to have>
       - <decision or question — options considered, recommendation if any>
       <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 

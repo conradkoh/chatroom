@@ -292,7 +292,7 @@ describe('Solo Team > Solo > System Prompt', () => {
       **When you receive work back from team members:**
       1. Review the completed work against the original user request
       2. If requirements are met → deliver to \`user\`
-      3. If requirements are NOT met → revise your own implementation and re-validate
+      3. If requirements are NOT met (including partial work) → revise and re-validate
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
 
       ### Handoff Options

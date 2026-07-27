@@ -36,6 +36,10 @@ import {
 } from './native-delivery-session-registry.js';
 import { isAgentReadyForNativeDelivery } from './native-ready-invariant.js';
 import {
+  filterSnapshotsExcludingRestartInFlight,
+  isRestartOrchestratorInFlight,
+} from './restart-orchestrator-in-flight.js';
+import {
   getNativeTaskDeliveryCoordinator,
   resetRoleDeliveryState,
   type NativeTaskDeliverySessionDeps,
@@ -363,6 +367,7 @@ async function reviveNativeTasks(
   machineId: string
 ): Promise<void> {
   for (const row of listNativeTasksNeedingRevive(tasks, localHealth, now, cooldown)) {
+    if (isRestartOrchestratorInFlight(row.chatroomId, row.agentConfig.role)) continue;
     await clearStuckStoppingSlotIfNeeded(agentMgr, row.chatroomId, row.agentConfig.role);
     const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
@@ -380,6 +385,7 @@ async function processTasksUpdate(
   machineId: string,
   _pass: TaskMonitorPass
 ): Promise<void> {
+  tasks = filterSnapshotsExcludingRestartInFlight(tasks);
   if (tasks.length === 0) return;
 
   const now = Date.now();
@@ -451,7 +457,9 @@ function runLocalStoreReconcilePass(params: {
   const { stopped, monitorPassInFlight, agentMgr, runtime, effectContext, sessionDeps, machineId } =
     params;
   if (stopped || monitorPassInFlight) return;
-  const deliverable = listDeliverablePendingFromStore(agentMgr);
+  const deliverable = filterSnapshotsExcludingRestartInFlight(
+    listDeliverablePendingFromStore(agentMgr)
+  );
   if (deliverable.length === 0) return;
   const first = deliverable[0];
   logNativeDeliveryFallback(

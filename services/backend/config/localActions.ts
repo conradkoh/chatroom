@@ -11,6 +11,7 @@ export type LocalActionType =
   | 'open-vscode'
   | 'open-finder'
   | 'open-github-desktop'
+  | 'open-cursor'
   | 'git-discard-file'
   | 'git-discard-all'
   | 'git-pull'

@@ -173,6 +173,38 @@ export interface AgentResumeStormAbortedEvent extends EventStreamEventBase {
   chatroomId: string;
 }
 
+export interface AgentRestartEvent extends EventStreamEventBase {
+  type: 'agent.restart';
+  role: string;
+  machineId: string;
+  agentHarness: string;
+  model: string;
+  workingDir: string;
+  correlationId: string;
+  wantResume?: boolean;
+  deadline: number;
+  chatroomId: string;
+}
+
+export interface AgentRestartCompletedEvent extends EventStreamEventBase {
+  type: 'agent.restartCompleted';
+  role: string;
+  machineId: string;
+  correlationId: string;
+  deliveredTaskIds?: string[];
+  chatroomId: string;
+}
+
+export interface AgentRestartPhaseEvent extends EventStreamEventBase {
+  type: 'agent.restartPhase';
+  role: string;
+  machineId: string;
+  correlationId: string;
+  phase: string;
+  detail?: string;
+  chatroomId: string;
+}
+
 export interface AgentRestartLimitReachedEvent extends EventStreamEventBase {
   type: 'agent.restartLimitReached';
   role: string;
@@ -497,6 +529,9 @@ export type EventStreamEvent =
   | AgentSessionCompactedEvent
   | AgentSessionAugmentedEvent
   | AgentResumeStormAbortedEvent
+  | AgentRestartEvent
+  | AgentRestartCompletedEvent
+  | AgentRestartPhaseEvent
   | AgentRestartLimitReachedEvent
   | AgentStopTimeoutEvent
   | AgentHarnessSessionIdUpdatedEvent

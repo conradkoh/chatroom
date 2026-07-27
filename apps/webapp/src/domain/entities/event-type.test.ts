@@ -8,8 +8,8 @@ import {
 
 describe('event-type', () => {
   it('lists every chatroom_eventStream type surfaced in the event stream UI', () => {
-    expect(SUPPORTED_EVENT_TYPE_NAMES).toHaveLength(50);
-    expect(Object.keys(SUPPORTED_EVENT_TYPES)).toHaveLength(50);
+    expect(SUPPORTED_EVENT_TYPE_NAMES).toHaveLength(53);
+    expect(Object.keys(SUPPORTED_EVENT_TYPES)).toHaveLength(53);
   });
 
   it('includes recently added agent lifecycle event types', () => {

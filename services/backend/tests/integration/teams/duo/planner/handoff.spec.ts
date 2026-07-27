@@ -39,17 +39,15 @@ describe('Duo Team > Planner > Handoff Output', () => {
     `);
   });
 
-  test('handoff to enhancer queues async check-in', () => {
+  test('handoff to enhancer uses standard handoff output', () => {
     const output = generateHandoffOutput({
       ...BASE_PARAMS,
       nextRole: 'enhancer',
-      enhancerCheckInQueued: true,
     });
 
-    expect(output).toContain('queued for handoff enhancer');
-    expect(output).toContain('Run get-next-task now');
+    expect(output).toContain('handed off to enhancer');
     expect(output).toContain('get-next-task');
-    expect(output).not.toContain('handed off to enhancer');
+    expect(output).not.toContain('queued for handoff enhancer');
   });
 
   test('handoff to user', () => {

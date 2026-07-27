@@ -108,7 +108,7 @@ export async function startAgent(
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   const resolvedWantResume =
-    wantResume ?? (chatroom?.teamId ? resolveDefaultWantResume(chatroom.teamId, role) : true);
+    wantResume ?? (chatroom?.teamId ? resolveDefaultWantResume(chatroom.teamId, role) : false);
 
   if (chatroom) {
     if (!chatroom.teamId) {

@@ -214,65 +214,6 @@ handoffCommandGroup
       process.exit(1);
     }
 
-    // Check if enhancer should queue async check-in for planner→enhancer handoffs
-    const shouldEnhance =
-      options.role.toLowerCase() === 'planner' && options.nextRole.toLowerCase() === 'enhancer';
-    if (shouldEnhance) {
-      const { api } = await import('./api.js');
-      const { getConvexClient } = await import('./infrastructure/convex/client.js');
-      const { getSessionId } = await import('./infrastructure/auth/storage.js');
-      const client = await getConvexClient();
-      const sessionId = await getSessionId();
-      if (sessionId) {
-        try {
-          const config = await (
-            client.query as (endpoint: unknown, args: Record<string, unknown>) => Promise<unknown>
-          )(api.web.enhancer.index.getConfig, {
-            sessionId,
-            chatroomId: options.chatroomId,
-          });
-          if (config && (config as { enabled: boolean }).enabled) {
-            await (
-              client.mutation as (
-                endpoint: unknown,
-                args: Record<string, unknown>
-              ) => Promise<{ jobId: string }>
-            )(api.web.enhancer.index.enqueueHandoff, {
-              sessionId,
-              chatroomId: options.chatroomId,
-              senderRole: options.role,
-              targetRole: options.nextRole,
-              content: message,
-            });
-
-            // Async handoff: planner returns immediately; enhancement runs via daemon
-            const { generateHandoffOutput } =
-              await import('@workspace/backend/prompts/generator.js');
-            const { getConvexUrl } = await import('./infrastructure/convex/client.js');
-            const convexUrl = await getConvexUrl();
-            console.log(
-              generateHandoffOutput({
-                role: options.role,
-                nextRole: options.nextRole,
-                chatroomId: options.chatroomId,
-                convexUrl,
-                enhancerCheckInQueued: true,
-              })
-            );
-            return;
-          }
-        } catch (err) {
-          const error = err as { data?: { code?: string; message?: string } };
-          if (error?.data?.code !== 'ENHANCER_NOT_ENABLED') {
-            // Ignore "not enabled" — fall through to normal handoff
-            console.error(`\n❌ ERROR: Enhancer check-in failed`);
-            console.error(`\n${error?.data?.message ?? (err as Error).message}`);
-            process.exit(1);
-          }
-        }
-      }
-    }
-
     const { handoff } = await import('./commands/handoff/index.js');
     await handoff(options.chatroomId, {
       role: options.role,
