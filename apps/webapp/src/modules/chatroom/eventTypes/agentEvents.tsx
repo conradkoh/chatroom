@@ -13,6 +13,9 @@ import type {
   AgentRegisteredEvent,
   AgentWaitingEvent,
   AgentStartFailedEvent,
+  AgentRestartEvent,
+  AgentRestartCompletedEvent,
+  AgentRestartPhaseEvent,
   AgentRestartLimitReachedEvent,
   AgentSessionResumeRequestedEvent,
   AgentSessionResumedEvent,
@@ -973,6 +976,104 @@ function renderMachineSwitchedDetails(event: MachineSwitchedEvent): React.ReactN
   );
 }
 
+// ─── Agent Restart ───────────────────────────────────────────────────────────
+
+function renderAgentRestartCell(event: AgentRestartEvent, isSelected: boolean): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.restart"
+      badgeText="Restarting"
+      badgeColor="info"
+      primaryInfo={event.role}
+      secondaryInfo={event.wantResume === false ? 'resume off' : 'resume on'}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentRestartDetails(event: AgentRestartEvent): React.ReactNode {
+  return (
+    <EventDetails title="Agent Restarting" timestamp={event.timestamp} type="agent.restart">
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Harness" value={event.agentHarness} />
+      <DetailRow label="Model" value={event.model} mono />
+      <DetailRow label="Working Dir" value={event.workingDir} mono />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent Restart Completed ─────────────────────────────────────────────────
+
+function renderAgentRestartCompletedCell(
+  event: AgentRestartCompletedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  const secondaryInfo = event.deliveredTaskIds?.length
+    ? `${event.deliveredTaskIds.length} tasks delivered`
+    : undefined;
+  return (
+    <EventRow
+      type="agent.restartCompleted"
+      badgeText="Restarted"
+      badgeColor="success"
+      primaryInfo={event.role}
+      secondaryInfo={secondaryInfo}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentRestartCompletedDetails(event: AgentRestartCompletedEvent): React.ReactNode {
+  return (
+    <EventDetails title="Agent Restarted" timestamp={event.timestamp} type="agent.restartCompleted">
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      {event.deliveredTaskIds && event.deliveredTaskIds.length > 0 && (
+        <DetailRow label="Tasks Delivered" value={event.deliveredTaskIds.join(', ')} mono />
+      )}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent Restart Phase (failed) ────────────────────────────────────────────
+
+function renderAgentRestartPhaseCell(
+  event: AgentRestartPhaseEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.restartPhase"
+      badgeText="Restart Failed"
+      badgeColor="error"
+      primaryInfo={event.role}
+      secondaryInfo={event.detail}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentRestartPhaseDetails(event: AgentRestartPhaseEvent): React.ReactNode {
+  return (
+    <EventDetails
+      title="Agent Restart Failed"
+      timestamp={event.timestamp}
+      type="agent.restartPhase"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      {event.detail && <DetailRow label="Reason" value={event.detail} />}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Agent event definitions ────────────────────────────────────────────────────
 
 export const agentEventDefinitions: Pick<
@@ -985,6 +1086,9 @@ export const agentEventDefinitions: Pick<
   | 'agent.registered'
   | 'agent.waiting'
   | 'agent.startFailed'
+  | 'agent.restart'
+  | 'agent.restartCompleted'
+  | 'agent.restartPhase'
   | 'agent.restartLimitReached'
   | 'agent.sessionResumeRequested'
   | 'agent.sessionResumed'
@@ -1032,6 +1136,18 @@ export const agentEventDefinitions: Pick<
   'agent.startFailed': {
     cellRenderer: renderAgentStartFailedCell,
     detailsRenderer: renderAgentStartFailedDetails,
+  },
+  'agent.restart': {
+    cellRenderer: renderAgentRestartCell,
+    detailsRenderer: renderAgentRestartDetails,
+  },
+  'agent.restartCompleted': {
+    cellRenderer: renderAgentRestartCompletedCell,
+    detailsRenderer: renderAgentRestartCompletedDetails,
+  },
+  'agent.restartPhase': {
+    cellRenderer: renderAgentRestartPhaseCell,
+    detailsRenderer: renderAgentRestartPhaseDetails,
   },
   'agent.restartLimitReached': {
     cellRenderer: renderAgentRestartLimitReachedCell,
