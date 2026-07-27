@@ -2,7 +2,7 @@ import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from './code-change-verificatio
 import { getContextReadDisclosureBlock } from './context-disclosure';
 import { getFileReferenceProofOfCompletionExample } from './file-reference-guidance';
 import {
-  getHandoffQualityPrinciplesCommentBlock,
+  getHandoffQualityPrinciplesTemplateBlock,
   PROOF_OF_PRINCIPLES_HEADING_H3,
 } from './handoff-quality-principles';
 import { getRoleGuidanceDisclosureBlock } from './role-guidance-disclosure';
@@ -37,8 +37,7 @@ ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 <high-level view of what changed since the user's message>
 
 ${PROOF_OF_PRINCIPLES_HEADING_H3}
-${getHandoffQualityPrinciplesCommentBlock()}
-<how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
+${getHandoffQualityPrinciplesTemplateBlock()}
 
 ### Proof of Completion
 ${getContextReadDisclosureBlock(roleGuidanceContext)}

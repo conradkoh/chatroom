@@ -35,6 +35,19 @@ describe('getHandoffReportTemplateBody', () => {
     expect(body).not.toContain('<handoff-details>');
   });
 
+  test('contains structured principles with per-principle bullets inside proofs', () => {
+    const body = getHandoffReportTemplateBody();
+    const proofs = body.match(/<handoff-proofs>[\s\S]*<\/handoff-proofs>/)?.[0] ?? '';
+    expect(proofs).toContain('**Semantic Consistency:**');
+    expect(proofs).toContain('**No Revisit:**');
+    expect(proofs).toContain('or Not Applicable');
+  });
+
+  test('no longer has old combined comment block', () => {
+    const body = getHandoffReportTemplateBody();
+    expect(body).not.toContain('<!-- Demonstrate adherence to:');
+  });
+
   test('contains all expected proof sections', () => {
     const body = getHandoffReportTemplateBody();
     expect(body).toContain('## What changed');

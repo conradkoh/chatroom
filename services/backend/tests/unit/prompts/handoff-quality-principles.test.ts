@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   PROOF_OF_PRINCIPLES_HEADING_H2,
   PROOF_OF_PRINCIPLES_HEADING_H3,
-  getHandoffQualityPrinciplesCommentBlock,
+  getHandoffQualityPrinciplesTemplateBlock,
 } from '../../../prompts/utils/handoff-quality-principles';
 
 const PRINCIPLE_NAMES = [
@@ -16,20 +16,32 @@ const PRINCIPLE_NAMES = [
 ];
 
 describe('handoff-quality-principles', () => {
-  test('getHandoffQualityPrinciplesCommentBlock includes exactly 6 principles', () => {
-    const block = getHandoffQualityPrinciplesCommentBlock();
+  test('getHandoffQualityPrinciplesTemplateBlock includes all 6 principle names as **Name:** bullets', () => {
+    const block = getHandoffQualityPrinciplesTemplateBlock();
     for (const name of PRINCIPLE_NAMES) {
-      expect(block).toContain(name);
+      expect(block).toContain(`**${name}:**`);
     }
-    // Count principle bullet lines (not `-->` closing comment)
     const bulletLines = block.split('\n').filter((line) => line.startsWith('- '));
     expect(bulletLines).toHaveLength(6);
   });
 
-  test('getHandoffQualityPrinciplesCommentBlock is an HTML comment', () => {
-    const block = getHandoffQualityPrinciplesCommentBlock();
-    expect(block.startsWith('<!--')).toBe(true);
-    expect(block.endsWith('-->')).toBe(true);
+  test('each principle has its own HTML comment on the following line', () => {
+    const block = getHandoffQualityPrinciplesTemplateBlock();
+    for (const name of PRINCIPLE_NAMES) {
+      expect(block).toContain(`<!-- ${name}:`);
+    }
+  });
+
+  test('each principle includes "or Not Applicable"', () => {
+    const block = getHandoffQualityPrinciplesTemplateBlock();
+    const occurrences = (block.match(/or Not Applicable/g) || []).length;
+    expect(occurrences).toBe(6);
+  });
+
+  test('block is NOT wrapped in a single combined HTML comment', () => {
+    const block = getHandoffQualityPrinciplesTemplateBlock();
+    // Each principle has its own <!-- comment -->, not one big <!-- ... -->
+    expect(block.startsWith('<!--')).toBe(false);
   });
 
   test('headings use correct markdown level', () => {

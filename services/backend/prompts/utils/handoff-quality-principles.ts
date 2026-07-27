@@ -42,10 +42,15 @@ export const PROOF_OF_PRINCIPLES_HEADING_H2 = '## Proof of Principles';
 export const PROOF_OF_PRINCIPLES_HEADING_H3 = '### Proof of Principles';
 
 /**
- * HTML comment block listing principles for handoff template guidance.
- * Matches existing format exactly (bullet list inside <!-- -->).
+ * Per-principle template block for handoff "Proof of Principles" sections.
+ * Each principle is a bullet with its own HTML comment and a required response
+ * (explanation or "Not Applicable").
  */
-export function getHandoffQualityPrinciplesCommentBlock(): string {
-  const bullets = HANDOFF_QUALITY_PRINCIPLES.map((p) => `- ${p.name}: ${p.description}`).join('\n');
-  return `<!-- Demonstrate adherence to:\n${bullets}\n-->`;
+export function getHandoffQualityPrinciplesTemplateBlock(): string {
+  const lines = HANDOFF_QUALITY_PRINCIPLES.flatMap((p) => [
+    `- **${p.name}:** <how this work demonstrates ${p.name.toLowerCase()}, or Not Applicable>`,
+    `<!-- ${p.name}: ${p.description} -->`,
+    '',
+  ]);
+  return lines.join('\n').trimEnd();
 }

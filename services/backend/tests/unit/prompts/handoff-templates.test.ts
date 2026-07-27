@@ -138,15 +138,23 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <high-level view of what changed since the user's message>
 
       ### Proof of Principles
-      <!-- Demonstrate adherence to:
-      - Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms.
-      - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
-      - Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently.
-      - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
-      - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
-      - Leave It Better: leave the code in a slightly better state than before when touching files.
-      -->
-      <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
+      - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
+      <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+      - **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or Not Applicable>
+      <!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+      - **Reducing Optionality:** <how this work demonstrates reducing optionality, or Not Applicable>
+      <!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+      - **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or Not Applicable>
+      <!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+      - **No Revisit:** <how this work demonstrates no revisit, or Not Applicable>
+      <!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+      - **Leave It Better:** <how this work demonstrates leave it better, or Not Applicable>
+      <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
       ### Proof of Completion
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
@@ -240,15 +248,23 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Principles
-      <!-- Demonstrate adherence to:
-      - Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms.
-      - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
-      - Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently.
-      - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
-      - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
-      - Leave It Better: leave the code in a slightly better state than before when touching files.
-      -->
-      <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
+      - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
+      <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+      - **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or Not Applicable>
+      <!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+      - **Reducing Optionality:** <how this work demonstrates reducing optionality, or Not Applicable>
+      <!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+      - **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or Not Applicable>
+      <!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+      - **No Revisit:** <how this work demonstrates no revisit, or Not Applicable>
+      <!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+      - **Leave It Better:** <how this work demonstrates leave it better, or Not Applicable>
+      <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
       ## Proof of Completion
       - [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
@@ -529,15 +545,23 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <high-level view of what changed since the user's message>
 
       ### Proof of Principles
-      <!-- Demonstrate adherence to:
-      - Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms.
-      - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
-      - Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently.
-      - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
-      - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
-      - Leave It Better: leave the code in a slightly better state than before when touching files.
-      -->
-      <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
+      - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
+      <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+      - **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or Not Applicable>
+      <!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+      - **Reducing Optionality:** <how this work demonstrates reducing optionality, or Not Applicable>
+      <!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+      - **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or Not Applicable>
+      <!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+      - **No Revisit:** <how this work demonstrates no revisit, or Not Applicable>
+      <!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+      - **Leave It Better:** <how this work demonstrates leave it better, or Not Applicable>
+      <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
       ### Proof of Completion
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met

@@ -16,7 +16,7 @@ import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-chang
 import { getDelegationBriefDisclosureBlock } from '../../../utils/delegation-disclosure';
 import { getFileReferenceProofOfCompletionExample } from '../../../utils/file-reference-guidance';
 import {
-  getHandoffQualityPrinciplesCommentBlock,
+  getHandoffQualityPrinciplesTemplateBlock,
   PROOF_OF_PRINCIPLES_HEADING_H2,
 } from '../../../utils/handoff-quality-principles';
 import { getHandoffReportTemplateIntro } from '../../../utils/handoff-section-guidance';
@@ -42,8 +42,7 @@ ${getHandoffReportTemplateIntro('Handoff Template (Builder → Planner)')}
 ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 
 ${PROOF_OF_PRINCIPLES_HEADING_H2}
-${getHandoffQualityPrinciplesCommentBlock()}
-<how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
+${getHandoffQualityPrinciplesTemplateBlock()}
 
 ## Proof of Completion
 ${getDelegationBriefDisclosureBlock()}
