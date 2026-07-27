@@ -46,7 +46,6 @@ const mockFavoritesProps = {
 
 describe('EnhancerConfigDialog', () => {
   const onConfirm = vi.fn();
-  const onDisable = vi.fn();
   const onOpenChange = vi.fn();
 
   beforeEach(() => {
@@ -62,7 +61,6 @@ describe('EnhancerConfigDialog', () => {
         machineId={null}
         initialConfig={null}
         onConfirm={onConfirm}
-        onDisable={onDisable}
         {...mockFavoritesProps}
       />
     );
@@ -80,7 +78,6 @@ describe('EnhancerConfigDialog', () => {
         machineId={null}
         initialConfig={null}
         onConfirm={onConfirm}
-        onDisable={onDisable}
         {...mockFavoritesProps}
       />
     );
@@ -90,7 +87,7 @@ describe('EnhancerConfigDialog', () => {
     ).toBeDefined();
   });
 
-  it('calls onConfirm with config when Enable clicked with selections', () => {
+  it('disables Save when required fields are missing', () => {
     render(
       <EnhancerConfigDialog
         open={true}
@@ -99,7 +96,6 @@ describe('EnhancerConfigDialog', () => {
         machineId={null}
         initialConfig={null}
         onConfirm={onConfirm}
-        onDisable={onDisable}
         {...mockFavoritesProps}
       />
     );
@@ -107,29 +103,55 @@ describe('EnhancerConfigDialog', () => {
     const targetButton = screen.getByText('Planning review (before builder)');
     fireEvent.click(targetButton);
 
-    const enableButton = screen.getByText('Enable');
-    expect(enableButton.hasAttribute('disabled')).toBe(true);
+    const saveButton = screen.getByText('Save');
+    expect(saveButton.hasAttribute('disabled')).toBe(true);
   });
 
-  it('shows Disable button when initial config is active', () => {
+  it('calls onConfirm with enabled false when saving without enableAfterSave', () => {
     render(
       <EnhancerConfigDialog
         open={true}
         onOpenChange={onOpenChange}
         chatroomId={CHATROOM_ID}
-        machineId={null}
-        initialConfig={makeConfig()}
+        machineId="machine-1"
+        initialConfig={makeConfig({ enabled: false })}
         onConfirm={onConfirm}
-        onDisable={onDisable}
         {...mockFavoritesProps}
       />
     );
 
-    const disableButton = screen.getByText('Disable');
-    fireEvent.click(disableButton);
+    fireEvent.click(screen.getByText('Save'));
 
-    expect(onDisable).toHaveBeenCalledTimes(1);
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabled: false,
+        machineId: 'machine-1',
+      })
+    );
+  });
+
+  it('calls onConfirm with enabled true when enableAfterSave is set', () => {
+    render(
+      <EnhancerConfigDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        chatroomId={CHATROOM_ID}
+        machineId="machine-1"
+        initialConfig={makeConfig({ enabled: false })}
+        enableAfterSave={true}
+        onConfirm={onConfirm}
+        {...mockFavoritesProps}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Save'));
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabled: true,
+        machineId: 'machine-1',
+      })
+    );
   });
 
   it('calls onOpenChange(false) on Cancel', () => {
@@ -141,7 +163,6 @@ describe('EnhancerConfigDialog', () => {
         machineId={null}
         initialConfig={null}
         onConfirm={onConfirm}
-        onDisable={onDisable}
         {...mockFavoritesProps}
       />
     );
@@ -164,7 +185,6 @@ describe('EnhancerConfigDialog', () => {
         machineId="machine-1"
         initialConfig={makeConfig()}
         onConfirm={onConfirm}
-        onDisable={onDisable}
         favorites={[favorite]}
         isFavorite={() => true}
         onAddFavorite={vi.fn()}
@@ -198,7 +218,6 @@ describe('EnhancerConfigDialog', () => {
         machineId="machine-1"
         initialConfig={makeConfig()}
         onConfirm={onConfirm}
-        onDisable={onDisable}
         favorites={[favorite]}
         isFavorite={() => true}
         onAddFavorite={vi.fn()}
@@ -223,12 +242,11 @@ describe('EnhancerConfigDialog', () => {
         machineId="machine-1"
         initialConfig={null}
         onConfirm={onConfirm}
-        onDisable={onDisable}
         {...mockFavoritesProps}
       />
     );
 
-    expect(screen.getByText('Enable').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText('Save').hasAttribute('disabled')).toBe(true);
 
     rerender(
       <EnhancerConfigDialog
@@ -238,11 +256,10 @@ describe('EnhancerConfigDialog', () => {
         machineId="machine-1"
         initialConfig={makeConfig({ model: 'anthropic/claude-sonnet-4' })}
         onConfirm={onConfirm}
-        onDisable={onDisable}
         {...mockFavoritesProps}
       />
     );
 
-    expect(screen.getByText('Disable')).toBeDefined();
+    expect(screen.getByText('Save').hasAttribute('disabled')).toBe(false);
   });
 });
