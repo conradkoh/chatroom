@@ -35,7 +35,7 @@ export function RichTextEditor({
     <div className={className}>
       <RichTextToolbar editor={editor} />
       <div
-        className="overflow-y-auto"
+        className="overflow-y-auto outline-none focus:outline-none focus-visible:outline-none"
         style={{ minHeight }}
         onClick={() => editor?.chain().focus().run()}
         onKeyDown={(e) => {
@@ -46,7 +46,10 @@ export function RichTextEditor({
           }
         }}
       >
-        <EditorContent editor={editor} className="p-4 text-sm" />
+        <EditorContent
+          editor={editor}
+          className="p-4 text-sm outline-none focus:outline-none focus-visible:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror:focus]:outline-none [&_.ProseMirror-focused]:outline-none"
+        />
       </div>
     </div>
   );

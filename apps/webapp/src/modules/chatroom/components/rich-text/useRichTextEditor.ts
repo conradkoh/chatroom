@@ -3,8 +3,8 @@
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown } from '@tiptap/markdown';
-import StarterKit from '@tiptap/starter-kit';
 import { useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import { useCallback } from 'react';
 
 export interface UseRichTextEditorOptions {
@@ -34,6 +34,11 @@ export function useRichTextEditor({
     content,
     editable,
     autofocus: autoFocus ? 'end' : false,
+    editorProps: {
+      attributes: {
+        class: 'outline-none focus:outline-none focus-visible:outline-none',
+      },
+    },
     onUpdate: ({ editor }) => {
       const md = editor.getMarkdown();
       onUpdate(md);
