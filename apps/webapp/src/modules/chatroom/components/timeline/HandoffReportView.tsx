@@ -45,6 +45,7 @@ function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
             body={body}
             isOpen={isOpen}
             onToggle={() => toggleSection(section.id)}
+            useActionMarkdown={section.key === 'action'}
           />
         );
       })}

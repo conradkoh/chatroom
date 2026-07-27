@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { memo } from 'react';
 
+import { HandoffActionMarkdownBody } from './HandoffActionMarkdownBody';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 
 export interface HandoffCollapsibleSectionProps {
@@ -11,6 +12,7 @@ export interface HandoffCollapsibleSectionProps {
   body: string;
   isOpen: boolean;
   onToggle: () => void;
+  useActionMarkdown?: boolean;
 }
 
 export const HandoffCollapsibleSection = memo(function HandoffCollapsibleSection({
@@ -19,6 +21,7 @@ export const HandoffCollapsibleSection = memo(function HandoffCollapsibleSection
   body,
   isOpen,
   onToggle,
+  useActionMarkdown,
 }: HandoffCollapsibleSectionProps) {
   return (
     <div
@@ -36,7 +39,11 @@ export const HandoffCollapsibleSection = memo(function HandoffCollapsibleSection
       </button>
       {isOpen && (
         <div className="px-3 py-2 border-t border-chatroom-border">
-          <TimelineMarkdownBody content={body} />
+          {useActionMarkdown ? (
+            <HandoffActionMarkdownBody content={body} />
+          ) : (
+            <TimelineMarkdownBody content={body} />
+          )}
         </div>
       )}
     </div>

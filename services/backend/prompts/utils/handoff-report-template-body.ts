@@ -2,6 +2,7 @@ import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from './code-change-verificatio
 import { getContextReadDisclosureBlock } from './context-disclosure';
 import { getFileReferenceProofOfCompletionExample } from './file-reference-guidance';
 import { getHandoffQualityPrinciplesSectionBlock } from './handoff-quality-principles';
+import { getHandoffSeverityGuidanceBlock } from './handoff-severity-guidance';
 import { getRoleGuidanceDisclosureBlock } from './role-guidance-disclosure';
 import { getUnresolvedDecisionsSectionBlock } from './unresolved-decisions';
 import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
@@ -80,6 +81,7 @@ flowchart TD
 <handoff-action>
 ## Tech Debt Observed
 <!-- REQUIRED. List tech debt, or write "Not Applicable". Do not omit this section. -->
+${getHandoffSeverityGuidanceBlock()}
 - <issues noticed but intentionally left out of scope of this change>
 
 ${getUnresolvedDecisionsSectionBlock()}

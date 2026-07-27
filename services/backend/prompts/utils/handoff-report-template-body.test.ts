@@ -38,6 +38,14 @@ describe('getHandoffReportTemplateBody', () => {
     expect(action).toContain('## Manual steps');
   });
 
+  test('handoff-action contains severity guidance for tech debt', () => {
+    const body = getHandoffReportTemplateBody();
+    const action = body.match(/<handoff-action>[\s\S]*<\/handoff-action>/)?.[0] ?? '';
+    expect(action).toContain('[high]');
+    expect(action).toContain('[medium]');
+    expect(action).toContain('[low]');
+  });
+
   test('handoff-proofs contains ## Proof of Principles (not ###)', () => {
     const body = getHandoffReportTemplateBody();
     const proofs = body.match(/<handoff-proofs>[\s\S]*<\/handoff-proofs>/)?.[0] ?? '';
