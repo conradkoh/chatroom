@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseSeverityBullet } from './handoffSeverity';
+import { getSeverityChipClassNames, parseSeverityBullet } from './handoffSeverity';
 
 describe('parseSeverityBullet', () => {
   it('parses high severity prefix', () => {
@@ -37,5 +37,15 @@ describe('parseSeverityBullet', () => {
     const result = parseSeverityBullet('  - [low]   Some cleanup  ');
     expect(result.severity).toBe('low');
     expect(result.text).toBe('Some cleanup');
+  });
+});
+
+describe('getSeverityChipClassNames', () => {
+  it('uses compact line-height-aligned layout without borders', () => {
+    const classNames = getSeverityChipClassNames('high');
+    expect(classNames).toContain('h-[1lh]');
+    expect(classNames).toContain('rounded-md');
+    expect(classNames).not.toContain('border');
+    expect(classNames).toContain('bg-chatroom-status-error/15');
   });
 });

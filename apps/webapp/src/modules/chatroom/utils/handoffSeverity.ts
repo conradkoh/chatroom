@@ -18,15 +18,23 @@ export function parseSeverityBullet(line: string): SeverityBullet {
   };
 }
 
-export function getSeverityChipClassName(severity: HandoffSeverity): string {
+/** Shared layout for inline severity chips in handoff-action list items. */
+const SEVERITY_CHIP_BASE_CLASS_NAME =
+  'inline-flex shrink-0 items-center h-[1lh] px-1 text-[9px] font-medium uppercase tracking-wide rounded-md align-middle mr-1 leading-none';
+
+function getSeverityChipClassName(severity: HandoffSeverity): string {
   switch (severity) {
     case 'high':
-      return 'bg-chatroom-status-error/15 text-chatroom-status-error border-chatroom-status-error/30';
+      return 'bg-chatroom-status-error/15 text-chatroom-status-error';
     case 'medium':
-      return 'bg-chatroom-status-warning/15 text-chatroom-status-warning border-chatroom-status-warning/30';
+      return 'bg-chatroom-status-warning/15 text-chatroom-status-warning';
     case 'low':
-      return 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30';
+      return 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400';
   }
+}
+
+export function getSeverityChipClassNames(severity: HandoffSeverity): string {
+  return `${SEVERITY_CHIP_BASE_CLASS_NAME} ${getSeverityChipClassName(severity)}`;
 }
 
 export function getSeverityLabel(severity: HandoffSeverity): string {

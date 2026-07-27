@@ -4,13 +4,13 @@ import { memo } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 
-import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { messageFeedProseClassNames } from '../markdown-utils';
 import {
   parseSeverityBullet,
-  getSeverityChipClassName,
+  getSeverityChipClassNames,
   getSeverityLabel,
 } from '../../utils/handoffSeverity';
+import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
+import { messageFeedProseClassNames } from '../markdown-utils';
 
 interface HandoffActionMarkdownBodyProps {
   content: string;
@@ -44,9 +44,9 @@ function preprocessActionMarkdown(content: string): string {
     if (inSeveritySection && /^\s*[-*]\s+/.test(line)) {
       const { severity, text: cleanText } = parseSeverityBullet(line);
       if (severity) {
-        const chipClass = getSeverityChipClassName(severity);
+        const chipClass = getSeverityChipClassNames(severity);
         const label = getSeverityLabel(severity);
-        const chipHtml = `<span data-testid="severity-chip-${severity}" class="inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider border rounded-sm mr-1.5 align-middle ${chipClass}">${label}</span>`;
+        const chipHtml = `<span data-testid="severity-chip-${severity}" class="${chipClass}">${label}</span>`;
         result.push(`- ${chipHtml}${cleanText}`);
         continue;
       }
