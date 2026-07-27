@@ -11,6 +11,7 @@ import {
   FixedModalTitle,
 } from './fixed-modal';
 
+import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/modules/chatroom/components/ui/popover';
 
 function queryModalOverlays(): NodeListOf<HTMLElement> {
@@ -217,5 +218,44 @@ describe('FixedModal sidebar layout', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog.querySelector('[data-slot="fixed-modal-content"]')).not.toBeNull();
     expect(dialog.querySelector('[data-slot="fixed-modal-sidebar"]')).toBeNull();
+  });
+});
+
+function tokens(className: string) {
+  return className.split(/\s+/).filter(Boolean);
+}
+
+/** Canonical FixedModal Content base classes (must match fixed-modal.tsx DialogPrimitive.Content). */
+const FIXED_MODAL_CONTENT_BASE =
+  'chatroom-root z-50 fixed left-1/2 top-1/2 flex w-full -translate-x-1/2 -translate-y-1/2 bg-chatroom-bg-primary border-0 sm:border-2 border-chatroom-border-strong overflow-visible h-full sm:h-[70vh]';
+
+describe('FixedModal Content className merge', () => {
+  it('preserves fixed and flex row when suffix is overflow-visible only', () => {
+    const merged = cn(FIXED_MODAL_CONTENT_BASE, 'max-w-lg', 'overflow-visible');
+    const t = tokens(merged);
+    expect(t).toContain('fixed');
+    expect(t).toContain('flex');
+    expect(t).not.toContain('flex-col');
+    expect(t).not.toContain('relative');
+  });
+
+  it('documents regression: relative strips fixed', () => {
+    const merged = cn(FIXED_MODAL_CONTENT_BASE, 'overflow-visible relative');
+    const t = tokens(merged);
+    expect(t).not.toContain('fixed');
+    expect(t).toContain('relative');
+  });
+
+  it('documents regression: flex-col on Content root breaks sidebar row layout', () => {
+    const merged = cn(FIXED_MODAL_CONTENT_BASE, 'flex flex-col');
+    const t = tokens(merged);
+    expect(t).toContain('flex-col');
+  });
+
+  it('consumer maxWidth class merges without stripping fixed', () => {
+    const merged = cn(FIXED_MODAL_CONTENT_BASE, 'max-w-5xl');
+    const t = tokens(merged);
+    expect(t).toContain('fixed');
+    expect(t).toContain('max-w-5xl');
   });
 });
