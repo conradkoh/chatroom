@@ -1,7 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import { hasHandoffReport, parseHandoffReport } from './parseHandoffReport';
 
-const SAMPLE_WITH_TAGS = `## Summary
+const STRUCTURED_CONTENT = `<handoff-overview>
+## Summary
+Implemented login
+
+## What exists today
+Users can log in
+</handoff-overview>
+
+<handoff-proofs>
+## Proof of Completion
+Done
+</handoff-proofs>
+
+<handoff-direction>
+## Key Technical Decisions
+Used JWT
+</handoff-direction>
+
+<handoff-notes>
+## Notes
+None
+</handoff-notes>
+
+<handoff-action>
+## Tech Debt Observed
+None
+</handoff-action>`;
+
+const LEGACY_CONTENT = `## Summary
 Implemented login feature
 
 <handoff-proofs>
@@ -18,30 +46,59 @@ const PLAIN_MARKDOWN = `## Summary
 Just a normal handoff without XML tags`;
 
 describe('parseHandoffReport', () => {
-  it('extracts summary, proofs, and details', () => {
-    const result = parseHandoffReport(SAMPLE_WITH_TAGS);
+  // Structured format
+  it('detects structured format from handoff-overview tag', () => {
+    const result = parseHandoffReport(STRUCTURED_CONTENT);
+    expect(result.format).toBe('structured');
     expect(result.hasReport).toBe(true);
-    expect(result.summary).toContain('Implemented login feature');
-    expect(result.proofs).toContain('Proof of Completion');
-    expect(result.details).toContain('Key Technical Decisions');
   });
 
+  it('extracts all 5 structured sections', () => {
+    const result = parseHandoffReport(STRUCTURED_CONTENT);
+    expect(result.overview).toContain('Implemented login');
+    expect(result.proofs).toContain('Proof of Completion');
+    expect(result.direction).toContain('Used JWT');
+    expect(result.notes).toContain('None');
+    expect(result.action).toContain('Tech Debt Observed');
+  });
+
+  it('overview section populates summary for structured format', () => {
+    const result = parseHandoffReport(STRUCTURED_CONTENT);
+    expect(result.summary).toContain('Implemented login');
+  });
+
+  // Legacy format
+  it('detects legacy format from handoff-proofs tag', () => {
+    const result = parseHandoffReport(LEGACY_CONTENT);
+    expect(result.format).toBe('legacy');
+    expect(result.hasReport).toBe(true);
+  });
+
+  it('extracts legacy proofs and details sections', () => {
+    const result = parseHandoffReport(LEGACY_CONTENT);
+    expect(result.proofs).toContain('Proof of Completion');
+    expect(result.details).toContain('Used JWT');
+    expect(result.summary).toContain('Implemented login feature');
+  });
+
+  // No tags
   it('returns hasReport false for plain markdown', () => {
     expect(hasHandoffReport(PLAIN_MARKDOWN)).toBe(false);
   });
 
-  it('warns on unclosed handoff-proofs tag', () => {
-    const result = parseHandoffReport('<handoff-proofs>content');
+  // Warnings
+  it('warns on unclosed tags', () => {
+    const result = parseHandoffReport('<handoff-overview>content');
     expect(result.warnings.some((w) => w.includes('Unclosed'))).toBe(true);
   });
 
   it('handles case-insensitive tags', () => {
-    const result = parseHandoffReport('<HANDOFF-PROOFS>content</HANDOFF-PROOFS>');
-    expect(result.proofs).toBe('content');
+    const result = parseHandoffReport('<HANDOFF-OVERVIEW>content</HANDOFF-OVERVIEW>');
+    expect(result.overview).toBe('content');
   });
 
   it('returns empty warnings for valid content', () => {
-    const result = parseHandoffReport(SAMPLE_WITH_TAGS);
+    const result = parseHandoffReport(STRUCTURED_CONTENT);
     expect(result.warnings).toHaveLength(0);
   });
 });
