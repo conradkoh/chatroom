@@ -115,6 +115,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## Summary
       <what was accomplished, in plain terms — no references to prior messages>
 
+      <!-- Wrap proof sections in <handoff-proofs> and detail sections in <handoff-details> — UI collapses these by default -->
+
+      <handoff-proofs>
       ## Template Disclosure Confirmation
       - [ ] I confirm that I have seen this template at the start of any planning, before working on or delegating any task to the team
       - [ ] I confirm that I've read and followed the role guidance before starting any work
@@ -142,7 +145,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ### Proof of Completion
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
-      <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. State the context goal and confirm it was achieved. -->
+      <!-- Read context before handoff if not already done this task: \`chatroom context read --chatroom-id="<chatroom-id>" --role="<role>"\`. State the context goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you (or the builder) modified>
@@ -156,6 +159,11 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - PR URL(s): <link to PR(s)>
       <Omit this section if no backlog items apply.>
 
+      ## Code Change Verification
+      - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
+      </handoff-proofs>
+
+      <handoff-details>
       ## Key Technical Decisions
       - <schema design, modules, interfaces, domain entities — what you chose and why>
 
@@ -173,9 +181,6 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
           A[Component] --> B[Component]
       \`\`\`
 
-      ## Code Change Verification
-      - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
-
       ## Unresolved Decisions
       <!-- Decisions that need user input before work can proceed. Omit this section when there are no open decisions. -->
       - <decision or question — options considered, recommendation if any>
@@ -183,6 +188,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Notes
       <anything the user should know — context, caveats, or observations not covered above. Omit if none.>
+      </handoff-details>
       \`\`\`"
     `);
   });
@@ -488,10 +494,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## Summary
       <what was accomplished, in plain terms — no references to prior messages>
 
+      <!-- Wrap proof sections in <handoff-proofs> and detail sections in <handoff-details> — UI collapses these by default -->
+
+      <handoff-proofs>
       ## Template Disclosure Confirmation
-      - [ ] I confirm that I have seen this template at the start of any planning, before implementing any code for this task
+      - [ ] I confirm that I have seen this template at the start of any planning, before working on or delegating any task to the team
       - [ ] I confirm that I've read and followed the role guidance before starting any work
-      <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`. You do not need to re-read it on every task if you have already read it once. -->
+      <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Planning
       <!-- Demonstrate the goal was decomposed into actionable steps with clear outcomes before implementation. -->
@@ -515,10 +524,10 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ### Proof of Completion
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
-      <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`. State the context goal and confirm it was achieved. -->
+      <!-- Read context before handoff if not already done this task: \`chatroom context read --chatroom-id="<chatroom-id>" --role="<role>"\`. State the context goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
-      <evidence the goal was met — list every file you modified>
+      <evidence the goal was met — list every file you (or the builder) modified>
 
       ## Backlog Tasks Implemented
       - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
@@ -529,6 +538,11 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - PR URL(s): <link to PR(s)>
       <Omit this section if no backlog items apply.>
 
+      ## Code Change Verification
+      - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
+      </handoff-proofs>
+
+      <handoff-details>
       ## Key Technical Decisions
       - <schema design, modules, interfaces, domain entities — what you chose and why>
 
@@ -546,9 +560,6 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
           A[Component] --> B[Component]
       \`\`\`
 
-      ## Code Change Verification
-      - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
-
       ## Unresolved Decisions
       <!-- Decisions that need user input before work can proceed. Omit this section when there are no open decisions. -->
       - <decision or question — options considered, recommendation if any>
@@ -556,6 +567,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ## Notes
       <anything the user should know — context, caveats, or observations not covered above. Omit if none.>
+      </handoff-details>
       \`\`\`"
     `);
   });
@@ -640,28 +652,26 @@ describe('handoff-templates > invariants', () => {
     expect(template).toContain('(Required) files done');
   });
 
-  test('planner → user includes context-read HTML comment with resolved command', () => {
+  test('planner → user includes context-read HTML comment', () => {
     const template = resolveDeliveredHandoffTemplate({
       teamId: 'duo',
       fromRole: 'planner',
       toRole: 'user',
       role: 'planner',
     });
-    expect(template).toContain(
-      '<!-- Read context before handoff if not already done this task: `CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"`. State the context goal and confirm it was achieved. -->'
-    );
+    expect(template).toContain('<!-- Read context before handoff if not already done this task:');
+    expect(template).toContain('chatroom context read');
   });
 
-  test('solo → user includes context-read HTML comment with resolved command', () => {
+  test('solo → user includes context-read HTML comment', () => {
     const template = resolveDeliveredHandoffTemplate({
       teamId: 'solo',
       fromRole: 'solo',
       toRole: 'user',
       role: 'solo',
     });
-    expect(template).toContain(
-      '<!-- Read context before handoff if not already done this task: `CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="solo"`. State the context goal and confirm it was achieved. -->'
-    );
+    expect(template).toContain('<!-- Read context before handoff if not already done this task:');
+    expect(template).toContain('chatroom context read');
   });
 
   test('planner → user includes role-guidance HTML comment with resolved command', () => {
