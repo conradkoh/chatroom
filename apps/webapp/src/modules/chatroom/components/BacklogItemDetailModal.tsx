@@ -2,7 +2,6 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import dynamic from 'next/dynamic';
 import {
   Check,
   CornerUpLeft,
@@ -12,16 +11,13 @@ import {
   Pencil,
   X,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
-import {
-  modalMarkdownComponents,
-  modalMarkdownWrapProseClassNames,
-  backlogProseClassNames,
-} from './markdown-utils';
+import { modalMarkdownComponents, backlogRichTextEditorProseClassNames } from './markdown-utils';
 import { useAttachments } from '../attachments';
 import { useOverlayDismissStack } from '../hooks/useOverlayDismissStack';
 import {
@@ -173,7 +169,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
           ) : (
             // View mode — Read-only rendered markdown
             <div
-              className={`p-4 min-w-0 overflow-x-hidden ${backlogProseClassNames} ${modalMarkdownWrapProseClassNames}`}
+              className={`p-4 min-w-0 overflow-x-hidden ${backlogRichTextEditorProseClassNames}`}
             >
               <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
                 {item.content}

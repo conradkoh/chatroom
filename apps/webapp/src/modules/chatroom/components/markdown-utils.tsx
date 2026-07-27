@@ -83,6 +83,12 @@ export const modalMarkdownWrapProseClassNames =
   proseSelectableInlineCodeClassNames;
 
 /**
+ * Prose styling for backlog WYSIWYG editor and read-only detail view.
+ * Keeps edit and preview typography in sync (headings, code, blockquotes, etc.).
+ */
+export const backlogRichTextEditorProseClassNames = `${backlogProseClassNames} ${modalMarkdownWrapProseClassNames}`;
+
+/**
  * Message feed prose styling (compact, table scrolling).
  * Used in: MessageFeed.
  *
