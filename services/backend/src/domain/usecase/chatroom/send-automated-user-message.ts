@@ -6,11 +6,9 @@ import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agen
 import { createTask as createTaskUsecase, shouldEnqueueMessage } from '../task/create-task';
 import { adjustTaskCount } from '../task/task-counts';
 
-const MAX_PROMPT_LENGTH = 10_000;
-
 export type SendAutomatedUserMessageResult =
   | { ok: true; messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> }
-  | { ok: false; reason: 'chatroom_not_active' | 'empty_content' | 'content_too_long' };
+  | { ok: false; reason: 'chatroom_not_active' | 'empty_content' };
 
 export async function sendAutomatedUserMessage(
   ctx: MutationCtx,
@@ -31,7 +29,6 @@ export async function sendAutomatedUserMessage(
   }
   const trimmed = args.content.trim();
   if (!trimmed) return { ok: false, reason: 'empty_content' };
-  if (trimmed.length > MAX_PROMPT_LENGTH) return { ok: false, reason: 'content_too_long' };
 
   const targetRole = getTeamEntryPoint(chatroom) ?? undefined;
   const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
