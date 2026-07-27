@@ -43,6 +43,7 @@ export function useMarkdownFileEditor({
   const contentRef = useRef(content);
   const saveInFlightRef = useRef(false);
   const loadedPathRef = useRef(filePath);
+  const wasOptimisticNewRef = useRef(initialEmpty || isPendingOptimisticNewFile(filePath));
 
   const getContent = useCallback(() => contentRef.current, []);
 
@@ -71,6 +72,7 @@ export function useMarkdownFileEditor({
       contentRef.current = '';
       setContentState('');
       setIsDirty(false);
+      wasOptimisticNewRef.current = false;
     }
   }, [filePath]);
 
@@ -91,6 +93,7 @@ export function useMarkdownFileEditor({
       return;
     }
     if (isTransientNewFileReadError(loadedContent.content, filePath)) return;
+    wasOptimisticNewRef.current = false;
     setLoadError(null);
     contentRef.current = loadedContent.content;
     setContentState(loadedContent.content);
@@ -116,11 +119,15 @@ export function useMarkdownFileEditor({
     }
   }, [filePath, machineId, normalizedWorkingDir, requestFileContent, saveToDisk]);
 
-  const isPendingCreate = isPendingOptimisticNewFile(filePath);
+  // Latch optimistic-empty state — once set, persists until real content arrives.
+  if (initialEmpty || isPendingOptimisticNewFile(filePath)) {
+    wasOptimisticNewRef.current = true;
+  }
+
+  const treatAsOptimisticEmpty = wasOptimisticNewRef.current;
   const isLoading =
     !loadError &&
-    !initialEmpty &&
-    !isPendingCreate &&
+    !treatAsOptimisticEmpty &&
     (loadedContent === undefined ||
       loadedContent === null ||
       isTransientNewFileReadError(loadedContent?.content, filePath));
