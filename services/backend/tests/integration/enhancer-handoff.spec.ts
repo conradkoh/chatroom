@@ -576,8 +576,8 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(msg!.visibleInAllTabOnly).toBe(true);
   });
 
-  test('enqueueHandoff completes planner in_progress task to prevent get-next-task loop', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-no-loop');
+  test('enqueueHandoff reassigns planner in_progress task to enhancer to block queue', async () => {
+    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-reassign');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -623,7 +623,8 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     });
 
     const task = await t.run(async (ctx) => ctx.db.get(taskId!));
-    expect(task!.status).toBe('completed');
+    expect(task!.status).toBe('in_progress');
+    expect(task!.assignedTo).toBe('enhancer');
 
     const activePlannerTasks = await t.run(async (ctx) => {
       const all = await ctx.db
