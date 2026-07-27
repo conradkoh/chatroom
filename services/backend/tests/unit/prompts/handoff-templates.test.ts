@@ -116,8 +116,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## Summary
       <what was accomplished, in plain terms — no references to prior messages>
 
-      ## What exists today
-      <current state after this work — what the user can now do, what is in place, how the system behaves>
+      ## What changed
+      <high-level view of what changed since the user's message>
       </handoff-overview>
 
       <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
@@ -134,10 +134,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - <step 2: concrete artifact or outcome>
       <Omit for trivial single-step tasks.>
 
-      ## What changed
-      <high-level view of what changed since the user's message>
-
-      ### Proof of Principles
+      ## Proof of Principles
       - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
       <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
 
@@ -156,7 +153,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - **Leave It Better:** <how this work demonstrates leave it better, or Not Applicable>
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
-      ### Proof of Completion
+      ## Proof of Completion
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
       <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. State the context goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
@@ -177,6 +174,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       </handoff-proofs>
 
       <handoff-direction>
+      ## What exists today
+      <current state after this work — what the user can now do, what is in place, how the system behaves>
+
       ## Key Technical Decisions
       - <schema design, modules, interfaces, domain entities — what you chose and why>
 
@@ -523,8 +523,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## Summary
       <what was accomplished, in plain terms — no references to prior messages>
 
-      ## What exists today
-      <current state after this work — what the user can now do, what is in place, how the system behaves>
+      ## What changed
+      <high-level view of what changed since the user's message>
       </handoff-overview>
 
       <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
@@ -541,10 +541,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - <step 2: concrete artifact or outcome>
       <Omit for trivial single-step tasks.>
 
-      ## What changed
-      <high-level view of what changed since the user's message>
-
-      ### Proof of Principles
+      ## Proof of Principles
       - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
       <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
 
@@ -563,7 +560,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - **Leave It Better:** <how this work demonstrates leave it better, or Not Applicable>
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
-      ### Proof of Completion
+      ## Proof of Completion
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
       <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`. State the context goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
@@ -584,6 +581,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       </handoff-proofs>
 
       <handoff-direction>
+      ## What exists today
+      <current state after this work — what the user can now do, what is in place, how the system behaves>
+
       ## Key Technical Decisions
       - <schema design, modules, interfaces, domain entities — what you chose and why>
 

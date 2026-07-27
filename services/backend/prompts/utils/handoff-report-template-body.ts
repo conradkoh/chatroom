@@ -3,7 +3,7 @@ import { getContextReadDisclosureBlock } from './context-disclosure';
 import { getFileReferenceProofOfCompletionExample } from './file-reference-guidance';
 import {
   getHandoffQualityPrinciplesTemplateBlock,
-  PROOF_OF_PRINCIPLES_HEADING_H3,
+  PROOF_OF_PRINCIPLES_HEADING_H2,
 } from './handoff-quality-principles';
 import { getRoleGuidanceDisclosureBlock } from './role-guidance-disclosure';
 import { getUnresolvedDecisionsSectionBlock } from './unresolved-decisions';
@@ -16,8 +16,8 @@ export function getHandoffReportTemplateBody(
 ## Summary
 <what was accomplished, in plain terms — no references to prior messages>
 
-## What exists today
-<current state after this work — what the user can now do, what is in place, how the system behaves>
+## What changed
+<high-level view of what changed since the user's message>
 </handoff-overview>
 
 <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
@@ -33,13 +33,10 @@ ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 - <step 2: concrete artifact or outcome>
 <Omit for trivial single-step tasks.>
 
-## What changed
-<high-level view of what changed since the user's message>
-
-${PROOF_OF_PRINCIPLES_HEADING_H3}
+${PROOF_OF_PRINCIPLES_HEADING_H2}
 ${getHandoffQualityPrinciplesTemplateBlock()}
 
-### Proof of Completion
+## Proof of Completion
 ${getContextReadDisclosureBlock(roleGuidanceContext)}
 ${getFileReferenceProofOfCompletionExample()}
 <evidence the goal was met — list every file you (or the builder) modified>
@@ -58,6 +55,9 @@ ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
 </handoff-proofs>
 
 <handoff-direction>
+## What exists today
+<current state after this work — what the user can now do, what is in place, how the system behaves>
+
 ## Key Technical Decisions
 - <schema design, modules, interfaces, domain entities — what you chose and why>
 

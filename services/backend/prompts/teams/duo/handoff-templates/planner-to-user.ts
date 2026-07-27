@@ -10,15 +10,12 @@
  *
  * Sections that do not apply may be omitted — the report captures not just
  * what changed but the reasoning behind it:
- *  1. Template disclosure confirmation — planner attests they saw this template
- *     at task start before planning or delegating (soft verification for debugging).
- *  2. What changed — high-level view since the user's message, with proof of
- *     principle and proof of completion as sub-sections.
- *  3. Backlog tasks implemented — backlog items addressed by this work.
- *  4. Backlog pending user review confirmation — attestation that implemented
- *     backlog items were moved to pending_user_review after verified end-to-end and a PR was raised.
- *  5. Key technical decisions, tradeoffs, tech debt, and system design.
- *  6. Unresolved decisions — open questions carried forward until the user resolves them.
+ *  1. Overview (expanded by default) — Summary + What changed
+ *  2. Proofs (collapsed) — Template disclosure, Proof of Planning, Proof of Principles (##),
+ *     Proof of Completion (##), Backlog attestations, Code Change Verification
+ *  3. Direction (collapsed) — What exists today, Key Technical Decisions, Tradeoffs, System Design
+ *  4. Notes (collapsed)
+ *  5. Action required (expanded by default) — Tech Debt, Unresolved Decisions, Manual steps
  */
 
 import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/command';

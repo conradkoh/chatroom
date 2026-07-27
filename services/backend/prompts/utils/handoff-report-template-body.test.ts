@@ -17,11 +17,19 @@ describe('getHandoffReportTemplateBody', () => {
     expect(body).toContain('</handoff-action>');
   });
 
-  test('handoff-overview contains Summary and What exists today', () => {
+  test('handoff-overview contains Summary and What changed', () => {
     const body = getHandoffReportTemplateBody();
     const overview = body.match(/<handoff-overview>[\s\S]*<\/handoff-overview>/)?.[0] ?? '';
     expect(overview).toContain('## Summary');
-    expect(overview).toContain('## What exists today');
+    expect(overview).toContain('## What changed');
+    expect(overview).not.toContain('## What exists today');
+  });
+
+  test('handoff-direction contains What exists today', () => {
+    const body = getHandoffReportTemplateBody();
+    const direction = body.match(/<handoff-direction>[\s\S]*<\/handoff-direction>/)?.[0] ?? '';
+    expect(direction).toContain('## What exists today');
+    expect(direction).toContain('## Key Technical Decisions');
   });
 
   test('handoff-action contains Manual steps', () => {
@@ -30,9 +38,12 @@ describe('getHandoffReportTemplateBody', () => {
     expect(action).toContain('## Manual steps');
   });
 
-  test('no handoff-details wrapper', () => {
+  test('handoff-proofs contains ## Proof of Principles (not ###)', () => {
     const body = getHandoffReportTemplateBody();
-    expect(body).not.toContain('<handoff-details>');
+    const proofs = body.match(/<handoff-proofs>[\s\S]*<\/handoff-proofs>/)?.[0] ?? '';
+    expect(proofs).toContain('## Proof of Principles');
+    expect(proofs).not.toContain('### Proof of Principles');
+    expect(proofs).not.toContain('## What changed');
   });
 
   test('contains structured principles with per-principle bullets inside proofs', () => {
@@ -48,10 +59,14 @@ describe('getHandoffReportTemplateBody', () => {
     expect(body).not.toContain('<!-- Demonstrate adherence to:');
   });
 
+  test('Proof of Completion is ## in proofs', () => {
+    const body = getHandoffReportTemplateBody();
+    expect(body).toContain('## Proof of Completion');
+  });
+
   test('contains all expected proof sections', () => {
     const body = getHandoffReportTemplateBody();
-    expect(body).toContain('## What changed');
-    expect(body).toContain('Proof of Completion');
     expect(body).toContain('Code Change Verification');
+    expect(body).toContain('Backlog Tasks Implemented');
   });
 });
