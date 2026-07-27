@@ -1,10 +1,12 @@
 /**
  * Handoff templates disclosed to the enhancer at spawn time.
  *
- * Mirrors planner task-delivery `<handoff-templates>`: output contract plus
- * downstream planner handoffs the enhancer uses to tighten builder delegation.
+ * Split into two parts:
+ * - `renderEnhancerOutputTemplateContent` — inner `<handoff-templates>` markdown (output only)
+ * - `renderEnhancerReferencesXml` — inner `<references>` XML with per-template wrappers
  */
 
+import { escapeXmlAttribute, escapeXmlText } from '../attachments/xml.js';
 import { getHandoffTemplate } from '../cli/handoff-templates';
 
 export interface RenderEnhancerReferenceHandoffTemplatesParams {
@@ -27,36 +29,50 @@ function getReferenceTargets(teamId: string) {
   return teamId.toLowerCase() === 'solo' ? SOLO_REFERENCE_TARGETS : DUO_REFERENCE_TARGETS;
 }
 
-function renderReferenceTemplateBlock(
-  params: RenderEnhancerReferenceHandoffTemplatesParams,
-  target: { fromRole: string; toRole: string }
-): string[] | null {
-  const template = getHandoffTemplate({
-    teamId: params.teamId,
-    fromRole: target.fromRole,
-    toRole: target.toRole,
-    nativeIntegration: params.nativeIntegration ?? true,
-    chatroomId: params.chatroomId,
-    role: target.fromRole,
-    cliEnvPrefix: params.cliEnvPrefix,
-  });
-  if (!template) return null;
-  return [`### Handoff to \`${target.toRole}\` (planner reference)`, template, ''];
+function formatHandoffFor(fromRole: string, toRole: string): string {
+  return `${fromRole.toLowerCase()}->${toRole.toLowerCase()}`;
 }
 
-/** Inner markdown for `<handoff-templates>` (wrapper added by task envelope). */
-export function renderEnhancerReferenceHandoffTemplatesContent(
+/** Inner markdown for `<handoff-templates>` — output contract only. */
+export function renderEnhancerOutputTemplateContent(
   params: RenderEnhancerReferenceHandoffTemplatesParams
 ): string {
-  const blocks = [
-    'Use these structures for this review. Your feedback must follow **Handoff to `planner`** (your output). Use **Handoff to `builder`** and **Handoff to `user`** to assess whether the planner builder draft aligns with final user delivery principles.',
+  return [
+    'Use these structures for this review. Your feedback must follow **Handoff to `planner`** (your output). Use `<references>` handoff templates to assess whether the planner builder draft aligns with final user delivery principles.',
     '',
     '### Handoff to `planner` (your output)',
     params.outputTemplate,
     '',
-    ...getReferenceTargets(params.teamId).flatMap(
-      (target) => renderReferenceTemplateBlock(params, target) ?? []
-    ),
-  ];
+  ].join('\n');
+}
+
+/** Inner XML for `<references>` — planner reference templates only. */
+export function renderEnhancerReferencesXml(
+  params: RenderEnhancerReferenceHandoffTemplatesParams
+): string {
+  const targets = getReferenceTargets(params.teamId);
+  const blocks: string[] = [];
+
+  for (const target of targets) {
+    const template = getHandoffTemplate({
+      teamId: params.teamId,
+      fromRole: target.fromRole,
+      toRole: target.toRole,
+      nativeIntegration: params.nativeIntegration ?? true,
+      chatroomId: params.chatroomId,
+      role: target.fromRole,
+      cliEnvPrefix: params.cliEnvPrefix,
+    });
+    if (!template) continue;
+
+    const forAttr = formatHandoffFor(target.fromRole, target.toRole);
+    const teamAttr = params.teamId.toLowerCase();
+    blocks.push(
+      `<handoff-template for="${escapeXmlAttribute(forAttr)}" team="${escapeXmlAttribute(teamAttr)}">`,
+      escapeXmlText(template),
+      '</handoff-template>'
+    );
+  }
+
   return blocks.join('\n');
 }
