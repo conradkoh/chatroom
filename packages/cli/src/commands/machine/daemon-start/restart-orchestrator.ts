@@ -21,6 +21,10 @@ import { runNativeInjectionEffect } from './native-task-injector.js';
 import type { AgentHarness } from './types.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import {
+  markRestartOrchestratorInFlight,
+  clearRestartOrchestratorInFlight,
+} from './restart-orchestrator-in-flight.js';
 
 interface RestartOrchestratorEvent {
   chatroomId: string;
@@ -225,6 +229,7 @@ export async function runRestartOrchestrator(
 ): Promise<void> {
   const { chatroomId, role } = event;
 
+  markRestartOrchestratorInFlight(chatroomId, role, event.correlationId);
   try {
     resetRoleDeliveryState(chatroomId, role);
 
@@ -272,5 +277,7 @@ export async function runRestartOrchestrator(
   } catch (err) {
     console.warn(`[RestartOrchestrator] failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`);
     await emitPhase(deps, event, 'failed', getErrorMessage(err));
+  } finally {
+    clearRestartOrchestratorInFlight(chatroomId, role, event.correlationId);
   }
 }
