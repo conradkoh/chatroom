@@ -6,7 +6,7 @@
  * - `renderEnhancerReferencesXml` — inner `<references>` XML with per-template wrappers
  */
 
-import { escapeXmlAttribute, escapeXmlText } from '../attachments/xml.js';
+import { escapeXmlText } from '../attachments/xml.js';
 import { getHandoffTemplate } from '../cli/handoff-templates';
 
 export interface RenderEnhancerReferenceHandoffTemplatesParams {
@@ -65,10 +65,10 @@ export function renderEnhancerReferencesXml(
     });
     if (!template) continue;
 
-    const forAttr = formatHandoffFor(target.fromRole, target.toRole);
+    const forAttr = `${target.fromRole.toLowerCase()}->${target.toRole.toLowerCase()}`;
     const teamAttr = params.teamId.toLowerCase();
     blocks.push(
-      `<handoff-template for="${escapeXmlAttribute(forAttr)}" team="${escapeXmlAttribute(teamAttr)}">`,
+      `<handoff-template for="${forAttr}" team="${teamAttr}">`,
       escapeXmlText(template),
       '</handoff-template>'
     );
