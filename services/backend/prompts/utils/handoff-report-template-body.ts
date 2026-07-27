@@ -12,10 +12,15 @@ import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
 export function getHandoffReportTemplateBody(
   roleGuidanceContext?: RoleGuidanceCommandParams
 ): string {
-  return `## Summary
+  return `<handoff-overview>
+## Summary
 <what was accomplished, in plain terms — no references to prior messages>
 
-<!-- Wrap proof sections in <handoff-proofs> and detail sections in <handoff-details> — UI collapses these by default -->
+## What exists today
+<current state after this work — what the user can now do, what is in place, how the system behaves>
+</handoff-overview>
+
+<!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
 
 <handoff-proofs>
 ## Template Disclosure Confirmation
@@ -29,7 +34,7 @@ ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 <Omit for trivial single-step tasks.>
 
 ## What changed
-<high-level view of what changed since the user's message before the detailed proofs below>
+<high-level view of what changed since the user's message>
 
 ${PROOF_OF_PRINCIPLES_HEADING_H3}
 ${getHandoffQualityPrinciplesCommentBlock()}
@@ -53,15 +58,12 @@ ${getFileReferenceProofOfCompletionExample()}
 ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
 </handoff-proofs>
 
-<handoff-details>
+<handoff-direction>
 ## Key Technical Decisions
 - <schema design, modules, interfaces, domain entities — what you chose and why>
 
 ## Key Tradeoffs
 - <what was weighed against what, and why you chose this path>
-
-## Tech Debt Observed
-- <issues noticed but intentionally left out of scope of this change>
 
 ## System Design
 <include a mermaid diagram when the change has non-trivial structure; omit for trivial changes>
@@ -70,10 +72,20 @@ ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
 flowchart TD
     A[Component] --> B[Component]
 \`\`\`
+</handoff-direction>
+
+<handoff-notes>
+## Notes
+<anything the user should know — context, caveats, or observations not covered above. Omit if none.>
+</handoff-notes>
+
+<handoff-action>
+## Tech Debt Observed
+- <issues noticed but intentionally left out of scope of this change>
 
 ${getUnresolvedDecisionsSectionBlock()}
 
-## Notes
-<anything the user should know — context, caveats, or observations not covered above. Omit if none.>
-</handoff-details>`;
+## Manual steps
+<steps the user must take outside the system — deploy, configure credentials, run commands, verify in production, etc. Omit if none.>
+</handoff-action>`;
 }

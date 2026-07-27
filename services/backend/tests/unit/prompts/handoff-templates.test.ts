@@ -112,10 +112,15 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       **Report Template (Planner → User)** — include every section that applies to this handoff. **Omit sections that do not apply** — do not write \`Not Applicable\` as filler:
 
       \`\`\`markdown
+      <handoff-overview>
       ## Summary
       <what was accomplished, in plain terms — no references to prior messages>
 
-      <!-- Wrap proof sections in <handoff-proofs> and detail sections in <handoff-details> — UI collapses these by default -->
+      ## What exists today
+      <current state after this work — what the user can now do, what is in place, how the system behaves>
+      </handoff-overview>
+
+      <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
 
       <handoff-proofs>
       ## Template Disclosure Confirmation
@@ -130,7 +135,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <Omit for trivial single-step tasks.>
 
       ## What changed
-      <high-level view of what changed since the user's message before the detailed proofs below>
+      <high-level view of what changed since the user's message>
 
       ### Proof of Principles
       <!-- Demonstrate adherence to:
@@ -163,15 +168,12 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
       </handoff-proofs>
 
-      <handoff-details>
+      <handoff-direction>
       ## Key Technical Decisions
       - <schema design, modules, interfaces, domain entities — what you chose and why>
 
       ## Key Tradeoffs
       - <what was weighed against what, and why you chose this path>
-
-      ## Tech Debt Observed
-      - <issues noticed but intentionally left out of scope of this change>
 
       ## System Design
       <include a mermaid diagram when the change has non-trivial structure; omit for trivial changes>
@@ -180,15 +182,25 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       flowchart TD
           A[Component] --> B[Component]
       \`\`\`
+      </handoff-direction>
+
+      <handoff-notes>
+      ## Notes
+      <anything the user should know — context, caveats, or observations not covered above. Omit if none.>
+      </handoff-notes>
+
+      <handoff-action>
+      ## Tech Debt Observed
+      - <issues noticed but intentionally left out of scope of this change>
 
       ## Unresolved Decisions
       <!-- Decisions that need user input before work can proceed. Omit this section when there are no open decisions. -->
       - <decision or question — options considered, recommendation if any>
       <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
-      ## Notes
-      <anything the user should know — context, caveats, or observations not covered above. Omit if none.>
-      </handoff-details>
+      ## Manual steps
+      <steps the user must take outside the system — deploy, configure credentials, run commands, verify in production, etc. Omit if none.>
+      </handoff-action>
       \`\`\`"
     `);
   });
@@ -491,10 +503,15 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       **Report Template (Solo → User)** — include every section that applies to this handoff. **Omit sections that do not apply** — do not write \`Not Applicable\` as filler:
 
       \`\`\`markdown
+      <handoff-overview>
       ## Summary
       <what was accomplished, in plain terms — no references to prior messages>
 
-      <!-- Wrap proof sections in <handoff-proofs> and detail sections in <handoff-details> — UI collapses these by default -->
+      ## What exists today
+      <current state after this work — what the user can now do, what is in place, how the system behaves>
+      </handoff-overview>
+
+      <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
 
       <handoff-proofs>
       ## Template Disclosure Confirmation
@@ -509,7 +526,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <Omit for trivial single-step tasks.>
 
       ## What changed
-      <high-level view of what changed since the user's message before the detailed proofs below>
+      <high-level view of what changed since the user's message>
 
       ### Proof of Principles
       <!-- Demonstrate adherence to:
@@ -542,15 +559,12 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
       </handoff-proofs>
 
-      <handoff-details>
+      <handoff-direction>
       ## Key Technical Decisions
       - <schema design, modules, interfaces, domain entities — what you chose and why>
 
       ## Key Tradeoffs
       - <what was weighed against what, and why you chose this path>
-
-      ## Tech Debt Observed
-      - <issues noticed but intentionally left out of scope of this change>
 
       ## System Design
       <include a mermaid diagram when the change has non-trivial structure; omit for trivial changes>
@@ -559,15 +573,25 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       flowchart TD
           A[Component] --> B[Component]
       \`\`\`
+      </handoff-direction>
+
+      <handoff-notes>
+      ## Notes
+      <anything the user should know — context, caveats, or observations not covered above. Omit if none.>
+      </handoff-notes>
+
+      <handoff-action>
+      ## Tech Debt Observed
+      - <issues noticed but intentionally left out of scope of this change>
 
       ## Unresolved Decisions
       <!-- Decisions that need user input before work can proceed. Omit this section when there are no open decisions. -->
       - <decision or question — options considered, recommendation if any>
       <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
-      ## Notes
-      <anything the user should know — context, caveats, or observations not covered above. Omit if none.>
-      </handoff-details>
+      ## Manual steps
+      <steps the user must take outside the system — deploy, configure credentials, run commands, verify in production, etc. Omit if none.>
+      </handoff-action>
       \`\`\`"
     `);
   });
