@@ -84,6 +84,7 @@ import type * as integrations_telegram_types from "../integrations/telegram/type
 import type * as integrations_types from "../integrations/types.js";
 import type * as lib_backlogStateMachine from "../lib/backlogStateMachine.js";
 import type * as lib_chatroomUtils from "../lib/chatroomUtils.js";
+import type * as lib_fileTreeDeltaOps from "../lib/fileTreeDeltaOps.js";
 import type * as lib_handoffRoles from "../lib/handoffRoles.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
 import type * as lib_promoteNextTaskDeps from "../lib/promoteNextTaskDeps.js";
@@ -221,6 +222,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/types": typeof integrations_types;
   "lib/backlogStateMachine": typeof lib_backlogStateMachine;
   "lib/chatroomUtils": typeof lib_chatroomUtils;
+  "lib/fileTreeDeltaOps": typeof lib_fileTreeDeltaOps;
   "lib/handoffRoles": typeof lib_handoffRoles;
   "lib/hierarchy": typeof lib_hierarchy;
   "lib/promoteNextTaskDeps": typeof lib_promoteNextTaskDeps;

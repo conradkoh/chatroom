@@ -28,6 +28,10 @@ import { getRoleDeliveryState } from './role-delivery-state.js';
 import { api } from '../../../api.js';
 import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import {
+  filterSnapshotsExcludingRestartInFlight,
+  isRestartOrchestratorInFlight,
+} from './restart-orchestrator-in-flight.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -62,6 +66,7 @@ export class NativeTaskDeliveryCoordinator {
   }
 
   tryInjectNextForRole(chatroomId: string, role: string): void {
+    if (isRestartOrchestratorInFlight(chatroomId, role)) return;
     const session = getNativeDeliverySession();
     if (!session) return;
 
@@ -90,7 +95,9 @@ export class NativeTaskDeliveryCoordinator {
     sessionDeps: NativeTaskDeliverySessionDeps;
     machineId: string;
   }): void {
-    const { tasks, runtime, effectContext, agentMgr, sessionDeps, machineId } = params;
+    const tasks = filterSnapshotsExcludingRestartInFlight(params.tasks);
+    if (tasks.length === 0) return;
+    const { runtime, effectContext, agentMgr, sessionDeps, machineId } = params;
     const deliveryState = getRoleDeliveryState();
     const ledger = getNativeDeliveryLedger();
 
@@ -222,6 +229,7 @@ export function resetRoleDeliveryState(chatroomId: string, role: string): void {
 }
 
 export function notifyNativeTurnIdle(params: { chatroomId: string; role: string }): void {
+  if (isRestartOrchestratorInFlight(params.chatroomId, params.role)) return;
   logNativeDeliveryPrimary(params.role, params.chatroomId);
   getNativeTaskDeliveryCoordinator().tryInjectNextForRole(params.chatroomId, params.role);
 }
