@@ -2,8 +2,23 @@
  * Chatroom-local Dialog — industrial theme (sharp corners, chatroom palette).
  * Use for modals inside the chatroom UI instead of @/components/ui/dialog.
  *
- * Do not pass overflow-* classes to DialogContent — use DialogScrollBody for
- * scrollable body. Overflow classes are stripped from DialogContent className.
+ * ## Layout contracts (tailwind-merge aware)
+ *
+ * **Default (grid):** DialogContent uses industrial `grid gap-4`. Use for simple
+ * dialogs with header/footer/body that fit without internal scroll. Do not pass
+ * `flex flex-col` unless you need the scroll contract below.
+ *
+ * **Scroll (flex column):** For scrollable body content:
+ * 1. Pass `flex flex-col min-h-0` (and optional max-h) on DialogContent className
+ * 2. Wrap scrollable region in `<DialogScrollBody>`
+ * Passing `flex flex-col` overrides industrial `grid` — this is intentional.
+ *
+ * ## Overflow
+ * Do not pass overflow-* classes to DialogContent — use DialogScrollBody.
+ * Overflow classes are stripped from DialogContent className.
+ *
+ * Never add position/display utilities to DialogContent's internal suffix —
+ * tailwind-merge will strip industrial `fixed`/`grid` (445ae39b5 regression).
  */
 'use client';
 

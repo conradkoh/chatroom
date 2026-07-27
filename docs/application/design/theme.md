@@ -492,6 +492,24 @@ Portaled menus stay at `Z_MODAL` (z-50); inside modals they elevate via the port
 
 **Rule:** Any portaled interactive UI that opens _inside_ a modal must use `Z_FLOATING`. Base modals use `Z_MODAL` (z-50); nested/floating dialogs stack above via z-[100].
 
+### Dialog layout contracts
+
+Chatroom Dialog (`modules/chatroom/components/ui/dialog.tsx`) has two consumer layout patterns:
+
+| Pattern        | DialogContent className                                | Body scroll                     | When to use                                     |
+| -------------- | ------------------------------------------------------ | ------------------------------- | ----------------------------------------------- |
+| Grid (default) | Industrial default only, or sizing tokens (`max-w-lg`) | None — content fits             | Short forms, confirmations, pickers             |
+| Flex scroll    | `flex flex-col min-h-0 max-h-[...]`                    | `<DialogScrollBody>` wraps body | Long lists, settings panels, mobile full-height |
+
+**Rules:**
+
+- `DialogContent` must stay `overflow-visible` (enforced internally) for portaled popovers
+- Never pass `overflow-*` on DialogContent — stripped silently; use DialogScrollBody
+- `flex flex-col` on DialogContent overrides industrial `grid gap-4` via tailwind-merge — only use with DialogScrollBody
+- For sidebar layouts use `FixedModal` (row flex at root), not Dialog
+
+**Canonical scroll example:** `ScheduledPromptsDialog.tsx`
+
 ## Responsive Behavior
 
 ### Breakpoints
