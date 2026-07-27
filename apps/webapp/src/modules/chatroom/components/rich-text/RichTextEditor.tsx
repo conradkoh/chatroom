@@ -28,6 +28,7 @@ export function RichTextEditor({
     content: value,
     onUpdate: onChange,
     placeholder,
+    autoFocus,
   });
 
   return (

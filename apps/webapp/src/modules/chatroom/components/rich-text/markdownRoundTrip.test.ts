@@ -14,7 +14,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { renderRichTextEditor, waitForEditor } from './test-utils';
+import { waitForEditor } from './test-utils';
 
 function normalize(str: string): string {
   return str.replace(/\r\n/g, '\n').trim();

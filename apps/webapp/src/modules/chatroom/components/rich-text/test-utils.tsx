@@ -33,7 +33,7 @@ export function waitForEditor(initial: string): Promise<{ render: () => void; re
       );
     }
 
-    const { unmount } = render(<TestHarness />);
+    render(<TestHarness />);
 
     // Wait for tiptap to mount and process
     setTimeout(() => {

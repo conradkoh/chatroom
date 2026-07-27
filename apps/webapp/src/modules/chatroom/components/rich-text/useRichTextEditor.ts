@@ -12,6 +12,7 @@ export interface UseRichTextEditorOptions {
   onUpdate: (markdown: string) => void;
   placeholder?: string;
   editable?: boolean;
+  autoFocus?: boolean;
 }
 
 export function useRichTextEditor({
@@ -19,6 +20,7 @@ export function useRichTextEditor({
   onUpdate,
   placeholder,
   editable = true,
+  autoFocus,
 }: UseRichTextEditorOptions) {
   const editor = useEditor({
     extensions: [
@@ -31,6 +33,7 @@ export function useRichTextEditor({
     ],
     content,
     editable,
+    autofocus: autoFocus ? 'end' : false,
     onUpdate: ({ editor }) => {
       const md = editor.getMarkdown();
       onUpdate(md);
