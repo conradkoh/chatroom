@@ -25,7 +25,6 @@ import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/comma
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { getHandoffReportTemplateBody } from '../../../utils/handoff-report-template-body';
 import { getHandoffReportTemplateIntro } from '../../../utils/handoff-section-guidance';
-import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 
 /**
  * Returns the markdown report template the planner uses when delivering the
@@ -39,6 +38,6 @@ export function getPlannerToUserReportTemplate(
 ${getHandoffReportTemplateIntro('Report Template (Planner → User)')}
 
 \`\`\`markdown
-${getHandoffReportTemplateBody()}
+${getHandoffReportTemplateBody(roleGuidanceContext)}
 \`\`\``;
 }

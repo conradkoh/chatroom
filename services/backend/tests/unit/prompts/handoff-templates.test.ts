@@ -145,7 +145,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ### Proof of Completion
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
-      <!-- Read context before handoff if not already done this task: \`chatroom context read --chatroom-id="<chatroom-id>" --role="<role>"\`. State the context goal and confirm it was achieved. -->
+      <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. State the context goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you (or the builder) modified>
@@ -500,7 +500,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       ## Template Disclosure Confirmation
       - [ ] I confirm that I have seen this template at the start of any planning, before working on or delegating any task to the team
       - [ ] I confirm that I've read and followed the role guidance before starting any work
-      <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. You do not need to re-read it on every task if you have already read it once. -->
+      <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Planning
       <!-- Demonstrate the goal was decomposed into actionable steps with clear outcomes before implementation. -->
@@ -524,7 +524,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ### Proof of Completion
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
-      <!-- Read context before handoff if not already done this task: \`chatroom context read --chatroom-id="<chatroom-id>" --role="<role>"\`. State the context goal and confirm it was achieved. -->
+      <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`. State the context goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you (or the builder) modified>

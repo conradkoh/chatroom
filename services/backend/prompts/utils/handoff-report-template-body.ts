@@ -5,20 +5,13 @@ import {
   getHandoffQualityPrinciplesCommentBlock,
   PROOF_OF_PRINCIPLES_HEADING_H3,
 } from './handoff-quality-principles';
+import { getRoleGuidanceDisclosureBlock } from './role-guidance-disclosure';
 import { getUnresolvedDecisionsSectionBlock } from './unresolved-decisions';
+import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
 
-export interface HandoffReportTemplateBodyParams {
-  templateDisclosureIntro: string;
-  roleGuidanceDisclosure: string;
-  contextReadDisclosure: string;
-  fileReferenceExample: string;
-  proofOfPrinciplesHeading: string;
-  proofOfPrinciplesComment: string;
-  codeChangeVerification: string;
-  unresolvedDecisions: string;
-}
-
-export function getHandoffReportTemplateBody(): string {
+export function getHandoffReportTemplateBody(
+  roleGuidanceContext?: RoleGuidanceCommandParams
+): string {
   return `## Summary
 <what was accomplished, in plain terms — no references to prior messages>
 
@@ -27,8 +20,7 @@ export function getHandoffReportTemplateBody(): string {
 <handoff-proofs>
 ## Template Disclosure Confirmation
 - [ ] I confirm that I have seen this template at the start of any planning, before working on or delegating any task to the team
-- [ ] I confirm that I've read and followed the role guidance before starting any work
-<!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. You do not need to re-read it on every task if you have already read it once. -->
+${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 
 ## Proof of Planning
 <!-- Demonstrate the goal was decomposed into actionable steps with clear outcomes before implementation. -->
@@ -44,7 +36,7 @@ ${getHandoffQualityPrinciplesCommentBlock()}
 <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
 ### Proof of Completion
-${getContextReadDisclosureBlock()}
+${getContextReadDisclosureBlock(roleGuidanceContext)}
 ${getFileReferenceProofOfCompletionExample()}
 <evidence the goal was met — list every file you (or the builder) modified>
 
