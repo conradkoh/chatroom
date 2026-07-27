@@ -106,7 +106,9 @@ function DialogContent({
             ? chatroomIndustrialFloatingModalContentClassName
             : chatroomIndustrialModalContentClassName,
           safeClassName,
-          'overflow-visible relative flex flex-col'
+          // Keep overflow-visible for portaled popovers. Never add position/display
+          // utilities here — tailwind-merge will strip industrial fixed/grid (445ae39b5 regression).
+          'overflow-visible'
         )}
         onEscapeKeyDown={onEscapeKeyDown}
         {...props}

@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { cn } from '@/lib/utils';
+
 import {
   Dialog,
   DialogContent,
@@ -8,8 +10,16 @@ import {
   DialogTrigger,
   stripOverflowFromClassName,
 } from './dialog';
+import {
+  chatroomIndustrialFloatingModalContentClassName,
+  chatroomIndustrialModalContentClassName,
+} from '../shared/industrialDialogStyles';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 import { OverlayPortalContainerProvider } from '../shared/overlayPortalContainer';
+
+function tokens(className: string) {
+  return className.split(/\s+/).filter(Boolean);
+}
 
 describe('stripOverflowFromClassName', () => {
   it('removes overflow utilities', () => {
@@ -114,5 +124,46 @@ describe('DialogContent z-index', () => {
       </OverlayPortalContainerProvider>
     );
     expect(screen.getByTestId('nested-dialog').className).toContain('z-[100]');
+  });
+});
+
+describe('DialogContent className merge', () => {
+  it('preserves fixed and grid when suffix is overflow-visible only', () => {
+    const merged = cn(chatroomIndustrialModalContentClassName, 'max-w-2xl', 'overflow-visible');
+    const t = tokens(merged);
+    expect(t).toContain('fixed');
+    expect(t).toContain('grid');
+    expect(t).not.toContain('relative');
+  });
+
+  it('preserves fixed on floating industrial classes', () => {
+    const merged = cn(chatroomIndustrialFloatingModalContentClassName, 'overflow-visible');
+    const t = tokens(merged);
+    expect(t).toContain('fixed');
+    expect(t).not.toContain('relative');
+  });
+
+  it('documents regression: relative flex flex-col strips fixed and grid', () => {
+    const merged = cn(
+      chatroomIndustrialModalContentClassName,
+      'overflow-visible relative flex flex-col'
+    );
+    const t = tokens(merged);
+    expect(t).not.toContain('fixed');
+    expect(t).not.toContain('grid');
+    expect(t).toContain('relative');
+  });
+
+  it('consumer flex flex-col overrides grid but preserves fixed', () => {
+    const merged = cn(
+      chatroomIndustrialModalContentClassName,
+      'max-w-2xl max-h-[85vh] flex flex-col min-w-0',
+      'overflow-visible'
+    );
+    const t = tokens(merged);
+    expect(t).toContain('fixed');
+    expect(t).toContain('flex');
+    expect(t).not.toContain('grid');
+    expect(t).not.toContain('relative');
   });
 });
