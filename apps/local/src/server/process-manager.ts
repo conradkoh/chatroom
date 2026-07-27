@@ -111,116 +111,19 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
       });
     }
 
-    if (config.convexBackendMode === 'local') {
-      const convexDef = definitions.find((d) => d.id === 'convex');
-      if (convexDef) {
-        this.start(convexDef);
-        this.updateState('convex', {
-          health: 'checking',
-          healthDetail: 'Waiting for functions ready',
-        });
+    const convexDef = definitions.find((d) => d.id === 'convex');
+    if (convexDef) {
+      this.start(convexDef);
 
-        const result = await waitForConvexDevReadyFromLogs(
-          (handler) => this.subscribeToLogs(handler),
-          {
-            onWaiting: () =>
-              this.updateState('convex', {
-                health: 'checking',
-                healthDetail: 'Waiting for functions ready',
-              }),
-          }
-        );
+      const status = await this.monitorConvexReadiness(config);
 
-        if (isStale()) return;
+      if (isStale()) return;
 
-        if (!result.ok) {
-          this.updateState('convex', { health: 'unhealthy', healthDetail: result.reason });
-          await this.stopAll();
-          this._phase = 'failed';
-          this.emit('phase', this._phase);
-          return;
-        }
-
-        const convexUrl = localConvexCloudUrl(this.repoRoot, config.convexPort);
-        this.updateState('convex', {
-          health: 'checking',
-          healthDetail: 'Waiting for Convex HTTP',
-        });
-
-        const httpHealth = await waitForConvexHealthy(convexUrl, {
-          onCheck: () =>
-            this.updateState('convex', {
-              health: 'checking',
-              healthDetail: 'Waiting for Convex HTTP',
-            }),
-        });
-
-        if (isStale()) return;
-
-        if (!httpHealth.ok) {
-          this.updateState('convex', { health: 'unhealthy', healthDetail: httpHealth.reason });
-          await this.stopAll();
-          this._phase = 'failed';
-          this.emit('phase', this._phase);
-          return;
-        }
-
-        this.updateState('convex', { health: 'healthy', healthDetail: null });
-      }
-    } else {
-      const convexDef = definitions.find((d) => d.id === 'convex');
-      if (convexDef) {
-        this.start(convexDef);
-        this.updateState('convex', {
-          health: 'checking',
-          healthDetail: 'Waiting for functions ready',
-        });
-
-        const result = await waitForConvexDevReadyFromLogs(
-          (handler) => this.subscribeToLogs(handler),
-          {
-            onWaiting: () =>
-              this.updateState('convex', {
-                health: 'checking',
-                healthDetail: 'Waiting for functions ready',
-              }),
-          }
-        );
-
-        if (isStale()) return;
-
-        if (!result.ok) {
-          this.updateState('convex', { health: 'unhealthy', healthDetail: result.reason });
-          await this.stopAll();
-          this._phase = 'failed';
-          this.emit('phase', this._phase);
-          return;
-        }
-
-        this.updateState('convex', {
-          health: 'checking',
-          healthDetail: 'Waiting for Convex HTTP',
-        });
-
-        const httpHealth = await waitForConvexHealthy(config.convexUrl, {
-          onCheck: () =>
-            this.updateState('convex', {
-              health: 'checking',
-              healthDetail: 'Waiting for Convex HTTP',
-            }),
-        });
-
-        if (isStale()) return;
-
-        if (!httpHealth.ok) {
-          this.updateState('convex', { health: 'unhealthy', healthDetail: httpHealth.reason });
-          await this.stopAll();
-          this._phase = 'failed';
-          this.emit('phase', this._phase);
-          return;
-        }
-
-        this.updateState('convex', { health: 'healthy', healthDetail: 'Hosted \u2014 syncing' });
+      if (status === 'unhealthy') {
+        await this.stopAll();
+        this._phase = 'failed';
+        this.emit('phase', this._phase);
+        return;
       }
     }
 
@@ -250,6 +153,50 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     if (isStale()) return;
     this._phase = 'running';
     this.emit('phase', this._phase);
+  }
+
+  private async monitorConvexReadiness(config: RuntimeConfig): Promise<'healthy' | 'unhealthy'> {
+    const isLocal = config.convexBackendMode === 'local';
+    const convexUrl = isLocal
+      ? localConvexCloudUrl(this.repoRoot, config.convexPort)
+      : config.convexUrl;
+
+    this.updateState('convex', { health: 'checking', healthDetail: 'Waiting for functions ready' });
+
+    const result = await waitForConvexDevReadyFromLogs((handler) => this.subscribeToLogs(handler), {
+      onWaiting: () =>
+        this.updateState('convex', {
+          health: 'checking',
+          healthDetail: 'Waiting for functions ready',
+        }),
+    });
+
+    if (!result.ok) {
+      this.updateState('convex', { health: 'unhealthy', healthDetail: result.reason });
+      return 'unhealthy';
+    }
+
+    this.updateState('convex', { health: 'checking', healthDetail: 'Waiting for Convex HTTP' });
+
+    const httpHealth = await waitForConvexHealthy(convexUrl, {
+      onCheck: () =>
+        this.updateState('convex', {
+          health: 'checking',
+          healthDetail: 'Waiting for Convex HTTP',
+        }),
+    });
+
+    if (!httpHealth.ok) {
+      this.updateState('convex', { health: 'unhealthy', healthDetail: httpHealth.reason });
+      return 'unhealthy';
+    }
+
+    this.updateState('convex', {
+      health: 'healthy',
+      healthDetail: isLocal ? null : 'Hosted \u2014 syncing',
+    });
+
+    return 'healthy';
   }
 
   private monitorWebappReadiness(config: RuntimeConfig): void {
@@ -330,11 +277,19 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
   }
 
   async restart(id: ManagedProcessId): Promise<void> {
-    this.clearAllProcessLogs();
     if (id === 'convex') {
-      await this.stopAll();
-      if (this._runtimeConfig) {
-        await this.startStack(this._runtimeConfig);
+      if (!this._runtimeConfig) return;
+      this.clearProcessLogs('convex');
+      this.stop('convex');
+      this.updateState('convex', { health: 'checking', healthDetail: 'Restarting...' });
+      const def = buildProcessDefinitions(
+        this.repoRoot,
+        this._runtimeConfig,
+        this.managerPort
+      ).find((d) => d.id === 'convex');
+      if (def) {
+        this.start(def);
+        await this.monitorConvexReadiness(this._runtimeConfig);
       }
       return;
     }
