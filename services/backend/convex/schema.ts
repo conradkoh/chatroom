@@ -1657,6 +1657,7 @@ export default defineSchema({
           v.literal('open-vscode'),
           v.literal('open-finder'),
           v.literal('open-github-desktop'),
+          v.literal('open-cursor'),
           v.literal('git-discard-file'),
           v.literal('git-discard-all'),
           v.literal('git-pull'),

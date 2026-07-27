@@ -71,4 +71,27 @@ describe('executeLocalAction', () => {
     }
     expect(spawn).toHaveBeenCalledTimes(1);
   });
+
+  it('checks CLI availability with detached spawn before open-cursor', async () => {
+    mockSpawnChild(0);
+    const secondChild = mockSpawnChild();
+
+    const result = await executeLocalAction('open-cursor', '/tmp/workspace');
+
+    expect(result).toEqual({ success: true });
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(secondChild.child.unref).toHaveBeenCalled();
+  });
+
+  it('returns error when cursor CLI is unavailable', async () => {
+    mockSpawnChild(1);
+
+    const result = await executeLocalAction('open-cursor', '/tmp/workspace');
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('Cursor CLI');
+    }
+    expect(spawn).toHaveBeenCalledTimes(1);
+  });
 });
