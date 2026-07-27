@@ -39,4 +39,16 @@ describe('renderEnhancerSystemPrompt', () => {
     const result = renderEnhancerSystemPrompt(params);
     expect(result).not.toContain('planner→builder');
   });
+
+  it('forbids file-level edit prescriptions', () => {
+    const result = renderEnhancerSystemPrompt(params);
+    expect(result).toContain('Do NOT prescribe file-level edits');
+    expect(result).toContain('Do NOT rewrite');
+  });
+
+  it('frames role as advisory adversarial reviewer', () => {
+    const result = renderEnhancerSystemPrompt(params);
+    expect(result).toContain('advisory');
+    expect(result).toContain('bar raiser');
+  });
 });

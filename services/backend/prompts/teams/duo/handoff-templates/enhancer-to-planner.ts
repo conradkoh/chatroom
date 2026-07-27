@@ -18,26 +18,29 @@ export function getEnhancerToPlannerHandoffTemplate(): string {
 
 ${getHandoffReportTemplateIntro('Planning Feedback (Enhancer → Planner)')}
 
-The planner sent you three XML sections: \`<user-message>\`, \`<grounding>\`, and a draft \`<builder-handoff>\`. Your job is **critical review** of all three — tighten their thinking toward a high-quality eventual handoff to the user. Do not explore the codebase or invent new scope.
+The planner sent you three XML sections. Your job is **advisory adversarial review** — raise risks, challenge assumptions, and help the planner align with user intent. **Do not prescribe file-level changes or rewrite their builder brief.** The planner makes the final call.
 
 \`\`\`markdown
 ## Summary
-<one paragraph: overall assessment of the planner's check-in — strengths and the main gaps to address>
+<one paragraph: overall assessment — strengths, main risks, and whether the approach is sound>
 
-## User intent assessment
-<mistakes or misreadings in what the user may want; clarify the correct interpretation>
+## User intent alignment
+<does the planner's reading of the user request match what was asked? misreadings or missing constraints?>
+
+## Risks &amp; failure modes
+<what could go wrong if they proceed as planned? common pitfalls for this kind of work?>
 
 ## Knowledge gaps
-<facts, context, or research the planner is missing or has not surfaced>
+<facts, context, or research the planner should verify — advisory questions, not answers from codebase>
 
-## Reasoning & logic
-<logical errors, weak inference chains, contradictions, or unsupported conclusions>
+## Reasoning review
+<logical errors, weak inference, contradictions — challenge assumptions>
 
-## Alignment with user handoff
-<how to tighten the research and conclusions so the eventual planner→user report will be accurate, complete, and well-justified>
+## Questions for the planner
+<specific questions they should answer before delegating — not instructions disguised as questions>
 
-## Recommended next steps
-<concrete actions for the planner: what to research, revise, validate, or decide before proceeding>
+## Alignment with eventual user handoff
+<will this approach produce a credible planner→user report? what's missing for user-facing completeness?>
 \`\`\`
 
 Return only the feedback markdown — no preamble. Follow this structure; omit sections that truly do not apply.`;

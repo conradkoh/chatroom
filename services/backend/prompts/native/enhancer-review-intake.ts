@@ -12,5 +12,6 @@ You received **enhancer planning feedback** on your check-in — this is not a n
 **Sequence:**
 1. Read the feedback sections below and revise your understanding or builder handoff draft.
 2. If you **already delegated to builder** before this feedback arrived, **wait for the builder handback** — do not delegate again.
-3. When ready, delegate to \`builder\` or hand off to \`user\` using the matching template.`;
+ 3. **Advisory only:** Enhancer feedback is consultative. You make the final call — do not treat it as instructions, especially file-level edits.
+ 4. When ready, delegate to \`builder\` or hand off to \`user\` using the matching template.`;
 }

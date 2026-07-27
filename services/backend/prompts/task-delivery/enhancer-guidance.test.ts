@@ -58,6 +58,9 @@ describe('appendTaskDeliveryEnhancerReviewGuidance', () => {
     expect(output).toContain('Do not run `context new`');
     expect(output).toContain('already delegated to builder');
     expect(output).toContain('delegate to `builder`');
+    expect(output).toContain('advisory');
+    expect(output).toContain('final call');
+    expect(output).toContain('One round only');
     expect(output).toContain('</enhancer-review>');
   });
 });

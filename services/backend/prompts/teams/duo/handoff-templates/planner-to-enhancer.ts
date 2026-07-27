@@ -39,9 +39,9 @@ ${getFileReferenceGuidanceComment()}
 <builder-handoff>
 <your complete, filled-in Delegation Brief for builder review — every section with real content, not placeholders>
 
-Follow the **Handoff to \`builder\`** template structure (Summary, Goal, Files to implement, Requirements, etc.). The enhancer critiques this draft before you delegate.
+Follow the **Handoff to \`builder\`** template structure (Summary, Goal, approach, Requirements, etc.). The enhancer reviews **approach and scope** — not line-by-line file edits. Keep file references for context, but expect advisory feedback on risks and gaps, not a rewritten brief.
 </builder-handoff>
 \`\`\`
 
-After the enhancer returns feedback, you will receive it as a new planner task. Revise grounding and the builder handoff as needed, then proceed to \`builder\` or \`user\` as appropriate.`;
+After the enhancer returns **advisory** feedback, you make the **final call** — incorporate valid critiques, ignore what doesn't apply, then proceed to \`builder\` or \`user\`. Do not re-check with the enhancer for this slice; one round only.`;
 }

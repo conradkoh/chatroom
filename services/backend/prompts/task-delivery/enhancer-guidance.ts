@@ -92,11 +92,12 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
     '- `<builder-handoff>` — your complete, filled-in planner→builder Delegation Brief (for review, not placeholders)'
   );
   lines.push('');
-  lines.push('**The enhancer will critique:**');
-  lines.push('- Mistakes in assessing what the user may want');
-  lines.push('- Knowledge gaps in your research');
-  lines.push('- Logical or reasoning errors');
-  lines.push('- How to tighten your work toward a strong planner→user handoff');
+  lines.push('**The enhancer provides advisory review:**');
+  lines.push('- Whether the planner read user intent correctly');
+  lines.push('- Risks, failure modes, and missing groundwork');
+  lines.push('- Knowledge gaps and weak reasoning — as questions, not file-level prescriptions');
+  lines.push('- Whether the approach will support a strong planner→user handoff');
+  lines.push('- The planner makes the final call — feedback is consultative, not authoritative');
   lines.push('');
   lines.push('**After handoff to enhancer returns success:**');
   lines.push(
@@ -136,6 +137,15 @@ export function appendTaskDeliveryEnhancerReviewGuidance(lines: string[]): void 
   );
   lines.push(
     '- When ready: delegate to `builder` (implementation) or hand off to `user` (delivery) using the matching template.'
+  );
+  lines.push(
+    '- Treat feedback as **advisory** — you make the final call; do not blindly follow suggestions.'
+  );
+  lines.push(
+    '- Ignore file-level edit prescriptions — the enhancer has not seen your session or codebase.'
+  );
+  lines.push(
+    '- **One round only** for this check-in — proceed to `builder` or `user` without re-enhancing this slice.'
   );
   lines.push('</enhancer-review>');
 }
