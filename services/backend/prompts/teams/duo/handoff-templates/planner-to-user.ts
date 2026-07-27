@@ -8,7 +8,7 @@
  * prompts/cli/get-next-task/fullOutput.ts and native task delivery) rather
  * than baked into the static init/system prompt.
  *
- * Sections that do not apply may be omitted — the report captures not just
+ * Every section is required — write Not Applicable when a section does not apply. The report captures not just
  * what changed but the reasoning behind it:
  *  1. Overview (expanded by default) — Summary + What changed
  *  2. Proofs (collapsed) — Template disclosure, Proof of Planning, Proof of Principles (##),

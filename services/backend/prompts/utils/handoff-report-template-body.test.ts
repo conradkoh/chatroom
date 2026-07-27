@@ -69,4 +69,24 @@ describe('getHandoffReportTemplateBody', () => {
     expect(body).toContain('Code Change Verification');
     expect(body).toContain('Backlog Tasks Implemented');
   });
+
+  test('no longer has old omit-if-none or <Omit placeholders', () => {
+    const body = getHandoffReportTemplateBody();
+    expect(body).not.toMatch(/<Omit/i);
+    expect(body).not.toMatch(/Omit if none/i);
+    expect(body).not.toMatch(/Omit for trivial/i);
+    expect(body).not.toMatch(/Omit this section when/i);
+  });
+
+  test('contains REQUIRED comments for each section', () => {
+    const body = getHandoffReportTemplateBody();
+    const requiredCount = (body.match(/<!-- REQUIRED\./g) || []).length;
+    expect(requiredCount).toBeGreaterThanOrEqual(9);
+  });
+
+  test('Proof of Principles includes REQUIRED mandatory comment in proofs', () => {
+    const body = getHandoffReportTemplateBody();
+    const proofs = body.match(/<handoff-proofs>[\s\S]*<\/handoff-proofs>/)?.[0] ?? '';
+    expect(proofs).toContain('REQUIRED: Complete every principle below');
+  });
 });

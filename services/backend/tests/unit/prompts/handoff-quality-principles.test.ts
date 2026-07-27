@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 import {
   PROOF_OF_PRINCIPLES_HEADING_H2,
   PROOF_OF_PRINCIPLES_HEADING_H3,
+  PROOF_OF_PRINCIPLES_MANDATORY_COMMENT,
+  getHandoffQualityPrinciplesSectionBlock,
   getHandoffQualityPrinciplesTemplateBlock,
 } from '../../../prompts/utils/handoff-quality-principles';
 
@@ -42,6 +44,21 @@ describe('handoff-quality-principles', () => {
     const block = getHandoffQualityPrinciplesTemplateBlock();
     // Each principle has its own <!-- comment -->, not one big <!-- ... -->
     expect(block.startsWith('<!--')).toBe(false);
+  });
+
+  test('PROOF_OF_PRINCIPLES_MANDATORY_COMMENT contains REQUIRED and Not Applicable', () => {
+    expect(PROOF_OF_PRINCIPLES_MANDATORY_COMMENT).toContain('REQUIRED');
+    expect(PROOF_OF_PRINCIPLES_MANDATORY_COMMENT).toContain('Not Applicable');
+    expect(PROOF_OF_PRINCIPLES_MANDATORY_COMMENT).toContain('do not omit');
+  });
+
+  test('getHandoffQualityPrinciplesSectionBlock includes mandatory comment and all 6 principles', () => {
+    const block = getHandoffQualityPrinciplesSectionBlock();
+    expect(block).toContain(PROOF_OF_PRINCIPLES_MANDATORY_COMMENT);
+    expect(block).toContain('## Proof of Principles');
+    for (const name of PRINCIPLE_NAMES) {
+      expect(block).toContain(`**${name}:**`);
+    }
   });
 
   test('headings use correct markdown level', () => {

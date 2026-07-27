@@ -5,7 +5,7 @@
 
 /** Header line for report-style templates (planner/solo → user, builder → planner). */
 export function getHandoffReportTemplateIntro(templateLabel: string): string {
-  return `**${templateLabel}** — include every section that applies to this handoff. **Omit sections that do not apply** — do not write \`Not Applicable\` as filler:`;
+  return `**${templateLabel}** — complete every section below. When a section or field does not apply, write \`Not Applicable\` — do not omit sections, principles, or XML wrappers:`;
 }
 
 /** Header line for delegation brief (planner → builder). */

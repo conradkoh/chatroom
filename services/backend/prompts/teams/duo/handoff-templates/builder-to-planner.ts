@@ -1,7 +1,7 @@
 /**
  * Handoff template: Duo builder → planner (work complete / blocked).
  *
- * Sections that do not apply may be omitted. The handback captures not just
+ * Every section is required — write Not Applicable when a section does not apply. The handback captures not just
  * what changed but the reasoning behind it:
  *  1. Template disclosure confirmation — builder attests they saw this template
  *     at task start before implementing (soft verification for debugging).
@@ -15,10 +15,7 @@ import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-vi
 import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-change-verification';
 import { getDelegationBriefDisclosureBlock } from '../../../utils/delegation-disclosure';
 import { getFileReferenceProofOfCompletionExample } from '../../../utils/file-reference-guidance';
-import {
-  getHandoffQualityPrinciplesTemplateBlock,
-  PROOF_OF_PRINCIPLES_HEADING_H2,
-} from '../../../utils/handoff-quality-principles';
+import { getHandoffQualityPrinciplesSectionBlock } from '../../../utils/handoff-quality-principles';
 import { getHandoffReportTemplateIntro } from '../../../utils/handoff-section-guidance';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 
@@ -41,8 +38,7 @@ ${getHandoffReportTemplateIntro('Handoff Template (Builder → Planner)')}
 - [ ] I confirm that I have seen this template at the start of this task, before implementing or modifying any code
 ${getRoleGuidanceDisclosureBlock(roleGuidanceContext)}
 
-${PROOF_OF_PRINCIPLES_HEADING_H2}
-${getHandoffQualityPrinciplesTemplateBlock()}
+${getHandoffQualityPrinciplesSectionBlock()}
 
 ## Proof of Completion
 ${getDelegationBriefDisclosureBlock()}
@@ -53,9 +49,11 @@ ${getFileReferenceProofOfCompletionExample()}
 ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
 
 ## Blockers / questions
-<anything needing planner decision. Omit if none.>
+<!-- REQUIRED. List blockers, or write "Not Applicable". Do not omit this section. -->
+<anything needing planner decision>
 
 ## Notes for review
-<specific areas for planner to check. Omit if none.>
+<!-- REQUIRED. List review notes, or write "Not Applicable". Do not omit this section. -->
+<specific areas for planner to check>
 \`\`\``;
 }

@@ -6,7 +6,7 @@
  * met at handoff (context read attestation + proof of completion). Delivered
  * with each task rather than baked into the static init/system prompt.
  *
- * Sections that do not apply may be omitted.
+ * Every section is required — write Not Applicable when a section does not apply.
  */
 
 import type { RoleGuidanceCommandParams } from '../../../cli/role-guidance/command';

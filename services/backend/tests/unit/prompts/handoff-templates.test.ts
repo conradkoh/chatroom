@@ -109,7 +109,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Report Template (Planner → User)** — include every section that applies to this handoff. **Omit sections that do not apply** — do not write \`Not Applicable\` as filler:
+      **Report Template (Planner → User)** — complete every section below. When a section or field does not apply, write \`Not Applicable\` — do not omit sections, principles, or XML wrappers:
 
       \`\`\`markdown
       <handoff-overview>
@@ -129,12 +129,12 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Planning
-      <!-- Demonstrate the goal was decomposed into actionable steps with clear outcomes before implementation. -->
+      <!-- REQUIRED. List planning steps, or write "Not Applicable" for trivial single-step tasks. Do not omit this section. -->
       - <step 1: concrete artifact or outcome>
       - <step 2: concrete artifact or outcome>
-      <Omit for trivial single-step tasks.>
 
       ## Proof of Principles
+      <!-- REQUIRED: Complete every principle below. Write an explanation or "Not Applicable" for each — do not omit this section or skip any principle bullet. -->
       - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
       <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
 
@@ -161,13 +161,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <evidence the goal was met — list every file you (or the builder) modified>
 
       ## Backlog Tasks Implemented
+      <!-- REQUIRED. List backlog items addressed, or write "Not Applicable" if none were in scope. Do not omit this section. -->
       - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
-      <Omit if no backlog items were in scope.>
 
       ## Backlog Pending User Review Confirmation
+      <!-- REQUIRED. Complete the attestation, or write "Not Applicable" if no backlog items apply. Do not omit this section. -->
       - [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` after the feature was verified end-to-end and a PR was raised for user review
       - PR URL(s): <link to PR(s)>
-      <Omit this section if no backlog items apply.>
 
       ## Code Change Verification
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
@@ -175,16 +175,19 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       <handoff-direction>
       ## What exists today
+      <!-- REQUIRED. Describe current state after this work, or write "Not Applicable". Do not omit this section. -->
       <current state after this work — what the user can now do, what is in place, how the system behaves>
 
       ## Key Technical Decisions
+      <!-- REQUIRED. List decisions, or write "Not Applicable". Do not omit this section. -->
       - <schema design, modules, interfaces, domain entities — what you chose and why>
 
       ## Key Tradeoffs
+      <!-- REQUIRED. List tradeoffs, or write "Not Applicable". Do not omit this section. -->
       - <what was weighed against what, and why you chose this path>
 
       ## System Design
-      <include a mermaid diagram when the change has non-trivial structure; omit for trivial changes>
+      <!-- REQUIRED. Include a mermaid diagram when the change has non-trivial structure, or write "Not Applicable". Do not omit this section. -->
 
       \`\`\`mermaid
       flowchart TD
@@ -194,20 +197,23 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       <handoff-notes>
       ## Notes
-      <anything the user should know — context, caveats, or observations not covered above. Omit if none.>
+      <!-- REQUIRED. Write notes, or "Not Applicable" if none. Do not omit this section. -->
+      <anything the user should know — context, caveats, or observations not covered above>
       </handoff-notes>
 
       <handoff-action>
       ## Tech Debt Observed
+      <!-- REQUIRED. List tech debt, or write "Not Applicable". Do not omit this section. -->
       - <issues noticed but intentionally left out of scope of this change>
 
       ## Unresolved Decisions
-      <!-- Decisions that need user input before work can proceed. Omit this section when there are no open decisions. -->
+      <!-- REQUIRED. List open decisions needing user input, or write "Not Applicable" if none. Do not omit this section. -->
       - <decision or question — options considered, recommendation if any>
       <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
       ## Manual steps
-      <steps the user must take outside the system — deploy, configure credentials, run commands, verify in production, etc. Omit if none.>
+      <!-- REQUIRED. List manual steps outside the system, or write "Not Applicable". Do not omit this section. -->
+      <steps the user must take outside the system — deploy, configure credentials, run commands, verify in production, etc.>
       </handoff-action>
       \`\`\`"
     `);
@@ -236,7 +242,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Handoff Template (Builder → Planner)** — include every section that applies to this handoff. **Omit sections that do not apply** — do not write \`Not Applicable\` as filler:
+      **Handoff Template (Builder → Planner)** — complete every section below. When a section or field does not apply, write \`Not Applicable\` — do not omit sections, principles, or XML wrappers:
 
       \`\`\`markdown
       ## Summary
@@ -248,6 +254,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Principles
+      <!-- REQUIRED: Complete every principle below. Write an explanation or "Not Applicable" for each — do not omit this section or skip any principle bullet. -->
       - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
       <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
 
@@ -277,10 +284,12 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Blockers / questions
-      <anything needing planner decision. Omit if none.>
+      <!-- REQUIRED. List blockers, or write "Not Applicable". Do not omit this section. -->
+      <anything needing planner decision>
 
       ## Notes for review
-      <specific areas for planner to check. Omit if none.>
+      <!-- REQUIRED. List review notes, or write "Not Applicable". Do not omit this section. -->
+      <specific areas for planner to check>
       \`\`\`"
     `);
   });
@@ -516,7 +525,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Report Template (Solo → User)** — include every section that applies to this handoff. **Omit sections that do not apply** — do not write \`Not Applicable\` as filler:
+      **Report Template (Solo → User)** — complete every section below. When a section or field does not apply, write \`Not Applicable\` — do not omit sections, principles, or XML wrappers:
 
       \`\`\`markdown
       <handoff-overview>
@@ -536,12 +545,12 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Planning
-      <!-- Demonstrate the goal was decomposed into actionable steps with clear outcomes before implementation. -->
+      <!-- REQUIRED. List planning steps, or write "Not Applicable" for trivial single-step tasks. Do not omit this section. -->
       - <step 1: concrete artifact or outcome>
       - <step 2: concrete artifact or outcome>
-      <Omit for trivial single-step tasks.>
 
       ## Proof of Principles
+      <!-- REQUIRED: Complete every principle below. Write an explanation or "Not Applicable" for each — do not omit this section or skip any principle bullet. -->
       - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
       <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
 
@@ -568,13 +577,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <evidence the goal was met — list every file you (or the builder) modified>
 
       ## Backlog Tasks Implemented
+      <!-- REQUIRED. List backlog items addressed, or write "Not Applicable" if none were in scope. Do not omit this section. -->
       - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
-      <Omit if no backlog items were in scope.>
 
       ## Backlog Pending User Review Confirmation
+      <!-- REQUIRED. Complete the attestation, or write "Not Applicable" if no backlog items apply. Do not omit this section. -->
       - [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` after the feature was verified end-to-end and a PR was raised for user review
       - PR URL(s): <link to PR(s)>
-      <Omit this section if no backlog items apply.>
 
       ## Code Change Verification
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
@@ -582,16 +591,19 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       <handoff-direction>
       ## What exists today
+      <!-- REQUIRED. Describe current state after this work, or write "Not Applicable". Do not omit this section. -->
       <current state after this work — what the user can now do, what is in place, how the system behaves>
 
       ## Key Technical Decisions
+      <!-- REQUIRED. List decisions, or write "Not Applicable". Do not omit this section. -->
       - <schema design, modules, interfaces, domain entities — what you chose and why>
 
       ## Key Tradeoffs
+      <!-- REQUIRED. List tradeoffs, or write "Not Applicable". Do not omit this section. -->
       - <what was weighed against what, and why you chose this path>
 
       ## System Design
-      <include a mermaid diagram when the change has non-trivial structure; omit for trivial changes>
+      <!-- REQUIRED. Include a mermaid diagram when the change has non-trivial structure, or write "Not Applicable". Do not omit this section. -->
 
       \`\`\`mermaid
       flowchart TD
@@ -601,20 +613,23 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       <handoff-notes>
       ## Notes
-      <anything the user should know — context, caveats, or observations not covered above. Omit if none.>
+      <!-- REQUIRED. Write notes, or "Not Applicable" if none. Do not omit this section. -->
+      <anything the user should know — context, caveats, or observations not covered above>
       </handoff-notes>
 
       <handoff-action>
       ## Tech Debt Observed
+      <!-- REQUIRED. List tech debt, or write "Not Applicable". Do not omit this section. -->
       - <issues noticed but intentionally left out of scope of this change>
 
       ## Unresolved Decisions
-      <!-- Decisions that need user input before work can proceed. Omit this section when there are no open decisions. -->
+      <!-- REQUIRED. List open decisions needing user input, or write "Not Applicable" if none. Do not omit this section. -->
       - <decision or question — options considered, recommendation if any>
       <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
       ## Manual steps
-      <steps the user must take outside the system — deploy, configure credentials, run commands, verify in production, etc. Omit if none.>
+      <!-- REQUIRED. List manual steps outside the system, or write "Not Applicable". Do not omit this section. -->
+      <steps the user must take outside the system — deploy, configure credentials, run commands, verify in production, etc.>
       </handoff-action>
       \`\`\`"
     `);
@@ -665,7 +680,11 @@ describe('handoff-templates > invariants', () => {
   for (const [label, template] of deliveredTemplates) {
     test(`${label} instructs omitting inapplicable sections`, () => {
       expect(template).toBeTruthy();
-      expect(template).toMatch(/Omit (sections|fields) that do not apply/);
+      if (label.includes('→ builder')) {
+        expect(template).toMatch(/Omit fields that do not apply/);
+      } else {
+        expect(template).toMatch(/complete every section/);
+      }
       expect(template).not.toMatch(/do not delete the section/i);
     });
 

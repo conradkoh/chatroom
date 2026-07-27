@@ -41,6 +41,9 @@ export const PROOF_OF_PRINCIPLES_HEADING_H2 = '## Proof of Principles';
 /** H3 heading for planner→user and solo→user reports */
 export const PROOF_OF_PRINCIPLES_HEADING_H3 = '### Proof of Principles';
 
+export const PROOF_OF_PRINCIPLES_MANDATORY_COMMENT =
+  '<!-- REQUIRED: Complete every principle below. Write an explanation or "Not Applicable" for each — do not omit this section or skip any principle bullet. -->';
+
 /**
  * Per-principle template block for handoff "Proof of Principles" sections.
  * Each principle is a bullet with its own HTML comment and a required response
@@ -53,4 +56,13 @@ export function getHandoffQualityPrinciplesTemplateBlock(): string {
     '',
   ]);
   return lines.join('\n').trimEnd();
+}
+
+/**
+ * Full section block: heading + REQUIRED comment + per-principle bullets.
+ */
+export function getHandoffQualityPrinciplesSectionBlock(): string {
+  return `${PROOF_OF_PRINCIPLES_HEADING_H2}
+${PROOF_OF_PRINCIPLES_MANDATORY_COMMENT}
+${getHandoffQualityPrinciplesTemplateBlock()}`;
 }
