@@ -599,7 +599,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   isLocal: boolean;
   sendAction: (
     machineId: string,
-    action: 'open-vscode' | 'open-finder' | 'open-github-desktop',
+    action: 'open-vscode' | 'open-finder' | 'open-github-desktop' | 'open-cursor',
     workingDir: string
   ) => void;
 }) {
