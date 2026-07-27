@@ -55,12 +55,10 @@ const STALE_INPUT: RenderTaskPromptInput = {
   },
 };
 
-/**
- * Golden output from the current (unchanged) renderer.
- * Captured manually — used for the size-constraint assertion.
- * DO NOT update without verifying against the actual renderer output.
- */
-const OLD_GOLDEN_LENGTH = 1008;
+/** Max task-read prompt length (publish gate). */
+export const TASK_READ_PROMPT_MAX_LENGTH = 1008;
+/** Required headroom below max — prompts must not ship at the ceiling. */
+export const TASK_READ_PROMPT_HEADROOM = 50;
 
 // =========================================================================
 // Layout
@@ -170,9 +168,17 @@ describe('divergence warning', () => {
 // =========================================================================
 
 describe('net size', () => {
-  it('does NOT increase prompt length for the full fixture', () => {
+  it('stays within budget with required headroom', () => {
     const output = renderTaskPrompt(FULL_INPUT);
-    expect(output.length).toBeLessThanOrEqual(OLD_GOLDEN_LENGTH);
+    expect(output.length).toBeLessThanOrEqual(
+      TASK_READ_PROMPT_MAX_LENGTH - TASK_READ_PROMPT_HEADROOM
+    );
+  });
+
+  it('documents remaining headroom for FULL_INPUT fixture', () => {
+    const output = renderTaskPrompt(FULL_INPUT);
+    const remaining = TASK_READ_PROMPT_MAX_LENGTH - output.length;
+    expect(remaining).toBeGreaterThanOrEqual(TASK_READ_PROMPT_HEADROOM);
   });
 });
 
