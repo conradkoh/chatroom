@@ -4,7 +4,10 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { getDaemonMachineAuth } from './auth';
 import { ENHANCER_STDIN_DELIMITER } from '../../../prompts/cli/stdin-heredoc';
 import { getConfig } from '../../../prompts/config/index';
-import { renderEnhancerReferenceHandoffTemplatesContent } from '../../../prompts/enhancer/reference-handoff-templates';
+import {
+  renderEnhancerOutputTemplateContent,
+  renderEnhancerReferencesXml,
+} from '../../../prompts/enhancer/reference-handoff-templates';
 import { renderEnhancerTaskEnvelope } from '../../../prompts/enhancer/render-task-envelope';
 import { renderEnhancerSystemPrompt } from '../../../prompts/enhancer/system-prompt';
 import { getCliEnvPrefix } from '../../../prompts/utils/index';
@@ -38,7 +41,14 @@ export const getSpawnPayload = query({
     }
 
     const cliEnvPrefix = getCliEnvPrefix(config.getConvexURL());
-    const referenceHandoffTemplatesContent = renderEnhancerReferenceHandoffTemplatesContent({
+    const outputTemplateContent = renderEnhancerOutputTemplateContent({
+      teamId: chatroom.teamId ?? 'duo',
+      chatroomId: job.chatroomId,
+      outputTemplate: job.templateSnapshot,
+      cliEnvPrefix,
+      nativeIntegration: true,
+    });
+    const referencesXml = renderEnhancerReferencesXml({
       teamId: chatroom.teamId ?? 'duo',
       chatroomId: job.chatroomId,
       outputTemplate: job.templateSnapshot,
@@ -51,7 +61,8 @@ export const getSpawnPayload = query({
       jobId: job._id,
       chatroomId: job.chatroomId,
       targetId: 'handoff:planner-to-builder',
-      referenceHandoffTemplatesContent,
+      outputTemplateContent,
+      referencesXml,
       plannerCheckIn: job.draftContent,
       cliCompleteCommand,
     });
