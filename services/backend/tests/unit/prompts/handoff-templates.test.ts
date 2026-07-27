@@ -109,7 +109,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Report Template (Planner → User)** — complete every section below. When a section or field does not apply, write \`Not Applicable\` — do not omit sections, principles, or XML wrappers:
+      **Report Template (Planner → User)** — complete every section below. Do not omit sections, principles, or XML wrappers:
 
       \`\`\`markdown
       <handoff-overview>
@@ -242,7 +242,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Handoff Template (Builder → Planner)** — complete every section below. When a section or field does not apply, write \`Not Applicable\` — do not omit sections, principles, or XML wrappers:
+      **Handoff Template (Builder → Planner)** — complete every section below. Do not omit sections, principles, or XML wrappers:
 
       \`\`\`markdown
       ## Summary
@@ -525,7 +525,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Report Template (Solo → User)** — complete every section below. When a section or field does not apply, write \`Not Applicable\` — do not omit sections, principles, or XML wrappers:
+      **Report Template (Solo → User)** — complete every section below. Do not omit sections, principles, or XML wrappers:
 
       \`\`\`markdown
       <handoff-overview>

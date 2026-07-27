@@ -1,11 +1,11 @@
 /**
- * Shared guidance for handoff template headers — sections that don't apply
- * should be omitted rather than filled with "Not Applicable" filler.
+ * Shared guidance for handoff template headers — report templates require
+ * every section; per-section HTML comments disclose when Not Applicable applies.
  */
 
 /** Header line for report-style templates (planner/solo → user, builder → planner). */
 export function getHandoffReportTemplateIntro(templateLabel: string): string {
-  return `**${templateLabel}** — complete every section below. When a section or field does not apply, write \`Not Applicable\` — do not omit sections, principles, or XML wrappers:`;
+  return `**${templateLabel}** — complete every section below. Do not omit sections, principles, or XML wrappers:`;
 }
 
 /** Header line for delegation brief (planner → builder). */

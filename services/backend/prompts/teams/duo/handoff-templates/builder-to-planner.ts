@@ -1,7 +1,7 @@
 /**
  * Handoff template: Duo builder → planner (work complete / blocked).
  *
- * Every section is required — write Not Applicable when a section does not apply. The handback captures not just
+ * Every section is required — do not omit sections. The handback captures not just
  * what changed but the reasoning behind it:
  *  1. Template disclosure confirmation — builder attests they saw this template
  *     at task start before implementing (soft verification for debugging).
