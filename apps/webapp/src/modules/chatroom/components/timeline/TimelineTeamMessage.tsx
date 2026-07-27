@@ -4,8 +4,10 @@ import { ArrowRight, ArrowRightLeft, Sparkles } from 'lucide-react';
 import { memo, useState } from 'react';
 
 import { HandoffEnvelopeView } from './HandoffEnvelopeView';
+import { HandoffReportView } from './HandoffReportView';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { hasHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
+import { hasHandoffReport } from '../../utils/parseHandoffReport';
 import {
   BADGE_BASE,
   formatMachineLabel,
@@ -116,6 +118,8 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
 
       {message.type === 'handoff' && hasHandoffEnvelope(displayContent) ? (
         <HandoffEnvelopeView content={displayContent} variant="timeline" />
+      ) : message.type === 'handoff' && hasHandoffReport(displayContent) ? (
+        <HandoffReportView content={displayContent} variant="timeline" />
       ) : (
         <TimelineMarkdownBody content={displayContent} />
       )}

@@ -14,9 +14,11 @@ import React, { useEffect, useCallback, memo } from 'react';
 import Markdown from 'react-markdown';
 
 import { HandoffEnvelopeView } from './timeline/HandoffEnvelopeView';
+import { HandoffReportView } from './timeline/HandoffReportView';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
 import { hasHandoffEnvelope } from '../utils/parseHandoffEnvelope';
+import { hasHandoffReport } from '../utils/parseHandoffReport';
 import type { Message } from '../types/message';
 
 interface MessageDetailModalProps {
@@ -218,6 +220,8 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                 <div className={proseClassNames}>
                   {message.type === 'handoff' && hasHandoffEnvelope(message.content) ? (
                     <HandoffEnvelopeView content={message.content} variant="detail" />
+                  ) : message.type === 'handoff' && hasHandoffReport(message.content) ? (
+                    <HandoffReportView content={message.content} variant="detail" />
                   ) : (
                     <Markdown
                       remarkPlugins={chatroomRemarkPlugins}
@@ -239,6 +243,8 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                 <div className={proseClassNames}>
                   {message.type === 'handoff' && hasHandoffEnvelope(message.content) ? (
                     <HandoffEnvelopeView content={message.content} variant="detail" />
+                  ) : message.type === 'handoff' && hasHandoffReport(message.content) ? (
+                    <HandoffReportView content={message.content} variant="detail" />
                   ) : (
                     <Markdown
                       remarkPlugins={chatroomRemarkPlugins}
