@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { Dialog, DialogContent, DialogScrollBody } from '../ui/dialog';
+import { Dialog, DialogContent } from '../ui/dialog';
 import { OverlayPortalContainerProvider } from './overlayPortalContainer';
-import { FixedModal, FixedModalBody, FixedModalContent } from '@/components/ui/fixed-modal';
+import { FixedModal, FixedModalContent } from '@/components/ui/fixed-modal';
 
 describe('overlay stacking tiers', () => {
   it('Dialog auto-elevates to z-[100] inside parent portal context', () => {

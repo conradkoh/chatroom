@@ -13,6 +13,12 @@ import {
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/modules/chatroom/components/ui/popover';
 
+function queryModalOverlays(): NodeListOf<HTMLElement> {
+  return document.body.querySelectorAll<HTMLElement>(
+    '.fixed.inset-0:not([data-slot="chatroom-dialog-portal-host"])'
+  );
+}
+
 describe('FixedModal', () => {
   afterEach(() => {
     document.body.style.overflow = '';
@@ -30,7 +36,7 @@ describe('FixedModal', () => {
       </>
     );
 
-    const overlays = document.body.querySelectorAll<HTMLElement>('.fixed.inset-0');
+    const overlays = queryModalOverlays();
     expect(overlays).toHaveLength(2);
     expect(overlays[0]?.compareDocumentPosition(overlays[1]!)).toBe(4);
   });
@@ -133,7 +139,7 @@ describe('FixedModal', () => {
     };
     render(<Wrapper />);
     fireEvent.click(screen.getByText('open detail'));
-    const overlays = document.body.querySelectorAll<HTMLElement>('.fixed.inset-0');
+    const overlays = queryModalOverlays();
     expect(overlays).toHaveLength(2);
     expect(overlays[0]?.compareDocumentPosition(overlays[1]!)).toBe(4);
   });
