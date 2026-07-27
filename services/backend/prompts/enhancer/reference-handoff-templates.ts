@@ -29,10 +29,6 @@ function getReferenceTargets(teamId: string) {
   return teamId.toLowerCase() === 'solo' ? SOLO_REFERENCE_TARGETS : DUO_REFERENCE_TARGETS;
 }
 
-function formatHandoffFor(fromRole: string, toRole: string): string {
-  return `${fromRole.toLowerCase()}->${toRole.toLowerCase()}`;
-}
-
 /** Inner markdown for `<handoff-templates>` — output contract only. */
 export function renderEnhancerOutputTemplateContent(
   params: RenderEnhancerReferenceHandoffTemplatesParams
