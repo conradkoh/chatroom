@@ -2,6 +2,7 @@
 
 import { EditorContent } from '@tiptap/react';
 
+import { backlogRichTextEditorProseClassNames } from '../markdown-utils';
 import { RichTextToolbar } from './RichTextToolbar';
 import { useRichTextEditor } from './useRichTextEditor';
 
@@ -48,7 +49,7 @@ export function RichTextEditor({
       >
         <EditorContent
           editor={editor}
-          className="p-4 text-sm outline-none focus:outline-none focus-visible:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror:focus]:outline-none [&_.ProseMirror-focused]:outline-none"
+          className={`p-4 min-w-0 overflow-x-hidden outline-none focus:outline-none focus-visible:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror:focus]:outline-none [&_.ProseMirror-focused]:outline-none ${backlogRichTextEditorProseClassNames}`}
         />
       </div>
     </div>
