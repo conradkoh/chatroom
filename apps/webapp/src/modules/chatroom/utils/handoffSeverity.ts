@@ -20,7 +20,7 @@ export function parseSeverityBullet(line: string): SeverityBullet {
 
 /** Shared layout for inline severity chips in handoff-action list items. */
 const SEVERITY_CHIP_BASE_CLASS_NAME =
-  'inline-flex shrink-0 items-center h-[1lh] px-1.5 text-[9px] font-medium uppercase tracking-wide rounded-md align-middle mr-1 leading-none';
+  'inline-flex shrink-0 items-center px-1.5 py-1 text-[9px] font-medium uppercase tracking-wide rounded-none align-middle mr-1 leading-none';
 
 function getSeverityChipClassName(severity: HandoffSeverity): string {
   switch (severity) {

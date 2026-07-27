@@ -41,11 +41,12 @@ describe('parseSeverityBullet', () => {
 });
 
 describe('getSeverityChipClassNames', () => {
-  it('uses compact line-height-aligned layout without borders', () => {
+  it('uses compact layout without borders or corner radius', () => {
     const classNames = getSeverityChipClassNames('high');
-    expect(classNames).toContain('h-[1lh]');
-    expect(classNames).toContain('rounded-md');
+    expect(classNames).toContain('py-1');
+    expect(classNames).toContain('rounded-none');
     expect(classNames).not.toContain('border');
+    expect(classNames).not.toContain('rounded-md');
     expect(classNames).toContain('bg-chatroom-status-error/15');
   });
 });
