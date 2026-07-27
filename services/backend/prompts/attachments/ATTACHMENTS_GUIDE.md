@@ -218,9 +218,10 @@ Add a kind to `PRIMARY_DELIVERY_ATTACHMENT_KINDS` and `PRIMARY_DELIVERY_INPUT_KE
 ### Backlog (primary delivery + task read)
 
 ```xml
+  <system-notice>Work on attached backlog items. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="..." --role="..."</system-notice>
   <attachment type="backlog" backlog-item-id="item-111">
     <content>Add login page</content>
-    <hint>Work on this item. When verified end-to-end and a PR is ready for review: chatroom backlog mark-for-review --chatroom-id="..." --role="..." --backlog-item-id=item-111</hint>
+    <hint>--backlog-item-id=item-111</hint>
   </attachment>
 ```
 

@@ -349,12 +349,9 @@ ${taskDeliveryPrompt.fullCliOutput}
       - Handle edge cases and error scenarios
       - Commit work with descriptive, atomic commit messages
 
-      **Completion gates (mandatory before PR or handoff):**
-      - Every **(Required)** file in the delegation brief is implemented
-      - All acceptance criteria pass, including at least one check that the feature is **verified end-to-end** (run the actual CLI command, call the API, or exercise the UI)
-      - Do not self-reduce scope — if the brief is too large, hand back to the planner under ## Blockers / questions
-      - Do not raise a PR or run \`chatroom backlog mark-for-review\` until the above are true — unless the user explicitly requested a draft or incremental PR
-      - If any acceptance criterion is unmet, use ## Blockers / questions — do NOT raise a PR
+      **Completion gates (before PR or handoff):**
+      - All **(Required)** files done; **verified end-to-end** (user-facing entry point works: CLI command runnable, API reachable, or UI action functional)
+      - If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
 
        
 
@@ -486,9 +483,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
 
       ## Proof of Completion
-      - [ ] I confirm that the goal and acceptance criteria from the planner’s delegation brief have been met
-      - [ ] I confirm the feature is verified end-to-end (CLI command runnable, API reachable, or UI action functional — not just helper files or unit tests)
-      - [ ] I confirm no (Required) files from the delegation brief were deferred or skipped
+      - [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
       <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
