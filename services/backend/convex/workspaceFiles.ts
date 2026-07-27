@@ -181,7 +181,7 @@ export const requestFileContent = mutation({
 
     // Check for cached content (fresh if < 5 minutes old)
     const cached = await ctx.db
-      .query('chatroom_workspaceFileContent')
+      .query('chatroom_workspaceFileContentV2')
       .withIndex('by_machine_workingDir_path', (q: any) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
       )
@@ -1332,13 +1332,11 @@ export const getFileContentV2 = query({
       return null;
     }
 
+    const workingDir = normalizeWorkingDir(args.workingDir);
     const content = await ctx.db
       .query('chatroom_workspaceFileContentV2')
       .withIndex('by_machine_workingDir_path', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('filePath', args.filePath)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
       )
       .first();
 
@@ -1572,18 +1570,64 @@ export const completeFileWriteRequest = mutation({
     });
 
     if (args.status === 'done') {
-      const cached = await ctx.db
-        .query('chatroom_workspaceFileContentV2')
-        .withIndex('by_machine_workingDir_path', (q: any) =>
-          q
-            .eq('machineId', request.machineId)
-            .eq('workingDir', request.workingDir)
-            .eq('filePath', request.filePath)
-        )
-        .first();
+      const workingDir = normalizeWorkingDir(request.workingDir);
 
-      if (cached) {
-        await ctx.db.delete('chatroom_workspaceFileContentV2', cached._id);
+      if ((request.operation === 'create' || request.operation === 'update') && request.data) {
+        const now = Date.now();
+        const existing = await ctx.db
+          .query('chatroom_workspaceFileContentV2')
+          .withIndex('by_machine_workingDir_path', (q: any) =>
+            q
+              .eq('machineId', request.machineId)
+              .eq('workingDir', workingDir)
+              .eq('filePath', request.filePath)
+          )
+          .first();
+
+        const row = {
+          machineId: request.machineId,
+          workingDir,
+          filePath: request.filePath,
+          data: request.data,
+          encoding: 'utf8' as const,
+          truncated: false,
+          fetchedAt: now,
+        };
+
+        if (existing) {
+          await ctx.db.patch('chatroom_workspaceFileContentV2', existing._id, row);
+        } else {
+          await ctx.db.insert('chatroom_workspaceFileContentV2', row);
+        }
+
+        const contentRequest = await ctx.db
+          .query('chatroom_workspaceFileContentRequests')
+          .withIndex('by_machine_workingDir_path', (q: any) =>
+            q
+              .eq('machineId', request.machineId)
+              .eq('workingDir', workingDir)
+              .eq('filePath', request.filePath)
+          )
+          .first();
+        if (contentRequest) {
+          await ctx.db.patch('chatroom_workspaceFileContentRequests', contentRequest._id, {
+            status: 'done' as const,
+            updatedAt: now,
+          });
+        }
+      } else if (request.operation === 'delete') {
+        const cached = await ctx.db
+          .query('chatroom_workspaceFileContentV2')
+          .withIndex('by_machine_workingDir_path', (q: any) =>
+            q
+              .eq('machineId', request.machineId)
+              .eq('workingDir', workingDir)
+              .eq('filePath', request.filePath)
+          )
+          .first();
+        if (cached) {
+          await ctx.db.delete('chatroom_workspaceFileContentV2', cached._id);
+        }
       }
     }
   },
