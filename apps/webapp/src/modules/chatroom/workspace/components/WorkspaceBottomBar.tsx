@@ -18,6 +18,7 @@
 
 import {
   ChevronDown,
+  ClipboardCopy,
   Code2,
   ExternalLink,
   FolderOpen,
@@ -64,6 +65,7 @@ import {
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { cn } from '@/lib/utils';
+import { copyWorkspacePathToClipboard } from '../utils/clipboard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -711,6 +713,17 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                     <PanelBottomOpen size={12} className="shrink-0" />
                     Open workspace details
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void copyWorkspacePathToClipboard(workspace.workingDir);
+                      onClose();
+                    }}
+                    className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
+                  >
+                    <ClipboardCopy size={12} className="shrink-0" />
+                    Copy workspace path
+                  </button>
                   {/* Local actions */}
                   {isLocal && (
                     <>
@@ -1151,6 +1164,12 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                         >
                           <PanelBottomOpen size={13} className="mr-2" />
                           Open workspace details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => void copyWorkspacePathToClipboard(ws.workingDir)}
+                        >
+                          <ClipboardCopy size={13} className="mr-2" />
+                          Copy workspace path
                         </DropdownMenuItem>
                         {isLocal && (
                           <>
