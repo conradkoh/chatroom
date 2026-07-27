@@ -26,7 +26,7 @@ async function toggleEnhancerState(args: {
   disableEnhancer: () => Promise<void>;
   disable: () => Promise<void>;
   saveConfig: (cfg: EnhancerConfig) => Promise<void>;
-  openDialog: () => void;
+  openDialog: (options?: { enableAfterSave?: boolean }) => void;
 }): Promise<void> {
   if (args.isActive) {
     await (args.isEnhancing ? args.disableEnhancer() : args.disable());
@@ -38,7 +38,7 @@ async function toggleEnhancerState(args: {
     return;
   }
 
-  args.openDialog();
+  args.openDialog({ enableAfterSave: true });
 }
 
 export function PlannerEnhancerToggle({

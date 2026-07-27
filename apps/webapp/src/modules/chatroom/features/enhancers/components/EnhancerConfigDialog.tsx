@@ -15,7 +15,6 @@ import {
 } from '../../../components/ui/dialog';
 import type { AgentHarness } from '../../../types/machine';
 import { ENHANCER_TARGETS } from '../constants/enhancerTargets';
-import { isEnhancerConfigActive } from '../types/enhancer';
 import type { EnhancerConfig } from '../types/enhancer';
 import {
   enhancerConfigEntriesEqual,
@@ -30,8 +29,9 @@ interface EnhancerConfigDialogProps {
   chatroomId: string;
   machineId: string | null | undefined;
   initialConfig: EnhancerConfig | null;
+  /** When true, saved config is persisted with `enabled: true` (toggle-on without prior model). */
+  enableAfterSave?: boolean;
   onConfirm: (config: EnhancerConfig) => void;
-  onDisable: () => void;
   favorites: EnhancerConfigEntry[];
   isFavorite: (entry: EnhancerConfigEntry) => boolean;
   onAddFavorite: (entry: EnhancerConfigEntry) => void;
@@ -45,8 +45,8 @@ export function EnhancerConfigDialog({
   onOpenChange,
   machineId,
   initialConfig,
+  enableAfterSave = false,
   onConfirm,
-  onDisable,
   favorites,
   onAddFavorite,
   onRemoveFavorite,
@@ -67,7 +67,7 @@ export function EnhancerConfigDialog({
     setModel(initialConfig?.model ?? '');
   }, [open, initialConfig]);
 
-  const canEnable = !!targetId && !!agentHarness && !!model && !!machineId;
+  const canSave = !!targetId && !!agentHarness && !!model && !!machineId;
 
   const currentEntry = useMemo<EnhancerConfigEntry | null>(() => {
     if (!targetId || !agentHarness || !model) return null;
@@ -108,16 +108,25 @@ export function EnhancerConfigDialog({
     [favorites, targetFavorites, onMoveFavorite]
   );
 
-  const handleConfirm = useCallback(() => {
-    if (!canEnable || !machineId) return;
+  const handleSave = useCallback(() => {
+    if (!canSave || !machineId) return;
     onConfirm({
-      enabled: true,
+      enabled: enableAfterSave ? true : (initialConfig?.enabled ?? false),
       targetId: targetId as EnhancerConfig['targetId'],
       agentHarness,
       model,
       machineId,
     });
-  }, [canEnable, targetId, agentHarness, model, machineId, onConfirm]);
+  }, [
+    canSave,
+    enableAfterSave,
+    initialConfig?.enabled,
+    targetId,
+    agentHarness,
+    model,
+    machineId,
+    onConfirm,
+  ]);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -220,26 +229,13 @@ export function EnhancerConfigDialog({
             Cancel
           </button>
 
-          {isEnhancerConfigActive(initialConfig) && (
-            <button
-              type="button"
-              onClick={() => {
-                onDisable();
-                onOpenChange(false);
-              }}
-              className="px-3 py-1.5 text-sm border-2 border-chatroom-status-error/40 text-chatroom-status-error hover:bg-chatroom-status-error/10 rounded-none transition-colors"
-            >
-              Disable
-            </button>
-          )}
-
           <button
             type="button"
-            onClick={handleConfirm}
-            disabled={!canEnable}
+            onClick={handleSave}
+            disabled={!canSave}
             className="px-3 py-1.5 text-sm bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary rounded-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Enable
+            Save
           </button>
         </DialogFooter>
       </DialogContent>

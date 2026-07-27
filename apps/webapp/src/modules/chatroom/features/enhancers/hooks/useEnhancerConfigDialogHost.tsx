@@ -13,11 +13,17 @@ interface UseEnhancerConfigDialogHostOptions {
   workspaceMachineId: string | null | undefined;
 }
 
+export interface OpenEnhancerConfigDialogOptions {
+  /** When true, Save persists config with `enabled: true` (toggle-on without prior model). */
+  enableAfterSave?: boolean;
+}
+
 export function useEnhancerConfigDialogHost({
   chatroomId,
   workspaceMachineId,
 }: UseEnhancerConfigDialogHostOptions) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [enableAfterSave, setEnableAfterSave] = useState(false);
   const { config, isActive, saveConfig, disable } = useEnhancerConfig(chatroomId);
   const favoritesMachineId = config?.machineId ?? workspaceMachineId ?? null;
   const { favorites, addFavorite, removeFavorite, moveFavorite, isFavorite } =
@@ -25,35 +31,39 @@ export function useEnhancerConfigDialogHost({
 
   const dialogMachineId = config?.machineId ?? workspaceMachineId;
 
-  const openDialog = useCallback(() => setDialogOpen(true), []);
+  const openDialog = useCallback((options?: OpenEnhancerConfigDialogOptions) => {
+    setEnableAfterSave(options?.enableAfterSave ?? false);
+    setDialogOpen(true);
+  }, []);
+
+  const handleDialogOpenChange = useCallback((open: boolean) => {
+    setDialogOpen(open);
+    if (!open) setEnableAfterSave(false);
+  }, []);
 
   const handleConfirm = useCallback(
     (cfg: EnhancerConfig) => {
       void saveConfig(cfg);
       setDialogOpen(false);
+      setEnableAfterSave(false);
     },
     [saveConfig]
   );
 
-  const handleDisable = useCallback(() => {
-    void disable();
-    setDialogOpen(false);
-  }, [disable]);
-
   const dialog = (
     <EnhancerConfigDialog
       open={dialogOpen}
-      onOpenChange={setDialogOpen}
+      onOpenChange={handleDialogOpenChange}
       chatroomId={chatroomId}
       machineId={dialogMachineId}
       initialConfig={config}
+      enableAfterSave={enableAfterSave}
       favorites={favorites}
       isFavorite={isFavorite}
       onAddFavorite={(entry) => void addFavorite(entry)}
       onRemoveFavorite={(entry) => void removeFavorite(entry)}
       onMoveFavorite={(from, to) => void moveFavorite(from, to)}
       onConfirm={handleConfirm}
-      onDisable={handleDisable}
     />
   );
 
