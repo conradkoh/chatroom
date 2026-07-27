@@ -62,7 +62,7 @@ describe('backlog attachment hint', () => {
     expect(block).not.toMatch(/\[PENDING\]|\[BACKLOG\]/);
     expect(block).toContain('mark-for-review');
     expect(block).toContain(
-      'chatroom backlog mark-for-review --chatroom-id="test-chatroom-456" --role="planner" --backlog-item-id=item-111'
+      'chatroom backlog mark-for-review --chatroom-id="test-chatroom-456" --role="planner"'
     );
   });
 
@@ -87,6 +87,26 @@ describe('backlog attachment hint', () => {
     const block = lines.join('\n');
     expect(block.toLowerCase()).toContain('verified end-to-end');
     expect(block).not.toContain('When done:');
+  });
+
+  test('emits system-notice once when multiple backlog items', () => {
+    const lines = renderDeliveryAttachmentsBlock(
+      {
+        attachedBacklogItems: [
+          { _id: 'item-111', content: 'Add login page', status: 'pending' },
+          { _id: 'item-333', content: 'Add logout', status: 'pending' },
+        ],
+      },
+      { chatroomId: 'test-chatroom-456', role: 'planner' }
+    );
+    const block = lines.join('\n');
+    const systemNotices = block.match(/<system-notice>/g);
+    expect(systemNotices?.length).toBe(1);
+    expect(block).toContain(
+      'chatroom backlog mark-for-review --chatroom-id="test-chatroom-456" --role="planner"'
+    );
+    expect(block).toContain('<hint>--backlog-item-id=item-111</hint>');
+    expect(block).toContain('<hint>--backlog-item-id=item-333</hint>');
   });
 });
 

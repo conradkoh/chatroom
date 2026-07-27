@@ -41,15 +41,13 @@ function renderSnippetAttachment(snippet: DeliverySnippet): string[] {
 
 function renderBacklogAttachments(
   items: DeliveryBacklogItem[],
-  ctx: DeliveryAttachmentRenderContext
+  _ctx: DeliveryAttachmentRenderContext
 ): string[] {
   const lines: string[] = [];
   for (const item of items) {
     lines.push(`  <attachment type="backlog" backlog-item-id="${escapeXmlAttribute(item._id)}">`);
     lines.push(...xmlTextElement('content', item.content, '    '));
-    lines.push(
-      `    <hint>Work on this item. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="${escapeXmlAttribute(ctx.chatroomId)}" --role="${escapeXmlAttribute(ctx.role)}" --backlog-item-id=${item._id}</hint>`
-    );
+    lines.push(`    <hint>--backlog-item-id=${item._id}</hint>`);
     lines.push(`  </attachment>`);
   }
   return lines;
@@ -126,9 +124,17 @@ export function renderDeliveryAttachmentsBlock(
     return [];
   }
 
+  const sharedBacklogGateNotice =
+    backlogLines.length > 0
+      ? [
+          `  <system-notice>Work on attached backlog items. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="${escapeXmlAttribute(ctx.chatroomId)}" --role="${escapeXmlAttribute(ctx.role)}"</system-notice>`,
+        ]
+      : [];
+
   return [
     '',
     '<attachments>',
+    ...sharedBacklogGateNotice,
     ...backlogLines,
     ...taskLines,
     ...messageLines,

@@ -409,13 +409,14 @@ ${taskDeliveryPrompt.fullCliOutput}
       </context>
 
       <attachments>
+        <system-notice>Work on attached backlog items. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder"</system-notice>
         <attachment type="backlog" backlog-item-id="0000000000010005chatroom_backlog">
           <content>
       Fix: Agent lacks knowledge of backlog listing
 
       Add backlog section to get-next-task
           </content>
-          <hint>Work on this item. When verified end-to-end and a PR is ready for review: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --backlog-item-id=0000000000010005chatroom_backlog</hint>
+          <hint>--backlog-item-id=0000000000010005chatroom_backlog</hint>
         </attachment>
       </attachments>
       <message sender="user" message-id="000000000010006chatroom_messages">
