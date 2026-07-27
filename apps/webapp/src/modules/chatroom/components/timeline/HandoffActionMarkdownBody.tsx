@@ -10,7 +10,7 @@ import {
   getSeverityLabel,
 } from '../../utils/handoffSeverity';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { messageFeedProseClassNames } from '../markdown-utils';
+import { fullMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
 
 interface HandoffActionMarkdownBodyProps {
   content: string;
@@ -47,7 +47,7 @@ function preprocessActionMarkdown(content: string): string {
         const chipClass = getSeverityChipClassNames(severity);
         const label = getSeverityLabel(severity);
         const chipHtml = `<span data-testid="severity-chip-${severity}" class="${chipClass}">${label}</span>`;
-        result.push(`- ${chipHtml}${cleanText}`);
+        result.push(`- ${chipHtml} ${cleanText}`);
         continue;
       }
     }
@@ -70,7 +70,11 @@ export const HandoffActionMarkdownBody = memo(function HandoffActionMarkdownBody
 
   return (
     <div className={className}>
-      <Markdown remarkPlugins={chatroomRemarkPlugins} rehypePlugins={[rehypeRaw]}>
+      <Markdown
+        remarkPlugins={chatroomRemarkPlugins}
+        rehypePlugins={[rehypeRaw]}
+        components={fullMarkdownComponents}
+      >
         {processed}
       </Markdown>
     </div>
