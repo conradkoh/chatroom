@@ -296,7 +296,7 @@ const FixedModal = memo(function FixedModal({
             modalZ,
             'fixed left-1/2 top-1/2 flex w-full -translate-x-1/2 -translate-y-1/2',
             'bg-chatroom-bg-primary border-0 sm:border-2 border-chatroom-border-strong overflow-visible',
-            'h-full sm:h-[70vh] flex flex-col',
+            'h-full sm:h-[70vh]',
             maxWidth,
             className
           )}
