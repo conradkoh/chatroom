@@ -85,6 +85,32 @@ describe('useMarkdownFileEditor optimistic create', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
+  it('stays editable after create confirms before cache populates', async () => {
+    pendingOptimisticNewFilePaths.add('hello.md');
+    mockLoadedContent = null;
+
+    const { result, rerender } = renderHook(
+      ({ initialEmpty }) =>
+        useMarkdownFileEditor({
+          machineId: 'machine-1',
+          workingDir: '/workspace',
+          filePath: 'hello.md',
+          initialEmpty,
+        }),
+      { initialProps: { initialEmpty: true } }
+    );
+
+    expect(result.current.isLoading).toBe(false);
+
+    await act(async () => {
+      pendingOptimisticNewFilePaths.delete('hello.md');
+    });
+    rerender({ initialEmpty: false });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.content).toBe('');
+  });
+
   it('applies real content after create confirms and cache refreshes', async () => {
     pendingOptimisticNewFilePaths.add('notes.md');
 
