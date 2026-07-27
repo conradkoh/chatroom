@@ -9,11 +9,12 @@ const SEVERITY_PREFIX_RE = /^\[(high|medium|low)\]\s*/i;
 
 export function parseSeverityBullet(line: string): SeverityBullet {
   const trimmed = line.trim();
-  const match = SEVERITY_PREFIX_RE.exec(trimmed);
+  const withoutListMarker = trimmed.replace(/^[-*]\s+/, '');
+  const match = SEVERITY_PREFIX_RE.exec(withoutListMarker);
   if (!match) return { severity: null, text: trimmed };
   return {
     severity: match[1].toLowerCase() as HandoffSeverity,
-    text: trimmed.slice(match[0].length).trim(),
+    text: withoutListMarker.slice(match[0].length).trim(),
   };
 }
 
