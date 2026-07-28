@@ -1,7 +1,8 @@
-import type { Doc } from '../../../../convex/_generated/dataModel';
+import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { acknowledgePendingTask } from '../task/acknowledge-pending-task';
 import { readTask } from '../task/read-task';
+import { recordTaskDelivery } from '../task/record-task-delivery';
 
 /**
  * Transition the enhancer job's linked task to in_progress when the daemon claims the job.
@@ -38,4 +39,14 @@ export async function startEnhancerJobWork(
       taskId: job.taskId,
     });
   }
+
+  // Record delivery receipt for enhancer claim (startedAt set at claim time)
+  await recordTaskDelivery(ctx, {
+    chatroomId: job.chatroomId,
+    taskId: job.taskId,
+    role,
+    deliveryKind: 'enhancer_claim',
+    jobId: job._id,
+    startedAt: Date.now(),
+  });
 }

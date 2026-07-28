@@ -133,6 +133,19 @@ export function runNativeInjectionEffect(
       catch: (err) => err,
     });
 
+    yield* Effect.tryPromise({
+      try: () =>
+        deps.backend.mutation(api.taskDeliveryReceipts.record, {
+          sessionId: deps.sessionId,
+          chatroomId,
+          taskId,
+          role,
+          deliveryKind: 'native_inject',
+          harnessSessionId,
+        }),
+      catch: (err) => err,
+    });
+
     if (roleSupportsSessionAugmentation(role)) {
       yield* Effect.tryPromise({
         try: () =>

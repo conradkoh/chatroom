@@ -434,6 +434,13 @@ export class GetNextTaskSession {
           role: this.role,
           taskId: task._id,
         });
+        await this.client.mutation(api.taskDeliveryReceipts.record, {
+          sessionId: this.sessionId,
+          chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+          taskId: task._id,
+          role: this.role,
+          deliveryKind: 'cli_get_next_task',
+        });
       } catch (_claimError) {
         console.log(`🔄 Task already claimed by another agent, continuing to wait...`);
         return;
