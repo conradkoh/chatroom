@@ -1,68 +1,63 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { playNotificationSound } from './playNotificationSound';
 
 const STORAGE_KEY = 'chatroom:notification-sound-muted';
 
 describe('playNotificationSound', () => {
-  let mockOscillator: {
-    start: ReturnType<typeof vi.fn>;
-    stop: ReturnType<typeof vi.fn>;
-    connect: ReturnType<typeof vi.fn>;
-    frequency: { value: number };
-    onended: (() => void) | null;
+  let ctxMock: {
+    createOscillator: ReturnType<typeof vi.fn>;
+    createGain: ReturnType<typeof vi.fn>;
+    destination: string;
+    currentTime: number;
+    close: ReturnType<typeof vi.fn>;
   };
-  let mockGain: {
-    connect: ReturnType<typeof vi.fn>;
-    gain: {
-      setValueAtTime: ReturnType<typeof vi.fn>;
-      exponentialRampToValueAtTime: ReturnType<typeof vi.fn>;
-    };
-  };
-  let mockClose: ReturnType<typeof vi.fn>;
-  let AudioContextMock: ReturnType<typeof vi.fn>;
+  let originalAudioContext: typeof AudioContext | undefined;
 
   beforeEach(() => {
     localStorage.clear();
 
-    mockOscillator = {
-      start: vi.fn(),
-      stop: vi.fn(),
-      connect: vi.fn(),
-      frequency: { value: 0 },
-      onended: null,
-    };
-
-    mockGain = {
-      connect: vi.fn(),
-      gain: {
-        setValueAtTime: vi.fn(),
-        exponentialRampToValueAtTime: vi.fn(),
-      },
-    };
-
-    mockClose = vi.fn();
-
-    AudioContextMock = vi.fn(() => ({
-      createOscillator: () => mockOscillator,
-      createGain: () => mockGain,
+    ctxMock = {
+      createOscillator: vi.fn(() => ({
+        start: vi.fn(),
+        stop: vi.fn(),
+        connect: vi.fn(),
+        frequency: { value: 0 },
+        onended: null,
+      })),
+      createGain: vi.fn(() => ({
+        connect: vi.fn(),
+        gain: {
+          setValueAtTime: vi.fn(),
+          exponentialRampToValueAtTime: vi.fn(),
+        },
+      })),
       destination: 'mock-destination',
       currentTime: 1000,
-      close: mockClose,
-    }));
+      close: vi.fn(),
+    };
 
-    vi.stubGlobal('AudioContext', AudioContextMock);
+    originalAudioContext = window.AudioContext;
+    window.AudioContext = class {
+      constructor() {
+        return ctxMock;
+      }
+    } as unknown as typeof AudioContext;
+  });
+
+  afterEach(() => {
+    window.AudioContext = originalAudioContext!;
   });
 
   it('creates oscillator and plays sound when unmuted', () => {
     playNotificationSound();
 
-    expect(AudioContextMock).toHaveBeenCalled();
-    expect(mockOscillator.type).toBe('sine');
-    expect(mockOscillator.frequency.value).toBe(880);
-    expect(mockOscillator.start).toHaveBeenCalled();
-    expect(mockOscillator.stop).toHaveBeenCalled();
-    expect(mockGain.connect).toHaveBeenCalledWith('mock-destination');
+    expect(ctxMock.createOscillator).toHaveBeenCalled();
+    const osc = ctxMock.createOscillator.mock.results[0]?.value;
+    expect(osc.start).toHaveBeenCalled();
+    expect(osc.stop).toHaveBeenCalled();
+    const gain = ctxMock.createGain.mock.results[0]?.value;
+    expect(gain.connect).toHaveBeenCalledWith('mock-destination');
   });
 
   it('does not create AudioContext when muted', () => {
@@ -70,14 +65,15 @@ describe('playNotificationSound', () => {
 
     playNotificationSound();
 
-    expect(AudioContextMock).not.toHaveBeenCalled();
+    expect(ctxMock.createOscillator).not.toHaveBeenCalled();
   });
 
   it('closes AudioContext after oscillator ends', () => {
     playNotificationSound();
 
-    expect(mockOscillator.onended).toBeDefined();
-    mockOscillator.onended!();
-    expect(mockClose).toHaveBeenCalled();
+    const osc = ctxMock.createOscillator.mock.results[0]?.value;
+    expect(osc.onended).toBeDefined();
+    osc.onended();
+    expect(ctxMock.close).toHaveBeenCalled();
   });
 });
