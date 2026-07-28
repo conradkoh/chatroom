@@ -3116,6 +3116,23 @@ export default defineSchema({
     .index('by_status_nextRetryAt', ['status', 'nextRetryAt'])
     .index('by_chatroom_originUserMessageId', ['chatroomId', 'originUserMessageId']),
 
+  chatroom_taskDeliveryReceipts: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    taskId: v.id('chatroom_tasks'),
+    role: v.string(),
+    deliveryKind: v.union(
+      v.literal('native_inject'),
+      v.literal('enhancer_claim'),
+      v.literal('cli_get_next_task')
+    ),
+    harnessSessionId: v.optional(v.string()),
+    jobId: v.optional(v.id('chatroom_enhancerJobs')),
+    deliveredAt: v.number(),
+    startedAt: v.optional(v.number()),
+  })
+    .index('by_chatroom_role_task', ['chatroomId', 'role', 'taskId'])
+    .index('by_taskId', ['taskId']),
+
   /**
    * Messages produced by a harness session (both user prompts and assistant
    * response chunks). seq is monotonically increasing per session.
