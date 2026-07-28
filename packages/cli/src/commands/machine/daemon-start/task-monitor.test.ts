@@ -3,7 +3,6 @@ import {
   NATIVE_WAITING_ACTION,
 } from '@workspace/backend/src/domain/entities/participant.js';
 import {
-  parseSessionAugmentation,
   resolveSessionAugmentationForRole,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
@@ -105,32 +104,14 @@ describe('nudge wantResume from task content', () => {
     return sessionAugmentationToWantResume(resolveSessionAugmentationForRole(taskContent, role));
   }
 
-  test('new_session → wantResume false (cold spawn)', () => {
-    const content = `## Session Augmentation
-// data:agent.session_augmentation=new_session`;
-    expect(resolveWantResume(content)).toBe(false);
+  test('builder → new_session always (wantResume false)', () => {
+    expect(resolveWantResume('## Goal\nImplement feature')).toBe(false);
   });
 
-  test('legacy reset → wantResume false (cold spawn)', () => {
-    const content = `## Restart new context
-// data:agent.compress_context=reset`;
-    expect(resolveWantResume(content)).toBe(false);
-  });
-
-  test('none → wantResume true (resume session)', () => {
+  test('builder with explicit none tag in body → still new_session (wantResume false)', () => {
     const content = `## Session Augmentation
 // data:agent.session_augmentation=none`;
-    expect(resolveWantResume(content)).toBe(true);
-  });
-
-  test('compact → wantResume true (no cold restart)', () => {
-    const content = `## Session Augmentation
-// data:agent.session_augmentation=compact`;
-    expect(resolveWantResume(content)).toBe(true);
-  });
-
-  test('missing section → wantResume false for builder (default new_session)', () => {
-    expect(resolveWantResume('## Goal\nImplement feature')).toBe(false);
+    expect(resolveWantResume(content)).toBe(false);
   });
 
   test('planner missing section → wantResume true (augmentation gated to none)', () => {
@@ -200,11 +181,11 @@ describe('native harness nudge', () => {
     expectPendingNudge(cliTask, now, true);
   });
 
-  test('CLI new_session still implies wantResume false (regression)', () => {
-    const content = `## Session Augmentation
-// data:agent.session_augmentation=new_session`;
+  test('builder always resolves to new_session → wantResume false (regression)', () => {
     expect(
-      sessionAugmentationToWantResume(resolveSessionAugmentationForRole(content, 'builder'))
+      sessionAugmentationToWantResume(
+        resolveSessionAugmentationForRole('## Goal\nDo work', 'builder')
+      )
     ).toBe(false);
   });
 });

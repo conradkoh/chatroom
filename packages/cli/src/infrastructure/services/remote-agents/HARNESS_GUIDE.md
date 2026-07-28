@@ -74,15 +74,21 @@ Do **not** add `armTurnEnd` to `RemoteAgentService`.
 
 Regression coverage: unit tests titled `native multi-turn invariant: two resumeTurns each emit onAgentEnd` in `cursor-sdk` and `claude-sdk` agent-service tests; OpenCode covered by `session-event-forwarder` multi-turn `armTurnEnd` tests.
 
-### Context compaction vs hard restart vs new session
+### Builder delegation: always a fresh session
 
-| Mode          | Native (`cursor-sdk`, `opencode-sdk`, `claude-sdk`)             | CLI harnesses                                      |
-| ------------- | --------------------------------------------------------------- | -------------------------------------------------- |
-| `none`        | Continue prior session; plain task injection                    | Resume prior session (`wantResume=true`)           |
-| `compact`     | In-session compaction via SDK; compaction preamble on injection | Not supported — treat like `none` at runtime       |
-| `new_session` | New session in-process; new-session preamble (not compaction)   | Hard restart (`wantResume=false`); `get-next-task` |
+Builder role **always** starts a new session per delegation regardless of handoff body content. The planner→builder brief no longer carries a `## Session Augmentation` section. Non-builder roles (planner, enhancer, reviewer) continue to run in their existing session (`none` mode — `wantResume=true`).
 
-**Rule:** `compact` triggers in-session compaction and `agent.sessionCompacted` on native harnesses only. `new_session` starts a fresh session — it is not compaction. CLI harnesses cannot compact in-process; use `new_session` for a cold restart.
+| Role     | Resolved mode | Behavior                                      |
+| -------- | ------------- | --------------------------------------------- |
+| builder  | `new_session` | Fresh session; new-session preamble injected  |
+| planner  | `none`        | Continue existing session (`wantResume=true`) |
+| reviewer | `none`        | Continue existing session                     |
+| enhancer | `none`        | Continue existing session                     |
+
+| Mode          | Native (`cursor-sdk`, `opencode-sdk`, `claude-sdk`)           | CLI harnesses                                      |
+| ------------- | ------------------------------------------------------------- | -------------------------------------------------- |
+| `new_session` | New session in-process; new-session preamble (not compaction) | Hard restart (`wantResume=false`); `get-next-task` |
+| `none`        | Continue prior session; plain task injection                  | Resume prior session (`wantResume=true`)           |
 
 ---
 

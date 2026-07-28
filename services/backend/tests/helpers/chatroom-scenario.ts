@@ -16,7 +16,7 @@ import {
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { generateHandoffOutput } from '../../prompts/generator';
-import { parseSessionAugmentation } from '../../src/domain/handoff/parse-session-augmentation';
+import { resolveSessionAugmentationForRole } from '../../src/domain/handoff/parse-session-augmentation';
 import { t } from '../../test.setup';
 
 const DEFAULT_CONVEX_URL = 'http://127.0.0.1:3210';
@@ -63,14 +63,7 @@ export function buildNativeInjectionPrompt(params: {
   taskDeliveryOutput: string;
   taskContent: string;
 }): string {
-  const augmentationMode = parseSessionAugmentation(params.taskContent);
-  if (augmentationMode === 'compact') {
-    return [
-      '⚠️ Context was compacted. Run `chatroom get-system-prompt` only if role instructions are missing.',
-      '',
-      params.taskDeliveryOutput,
-    ].join('\n');
-  }
+  const augmentationMode = resolveSessionAugmentationForRole(params.taskContent, 'builder');
   if (augmentationMode === 'new_session') {
     return [
       '⚠️ Starting a new agent session. Run `chatroom get-system-prompt` to reload role instructions if needed.',

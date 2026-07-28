@@ -198,12 +198,20 @@ describe('shouldDeliverNativeTask', () => {
 });
 
 describe('buildNativeInjectionPrompt', () => {
-  test('adds compaction preamble for session_augmentation=compact', () => {
+  test('adds new-session preamble for new_session mode', () => {
     const output = buildNativeInjectionPrompt({
       taskDeliveryOutput: 'TASK BODY',
-      augmentationMode: 'compact',
+      augmentationMode: 'new_session',
     });
-    expect(output).toContain('Context was compacted');
+    expect(output).toContain('Starting a new agent session');
     expect(output).toContain('TASK BODY');
+  });
+
+  test('returns task body unchanged for none mode', () => {
+    const output = buildNativeInjectionPrompt({
+      taskDeliveryOutput: 'TASK BODY',
+      augmentationMode: 'none',
+    });
+    expect(output).toBe('TASK BODY');
   });
 });
