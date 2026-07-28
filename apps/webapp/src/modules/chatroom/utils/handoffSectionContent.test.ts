@@ -36,6 +36,18 @@ describe('isNotApplicableContent', () => {
     expect(isNotApplicableContent('')).toBe(true);
   });
 
+  it('returns true for Not Applicable with em-dash explanation', () => {
+    expect(isNotApplicableContent('Not Applicable — informational query only.')).toBe(true);
+  });
+
+  it('returns true for Not Applicable with trailing clause', () => {
+    expect(isNotApplicableContent('Not Applicable if none.')).toBe(true);
+  });
+
+  it('returns true for bulleted verbose N/A', () => {
+    expect(isNotApplicableContent('- Not Applicable — no diagram needed')).toBe(true);
+  });
+
   it('returns false for mixed real and N/A lines', () => {
     const text = '- [high] Critical issue\n- Not Applicable';
     expect(isNotApplicableContent(text)).toBe(false);

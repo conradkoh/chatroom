@@ -1,12 +1,10 @@
-const NOT_APPLICABLE_RE = /^not applicable\.?$/i;
-
 function stripComments(text: string): string {
   return text.replace(/<!--[\s\S]*?-->/g, '').trim();
 }
 
 function isNotApplicableLine(line: string): boolean {
   const trimmed = line.replace(/^[-*]\s*/, '').trim();
-  return NOT_APPLICABLE_RE.test(trimmed);
+  return /^not applicable\b/i.test(trimmed);
 }
 
 export function isNotApplicableContent(text: string): boolean {

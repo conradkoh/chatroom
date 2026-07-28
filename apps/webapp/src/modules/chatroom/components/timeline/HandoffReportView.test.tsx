@@ -121,6 +121,34 @@ Not Applicable
 Pick auth provider
 </handoff-action>`;
 
+const CONTENT_WITH_VERBOSE_NA_SYSTEM_DESIGN = `<handoff-overview>
+## Summary
+Test
+</handoff-overview>
+
+<handoff-proofs>
+## Proof of Completion
+Done
+</handoff-proofs>
+
+<handoff-direction>
+## Key Technical Decisions
+JWT
+
+## System Design
+Not Applicable — informational query only.
+</handoff-direction>
+
+<handoff-notes>
+## Notes
+Not Applicable
+</handoff-notes>
+
+<handoff-action>
+## Tech Debt Observed
+Not Applicable
+</handoff-action>`;
+
 const LEGACY_CONTENT = `## Summary
 Implemented login feature
 
@@ -189,6 +217,15 @@ describe('HandoffReportView', () => {
       render(<HandoffReportView content={CONTENT_WITH_NA_SYSTEM_DESIGN} />);
       expect(screen.getByText('System Design (0)')).toBeInTheDocument();
       expect(screen.queryByText('flowchart')).not.toBeInTheDocument();
+    });
+
+    it('renders System Design collapsed for verbose N/A with em-dash', () => {
+      render(<HandoffReportView content={CONTENT_WITH_VERBOSE_NA_SYSTEM_DESIGN} />);
+      expect(screen.getByText('System Design (0)')).toBeInTheDocument();
+      expect(screen.getByTestId('handoff-section-system-design')).toHaveAttribute(
+        'data-empty',
+        'true'
+      );
     });
   });
 
