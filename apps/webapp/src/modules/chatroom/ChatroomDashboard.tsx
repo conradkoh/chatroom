@@ -1483,6 +1483,57 @@ export function ChatroomDashboard({
     }
   }, [agentPanelData, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
 
+  // Per-role restart
+  const restartableAgentRoles = useMemo(
+    () => teamRoles.filter((r) => r !== 'user' && r.toLowerCase() !== 'enhancer'),
+    [teamRoles]
+  );
+
+  const [restartingAgentRole, setRestartingAgentRole] = useState<string | null>(null);
+
+  const isAnyAgentRestartInProgress = isRestartingAllAgents || restartingAgentRole !== null;
+
+  const handleRestartRemoteAgent = useCallback(
+    async (role: string) => {
+      if (
+        !ensureAgentRolesConfigured([role], roleConfigMap, () => handleCmdOpenSettings('agents'))
+      ) {
+        return;
+      }
+      const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
+      const agent = agentPanelData.agents.find((a) => a.role.toLowerCase() === role.toLowerCase());
+      const isRunning = agent?.state === 'running';
+
+      setRestartingAgentRole(role);
+      try {
+        if (isRunning) {
+          await agentPanelData.sendCommand({
+            machineId: agent?.machineId ?? ALL_MACHINES,
+            type: 'stop-agent' as const,
+            payload: { chatroomId: chatroomIdTyped, role },
+          });
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        await runAgentStartBatch(
+          [role],
+          roleConfigMap,
+          chatroomIdTyped,
+          agentPanelData.sendCommand,
+          (failed) => {
+            if (failed.length > 0) {
+              toast.error(`Failed to restart ${role}`);
+            } else {
+              toast.success(isRunning ? `Restarted ${role}` : `Started ${role}`);
+            }
+          }
+        );
+      } finally {
+        setRestartingAgentRole(null);
+      }
+    },
+    [agentPanelData, roleConfigMap, chatroomId, handleCmdOpenSettings]
+  );
+
   const sourceControlPanel = useMemo(
     () => (
       <SourceControlPanel
@@ -1620,9 +1671,13 @@ export function ChatroomDashboard({
         ? () => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)
         : null,
     workspaceCommands,
-    onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
-    onStopAllRemoteAgents: isStoppingAllAgents ? null : handleStopAllRemoteAgents,
-    onRestartAllRemoteAgents: isRestartingAllAgents ? null : handleRestartAllRemoteAgents,
+    onStartAllRemoteAgents:
+      isStartingAllAgents || isAnyAgentRestartInProgress ? null : handleStartAllRemoteAgents,
+    onStopAllRemoteAgents:
+      isStoppingAllAgents || isAnyAgentRestartInProgress ? null : handleStopAllRemoteAgents,
+    onRestartAllRemoteAgents: isAnyAgentRestartInProgress ? null : handleRestartAllRemoteAgents,
+    restartableAgentRoles: isAnyAgentRestartInProgress ? [] : restartableAgentRoles,
+    onRestartRemoteAgent: isAnyAgentRestartInProgress ? null : handleRestartRemoteAgent,
     onCreateCommand: (defaultScope?: SavedCommandScope) =>
       handleOpenSavedCommandModal(undefined, defaultScope),
     savedCommands,
