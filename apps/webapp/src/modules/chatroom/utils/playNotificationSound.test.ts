@@ -76,4 +76,12 @@ describe('playNotificationSound', () => {
     osc.onended();
     expect(ctxMock.close).toHaveBeenCalled();
   });
+
+  it('plays sound when muted if force is true', () => {
+    localStorage.setItem(STORAGE_KEY, 'true');
+
+    playNotificationSound({ force: true });
+
+    expect(ctxMock.createOscillator).toHaveBeenCalled();
+  });
 });

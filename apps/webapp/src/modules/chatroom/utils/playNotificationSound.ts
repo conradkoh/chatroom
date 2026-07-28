@@ -1,8 +1,13 @@
 import { isNotificationSoundMuted } from './notificationSoundPreference';
 
-export function playNotificationSound(): void {
+export interface PlayNotificationSoundOptions {
+  /** When true, plays even if the user has muted notification sounds (e.g. test preview). */
+  force?: boolean;
+}
+
+export function playNotificationSound(options?: PlayNotificationSoundOptions): void {
   if (typeof window === 'undefined') return;
-  if (isNotificationSoundMuted()) return;
+  if (!options?.force && isNotificationSoundMuted()) return;
 
   try {
     const AudioContextCtor =

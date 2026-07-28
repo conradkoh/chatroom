@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { NotificationSoundToggleButton } from './NotificationSoundToggleButton';
 
@@ -44,7 +44,7 @@ describe('NotificationSoundToggleButton', () => {
     expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'false');
 
     localStorage.setItem(STORAGE_KEY, 'true');
-    rerender(<NotificationSoundToggleButton />);
+    rerender(<NotificationSoundToggleButton key="muted" />);
     expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'true');
   });
 });
