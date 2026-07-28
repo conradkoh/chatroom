@@ -6,6 +6,7 @@
  * without coupling to a specific runtime.
  */
 
+import type { HarnessActivityEmitter } from '../../../domain/harness-activity-emitter.js';
 import type { SpawnPrompt } from './spawn-prompt.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -87,6 +88,8 @@ export interface SpawnResult {
   ) => void;
   /** `lifecycle.output.activity` — stream or stdout/stderr activity. */
   onOutput: (cb: () => void) => void;
+  /** Typed activity emitter for TOKEN_ACTIVITY_KINDS (busy, thinking, tool). */
+  activityEmitter?: HarnessActivityEmitter;
   /**
    * Human-readable log lines for resume-storm reason classification.
    * Implement on native SDK harnesses and other long-lived runtimes (see HARNESS_GUIDE.md §3.5).
