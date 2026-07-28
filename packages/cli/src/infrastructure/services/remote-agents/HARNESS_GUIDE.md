@@ -444,3 +444,14 @@ Native harnesses (`cursor-sdk`, `opencode-sdk`, `pi-sdk`, `claude-sdk`) idle in-
 A **requestStart replace** always kills via `doStop` regardless of resume state.
 
 **Residual risk (all CLI harnesses):** tool subprocesses that call `setsid` and leave the agent PG may survive group kill — upstream CLI behavior, not fixable in Chatroom alone.
+
+## Execution taxonomy
+
+Roles are split into two execution kinds, defined in `src/domain/execution-kind.ts`:
+
+| Kind            | Roles                                  | `participants.join` / `updateTokenActivity` | Example                |
+| --------------- | -------------------------------------- | ------------------------------------------- | ---------------------- |
+| `team_agent`    | planner, builder (default for unknown) | Yes — standard native presence wiring       | Duo chatroom agents    |
+| `daemon_worker` | enhancer                               | No — guarded by `isTeamAgentRole`           | Daemon-managed workers |
+
+Daemon workers (`enhancer`) are spawned outside `AgentProcessManager` and must NOT call team-agent `participants.join` or `updateTokenActivity`. The `native-spawn-presence.ts` helpers gate on `isTeamAgentRole` before attempting any mutation.

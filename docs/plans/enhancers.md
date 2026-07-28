@@ -281,6 +281,18 @@ The XML envelope delivered to the enhancer includes a `<planner-check-in>` secti
 - CLI complete command: [packages/cli/src/commands/enhancer/complete.ts](packages/cli/src/commands/enhancer/complete.ts)
 - Daemon subscriber: [packages/cli/src/commands/machine/daemon-start/enhancer/](packages/cli/src/commands/machine/daemon-start/enhancer/) (async job delivery — no CLI poll loop)
 - Handoff templates: [services/backend/prompts/cli/handoff-templates/](services/backend/prompts/cli/handoff-templates/)
+
+## Worker model
+
+The enhancer is a **daemon worker** (`packages/cli/src/domain/execution-kind.ts`), not a team agent. Key differences:
+
+- Daemon workers are **not** in `chatroom_rooms.teamRoles` — the enhancer role is never part of the duo/builder/planner team config
+- `native-spawn-presence.ts` guards `participants.join(NATIVE_WAITING_ACTION)` and `updateTokenActivity` with `isTeamAgentRole()` — enhancer spawns skip these mutations
+- Enhancer lifecycle is managed by `startEnhancerJobWork` (daemon-side), not `AgentProcessManager`
+- Backend integration tests use `assertDuoTeamOnly(chatroomId)` to verify team roles are not polluted by daemon worker entries
+
+For the full taxonomy and role mapping, see `packages/cli/src/domain/execution-kind.ts`.
+
 - Agentic query plan: [docs/plans/agentic-search-ask.md](docs/plans/agentic-search-ask.md)
 - Handoff mutation: [services/backend/convex/messages.ts](services/backend/convex/messages.ts) (`_handoffHandler` | `performHandoffFromEnhancer`)
 - Integration tests: [services/backend/tests/integration/enhancer-config.spec.ts](services/backend/tests/integration/enhancer-config.spec.ts), [enhancer-complete.spec.ts](services/backend/tests/integration/enhancer-complete.spec.ts), [enhancer-handoff.spec.ts](services/backend/tests/integration/enhancer-handoff.spec.ts), [enhancer-spawn.spec.ts](services/backend/tests/integration/enhancer-spawn.spec.ts)
