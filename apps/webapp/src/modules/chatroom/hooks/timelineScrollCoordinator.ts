@@ -459,7 +459,7 @@ export class TimelineScrollCoordinator {
     const blockTail = this.isTailBlockedByPrepend();
 
     // Drain prepend / chrome intents before tail work.
-    for (let i = 0; i < this.intentQueue.length;) {
+    for (let i = 0; i < this.intentQueue.length; ) {
       const intent = this.intentQueue[i];
       if (intent.type === 'preserve_prepend') {
         this.intentQueue.splice(i, 1);
@@ -944,7 +944,8 @@ export class TimelineScrollCoordinator {
       this.pinned &&
       this.tailSettle === null &&
       !this.isFlushingQueue &&
-      !this.programmaticScroll
+      !this.programmaticScroll &&
+      !this.resizing
     ) {
       this.cancelPendingTailWork();
       this.setPinned(false);

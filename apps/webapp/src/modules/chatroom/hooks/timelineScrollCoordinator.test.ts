@@ -599,6 +599,20 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
+  it('does not unpin on scroll while composer resize is active', () => {
+    expect(coordinator.isPinned).toBe(true);
+
+    coordinator.beginResize();
+
+    Object.defineProperty(el, 'scrollTop', { value: 200, writable: true, configurable: true });
+    el.dispatchEvent(new Event('scroll'));
+
+    expect(coordinator.isPinned).toBe(true);
+
+    coordinator.endResize();
+    expect(scrollToEnd).toHaveBeenCalled();
+  });
+
   it('does not unpin on scroll while programmatic tail follow is active', () => {
     Object.defineProperty(el, 'scrollTop', { value: 0, writable: true, configurable: true });
     el.dispatchEvent(new Event('scroll'));
