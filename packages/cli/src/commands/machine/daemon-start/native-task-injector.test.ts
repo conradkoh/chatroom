@@ -60,6 +60,7 @@ describe('runNativeInjectionEffect', () => {
         else if ('action' in args) order.push('join');
         else if ('mode' in args) order.push('augmented');
         else if ('machineId' in args && 'taskId' in args) order.push('delivered');
+        else if ('deliveryKind' in args) order.push('receipt');
         else if ('taskId' in args && 'role' in args) order.push('claim');
         return undefined;
       }
@@ -74,7 +75,15 @@ describe('runNativeInjectionEffect', () => {
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
 
-    expect(order).toEqual(['claim', 'query', 'join', 'augmented', 'resume', 'delivered']);
+    expect(order).toEqual([
+      'claim',
+      'query',
+      'join',
+      'receipt',
+      'augmented',
+      'resume',
+      'delivered',
+    ]);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
   });
 
@@ -93,7 +102,8 @@ describe('runNativeInjectionEffect', () => {
         call[1] !== null &&
         'taskId' in call[1] &&
         !('action' in call[1]) &&
-        !('machineId' in call[1])
+        !('machineId' in call[1]) &&
+        !('deliveryKind' in call[1])
     );
     expect(claimCalls).toHaveLength(0);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
