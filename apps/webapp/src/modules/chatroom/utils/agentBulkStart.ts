@@ -7,7 +7,8 @@ export async function startAgentsForRoles(
   agentRoles: string[],
   roleConfigMap: Map<string, AgentConfig>,
   chatroomId: Id<'chatroom_rooms'>,
-  sendCommand: SendCommandFn
+  sendCommand: SendCommandFn,
+  options?: { wantResume?: boolean }
 ): Promise<PromiseSettledResult<unknown>[]> {
   return startAgentsBatch(
     agentRoles,
@@ -21,7 +22,7 @@ export async function startAgentsForRoles(
         model: config.model ?? '',
         agentHarness: config.agentType,
         workingDir: config.workingDir,
-        wantResume: config.wantResume,
+        wantResume: options?.wantResume ?? config.wantResume,
       };
     },
     sendCommand
@@ -61,8 +62,15 @@ export async function runAgentStartBatch(
   roleConfigMap: Map<string, AgentConfig>,
   chatroomId: Id<'chatroom_rooms'>,
   sendCommand: SendCommandFn,
-  onComplete: (failed: string[]) => void
+  onComplete: (failed: string[]) => void,
+  options?: { wantResume?: boolean }
 ): Promise<void> {
-  const results = await startAgentsForRoles(agentRoles, roleConfigMap, chatroomId, sendCommand);
+  const results = await startAgentsForRoles(
+    agentRoles,
+    roleConfigMap,
+    chatroomId,
+    sendCommand,
+    options
+  );
   onComplete(getFailedAgentRoles(results, agentRoles));
 }
