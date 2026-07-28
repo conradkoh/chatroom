@@ -44,6 +44,7 @@ import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './compone
 import { isBinaryFile } from './components/FileSelector/binaryDetection';
 import type { FileEntry } from './components/FileSelector/useFileSelector';
 import { MessageInput } from './components/MessageInput';
+import { NotificationSoundToggleButton } from './components/NotificationSoundToggleButton';
 import { PanelLoadingSpinner } from './components/PanelLoadingSpinner';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
@@ -1741,6 +1742,7 @@ export function ChatroomDashboard({
                 <Settings2 size={16} />
               </button>
             )}
+            <NotificationSoundToggleButton />
             <ThemeToggleButton />
           </div>
         ),
