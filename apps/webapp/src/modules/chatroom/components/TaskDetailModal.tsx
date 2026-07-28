@@ -11,6 +11,7 @@ import {
   modalMarkdownWrapProseClassNames,
   taskDetailProseClassNames,
 } from './markdown-utils';
+import { HandoffStructuredContent } from './HandoffStructuredContent';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 import { useAttachments } from '../attachments';
 import {
@@ -255,12 +256,18 @@ export function TaskDetailModal({
                     <div
                       className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
                     >
-                      <Markdown
-                        remarkPlugins={chatroomRemarkPlugins}
-                        components={modalMarkdownComponents}
-                      >
-                        {editedContent || '*No content yet*'}
-                      </Markdown>
+                      <HandoffStructuredContent
+                        content={editedContent}
+                        variant="detail"
+                        fallback={
+                          <Markdown
+                            remarkPlugins={chatroomRemarkPlugins}
+                            components={modalMarkdownComponents}
+                          >
+                            {editedContent || '*No content yet*'}
+                          </Markdown>
+                        }
+                      />
                     </div>
                   )}
                 </div>
@@ -269,12 +276,18 @@ export function TaskDetailModal({
               <div
                 className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
               >
-                <Markdown
-                  remarkPlugins={chatroomRemarkPlugins}
-                  components={modalMarkdownComponents}
-                >
-                  {task.content}
-                </Markdown>
+                <HandoffStructuredContent
+                  content={task.content}
+                  variant="detail"
+                  fallback={
+                    <Markdown
+                      remarkPlugins={chatroomRemarkPlugins}
+                      components={modalMarkdownComponents}
+                    >
+                      {task.content}
+                    </Markdown>
+                  }
+                />
               </div>
             )}
           </div>
