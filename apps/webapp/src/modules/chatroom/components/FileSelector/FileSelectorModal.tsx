@@ -98,7 +98,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
             />
             {/* u10: Fixed height container to prevent input box position shift */}
             <div ref={listRef} className="overflow-y-auto max-h-[50vh] h-[196px]">
-              <CommandList className="min-h-full">
+              <CommandList className="min-h-full max-h-none overflow-hidden p-0">
                 {!hasWorkspace ? (
                   <div className="flex flex-col items-center justify-center py-10 gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted">
