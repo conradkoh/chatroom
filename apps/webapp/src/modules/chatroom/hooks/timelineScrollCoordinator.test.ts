@@ -592,19 +592,6 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
-  it('snaps instead of unpins on layout scroll when pinned and not userScrolling', () => {
-    expect(coordinator.isPinned).toBe(true);
-    scrollToEnd.mockClear();
-
-    Object.defineProperty(el, 'scrollTop', { value: 200, writable: true, configurable: true });
-    Object.defineProperty(el, 'clientHeight', { value: 300, writable: true, configurable: true });
-    Object.defineProperty(el, 'scrollHeight', { value: 600, writable: true, configurable: true });
-    el.dispatchEvent(new Event('scroll'));
-
-    expect(coordinator.isPinned).toBe(true);
-    expect(scrollToEnd).toHaveBeenCalled();
-  });
-
   it('notifyContainerResize enqueues snap when pinned', () => {
     scrollToEnd.mockClear();
     coordinator.notifyContainerResize();

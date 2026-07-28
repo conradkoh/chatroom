@@ -452,7 +452,7 @@ export class TimelineScrollCoordinator {
     const blockTail = this.isTailBlockedByPrepend();
 
     // Drain prepend / chrome intents before tail work.
-    for (let i = 0; i < this.intentQueue.length; ) {
+    for (let i = 0; i < this.intentQueue.length;) {
       const intent = this.intentQueue[i];
       if (intent.type === 'preserve_prepend') {
         this.intentQueue.splice(i, 1);
@@ -933,11 +933,6 @@ export class TimelineScrollCoordinator {
       !this.isFlushingQueue &&
       !this.programmaticScroll
     ) {
-      // Container shrink (composer growth) fires scroll events without userScrolling.
-      if (!this.userScrolling) {
-        this.enqueue({ type: 'snap' });
-        return;
-      }
       this.cancelPendingTailWork();
       this.setPinned(false);
       return;
