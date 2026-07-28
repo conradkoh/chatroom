@@ -4,6 +4,7 @@ import type { AgentHarness } from '../../machine/types.js';
 import type { BackendOps } from '../../deps/index.js';
 import { api } from '../../../api.js';
 import type { SpawnResult } from './remote-agent-service.js';
+import { isTeamAgentRole } from '../../domain/execution-kind.js';
 
 export const NATIVE_TOKEN_ACTIVITY_THROTTLE_MS = 30_000;
 
@@ -30,6 +31,7 @@ export async function emitNativeWaitingAfterSpawn(
   harness: AgentHarness | string,
   opts?: { onError?: (err: Error) => void }
 ): Promise<boolean> {
+  if (!isTeamAgentRole(ctx.role)) return false;
   if (!getHarnessCapabilities(harness as AgentHarness).supportsNativeIntegration) {
     return false;
   }
@@ -55,6 +57,7 @@ export async function emitNativeWaitingAfterSpawn(
  * First output fires immediately; subsequent calls throttled (default 30s).
  */
 export function wireThrottledTokenActivityOnOutput(opts: WireThrottledTokenActivityOpts): void {
+  if (!isTeamAgentRole(opts.role)) return;
   const now = opts.now ?? (() => Date.now());
   const throttleMs = opts.throttleMs ?? NATIVE_TOKEN_ACTIVITY_THROTTLE_MS;
   let lastReportedTokenAt = 0;

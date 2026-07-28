@@ -19,20 +19,29 @@ function mockSpawnResult() {
 }
 
 describe('emitNativeWaitingAfterSpawn', () => {
-  it('calls participants.join with NATIVE_WAITING_ACTION for native harness', async () => {
+  it('calls participants.join for team agent with native harness', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
-    const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'enhancer' };
+    const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'builder' };
 
     const result = await emitNativeWaitingAfterSpawn(ctx, 'opencode-sdk');
 
     expect(result).toBe(true);
     expect(mutation).toHaveBeenCalledTimes(1);
     const args = mutation.mock.calls[0][1] as Record<string, unknown>;
-    expect(args.sessionId).toBe('s');
-    expect(args.chatroomId).toBe('c');
-    expect(args.role).toBe('enhancer');
+    expect(args.role).toBe('builder');
     expect(args.action).toBe('native:waiting');
+  });
+
+  it('does not call participants.join for daemon worker (enhancer)', async () => {
+    const mutation = vi.fn();
+    const backend = { mutation };
+    const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'enhancer' };
+
+    const result = await emitNativeWaitingAfterSpawn(ctx, 'opencode-sdk');
+
+    expect(result).toBe(false);
+    expect(mutation).not.toHaveBeenCalled();
   });
 
   it('does not call participants.join for non-native harness', async () => {
@@ -49,7 +58,7 @@ describe('emitNativeWaitingAfterSpawn', () => {
   it('calls onError when mutation throws', async () => {
     const mutation = vi.fn().mockRejectedValue(new Error('session not found'));
     const backend = { mutation };
-    const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'enhancer' };
+    const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'builder' };
     const onError = vi.fn();
 
     const result = await emitNativeWaitingAfterSpawn(ctx, 'opencode-sdk', { onError });
@@ -60,7 +69,7 @@ describe('emitNativeWaitingAfterSpawn', () => {
 });
 
 describe('wireThrottledTokenActivityOnOutput', () => {
-  it('fires updateTokenActivity immediately on first output', async () => {
+  it('fires updateTokenActivity for team agent', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
     const spawnResult = mockSpawnResult();
@@ -68,7 +77,7 @@ describe('wireThrottledTokenActivityOnOutput', () => {
       backend: backend as any,
       sessionId: 's',
       chatroomId: 'c',
-      role: 'enhancer',
+      role: 'builder',
       spawnResult,
       now: () => 1000,
       throttleMs: 30_000,
@@ -79,9 +88,25 @@ describe('wireThrottledTokenActivityOnOutput', () => {
 
     expect(mutation).toHaveBeenCalledTimes(1);
     const args = mutation.mock.calls[0][1] as Record<string, unknown>;
-    expect(args.sessionId).toBe('s');
-    expect(args.chatroomId).toBe('c');
-    expect(args.role).toBe('enhancer');
+    expect(args.role).toBe('builder');
+  });
+
+  it('does nothing for daemon worker (enhancer)', async () => {
+    const mutation = vi.fn();
+    const backend = { mutation };
+    const spawnResult = mockSpawnResult();
+    const ctx = {
+      backend: backend as any,
+      sessionId: 's',
+      chatroomId: 'c',
+      role: 'enhancer',
+      spawnResult,
+    };
+
+    wireThrottledTokenActivityOnOutput(ctx);
+    spawnResult._fireOutput();
+
+    expect(mutation).not.toHaveBeenCalled();
   });
 
   it('does not fire updateTokenActivity again within throttle window', async () => {
@@ -93,7 +118,7 @@ describe('wireThrottledTokenActivityOnOutput', () => {
       backend: backend as any,
       sessionId: 's',
       chatroomId: 'c',
-      role: 'enhancer',
+      role: 'builder',
       spawnResult,
       now: () => clock,
       throttleMs: 30_000,
@@ -119,7 +144,7 @@ describe('wireThrottledTokenActivityOnOutput', () => {
         backend: backend as any,
         sessionId: 's',
         chatroomId: 'c',
-        role: 'enhancer',
+        role: 'builder',
         spawnResult,
       });
     }).not.toThrow();
