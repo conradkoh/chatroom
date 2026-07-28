@@ -623,9 +623,7 @@ export default defineSchema({
     taskAssignedTo: v.optional(v.string()),
     taskCreatedAt: v.number(),
     taskUpdatedAt: v.number(),
-    sessionAugmentation: v.optional(
-      v.union(v.literal('none'), v.literal('compact'), v.literal('new_session'))
-    ),
+    sessionAugmentation: v.optional(v.union(v.literal('none'), v.literal('new_session'))),
 
     agentHarness: v.string(),
     model: v.optional(v.string()),

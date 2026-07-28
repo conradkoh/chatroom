@@ -2992,7 +2992,7 @@ export const emitSessionAugmented = mutation({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     taskId: v.id('chatroom_tasks'),
-    mode: v.union(v.literal('none'), v.literal('compact'), v.literal('new_session')),
+    mode: v.union(v.literal('none'), v.literal('new_session')),
     newSessionStarted: v.boolean(),
     harnessSessionId: v.optional(v.string()),
   },
