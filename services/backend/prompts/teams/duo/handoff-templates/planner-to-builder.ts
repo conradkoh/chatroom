@@ -18,7 +18,7 @@ import { getDelegationBriefIntro } from '../../../utils/handoff-section-guidance
  *
  * Fields that do not apply may be omitted.
  */
-export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): string {
+export function getPlannerToBuilderHandoffTemplate(_nativeIntegration = false): string {
   return `${getHandoffRecipientVisibilityCallout('builder')}
 
 ${getDelegationBriefIntro()}

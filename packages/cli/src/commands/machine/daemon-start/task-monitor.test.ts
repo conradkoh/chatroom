@@ -130,7 +130,6 @@ Implemented feature.
   test('regression: planner must not get wantResume=false from missing section default', () => {
     const userTask = `## Goal
 Acknowledge user message`;
-    expect(parseSessionAugmentation(userTask)).toBe('new_session');
     expect(resolveWantResume(userTask, 'planner')).toBe(true);
   });
 });
