@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NotificationSoundToggleButton } from './NotificationSoundToggleButton';
 
-const STORAGE_KEY = 'chatroom:notification-sound-muted';
+const SETTINGS_KEY = 'chatroom:notification-sound-settings';
 
 vi.mock('../utils/playNotificationSound', () => ({
   playNotificationSound: vi.fn(),
@@ -25,7 +25,7 @@ describe('NotificationSoundToggleButton', () => {
   });
 
   it('shows VolumeX icon when muted', () => {
-    localStorage.setItem(STORAGE_KEY, 'true');
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ muted: true }));
     render(<NotificationSoundToggleButton />);
     expect(document.querySelector('.lucide-volume-x')).not.toBeNull();
     expect(document.querySelector('.lucide-volume2')).toBeNull();
@@ -39,18 +39,20 @@ describe('NotificationSoundToggleButton', () => {
 
     await user.click(screen.getByRole('button'));
     expect(document.querySelector('.lucide-volume-x')).not.toBeNull();
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('true');
+    const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY)!);
+    expect(stored.muted).toBe(true);
 
     await user.click(screen.getByRole('button'));
     expect(document.querySelector('.lucide-volume2')).not.toBeNull();
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('false');
+    const stored2 = JSON.parse(localStorage.getItem(SETTINGS_KEY)!);
+    expect(stored2.muted).toBe(false);
   });
 
   it('has aria-pressed attribute reflecting muted state', () => {
     const { rerender } = render(<NotificationSoundToggleButton />);
     expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'false');
 
-    localStorage.setItem(STORAGE_KEY, 'true');
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ muted: true }));
     rerender(<NotificationSoundToggleButton key="muted" />);
     expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'true');
   });
@@ -59,6 +61,22 @@ describe('NotificationSoundToggleButton', () => {
     render(<NotificationSoundToggleButton />);
     fireEvent.contextMenu(screen.getByTestId('notification-sound-toggle'));
     expect(screen.getByTestId('notification-sound-play-test')).toHaveTextContent('Play test sound');
+  });
+
+  it('shows Sound settings in context menu on right-click', () => {
+    render(<NotificationSoundToggleButton />);
+    fireEvent.contextMenu(screen.getByTestId('notification-sound-toggle'));
+    expect(screen.getByTestId('notification-sound-open-settings')).toHaveTextContent(
+      'Sound settings'
+    );
+  });
+
+  it('opens settings dialog when Sound settings is selected', async () => {
+    const user = userEvent.setup();
+    render(<NotificationSoundToggleButton />);
+    fireEvent.contextMenu(screen.getByTestId('notification-sound-toggle'));
+    await user.click(screen.getByTestId('notification-sound-open-settings'));
+    expect(screen.getByTestId('notification-sound-settings-dialog')).toBeInTheDocument();
   });
 
   it('calls playNotificationSound with force on Play test sound select', async () => {
