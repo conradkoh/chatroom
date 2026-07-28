@@ -49,10 +49,10 @@ const BAR_ROW_CHROME = `${BAR_CHROME_BASE} py-1.5`;
 
 const PANEL_CHROME = `${BAR_CHROME_BASE} py-1.5`;
 
-const BAR_SHELL = `${BAR_ROW_CHROME} flex items-center gap-2`;
+const BAR_SHELL = `${BAR_ROW_CHROME} flex items-center gap-2 h-full`;
 
 const DISABLED_BAR_SHELL =
-  'px-3 py-1.5 border-chatroom-border bg-chatroom-bg-secondary flex items-center gap-2';
+  'px-3 py-1.5 border-chatroom-border bg-chatroom-bg-secondary flex items-center gap-2 h-full';
 
 function wantsStandingConfirm(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;

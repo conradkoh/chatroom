@@ -113,7 +113,7 @@ export function ResponsivePickerShell({
         <div
           ref={setTriggerEl}
           onClick={toggleOpen}
-          className="w-full"
+          className="w-full h-full flex items-stretch"
           data-testid="picker-pointer-trigger-wrap"
         >
           {triggerNode}

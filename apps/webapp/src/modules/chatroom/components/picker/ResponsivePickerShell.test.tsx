@@ -100,6 +100,8 @@ describe('ResponsivePickerShell', () => {
       const wrap = document.querySelector('[data-testid="picker-pointer-trigger-wrap"]');
       expect(wrap).not.toBeNull();
       expect(wrap).toHaveClass('w-full');
+      expect(wrap).toHaveClass('h-full');
+      expect(wrap).toHaveClass('flex');
     });
 
     it('renders pointer anchor at pointer-down coordinates on desktop', async () => {
