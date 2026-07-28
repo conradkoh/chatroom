@@ -10,6 +10,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import {
+  assertDuoTeamOnly,
   createTestSession,
   createDuoTeamChatroom,
   joinParticipant,
@@ -74,9 +75,23 @@ describe('daemon.enhancer.index', () => {
     expect(job!.runningSince).toBeUndefined();
   });
 
+  test('participants.join rejects enhancer role', async () => {
+    const { sessionId } = await createTestSession('enh-join-fail');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await expect(
+      t.mutation(api.participants.join, {
+        sessionId,
+        chatroomId,
+        role: 'enhancer',
+        action: 'native:waiting',
+      })
+    ).rejects.toThrow(/Invalid role/i);
+  });
+
   test('claimForSpawn transitions pending to running; second claim returns false', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-claim');
 
+    await assertDuoTeamOnly(chatroomId);
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
       chatroomId,
