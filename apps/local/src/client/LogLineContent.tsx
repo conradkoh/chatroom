@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import { parseLogTextSegments, splitUrls } from './log-text';
 
-export function LogLineContent({ text }: { text: string }) {
+export function LogLineContent({ text, className }: { text: string; className?: string }) {
   const segments = parseLogTextSegments(text);
   const nodes: ReactNode[] = [];
   let key = 0;
@@ -39,5 +39,5 @@ export function LogLineContent({ text }: { text: string }) {
     }
   }
 
-  return <>{nodes}</>;
+  return <span className={className}>{nodes}</span>;
 }

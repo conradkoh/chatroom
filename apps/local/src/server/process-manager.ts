@@ -359,7 +359,6 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
       const parts = pending.split(/\r?\n/);
       this.lineBuffers.set(def.id, parts.pop() ?? '');
       for (const line of parts) {
-        if (!line) continue;
         const logLine = this.logs.append({
           processId: def.id,
           stream,
