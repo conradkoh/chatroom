@@ -251,10 +251,16 @@ export function MessageInput({
       if (!textarea) return;
 
       const nextHeight = measureTextareaContentHeightPx(textarea, effectiveMaxTextareaHeightPx);
-      if (nextHeight === lastTextareaHeightRef.current) return;
+      const heightChanged = nextHeight !== lastTextareaHeightRef.current;
 
-      onBeforeResize?.();
+      if (heightChanged) {
+        onBeforeResize?.();
+      }
+
       textarea.style.height = `${nextHeight}px`;
+
+      if (!heightChanged) return;
+
       lastTextareaHeightRef.current = nextHeight;
       onAfterResize?.();
     });
