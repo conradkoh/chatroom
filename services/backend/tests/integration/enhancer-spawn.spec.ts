@@ -165,8 +165,9 @@ describe('daemon.enhancer.index', () => {
     expect(payload.systemPrompt).toContain(jobId);
     expect(payload.taskEnvelope).toContain('<handoff-templates>');
     expect(payload.taskEnvelope).toContain('### Handoff to `planner` (your output)');
-    expect(payload.taskEnvelope).toContain('### Handoff to `builder` (planner reference)');
-    expect(payload.taskEnvelope).toContain('### Handoff to `user` (planner reference)');
+    expect(payload.taskEnvelope).toContain('<references>');
+    expect(payload.taskEnvelope).toContain('handoff-template for="planner->builder" team="duo"');
+    expect(payload.taskEnvelope).toContain('handoff-template for="planner->user" team="duo"');
     expect(payload.taskEnvelope).toContain('<planner-check-in>');
     expect(payload.taskEnvelope).toContain('Draft content here');
   });
