@@ -35,5 +35,4 @@
 
 1. `receipt-not-started` — if open receipt exists, start from receipt
 2. `acknowledged-native` — existing acknowledged task + native injection path
-3. `enhancer-daemon-pending` — enhancer role with running job
-4. `recovered-pending` — existing pending task recovery paths
+3. `recovered-pending` — existing pending task recovery paths

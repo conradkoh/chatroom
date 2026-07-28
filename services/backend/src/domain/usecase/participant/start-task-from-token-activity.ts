@@ -143,47 +143,6 @@ async function ruleRecoveredPending(
   return true;
 }
 
-async function findRunningEnhancerJobForTask(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  taskId: Id<'chatroom_tasks'>
-): Promise<Doc<'chatroom_enhancerJobs'> | null> {
-  const running = await ctx.db
-    .query('chatroom_enhancerJobs')
-    .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId).eq('status', 'running'))
-    .collect();
-  return running.find((j) => j.taskId === taskId) ?? null;
-}
-
-async function ruleEnhancerDaemonPending(
-  ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string },
-  participant: ParticipantSnapshot
-): Promise<boolean> {
-  if (args.role !== 'enhancer') return false;
-  if (participant.lastStatus !== 'agent.waiting' && participant.lastStatus !== 'agent.started')
-    return false;
-
-  const pendingTask = await ctx.db
-    .query('chatroom_tasks')
-    .withIndex('by_chatroom_status_assignedTo', (q) =>
-      q.eq('chatroomId', args.chatroomId).eq('status', 'pending').eq('assignedTo', args.role)
-    )
-    .first();
-  if (!pendingTask) return false;
-
-  const job = await findRunningEnhancerJobForTask(ctx, args.chatroomId, pendingTask._id);
-  if (!job) return false;
-
-  await acknowledgePendingTask(ctx, {
-    chatroomId: args.chatroomId,
-    role: args.role,
-    pendingTask,
-  });
-  await readTask(ctx, { chatroomId: args.chatroomId, role: args.role, taskId: pendingTask._id });
-  return true;
-}
-
 // ─── Token Activity Rules (ordered by priority) ───────────────────────────
 
 const TOKEN_ACTIVITY_RULES: {
@@ -196,7 +155,6 @@ const TOKEN_ACTIVITY_RULES: {
 }[] = [
   { name: 'receipt-not-started', run: ruleReceiptNotStarted },
   { name: 'acknowledged-native', run: maybeStartAcknowledgedTaskFromTokenActivity },
-  { name: 'enhancer-daemon-pending', run: ruleEnhancerDaemonPending },
   { name: 'recovered-pending', run: ruleRecoveredPending },
 ];
 
