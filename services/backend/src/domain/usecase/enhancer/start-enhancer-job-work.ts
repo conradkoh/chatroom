@@ -1,4 +1,4 @@
-import type { Doc, Id } from '../../../../convex/_generated/dataModel';
+import type { Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { acknowledgePendingTask } from '../task/acknowledge-pending-task';
 import { readTask } from '../task/read-task';
