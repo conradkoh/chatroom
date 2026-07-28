@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import type React from 'react';
 
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
@@ -33,12 +34,24 @@ export function ChatroomMessagesPanel({
   viewMode,
   footer,
 }: ChatroomMessagesPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = panelRef.current;
+    if (!node) return;
+    const ro = new ResizeObserver(() => {
+      coordinator.current.notifyContainerResize();
+    });
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, [coordinator]);
+
   const filterRole = isFilteredMessageViewMode(viewMode)
     ? messageViewModeToSenderRole(viewMode)
     : null;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
+    <div ref={panelRef} className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
       <ChatroomTimelineFeed
         key={filterRole ?? 'all'}
         chatroomId={chatroomId}
