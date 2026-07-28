@@ -7,6 +7,7 @@ import Markdown from 'react-markdown';
 
 import { getScoringBadge } from './backlog';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
+import { stripHandoffXmlTags } from '../utils/stripHandoffXmlTags';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 
 import {
@@ -90,7 +91,7 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
       return tasks;
     }
     const query = searchQuery.toLowerCase();
-    return tasks.filter((task) => task.content.toLowerCase().includes(query));
+    return tasks.filter((task) => stripHandoffXmlTags(task.content).toLowerCase().includes(query));
   }, [tasks, searchQuery]);
 
   // Group tasks by status
@@ -304,7 +305,7 @@ function TaskListItem({
       {/* Content - with simplified markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
         <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
-          {task.content}
+          {stripHandoffXmlTags(task.content)}
         </Markdown>
       </div>
 

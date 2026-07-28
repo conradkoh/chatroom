@@ -3,7 +3,8 @@ import Markdown from 'react-markdown';
 
 import { MessageAttachmentChips } from '../../attachments';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { baseMarkdownComponents, compactProseClassNames } from '../markdown-utils';
+import { compactMarkdownComponents, compactProseClassNames } from '../markdown-utils';
+import { stripHandoffXmlTags } from '../../utils/stripHandoffXmlTags';
 import type { Task } from './types';
 import { getStatusBadge } from './utils';
 
@@ -57,8 +58,8 @@ export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskI
 
       {/* Content - Rendered as Markdown */}
       <div className={`line-clamp-3 mb-2 ${compactProseClassNames}`}>
-        <Markdown remarkPlugins={chatroomRemarkPlugins} components={baseMarkdownComponents}>
-          {task.content}
+        <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
+          {stripHandoffXmlTags(task.content)}
         </Markdown>
       </div>
 

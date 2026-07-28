@@ -27,20 +27,15 @@ function extractTag(
   return { body: match ? match[1].trim() : null, hadOpen, hadClose };
 }
 
+import { HANDOFF_REPORT_XML_TAGS } from './handoffXmlTags';
+
 const STRUCTURED_TAGS = [
   'handoff-overview',
   'handoff-direction',
   'handoff-notes',
   'handoff-action',
 ] as const;
-const ALL_TAGS = [
-  'handoff-overview',
-  'handoff-proofs',
-  'handoff-direction',
-  'handoff-notes',
-  'handoff-action',
-  'handoff-details',
-] as const;
+const ALL_TAGS = HANDOFF_REPORT_XML_TAGS;
 
 function hasAnyTag(content: string, tags: readonly string[]): boolean {
   return tags.some((tag) => new RegExp(`<${tag}\\s*>`, 'i').test(content));
