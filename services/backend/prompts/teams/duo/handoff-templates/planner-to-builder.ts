@@ -19,10 +19,6 @@ import { getDelegationBriefIntro } from '../../../utils/handoff-section-guidance
  * Fields that do not apply may be omitted.
  */
 export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): string {
-  const sessionManagement = nativeIntegration
-    ? `\`compact\` runs in-session context compaction via the SDK runtime. \`new_session\` starts a completely new session within the same process (not compaction). \`none\` continues the prior session. Tasks continue via injection.`
-    : `\`compact\` is NOT supported — use \`none\` or \`new_session\`. \`new_session\` requires a hard restart (daemon stops agent, cold-starts, agent rejoins via \`get-next-task\`). \`none\` resumes prior session (\`wantResume=true\`).`;
-
   return `${getHandoffRecipientVisibilityCallout('builder')}
 
 ${getDelegationBriefIntro()}
@@ -43,6 +39,7 @@ ${getDelegationBriefIntro()}
 
 ## Force Multipliers
 <choices that greatly simplify the solution while preserving long-term maintainability — reuse existing abstractions, avoid unnecessary layers, leverage platform conventions>
+- Each builder delegation starts a fresh session automatically — the builder does not continue prior context.
 
 ## Files to implement (exhaustive, file-level)
 List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
@@ -91,15 +88,6 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Omit 
 
 ## Out of scope
 - <files or areas the builder must NOT touch in this slice>
-
-## Session Augmentation
-Valid values: \`none\` | \`compact\` | \`new_session\`
-- \`none\` — continue prior session context
-- \`compact\` — run in-session context compaction (native SDK harnesses only)
-- \`new_session\` — start a completely new session (default)
-// data:agent.session_augmentation=new_session
-
-${sessionManagement}
 
 Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.`;
 }
