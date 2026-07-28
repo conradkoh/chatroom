@@ -153,7 +153,7 @@ export function ChatroomSwitcher() {
               onValueChange={setSearchValue}
             />
             <div ref={listRef} className="overflow-y-auto min-h-[244px] h-[244px]">
-              <CommandList className="min-h-full">
+              <CommandList className="min-h-full max-h-none overflow-hidden p-0">
                 <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                   No chatrooms found.
                 </CommandEmpty>
