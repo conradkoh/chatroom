@@ -493,6 +493,48 @@ describe('useCommandPaletteCommands', () => {
     });
   });
 
+  describe('Session: New Session command', () => {
+    it('adds Session: New Session command when onNewSession is provided', () => {
+      const onNewSession = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onNewSession,
+        })
+      );
+
+      const cmd = result.current.find((command) => command.id === 'session-new');
+      expect(cmd).toBeDefined();
+      expect(cmd).toMatchObject({
+        label: 'Session: New Session',
+        shortcut: '⌘N',
+        category: 'Session',
+        keywords: expect.arrayContaining(['new', 'session', 'fresh']),
+      });
+
+      cmd?.action();
+      expect(onNewSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('omits Session: New Session command when onNewSession is null', () => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          onNewSession: null,
+        })
+      );
+
+      expect(result.current.some((command) => command.id === 'session-new')).toBe(false);
+    });
+
+    it('omits Session: New Session command when onNewSession is undefined', () => {
+      const { result } = renderHook(() => useCommandPaletteCommands(baseProps));
+
+      expect(result.current.some((command) => command.id === 'session-new')).toBe(false);
+    });
+  });
+
   describe('Agentic Search command', () => {
     it('adds agentic search command when callback is provided', () => {
       const { result } = renderHook(() =>

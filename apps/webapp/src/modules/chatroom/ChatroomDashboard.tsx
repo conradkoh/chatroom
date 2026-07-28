@@ -100,6 +100,7 @@ import { useMultiWorkspaceFileSync } from './workspace/files';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
 import { useExplorerTabCloseShortcut } from './workspace/hooks/useExplorerTabCloseShortcut';
+import { useNewSessionShortcut } from './hooks/useNewSessionShortcut';
 import type { AgenticQueryMode, EditorTab, UseFileTabsReturn } from './workspace/hooks/useFileTabs';
 import { editorTabKey, isViewTabKey } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
@@ -1425,63 +1426,88 @@ export function ChatroomDashboard({
 
   // Restart all remote agents handler — starts if stopped, restarts if running
   const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
-  const handleRestartAllRemoteAgents = useCallback(async () => {
-    const agentRoles = getConfiguredAgentRoles();
-    if (!agentRoles) return;
+  const handleRestartAllRemoteAgents = useCallback(
+    async (options?: { wantResume?: boolean }) => {
+      const agentRoles = getConfiguredAgentRoles();
+      if (!agentRoles) return;
 
-    const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-    const reportStartResults = (failed: string[], successMessage: string) => {
-      if (failed.length > 0) {
-        toast.error(`Failed to start: ${failed.join(', ')}`);
+      const wantResume = options?.wantResume;
+      const isNewSession = wantResume === false;
+      const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
+      const reportStartResults = (failed: string[], successMessage: string) => {
+        if (failed.length > 0) {
+          toast.error(`Failed to start: ${failed.join(', ')}`);
+        } else {
+          toast.success(successMessage);
+        }
+      };
+
+      // Get current agent states
+      const runningAgents = agentPanelData.agents.filter((a) => a.state === 'running');
+
+      // Stop all running agents first
+      if (runningAgents.length > 0) {
+        setIsRestartingAllAgents(true);
+
+        // Stop all running agents
+        await Promise.allSettled(
+          runningAgents.map((agent) =>
+            agentPanelData.sendCommand({
+              machineId: agent.machineId ?? ALL_MACHINES,
+              type: 'stop-agent' as const,
+              payload: {
+                chatroomId: chatroomIdTyped,
+                role: agent.role,
+              },
+            })
+          )
+        );
+
+        // Wait a bit for agents to stop before starting
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        await runAgentStartBatch(
+          agentRoles,
+          roleConfigMap,
+          chatroomIdTyped,
+          agentPanelData.sendCommand,
+          (failed) =>
+            reportStartResults(
+              failed,
+              isNewSession
+                ? `Started new session for ${agentRoles.length} agent(s)`
+                : `Restarted ${agentRoles.length} agent(s)`
+            ),
+          wantResume !== undefined ? { wantResume } : undefined
+        );
+        setIsRestartingAllAgents(false);
       } else {
-        toast.success(successMessage);
+        setIsRestartingAllAgents(true);
+        await runAgentStartBatch(
+          agentRoles,
+          roleConfigMap,
+          chatroomIdTyped,
+          agentPanelData.sendCommand,
+          (failed) =>
+            reportStartResults(
+              failed,
+              isNewSession
+                ? `Started new session for ${agentRoles.length} agent(s)`
+                : `Started ${agentRoles.length} agent(s)`
+            ),
+          wantResume !== undefined ? { wantResume } : undefined
+        );
+        setIsRestartingAllAgents(false);
       }
-    };
+    },
+    [agentPanelData, roleConfigMap, chatroomId, getConfiguredAgentRoles]
+  );
 
-    // Get current agent states
-    const runningAgents = agentPanelData.agents.filter((a) => a.state === 'running');
+  const handleNewSession = useCallback(() => {
+    void handleRestartAllRemoteAgents({ wantResume: false });
+  }, [handleRestartAllRemoteAgents]);
 
-    // Stop all running agents first
-    if (runningAgents.length > 0) {
-      setIsRestartingAllAgents(true);
-
-      // Stop all running agents
-      await Promise.allSettled(
-        runningAgents.map((agent) =>
-          agentPanelData.sendCommand({
-            machineId: agent.machineId ?? ALL_MACHINES,
-            type: 'stop-agent' as const,
-            payload: {
-              chatroomId: chatroomIdTyped,
-              role: agent.role,
-            },
-          })
-        )
-      );
-
-      // Wait a bit for agents to stop before starting
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      await runAgentStartBatch(
-        agentRoles,
-        roleConfigMap,
-        chatroomIdTyped,
-        agentPanelData.sendCommand,
-        (failed) => reportStartResults(failed, `Restarted ${agentRoles.length} agent(s)`)
-      );
-      setIsRestartingAllAgents(false);
-    } else {
-      setIsRestartingAllAgents(true);
-      await runAgentStartBatch(
-        agentRoles,
-        roleConfigMap,
-        chatroomIdTyped,
-        agentPanelData.sendCommand,
-        (failed) => reportStartResults(failed, `Started ${agentRoles.length} agent(s)`)
-      );
-      setIsRestartingAllAgents(false);
-    }
-  }, [agentPanelData, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
+  useNewSessionShortcut({ onNewSession: handleNewSession });
 
   const sourceControlPanel = useMemo(
     () => (
@@ -1623,6 +1649,7 @@ export function ChatroomDashboard({
     onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
     onStopAllRemoteAgents: isStoppingAllAgents ? null : handleStopAllRemoteAgents,
     onRestartAllRemoteAgents: isRestartingAllAgents ? null : handleRestartAllRemoteAgents,
+    onNewSession: isRestartingAllAgents ? null : handleNewSession,
     onCreateCommand: (defaultScope?: SavedCommandScope) =>
       handleOpenSavedCommandModal(undefined, defaultScope),
     savedCommands,
