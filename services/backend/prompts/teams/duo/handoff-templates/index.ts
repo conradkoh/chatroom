@@ -14,7 +14,7 @@ export interface DuoHandoffTemplateQuery {
 }
 
 const DUO_HANDOFF_TEMPLATES: Record<string, (query: DuoHandoffTemplateQuery) => string> = {
-  'planner:builder': (query) => getPlannerToBuilderHandoffTemplate(query.nativeIntegration),
+  'planner:builder': () => getPlannerToBuilderHandoffTemplate(),
   'planner:enhancer': () => getPlannerToEnhancerHandoffTemplate(),
   'enhancer:planner': () => getEnhancerToPlannerHandoffTemplate(),
   'planner:user': (query) =>
