@@ -26,32 +26,35 @@ async function createDuoChatroom(sessionId: SessionId): Promise<Id<'chatroom_roo
   });
 }
 
-function makeJob(
+async function insertEnhancerJob(
   chatroomId: Id<'chatroom_rooms'>,
   userId: Id<'users'>,
-  taskId: Id<'chatroom_tasks'>
-): Doc<'chatroom_enhancerJobs'> {
-  return {
-    _id: 'job1' as Id<'chatroom_enhancerJobs'>,
-    _creationTime: Date.now(),
-    chatroomId,
-    userId,
-    targetId: 'handoff:planner-to-builder',
-    fromRole: 'planner',
-    toRole: 'enhancer',
-    status: 'running',
-    draftContent: 'draft',
-    templateSnapshot: 'template',
-    agentHarness: 'opencode-sdk',
-    model: 'm',
-    machineId: 'machine',
-    workingDir: '/tmp',
-    attemptCount: 1,
-    maxAttempts: 3,
-    createdAt: Date.now(),
-    runningSince: Date.now(),
-    taskId,
-  };
+  taskId?: Id<'chatroom_tasks'>
+): Promise<Doc<'chatroom_enhancerJobs'>> {
+  const jobId = await t.run(async (ctx) =>
+    ctx.db.insert('chatroom_enhancerJobs', {
+      chatroomId,
+      userId,
+      targetId: 'handoff:planner-to-builder',
+      fromRole: 'planner',
+      toRole: 'enhancer',
+      status: 'running',
+      draftContent: 'draft',
+      templateSnapshot: 'template',
+      agentHarness: 'opencode-sdk',
+      model: 'm',
+      machineId: 'machine',
+      workingDir: '/tmp',
+      attemptCount: 1,
+      maxAttempts: 3,
+      createdAt: Date.now(),
+      runningSince: Date.now(),
+      ...(taskId ? { taskId } : {}),
+    })
+  );
+  const job = await t.run(async (ctx) => ctx.db.get(jobId));
+  if (!job) throw new Error('job not found');
+  return job;
 }
 
 describe('startEnhancerJobWork', () => {
@@ -82,8 +85,10 @@ describe('startEnhancerJobWork', () => {
       return { taskId, userId: room!.ownerId };
     });
 
+    const job = await insertEnhancerJob(chatroomId, userId, taskId);
+
     await t.run(async (ctx) => {
-      await startEnhancerJobWork(ctx, makeJob(chatroomId, userId, taskId));
+      await startEnhancerJobWork(ctx, job);
     });
 
     const task = await t.run(async (ctx) => ctx.db.get(taskId));
@@ -99,11 +104,9 @@ describe('startEnhancerJobWork', () => {
       return room!.ownerId;
     });
 
+    const job = await insertEnhancerJob(chatroomId, userId);
+
     await t.run(async (ctx) => {
-      const job = {
-        ...makeJob(chatroomId, userId, 'task1' as Id<'chatroom_tasks'>),
-        taskId: undefined,
-      };
       await startEnhancerJobWork(ctx, job);
     });
   });
