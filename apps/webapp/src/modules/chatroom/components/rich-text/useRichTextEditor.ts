@@ -7,7 +7,7 @@ import { useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { useCallback, useEffect } from 'react';
 
-import { PasteMarkdown } from './pasteMarkdown';
+import { looksLikeMarkdown } from './pasteMarkdown';
 
 export interface UseRichTextEditorOptions {
   content: string;
@@ -32,7 +32,6 @@ export function useRichTextEditor({
       Placeholder.configure({ placeholder }),
       Link.configure({ openOnClick: false }),
       Markdown,
-      PasteMarkdown,
     ],
     content,
     contentType: 'markdown',
@@ -41,6 +40,14 @@ export function useRichTextEditor({
     editorProps: {
       attributes: {
         class: 'outline-none focus:outline-none focus-visible:outline-none',
+      },
+      handlePaste(_view, event) {
+        const text = event.clipboardData?.getData('text/plain');
+        if (text && looksLikeMarkdown(text)) {
+          editor?.commands.insertContent(text, { contentType: 'markdown' });
+          return true;
+        }
+        return false;
       },
     },
     onUpdate: ({ editor }) => {
