@@ -330,6 +330,11 @@ Tight spacing:         0.5rem (gap-2)
 - Tabular numbers for scanability
 - High contrast between text weights
 
+### Focus Indicators
+
+- Do **not** rely on the shadcn default global `outline-ring` on all elements — it produces large blue outlines on modals and panels when Radix focus traps activate.
+- Chatroom surfaces use `outline-none` on modals, editors, and industrial inputs; use border or background changes for interactive state instead (see `chatroomIndustrialInputClassName`).
+
 ## Implementation Guidelines
 
 ### Canonical chatroom UI primitives (webapp)
