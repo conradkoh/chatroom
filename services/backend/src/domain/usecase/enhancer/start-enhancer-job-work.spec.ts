@@ -7,7 +7,7 @@ import { describe, expect, test } from 'vitest';
 
 import { startEnhancerJobWork } from './start-enhancer-job-work';
 import { api } from '../../../../convex/_generated/api';
-import type { Doc, Id } from '../../../../convex/_generated/dataModel';
+import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
 
 async function createTestSession(id: string) {
@@ -26,20 +26,18 @@ async function createDuoChatroom(sessionId: SessionId): Promise<Id<'chatroom_roo
   });
 }
 
-function makeJob(
+function makeJobFields(
   chatroomId: Id<'chatroom_rooms'>,
   userId: Id<'users'>,
   taskId: Id<'chatroom_tasks'>
-): Doc<'chatroom_enhancerJobs'> {
+) {
   return {
-    _id: 'job1' as Id<'chatroom_enhancerJobs'>,
-    _creationTime: Date.now(),
     chatroomId,
     userId,
-    targetId: 'handoff:planner-to-builder',
+    targetId: 'handoff:planner-to-builder' as const,
     fromRole: 'planner',
     toRole: 'enhancer',
-    status: 'running',
+    status: 'running' as const,
     draftContent: 'draft',
     templateSnapshot: 'template',
     agentHarness: 'opencode-sdk',
@@ -82,8 +80,18 @@ describe('startEnhancerJobWork', () => {
       return { taskId, userId: room!.ownerId };
     });
 
+    const job = await t.run(async (ctx) => {
+      const jobId = await ctx.db.insert(
+        'chatroom_enhancerJobs',
+        makeJobFields(chatroomId, userId, taskId)
+      );
+      const job = await ctx.db.get('chatroom_enhancerJobs', jobId);
+      if (!job) throw new Error('enhancer job not found');
+      return job;
+    });
+
     await t.run(async (ctx) => {
-      await startEnhancerJobWork(ctx, makeJob(chatroomId, userId, taskId));
+      await startEnhancerJobWork(ctx, job);
     });
 
     const task = await t.run(async (ctx) => ctx.db.get(taskId));
@@ -100,10 +108,12 @@ describe('startEnhancerJobWork', () => {
     });
 
     await t.run(async (ctx) => {
-      const job = {
-        ...makeJob(chatroomId, userId, 'task1' as Id<'chatroom_tasks'>),
+      const jobId = await ctx.db.insert('chatroom_enhancerJobs', {
+        ...makeJobFields(chatroomId, userId, 'task1' as Id<'chatroom_tasks'>),
         taskId: undefined,
-      };
+      });
+      const job = await ctx.db.get('chatroom_enhancerJobs', jobId);
+      if (!job) throw new Error('enhancer job not found');
       await startEnhancerJobWork(ctx, job);
     });
   });
