@@ -9,10 +9,17 @@
  * - Cross-browser SVG post-processing for Safari compatibility
  */
 
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import fs from 'fs';
 import path from 'path';
 
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+
+import { MermaidBlock } from './MermaidBlock';
+
+vi.mock('../lib/mermaid/renderMermaidChartToSvg', () => ({
+  renderMermaidChartToSvg: vi.fn().mockResolvedValue('<svg><rect width="100" height="50"/></svg>'),
+}));
 
 // Read the source file for static analysis
 const SOURCE_PATH = path.join(__dirname, 'MermaidBlock.tsx');
@@ -123,9 +130,11 @@ describe('MermaidBlock — structure', () => {
     expect(source).toContain('export const MermaidBlock = memo(');
   });
 
-  test('has an expand button for fullscreen', () => {
-    expect(source).toContain('Maximize2');
-    expect(source).toContain('View fullscreen');
+  test('inline diagram uses click-to-expand without Maximize2 icon', () => {
+    expect(source).not.toContain('Maximize2');
+    expect(source).toContain('DRAG_THRESHOLD_PX');
+    expect(source).toContain('cursor-pointer');
+    expect(source).toContain('mermaid-fullscreen-modal');
   });
 
   test('renders MermaidFullscreenModal with isOpen/onClose props', () => {
@@ -235,5 +244,25 @@ describe('MermaidBlock — SVG rendering', () => {
 
   test('inline container has padding for polished appearance', () => {
     expect(source).toMatch(/className="[^"]*p-\d/);
+  });
+});
+
+describe('MermaidBlock — click to expand', () => {
+  test('opens fullscreen modal on click without drag', async () => {
+    render(<MermaidBlock chart="graph TD\n  A --> B" />);
+    await waitFor(() => expect(screen.getByTestId('mermaid-inline-scroll')).toBeInTheDocument());
+    const scroll = screen.getByTestId('mermaid-inline-scroll');
+    fireEvent.pointerDown(scroll, { clientX: 100, clientY: 100 });
+    fireEvent.click(scroll, { clientX: 100, clientY: 100 });
+    expect(screen.getByTestId('mermaid-fullscreen-modal')).toBeInTheDocument();
+  });
+
+  test('does not open modal after drag beyond threshold', async () => {
+    render(<MermaidBlock chart="graph TD\n  A --> B" />);
+    await waitFor(() => expect(screen.getByTestId('mermaid-inline-scroll')).toBeInTheDocument());
+    const scroll = screen.getByTestId('mermaid-inline-scroll');
+    fireEvent.pointerDown(scroll, { clientX: 100, clientY: 100 });
+    fireEvent.click(scroll, { clientX: 120, clientY: 100 });
+    expect(screen.queryByTestId('mermaid-fullscreen-modal')).not.toBeInTheDocument();
   });
 });
