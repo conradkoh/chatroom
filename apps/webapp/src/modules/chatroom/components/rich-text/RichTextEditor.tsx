@@ -40,7 +40,11 @@ export function RichTextEditor({
       <div
         className="flex-1 min-h-0 cursor-text overflow-y-auto outline-none focus:outline-none focus-visible:outline-none"
         style={minHeight ? { minHeight } : undefined}
-        onClick={() => editor?.chain().focus('end').run()}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            editor?.chain().focus().run();
+          }
+        }}
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
