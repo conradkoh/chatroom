@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { backlogRichTextEditorProseClassNames } from '../markdown-utils';
 import { RichTextEditor } from './RichTextEditor';
@@ -38,5 +38,21 @@ describe('RichTextEditor', () => {
 
     const proseMirror = container.querySelector('.ProseMirror');
     expect(proseMirror).toBeInTheDocument();
+  });
+
+  it('does not focus("end") when click bubbles from ProseMirror child', () => {
+    const { container } = render(
+      <RichTextEditor value="# Hello" onChange={() => {}} placeholder="Write..." />
+    );
+
+    const scrollArea = container.querySelector('.cursor-text')!;
+    const proseMirror = container.querySelector('.ProseMirror')!;
+    expect(scrollArea).toBeInTheDocument();
+    expect(proseMirror).toBeInTheDocument();
+
+    const focusChain = vi.spyOn(scrollArea, 'click');
+
+    proseMirror.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(focusChain).toHaveBeenCalledTimes(0);
   });
 });

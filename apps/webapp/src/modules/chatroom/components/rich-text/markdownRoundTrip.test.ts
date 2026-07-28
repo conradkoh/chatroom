@@ -38,6 +38,10 @@ const SAMPLES: { name: string; md: string }[] = [
     md: '```\nconst x = 1;\nconsole.log(x);\n```',
   },
   {
+    name: 'fenced code block with language tag',
+    md: '```typescript\nconst x: number = 1;\nconsole.log(x);\n```',
+  },
+  {
     name: 'inline code + link',
     md: 'Use `npx tsc` to check types. Read more at [example](https://example.com).',
   },
@@ -46,7 +50,7 @@ const SAMPLES: { name: string; md: string }[] = [
     md: '> This is a blockquote.',
   },
   {
-    name: 'mixed content',
+    name: 'mixed content with code block',
     md: '## Section\n\nThis has **bold**, *italic*, and `code`.\n\n- List item\n- Another item\n\n```json\n{"key": "value"}\n```',
   },
 ];
