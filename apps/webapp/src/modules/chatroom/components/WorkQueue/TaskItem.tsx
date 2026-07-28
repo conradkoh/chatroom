@@ -1,10 +1,7 @@
 import { Trash2 } from 'lucide-react';
-import Markdown from 'react-markdown';
 
 import { MessageAttachmentChips } from '../../attachments';
-import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { compactMarkdownComponents, compactProseClassNames } from '../markdown-utils';
-import { stripHandoffXmlTags } from '../../utils/stripHandoffXmlTags';
+import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 import type { Task } from './types';
 import { getStatusBadge } from './utils';
 
@@ -56,12 +53,8 @@ export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskI
         )}
       </div>
 
-      {/* Content - Rendered as Markdown */}
-      <div className={`line-clamp-3 mb-2 ${compactProseClassNames}`}>
-        <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
-          {stripHandoffXmlTags(task.content)}
-        </Markdown>
-      </div>
+      {/* Content - Plain text preview */}
+      <WorkQueuePreviewText content={task.content} className="mb-2" />
 
       {/* Attachment chips */}
       {taskHasAttachments ? (

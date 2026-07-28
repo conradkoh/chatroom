@@ -1,12 +1,9 @@
 'use client';
 
 import React from 'react';
-import Markdown from 'react-markdown';
 
 import { MessageAttachmentChips } from '../../attachments';
-import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { compactMarkdownComponents } from '../markdown-utils';
-import { stripHandoffXmlTags } from '../../utils/stripHandoffXmlTags';
+import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 import type { Task } from './types';
 import { getStatusBadge, formatRelativeTime } from './utils';
 
@@ -86,12 +83,8 @@ export function CurrentTasksModalItem({ task, onClick }: CurrentTasksModalItemPr
           {badge.label}
         </span>
 
-        {/* Content - with markdown */}
-        <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
-          <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
-            {stripHandoffXmlTags(task.content)}
-          </Markdown>
-        </div>
+        {/* Content - plain text preview */}
+        <WorkQueuePreviewText content={task.content} className="flex-1 min-w-0" />
 
         {/* Assigned To */}
         {task.assignedTo && (

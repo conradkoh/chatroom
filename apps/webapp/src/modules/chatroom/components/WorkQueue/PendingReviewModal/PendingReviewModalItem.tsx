@@ -1,8 +1,4 @@
-import Markdown from 'react-markdown';
-
-import { chatroomRemarkPlugins } from '../../chatroomRemarkPlugins';
-import { compactMarkdownComponents } from '../../markdown-utils';
-import { stripHandoffXmlTags } from '../../../utils/stripHandoffXmlTags';
+import { WorkQueuePreviewText } from '../WorkQueuePreviewText';
 import type { Task } from '../types';
 import { formatRelativeTime } from '../utils';
 
@@ -32,12 +28,8 @@ export function PendingReviewModalItem({ task, onClick }: PendingReviewModalItem
         Review
       </span>
 
-      {/* Content - with markdown */}
-      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
-        <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
-          {stripHandoffXmlTags(task.content)}
-        </Markdown>
-      </div>
+      {/* Content - plain text preview */}
+      <WorkQueuePreviewText content={task.content} className="flex-1 min-w-0" />
 
       {/* Relative Time */}
       <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>
