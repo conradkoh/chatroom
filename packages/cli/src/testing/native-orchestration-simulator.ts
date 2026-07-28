@@ -56,7 +56,6 @@ function createBackendMock(deliveryOutput: string) {
     if (
       isClaimMutation(args) ||
       args.action === NATIVE_TASK_INJECTED_ACTION ||
-      fn === api.machines.emitSessionCompacted ||
       fn === api.machines.emitSessionAugmented
     ) {
       return undefined;
