@@ -231,7 +231,7 @@ export const AgentPanel = memo(function AgentPanel({
 
       {/* Team selector — own row below the Agents header */}
       {teamName && teams && defaultTeamId && onTeamChange && (
-        <div className="px-4 py-2 border-b border-chatroom-border/50 flex items-center gap-1">
+        <div className="px-4 py-2 border-b border-chatroom-border/50 flex items-center gap-4">
           <div className="flex-1 min-w-0">
             <TeamSelectorDropdown
               teamName={teamName}

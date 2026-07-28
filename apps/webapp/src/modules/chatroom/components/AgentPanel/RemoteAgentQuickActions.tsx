@@ -3,6 +3,8 @@
 import { Play, RefreshCw, Square } from 'lucide-react';
 import { memo } from 'react';
 
+import { cn } from '@/lib/utils';
+
 export interface RemoteAgentQuickActionsProps {
   hasRunningAgents: boolean;
   onStart?: () => void;
@@ -12,6 +14,9 @@ export interface RemoteAgentQuickActionsProps {
   isStarting?: boolean;
 }
 
+const baseBtn =
+  'w-5 h-5 flex items-center justify-center flex-shrink-0 rounded transition-colors disabled:pointer-events-none';
+
 export const RemoteAgentQuickActions = memo(function RemoteAgentQuickActions({
   hasRunningAgents,
   onStart,
@@ -20,53 +25,63 @@ export const RemoteAgentQuickActions = memo(function RemoteAgentQuickActions({
   disabled = false,
   isStarting = false,
 }: RemoteAgentQuickActionsProps) {
-  const baseBtn =
-    'w-5 h-5 flex items-center justify-center flex-shrink-0 rounded transition-colors disabled:opacity-50 disabled:pointer-events-none';
+  const startEnabled = !hasRunningAgents && !disabled && !!onStart;
+  const stopEnabled = hasRunningAgents && !disabled && !!onStop;
+  const restartEnabled = hasRunningAgents && !disabled && !!onRestart;
 
-  if (hasRunningAgents) {
-    return (
-      <div className="flex items-center gap-0.5 flex-shrink-0">
-        {onStop ? (
-          <button
-            type="button"
-            onClick={onStop}
-            disabled={disabled}
-            title="Stop agents"
-            aria-label="Stop agents"
-            className={`${baseBtn} text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/10`}
-          >
-            <Square size={8} fill="currentColor" />
-          </button>
-        ) : null}
-        {onRestart ? (
-          <button
-            type="button"
-            onClick={onRestart}
-            disabled={disabled}
-            title="Restart agents"
-            aria-label="Restart agents"
-            className={`${baseBtn} text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10`}
-          >
-            <RefreshCw size={10} />
-          </button>
-        ) : null}
-      </div>
-    );
-  }
-
-  if (!onStart) return null;
+  const inactiveClass = 'text-chatroom-text-muted opacity-40';
 
   return (
-    <button
-      type="button"
-      onClick={onStart}
-      disabled={disabled || isStarting}
-      aria-busy={isStarting}
-      title="Start agents"
-      aria-label="Start agents"
-      className={`${baseBtn} text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10`}
+    <div
+      className="flex items-center justify-between w-[4.5rem] flex-shrink-0"
+      data-testid="remote-agent-quick-actions"
     >
-      <Play size={10} fill="currentColor" />
-    </button>
+      <button
+        type="button"
+        onClick={onStart}
+        disabled={!startEnabled || isStarting}
+        aria-busy={isStarting}
+        title="Start agents"
+        aria-label="Start agents"
+        className={cn(
+          baseBtn,
+          startEnabled
+            ? 'text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10'
+            : inactiveClass
+        )}
+      >
+        <Play size={10} fill="currentColor" />
+      </button>
+      <button
+        type="button"
+        onClick={onStop}
+        disabled={!stopEnabled}
+        title="Stop agents"
+        aria-label="Stop agents"
+        className={cn(
+          baseBtn,
+          stopEnabled
+            ? 'text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/10'
+            : inactiveClass
+        )}
+      >
+        <Square size={8} fill="currentColor" />
+      </button>
+      <button
+        type="button"
+        onClick={onRestart}
+        disabled={!restartEnabled}
+        title="Restart agents"
+        aria-label="Restart agents"
+        className={cn(
+          baseBtn,
+          restartEnabled
+            ? 'text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10'
+            : inactiveClass
+        )}
+      >
+        <RefreshCw size={10} />
+      </button>
+    </div>
   );
 });

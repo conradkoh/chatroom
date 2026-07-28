@@ -2100,15 +2100,9 @@ export function ChatroomDashboard({
                       agentConfigs={agentPanelData.machineConfigs}
                       onOpenAgents={handleOpenAgents}
                       hasRunningRemoteAgents={hasRunningRemoteAgents}
-                      onStartAllRemoteAgents={
-                        isAgentActionInProgress ? undefined : handleStartAllRemoteAgents
-                      }
-                      onStopAllRemoteAgents={
-                        isAgentActionInProgress ? undefined : executeStopAllRemoteAgents
-                      }
-                      onRestartAllRemoteAgents={
-                        isAgentActionInProgress ? undefined : handleRestartAllRemoteAgents
-                      }
+                      onStartAllRemoteAgents={handleStartAllRemoteAgents}
+                      onStopAllRemoteAgents={executeStopAllRemoteAgents}
+                      onRestartAllRemoteAgents={handleRestartAllRemoteAgents}
                       isAgentActionInProgress={isAgentActionInProgress}
                       isStartingAllAgents={isStartingAllAgents}
                     />
