@@ -270,11 +270,6 @@ export class TimelineScrollCoordinator {
 
   endResize(): void {
     this.resizing = false;
-    if (this.pinned) {
-      this.enqueue({ type: 'follow_tail', behavior: 'auto' });
-      this.enqueue({ type: 'tail_settle' });
-      this.schedulePinnedTailGuard();
-    }
   }
 
   // ─── User actions ────────────────────────────────────────────────────────

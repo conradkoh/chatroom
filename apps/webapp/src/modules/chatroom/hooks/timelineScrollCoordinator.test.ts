@@ -592,11 +592,12 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
-  it('endResize enqueues follow and tail settle when pinned', () => {
+  it('endResize clears resizing without scrolling when container size unchanged', () => {
     coordinator.beginResize();
     scrollToEnd.mockClear();
     coordinator.endResize();
-    expect(scrollToEnd).toHaveBeenCalled();
+    expect(coordinator.isProgrammaticScrollActive()).toBe(false);
+    expect(scrollToEnd).not.toHaveBeenCalled();
   });
 
   it('does not unpin on scroll while composer resize is active', () => {
@@ -610,7 +611,7 @@ describe('TimelineScrollCoordinator', () => {
     expect(coordinator.isPinned).toBe(true);
 
     coordinator.endResize();
-    expect(scrollToEnd).toHaveBeenCalled();
+    expect(coordinator.isPinned).toBe(true);
   });
 
   it('does not unpin on scroll while programmatic tail follow is active', () => {
