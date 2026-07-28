@@ -7,6 +7,7 @@ import { useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { useCallback, useEffect } from 'react';
 
+import { handleRichTextModEnter } from './handleRichTextModEnter';
 import { looksLikeMarkdown } from './pasteMarkdown';
 
 export interface UseRichTextEditorOptions {
@@ -15,6 +16,7 @@ export interface UseRichTextEditorOptions {
   placeholder?: string;
   editable?: boolean;
   autoFocus?: boolean;
+  onCmdEnter?: () => void;
 }
 
 export function useRichTextEditor({
@@ -23,6 +25,7 @@ export function useRichTextEditor({
   placeholder,
   editable = true,
   autoFocus,
+  onCmdEnter,
 }: UseRichTextEditorOptions) {
   const editor = useEditor({
     extensions: [
@@ -45,6 +48,13 @@ export function useRichTextEditor({
         const text = event.clipboardData?.getData('text/plain');
         if (text && looksLikeMarkdown(text)) {
           editor?.commands.insertContent(text, { contentType: 'markdown' });
+          return true;
+        }
+        return false;
+      },
+      handleKeyDown: (_view, event) => {
+        if (handleRichTextModEnter(event, onCmdEnter)) {
+          event.preventDefault();
           return true;
         }
         return false;

@@ -32,6 +32,7 @@ export function RichTextEditor({
     onUpdate: onChange,
     placeholder,
     autoFocus,
+    onCmdEnter,
   });
 
   return (
@@ -43,13 +44,6 @@ export function RichTextEditor({
         onClick={(e) => {
           if (e.target === e.currentTarget) {
             editor?.chain().focus().run();
-          }
-        }}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-            e.preventDefault();
-            e.stopPropagation();
-            onCmdEnter?.();
           }
         }}
       >

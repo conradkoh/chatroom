@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 
 import { backlogRichTextEditorProseClassNames } from '../markdown-utils';
 import { RichTextEditor } from './RichTextEditor';
@@ -49,5 +50,23 @@ describe('RichTextEditor', () => {
     const proseMirror = container.querySelector('.ProseMirror')!;
     expect(scrollArea).toBeInTheDocument();
     expect(proseMirror).toBeInTheDocument();
+  });
+
+  it('Cmd+Enter calls onCmdEnter without inserting newline', async () => {
+    const user = userEvent.setup();
+    const onCmdEnter = vi.fn();
+    const onChange = vi.fn();
+    render(<RichTextEditor value="hello" onChange={onChange} onCmdEnter={onCmdEnter} />);
+
+    const editor = document.querySelector('.ProseMirror');
+    expect(editor).toBeTruthy();
+    await user.click(editor!);
+    await user.keyboard('{Meta>}{Enter}{/Meta}');
+
+    expect(onCmdEnter).toHaveBeenCalledTimes(1);
+    const lastCall = onChange.mock.calls.at(-1)?.[0];
+    if (lastCall !== undefined) {
+      expect(lastCall).not.toMatch(/\n$/);
+    }
   });
 });
