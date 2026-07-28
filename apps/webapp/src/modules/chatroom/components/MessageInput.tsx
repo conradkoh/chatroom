@@ -40,8 +40,6 @@ import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 
 export interface MessageInputProps {
   chatroomId: string;
-  onBeforeResize?: () => void;
-  onAfterResize?: () => void;
   onRegisterFocus?: (focusFn: () => void) => void;
   /** Available workspace files for @ autocomplete (tagged with workspaceId) */
   files?: FileEntry[];
@@ -141,8 +139,6 @@ function cleanupOldDrafts(currentKey: string) {
 
 export function MessageInput({
   chatroomId,
-  onBeforeResize,
-  onAfterResize,
   onRegisterFocus,
   files = [],
   hasAutocompleteWorkspace = false,
@@ -245,20 +241,10 @@ export function MessageInput({
   const applyTextareaHeight = useCallback(
     (textarea: HTMLTextAreaElement) => {
       const nextHeight = measureTextareaContentHeightPx(textarea, effectiveMaxTextareaHeightPx);
-      const heightChanged = nextHeight !== lastTextareaHeightRef.current;
-
-      if (heightChanged) {
-        onBeforeResize?.();
-      }
-
       textarea.style.height = `${nextHeight}px`;
-
-      if (!heightChanged) return;
-
       lastTextareaHeightRef.current = nextHeight;
-      onAfterResize?.();
     },
-    [effectiveMaxTextareaHeightPx, onBeforeResize, onAfterResize]
+    [effectiveMaxTextareaHeightPx]
   );
 
   // Sync path: message changes — before paint (no rAF)

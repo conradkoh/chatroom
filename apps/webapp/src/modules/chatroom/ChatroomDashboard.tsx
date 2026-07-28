@@ -675,11 +675,7 @@ export function ChatroomDashboard({
   const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
 
   // ─── Scroll controller (shared between timeline feed and SendForm) ───
-  const {
-    coordinator: timelineScrollCoordinator,
-    beginResize,
-    endResize,
-  } = useTimelineScroll(messageViewMode, chatroomId);
+  const { coordinator: timelineScrollCoordinator } = useTimelineScroll(messageViewMode, chatroomId);
 
   const [explorerSplitSizes, setExplorerSplitSizes] = useExplorerSplitPanelSizes(
     chatroomId as Id<'chatroom_rooms'>
@@ -1929,8 +1925,6 @@ export function ChatroomDashboard({
                               onRegisterOpenEventStream: handleRegisterOpenEventStream,
                               onRegisterMessageStoreActions: handleRegisterMessageStoreActions,
                               machines: machineNameMap,
-                              onBeforeResize: beginResize,
-                              onAfterResize: endResize,
                               onRegisterSendFormFocus: handleRegisterSendFormFocus,
                               autocompleteFiles,
                               refreshAutocompleteFiles: handleAtTriggerActivate,
@@ -1956,8 +1950,6 @@ export function ChatroomDashboard({
                           <div className="shrink-0 border-t-2 border-chatroom-border-strong">
                             <MessageInput
                               chatroomId={chatroomId}
-                              onBeforeResize={beginResize}
-                              onAfterResize={endResize}
                               onRegisterFocus={handleRegisterSendFormFocus}
                               files={autocompleteFiles}
                               hasAutocompleteWorkspace={hasAutocompleteWorkspace}

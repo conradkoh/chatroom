@@ -30,8 +30,6 @@ export interface MessagesPanelProps {
   machines?: Map<string, { hostname: string; alias?: string }>;
   viewMode: MessageViewMode;
   // SendForm props
-  onBeforeResize?: () => void;
-  onAfterResize?: () => void;
   onRegisterSendFormFocus?: (focusFn: () => void) => void;
   autocompleteFiles?: FileEntry[];
   refreshAutocompleteFiles?: () => void;
@@ -49,8 +47,6 @@ export function MessagesPanel({
   onRegisterMessageStoreActions,
   machines,
   viewMode,
-  onBeforeResize,
-  onAfterResize,
   onRegisterSendFormFocus,
   autocompleteFiles,
   refreshAutocompleteFiles,
@@ -69,8 +65,6 @@ export function MessagesPanel({
           <div className="shrink-0 border-t-2 border-chatroom-border-strong">
             <MessageInput
               chatroomId={chatroomId}
-              onBeforeResize={onBeforeResize}
-              onAfterResize={onAfterResize}
               onRegisterFocus={onRegisterSendFormFocus}
               files={autocompleteFiles}
               hasAutocompleteWorkspace={hasAutocompleteWorkspace}

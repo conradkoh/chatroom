@@ -35,8 +35,6 @@ export function useTimelineScroll(
   chatroomId?: string
 ): {
   coordinator: React.MutableRefObject<TimelineScrollCoordinator>;
-  beginResize: () => void;
-  endResize: () => void;
 } {
   const coordinatorsRef = useRef<Map<string, TimelineScrollCoordinator>>(new Map());
   const prevChatroomIdRef = useRef<string | undefined>(chatroomId);
@@ -54,13 +52,5 @@ export function useTimelineScroll(
     return () => clearCoordinators(coordinators);
   }, []);
 
-  const beginResize = useCallback(() => {
-    coordinatorRef.current.beginResize();
-  }, []);
-
-  const endResize = useCallback(() => {
-    coordinatorRef.current.endResize();
-  }, []);
-
-  return { coordinator: coordinatorRef, beginResize, endResize };
+  return { coordinator: coordinatorRef };
 }
