@@ -1493,6 +1493,14 @@ export function ChatroomDashboard({
 
   const isAnyAgentRestartInProgress = isRestartingAllAgents || restartingAgentRole !== null;
 
+  const hasRunningRemoteAgents = useMemo(
+    () => agentPanelData.agents.some((a) => a.state === 'running' || a.state === 'starting'),
+    [agentPanelData.agents]
+  );
+
+  const isAgentActionInProgress =
+    isStartingAllAgents || isStoppingAllAgents || isAnyAgentRestartInProgress;
+
   const handleRestartRemoteAgent = useCallback(
     async (role: string) => {
       if (
@@ -2091,6 +2099,18 @@ export function ChatroomDashboard({
                       onTeamChange={handleTeamChange}
                       agentConfigs={agentPanelData.machineConfigs}
                       onOpenAgents={handleOpenAgents}
+                      hasRunningRemoteAgents={hasRunningRemoteAgents}
+                      onStartAllRemoteAgents={
+                        isAgentActionInProgress ? undefined : handleStartAllRemoteAgents
+                      }
+                      onStopAllRemoteAgents={
+                        isAgentActionInProgress ? undefined : executeStopAllRemoteAgents
+                      }
+                      onRestartAllRemoteAgents={
+                        isAgentActionInProgress ? undefined : handleRestartAllRemoteAgents
+                      }
+                      isAgentActionInProgress={isAgentActionInProgress}
+                      isStartingAllAgents={isStartingAllAgents}
                     />
                     <WorkQueue
                       chatroomId={chatroomId as Id<'chatroom_rooms'>}

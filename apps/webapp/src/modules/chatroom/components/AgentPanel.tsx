@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronRight } from 'lucide-react';
+import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
 import { useState, useMemo, useCallback, memo } from 'react';
 
 import type { TeamConfigEntry } from '../hooks/use-team-configs';
@@ -31,6 +32,12 @@ interface AgentPanelProps {
   agentConfigs?: AgentConfig[];
   /** Called when user clicks an agent row — opens settings to agents tab */
   onOpenAgents?: () => void;
+  hasRunningRemoteAgents?: boolean;
+  onStartAllRemoteAgents?: () => void;
+  onStopAllRemoteAgents?: () => void;
+  onRestartAllRemoteAgents?: () => void;
+  isAgentActionInProgress?: boolean;
+  isStartingAllAgents?: boolean;
 }
 
 // ─── AgentSidebarRow ─────────────────────────────────────────────────────────
@@ -152,6 +159,12 @@ export const AgentPanel = memo(function AgentPanel({
   onTeamChange,
   agentConfigs = [],
   onOpenAgents,
+  hasRunningRemoteAgents,
+  onStartAllRemoteAgents,
+  onStopAllRemoteAgents,
+  onRestartAllRemoteAgents,
+  isAgentActionInProgress,
+  isStartingAllAgents,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
 
@@ -218,13 +231,23 @@ export const AgentPanel = memo(function AgentPanel({
 
       {/* Team selector — own row below the Agents header */}
       {teamName && teams && defaultTeamId && onTeamChange && (
-        <div className="px-4 py-2 border-b border-chatroom-border/50">
-          <TeamSelectorDropdown
-            teamName={teamName}
-            teamId={teamId}
-            defaultTeamId={defaultTeamId}
-            teams={teams}
-            onTeamChange={onTeamChange}
+        <div className="px-4 py-2 border-b border-chatroom-border/50 flex items-center gap-1">
+          <div className="flex-1 min-w-0">
+            <TeamSelectorDropdown
+              teamName={teamName}
+              teamId={teamId}
+              defaultTeamId={defaultTeamId}
+              teams={teams}
+              onTeamChange={onTeamChange}
+            />
+          </div>
+          <RemoteAgentQuickActions
+            hasRunningAgents={hasRunningRemoteAgents ?? false}
+            onStart={onStartAllRemoteAgents}
+            onStop={onStopAllRemoteAgents}
+            onRestart={onRestartAllRemoteAgents}
+            disabled={isAgentActionInProgress}
+            isStarting={isStartingAllAgents}
           />
         </div>
       )}
