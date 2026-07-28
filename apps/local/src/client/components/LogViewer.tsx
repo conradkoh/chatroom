@@ -4,9 +4,10 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useCallback, useEffect, useRef } from 'react';
 
-import { LogLineContent } from '../LogLineContent';
-import { useStickToBottomScroll } from '../hooks/useStickToBottomScroll';
 import type { LogLine } from '../../shared/protocol';
+import { useStickToBottomScroll } from '../hooks/useStickToBottomScroll';
+import { LogLineContent } from '../LogLineContent';
+
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +33,8 @@ export function LogViewer({ logLines, processId }: { logLines: LogLine[]; proces
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 22,
     overscan: 30,
+    getItemKey: (index) => `${logLines[index].timestamp}-${index}`,
+    measureElement: (el) => el.getBoundingClientRect().height,
   });
 
   useEffect(() => {
@@ -107,7 +110,9 @@ export function LogViewer({ logLines, processId }: { logLines: LogLine[]; proces
             const line = logLines[virtualRow.index];
             return (
               <div
-                key={`${line.timestamp}-${virtualRow.index}`}
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
                 className={cn(
                   'px-4 py-[1px] leading-5',
                   line.stream === 'stderr'
@@ -119,7 +124,6 @@ export function LogViewer({ logLines, processId }: { logLines: LogLine[]; proces
                   top: 0,
                   left: 0,
                   width: '100%',
-                  height: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
@@ -132,7 +136,7 @@ export function LogViewer({ logLines, processId }: { logLines: LogLine[]; proces
                 >
                   {line.stream === 'stdout' ? 'OUT' : 'ERR'}
                 </Badge>
-                <LogLineContent text={line.text} />
+                <LogLineContent text={line.text} className="whitespace-pre-wrap break-words" />
               </div>
             );
           })}
