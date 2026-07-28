@@ -45,6 +45,17 @@ describe('NotificationSoundSettingsDialog', () => {
     expect(stored.volume).toBe(0.5);
   });
 
+  it('hydrates profile and volume from localStorage without showing defaults', () => {
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({ muted: false, profile: 'urgent', volume: 0.4 })
+    );
+    render(<NotificationSoundSettingsDialog open={true} onOpenChange={() => {}} />);
+    const urgentRadio = screen.getByRole('radio', { name: /urgent/i });
+    expect(urgentRadio).toBeChecked();
+    expect(screen.getByText('Volume: 40%')).toBeInTheDocument();
+  });
+
   it('Play test sound button calls playNotificationSound with force and preview', () => {
     render(<NotificationSoundSettingsDialog open={true} onOpenChange={() => {}} />);
     fireEvent.click(screen.getByTestId('notification-sound-settings-play-test'));
