@@ -16,7 +16,10 @@ import { CODE_CHANGE_VERIFICATION_CONFIRMATION } from '../../../utils/code-chang
 import { getDelegationBriefDisclosureBlock } from '../../../utils/delegation-disclosure';
 import { getFileReferenceProofOfCompletionExample } from '../../../utils/file-reference-guidance';
 import { getHandoffQualityPrinciplesSectionBlock } from '../../../utils/handoff-quality-principles';
-import { getHandoffReportTemplateIntro } from '../../../utils/handoff-section-guidance';
+import {
+  getHandoffNotApplicableSectionComment,
+  getHandoffReportTemplateIntro,
+} from '../../../utils/handoff-section-guidance';
 import { getRoleGuidanceDisclosureBlock } from '../../../utils/role-guidance-disclosure';
 
 /**
@@ -49,11 +52,11 @@ ${getFileReferenceProofOfCompletionExample()}
 ${CODE_CHANGE_VERIFICATION_CONFIRMATION}
 
 ## Blockers / questions
-<!-- REQUIRED. List blockers, or write "Not Applicable". Do not omit this section. -->
+${getHandoffNotApplicableSectionComment('List blockers')}
 <anything needing planner decision>
 
 ## Notes for review
-<!-- REQUIRED. List review notes, or write "Not Applicable". Do not omit this section. -->
+${getHandoffNotApplicableSectionComment('List review notes')}
 <specific areas for planner to check>
 \`\`\``;
 }

@@ -3,6 +3,8 @@
  * Names and descriptions are SSOT — templates import from here for semantic consistency.
  */
 
+import { HANDOFF_NOT_APPLICABLE_EXACT_TEXT } from './handoff-section-guidance';
+
 const HANDOFF_QUALITY_PRINCIPLES = [
   {
     name: 'Semantic Consistency',
@@ -41,8 +43,7 @@ export const PROOF_OF_PRINCIPLES_HEADING_H2 = '## Proof of Principles';
 /** H3 heading for planner→user and solo→user reports */
 export const PROOF_OF_PRINCIPLES_HEADING_H3 = '### Proof of Principles';
 
-export const PROOF_OF_PRINCIPLES_MANDATORY_COMMENT =
-  '<!-- REQUIRED: Complete every principle below. Write an explanation or "Not Applicable" for each — do not omit this section or skip any principle bullet. -->';
+export const PROOF_OF_PRINCIPLES_MANDATORY_COMMENT = `<!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "${HANDOFF_NOT_APPLICABLE_EXACT_TEXT}" with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->`;
 
 /**
  * Per-principle template block for handoff "Proof of Principles" sections.
@@ -51,7 +52,7 @@ export const PROOF_OF_PRINCIPLES_MANDATORY_COMMENT =
  */
 export function getHandoffQualityPrinciplesTemplateBlock(): string {
   const lines = HANDOFF_QUALITY_PRINCIPLES.flatMap((p) => [
-    `- **${p.name}:** <how this work demonstrates ${p.name.toLowerCase()}, or Not Applicable>`,
+    `- **${p.name}:** <how this work demonstrates ${p.name.toLowerCase()}, or exactly "${HANDOFF_NOT_APPLICABLE_EXACT_TEXT}">`,
     `<!-- ${p.name}: ${p.description} -->`,
     '',
   ]);
