@@ -6,6 +6,11 @@ import { HandoffCollapsibleSection } from './HandoffCollapsibleSection';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { parseHandoffReport } from '../../utils/parseHandoffReport';
 import type { HandoffReportParseResult } from '../../utils/parseHandoffReport';
+import {
+  countNonemptySubsections,
+  extractH2Section,
+  isHandoffSectionEmpty,
+} from '../../utils/handoffSectionContent';
 
 export type HandoffReportViewVariant = 'timeline' | 'detail';
 
@@ -14,18 +19,68 @@ export interface HandoffReportViewProps {
   variant?: HandoffReportViewVariant;
 }
 
-const STRUCTURED_SECTIONS = [
-  { id: 'overview', label: 'Overview', key: 'overview' as const, defaultOpen: true },
-  { id: 'proofs', label: 'Proofs', key: 'proofs' as const, defaultOpen: false },
-  { id: 'direction', label: 'Direction', key: 'direction' as const, defaultOpen: false },
-  { id: 'notes', label: 'Notes', key: 'notes' as const, defaultOpen: false },
-  { id: 'action', label: 'Action required', key: 'action' as const, defaultOpen: true },
-] as const;
+type SectionKey = 'overview' | 'proofs' | 'direction' | 'systemDesign' | 'notes' | 'action';
+
+interface SectionDef {
+  id: string;
+  label: string;
+  key: SectionKey;
+  defaultOpenWhenNonempty: boolean;
+}
+
+const STRUCTURED_SECTIONS: SectionDef[] = [
+  { id: 'overview', label: 'Overview', key: 'overview', defaultOpenWhenNonempty: true },
+  { id: 'proofs', label: 'Proofs', key: 'proofs', defaultOpenWhenNonempty: false },
+  { id: 'direction', label: 'Direction', key: 'direction', defaultOpenWhenNonempty: false },
+  {
+    id: 'system-design',
+    label: 'System Design',
+    key: 'systemDesign',
+    defaultOpenWhenNonempty: true,
+  },
+  { id: 'notes', label: 'Notes', key: 'notes', defaultOpenWhenNonempty: false },
+  { id: 'action', label: 'Action required', key: 'action', defaultOpenWhenNonempty: true },
+];
+
+function computeSectionBodies(parsed: HandoffReportParseResult): {
+  bodies: Record<SectionKey, string | null>;
+  isAbsent: Record<string, boolean>;
+} {
+  const bodies: Record<SectionKey, string | null> = {
+    overview: parsed.overview,
+    proofs: parsed.proofs,
+    direction: null,
+    systemDesign: null,
+    notes: parsed.notes,
+    action: parsed.action,
+  };
+  const isAbsent: Record<string, boolean> = {};
+
+  if (parsed.direction) {
+    const { extracted, remainder } = extractH2Section(parsed.direction, 'System Design');
+    bodies.systemDesign = extracted;
+    bodies.direction = remainder || null;
+    // systemDesign is absent if the heading was never in the direction body
+    isAbsent['system-design'] = extracted === null;
+  }
+
+  return { bodies, isAbsent };
+}
 
 function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(STRUCTURED_SECTIONS.map((s) => [s.id, s.defaultOpen]))
-  );
+  const { bodies, isAbsent } = useMemo(() => computeSectionBodies(parsed), [parsed]);
+
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (const section of STRUCTURED_SECTIONS) {
+      const body = bodies[section.key];
+      if (body === null && section.key !== 'direction') continue;
+      if (section.key === 'systemDesign' && isAbsent['system-design']) continue;
+      const isEmpty = body === null || body === '' || isHandoffSectionEmpty(body);
+      initial[section.id] = isEmpty ? false : section.defaultOpenWhenNonempty;
+    }
+    return initial;
+  });
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -34,18 +89,22 @@ function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
   return (
     <div className="space-y-2">
       {STRUCTURED_SECTIONS.map((section) => {
-        const body = parsed[section.key];
-        if (!body) return null;
-        const isOpen = openSections[section.id] ?? section.defaultOpen;
+        const body = bodies[section.key];
+        if (body === null && section.key !== 'direction') return null;
+        if (section.key === 'systemDesign' && isAbsent['system-design']) return null;
+        if (section.key === 'direction' && body === null) return null;
+        const subsectionCount = countNonemptySubsections(body!);
+        const isOpen = openSections[section.id] ?? false;
         return (
           <HandoffCollapsibleSection
             key={section.id}
             id={section.id}
             label={section.label}
-            body={body}
+            body={body!}
             isOpen={isOpen}
             onToggle={() => toggleSection(section.id)}
             useActionMarkdown={section.key === 'action'}
+            subsectionCount={subsectionCount}
           />
         );
       })}

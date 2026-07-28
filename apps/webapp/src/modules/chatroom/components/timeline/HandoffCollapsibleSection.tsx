@@ -13,6 +13,7 @@ export interface HandoffCollapsibleSectionProps {
   isOpen: boolean;
   onToggle: () => void;
   useActionMarkdown?: boolean;
+  subsectionCount?: number;
 }
 
 export const HandoffCollapsibleSection = memo(function HandoffCollapsibleSection({
@@ -22,7 +23,9 @@ export const HandoffCollapsibleSection = memo(function HandoffCollapsibleSection
   isOpen,
   onToggle,
   useActionMarkdown,
+  subsectionCount,
 }: HandoffCollapsibleSectionProps) {
+  const displayLabel = subsectionCount !== undefined ? `${label} (${subsectionCount})` : label;
   return (
     <div
       className="border border-chatroom-border overflow-hidden"
@@ -35,7 +38,7 @@ export const HandoffCollapsibleSection = memo(function HandoffCollapsibleSection
         aria-expanded={isOpen}
       >
         {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        {label}
+        {displayLabel}
       </button>
       {isOpen && (
         <div className="px-3 py-2 border-t border-chatroom-border">
