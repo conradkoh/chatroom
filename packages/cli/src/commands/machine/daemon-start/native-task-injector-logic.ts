@@ -53,8 +53,6 @@ export function explainLedgerDeliveryBlock(
 }
 
 const AUGMENTATION_PREAMBLES: Partial<Record<SessionAugmentationMode, string>> = {
-  compact:
-    '⚠️ Context was compacted. Run `chatroom get-system-prompt` only if role instructions are missing.',
   new_session:
     '⚠️ Starting a new agent session. Run `chatroom get-system-prompt` to reload role instructions if needed.',
 };
