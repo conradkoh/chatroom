@@ -9,7 +9,7 @@ import type { HandoffReportParseResult } from '../../utils/parseHandoffReport';
 import {
   countNonemptySubsections,
   extractH2Section,
-  isHandoffSectionEmpty,
+  isHandoffSectionBodyEmpty,
 } from '../../utils/handoffSectionContent';
 
 export type HandoffReportViewVariant = 'timeline' | 'detail';
@@ -76,7 +76,7 @@ function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
       const body = bodies[section.key];
       if (body === null && section.key !== 'direction') continue;
       if (section.key === 'systemDesign' && isAbsent['system-design']) continue;
-      const isEmpty = body === null || body === '' || isHandoffSectionEmpty(body);
+      const isEmpty = isHandoffSectionBodyEmpty(body ?? null);
       initial[section.id] = isEmpty ? false : section.defaultOpenWhenNonempty;
     }
     return initial;
@@ -94,6 +94,7 @@ function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
         if (section.key === 'systemDesign' && isAbsent['system-design']) return null;
         if (section.key === 'direction' && body === null) return null;
         const subsectionCount = countNonemptySubsections(body!);
+        const isEmpty = isHandoffSectionBodyEmpty(body);
         const isOpen = openSections[section.id] ?? false;
         return (
           <HandoffCollapsibleSection
@@ -105,6 +106,7 @@ function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
             onToggle={() => toggleSection(section.id)}
             useActionMarkdown={section.key === 'action'}
             subsectionCount={subsectionCount}
+            isEmpty={isEmpty}
           />
         );
       })}

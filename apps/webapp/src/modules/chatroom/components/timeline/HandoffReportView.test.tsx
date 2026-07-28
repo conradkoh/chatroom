@@ -192,6 +192,39 @@ describe('HandoffReportView', () => {
     });
   });
 
+  describe('data-empty attribute', () => {
+    it('System Design N/A has data-empty=true', () => {
+      render(<HandoffReportView content={CONTENT_WITH_NA_SYSTEM_DESIGN} />);
+      expect(screen.getByTestId('handoff-section-system-design')).toHaveAttribute(
+        'data-empty',
+        'true'
+      );
+    });
+
+    it('System Design with mermaid has data-empty=false', () => {
+      render(<HandoffReportView content={CONTENT_WITH_SYSTEM_DESIGN} />);
+      expect(screen.getByTestId('handoff-section-system-design')).toHaveAttribute(
+        'data-empty',
+        'false'
+      );
+    });
+
+    it('Direction with JWT has data-empty=false', () => {
+      render(<HandoffReportView content={STRUCTURED_CONTENT} />);
+      expect(screen.getByTestId('handoff-section-direction')).toHaveAttribute(
+        'data-empty',
+        'false'
+      );
+    });
+
+    it('legacy proofs section has no data-empty attribute', () => {
+      render(<HandoffReportView content={LEGACY_CONTENT} variant="timeline" />);
+      expect(screen.getByTestId('handoff-section-handoff-proofs')).not.toHaveAttribute(
+        'data-empty'
+      );
+    });
+  });
+
   describe('counts in labels', () => {
     it('direction shows correct count after System Design extraction', () => {
       render(<HandoffReportView content={CONTENT_WITH_SYSTEM_DESIGN} />);

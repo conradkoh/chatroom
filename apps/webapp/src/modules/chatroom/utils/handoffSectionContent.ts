@@ -54,6 +54,11 @@ export function isHandoffSectionEmpty(body: string): boolean {
   return sections.every((s) => isNotApplicableContent(s.content));
 }
 
+export function isHandoffSectionBodyEmpty(body: string | null): boolean {
+  if (body === null || body === '') return true;
+  return isHandoffSectionEmpty(body);
+}
+
 export function countNonemptySubsections(body: string): number {
   const sections = parseMarkdownH2Sections(body);
   if (sections.length === 0) {

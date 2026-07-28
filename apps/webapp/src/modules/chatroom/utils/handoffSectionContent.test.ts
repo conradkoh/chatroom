@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isNotApplicableContent,
+  isHandoffSectionBodyEmpty,
   parseMarkdownH2Sections,
   extractH2Section,
   isHandoffSectionEmpty,
@@ -38,6 +39,24 @@ describe('isNotApplicableContent', () => {
   it('returns false for mixed real and N/A lines', () => {
     const text = '- [high] Critical issue\n- Not Applicable';
     expect(isNotApplicableContent(text)).toBe(false);
+  });
+});
+
+describe('isHandoffSectionBodyEmpty', () => {
+  it('returns true for null', () => {
+    expect(isHandoffSectionBodyEmpty(null)).toBe(true);
+  });
+
+  it('returns true for empty string', () => {
+    expect(isHandoffSectionBodyEmpty('')).toBe(true);
+  });
+
+  it('returns true for Not Applicable', () => {
+    expect(isHandoffSectionBodyEmpty('Not Applicable')).toBe(true);
+  });
+
+  it('returns false for real content', () => {
+    expect(isHandoffSectionBodyEmpty('## Foo\nBar')).toBe(false);
   });
 });
 
