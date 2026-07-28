@@ -5,7 +5,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown } from '@tiptap/markdown';
 import { useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 
 export interface UseRichTextEditorOptions {
   content: string;
@@ -32,8 +32,9 @@ export function useRichTextEditor({
       Markdown,
     ],
     content,
+    contentType: 'markdown',
     editable,
-    autofocus: autoFocus ? 'end' : false,
+    autofocus: autoFocus ? true : false,
     editorProps: {
       attributes: {
         class: 'outline-none focus:outline-none focus-visible:outline-none',
@@ -47,10 +48,18 @@ export function useRichTextEditor({
 
   const setContent = useCallback(
     (md: string) => {
-      editor?.commands.setContent(md);
+      editor?.commands.setContent(md, { contentType: 'markdown', emitUpdate: false });
     },
     [editor]
   );
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    const current = editor.getMarkdown();
+    if (content !== current) {
+      editor.commands.setContent(content, { contentType: 'markdown', emitUpdate: false });
+    }
+  }, [editor, content]);
 
   return { editor, setContent };
 }
