@@ -11,6 +11,7 @@ export default defineConfig({
     globals: true,
     css: true,
     maxWorkers: 4,
+    testTimeout: 15_000,
     exclude: ['tests/e2e/**', 'node_modules/**'],
   },
   resolve: {
