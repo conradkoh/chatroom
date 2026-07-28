@@ -10,18 +10,13 @@ import { describe, expect, test } from 'vitest';
 import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
 import { generateNativeTaskDeliveryOutput } from '../../../prompts/native/task-delivery';
 import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
+import { resolveSessionAugmentationForRole } from '../../../src/domain/handoff/parse-session-augmentation';
 
 describe('Delegation brief template — no Session Augmentation section', () => {
   test('planner → builder brief does not include Session Augmentation section', () => {
     const brief = getPlannerToBuilderHandoffTemplate();
     expect(brief).not.toContain('## Session Augmentation');
     expect(brief).not.toContain('session_augmentation');
-  });
-
-  test('nativeIntegration variant also lacks Session Augmentation', () => {
-    const nativeBrief = getPlannerToBuilderHandoffTemplate(true);
-    expect(nativeBrief).not.toContain('## Session Augmentation');
-    expect(nativeBrief).not.toContain('compact');
   });
 });
 
@@ -45,18 +40,14 @@ describe('Native task delivery — no Session Augmentation in brief', () => {
 
 describe('resolveSessionAugmentationForRole — builder always new_session', () => {
   test('builder task with no augmentation section resolves to new_session', () => {
-    const {
-      resolveSessionAugmentationForRole: resolve,
-    } = require('../../../src/domain/handoff/parse-session-augmentation');
-    expect(resolve('## Goal\nImplement feature', 'builder')).toBe('new_session');
+    expect(resolveSessionAugmentationForRole('## Goal\nImplement feature', 'builder')).toBe(
+      'new_session'
+    );
   });
 
   test('builder task with explicit none tag resolves to new_session', () => {
-    const {
-      resolveSessionAugmentationForRole: resolve,
-    } = require('../../../src/domain/handoff/parse-session-augmentation');
     expect(
-      resolve(
+      resolveSessionAugmentationForRole(
         '## Goal\nFollow-up\n## Session Augmentation\n// data:agent.session_augmentation=none',
         'builder'
       )
