@@ -20,7 +20,7 @@ interface RichTextToolbarProps {
 }
 
 const toolbarButtonClass =
-  'flex items-center justify-center w-7 h-7 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors';
+  'flex items-center justify-center w-7 h-7 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors outline-none focus:outline-none focus-visible:outline-none';
 
 const activeButtonClass = 'bg-chatroom-bg-tertiary text-chatroom-text-primary';
 

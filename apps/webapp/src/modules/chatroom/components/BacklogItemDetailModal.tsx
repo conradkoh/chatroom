@@ -157,7 +157,9 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
           </div>
         </FixedModalHeader>
 
-        <FixedModalBody>
+        <FixedModalBody
+          className={isEditing ? 'flex flex-col min-h-0 p-0 overflow-hidden' : undefined}
+        >
           {isEditing ? (
             <RichTextEditor
               value={editedContent}
