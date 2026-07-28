@@ -282,6 +282,59 @@ describe('useCommandPaletteCommands', () => {
     });
   });
 
+  describe('Agents: Restart by role commands', () => {
+    it('adds a restart command per restartable role', () => {
+      const onRestartRemoteAgent = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          restartableAgentRoles: ['planner', 'builder'],
+          onRestartRemoteAgent,
+        })
+      );
+
+      const plannerCmd = result.current.find((c) => c.id === 'agents-restart-planner');
+      const builderCmd = result.current.find((c) => c.id === 'agents-restart-builder');
+
+      expect(plannerCmd).toMatchObject({
+        label: 'Agents: Restart Planner',
+        category: 'Agents',
+      });
+      expect(builderCmd).toMatchObject({
+        label: 'Agents: Restart Builder',
+        category: 'Agents',
+      });
+
+      plannerCmd?.action();
+      expect(onRestartRemoteAgent).toHaveBeenCalledWith('planner');
+    });
+
+    it('omits per-role restart commands when onRestartRemoteAgent is null', () => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          restartableAgentRoles: ['planner'],
+          onRestartRemoteAgent: null,
+        })
+      );
+
+      expect(result.current.find((c) => c.id === 'agents-restart-planner')).toBeUndefined();
+    });
+
+    it('omits per-role restart commands when restartableAgentRoles is empty', () => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          restartableAgentRoles: [],
+          onRestartRemoteAgent: vi.fn(),
+        })
+      );
+
+      expect(result.current.filter((c) => c.id.startsWith('agents-restart-'))).toHaveLength(0);
+    });
+  });
+
   describe('favorited runnable commands', () => {
     it('registers favorites with showOutputInline and script for streaming output modal', () => {
       const runnableCommands = [{ name: 'dev', script: 'pnpm dev', source: 'package.json' }];
