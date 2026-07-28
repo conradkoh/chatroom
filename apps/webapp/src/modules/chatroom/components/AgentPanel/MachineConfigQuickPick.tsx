@@ -1,6 +1,6 @@
 'use client';
 
-import { Star, X, Plus } from 'lucide-react';
+import { Star, X } from 'lucide-react';
 import { memo } from 'react';
 
 import type { MachineConfigEntry } from '../../features/machine-config/types/machineConfig';
@@ -20,7 +20,6 @@ interface MachineConfigQuickPickProps {
   onRemoveFavorite: (entry: MachineConfigEntry) => void;
   onMoveFavorite: (fromIndex: number, toIndex: number) => void;
   onDismissRecommended: (entry: MachineConfigEntry) => void;
-  isFavorite: (entry: MachineConfigEntry) => boolean;
 }
 
 // fallow-ignore-next-line complexity
@@ -35,12 +34,9 @@ export const MachineConfigQuickPick = memo(function MachineConfigQuickPick({
   onRemoveFavorite,
   onMoveFavorite,
   onDismissRecommended,
-  isFavorite,
 }: MachineConfigQuickPickProps) {
   const currentEntry: MachineConfigEntry | null =
     currentHarness && currentModel ? { agentHarness: currentHarness, model: currentModel } : null;
-
-  const currentIsFavorite = currentEntry != null && isFavorite(currentEntry);
 
   if (favorites.length === 0 && recommended.length === 0 && currentEntry == null) return null;
 
@@ -117,19 +113,6 @@ export const MachineConfigQuickPick = memo(function MachineConfigQuickPick({
             ))}
           </div>
         </div>
-      )}
-
-      {/* Toggle favorite for current selection */}
-      {currentEntry != null && !currentIsFavorite && (
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onToggleFavorite(currentEntry)}
-          className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-warning disabled:opacity-50"
-        >
-          <Plus size={12} />
-          Add to Favorites
-        </button>
       )}
     </div>
   );

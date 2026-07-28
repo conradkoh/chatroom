@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '../../../components/ui/dialog';
+import { en } from '../../../lang/en';
 import type { AgentHarness } from '../../../types/machine';
 import { ENHANCER_TARGETS } from '../constants/enhancerTargets';
 import type { EnhancerConfig } from '../types/enhancer';
@@ -202,13 +203,13 @@ export function EnhancerConfigDialog({
               className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-warning"
             >
               <Plus size={12} />
-              Add current config to favorites
+              {en.configFavorites.addCurrentConfig}
             </button>
           )}
           {currentEntry && currentIsFavorite && (
             <div className="flex items-center gap-1 text-xs text-chatroom-text-muted">
               <Star size={12} className="text-chatroom-status-warning" />
-              Current config is favorited
+              {en.configFavorites.currentConfigFavorited}
             </div>
           )}
 

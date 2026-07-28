@@ -1,7 +1,17 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Play, Square, RotateCw, Loader2, AlertCircle, ChevronDown, FileText } from 'lucide-react';
+import {
+  Play,
+  Square,
+  RotateCw,
+  Loader2,
+  AlertCircle,
+  ChevronDown,
+  FileText,
+  Plus,
+  Star,
+} from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
 import { MachineConfigQuickPick } from './AgentPanel/MachineConfigQuickPick';
@@ -40,6 +50,7 @@ import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachi
 import { computeRecommendedMachineConfigs } from '../features/machine-config/lib/computeRecommendedMachineConfigs';
 import { buildMachineConfigScopeKey } from '../features/machine-config/lib/machineConfigScopeKey';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
+import { en } from '../lang/en';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -762,6 +773,14 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     availableHarnessesForMachine,
   ]);
 
+  const currentMachineConfigEntry = useMemo(() => {
+    if (!displayHarness || !displayModel) return null;
+    return { agentHarness: displayHarness, model: displayModel };
+  }, [displayHarness, displayModel]);
+
+  const currentMachineConfigIsFavorite =
+    currentMachineConfigEntry != null && isFavorite(currentMachineConfigEntry);
+
   const handleApplyMachineConfig = useCallback(
     (entry: { agentHarness: AgentHarness; model: string }) => {
       handleHarnessChange(entry.agentHarness);
@@ -1183,6 +1202,24 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             )}
           </div>
 
+          {displayMachineId && currentMachineConfigEntry && !currentMachineConfigIsFavorite && (
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => void addFavorite(currentMachineConfigEntry)}
+              className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-warning disabled:opacity-50"
+            >
+              <Plus size={12} />
+              {en.configFavorites.addCurrentConfig}
+            </button>
+          )}
+          {displayMachineId && currentMachineConfigEntry && currentMachineConfigIsFavorite && (
+            <div className="flex items-center gap-1 text-xs text-chatroom-text-muted">
+              <Star size={12} className="text-chatroom-status-warning" />
+              {en.configFavorites.currentConfigFavorited}
+            </div>
+          )}
+
           {displayMachineId && (
             <MachineConfigQuickPick
               favorites={favorites}
@@ -1201,7 +1238,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               onRemoveFavorite={(entry) => void removeFavorite(entry)}
               onMoveFavorite={(from, to) => void moveFavorite(from, to)}
               onDismissRecommended={handleDismissRecommended}
-              isFavorite={isFavorite}
             />
           )}
 

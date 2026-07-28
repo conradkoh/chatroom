@@ -17,6 +17,7 @@ import { WorkspaceCapabilitiesRefreshButton } from '@/modules/chatroom/direct-ha
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 import { SearchConfigFavoritesList } from '@/modules/chatroom/features/search-config/components/SearchConfigFavoritesList';
 import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
+import { en } from '@/modules/chatroom/lang/en';
 
 export interface AgenticQueryConfigModalProps {
   open: boolean;
@@ -98,13 +99,13 @@ export function AgenticQueryConfigModal({
               className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-warning disabled:opacity-50"
             >
               <Plus size={12} />
-              Add current config to favorites
+              {en.configFavorites.addCurrentConfig}
             </button>
           )}
           {currentIsFavorite && (
             <div className="flex items-center gap-1 text-xs text-chatroom-text-muted">
               <Star size={12} className="text-chatroom-status-warning" />
-              Current config is favorited
+              {en.configFavorites.currentConfigFavorited}
             </div>
           )}
           <SearchConfigFavoritesList
