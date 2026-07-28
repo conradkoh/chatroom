@@ -21,4 +21,13 @@ describe('StopRestartButtons', () => {
     expect(screen.getByTitle('Stop')).toBeTruthy();
     expect(screen.getByTitle('Restart')).toBeTruthy();
   });
+
+  test('stop icon uses filled Square (fill="currentColor")', () => {
+    const { container } = render(
+      <StopRestartButtons variant="icon" active onStop={vi.fn()} onRestart={vi.fn()} />
+    );
+    const svg = container.querySelector('button[title="Stop"] svg');
+    expect(svg).toBeTruthy();
+    expect(svg?.getAttribute('fill')).toBe('currentColor');
+  });
 });
