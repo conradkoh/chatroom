@@ -1,13 +1,22 @@
-import { isNotificationSoundMuted } from './notificationSoundPreference';
+import type { NotificationSoundProfile } from './notificationSoundSettings';
+import { getNotificationSoundSettings } from './notificationSoundSettings';
+import { synthesizeNotificationSound } from './synthesizeNotificationSound';
 
 export interface PlayNotificationSoundOptions {
   /** When true, plays even if the user has muted notification sounds (e.g. test preview). */
   force?: boolean;
+  /** Override profile/volume for preview (e.g. while user is editing in dialog). */
+  preview?: { profile: NotificationSoundProfile; volume: number };
 }
 
 export function playNotificationSound(options?: PlayNotificationSoundOptions): void {
   if (typeof window === 'undefined') return;
-  if (!options?.force && isNotificationSoundMuted()) return;
+  const settings = getNotificationSoundSettings();
+  if (!options?.force && settings.muted) return;
+
+  const profile = options?.preview?.profile ?? settings.profile;
+  const volume = options?.preview?.volume ?? settings.volume;
+  if (volume <= 0) return;
 
   try {
     const AudioContextCtor =
@@ -16,22 +25,7 @@ export function playNotificationSound(options?: PlayNotificationSoundOptions): v
     if (!AudioContextCtor) return;
 
     const ctx = new AudioContextCtor();
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    oscillator.type = 'sine';
-    oscillator.frequency.value = 880;
-    gain.gain.setValueAtTime(0.25, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.25);
-    oscillator.onended = () => {
-      void ctx.close();
-    };
+    synthesizeNotificationSound(ctx, profile, volume);
   } catch {
     // Audio unavailable in this environment
   }

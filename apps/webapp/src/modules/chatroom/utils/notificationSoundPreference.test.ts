@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { isNotificationSoundMuted, setNotificationSoundMuted } from './notificationSoundPreference';
 
-const STORAGE_KEY = 'chatroom:notification-sound-muted';
+const SETTINGS_KEY = 'chatroom:notification-sound-settings';
 
 describe('notificationSoundPreference', () => {
   beforeEach(() => {
@@ -24,14 +24,15 @@ describe('notificationSoundPreference', () => {
     expect(isNotificationSoundMuted()).toBe(false);
   });
 
-  it('persists value across calls', () => {
+  it('persists muted in settings object', () => {
     setNotificationSoundMuted(true);
     expect(isNotificationSoundMuted()).toBe(true);
-    expect(localStorage.getItem(STORAGE_KEY)).toBe('true');
+    const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY)!);
+    expect(stored.muted).toBe(true);
   });
 
-  it('falls back to false when localStorage has corrupt data', () => {
-    localStorage.setItem(STORAGE_KEY, 'not-json');
+  it('falls back to false when settings have corrupt JSON', () => {
+    localStorage.setItem(SETTINGS_KEY, 'not-json');
     expect(isNotificationSoundMuted()).toBe(false);
   });
 });

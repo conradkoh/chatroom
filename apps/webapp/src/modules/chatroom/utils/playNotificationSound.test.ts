@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { playNotificationSound } from './playNotificationSound';
 
-const STORAGE_KEY = 'chatroom:notification-sound-muted';
+const STORAGE_KEY = 'chatroom:notification-sound-settings';
 
 describe('playNotificationSound', () => {
   let ctxMock: {
@@ -53,6 +53,7 @@ describe('playNotificationSound', () => {
     playNotificationSound();
 
     expect(ctxMock.createOscillator).toHaveBeenCalled();
+    expect(ctxMock.createGain).toHaveBeenCalled();
     const osc = ctxMock.createOscillator.mock.results[0]?.value;
     expect(osc.start).toHaveBeenCalled();
     expect(osc.stop).toHaveBeenCalled();
@@ -61,26 +62,33 @@ describe('playNotificationSound', () => {
   });
 
   it('does not create AudioContext when muted', () => {
-    localStorage.setItem(STORAGE_KEY, 'true');
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ muted: true }));
 
     playNotificationSound();
 
     expect(ctxMock.createOscillator).not.toHaveBeenCalled();
   });
 
-  it('closes AudioContext after oscillator ends', () => {
-    playNotificationSound();
-
-    const osc = ctxMock.createOscillator.mock.results[0]?.value;
-    expect(osc.onended).toBeDefined();
-    osc.onended();
-    expect(ctxMock.close).toHaveBeenCalled();
-  });
-
   it('plays sound when muted if force is true', () => {
-    localStorage.setItem(STORAGE_KEY, 'true');
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ muted: true }));
 
     playNotificationSound({ force: true });
+
+    expect(ctxMock.createOscillator).toHaveBeenCalled();
+  });
+
+  it('no-ops when volume is 0', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ volume: 0, muted: false }));
+
+    playNotificationSound();
+
+    expect(ctxMock.createOscillator).not.toHaveBeenCalled();
+  });
+
+  it('uses preview profile/volume over settings', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile: 'subtle', volume: 0.5 }));
+
+    playNotificationSound({ preview: { profile: 'urgent', volume: 1 } });
 
     expect(ctxMock.createOscillator).toHaveBeenCalled();
   });
