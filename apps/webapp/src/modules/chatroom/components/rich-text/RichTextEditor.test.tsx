@@ -1,11 +1,17 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeAll } from 'vitest';
 
 import { backlogRichTextEditorProseClassNames } from '../markdown-utils';
 import { RichTextEditor } from './RichTextEditor';
 
 describe('RichTextEditor', () => {
+  beforeAll(() => {
+    if (typeof document.elementFromPoint !== 'function') {
+      document.elementFromPoint = () => null;
+    }
+  });
+
   it('renders the editor toolbar', () => {
     render(<RichTextEditor value="# Hello" onChange={() => {}} placeholder="Write something..." />);
 
