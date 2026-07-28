@@ -592,26 +592,23 @@ describe('TimelineScrollCoordinator', () => {
     expect(scrollToEnd).toHaveBeenCalled();
   });
 
-  it('endResize clears resizing without scrolling when container size unchanged', () => {
-    coordinator.beginResize();
-    scrollToEnd.mockClear();
-    coordinator.endResize();
-    expect(coordinator.isProgrammaticScrollActive()).toBe(false);
-    expect(scrollToEnd).not.toHaveBeenCalled();
-  });
-
-  it('does not unpin on scroll while composer resize is active', () => {
+  it('snaps instead of unpins on layout scroll when pinned and not userScrolling', () => {
     expect(coordinator.isPinned).toBe(true);
-
-    coordinator.beginResize();
+    scrollToEnd.mockClear();
 
     Object.defineProperty(el, 'scrollTop', { value: 200, writable: true, configurable: true });
+    Object.defineProperty(el, 'clientHeight', { value: 300, writable: true, configurable: true });
+    Object.defineProperty(el, 'scrollHeight', { value: 600, writable: true, configurable: true });
     el.dispatchEvent(new Event('scroll'));
 
     expect(coordinator.isPinned).toBe(true);
+    expect(scrollToEnd).toHaveBeenCalled();
+  });
 
-    coordinator.endResize();
-    expect(coordinator.isPinned).toBe(true);
+  it('notifyContainerResize enqueues snap when pinned', () => {
+    scrollToEnd.mockClear();
+    coordinator.notifyContainerResize();
+    expect(scrollToEnd).toHaveBeenCalled();
   });
 
   it('does not unpin on scroll while programmatic tail follow is active', () => {

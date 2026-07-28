@@ -28,7 +28,6 @@ flowchart TB
 
   Feed --> V
   Feed -->|commitTimelineLayout, notify*| IQ
-  Input -->|beginResize / endResize| IQ
   IQ --> Apply
   Apply --> V
   Apply --> DOM[scrollEl.scrollTop]
@@ -38,11 +37,11 @@ flowchart TB
 
 **Division of responsibility**
 
-| Layer | Owns |
-|-------|------|
-| `ChatroomTimelineFeed` | Row rendering, virtualizer config, measurement cache, load-older triggers |
-| `TimelineScrollCoordinator` | Pin state, all programmatic scroll, prepend preservation, tail follow/settle |
-| TanStack Virtual | Visible range, row positions, `scrollToEnd` / `scrollToOffset` / `scrollToIndex` |
+| Layer                       | Owns                                                                             |
+| --------------------------- | -------------------------------------------------------------------------------- |
+| `ChatroomTimelineFeed`      | Row rendering, virtualizer config, measurement cache, load-older triggers        |
+| `TimelineScrollCoordinator` | Pin state, all programmatic scroll, prepend preservation, tail follow/settle     |
+| TanStack Virtual            | Visible range, row positions, `scrollToEnd` / `scrollToOffset` / `scrollToIndex` |
 
 React **subscribes** to pin state (jump chip, `followOnAppend`-like UI). It does **not** drive tail follow directly — that goes through the coordinator.
 
@@ -65,7 +64,7 @@ Initial mount and append semantics assume the scroll surface is anchored to the 
 ### Measurement cache + `initialMeasurementsCache`
 
 ```ts
-measurementCacheRef.current.get(event.id) ?? TIMELINE_ESTIMATE_SIZE
+measurementCacheRef.current.get(event.id) ?? TIMELINE_ESTIMATE_SIZE;
 ```
 
 Persisting measured row heights across reconciliations prevents load-older anchor drift when prepended rows were previously under-estimated at 100px.
@@ -80,10 +79,10 @@ During normal pinned tail follow, size changes on the last row are handled by `n
 
 ### Thresholds (`timelineVirtualizerConfig.ts`)
 
-| Constant | Value | Purpose |
-|----------|-------|---------|
-| `TIMELINE_PIN_AT_BOTTOM_THRESHOLD` | 8px | Pin / jump-chip UI — stricter than load-older |
-| `TIMELINE_SCROLL_END_THRESHOLD` | 50px | TanStack `scrollEndThreshold`, load-older guards |
+| Constant                           | Value | Purpose                                          |
+| ---------------------------------- | ----- | ------------------------------------------------ |
+| `TIMELINE_PIN_AT_BOTTOM_THRESHOLD` | 8px   | Pin / jump-chip UI — stricter than load-older    |
+| `TIMELINE_SCROLL_END_THRESHOLD`    | 50px  | TanStack `scrollEndThreshold`, load-older guards |
 
 Pin uses a **tighter** threshold so a partial scroll (half the last message visible) stays unpinned and the jump chip remains actionable.
 
@@ -111,14 +110,14 @@ Before the intent queue, tail follow fired from four places (`commitTimelineLayo
 
 Now every programmatic action enqueues a `ScrollIntent`:
 
-| Intent | When |
-|--------|------|
-| `follow_tail` | Append while pinned, resize end, guard correction |
-| `tail_settle` | Multi-frame recovery after count/tail change or row growth |
-| `snap` | ResizeObserver while pinned at bottom |
-| `preserve_prepend` | Older messages loaded with position preservation |
-| `adjust_top_chrome` | Load-older spinner changes top chrome height |
-| `cancel_programmatic` | User wheel/touch — clears pending tail work |
+| Intent                | When                                                       |
+| --------------------- | ---------------------------------------------------------- |
+| `follow_tail`         | Append while pinned, guard correction                      |
+| `tail_settle`         | Multi-frame recovery after count/tail change or row growth |
+| `snap`                | ResizeObserver while pinned at bottom                      |
+| `preserve_prepend`    | Older messages loaded with position preservation           |
+| `adjust_top_chrome`   | Load-older spinner changes top chrome height               |
+| `cancel_programmatic` | User wheel/touch — clears pending tail work                |
 
 **Per-frame coalescing** (`runFlushCycle`):
 
@@ -180,7 +179,7 @@ While pinned, if `scrollTop < maxScrollTop - 0.5` (not flush), a guard rAF loop 
 When the last row's measured height increases (classification badge, content expansion, footer #603):
 
 ```ts
-coordinator.notifyTailRowResized(tailIndex)
+coordinator.notifyTailRowResized(tailIndex);
 ```
 
 Only fires when `shouldFollowTail()` — pinned, at bottom, not prepending.
@@ -210,12 +209,14 @@ Uses **live** `scrollTop` for height delta (not stale anchor) so top-chrome grow
 
 **Top chrome** (load-older spinner): height change enqueues `adjust_top_chrome` with pixel delta. Skipped when already at tail (chrome growth at bottom doesn't shift viewport).
 
-**Composer resize** (`MessageInput` `onBeforeResize` / `onAfterResize` → `beginResize` / `endResize`):
+**Composer resize** — the messages panel container shrinks when the textarea grows. Two mechanisms handle scroll compensation:
 
-- `beginResize` sets `resizing = true` (blocks tail guard)
-- `endResize` enqueues follow + settle when pinned
+1. **Scroll-el ResizeObserver** — when pinned, any resize of the scroll element enqueues a `snap` intent (no at-bottom check needed).
+2. **`notifyContainerResize()`** — the outer messages panel calls this when a ResizeObserver on the panel root detects a shrink. This also enqueues a `snap` when pinned.
 
-Without the resize bracket, textarea auto-grow triggers ResizeObserver snap/follow fights.
+**Layout scroll handling:** When the feed container height shrinks (composer growth), `scrollTop` is unchanged while `clientHeight` shrinks, so `computeIsAtBottom()` returns false. The scroll event handler detects pinned + not userScrolling → enqueues `snap` instead of unpinning. This is the key fix: container-shrink scroll events are treated as layout resizes, not user scrolls.
+
+MessageInput has zero scroll coordinator knowledge — autosize only.
 
 ---
 
@@ -238,11 +239,10 @@ Scroll event handler **ignores** pin updates while `programmaticScroll` is true,
 When touching timeline scroll:
 
 1. **Never** call `virtualizer.scrollToEnd` or set `scrollTop` from React effects for tail follow — use coordinator APIs.
-2. **Always** bracket composer resizes with `beginResize` / `endResize`.
-3. **Route** chrome height changes through `notifyTopChromeDelta`.
-4. **Commit** layout changes through `commitTimelineLayout` in `useLayoutEffect` (not `useEffect`).
-5. **Gate** scroll-driven load-older on `isProgrammaticScrollActive()` (not while tail snap is in flight). Button clicks bypass this.
-6. **Test** with variable-height rows: context dividers, handoffs, long markdown, agent streaming.
+2. **Route** chrome height changes through `notifyTopChromeDelta`.
+3. **Commit** layout changes through `commitTimelineLayout` in `useLayoutEffect` (not `useEffect`).
+4. **Gate** scroll-driven load-older on `isProgrammaticScrollActive()` (not while tail snap is in flight). Button clicks bypass this.
+5. **Test** with variable-height rows: context dividers, handoffs, long markdown, agent streaming.
 
 ---
 
@@ -257,9 +257,9 @@ See `TIMELINE_TAIL_SCROLL_FIX_ATTEMPTS` comment in `timelineScrollCoordinator.ts
 
 ## Tests
 
-| File | Covers |
-|------|--------|
+| File                                | Covers                                                               |
+| ----------------------------------- | -------------------------------------------------------------------- |
 | `timelineScrollCoordinator.test.ts` | Intent coalescing, pin/unpin, prepend, tail settle, guard, jump chip |
-| `ChatroomTimelineFeed.test.tsx` | Integration: send message, load older, jump chip, chrome measure |
+| `ChatroomTimelineFeed.test.tsx`     | Integration: send message, load older, jump chip, chrome measure     |
 
 Assert on scroll outcomes (`mockScrollToEnd`, DOM `scrollTop`), not internal method calls like `followTail` — the queue may coalesce them.
