@@ -1405,7 +1405,7 @@ export default defineSchema({
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
-      // Session augmentation applied on task delivery (none / compact / new_session)
+      // Session augmentation applied on task delivery (none / new_session; compact retained for historical events only)
       v.object({
         type: v.literal('agent.sessionAugmented'),
         chatroomId: v.id('chatroom_rooms'),

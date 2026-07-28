@@ -4,9 +4,8 @@
  * These tables document what native agents see at init vs task delivery.
  * Integration and unit tests import from here so the matrix stays in one place.
  *
- * Session augmentation (planner → builder): see session-augmentation.ts and
- * tests/integration/native/session-augmentation.spec.ts — handoff task body
- * carries `// data:agent.session_augmentation=none|compact|new_session` (default new_session).
+ * Session augmentation: builder always gets new_session per delegation via
+ * resolveSessionAugmentationForRole — see session-augmentation.ts.
  */
 
 export const NATIVE_AGENT_HARNESSES = ['cursor-sdk', 'opencode-sdk', 'pi-sdk'] as const;

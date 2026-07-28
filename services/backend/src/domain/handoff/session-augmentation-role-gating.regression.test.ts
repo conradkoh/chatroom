@@ -1,13 +1,8 @@
 /**
  * Regression: session augmentation must not apply to non-builder roles.
  *
- * Bug: parseSessionAugmentation defaults to new_session when the handoff body
- * lacks a Session Augmentation section. Planner tasks (user ack, builder handback)
- * never carry that section, so the daemon incorrectly treated them as new_session
- * and emitted agent.sessionAugmented with newSessionStarted=true on planner.
- *
- * Fix: resolveSessionAugmentationForRole gates augmentation to builder only,
- * and builder always returns new_session regardless of handoff body content.
+ * Current behavior: builder always gets new_session per delegation.
+ * Non-builder roles (planner, enhancer, reviewer, solo) always get none.
  */
 
 import { describe, expect, test } from 'vitest';
