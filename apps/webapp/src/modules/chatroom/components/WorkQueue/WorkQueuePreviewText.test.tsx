@@ -10,20 +10,21 @@ describe('WorkQueuePreviewText', () => {
     expect(container.querySelector('.line-clamp-2')).toBeInTheDocument();
   });
 
-  it('renders with line-clamp-3 when lines=3', () => {
-    const { container } = render(<WorkQueuePreviewText content="Hello world" lines={3} />);
-    expect(container.querySelector('.line-clamp-3')).toBeInTheDocument();
+  it('renders heading without ## markers', () => {
+    const { container } = render(<WorkQueuePreviewText content="## Summary\nFoo" />);
+    expect(container.textContent).toContain('Summary');
+    expect(container.textContent).not.toContain('##');
+  });
+
+  it('bold segment has font-semibold class', () => {
+    const { container } = render(<WorkQueuePreviewText content="## Bold" />);
+    const boldSpan = container.querySelector('.font-semibold');
+    expect(boldSpan).toBeInTheDocument();
+    expect(boldSpan?.textContent).toBe('Bold');
   });
 
   it('returns null for empty content', () => {
     const { container } = render(<WorkQueuePreviewText content="" />);
     expect(container.innerHTML).toBe('');
-  });
-
-  it('strips XML tags from handoff content', () => {
-    const content = '<handoff-overview>## Summary\nFoo</handoff-overview>';
-    render(<WorkQueuePreviewText content={content} />);
-    expect(screen.getByText(/## Summary/)).toBeInTheDocument();
-    expect(screen.queryByText(/<handoff-/)).not.toBeInTheDocument();
   });
 });

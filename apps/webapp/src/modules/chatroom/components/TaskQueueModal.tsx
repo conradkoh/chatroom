@@ -5,7 +5,10 @@ import { Search, Pencil, Trash2 } from 'lucide-react';
 import React, { useState, useEffect, useMemo } from 'react';
 
 import { getScoringBadge } from './backlog';
-import { getWorkQueuePreviewText } from '../utils/getWorkQueuePreviewText';
+import {
+  getWorkQueuePreviewSegments,
+  formatWorkQueuePreviewPlainText,
+} from '../utils/getWorkQueuePreviewSegments';
 import { WorkQueuePreviewText } from './WorkQueue/WorkQueuePreviewText';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 
@@ -91,7 +94,9 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
     }
     const query = searchQuery.toLowerCase();
     return tasks.filter((task) =>
-      getWorkQueuePreviewText(task.content).toLowerCase().includes(query)
+      formatWorkQueuePreviewPlainText(getWorkQueuePreviewSegments(task.content))
+        .toLowerCase()
+        .includes(query)
     );
   }, [tasks, searchQuery]);
 

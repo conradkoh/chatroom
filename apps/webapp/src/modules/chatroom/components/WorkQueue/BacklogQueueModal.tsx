@@ -2,11 +2,9 @@
 
 import { ChevronRight } from 'lucide-react';
 import React from 'react';
-import Markdown from 'react-markdown';
 
 import { type BacklogItem, getScoringBadge, getBacklogStatusBadge } from '../backlog';
-import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { backlogReviewCompactMarkdownComponents } from '../markdown-utils';
+import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 
 import {
   FixedModal,
@@ -85,14 +83,7 @@ export function BacklogQueueModal({ items, onClose, onItemClick }: BacklogQueueM
                   </div>
                 )}
 
-                <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
-                  <Markdown
-                    remarkPlugins={chatroomRemarkPlugins}
-                    components={backlogReviewCompactMarkdownComponents}
-                  >
-                    {item.content}
-                  </Markdown>
-                </div>
+                <WorkQueuePreviewText content={item.content} className="flex-1 min-w-0" />
 
                 <ChevronRight
                   size={14}

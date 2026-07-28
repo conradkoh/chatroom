@@ -6,7 +6,7 @@ import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
 import { MessageAttachmentChips } from '../../attachments';
-import { stripHandoffXmlTags } from '../../utils/stripHandoffXmlTags';
+import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 import type { Message } from '../../types/message';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -114,9 +114,7 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
         className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors cursor-pointer text-left w-full"
       >
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-foreground line-clamp-2 break-words">
-            {stripHandoffXmlTags(message.content)}
-          </p>
+          <WorkQueuePreviewText content={message.content} />
           <p className="text-[10px] text-muted-foreground mt-0.5">{elapsed}</p>
           {/* Attachment chip strip — stopPropagation so clicks open chip preview, not the row modal */}
           {hasAttachments && (

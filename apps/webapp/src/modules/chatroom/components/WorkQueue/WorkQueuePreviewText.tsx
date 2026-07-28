@@ -1,6 +1,9 @@
 'use client';
 
-import { getWorkQueuePreviewText } from '../../utils/getWorkQueuePreviewText';
+import {
+  getWorkQueuePreviewSegments,
+  formatWorkQueuePreviewPlainText,
+} from '../../utils/getWorkQueuePreviewSegments';
 import { cn } from '@/lib/utils';
 
 export interface WorkQueuePreviewTextProps {
@@ -10,18 +13,17 @@ export interface WorkQueuePreviewTextProps {
 }
 
 export function WorkQueuePreviewText({ content, lines = 2, className }: WorkQueuePreviewTextProps) {
-  const text = getWorkQueuePreviewText(content);
+  const segments = getWorkQueuePreviewSegments(content);
+  const plainText = formatWorkQueuePreviewPlainText(segments);
+  if (!plainText) return null;
   const clampClass = lines === 2 ? 'line-clamp-2' : 'line-clamp-3';
-  if (!text) return null;
   return (
-    <p
-      className={cn(
-        'text-xs text-chatroom-text-primary break-words whitespace-pre-wrap',
-        clampClass,
-        className
-      )}
-    >
-      {text}
+    <p className={cn('text-xs text-chatroom-text-primary break-words', clampClass, className)}>
+      {segments.map((seg, i) => (
+        <span key={i} className={seg.bold ? 'font-semibold' : undefined}>
+          {seg.text}
+        </span>
+      ))}
     </p>
   );
 }

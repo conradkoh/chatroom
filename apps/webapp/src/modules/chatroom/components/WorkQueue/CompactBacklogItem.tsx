@@ -1,9 +1,6 @@
 import { ChevronRight } from 'lucide-react';
-import Markdown from 'react-markdown';
-
 import { type BacklogItem, getScoringBadge } from '../backlog';
-import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { backlogReviewCompactMarkdownComponents } from '../markdown-utils';
+import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 
 export interface CompactBacklogItemProps {
   item: BacklogItem;
@@ -53,15 +50,7 @@ export function CompactBacklogItem({ item, onClick }: CompactBacklogItemProps) {
         </div>
       )}
 
-      {/* Content - 2 lines max, with simplified markdown */}
-      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-        <Markdown
-          remarkPlugins={chatroomRemarkPlugins}
-          components={backlogReviewCompactMarkdownComponents}
-        >
-          {item.content}
-        </Markdown>
-      </div>
+      <WorkQueuePreviewText content={item.content} className="flex-1 min-w-0" />
 
       {/* Arrow to indicate clickable */}
       <ChevronRight
