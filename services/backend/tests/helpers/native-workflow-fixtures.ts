@@ -145,9 +145,9 @@ export const NATIVE_DELIVERY_SCENARIOS: NativeDeliveryScenario[] = [
       '## Summary',
       'Connectivity test passed.',
       '## Proof of Completion',
-      'Not Applicable',
+      'Not Applicable.',
       '## Verification',
-      'Not Applicable',
+      'Not Applicable.',
     ].join('\n'),
   },
 ];

@@ -48,7 +48,7 @@ export const PROOF_OF_PRINCIPLES_MANDATORY_COMMENT = `<!-- REQUIRED: Complete ev
 /**
  * Per-principle template block for handoff "Proof of Principles" sections.
  * Each principle is a bullet with its own HTML comment and a required response
- * (explanation or "Not Applicable").
+ * (explanation or exactly "Not Applicable.").
  */
 export function getHandoffQualityPrinciplesTemplateBlock(): string {
   const lines = HANDOFF_QUALITY_PRINCIPLES.flatMap((p) => [
