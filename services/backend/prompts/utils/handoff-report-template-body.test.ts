@@ -59,7 +59,12 @@ describe('getHandoffReportTemplateBody', () => {
     const proofs = body.match(/<handoff-proofs>[\s\S]*<\/handoff-proofs>/)?.[0] ?? '';
     expect(proofs).toContain('**Semantic Consistency:**');
     expect(proofs).toContain('**No Revisit:**');
-    expect(proofs).toContain('or Not Applicable');
+    expect(proofs).toContain('exactly "Not Applicable."');
+  });
+
+  test('section comments require exact Not Applicable. with no explanation', () => {
+    const body = getHandoffReportTemplateBody();
+    expect(body).toContain('write exactly "Not Applicable." with no explanation');
   });
 
   test('no longer has old combined comment block', () => {

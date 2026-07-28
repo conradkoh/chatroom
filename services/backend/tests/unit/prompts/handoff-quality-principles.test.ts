@@ -34,9 +34,9 @@ describe('handoff-quality-principles', () => {
     }
   });
 
-  test('each principle includes "or Not Applicable"', () => {
+  test('each principle includes exactly "Not Applicable." placeholder', () => {
     const block = getHandoffQualityPrinciplesTemplateBlock();
-    const occurrences = (block.match(/or Not Applicable/g) || []).length;
+    const occurrences = (block.match(/exactly "Not Applicable\."/g) || []).length;
     expect(occurrences).toBe(6);
   });
 
@@ -46,9 +46,10 @@ describe('handoff-quality-principles', () => {
     expect(block.startsWith('<!--')).toBe(false);
   });
 
-  test('PROOF_OF_PRINCIPLES_MANDATORY_COMMENT contains REQUIRED and Not Applicable', () => {
+  test('PROOF_OF_PRINCIPLES_MANDATORY_COMMENT contains REQUIRED and exact Not Applicable. guidance', () => {
     expect(PROOF_OF_PRINCIPLES_MANDATORY_COMMENT).toContain('REQUIRED');
-    expect(PROOF_OF_PRINCIPLES_MANDATORY_COMMENT).toContain('Not Applicable');
+    expect(PROOF_OF_PRINCIPLES_MANDATORY_COMMENT).toContain('Not Applicable.');
+    expect(PROOF_OF_PRINCIPLES_MANDATORY_COMMENT).toContain('with no explanation');
     expect(PROOF_OF_PRINCIPLES_MANDATORY_COMMENT).toContain('do not omit');
   });
 

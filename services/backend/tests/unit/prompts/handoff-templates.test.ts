@@ -118,6 +118,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Report Template (Planner → User)** — complete every section below. Do not omit sections, principles, or XML wrappers:
 
+      When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
+
       \`\`\`markdown
       <handoff-overview>
       ## Summary
@@ -136,28 +138,28 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Planning
-      <!-- REQUIRED. List planning steps, or write "Not Applicable" for trivial single-step tasks. Do not omit this section. -->
+      <!-- REQUIRED. List planning steps for trivial single-step tasks, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - <step 1: concrete artifact or outcome>
       - <step 2: concrete artifact or outcome>
 
       ## Proof of Principles
-      <!-- REQUIRED: Complete every principle below. Write an explanation or "Not Applicable" for each — do not omit this section or skip any principle bullet. -->
-      - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
+      <!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
+      - **Semantic Consistency:** <how this work demonstrates semantic consistency, or exactly "Not Applicable.">
       <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
 
-      - **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or Not Applicable>
+      - **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or exactly "Not Applicable.">
       <!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
 
-      - **Reducing Optionality:** <how this work demonstrates reducing optionality, or Not Applicable>
+      - **Reducing Optionality:** <how this work demonstrates reducing optionality, or exactly "Not Applicable.">
       <!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
 
-      - **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or Not Applicable>
+      - **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or exactly "Not Applicable.">
       <!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
 
-      - **No Revisit:** <how this work demonstrates no revisit, or Not Applicable>
+      - **No Revisit:** <how this work demonstrates no revisit, or exactly "Not Applicable.">
       <!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
 
-      - **Leave It Better:** <how this work demonstrates leave it better, or Not Applicable>
+      - **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
       ## Proof of Completion
@@ -168,11 +170,11 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <evidence the goal was met — list every file you (or the builder) modified>
 
       ## Backlog Tasks Implemented
-      <!-- REQUIRED. List backlog items addressed, or write "Not Applicable" if none were in scope. Do not omit this section. -->
+      <!-- REQUIRED. List backlog items addressed if none were in scope, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
 
       ## Backlog Pending User Review Confirmation
-      <!-- REQUIRED. Complete the attestation, or write "Not Applicable" if no backlog items apply. Do not omit this section. -->
+      <!-- REQUIRED. Complete the attestation if no backlog items apply, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` after the feature was verified end-to-end and a PR was raised for user review
       - PR URL(s): <link to PR(s)>
 
@@ -182,19 +184,19 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       <handoff-direction>
       ## What exists today
-      <!-- REQUIRED. Describe current state after this work, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. Describe current state after this work, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <current state after this work — what the user can now do, what is in place, how the system behaves>
 
       ## Key Technical Decisions
-      <!-- REQUIRED. List decisions, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. List decisions, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - <schema design, modules, interfaces, domain entities — what you chose and why>
 
       ## Key Tradeoffs
-      <!-- REQUIRED. List tradeoffs, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. List tradeoffs, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - <what was weighed against what, and why you chose this path>
 
       ## System Design
-      <!-- REQUIRED. Include a mermaid diagram when the change has non-trivial structure, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. Include a mermaid diagram when the change has non-trivial structure, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
 
       \`\`\`mermaid
       flowchart TD
@@ -204,13 +206,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       <handoff-notes>
       ## Notes
-      <!-- REQUIRED. Write notes, or "Not Applicable" if none. Do not omit this section. -->
+      <!-- REQUIRED. Write notes if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <anything the user should know — context, caveats, or observations not covered above>
       </handoff-notes>
 
       <handoff-action>
       ## Tech Debt Observed
-      <!-- REQUIRED. List tech debt, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. List tech debt, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
       - [high] <critical issue — blocks correctness, security, or release>
       - [medium] <meaningful debt — should address soon>
@@ -218,7 +220,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - <issues noticed but intentionally left out of scope of this change>
 
       ## Unresolved Decisions
-      <!-- REQUIRED. List open decisions needing user input, or write "Not Applicable" if none. Do not omit this section. -->
+      <!-- REQUIRED. List open decisions needing user input if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
       - [high] <critical issue — blocks correctness, security, or release>
       - [medium] <meaningful debt — should address soon>
@@ -227,7 +229,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
       ## Manual steps
-      <!-- REQUIRED. List manual steps outside the system, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. List manual steps outside the system, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <steps the user must take outside the system — deploy, configure credentials, run commands, verify in production, etc.>
       </handoff-action>
       \`\`\`"
@@ -259,6 +261,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Handoff Template (Builder → Planner)** — complete every section below. Do not omit sections, principles, or XML wrappers:
 
+      When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
+
       \`\`\`markdown
       ## Summary
       <what was implemented or attempted, in plain terms>
@@ -269,23 +273,23 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Principles
-      <!-- REQUIRED: Complete every principle below. Write an explanation or "Not Applicable" for each — do not omit this section or skip any principle bullet. -->
-      - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
+      <!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
+      - **Semantic Consistency:** <how this work demonstrates semantic consistency, or exactly "Not Applicable.">
       <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
 
-      - **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or Not Applicable>
+      - **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or exactly "Not Applicable.">
       <!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
 
-      - **Reducing Optionality:** <how this work demonstrates reducing optionality, or Not Applicable>
+      - **Reducing Optionality:** <how this work demonstrates reducing optionality, or exactly "Not Applicable.">
       <!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
 
-      - **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or Not Applicable>
+      - **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or exactly "Not Applicable.">
       <!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
 
-      - **No Revisit:** <how this work demonstrates no revisit, or Not Applicable>
+      - **No Revisit:** <how this work demonstrates no revisit, or exactly "Not Applicable.">
       <!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
 
-      - **Leave It Better:** <how this work demonstrates leave it better, or Not Applicable>
+      - **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
       ## Proof of Completion
@@ -299,11 +303,11 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Blockers / questions
-      <!-- REQUIRED. List blockers, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. List blockers, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <anything needing planner decision>
 
       ## Notes for review
-      <!-- REQUIRED. List review notes, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. List review notes, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <specific areas for planner to check>
       \`\`\`"
     `);
@@ -526,6 +530,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       **Report Template (Solo → User)** — complete every section below. Do not omit sections, principles, or XML wrappers:
 
+      When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
+
       \`\`\`markdown
       <handoff-overview>
       ## Summary
@@ -544,28 +550,28 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Planning
-      <!-- REQUIRED. List planning steps, or write "Not Applicable" for trivial single-step tasks. Do not omit this section. -->
+      <!-- REQUIRED. List planning steps for trivial single-step tasks, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - <step 1: concrete artifact or outcome>
       - <step 2: concrete artifact or outcome>
 
       ## Proof of Principles
-      <!-- REQUIRED: Complete every principle below. Write an explanation or "Not Applicable" for each — do not omit this section or skip any principle bullet. -->
-      - **Semantic Consistency:** <how this work demonstrates semantic consistency, or Not Applicable>
+      <!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
+      - **Semantic Consistency:** <how this work demonstrates semantic consistency, or exactly "Not Applicable.">
       <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
 
-      - **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or Not Applicable>
+      - **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or exactly "Not Applicable.">
       <!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
 
-      - **Reducing Optionality:** <how this work demonstrates reducing optionality, or Not Applicable>
+      - **Reducing Optionality:** <how this work demonstrates reducing optionality, or exactly "Not Applicable.">
       <!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
 
-      - **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or Not Applicable>
+      - **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or exactly "Not Applicable.">
       <!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
 
-      - **No Revisit:** <how this work demonstrates no revisit, or Not Applicable>
+      - **No Revisit:** <how this work demonstrates no revisit, or exactly "Not Applicable.">
       <!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
 
-      - **Leave It Better:** <how this work demonstrates leave it better, or Not Applicable>
+      - **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
       ## Proof of Completion
@@ -576,11 +582,11 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <evidence the goal was met — list every file you (or the builder) modified>
 
       ## Backlog Tasks Implemented
-      <!-- REQUIRED. List backlog items addressed, or write "Not Applicable" if none were in scope. Do not omit this section. -->
+      <!-- REQUIRED. List backlog items addressed if none were in scope, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
 
       ## Backlog Pending User Review Confirmation
-      <!-- REQUIRED. Complete the attestation, or write "Not Applicable" if no backlog items apply. Do not omit this section. -->
+      <!-- REQUIRED. Complete the attestation if no backlog items apply, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - [ ] I confirm that every backlog item implemented in this work has been moved to \`pending_user_review\` via \`chatroom backlog mark-for-review\` after the feature was verified end-to-end and a PR was raised for user review
       - PR URL(s): <link to PR(s)>
 
@@ -590,19 +596,19 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       <handoff-direction>
       ## What exists today
-      <!-- REQUIRED. Describe current state after this work, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. Describe current state after this work, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <current state after this work — what the user can now do, what is in place, how the system behaves>
 
       ## Key Technical Decisions
-      <!-- REQUIRED. List decisions, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. List decisions, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - <schema design, modules, interfaces, domain entities — what you chose and why>
 
       ## Key Tradeoffs
-      <!-- REQUIRED. List tradeoffs, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. List tradeoffs, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - <what was weighed against what, and why you chose this path>
 
       ## System Design
-      <!-- REQUIRED. Include a mermaid diagram when the change has non-trivial structure, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. Include a mermaid diagram when the change has non-trivial structure, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
 
       \`\`\`mermaid
       flowchart TD
@@ -612,13 +618,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       <handoff-notes>
       ## Notes
-      <!-- REQUIRED. Write notes, or "Not Applicable" if none. Do not omit this section. -->
+      <!-- REQUIRED. Write notes if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <anything the user should know — context, caveats, or observations not covered above>
       </handoff-notes>
 
       <handoff-action>
       ## Tech Debt Observed
-      <!-- REQUIRED. List tech debt, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. List tech debt, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
       - [high] <critical issue — blocks correctness, security, or release>
       - [medium] <meaningful debt — should address soon>
@@ -626,7 +632,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - <issues noticed but intentionally left out of scope of this change>
 
       ## Unresolved Decisions
-      <!-- REQUIRED. List open decisions needing user input, or write "Not Applicable" if none. Do not omit this section. -->
+      <!-- REQUIRED. List open decisions needing user input if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <!-- Severity: prefix each Tech Debt and Unresolved Decision bullet with [high], [medium], or [low] -->
       - [high] <critical issue — blocks correctness, security, or release>
       - [medium] <meaningful debt — should address soon>
@@ -635,7 +641,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <Carry forward decisions still open from earlier handoffs in this chatroom. Remove items the user has resolved. Do not decide on the user's behalf unless they explicitly asked you to.>
 
       ## Manual steps
-      <!-- REQUIRED. List manual steps outside the system, or write "Not Applicable". Do not omit this section. -->
+      <!-- REQUIRED. List manual steps outside the system, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       <steps the user must take outside the system — deploy, configure credentials, run commands, verify in production, etc.>
       </handoff-action>
       \`\`\`"
