@@ -12,6 +12,7 @@ import { acknowledgePendingTask } from '../task/acknowledge-pending-task';
 import { findAcknowledgedTaskForRole } from '../task/find-acknowledged-task-for-role';
 import { readTask } from '../task/read-task';
 import { transitionTask } from '../task/transition-task';
+import { startTaskFromReceipt as startFromReceipt } from '../task/start-task-from-receipt';
 
 type ParticipantSnapshot = {
   lastStatus?: string | null;
@@ -32,7 +33,19 @@ function canResumeNativePendingFromTokenActivity(participant: ParticipantSnapsho
   );
 }
 
-// fallow-ignore-next-line complexity
+// ─── Receipt rule (new — checked first) ───────────────────────────────────
+
+async function ruleReceiptNotStarted(
+  ctx: MutationCtx,
+  args: { chatroomId: Id<'chatroom_rooms'>; role: string }
+): Promise<boolean> {
+  const acknowledgedTask = await findAcknowledgedTaskForRole(ctx, args);
+  if (!acknowledgedTask || acknowledgedTask.status !== 'acknowledged') return false;
+  return startFromReceipt(ctx, args, acknowledgedTask._id);
+}
+
+// ─── Existing acknowledged-task rules ──────────────────────────────────────
+
 async function maybeStartAcknowledgedTaskFromTokenActivity(
   ctx: MutationCtx,
   args: { chatroomId: Id<'chatroom_rooms'>; role: string },
@@ -65,59 +78,40 @@ async function maybeStartAcknowledgedTaskFromTokenActivity(
   return true;
 }
 
-/** Pending task released after agent exit — source message was previously claimed. */
+// ─── Existing pending-task rules ──────────────────────────────────────────
+
 async function isReleasedNativePendingResume(
   ctx: MutationCtx,
   pendingTask: Doc<'chatroom_tasks'>
 ): Promise<boolean> {
-  if (!pendingTask.sourceMessageId) {
-    return false;
-  }
+  if (!pendingTask.sourceMessageId) return false;
   const sourceMessage = await ctx.db.get('chatroom_messages', pendingTask.sourceMessageId);
   return sourceMessage?.acknowledgedAt != null;
 }
 
-/** True when pending task was in-flight before agent exit (participant or message still shows prior claim). */
 async function isRecoveredPendingTask(
   ctx: MutationCtx,
   pendingTask: Doc<'chatroom_tasks'>,
   participant: ParticipantSnapshot
 ): Promise<boolean> {
-  if (isStaleInFlightParticipantStatus(participant.lastStatus)) {
-    return true;
-  }
-  if (participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION) {
-    return true;
-  }
+  if (isStaleInFlightParticipantStatus(participant.lastStatus)) return true;
+  if (participant.lastSeenAction === NATIVE_TASK_INJECTED_ACTION) return true;
   return isReleasedNativePendingResume(ctx, pendingTask);
 }
 
-async function resumeRecoveredPendingTaskFromTokenActivity(
-  ctx: MutationCtx,
-  args: { chatroomId: Id<'chatroom_rooms'>; role: string },
-  pendingTask: Doc<'chatroom_tasks'>
-): Promise<void> {
-  await transitionTask(ctx, pendingTask._id, 'in_progress', 'resumeFromTokenActivity');
-  await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
-}
-
-// fallow-ignore-next-line complexity
-async function maybeStartPendingTaskFromTokenActivity(
+async function ruleRecoveredPending(
   ctx: MutationCtx,
   args: { chatroomId: Id<'chatroom_rooms'>; role: string },
   participant: ParticipantSnapshot
-): Promise<void> {
+): Promise<boolean> {
   const pendingTasks = await ctx.db
     .query('chatroom_tasks')
     .withIndex('by_chatroom_status_assignedTo', (q) =>
       q.eq('chatroomId', args.chatroomId).eq('status', 'pending').eq('assignedTo', args.role)
     )
     .collect();
-
   const topPending = pendingTasks.sort((a, b) => a.queuePosition - b.queuePosition)[0];
-  if (!topPending) {
-    return;
-  }
+  if (!topPending) return false;
 
   const agentConfig = await getAgentConfig(ctx, {
     chatroomId: args.chatroomId,
@@ -129,20 +123,16 @@ async function maybeStartPendingTaskFromTokenActivity(
     isNativeHarness(agentConfig.config.agentHarness);
 
   if (isNative) {
-    if (!canResumeNativePendingFromTokenActivity(participant)) {
-      return;
-    }
+    if (!canResumeNativePendingFromTokenActivity(participant)) return false;
     const isRecovered = await isRecoveredPendingTask(ctx, topPending, participant);
-    if (!isRecovered) {
-      return;
-    }
-    await resumeRecoveredPendingTaskFromTokenActivity(ctx, args, topPending);
-    return;
+    if (!isRecovered) return false;
+    await transitionTask(ctx, topPending._id, 'in_progress', 'resumeFromTokenActivity');
+    await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
+    return true;
   }
 
-  if (participant.lastStatus !== 'agent.waiting') {
-    return;
-  }
+  if (args.role === 'enhancer') return false;
+  if (participant.lastStatus !== 'agent.waiting') return false;
 
   await acknowledgePendingTask(ctx, {
     chatroomId: args.chatroomId,
@@ -150,7 +140,65 @@ async function maybeStartPendingTaskFromTokenActivity(
     pendingTask: topPending,
   });
   await readTask(ctx, { chatroomId: args.chatroomId, role: args.role, taskId: topPending._id });
+  return true;
 }
+
+async function findRunningEnhancerJobForTask(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  taskId: Id<'chatroom_tasks'>
+): Promise<Doc<'chatroom_enhancerJobs'> | null> {
+  const running = await ctx.db
+    .query('chatroom_enhancerJobs')
+    .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId).eq('status', 'running'))
+    .collect();
+  return running.find((j) => j.taskId === taskId) ?? null;
+}
+
+async function ruleEnhancerDaemonPending(
+  ctx: MutationCtx,
+  args: { chatroomId: Id<'chatroom_rooms'>; role: string },
+  participant: ParticipantSnapshot
+): Promise<boolean> {
+  if (args.role !== 'enhancer') return false;
+  if (participant.lastStatus !== 'agent.waiting' && participant.lastStatus !== 'agent.started')
+    return false;
+
+  const pendingTask = await ctx.db
+    .query('chatroom_tasks')
+    .withIndex('by_chatroom_status_assignedTo', (q) =>
+      q.eq('chatroomId', args.chatroomId).eq('status', 'pending').eq('assignedTo', args.role)
+    )
+    .first();
+  if (!pendingTask) return false;
+
+  const job = await findRunningEnhancerJobForTask(ctx, args.chatroomId, pendingTask._id);
+  if (!job) return false;
+
+  await acknowledgePendingTask(ctx, {
+    chatroomId: args.chatroomId,
+    role: args.role,
+    pendingTask,
+  });
+  await readTask(ctx, { chatroomId: args.chatroomId, role: args.role, taskId: pendingTask._id });
+  return true;
+}
+
+// ─── Token Activity Rules (ordered by priority) ───────────────────────────
+
+const TOKEN_ACTIVITY_RULES: {
+  name: string;
+  run: (
+    ctx: MutationCtx,
+    args: { chatroomId: Id<'chatroom_rooms'>; role: string },
+    participant: ParticipantSnapshot
+  ) => Promise<boolean>;
+}[] = [
+  { name: 'receipt-not-started', run: ruleReceiptNotStarted },
+  { name: 'acknowledged-native', run: maybeStartAcknowledgedTaskFromTokenActivity },
+  { name: 'enhancer-daemon-pending', run: ruleEnhancerDaemonPending },
+  { name: 'recovered-pending', run: ruleRecoveredPending },
+];
 
 /** Starts acknowledged or pending work when harness token activity resumes after agent.waiting. */
 export async function startTaskFromTokenActivity(
@@ -158,14 +206,7 @@ export async function startTaskFromTokenActivity(
   args: { chatroomId: Id<'chatroom_rooms'>; role: string },
   participant: ParticipantSnapshot
 ): Promise<void> {
-  const startedAcknowledged = await maybeStartAcknowledgedTaskFromTokenActivity(
-    ctx,
-    args,
-    participant
-  );
-  if (startedAcknowledged) {
-    return;
+  for (const rule of TOKEN_ACTIVITY_RULES) {
+    if (await rule.run(ctx, args, participant)) return;
   }
-
-  await maybeStartPendingTaskFromTokenActivity(ctx, args, participant);
 }
