@@ -6,9 +6,11 @@ import { getActiveStandingInstructions } from '@workspace/backend/src/domain/ent
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
+
 import { StandingInstructionsDialog } from '../features/standing-instructions/components';
 import type { StandingInstructionsDialogInitialView } from '../features/standing-instructions/types/standingInstructionsDialog';
+
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 interface StandingInstructionsBarProps {
   chatroomId: Id<'chatroom_rooms'>;
@@ -134,10 +136,12 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     );
   }
 
-  const dialog = (
+  const dialog = dialogOpen ? (
     <StandingInstructionsDialog
-      open={dialogOpen}
-      onOpenChange={setDialogOpen}
+      open
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) setDialogOpen(false);
+      }}
       initialView={dialogInitialView}
       storedContent={storedContent}
       storedName={storedName}
@@ -149,7 +153,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       onDelete={handleDelete}
       onRecordHistoryUse={handleRecordHistoryUse}
     />
-  );
+  ) : null;
 
   if (!hasContent) {
     return (
