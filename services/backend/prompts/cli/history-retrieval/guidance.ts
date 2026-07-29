@@ -1,0 +1,28 @@
+export interface HistoryRetrievalGuidanceParams {
+  chatroomId: string;
+  role: string;
+  cliEnvPrefix: string;
+}
+
+export function getHistoryRetrievalGuidance(params: HistoryRetrievalGuidanceParams): string {
+  const { chatroomId, role, cliEnvPrefix } = params;
+  return `### History Retrieval
+
+**When to use which source:**
+- \`context read\` — Current-task grounding only (pinned goal, recent inline history). Not sufficient for cross-task summaries.
+- \`messages download\` — Searchable message history on disk. **Always use for history summaries** spanning more than the current context window.
+
+**If sources disagree:** \`messages download\` is authoritative for message content.
+
+**Pagination:** Start with \`--limit=10\`. If output shows \`truncated=true\`, re-run with a higher \`--limit\` (e.g. 50, 100). No cursor — increasing limit fetches further back from newest.
+
+**After download:** Use the **absolute path printed by the CLI** (paths are relative to your working directory, which may not be the repo root).
+
+\`\`\`bash
+${cliEnvPrefix}chatroom messages download --chatroom-id="${chatroomId}" --role="${role}" --format=linear --limit=10
+# Then use the path printed in output:
+ls "<printed-path>/"
+cat "<printed-path>/manifest.json"
+rg "pattern" "<printed-path>/"
+\`\`\``;
+}

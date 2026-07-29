@@ -141,8 +141,7 @@ describe('Available Actions (Task Delivery)', () => {
     expect(actions).toContain('## Available Actions');
 
     // Should have all action sections
-    expect(actions).toContain('### Gain Context');
-    expect(actions).toContain('### Download Message History');
+    expect(actions).toContain('### History Retrieval');
     expect(actions).toContain('### View Code Changes');
     expect(actions).toContain('### Backlog');
 

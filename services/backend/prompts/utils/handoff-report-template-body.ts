@@ -12,6 +12,7 @@ export function getHandoffReportTemplateBody(
   roleGuidanceContext?: RoleGuidanceCommandParams
 ): string {
   return `<handoff-overview>
+<!-- For informational tasks (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed — the user only sees this handoff. -->
 ## Summary
 <what was accomplished, in plain terms — no references to prior messages>
 

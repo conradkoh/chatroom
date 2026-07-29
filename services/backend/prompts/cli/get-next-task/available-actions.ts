@@ -7,6 +7,7 @@
 
 import { getCliEnvPrefix } from '../../utils/index';
 import { contextNewCommand, contextNewHint } from '../context/new';
+import { getHistoryRetrievalGuidance } from '../history-retrieval/guidance';
 
 export interface AvailableActionsParams {
   chatroomId: string;
@@ -28,21 +29,7 @@ export function getAvailableActions(params: AvailableActionsParams): string {
 
   sections.push(`## Available Actions
 
-### Gain Context
-View the latest relevant chat history. Use when starting a new session or when context is unclear.
-
-\`\`\`bash
-${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"
-\`\`\`
-
-### Download Message History
-Download recent chatroom history to local files. Start with the last 10 messages; increase \`--limit\` to fetch more.
-
-\`\`\`bash
-${cliEnvPrefix}chatroom messages download --chatroom-id="${chatroomId}" --role="${role}" --format=linear --limit=10
-ls .chatroom/downloads/messages/linear/
-rg "pattern" .chatroom/downloads/messages/linear/*/
-\`\`\`
+${getHistoryRetrievalGuidance({ chatroomId, role, cliEnvPrefix })}
 
 ### View Code Changes
 Check recent commits for implementation context.
@@ -77,7 +64,8 @@ ${cliEnvPrefix}chatroom context list --chatroom-id="${chatroomId}" --role="${rol
 
 When to create a new context:
 - For every new user message (default) — summarize the planned focus in the new context; skip only when the message is clearly a follow-up of the current task
-- When the pinned context shows staleness warnings — summarize recent progress in the new context`);
+- When the pinned context shows staleness warnings — summarize recent progress in the new context
+- **When a staleness warning is present, do not act on its goal** — create a new context for the current user message first`);
   }
 
   return sections.join('\n');
