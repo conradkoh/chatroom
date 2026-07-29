@@ -30,8 +30,6 @@ interface EnhancerConfigDialogProps {
   chatroomId: string;
   machineId: string | null | undefined;
   initialConfig: EnhancerConfig | null;
-  /** When true, saved config is persisted with `enabled: true` (toggle-on without prior model). */
-  enableAfterSave?: boolean;
   onConfirm: (config: EnhancerConfig) => void;
   favorites: EnhancerConfigEntry[];
   isFavorite: (entry: EnhancerConfigEntry) => boolean;
@@ -46,7 +44,6 @@ export function EnhancerConfigDialog({
   onOpenChange,
   machineId,
   initialConfig,
-  enableAfterSave = false,
   onConfirm,
   favorites,
   onAddFavorite,
@@ -109,25 +106,19 @@ export function EnhancerConfigDialog({
     [favorites, targetFavorites, onMoveFavorite]
   );
 
+  const isCurrentlyEnabled = initialConfig?.enabled ?? false;
+  const saveButtonLabel = isCurrentlyEnabled ? 'Save' : 'Save and enable';
+
   const handleSave = useCallback(() => {
     if (!canSave || !machineId) return;
     onConfirm({
-      enabled: enableAfterSave ? true : (initialConfig?.enabled ?? false),
+      enabled: true,
       targetId: targetId as EnhancerConfig['targetId'],
       agentHarness,
       model,
       machineId,
     });
-  }, [
-    canSave,
-    enableAfterSave,
-    initialConfig?.enabled,
-    targetId,
-    agentHarness,
-    model,
-    machineId,
-    onConfirm,
-  ]);
+  }, [canSave, targetId, agentHarness, model, machineId, onConfirm]);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -236,7 +227,7 @@ export function EnhancerConfigDialog({
             disabled={!canSave}
             className="px-3 py-1.5 text-sm bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary rounded-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Save
+            {saveButtonLabel}
           </button>
         </DialogFooter>
       </DialogContent>

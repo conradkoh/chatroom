@@ -103,11 +103,11 @@ describe('EnhancerConfigDialog', () => {
     const targetButton = screen.getByText('Planning review (before builder)');
     fireEvent.click(targetButton);
 
-    const saveButton = screen.getByText('Save');
+    const saveButton = screen.getByText('Save and enable');
     expect(saveButton.hasAttribute('disabled')).toBe(true);
   });
 
-  it('calls onConfirm with enabled false when saving without enableAfterSave', () => {
+  it('shows Save and enable label when config is disabled', () => {
     render(
       <EnhancerConfigDialog
         open={true}
@@ -119,18 +119,27 @@ describe('EnhancerConfigDialog', () => {
         {...mockFavoritesProps}
       />
     );
-
-    fireEvent.click(screen.getByText('Save'));
-
-    expect(onConfirm).toHaveBeenCalledWith(
-      expect.objectContaining({
-        enabled: false,
-        machineId: 'machine-1',
-      })
-    );
+    expect(screen.getByText('Save and enable')).toBeInTheDocument();
+    expect(screen.queryByText('Save')).not.toBeInTheDocument();
   });
 
-  it('calls onConfirm with enabled true when enableAfterSave is set', () => {
+  it('shows Save label when config is already enabled', () => {
+    render(
+      <EnhancerConfigDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        chatroomId={CHATROOM_ID}
+        machineId="machine-1"
+        initialConfig={makeConfig({ enabled: true })}
+        onConfirm={onConfirm}
+        {...mockFavoritesProps}
+      />
+    );
+    expect(screen.getByText('Save')).toBeInTheDocument();
+    expect(screen.queryByText('Save and enable')).not.toBeInTheDocument();
+  });
+
+  it('calls onConfirm with enabled true when saving while disabled', () => {
     render(
       <EnhancerConfigDialog
         open={true}
@@ -138,13 +147,12 @@ describe('EnhancerConfigDialog', () => {
         chatroomId={CHATROOM_ID}
         machineId="machine-1"
         initialConfig={makeConfig({ enabled: false })}
-        enableAfterSave={true}
         onConfirm={onConfirm}
         {...mockFavoritesProps}
       />
     );
 
-    fireEvent.click(screen.getByText('Save'));
+    fireEvent.click(screen.getByText('Save and enable'));
 
     expect(onConfirm).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -246,7 +254,7 @@ describe('EnhancerConfigDialog', () => {
       />
     );
 
-    expect(screen.getByText('Save').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText('Save and enable').hasAttribute('disabled')).toBe(true);
 
     rerender(
       <EnhancerConfigDialog

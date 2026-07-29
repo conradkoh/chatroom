@@ -69,11 +69,11 @@ describe('PlannerEnhancerToggle', () => {
     expect(screen.getByText('Enhancement Disabled')).toBeInTheDocument();
   });
 
-  it('opens dialog with enableAfterSave when toggling without saved config', async () => {
+  it('opens dialog when toggling without saved config', async () => {
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
 
     fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
-    await waitFor(() => expect(mockOpenDialog).toHaveBeenCalledWith({ enableAfterSave: true }));
+    await waitFor(() => expect(mockOpenDialog).toHaveBeenCalledWith());
   });
 
   it('enables from saved config without opening dialog', async () => {
