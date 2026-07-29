@@ -65,7 +65,7 @@ describe('getAllTabAnchorNavigation', () => {
     const chatroomId = await createChatroom(sessionId);
 
     await insertTimelineMessage(chatroomId, 'user', 'oldest msg');
-    await insertTimelineMessage(chatroomId, 'user', 'middle msg');
+    const m2 = await insertTimelineMessage(chatroomId, 'user', 'middle msg');
     const m3 = await insertTimelineMessage(chatroomId, 'user', 'newest msg');
 
     const result = await t.query(api.allTabConversation.getAllTabAnchorNavigation, {
@@ -78,6 +78,7 @@ describe('getAllTabAnchorNavigation', () => {
     expect(result.anchor!.contentPreview).toBe('newest msg');
     expect(result.prevAnchorId).toBe(m2);
     expect(result.nextAnchorId).toBeNull();
+    expect(result.sliceUpperBoundExclusive).toBeNull();
   });
 
   test('respects explicit anchorMessageId and resolves adjacent anchors', async () => {
@@ -99,6 +100,7 @@ describe('getAllTabAnchorNavigation', () => {
     expect(result.anchor!.contentPreview).toBe('second');
     expect(result.prevAnchorId).toBe(m1);
     expect(result.nextAnchorId).toBe(m4);
+    expect(result.sliceUpperBoundExclusive).not.toBeNull();
   });
 
   test('throws when anchorMessageId is not a user message', async () => {

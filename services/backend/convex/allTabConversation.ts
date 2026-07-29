@@ -109,8 +109,19 @@ export const getAllTabAnchorNavigation = query({
       : await findLatestUserAnchor(ctx, args.chatroomId);
 
     if (!anchor) {
-      return { anchor: null, prevAnchorId: null, nextAnchorId: null };
+      return {
+        anchor: null,
+        prevAnchorId: null,
+        nextAnchorId: null,
+        sliceUpperBoundExclusive: null,
+      };
     }
+
+    const nextUserMessage = await findNextUserMessageAfter(
+      ctx,
+      args.chatroomId,
+      anchor._creationTime
+    );
 
     const [prevAnchorId, nextAnchorId] = await Promise.all([
       findAdjacentUserAnchor(ctx, args.chatroomId, anchor, 'prev'),
@@ -125,6 +136,7 @@ export const getAllTabAnchorNavigation = query({
       },
       prevAnchorId,
       nextAnchorId,
+      sliceUpperBoundExclusive: nextUserMessage?._creationTime ?? null,
     };
   },
 });

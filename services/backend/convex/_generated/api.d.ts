@@ -10,6 +10,7 @@
 
 import type * as agentResumeStorm from "../agentResumeStorm.js";
 import type * as agenticQueryCleanup from "../agenticQueryCleanup.js";
+import type * as allTabConversation from "../allTabConversation.js";
 import type * as api_agenticQueryHelpers from "../api/agenticQueryHelpers.js";
 import type * as api_directHarnessHelpers from "../api/directHarnessHelpers.js";
 import type * as api_harnessChunkAggregate from "../api/harnessChunkAggregate.js";
@@ -149,6 +150,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   agentResumeStorm: typeof agentResumeStorm;
   agenticQueryCleanup: typeof agenticQueryCleanup;
+  allTabConversation: typeof allTabConversation;
   "api/agenticQueryHelpers": typeof api_agenticQueryHelpers;
   "api/directHarnessHelpers": typeof api_directHarnessHelpers;
   "api/harnessChunkAggregate": typeof api_harnessChunkAggregate;
