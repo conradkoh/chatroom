@@ -1,5 +1,4 @@
 import * as nodeFs from 'node:fs/promises';
-import * as nodePath from 'node:path';
 
 import { Context, Effect, Layer } from 'effect';
 
@@ -69,18 +68,27 @@ export function buildMessageMarkdown(msg: {
   return parts.join('\n');
 }
 
-export function buildTranscriptMarkdown(
-  messages: Array<{ _creationTime: number; senderRole: string; content: string; _id: string }>
-): string {
-  return messages
-    .map((msg) => {
-      const ts = new Date(msg._creationTime).toISOString();
-      return `## ${ts} | ${msg.senderRole} | ${msg._id}\n\n${msg.content}`;
-    })
-    .join('\n\n---\n\n');
+const SORT_KEY_MAX = 9_999_999_999_999;
+
+export function messageFilename(msg: {
+  _id: string;
+  _creationTime: number;
+  senderRole: string;
+  targetRole?: string | null;
+}): string {
+  const sortPrefix = String(SORT_KEY_MAX - msg._creationTime).padStart(13, '0');
+  const receiver = msg.targetRole ?? 'all';
+  return `${sortPrefix}_${msg.senderRole}-to-${receiver}_${msg._id}.md`;
 }
 
-export function messageFilename(msg: { _id: string; _creationTime: number }): string {
-  const ts = new Date(msg._creationTime).toISOString().replace(/[:.]/g, '-');
-  return `${ts}_${msg._id}.md`;
+/** Simple linear format — no YAML frontmatter */
+export function buildLinearMessageContent(msg: {
+  _creationTime: number;
+  senderRole: string;
+  targetRole?: string | null;
+  content: string;
+}): string {
+  const ts = new Date(msg._creationTime).toISOString();
+  const receiver = msg.targetRole ? ` → ${msg.targetRole}` : '';
+  return `${ts} | ${msg.senderRole}${receiver}\n\n${msg.content}`;
 }

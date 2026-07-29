@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
+
 import {
+  buildLinearMessageContent,
   buildMessageMarkdown,
-  buildTranscriptMarkdown,
   messageFilename,
 } from './messages-fs-service.js';
 
@@ -22,10 +23,33 @@ const fullMsg = {
 };
 
 describe('messageFilename', () => {
-  test('creates a filename from creation time and id', () => {
+  test('sorts descending by date (newer = lexicographically smaller prefix)', () => {
+    const older = messageFilename({ ...sampleMsg, _creationTime: 1_700_000_000_000 });
+    const newer = messageFilename({
+      ...sampleMsg,
+      _id: 'msg-new',
+      _creationTime: 1_800_000_000_000,
+    });
+    expect(newer < older).toBe(true);
+  });
+
+  test('includes sender and receiver roles', () => {
+    const name = messageFilename({ ...fullMsg });
+    expect(name).toContain('planner-to-builder');
+  });
+
+  test('uses "all" when no targetRole', () => {
     const name = messageFilename(sampleMsg);
-    expect(name).toMatch(/\.md$/);
-    expect(name).toContain('msg-123');
+    expect(name).toContain('planner-to-all');
+  });
+});
+
+describe('buildLinearMessageContent', () => {
+  test('includes timestamp, sender, receiver, and content', () => {
+    const content = buildLinearMessageContent(fullMsg);
+    expect(content).toContain('planner');
+    expect(content).toContain('→ builder');
+    expect(content).toContain('Hello world');
   });
 });
 
@@ -43,18 +67,5 @@ describe('buildMessageMarkdown', () => {
     expect(md).toContain('classification: new_feature');
     expect(md).toContain('taskStatus: completed');
     expect(md).toContain('featureTitle: Add login');
-  });
-});
-
-describe('buildTranscriptMarkdown', () => {
-  test('joins messages with separators', () => {
-    const result = buildTranscriptMarkdown([
-      sampleMsg,
-      { ...sampleMsg, _id: 'msg-456', content: 'Second message' },
-    ]);
-    expect(result).toContain('## ');
-    expect(result).toContain('Hello world');
-    expect(result).toContain('Second message');
-    expect(result).toContain('---');
   });
 });

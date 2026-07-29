@@ -310,4 +310,4 @@ export async function listSinceMessage(
   );
 }
 
-export { exportMessages } from './export.js';
+export { downloadMessages } from './download.js';

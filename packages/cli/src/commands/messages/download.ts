@@ -1,33 +1,34 @@
-import { Effect, Layer } from 'effect';
 import * as nodePath from 'node:path';
 
+import { Effect, Layer } from 'effect';
+
+import type { MessagesError } from './index.js';
 import {
-  buildMessageMarkdown,
-  buildTranscriptMarkdown,
+  buildLinearMessageContent,
   messageFilename,
   MessagesFsService,
+  MessagesFsServiceLive,
 } from './messages-fs-service.js';
-import type { MessagesError } from './index.js';
-import { api, type Id } from '../../api.js';
+import { api } from '../../api.js';
 import {
   BackendService,
   requireSessionIdEffect,
   validateChatroomIdEffect,
-  SessionService,
   commandServicesLayerFromDeps,
 } from '../../infrastructure/services/index.js';
-import { MessagesFsServiceLive } from './messages-fs-service.js';
 
 const PAGE_SIZE = 50;
 const ABSOLUTE_MAX = 5000;
+const DEFAULT_LIMIT = 10;
 
-export interface ExportMessagesOptions {
+export interface DownloadMessagesOptions {
   role: string;
+  format?: 'linear';
   outputDir?: string;
   limit?: number;
 }
 
-type ExportMessage = {
+type DownloadMessage = {
   _id: string;
   _creationTime: number;
   senderRole: string;
@@ -39,19 +40,24 @@ type ExportMessage = {
   featureTitle?: string | null;
 };
 
-export type ExportMessagesError =
+export type DownloadMessagesError =
   | MessagesError
   | { readonly _tag: 'OutputDirError'; readonly cause: Error }
   | { readonly _tag: 'WriteFailed'; readonly path: string; readonly cause: Error };
 
 function parseLimit(raw: number | undefined): number {
-  const cap = raw ?? ABSOLUTE_MAX;
-  if (!Number.isFinite(cap) || cap < 1) return ABSOLUTE_MAX;
+  const cap = raw ?? DEFAULT_LIMIT;
+  if (!Number.isFinite(cap) || cap < 1) return DEFAULT_LIMIT;
   return Math.min(Math.floor(cap), ABSOLUTE_MAX);
 }
 
+function defaultOutputDir(format: string): string {
+  const downloadId = new Date().toISOString().replace(/[:.]/g, '-');
+  return nodePath.join('.chatroom', 'downloads', 'messages', format, downloadId);
+}
+
 // fallow-ignore-next-line unused-export
-export const exportMessagesEffect = (chatroomId: string, options: ExportMessagesOptions) =>
+export const downloadMessagesEffect = (chatroomId: string, options: DownloadMessagesOptions) =>
   Effect.gen(function* () {
     const backend = yield* BackendService;
     const fs = yield* MessagesFsService;
@@ -66,17 +72,18 @@ export const exportMessagesEffect = (chatroomId: string, options: ExportMessages
       id,
     }));
 
-    const maxExport = parseLimit(options.limit);
-    const outputDir = options.outputDir ?? nodePath.join('.chatroom', 'exports', chatroomId);
+    const format = options.format ?? 'linear';
+    const maxDownload = parseLimit(options.limit);
+    const outputDir = options.outputDir ?? defaultOutputDir(format);
 
     // Fetch messages
-    const messages: ExportMessage[] = [];
+    const messages: DownloadMessage[] = [];
     let truncated = false;
     let hasMore = true;
 
     // First page
-    const firstPageSize = Math.min(PAGE_SIZE, maxExport);
-    const latest = yield* backend.query<{ messages: ExportMessage[]; hasMore: boolean }>(
+    const firstPageSize = Math.min(PAGE_SIZE, maxDownload);
+    const latest = yield* backend.query<{ messages: DownloadMessage[]; hasMore: boolean }>(
       api.messageList.getLatestMessages,
       { sessionId, chatroomId, limit: firstPageSize }
     );
@@ -84,15 +91,15 @@ export const exportMessagesEffect = (chatroomId: string, options: ExportMessages
     hasMore = latest.hasMore;
 
     // Subsequent pages
-    while (hasMore && messages.length < maxExport) {
+    while (hasMore && messages.length < maxDownload) {
       const oldest = messages[0];
       if (!oldest) {
         hasMore = false;
         break;
       }
-      const remaining = maxExport - messages.length;
+      const remaining = maxDownload - messages.length;
       const pageSize = Math.min(PAGE_SIZE, remaining);
-      const batch = yield* backend.query<ExportMessage[]>(api.messageList.listMessagesBefore, {
+      const batch = yield* backend.query<DownloadMessage[]>(api.messageList.listMessagesBefore, {
         sessionId,
         chatroomId,
         before: oldest._creationTime,
@@ -102,11 +109,11 @@ export const exportMessagesEffect = (chatroomId: string, options: ExportMessages
         hasMore = false;
         break;
       }
-      const space = maxExport - messages.length;
+      const space = maxDownload - messages.length;
       const toPrepend = batch.slice(Math.max(0, batch.length - space));
       for (let i = toPrepend.length - 1; i >= 0; i--) messages.unshift(toPrepend[i]);
-      hasMore = batch.length >= pageSize && messages.length < maxExport;
-      if (messages.length >= maxExport && (batch.length >= pageSize || latest.hasMore))
+      hasMore = batch.length >= pageSize && messages.length < maxDownload;
+      if (messages.length >= maxDownload && (batch.length >= pageSize || latest.hasMore))
         truncated = true;
       if (toPrepend.length < batch.length) truncated = true;
     }
@@ -119,53 +126,47 @@ export const exportMessagesEffect = (chatroomId: string, options: ExportMessages
       .pipe(Effect.catchAll(() => Effect.void));
     yield* fs
       .mkdir(outputDir, { recursive: true })
-      .pipe(Effect.mapError((cause): ExportMessagesError => ({ _tag: 'OutputDirError', cause })));
+      .pipe(Effect.mapError((cause): DownloadMessagesError => ({ _tag: 'OutputDirError', cause })));
 
     // Write per-message files
-    const manifestEntries: Array<{
+    const manifestEntries: {
       id: string;
       file: string;
       createdAt: string;
       senderRole: string;
-    }> = [];
+      targetRole?: string | null;
+    }[] = [];
     for (const msg of messages) {
       const file = messageFilename(msg);
-      const md = buildMessageMarkdown(msg);
+      const content = buildLinearMessageContent(msg);
       const filePath = nodePath.join(outputDir, file);
       yield* fs
-        .writeFile(filePath, md)
+        .writeFile(filePath, content)
         .pipe(
-          Effect.mapError(
-            (cause): ExportMessagesError => ({ _tag: 'WriteFailed', path: filePath, cause })
-          )
+          Effect.mapError((cause): DownloadMessagesError => ({
+            _tag: 'WriteFailed',
+            path: filePath,
+            cause,
+          }))
         );
       manifestEntries.push({
         id: msg._id,
         file,
         createdAt: new Date(msg._creationTime).toISOString(),
         senderRole: msg.senderRole,
+        targetRole: msg.targetRole,
       });
     }
-
-    // Write transcript
-    const transcriptPath = nodePath.join(outputDir, 'transcript.md');
-    yield* fs
-      .writeFile(transcriptPath, buildTranscriptMarkdown(messages))
-      .pipe(
-        Effect.mapError(
-          (cause): ExportMessagesError => ({ _tag: 'WriteFailed', path: transcriptPath, cause })
-        )
-      );
 
     // Write manifest
     const manifest = {
       chatroomId,
-      exportedAt: new Date().toISOString(),
+      downloadedAt: new Date().toISOString(),
       count: messages.length,
       complete,
       truncated,
-      oldestExportedAt: messages[0] ? new Date(messages[0]._creationTime).toISOString() : null,
-      newestExportedAt: messages[messages.length - 1]
+      oldestDownloadedAt: messages[0] ? new Date(messages[0]._creationTime).toISOString() : null,
+      newestDownloadedAt: messages[messages.length - 1]
         ? new Date(messages[messages.length - 1]._creationTime).toISOString()
         : null,
       messages: manifestEntries,
@@ -174,23 +175,28 @@ export const exportMessagesEffect = (chatroomId: string, options: ExportMessages
     yield* fs
       .writeFile(manifestPath, JSON.stringify(manifest, null, 2))
       .pipe(
-        Effect.mapError(
-          (cause): ExportMessagesError => ({ _tag: 'WriteFailed', path: manifestPath, cause })
-        )
+        Effect.mapError((cause): DownloadMessagesError => ({
+          _tag: 'WriteFailed',
+          path: manifestPath,
+          cause,
+        }))
       );
 
     yield* Effect.sync(() => {
-      console.log(`\n✅ Exported ${messages.length} messages to ${outputDir}`);
+      console.log(`\n✅ Downloaded ${messages.length} messages to ${outputDir}`);
       console.log(`   complete=${complete} truncated=${truncated}`);
-      console.log(`\n💡 Grep examples:`);
+      console.log(`\n💡 Read recent history:`);
+      console.log(`   ls ${outputDir}/`);
       console.log(`   rg "pattern" ${outputDir}/`);
-      console.log(`   rg -C 3 "pattern" ${outputDir}/transcript.md`);
+      if (truncated) {
+        console.log(`\n💡 Fetch more history: increase --limit (currently ${messages.length})`);
+      }
     });
   });
 
-export async function exportMessages(
+export async function downloadMessages(
   chatroomId: string,
-  options: ExportMessagesOptions,
+  options: DownloadMessagesOptions,
   deps?: { backend: any; session: any }
 ): Promise<void> {
   const { getSessionId, getOtherSessionUrls } =
@@ -224,14 +230,14 @@ export async function exportMessages(
         console.error(`\n❌ Failed to write ${err.path}: ${err.cause.message}`);
         process.exit(1);
       } else {
-        console.error(`\n❌ Export failed: ${err.message}`);
+        console.error(`\n❌ Download failed: ${err.message}`);
         process.exit(1);
       }
     });
   };
 
   await Effect.runPromise(
-    exportMessagesEffect(chatroomId, options).pipe(
+    downloadMessagesEffect(chatroomId, options).pipe(
       Effect.catchAll(handler),
       Effect.provide(Layer.mergeAll(layer, MessagesFsServiceLive))
     )
