@@ -51,9 +51,9 @@ function parseLimit(raw: number | undefined): number {
   return Math.min(Math.floor(cap), ABSOLUTE_MAX);
 }
 
-function defaultOutputDir(format: string): string {
+export function resolveDownloadOutputDir(format: string, cwd: string = process.cwd()): string {
   const downloadId = new Date().toISOString().replace(/[:.]/g, '-');
-  return nodePath.join('.chatroom', 'downloads', 'messages', format, downloadId);
+  return nodePath.resolve(cwd, '.chatroom', 'downloads', 'messages', format, downloadId);
 }
 
 // fallow-ignore-next-line unused-export
@@ -74,7 +74,8 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
 
     const format = options.format ?? 'linear';
     const maxDownload = parseLimit(options.limit);
-    const outputDir = options.outputDir ?? defaultOutputDir(format);
+    const outputDir = options.outputDir ?? resolveDownloadOutputDir(format);
+    const absoluteOutputDir = nodePath.resolve(outputDir);
 
     // Fetch messages
     const messages: DownloadMessage[] = [];
@@ -140,15 +141,15 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
       const file = messageFilename(msg);
       const content = buildLinearMessageContent(msg);
       const filePath = nodePath.join(outputDir, file);
-      yield* fs
-        .writeFile(filePath, content)
-        .pipe(
-          Effect.mapError((cause): DownloadMessagesError => ({
+      yield* fs.writeFile(filePath, content).pipe(
+        Effect.mapError(
+          (cause): DownloadMessagesError => ({
             _tag: 'WriteFailed',
             path: filePath,
             cause,
-          }))
-        );
+          })
+        )
+      );
       manifestEntries.push({
         id: msg._id,
         file,
@@ -172,24 +173,30 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
       messages: manifestEntries,
     };
     const manifestPath = nodePath.join(outputDir, 'manifest.json');
-    yield* fs
-      .writeFile(manifestPath, JSON.stringify(manifest, null, 2))
-      .pipe(
-        Effect.mapError((cause): DownloadMessagesError => ({
+    yield* fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2)).pipe(
+      Effect.mapError(
+        (cause): DownloadMessagesError => ({
           _tag: 'WriteFailed',
           path: manifestPath,
           cause,
-        }))
-      );
+        })
+      )
+    );
 
     yield* Effect.sync(() => {
-      console.log(`\n✅ Downloaded ${messages.length} messages to ${outputDir}`);
+      console.log(`\n✅ Downloaded ${messages.length} messages to:`);
+      console.log(`   ${absoluteOutputDir}`);
       console.log(`   complete=${complete} truncated=${truncated}`);
       console.log(`\n💡 Read recent history:`);
-      console.log(`   ls ${outputDir}/`);
-      console.log(`   rg "pattern" ${outputDir}/`);
+      console.log(`   ls "${absoluteOutputDir}/"`);
+      console.log(`   cat "${absoluteOutputDir}/manifest.json"`);
+      console.log(`   rg "pattern" "${absoluteOutputDir}/"`);
       if (truncated) {
-        console.log(`\n💡 Fetch more history: increase --limit (currently ${messages.length})`);
+        const nextLimit = Math.min(messages.length * 2, ABSOLUTE_MAX);
+        console.log(`\n💡 Truncated — fetch more history by increasing --limit:`);
+        console.log(
+          `   chatroom messages download --chatroom-id=${chatroomId} --role=${options.role} --format=linear --limit=${nextLimit}`
+        );
       }
     });
   });
