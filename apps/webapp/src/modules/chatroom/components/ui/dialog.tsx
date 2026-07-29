@@ -43,9 +43,27 @@ import {
 
 import { useAllowTouchSelection } from '@/hooks/useAllowTouchSelection';
 import { cn } from '@/lib/utils';
+import { releaseRadixBodyLock } from '../shared/releaseRadixBodyLock';
 
-function Dialog({ modal = true, ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="chatroom-dialog" modal={modal} {...props} />;
+function Dialog({
+  modal = true,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      requestAnimationFrame(() => releaseRadixBodyLock());
+    }
+    onOpenChange?.(open);
+  };
+  return (
+    <DialogPrimitive.Root
+      data-slot="chatroom-dialog"
+      modal={modal}
+      onOpenChange={handleOpenChange}
+      {...props}
+    />
+  );
 }
 
 function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {

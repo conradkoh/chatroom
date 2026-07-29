@@ -1,19 +1,22 @@
 'use client';
 
-import { Check, Plus, Star } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { EnhancerConfigFavoritesList } from './EnhancerConfigFavoritesList';
-import { EnhancerHarnessModelSelect } from './EnhancerHarnessModelSelect';
+import { EnhancerConfigForm } from './EnhancerConfigForm';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from '../../../components/ui/dialog';
-import { en } from '../../../lang/en';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import {
+  getMobileDrawerContentStyle,
+  MOBILE_DRAWER_CONTENT_CLASSNAME,
+} from '../../../components/picker';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 import type { AgentHarness } from '../../../types/machine';
 import { ENHANCER_TARGETS } from '../constants/enhancerTargets';
 import type { EnhancerConfig } from '../types/enhancer';
@@ -30,6 +33,7 @@ interface EnhancerConfigDialogProps {
   chatroomId: string;
   machineId: string | null | undefined;
   initialConfig: EnhancerConfig | null;
+
   onConfirm: (config: EnhancerConfig) => void;
   favorites: EnhancerConfigEntry[];
   isFavorite: (entry: EnhancerConfigEntry) => boolean;
@@ -50,6 +54,9 @@ export function EnhancerConfigDialog({
   onRemoveFavorite,
   onMoveFavorite,
 }: EnhancerConfigDialogProps) {
+  const isDesktop = useIsDesktop();
+  const keyboardInsetPx = useVisualViewportKeyboardInset(open && !isDesktop);
+
   const [targetId, setTargetId] = useState<string>(
     initialConfig?.targetId ?? ENHANCER_TARGETS[0].id
   );
@@ -132,104 +139,64 @@ export function EnhancerConfigDialog({
     [initialConfig, onOpenChange]
   );
 
+  const form = (
+    <EnhancerConfigForm
+      targetId={targetId}
+      onTargetIdChange={setTargetId}
+      machineId={machineId}
+      agentHarness={agentHarness}
+      model={model}
+      onHarnessChange={setAgentHarness}
+      onModelChange={setModel}
+      canSave={canSave}
+      saveButtonLabel={saveButtonLabel}
+      onSave={handleSave}
+      onCancel={() => onOpenChange(false)}
+      currentEntry={currentEntry}
+      currentIsFavorite={currentIsFavorite}
+      targetFavorites={targetFavorites}
+      onAddFavorite={onAddFavorite}
+      onRemoveFavorite={onRemoveFavorite}
+      onMoveFavorite={onMoveFavorite}
+      handleApplyFavorite={handleApplyFavorite}
+      handleMoveFavorite={handleMoveFavorite}
+    />
+  );
+
+  if (!isDesktop) {
+    return (
+      <Drawer open={open} onOpenChange={handleOpenChange} repositionInputs={false} handleOnly>
+        <DrawerContent
+          className={MOBILE_DRAWER_CONTENT_CLASSNAME}
+          style={getMobileDrawerContentStyle(keyboardInsetPx)}
+        >
+          <DrawerHeader className="p-0 shrink-0">
+            <DrawerTitle className="sr-only">Enhancer configuration</DrawerTitle>
+          </DrawerHeader>
+          <div className="flex flex-col min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+            <h2 className="text-base font-semibold text-chatroom-text-primary mb-1">
+              Enhancer configuration
+            </h2>
+            <p className="text-xs text-chatroom-text-muted mb-3">
+              Choose a planning review target and which enhancer model to use.
+            </p>
+            {form}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent floating className="sm:max-w-md max-h-[min(90dvh,100%)] overflow-y-auto">
+      <DialogContent floating className="sm:max-w-md max-h-[min(90dvh,100%)]">
         <DialogHeader>
           <DialogTitle>Enhancer configuration</DialogTitle>
           <DialogDescription>
             Choose a planning review target and which enhancer model to use.
           </DialogDescription>
         </DialogHeader>
-
-        <div className="flex flex-col gap-4 py-2">
-          <div>
-            <label className="block text-xs font-medium text-chatroom-text-secondary mb-2">
-              Target
-            </label>
-            <div className="flex flex-col gap-1.5">
-              {ENHANCER_TARGETS.map((target) => (
-                <button
-                  key={target.id}
-                  type="button"
-                  onClick={() => setTargetId(target.id)}
-                  className={`flex items-start gap-2 px-2 py-2 border-2 text-left transition-colors ${
-                    targetId === target.id
-                      ? 'border-chatroom-accent bg-chatroom-accent/5'
-                      : 'border-chatroom-border hover:border-chatroom-border-strong'
-                  }`}
-                >
-                  <span
-                    className={`mt-0.5 flex-shrink-0 w-4 h-4 flex items-center justify-center border-2 ${
-                      targetId === target.id
-                        ? 'border-chatroom-accent bg-chatroom-accent text-chatroom-bg-primary'
-                        : 'border-chatroom-border'
-                    }`}
-                  >
-                    {targetId === target.id && <Check size={12} />}
-                  </span>
-                  <div className="flex flex-col">
-                    <span className="text-sm text-chatroom-text-primary">{target.label}</span>
-                    <span className="text-xs text-chatroom-text-muted mt-0.5">
-                      {target.description}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <EnhancerHarnessModelSelect
-            machineId={machineId}
-            agentHarness={agentHarness}
-            model={model}
-            onHarnessChange={setAgentHarness}
-            onModelChange={setModel}
-          />
-
-          {currentEntry && !currentIsFavorite && (
-            <button
-              type="button"
-              onClick={() => onAddFavorite(currentEntry)}
-              className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-warning"
-            >
-              <Plus size={12} />
-              {en.configFavorites.addCurrentConfig}
-            </button>
-          )}
-          {currentEntry && currentIsFavorite && (
-            <div className="flex items-center gap-1 text-xs text-chatroom-text-muted">
-              <Star size={12} className="text-chatroom-status-warning" />
-              {en.configFavorites.currentConfigFavorited}
-            </div>
-          )}
-
-          <EnhancerConfigFavoritesList
-            favorites={targetFavorites}
-            onApply={handleApplyFavorite}
-            onRemoveFavorite={onRemoveFavorite}
-            onMoveFavorite={handleMoveFavorite}
-          />
-        </div>
-
-        <DialogFooter>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="px-3 py-1.5 text-sm border-2 border-chatroom-border text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave}
-            className="px-3 py-1.5 text-sm bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary rounded-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {saveButtonLabel}
-          </button>
-        </DialogFooter>
+        {form}
       </DialogContent>
     </Dialog>
   );

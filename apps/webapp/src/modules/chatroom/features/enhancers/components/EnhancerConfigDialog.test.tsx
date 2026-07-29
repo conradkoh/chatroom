@@ -4,6 +4,15 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { EnhancerConfigDialog } from './EnhancerConfigDialog';
 import type { EnhancerConfig } from '../types/enhancer';
 import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+
+vi.mock('@/hooks/useIsDesktop', () => ({
+  useIsDesktop: vi.fn(() => true),
+}));
+
+vi.mock('@/hooks/useMobileKeyboard', () => ({
+  useVisualViewportKeyboardInset: () => 0,
+}));
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: () => [],
@@ -239,6 +248,24 @@ describe('EnhancerConfigDialog', () => {
     expect(
       targetLabel.compareDocumentPosition(favoritesList) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
+  });
+
+  it('renders title on mobile (drawer) when useIsDesktop returns false', async () => {
+    vi.mocked(useIsDesktop).mockReturnValue(false);
+    render(
+      <EnhancerConfigDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        chatroomId={CHATROOM_ID}
+        machineId={null}
+        initialConfig={null}
+        onConfirm={onConfirm}
+        {...mockFavoritesProps}
+      />
+    );
+
+    expect(screen.getAllByText('Enhancer configuration').length).toBeGreaterThan(0);
+    expect(screen.getByText('Planning review (before builder)')).toBeDefined();
   });
 
   it('syncs form state when initialConfig arrives after open', () => {
