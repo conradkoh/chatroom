@@ -21,7 +21,7 @@ export function resolveTaskPlannerEnhancerEnabled(args: {
   );
 }
 
-export function hasUsableEnhancerConfig(
+function hasUsableEnhancerConfig(
   config: Doc<'chatroom_enhancerConfigs'> | null | undefined
 ): config is Doc<'chatroom_enhancerConfigs'> {
   return (

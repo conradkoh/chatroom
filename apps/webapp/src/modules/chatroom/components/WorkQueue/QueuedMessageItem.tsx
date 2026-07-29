@@ -6,8 +6,8 @@ import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
 import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
-import { MessageAttachmentChips } from '../../attachments';
 import { WorkQueuePreviewText } from './WorkQueuePreviewText';
+import { MessageAttachmentChips } from '../../attachments';
 import type { Message } from '../../types/message';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -131,7 +131,6 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
         <div className="flex items-center gap-1" onClick={stopRowClick}>
           {teamSupportsEnhancer ? (
             <QueuedMessageEnhancerToggle
-              chatroomId={chatroomId}
               queuedMessageId={message._id}
               plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
             />

@@ -4,7 +4,6 @@ import {
   resolvePlannerEnhancerEnabledFromConfig,
   resolveTaskPlannerEnhancerEnabled,
   validatePlannerEnhancerHandoff,
-  hasUsableEnhancerConfig,
 } from './resolve-planner-enhancer-enabled';
 
 function makeConfig(overrides: Record<string, unknown> = {}) {
@@ -88,24 +87,6 @@ describe('resolveTaskPlannerEnhancerEnabled', () => {
         role: 'builder',
       })
     ).toBe(false);
-  });
-});
-
-describe('hasUsableEnhancerConfig', () => {
-  test('returns true when all fields present', () => {
-    expect(hasUsableEnhancerConfig(makeConfig())).toBe(true);
-  });
-
-  test('returns false when agentHarness missing', () => {
-    expect(hasUsableEnhancerConfig(makeConfig({ agentHarness: '' }))).toBe(false);
-  });
-
-  test('returns false when model missing', () => {
-    expect(hasUsableEnhancerConfig(makeConfig({ model: '' }))).toBe(false);
-  });
-
-  test('returns false when machineId missing', () => {
-    expect(hasUsableEnhancerConfig(makeConfig({ machineId: '' }))).toBe(false);
   });
 });
 

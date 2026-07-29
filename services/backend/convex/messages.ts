@@ -28,17 +28,17 @@ import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-tea
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
+import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
 import {
   hasActiveEnhancerWork,
   transitionPlannerFromEnhancingToWaiting,
   transitionPlannerToEnhancing,
 } from '../src/domain/usecase/enhancer/planner-enhancing-status';
+import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import {
   resolveTaskPlannerEnhancerEnabled,
   validatePlannerEnhancerHandoff,
 } from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
-import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
-import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
 import {
   collectActiveTasks,
@@ -102,8 +102,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
-    | undefined;
+    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -120,8 +119,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached artifacts
   let attachedArtifacts:
-    | { _id: string; filename: string; description?: string; mimeType?: string }[]
-    | undefined;
+    { _id: string; filename: string; description?: string; mimeType?: string }[] | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
       msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
@@ -224,7 +222,7 @@ async function _sendMessageHandler(
     attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
   }
 ) {
-  const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+  const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
   // Validate attached tasks if provided
   if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {

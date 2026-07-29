@@ -7,9 +7,9 @@ import { ArrowUp, Check, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide
 import React, { memo, useCallback, useState } from 'react';
 import Markdown from 'react-markdown';
 
+import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
 import { MessageAttachmentChips, countMessageAttachments } from '../../attachments';
 import type { Message } from '../../types/message';
-import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { baseMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
 import {
@@ -291,7 +291,6 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
 
               {teamSupportsEnhancer ? (
                 <QueuedMessageEnhancerToggle
-                  chatroomId={_chatroomId}
                   queuedMessageId={message._id}
                   plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
                 />

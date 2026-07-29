@@ -1,21 +1,20 @@
 'use client';
 
-import { Sparkles } from 'lucide-react';
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { Sparkles } from 'lucide-react';
 import { useCallback, useState } from 'react';
+
 import { cn } from '@/lib/utils';
 
 interface Props {
-  chatroomId: Id<'chatroom_rooms'>;
   queuedMessageId: string;
   plannerEnhancerEnabled?: boolean;
   disabled?: boolean;
 }
 
 export function QueuedMessageEnhancerToggle({
-  chatroomId,
   queuedMessageId,
   plannerEnhancerEnabled = false,
   disabled = false,
@@ -28,14 +27,13 @@ export function QueuedMessageEnhancerToggle({
     setIsUpdating(true);
     try {
       await update({
-        chatroomId,
         queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
         plannerEnhancerEnabled: !plannerEnhancerEnabled,
       });
     } finally {
       setIsUpdating(false);
     }
-  }, [disabled, isUpdating, update, chatroomId, queuedMessageId, plannerEnhancerEnabled]);
+  }, [disabled, isUpdating, update, queuedMessageId, plannerEnhancerEnabled]);
 
   return (
     <button
