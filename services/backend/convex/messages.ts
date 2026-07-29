@@ -98,7 +98,8 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
+    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
+    | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -115,7 +116,8 @@ async function enrichMessageAttachments(
 
   // Resolve attached artifacts
   let attachedArtifacts:
-    { _id: string; filename: string; description?: string; mimeType?: string }[] | undefined;
+    | { _id: string; filename: string; description?: string; mimeType?: string }[]
+    | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
       msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
@@ -140,8 +142,8 @@ async function enrichMessageAttachments(
 }
 
 /**
- * Enriches an array of chatroom messages with task status, attachments, and
- * latest progress information. Used by the messageList module.
+ * Enriches an array of chatroom messages with task status and attachments.
+ * Used by the messageList module.
  */
 export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_messages'>[]) {
   // Batch task lookups: collect unique taskIds, fetch in parallel
@@ -156,32 +158,6 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
   for (const [id, task] of taskResults) {
     taskMap.set(id, task);
   }
-
-  const taskIdsNeedingProgress = [
-    ...new Set(messages.flatMap((m) => (m.taskId != null ? [m.taskId] : []))),
-  ];
-  const progressByTaskId = new Map<
-    string,
-    { content: string; senderRole: string; _creationTime: number }
-  >();
-  await Promise.all(
-    taskIdsNeedingProgress.map(async (taskId) => {
-      const progressMessages = await ctx.db
-        .query('chatroom_messages')
-        .withIndex('by_taskId', (q) => q.eq('taskId', taskId))
-        .filter((q) => q.eq(q.field('type'), 'progress'))
-        .order('desc')
-        .take(1);
-      if (progressMessages.length > 0) {
-        const latest = progressMessages[0];
-        progressByTaskId.set(taskId.toString(), {
-          content: latest.content,
-          senderRole: latest.senderRole,
-          _creationTime: latest._creationTime,
-        });
-      }
-    })
-  );
 
   // Batch enhancer job lookups: fetch draftContent for messages linked to enhancer jobs
   const uniqueJobIds = [
@@ -207,10 +183,6 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
       // Resolve attachments (shared helper)
       const attachments = await enrichMessageAttachments(ctx, message);
 
-      const latestProgress = message.taskId
-        ? progressByTaskId.get(message.taskId.toString())
-        : undefined;
-
       const enhancerOriginalContent =
         message.enhancerJobId != null
           ? jobDraftMap.get(message.enhancerJobId.toString())
@@ -220,7 +192,6 @@ export async function enrichMessages(ctx: QueryCtx, messages: Doc<'chatroom_mess
         ...message,
         ...(taskStatus && { taskStatus }),
         ...attachments,
-        ...(latestProgress && { latestProgress }),
         ...(enhancerOriginalContent && { enhancerOriginalContent }),
       };
     })
