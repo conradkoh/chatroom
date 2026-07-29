@@ -2,10 +2,10 @@
  * Message list API for the chatroom timeline feed.
  *
  * Queries:
- *   - getLatestMessages              — one-shot initial load (imperative)
- *   - subscribeNewMessages           — reactive tail from a NEWEST-row cursor (strict >)
- *   - subscribeVisibleMessageUpdates — lightweight task status deltas for visible rows
- *   - listMessagesBefore             — imperative load-older before a timestamp
+ *   - getLatestMessages               — one-shot initial load (imperative)
+ *   - subscribeNewMessages            — reactive tail from a NEWEST-row cursor (strict >)
+ *   - subscribeTaskStatusSignalsSince — reactive task-status signals from cursor
+ *   - listMessagesBefore              — imperative load-older before a timestamp
  */
 
 import { v } from 'convex/values';
@@ -22,8 +22,8 @@ const MAX_LATEST_MESSAGES_LIMIT = 200;
 const MAX_LOAD_OLDER_PAGE_SIZE = 50;
 /** Max rows for the strict-after "new messages" tail (prevents unbounded growth). */
 const MAX_NEW_MESSAGES_LIMIT = 500;
-/** Max visible message IDs accepted for the lightweight updates subscription. */
-const MAX_VISIBLE_UPDATE_IDS = 100;
+/** Max rows for task-status signals cursor page. */
+const MAX_TASK_STATUS_SIGNALS_LIMIT = 500;
 
 export function isTimelineMessage(msg: Doc<'chatroom_messages'>): boolean {
   return msg.type !== 'join' && msg.type !== 'progress';
@@ -96,6 +96,18 @@ async function fetchMessagesStrictlyAfter(
   return rows.filter(isTimelineMessage);
 }
 
+async function getLatestTaskStatusSignalKey(
+  ctx: QueryCtx,
+  chatroomId: Doc<'chatroom_rooms'>['_id']
+): Promise<string> {
+  const latest = await ctx.db
+    .query('chatroom_timelineTaskStatusSignals')
+    .withIndex('by_chatroom_signalKey', (q) => q.eq('chatroomId', chatroomId))
+    .order('desc')
+    .first();
+  return latest?.signalKey ?? '';
+}
+
 /**
  * One-shot initial load: latest `limit` timeline messages (oldest→newest) plus
  * pagination metadata. Called imperatively — no reactive subscription.
@@ -127,6 +139,7 @@ export const getLatestMessages = query({
       messages: enriched,
       hasMore,
       tailAfterCreationTime,
+      taskStatusAfterKey: await getLatestTaskStatusSignalKey(ctx, args.chatroomId),
     };
   },
 });
@@ -136,8 +149,8 @@ export const getLatestMessages = query({
  *
  * The frontend pins `afterCreationTime` to the NEWEST message it has seen and advances it
  * as new messages arrive — so this subscription's result stays near-empty and each new
- * message is delivered roughly once. Status/progress edits to already-visible messages are
- * handled separately by subscribeVisibleMessageUpdates.
+ * message is delivered roughly once. Task-status changes to already-visible messages are
+ * handled separately by subscribeTaskStatusSignalsSince.
  */
 export const subscribeNewMessages = query({
   args: {
@@ -158,62 +171,51 @@ export const subscribeNewMessages = query({
   },
 });
 
-/** Lightweight per-message delta: only the volatile fields that change post-creation. */
-interface VisibleMessageUpdate {
-  _id: Doc<'chatroom_messages'>['_id'];
-  taskStatus?: string;
-}
+const DEFAULT_TASK_STATUS_SIGNALS_LIMIT = 100;
 
 /**
- * Resolve the volatile (task status) field for one visible message.
- * Returns null when the id is unknown or belongs to a different chatroom.
- */
-async function resolveVisibleMessageUpdate(
-  ctx: QueryCtx,
-  chatroomId: Doc<'chatroom_messages'>['chatroomId'],
-  id: Doc<'chatroom_messages'>['_id']
-): Promise<VisibleMessageUpdate | null> {
-  const message = await ctx.db.get('chatroom_messages', id);
-  if (!message || message.chatroomId !== chatroomId) return null;
-  if (!message.taskId) return null;
-
-  const task = await ctx.db.get('chatroom_tasks', message.taskId);
-
-  const update: VisibleMessageUpdate = { _id: id };
-  if (task?.status !== undefined) {
-    update.taskStatus = task.status;
-  }
-  return update;
-}
-
-/**
- * Reactive lightweight updates for a bounded set of currently-visible messages.
+ * Reactive cursor-pinned subscription: task-status signals strictly after
+ * `afterKey`. Returns a paginated page with `highKey` for cursor advancement.
  *
- * Returns only the volatile task-status field that changes after a message is
- * created — NOT the full enriched message. The frontend subscribes with the
- * IDs of the most-recent visible messages so that a task-status flip re-sends
- * a few tiny objects instead of the whole window.
+ * Returns null when idle (no new signals) to suppress subscription bandwidth.
  */
-export const subscribeVisibleMessageUpdates = query({
+export const subscribeTaskStatusSignalsSince = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    messageIds: v.array(v.id('chatroom_messages')),
+    afterKey: v.string(),
+    limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const ids = args.messageIds.slice(0, MAX_VISIBLE_UPDATE_IDS);
-    const results = await Promise.all(
-      ids.map((id) => resolveVisibleMessageUpdate(ctx, args.chatroomId, id))
+    const limit = Math.min(
+      Math.max(args.limit ?? DEFAULT_TASK_STATUS_SIGNALS_LIMIT, 1),
+      MAX_TASK_STATUS_SIGNALS_LIMIT
     );
+    const page = await ctx.db
+      .query('chatroom_timelineTaskStatusSignals')
+      .withIndex('by_chatroom_signalKey', (q) =>
+        q.eq('chatroomId', args.chatroomId).gt('signalKey', args.afterKey)
+      )
+      .order('asc')
+      .take(limit + 1);
 
-    const updates = results.filter((r): r is VisibleMessageUpdate => r !== null);
-    // Return null when idle to suppress subscription bandwidth (same pattern as getFileTreeDeltas)
-    if (updates.length === 0) {
+    const hasMore = page.length > limit;
+    const rows = page.slice(0, limit);
+    const items = rows.map((row) => ({
+      taskId: row.taskId,
+      taskStatus: row.taskStatus,
+      signalKey: row.signalKey,
+    }));
+    if (items.length === 0) {
       return null;
     }
-    return updates;
+    return {
+      items,
+      highKey: items[items.length - 1]!.signalKey,
+      hasMore,
+    };
   },
 });
 

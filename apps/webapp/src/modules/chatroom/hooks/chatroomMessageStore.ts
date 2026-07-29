@@ -11,8 +11,6 @@ import type { Message } from '../types/message';
 
 export const MESSAGE_STORE_LIMIT = 5;
 export const MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE = 5;
-/** How many of the most-recent messages to keep "live" for status/progress updates. */
-export const VISIBLE_UPDATE_WINDOW = 30;
 
 // ─── Pure helpers ──────────────────────────────────────────────────────────
 
@@ -69,6 +67,7 @@ export interface ChatroomMessageStoreState {
   isInitialized: boolean;
   hasMoreOlder: boolean;
   isLoadingOlder: boolean;
+  taskStatusAfterKey: string | null;
 }
 
 export const chatroomMessageStoreInitialState: ChatroomMessageStoreState = {
@@ -77,9 +76,16 @@ export const chatroomMessageStoreInitialState: ChatroomMessageStoreState = {
   isInitialized: false,
   hasMoreOlder: false,
   isLoadingOlder: false,
+  taskStatusAfterKey: null,
 };
 
 // ─── Actions ───────────────────────────────────────────────────────────────
+
+export interface TaskStatusSignal {
+  taskId: string;
+  taskStatus: Message['taskStatus'];
+  signalKey: string;
+}
 
 export type ChatroomMessageStoreAction =
   | {
@@ -87,20 +93,20 @@ export type ChatroomMessageStoreAction =
       messages: Message[];
       tailAfterCreationTime: number;
       hasMoreOlder: boolean;
+      taskStatusAfterKey: string;
     }
   | { type: 'MERGE_TAIL'; messages: Message[] }
   | { type: 'PREPEND_OLDER'; messages: Message[]; hasMoreOlder: boolean }
   | { type: 'LOAD_OLDER_START' }
   | { type: 'LOAD_OLDER_FAILED' }
   | { type: 'RESET' }
-  | { type: 'APPLY_VISIBLE_UPDATES'; updates: VisibleUpdate[] }
+  | {
+      type: 'APPLY_TASK_STATUS_SIGNALS';
+      signals: TaskStatusSignal[];
+      highKey: string | null;
+    }
   | { type: 'REMOVE_BY_TASK_ID'; taskId: string }
   | { type: 'TRIM_TO_INITIAL_WINDOW' };
-
-export interface VisibleUpdate {
-  _id: Message['_id'];
-  taskStatus?: Message['taskStatus'];
-}
 
 // ─── Internal helpers ──────────────────────────────────────────────────────
 
@@ -128,21 +134,19 @@ export function filterNewMessages(existing: Message[], incoming: Message[]): Mes
 // ─── Public pure helpers used by the reducer and tests ──────────────────────
 
 // fallow-ignore-next-line unused-export
-export function applyVisibleUpdates(existing: Message[], updates: VisibleUpdate[]): Message[] {
-  if (updates.length === 0) return existing;
-  const byId = new Map(updates.map((u) => [u._id, u]));
+export function applyTaskStatusSignals(
+  existing: Message[],
+  signals: TaskStatusSignal[]
+): Message[] {
+  if (signals.length === 0) return existing;
+  const byTaskId = new Map(signals.map((s) => [s.taskId, s]));
   let changed = false;
   const next = existing.map((m) => {
-    const u = byId.get(m._id);
-    if (!u) return m;
-
-    const nextTaskStatus = 'taskStatus' in u ? u.taskStatus : m.taskStatus;
-    if (m.taskStatus === nextTaskStatus) return m;
-
+    if (!m.taskId) return m;
+    const signal = byTaskId.get(m.taskId);
+    if (!signal || m.taskStatus === signal.taskStatus) return m;
     changed = true;
-    const patched: Message = { ...m };
-    if ('taskStatus' in u) patched.taskStatus = u.taskStatus;
-    return patched;
+    return { ...m, taskStatus: signal.taskStatus };
   });
   return changed ? next : existing;
 }
@@ -169,6 +173,7 @@ export function chatroomMessageStoreReducer(
         tailAfterCreationTime: action.tailAfterCreationTime,
         isInitialized: true,
         hasMoreOlder: action.hasMoreOlder,
+        taskStatusAfterKey: action.taskStatusAfterKey,
       };
     }
     case 'MERGE_TAIL': {
@@ -195,11 +200,17 @@ export function chatroomMessageStoreReducer(
         isLoadingOlder: false,
       };
     }
-    case 'APPLY_VISIBLE_UPDATES': {
+    case 'APPLY_TASK_STATUS_SIGNALS': {
       if (!state.isInitialized) return state;
-      const next = applyVisibleUpdates(state.messages, action.updates);
-      if (next === state.messages) return state;
-      return { ...state, messages: next };
+      const nextMessages = applyTaskStatusSignals(state.messages, action.signals);
+      const nextKey =
+        action.highKey && action.signals.length > 0 ? action.highKey : state.taskStatusAfterKey;
+      if (nextMessages === state.messages && nextKey === state.taskStatusAfterKey) return state;
+      return {
+        ...state,
+        messages: nextMessages,
+        taskStatusAfterKey: nextKey,
+      };
     }
     case 'REMOVE_BY_TASK_ID': {
       if (!state.isInitialized) return state;
@@ -226,7 +237,10 @@ export function chatroomMessageStoreReducer(
       };
     }
     case 'RESET':
-      return chatroomMessageStoreInitialState;
+      return {
+        ...chatroomMessageStoreInitialState,
+        taskStatusAfterKey: null,
+      };
     default:
       return state;
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  applyVisibleUpdates,
+  applyTaskStatusSignals,
   hasMoreOlderAfterPage,
   inferHasMoreOlder,
   MESSAGE_STORE_LIMIT,
@@ -55,8 +55,8 @@ describe('trimMessagesToInitialWindow', () => {
   });
 });
 
-describe('applyVisibleUpdates', () => {
-  function makeMsg(id: string, taskStatus?: string): Message {
+describe('applyTaskStatusSignals', () => {
+  function makeMsg(id: string, taskStatus?: string, taskId?: string): Message {
     return {
       _id: id,
       _creationTime: 100,
@@ -64,43 +64,47 @@ describe('applyVisibleUpdates', () => {
       senderRole: 'user',
       content: 'hello',
       taskStatus: taskStatus as Message['taskStatus'],
+      taskId,
     } as Message;
   }
 
-  it('patches taskStatus on matching messages by _id', () => {
-    const existing = [makeMsg('1', 'in_progress'), makeMsg('2')];
-    const updates = [{ _id: '1', taskStatus: 'completed' as Message['taskStatus'] }];
-    const result = applyVisibleUpdates(existing, updates);
+  it('patches all messages matching taskId', () => {
+    const existing = [
+      makeMsg('1', 'in_progress', 'task-1'),
+      makeMsg('2', undefined, 'task-1'),
+      makeMsg('3', undefined, 'task-2'),
+    ];
+    const signals = [
+      { taskId: 'task-1', taskStatus: 'completed' as Message['taskStatus'], signalKey: 'k1' },
+    ];
+    const result = applyTaskStatusSignals(existing, signals);
     expect(result[0].taskStatus).toBe('completed');
-    expect(result[1]).toBe(existing[1]);
+    expect(result[1].taskStatus).toBe('completed');
+    expect(result[2].taskStatus).toBeUndefined();
   });
 
-  it('returns the same array reference when nothing changed (same taskStatus)', () => {
-    const existing = [makeMsg('1', 'in_progress')];
-    const updates = [{ _id: '1', taskStatus: 'in_progress' as Message['taskStatus'] }];
-    const result = applyVisibleUpdates(existing, updates);
+  it('no-ops when status unchanged', () => {
+    const existing = [makeMsg('1', 'in_progress', 'task-1')];
+    const signals = [
+      { taskId: 'task-1', taskStatus: 'in_progress' as Message['taskStatus'], signalKey: 'k1' },
+    ];
+    const result = applyTaskStatusSignals(existing, signals);
     expect(result).toBe(existing);
   });
 
-  it('ignores updates for ids not in the list', () => {
+  it('no-ops when taskId not in store', () => {
+    const existing = [makeMsg('1', undefined)];
+    const signals = [
+      { taskId: 'unknown-task', taskStatus: 'completed' as Message['taskStatus'], signalKey: 'k1' },
+    ];
+    const result = applyTaskStatusSignals(existing, signals);
+    expect(result).toBe(existing);
+  });
+
+  it('returns existing unchanged when signals is empty', () => {
     const existing = [makeMsg('1')];
-    const updates = [{ _id: '2', taskStatus: 'completed' as Message['taskStatus'] }];
-    const result = applyVisibleUpdates(existing, updates);
+    const result = applyTaskStatusSignals(existing, []);
     expect(result).toBe(existing);
-    expect(result[0].taskStatus).toBeUndefined();
-  });
-
-  it('returns existing unchanged when updates is empty', () => {
-    const existing = [makeMsg('1')];
-    const result = applyVisibleUpdates(existing, []);
-    expect(result).toBe(existing);
-  });
-
-  it('applies sparse updates without clearing omitted fields', () => {
-    const existing = [makeMsg('1', 'in_progress')];
-    const updates = [{ _id: '1', taskStatus: 'completed' as Message['taskStatus'] }];
-    const result = applyVisibleUpdates(existing, updates);
-    expect(result[0].taskStatus).toBe('completed');
   });
 });
 

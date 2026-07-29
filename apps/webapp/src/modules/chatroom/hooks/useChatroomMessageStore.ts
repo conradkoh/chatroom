@@ -6,7 +6,7 @@
  * Architecture:
  * 1. Initial load — imperative getLatestMessages(limit)
  * 2. New-messages tail — useSessionQuery(subscribeNewMessages, { afterCreationTime: newest })
- * 3. Visible-message updates — useSessionQuery(subscribeVisibleMessageUpdates, { messageIds: recent })
+ * 3. Task-status signals — useSessionQuery(subscribeTaskStatusSignalsSince, { afterKey })
  * 4. Merge — reducer appends/updates by _id; chronological order in store
  * 5. Older pages — imperative listMessagesBefore on scroll-up
  */
@@ -15,7 +15,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useConvex } from 'convex/react';
 import { useSessionId, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 
 import {
@@ -27,10 +27,8 @@ import {
   MESSAGE_STORE_LIMIT,
   MESSAGE_STORE_LOAD_OLDER_PAGE_SIZE,
   toMessage,
-  VISIBLE_UPDATE_WINDOW,
   type ChatroomMessageStoreAction,
   type ChatroomMessageStoreState,
-  type VisibleUpdate,
 } from './chatroomMessageStore';
 import { logLoadOlder } from '../components/timeline/timelineLoadOlderDebug';
 import type { Message } from '../types/message';
@@ -40,10 +38,8 @@ import type { Message } from '../types/message';
 /**
  * Wires the two reactive timeline subscriptions and dispatches their results:
  *  - subscribeNewMessages pinned to the NEWEST seen row (strict cursor → near-empty result).
- *  - subscribeVisibleMessageUpdates for the most-recent VISIBLE_UPDATE_WINDOW messages
- *    (lightweight task/progress deltas only).
+ *  - subscribeTaskStatusSignalsSince for cursor-based task-status deltas.
  */
-// fallow-ignore-next-line complexity
 function useTimelineDeltaSubscriptions(
   typedChatroomId: Id<'chatroom_rooms'>,
   state: ChatroomMessageStoreState,
@@ -70,39 +66,32 @@ function useTimelineDeltaSubscriptions(
     dispatch({ type: 'MERGE_TAIL', messages: newMessagesData.map(toMessage) });
   }, [newMessagesData, dispatch]);
 
-  // Visible-message updates (lightweight status/progress delta). Only task-linked message
-  // IDs are subscribed — non-task messages never receive post-creation status/progress changes.
-  const recentTaskLinkedIdsKey = state.messages
-    .slice(-VISIBLE_UPDATE_WINDOW)
-    .filter((m) => m.taskId)
-    .map((m) => m._id)
-    .join(',');
-  const recentTaskLinkedIds = useMemo(
-    () =>
-      recentTaskLinkedIdsKey
-        ? (recentTaskLinkedIdsKey.split(',') as Id<'chatroom_messages'>[])
-        : [],
-    [recentTaskLinkedIdsKey]
-  );
-
-  const visibleUpdatesData = useSessionQuery(
-    api.messageList.subscribeVisibleMessageUpdates,
-    enabled && state.isInitialized && recentTaskLinkedIds.length > 0
-      ? { chatroomId: typedChatroomId, messageIds: recentTaskLinkedIds }
+  // Task-status signals (cursor-based, pay-once deltas).
+  const taskStatusData = useSessionQuery(
+    api.messageList.subscribeTaskStatusSignalsSince,
+    enabled && state.isInitialized && state.taskStatusAfterKey !== null
+      ? {
+          chatroomId: typedChatroomId,
+          afterKey: state.taskStatusAfterKey,
+          limit: 100,
+        }
       : 'skip'
   );
 
   useEffect(() => {
-    if (!visibleUpdatesData) return;
+    if (!taskStatusData) return;
     dispatch({
-      type: 'APPLY_VISIBLE_UPDATES',
-      updates: visibleUpdatesData.map((u) => {
-        const update: VisibleUpdate = { _id: u._id };
-        if ('taskStatus' in u) update.taskStatus = u.taskStatus as Message['taskStatus'];
-        return update;
-      }),
+      type: 'APPLY_TASK_STATUS_SIGNALS',
+      signals: taskStatusData.items.map(
+        (item: { taskId: string; taskStatus: string; signalKey: string }) => ({
+          taskId: item.taskId,
+          taskStatus: item.taskStatus as Message['taskStatus'],
+          signalKey: item.signalKey,
+        })
+      ),
+      highKey: taskStatusData.highKey,
     });
-  }, [visibleUpdatesData, dispatch]);
+  }, [taskStatusData, dispatch]);
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
@@ -176,6 +165,7 @@ export function useChatroomMessageStore(
           messages,
           tailAfterCreationTime: data.tailAfterCreationTime,
           hasMoreOlder: inferHasMoreOlder(messages.length, data.hasMore),
+          taskStatusAfterKey: data.taskStatusAfterKey ?? '',
         });
       })
       .catch((err: unknown) => {
@@ -184,7 +174,7 @@ export function useChatroomMessageStore(
       });
   }, [enabled, state.isInitialized, sessionId, convex, typedChatroomId, initialLoadRequested]);
 
-  // ── Reactive delta subscriptions (new-messages tail + visible-message updates) ──
+  // ── Reactive delta subscriptions (new-messages tail + task-status signals) ──
   useTimelineDeltaSubscriptions(typedChatroomId, state, dispatch, enabled);
 
   const loadOlderMessages = useCallback(() => {

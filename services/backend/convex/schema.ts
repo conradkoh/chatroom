@@ -610,6 +610,27 @@ export default defineSchema({
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
 
   /**
+   * Slim timeline task-status signals — one row per FSM transition.
+   * Webapp subscribes via indexed cursor (pay-once deltas).
+   */
+  chatroom_timelineTaskStatusSignals: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    taskId: v.id('chatroom_tasks'),
+    taskStatus: v.union(
+      v.literal('pending'),
+      v.literal('acknowledged'),
+      v.literal('in_progress'),
+      v.literal('completed'),
+      v.literal('closed'),
+      v.literal('backlog'),
+      v.literal('pending_user_review'),
+      v.literal('backlog_acknowledged')
+    ),
+    signalKey: v.string(),
+    taskUpdatedAt: v.number(),
+  }).index('by_chatroom_signalKey', ['chatroomId', 'signalKey']),
+
+  /**
    * Slim daemon task-monitor rows — one per (machineId, taskId, role).
    * Written on task/config/participant mutations; read via indexed cursors (no task.content).
    */

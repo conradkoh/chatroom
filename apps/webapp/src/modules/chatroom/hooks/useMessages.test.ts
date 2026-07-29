@@ -2,7 +2,7 @@
  * Unit tests for useChatroomMessageStore / useMessages.
  *
  * Mocks imperative getLatestMessages + listMessagesBefore, and the reactive
- * subscribeNewMessages / subscribeVisibleMessageUpdates subscriptions (the
+ * subscribeNewMessages / subscribeTaskStatusSignalsSince subscriptions (the
  * mocked useSessionQuery returns mockTailData for any reactive query).
  */
 import { renderHook, act, waitFor } from '@testing-library/react';
@@ -23,8 +23,9 @@ vi.mock('convex/react', () => ({
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionId: () => ['session-1'],
-  useSessionQuery: (_query: unknown, args: unknown) => {
+  useSessionQuery: (query: unknown, args: unknown) => {
     if (args === 'skip') return undefined;
+    if (query === 'subscribeTaskStatusSignalsSince') return null;
     return mockTailData;
   },
 }));
@@ -34,7 +35,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     messageList: {
       getLatestMessages: 'getLatestMessages',
       subscribeNewMessages: 'subscribeNewMessages',
-      subscribeVisibleMessageUpdates: 'subscribeVisibleMessageUpdates',
+      subscribeTaskStatusSignalsSince: 'subscribeTaskStatusSignalsSince',
       listMessagesBefore: 'listMessagesBefore',
     },
   },
@@ -64,7 +65,12 @@ function mockInitialLoad(messages: Record<string, unknown>[], hasMore = false) {
   const tailAfterCreationTime = sorted[0]?._creationTime ?? 0;
   mockConvexQuery.mockImplementation((endpoint: string) => {
     if (endpoint === 'getLatestMessages') {
-      return Promise.resolve({ messages: sorted, hasMore, tailAfterCreationTime });
+      return Promise.resolve({
+        messages: sorted,
+        hasMore,
+        tailAfterCreationTime,
+        taskStatusAfterKey: '',
+      });
     }
     if (endpoint === 'listMessagesBefore') {
       return Promise.resolve([]);
@@ -153,6 +159,7 @@ describe('useMessages (delta store)', () => {
           messages: [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)],
           hasMore: true,
           tailAfterCreationTime: 1000,
+          taskStatusAfterKey: '',
         });
       }
       if (endpoint === 'listMessagesBefore') {
@@ -188,6 +195,7 @@ describe('useMessages (delta store)', () => {
           messages: [makeMsg('msg-1', 1000), makeMsg('msg-2', 2000)],
           hasMore: true,
           tailAfterCreationTime: 1000,
+          taskStatusAfterKey: '',
         });
       }
       if (endpoint === 'listMessagesBefore') {
