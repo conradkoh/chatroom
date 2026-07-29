@@ -11,6 +11,7 @@ import {
   type MessageViewMode,
 } from '../../hooks/persistence/messageViewMode';
 import type { TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
+import { AllTabConversationPanel } from '../../features/all-tab-conversation/AllTabConversationPanel';
 
 export interface ChatroomMessagesPanelProps {
   chatroomId: string;
@@ -52,15 +53,19 @@ export function ChatroomMessagesPanel({
 
   return (
     <div ref={panelRef} className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
-      <ChatroomTimelineFeed
-        key={filterRole ?? 'all'}
-        chatroomId={chatroomId}
-        coordinator={coordinator}
-        onRegisterOpenEventStream={onRegisterOpenEventStream}
-        onRegisterMessageStoreActions={onRegisterMessageStoreActions}
-        machines={machines}
-        senderRoleFilter={filterRole}
-      />
+      {viewMode === 'all' ? (
+        <AllTabConversationPanel chatroomId={chatroomId} machines={machines} />
+      ) : (
+        <ChatroomTimelineFeed
+          key={filterRole ?? 'all'}
+          chatroomId={chatroomId}
+          coordinator={coordinator}
+          onRegisterOpenEventStream={onRegisterOpenEventStream}
+          onRegisterMessageStoreActions={onRegisterMessageStoreActions}
+          machines={machines}
+          senderRoleFilter={filterRole}
+        />
+      )}
 
       {footer ? <div className="shrink-0">{footer}</div> : null}
     </div>
