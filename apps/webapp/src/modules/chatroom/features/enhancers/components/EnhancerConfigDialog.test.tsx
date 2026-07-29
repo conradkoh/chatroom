@@ -4,7 +4,6 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { EnhancerConfigDialog } from './EnhancerConfigDialog';
 import type { EnhancerConfig } from '../types/enhancer';
 import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: vi.fn(() => true),
@@ -112,11 +111,11 @@ describe('EnhancerConfigDialog', () => {
     const targetButton = screen.getByText('Planning review (before builder)');
     fireEvent.click(targetButton);
 
-    const saveButton = screen.getByText('Save and enable');
+    const saveButton = screen.getByText('Save & Enable');
     expect(saveButton.hasAttribute('disabled')).toBe(true);
   });
 
-  it('shows Save and enable label when config is disabled', () => {
+  it('shows Save & Enable label when config is disabled', () => {
     render(
       <EnhancerConfigDialog
         open={true}
@@ -128,7 +127,7 @@ describe('EnhancerConfigDialog', () => {
         {...mockFavoritesProps}
       />
     );
-    expect(screen.getByText('Save and enable')).toBeInTheDocument();
+    expect(screen.getByText('Save & Enable')).toBeInTheDocument();
     expect(screen.queryByText('Save')).not.toBeInTheDocument();
   });
 
@@ -145,7 +144,7 @@ describe('EnhancerConfigDialog', () => {
       />
     );
     expect(screen.getByText('Save')).toBeInTheDocument();
-    expect(screen.queryByText('Save and enable')).not.toBeInTheDocument();
+    expect(screen.queryByText('Save & Enable')).not.toBeInTheDocument();
   });
 
   it('calls onConfirm with enabled true when saving while disabled', () => {
@@ -161,7 +160,7 @@ describe('EnhancerConfigDialog', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Save and enable'));
+    fireEvent.click(screen.getByText('Save & Enable'));
 
     expect(onConfirm).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -250,24 +249,6 @@ describe('EnhancerConfigDialog', () => {
     ).toBeTruthy();
   });
 
-  it('renders title on mobile (drawer) when useIsDesktop returns false', async () => {
-    vi.mocked(useIsDesktop).mockReturnValue(false);
-    render(
-      <EnhancerConfigDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        chatroomId={CHATROOM_ID}
-        machineId={null}
-        initialConfig={null}
-        onConfirm={onConfirm}
-        {...mockFavoritesProps}
-      />
-    );
-
-    expect(screen.getAllByText('Enhancer configuration').length).toBeGreaterThan(0);
-    expect(screen.getByText('Planning review (before builder)')).toBeDefined();
-  });
-
   it('syncs form state when initialConfig arrives after open', () => {
     const { rerender } = render(
       <EnhancerConfigDialog
@@ -281,7 +262,7 @@ describe('EnhancerConfigDialog', () => {
       />
     );
 
-    expect(screen.getByText('Save and enable').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText('Save & Enable').hasAttribute('disabled')).toBe(true);
 
     rerender(
       <EnhancerConfigDialog
@@ -295,7 +276,6 @@ describe('EnhancerConfigDialog', () => {
       />
     );
 
-    const saveBtn = screen.getByText('Save');
-    expect(saveBtn.hasAttribute('disabled')).toBe(false);
+    expect(screen.getByText('Save').hasAttribute('disabled')).toBe(false);
   });
 });

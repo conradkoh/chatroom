@@ -4,19 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { EnhancerConfigForm } from './EnhancerConfigForm';
 import {
+  getMobileDrawerContentStyle,
+  MOBILE_DRAWER_CONTENT_CLASSNAME,
+} from '../../../components/picker';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
 } from '../../../components/ui/dialog';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
-import {
-  getMobileDrawerContentStyle,
-  MOBILE_DRAWER_CONTENT_CLASSNAME,
-} from '../../../components/picker';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 import type { AgentHarness } from '../../../types/machine';
 import { ENHANCER_TARGETS } from '../constants/enhancerTargets';
 import type { EnhancerConfig } from '../types/enhancer';
@@ -26,6 +23,10 @@ import {
   isEnhancerConfigFavoriteForTarget,
 } from '../types/enhancerConfigEntry';
 import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
+
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 
 interface EnhancerConfigDialogProps {
   open: boolean;
@@ -113,7 +114,7 @@ export function EnhancerConfigDialog({
   );
 
   const isCurrentlyEnabled = initialConfig?.enabled ?? false;
-  const saveButtonLabel = isCurrentlyEnabled ? 'Save' : 'Save and enable';
+  const saveButtonLabel = isCurrentlyEnabled ? 'Save' : 'Save & Enable';
 
   const handleSave = useCallback(() => {
     if (!canSave || !machineId) return;
