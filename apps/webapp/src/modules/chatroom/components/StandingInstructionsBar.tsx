@@ -5,7 +5,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getActiveStandingInstructions } from '@workspace/backend/src/domain/entities/standing-instructions';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { BookOpen, Plus } from 'lucide-react';
-import { memo, useCallback, useState, type KeyboardEvent } from 'react';
+import { memo, useCallback, useMemo, useState, type KeyboardEvent } from 'react';
 
 import {
   PickerOptionRow,
@@ -23,6 +23,8 @@ import { useOverlayPortalContainer } from './shared/overlayPortalContainer';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+import { StandingInstructionsDialog } from '../features/standing-instructions/components';
+import type { StandingInstructionsDialogInitialView } from '../features/standing-instructions/types/standingInstructionsDialog';
 
 type HistoryItem = {
   _id: Id<'chatroom_standingInstructionHistory'>;
@@ -502,7 +504,6 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   chatroomId,
 }: StandingInstructionsBarProps) {
   const isDesktop = useIsDesktop();
-  const actionRowClassName = isDesktop ? undefined : 'min-h-11 py-3 text-sm';
   const queryResult = useSessionQuery(api.standingInstructions.get, { chatroomId });
   const storedContent = queryResult?.content ?? '';
   const storedName = queryResult?.name ?? '';
@@ -522,144 +523,76 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const history = useSessionQuery(api.standingInstructions.listHistory, {}) ?? [];
   const recordUseMutation = useSessionMutation(api.standingInstructions.recordUse);
 
-  const [editing, setEditing] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const [addSelection, setAddSelection] = useState<AddSelection>(null);
-  const [draft, setDraft] = useState(storedContent);
-  const [draftName, setDraftName] = useState(storedName);
-  const [actionsOpen, setActionsOpen] = useState(false);
-  const [historyPickerOpen, setHistoryPickerOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogInitialView, setDialogInitialView] =
+    useState<StandingInstructionsDialogInitialView>('add');
 
-  const handleConfirm = useCallback(async () => {
-    await upsertMutation({ chatroomId, content: draft, name: draftName });
-    setEditing(false);
-    setIsAdding(false);
-    setAddSelection(null);
-  }, [chatroomId, draft, draftName, upsertMutation]);
+  const historyItems = useMemo(
+    () =>
+      history.map((item) => ({
+        id: item._id,
+        content: item.content,
+        useCount: item.useCount,
+        lastUsedAt: item.lastUsedAt,
+      })),
+    [history]
+  );
 
-  const handleCancel = useCallback(() => {
-    setDraft(storedContent);
-    setDraftName(storedName);
-    setEditing(false);
-    setIsAdding(false);
-    setAddSelection(null);
-  }, [storedContent, storedName]);
+  const openAddDialog = useCallback(() => {
+    setDialogInitialView('add');
+    setDialogOpen(true);
+  }, []);
 
-  const startEditing = useCallback(() => {
-    setDraft(storedContent);
-    setDraftName(storedName);
-    setActionsOpen(false);
-    setIsAdding(false);
-    setEditing(true);
-  }, [storedContent, storedName]);
+  const openActionsDialog = useCallback(() => {
+    setDialogInitialView('actions');
+    setDialogOpen(true);
+  }, []);
 
-  const handleDisable = useCallback(async () => {
-    setActionsOpen(false);
-    await setEnabledMutation({ chatroomId, enabled: false });
-  }, [chatroomId, setEnabledMutation]);
+  const handleDialogConfirm = useCallback(
+    async ({ content, name }: { content: string; name: string }) => {
+      await upsertMutation({ chatroomId, content, name });
+    },
+    [chatroomId, upsertMutation]
+  );
 
-  const handleEnable = useCallback(async () => {
-    setActionsOpen(false);
-    await setEnabledMutation({ chatroomId, enabled: true });
-  }, [chatroomId, setEnabledMutation]);
-
-  const handleDelete = useCallback(async () => {
-    setActionsOpen(false);
-    await clearMutation({ chatroomId });
-    setDraft('');
-    setDraftName('');
-    setEditing(false);
-    setIsAdding(false);
-  }, [chatroomId, clearMutation]);
-
-  const handleSelectHistory = useCallback(
-    async (item: HistoryItem) => {
-      const result = await recordUseMutation({ historyId: item._id });
-      setDraft(result.content);
-      setAddSelection(item._id);
-      setHistoryPickerOpen(false);
+  const handleRecordHistoryUse = useCallback(
+    async (historyId: string) => {
+      const result = await recordUseMutation({
+        historyId: historyId as Id<'chatroom_standingInstructionHistory'>,
+      });
+      return { content: result.content };
     },
     [recordUseMutation]
   );
 
-  const handleSelectCreateNew = useCallback(() => {
-    setAddSelection('create-new');
-    setDraft('');
-  }, []);
+  const handleEnable = useCallback(async () => {
+    await setEnabledMutation({ chatroomId, enabled: true });
+  }, [chatroomId, setEnabledMutation]);
 
-  const historyTop3 = history.slice(0, 3);
+  const handleDisable = useCallback(async () => {
+    await setEnabledMutation({ chatroomId, enabled: false });
+  }, [chatroomId, setEnabledMutation]);
 
-  const confirmDisabled =
-    addSelection === null || (addSelection === 'create-new' && draft.trim().length === 0);
+  const handleDelete = useCallback(async () => {
+    await clearMutation({ chatroomId });
+  }, [chatroomId, clearMutation]);
 
-  const addingPanelProps = {
-    historyTop3,
-    selection: addSelection,
-    draft,
-    draftName,
-    onDraftChange: setDraft,
-    onDraftNameChange: setDraftName,
-    onSelectHistory: (item: HistoryItem) => {
-      void handleSelectHistory(item);
-    },
-    onSelectCreateNew: handleSelectCreateNew,
-    onViewMore: () => setHistoryPickerOpen(true),
-    onConfirm: () => {
-      void handleConfirm();
-    },
-    onCancel: handleCancel,
-    confirmDisabled,
-  };
-
-  const editorHandlers = {
-    draft,
-    draftName,
-    onDraftChange: setDraft,
-    onDraftNameChange: setDraftName,
-    onConfirm: () => {
-      void handleConfirm();
-    },
-    onCancel: handleCancel,
-  };
-
-  const historyFullPicker = isAdding ? (
-    <HistoryFullPicker
-      open={historyPickerOpen}
-      onOpenChange={setHistoryPickerOpen}
-      items={history}
-      onSelect={(item) => {
-        void handleSelectHistory(item);
-      }}
+  const dialog = (
+    <StandingInstructionsDialog
+      open={dialogOpen}
+      onOpenChange={setDialogOpen}
+      initialView={dialogInitialView}
+      storedContent={storedContent}
+      storedName={storedName}
+      isActive={isActive}
+      history={historyItems}
+      onConfirm={handleDialogConfirm}
+      onEnable={handleEnable}
+      onDisable={handleDisable}
+      onDelete={handleDelete}
+      onRecordHistoryUse={handleRecordHistoryUse}
     />
-  ) : null;
-
-  if (editing && isDesktop && isAdding) {
-    return (
-      <>
-        <AddingPanel {...addingPanelProps} />
-        {historyFullPicker}
-      </>
-    );
-  }
-
-  if (editing && isDesktop && !isAdding) {
-    return (
-      <>
-        <EditingPanel {...editorHandlers} />
-        {historyFullPicker}
-      </>
-    );
-  }
-
-  const mobileAddDrawer =
-    editing && !isDesktop && isAdding ? (
-      <MobileAddingDrawer open={editing} {...addingPanelProps} />
-    ) : null;
-
-  const mobileEditor =
-    editing && !isDesktop && !isAdding ? (
-      <MobileEditingDrawer open={editing} {...editorHandlers} />
-    ) : null;
+  );
 
   if (!hasContent) {
     return (
@@ -667,12 +600,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
         <button
           type="button"
           aria-label="Add standing instructions"
-          onClick={() => {
-            setDraft('');
-            setAddSelection(null);
-            setIsAdding(true);
-            setEditing(true);
-          }}
+          onClick={openAddDialog}
           className={`${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
         >
           <Plus
@@ -685,75 +613,43 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
             Add standing instructions
           </span>
         </button>
-        {mobileAddDrawer}
-        {mobileEditor}
-        {historyFullPicker}
+        {dialog}
       </>
     );
   }
 
   return (
     <>
-      <ResponsivePickerShell
-        open={actionsOpen}
-        onOpenChange={setActionsOpen}
-        title="Standing instructions"
-        anchorToPointer
-        contentClassName="w-56 p-0"
-        trigger={
-          <button
-            type="button"
-            aria-label={isActive ? 'Standing instructions' : 'Standing instructions (disabled)'}
-            className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
-          >
-            <BookOpen
-              size={mobileIconSize(isDesktop)}
-              className={`shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
-            />
-            <span
-              className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider shrink-0 hidden sm:inline ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
-            >
-              Standing instructions{isActive ? '' : ' (disabled)'}
-            </span>
-            <span className="text-xs text-chatroom-text-secondary truncate flex-1">
-              {displayText}
-              {!isActive ? (
-                <span className="sm:hidden text-chatroom-text-muted shrink-0"> (off)</span>
-              ) : null}
-            </span>
-          </button>
-        }
+      <button
+        type="button"
+        aria-label={isActive ? 'Standing instructions' : 'Standing instructions (disabled)'}
+        onClick={openActionsDialog}
+        className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
       >
-        <PickerPanelHeader title="Standing instructions" />
-        <PickerScrollBody>
-          <PickerOptionRow selected={false} onSelect={startEditing} className={actionRowClassName}>
-            Edit
-          </PickerOptionRow>
-          {isActive ? (
-            <PickerOptionRow
-              selected={false}
-              onSelect={handleDisable}
-              className={actionRowClassName}
-            >
-              Disable
-            </PickerOptionRow>
-          ) : (
-            <PickerOptionRow
-              selected={false}
-              onSelect={handleEnable}
-              className={actionRowClassName}
-            >
-              Enable
-            </PickerOptionRow>
-          )}
-          <PickerOptionRow selected={false} onSelect={handleDelete} className={actionRowClassName}>
-            <span className="text-destructive">Delete</span>
-          </PickerOptionRow>
-        </PickerScrollBody>
-      </ResponsivePickerShell>
-      {mobileAddDrawer}
-      {mobileEditor}
-      {historyFullPicker}
+        <BookOpen
+          size={mobileIconSize(isDesktop)}
+          className={`shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+        />
+        <span
+          className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider shrink-0 hidden sm:inline ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+        >
+          Standing instructions{isActive ? '' : ' (disabled)'}
+        </span>
+        <span className="text-xs text-chatroom-text-secondary truncate flex-1">
+          {displayText}
+          {!isActive ? (
+            <span className="sm:hidden text-chatroom-text-muted shrink-0"> (off)</span>
+          ) : null}
+        </span>
+      </button>
+      {dialog}
     </>
   );
 });
+
+// Keep dead refs for Slice 3 removal — these are the inline panels being replaced
+void AddingPanel;
+void MobileAddingDrawer;
+void HistoryFullPicker;
+void EditingPanel;
+void MobileEditingDrawer;

@@ -86,6 +86,21 @@ export function StandingInstructionsDialog({
     [onRecordHistoryUse, view]
   );
 
+  const handleEnable = useCallback(() => {
+    onEnable();
+    onOpenChange(false);
+  }, [onEnable, onOpenChange]);
+
+  const handleDisableCb = useCallback(() => {
+    onDisable();
+    onOpenChange(false);
+  }, [onDisable, onOpenChange]);
+
+  const handleDeleteCb = useCallback(() => {
+    onDelete();
+    onOpenChange(false);
+  }, [onDelete, onOpenChange]);
+
   const handleSelectCreateNew = useCallback(() => {
     setAddSelection('create-new');
     setDraft('');
@@ -128,9 +143,9 @@ export function StandingInstructionsDialog({
       onConfirm={handleConfirm}
       onCancel={handleCancel}
       onEdit={() => setView('edit')}
-      onEnable={onEnable}
-      onDisable={onDisable}
-      onDelete={onDelete}
+      onEnable={handleEnable}
+      onDisable={handleDisableCb}
+      onDelete={handleDeleteCb}
     />
   );
 

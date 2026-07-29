@@ -94,7 +94,7 @@ describe('StandingInstructionsBar', () => {
     const user = userEvent.setup();
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     await user.click(screen.getByText('Add standing instructions'));
-    expect(screen.getByText('Standing Instructions')).toBeInTheDocument();
+    expect(screen.getAllByText('Standing Instructions').length).toBeGreaterThan(0);
     expect(screen.getByText('Create new')).toBeInTheDocument();
     expect(screen.getByText('View more')).toBeInTheDocument();
     expect(screen.getByText('Confirm')).toBeInTheDocument();
@@ -137,18 +137,16 @@ describe('StandingInstructionsBar', () => {
       expect(screen.queryByText('Delete')).not.toBeInTheDocument();
     });
 
-    it('opens popover on desktop with correct slot and Disable present', async () => {
+    it('opens dialog on desktop with correct slot and Disable present', async () => {
       const user = userEvent.setup();
       mockUseIsDesktop.mockReturnValue(true);
       render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
       await user.click(screen.getByText('Standing instructions'));
 
-      expect(document.querySelector('[data-slot="chatroom-popover-content"]')).not.toBeNull();
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
       expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
       expect(screen.getByText('Disable')).toBeInTheDocument();
       expect(screen.queryByText('Enable')).not.toBeInTheDocument();
-      // anchorToPointer renders the pointer anchor on desktop
-      expect(document.querySelector('[data-testid="picker-pointer-anchor"]')).toBeInTheDocument();
     });
 
     it('opens drawer on mobile with correct slot', async () => {
@@ -158,7 +156,6 @@ describe('StandingInstructionsBar', () => {
       await user.click(screen.getByText('Standing instructions'));
 
       expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
-      expect(document.querySelector('[data-slot="chatroom-popover-content"]')).toBeNull();
       expect(screen.getByText('Disable')).toBeInTheDocument();
     });
 
@@ -252,7 +249,7 @@ describe('StandingInstructionsBar', () => {
       render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
       await user.click(screen.getByText('Add standing instructions'));
 
-      expect(screen.getByText('Standing Instructions')).toBeInTheDocument();
+      expect(screen.getAllByText('Standing Instructions').length).toBeGreaterThan(0);
       expect(screen.getByText('Always use TypeScript')).toBeInTheDocument();
       expect(screen.getByText('Write unit tests first')).toBeInTheDocument();
       expect(screen.getByText('Use async/await patterns')).toBeInTheDocument();
@@ -349,7 +346,7 @@ describe('StandingInstructionsBar', () => {
     await user.click(screen.getByText('Add standing instructions'));
 
     expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
-    expect(screen.getByText('Standing Instructions')).toBeInTheDocument();
+    expect(screen.getAllByText('Standing Instructions').length).toBeGreaterThan(0);
     expect(screen.getByText('Create new')).toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Enter standing instructions…')).not.toBeInTheDocument();
 
@@ -367,11 +364,6 @@ describe('StandingInstructionsBar', () => {
 
     const body = screen.getByTestId('standing-instructions-mobile-add-body');
     expect(body.className).toContain('py-3');
-    expect(body.className).not.toMatch(/\bpx-3\b/);
-    expect(body.className).not.toMatch(/\bp-3\b/);
-
-    const header = screen.getByText('Standing Instructions').closest('div');
-    expect(header?.className).toContain('px-3');
 
     const list = body.querySelector('ul');
     expect(list?.className).toContain('w-full');
@@ -415,26 +407,16 @@ describe('StandingInstructionsBar', () => {
     expect(screen.getByText('Confirm').className).toContain('min-h-11');
   });
 
-  it('keeps inline AddingPanel on desktop Add (no add drawer)', async () => {
+  it('opens dialog on desktop Add (no add drawer)', async () => {
     const user = userEvent.setup();
     mockUseIsDesktop.mockReturnValue(true);
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     await user.click(screen.getByText('Add standing instructions'));
 
-    expect(screen.getByText('Standing Instructions')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getAllByText('Standing Instructions').length).toBeGreaterThan(0);
     expect(screen.getByText('Create new')).toBeInTheDocument();
     expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
-  });
-
-  it('applies vertical padding to desktop AddingPanel chrome', async () => {
-    const user = userEvent.setup();
-    mockUseIsDesktop.mockReturnValue(true);
-    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
-    await user.click(screen.getByText('Add standing instructions'));
-
-    const panel = screen.getByTestId('standing-instructions-adding-panel');
-    expect(panel.className).toContain('py-1.5');
-    expect(panel.className).toContain('px-3');
   });
 
   it('Create new reveals textarea and Ctrl+Enter confirms', async () => {

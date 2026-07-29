@@ -1,10 +1,6 @@
 'use client';
 
-import {
-  PickerPanelHeader,
-  PickerScrollBody,
-  PickerOptionRow,
-} from '../../../components/picker';
+import { PickerPanelHeader, PickerScrollBody, PickerOptionRow } from '../../../components/picker';
 
 export interface StandingInstructionsActionsViewProps {
   isActive: boolean;
@@ -41,8 +37,8 @@ export function StandingInstructionsActionsView({
             Enable
           </PickerOptionRow>
         )}
-        <PickerOptionRow onSelect={onDelete} className={`${rowClassName || ''} text-destructive`}>
-          Delete
+        <PickerOptionRow onSelect={onDelete} className={rowClassName}>
+          <span className="text-destructive">Delete</span>
         </PickerOptionRow>
       </PickerScrollBody>
     </>
