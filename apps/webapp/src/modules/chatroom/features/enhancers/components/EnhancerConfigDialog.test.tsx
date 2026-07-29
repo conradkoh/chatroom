@@ -295,6 +295,7 @@ describe('EnhancerConfigDialog', () => {
       />
     );
 
-    expect(screen.getByText('Save').hasAttribute('disabled')).toBe(false);
+    const saveBtn = screen.getByText('Save');
+    expect(saveBtn.hasAttribute('disabled')).toBe(false);
   });
 });

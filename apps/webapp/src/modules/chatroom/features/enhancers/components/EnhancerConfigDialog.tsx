@@ -33,7 +33,6 @@ interface EnhancerConfigDialogProps {
   chatroomId: string;
   machineId: string | null | undefined;
   initialConfig: EnhancerConfig | null;
-
   onConfirm: (config: EnhancerConfig) => void;
   favorites: EnhancerConfigEntry[];
   isFavorite: (entry: EnhancerConfigEntry) => boolean;

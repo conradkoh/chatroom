@@ -1,19 +1,12 @@
 'use client';
 
 import { Check, Plus, Star } from 'lucide-react';
-import { useMemo } from 'react';
 
 import { EnhancerConfigFavoritesList } from './EnhancerConfigFavoritesList';
 import { EnhancerHarnessModelSelect } from './EnhancerHarnessModelSelect';
 import { en } from '../../../lang/en';
 import type { AgentHarness } from '../../../types/machine';
 import { ENHANCER_TARGETS } from '../constants/enhancerTargets';
-import type { EnhancerConfig } from '../types/enhancer';
-import {
-  enhancerConfigEntriesEqual,
-  filterFavoritesForTarget,
-  isEnhancerConfigFavoriteForTarget,
-} from '../types/enhancerConfigEntry';
 import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
 
 export interface EnhancerConfigFormProps {
@@ -25,6 +18,7 @@ export interface EnhancerConfigFormProps {
   onHarnessChange: (h: AgentHarness) => void;
   onModelChange: (m: string) => void;
   canSave: boolean;
+  saveButtonLabel: string;
   onSave: () => void;
   onCancel: () => void;
   currentEntry: EnhancerConfigEntry | null;
@@ -46,6 +40,7 @@ export function EnhancerConfigForm({
   onHarnessChange,
   onModelChange,
   canSave,
+  saveButtonLabel,
   onSave,
   onCancel,
   currentEntry,
@@ -141,7 +136,7 @@ export function EnhancerConfigForm({
           disabled={!canSave}
           className="px-3 py-1.5 text-sm bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary rounded-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Save
+          {saveButtonLabel}
         </button>
       </div>
     </div>
