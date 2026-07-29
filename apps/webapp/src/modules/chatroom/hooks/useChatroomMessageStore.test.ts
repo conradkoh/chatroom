@@ -56,11 +56,7 @@ describe('trimMessagesToInitialWindow', () => {
 });
 
 describe('applyVisibleUpdates', () => {
-  function makeMsg(
-    id: string,
-    taskStatus?: string,
-    latestProgress?: Message['latestProgress']
-  ): Message {
+  function makeMsg(id: string, taskStatus?: string): Message {
     return {
       _id: id,
       _creationTime: 100,
@@ -68,39 +64,27 @@ describe('applyVisibleUpdates', () => {
       senderRole: 'user',
       content: 'hello',
       taskStatus: taskStatus as Message['taskStatus'],
-      latestProgress,
     } as Message;
   }
 
-  it('patches taskStatus and latestProgress on matching messages by _id', () => {
+  it('patches taskStatus on matching messages by _id', () => {
     const existing = [makeMsg('1', 'in_progress'), makeMsg('2')];
-    const updates = [
-      { _id: '1', taskStatus: 'completed' as Message['taskStatus'], latestProgress: undefined },
-    ];
+    const updates = [{ _id: '1', taskStatus: 'completed' as Message['taskStatus'] }];
     const result = applyVisibleUpdates(existing, updates);
     expect(result[0].taskStatus).toBe('completed');
     expect(result[1]).toBe(existing[1]);
   });
 
-  it('returns the same array reference when nothing changed (value-equal progress)', () => {
-    const progress = { content: 'working', senderRole: 'builder', _creationTime: 200 };
-    const existing = [makeMsg('1', 'in_progress', progress)];
-    const updates = [
-      {
-        _id: '1',
-        taskStatus: 'in_progress' as Message['taskStatus'],
-        latestProgress: { ...progress },
-      },
-    ];
+  it('returns the same array reference when nothing changed (same taskStatus)', () => {
+    const existing = [makeMsg('1', 'in_progress')];
+    const updates = [{ _id: '1', taskStatus: 'in_progress' as Message['taskStatus'] }];
     const result = applyVisibleUpdates(existing, updates);
     expect(result).toBe(existing);
   });
 
   it('ignores updates for ids not in the list', () => {
     const existing = [makeMsg('1')];
-    const updates = [
-      { _id: '2', taskStatus: 'completed' as Message['taskStatus'], latestProgress: undefined },
-    ];
+    const updates = [{ _id: '2', taskStatus: 'completed' as Message['taskStatus'] }];
     const result = applyVisibleUpdates(existing, updates);
     expect(result).toBe(existing);
     expect(result[0].taskStatus).toBeUndefined();
@@ -113,12 +97,10 @@ describe('applyVisibleUpdates', () => {
   });
 
   it('applies sparse updates without clearing omitted fields', () => {
-    const progress = { content: 'working', senderRole: 'builder', _creationTime: 200 };
-    const existing = [makeMsg('1', 'in_progress', progress)];
+    const existing = [makeMsg('1', 'in_progress')];
     const updates = [{ _id: '1', taskStatus: 'completed' as Message['taskStatus'] }];
     const result = applyVisibleUpdates(existing, updates);
     expect(result[0].taskStatus).toBe('completed');
-    expect(result[0].latestProgress).toEqual(progress);
   });
 });
 

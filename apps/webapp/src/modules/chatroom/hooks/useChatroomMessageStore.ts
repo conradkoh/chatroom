@@ -99,7 +99,6 @@ function useTimelineDeltaSubscriptions(
       updates: visibleUpdatesData.map((u) => {
         const update: VisibleUpdate = { _id: u._id };
         if ('taskStatus' in u) update.taskStatus = u.taskStatus as Message['taskStatus'];
-        if ('latestProgress' in u) update.latestProgress = u.latestProgress;
         return update;
       }),
     });

@@ -199,7 +199,7 @@ describe('subscribeNewMessages — strict-after cursor', () => {
 // ---------------------------------------------------------------------------
 
 describe('subscribeVisibleMessageUpdates — lightweight delta', () => {
-  test('returns taskStatus + latestProgress for requested ids only', async () => {
+  test('returns taskStatus for requested ids only', async () => {
     const { sessionId } = await createTestSession('visible-updates-1');
     const chatroomId = await createChatroom(sessionId);
 
@@ -230,17 +230,6 @@ describe('subscribeVisibleMessageUpdates — lightweight delta', () => {
       });
     });
 
-    // Insert a progress message for the task
-    await t.run(async (ctx) => {
-      return await ctx.db.insert('chatroom_messages', {
-        chatroomId,
-        senderRole: 'builder',
-        content: 'working on it',
-        type: 'progress',
-        taskId: taskId as Id<'chatroom_tasks'>,
-      });
-    });
-
     // Query visible message updates
     const result = await t.query(api.messageList.subscribeVisibleMessageUpdates, {
       sessionId,
@@ -251,10 +240,7 @@ describe('subscribeVisibleMessageUpdates — lightweight delta', () => {
     expect(result.length).toBe(1);
     expect(result[0]._id).toBe(messageId);
     expect(result[0].taskStatus).toBe('in_progress');
-    const progress = result[0].latestProgress;
-    expect(progress).toBeDefined();
-    expect(progress?.content).toBe('working on it');
-    expect(progress?.senderRole).toBe('builder');
+    expect('latestProgress' in result[0]).toBe(false);
   });
 
   test('returns null for a message with no task', async () => {

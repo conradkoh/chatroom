@@ -4,7 +4,7 @@
  * Queries:
  *   - getLatestMessages              — one-shot initial load (imperative)
  *   - subscribeNewMessages           — reactive tail from a NEWEST-row cursor (strict >)
- *   - subscribeVisibleMessageUpdates — lightweight task/progress deltas for visible rows
+ *   - subscribeVisibleMessageUpdates — lightweight task status deltas for visible rows
  *   - listMessagesBefore             — imperative load-older before a timestamp
  */
 
@@ -162,14 +162,12 @@ export const subscribeNewMessages = query({
 interface VisibleMessageUpdate {
   _id: Doc<'chatroom_messages'>['_id'];
   taskStatus?: string;
-  latestProgress?: { content: string; senderRole: string; _creationTime: number };
 }
 
 /**
- * Resolve the volatile (task status + latest progress) fields for one visible message.
+ * Resolve the volatile (task status) field for one visible message.
  * Returns null when the id is unknown or belongs to a different chatroom.
  */
-// fallow-ignore-next-line complexity
 async function resolveVisibleMessageUpdate(
   ctx: QueryCtx,
   chatroomId: Doc<'chatroom_messages'>['chatroomId'],
@@ -181,24 +179,9 @@ async function resolveVisibleMessageUpdate(
 
   const task = await ctx.db.get('chatroom_tasks', message.taskId);
 
-  const progressRows = await ctx.db
-    .query('chatroom_messages')
-    .withIndex('by_taskId', (q) => q.eq('taskId', message.taskId))
-    .filter((q) => q.eq(q.field('type'), 'progress'))
-    .order('desc')
-    .take(1);
-  const progress = progressRows[0];
-
   const update: VisibleMessageUpdate = { _id: id };
   if (task?.status !== undefined) {
     update.taskStatus = task.status;
-  }
-  if (progress) {
-    update.latestProgress = {
-      content: progress.content,
-      senderRole: progress.senderRole,
-      _creationTime: progress._creationTime,
-    };
   }
   return update;
 }
@@ -206,10 +189,10 @@ async function resolveVisibleMessageUpdate(
 /**
  * Reactive lightweight updates for a bounded set of currently-visible messages.
  *
- * Returns only the volatile, derived fields that change after a message is created
- * (task status + latest progress) — NOT the full enriched message. The frontend
- * subscribes with the IDs of the most-recent visible messages so that a task-status
- * flip or a progress heartbeat re-sends a few tiny objects instead of the whole window.
+ * Returns only the volatile task-status field that changes after a message is
+ * created — NOT the full enriched message. The frontend subscribes with the
+ * IDs of the most-recent visible messages so that a task-status flip re-sends
+ * a few tiny objects instead of the whole window.
  */
 export const subscribeVisibleMessageUpdates = query({
   args: {

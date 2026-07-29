@@ -100,7 +100,6 @@ export type ChatroomMessageStoreAction =
 export interface VisibleUpdate {
   _id: Message['_id'];
   taskStatus?: Message['taskStatus'];
-  latestProgress?: Message['latestProgress'];
 }
 
 // ─── Internal helpers ──────────────────────────────────────────────────────
@@ -126,15 +125,6 @@ export function filterNewMessages(existing: Message[], incoming: Message[]): Mes
   return incoming.filter((m) => !existingIds.has(m._id));
 }
 
-// fallow-ignore-next-line complexity
-function sameProgress(a: Message['latestProgress'], b: Message['latestProgress']): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  return (
-    a.content === b.content && a.senderRole === b.senderRole && a._creationTime === b._creationTime
-  );
-}
-
 // ─── Public pure helpers used by the reducer and tests ──────────────────────
 
 // fallow-ignore-next-line unused-export
@@ -147,13 +137,11 @@ export function applyVisibleUpdates(existing: Message[], updates: VisibleUpdate[
     if (!u) return m;
 
     const nextTaskStatus = 'taskStatus' in u ? u.taskStatus : m.taskStatus;
-    const nextProgress = 'latestProgress' in u ? u.latestProgress : m.latestProgress;
-    if (m.taskStatus === nextTaskStatus && sameProgress(m.latestProgress, nextProgress)) return m;
+    if (m.taskStatus === nextTaskStatus) return m;
 
     changed = true;
     const patched: Message = { ...m };
     if ('taskStatus' in u) patched.taskStatus = u.taskStatus;
-    if ('latestProgress' in u) patched.latestProgress = u.latestProgress;
     return patched;
   });
   return changed ? next : existing;
