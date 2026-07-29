@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 import { cn } from '@/lib/utils';
+import { navigateWithAppPageTransition } from '@/lib/appPageTransition';
 import { ChatroomDashboard } from '@/modules/chatroom';
 import { ChatroomSidebar } from '@/modules/chatroom/components/ChatroomSidebar';
 import { useObserveChatroom } from '@/modules/chatroom/hooks/useObserveChatroom';
@@ -19,7 +20,7 @@ export function ChatroomPageClient() {
   const chatroomId = searchParams.get('id');
 
   const handleBack = () => {
-    router.push('/app');
+    navigateWithAppPageTransition(router, '/app', 'back');
   };
 
   const { refresh: refreshObservedChatroom } = useObserveChatroom(chatroomId);
