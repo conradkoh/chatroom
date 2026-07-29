@@ -355,8 +355,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
       **Reference commands:**
-      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --sender-role=user --limit=5 --full\`
-      - Export message history (grep): \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages export --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
+      - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --format=linear --limit=10\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):

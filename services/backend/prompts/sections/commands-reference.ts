@@ -57,8 +57,7 @@ ${waitCmd}
 ${getNextTaskReminder()}
 
 **Reference commands:**
-- List recent messages: \`${cliEnvPrefix}chatroom messages list --chatroom-id="${params.chatroomId}" --role="${params.role}" --sender-role=user --limit=5 --full\`
-- Export message history (grep): \`${cliEnvPrefix}chatroom messages export --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
+- Download message history: \`${cliEnvPrefix}chatroom messages download --chatroom-id="${params.chatroomId}" --role="${params.role}" --format=linear --limit=10\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):
@@ -93,8 +92,7 @@ ${HANDOFF_BODY_GUIDANCE}
 **Do not run \`register-agent\`** — your session was registered when the harness started.
 
 **Reference commands:**
-- List recent messages: \`${cliEnvPrefix}chatroom messages list --chatroom-id="${params.chatroomId}" --role="${params.role}" --sender-role=user --limit=5 --full\`
-- Export message history (grep): \`${cliEnvPrefix}chatroom messages export --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
+- Download message history: \`${cliEnvPrefix}chatroom messages download --chatroom-id="${params.chatroomId}" --role="${params.role}" --format=linear --limit=10\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):

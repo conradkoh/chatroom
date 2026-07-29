@@ -43,7 +43,7 @@ describe('native session continuity', () => {
     expect(guidance).not.toContain('task injection');
     expect(guidance).not.toMatch(/task read --chatroom-id/i);
     expect(guidance).toMatch(/end your turn/i);
-    expect(guidance).toContain('messages list');
+    expect(guidance).toContain('messages download');
   });
 
   test('builder guidance with nativeIntegration=true omits get-next-task and Level A/B', () => {
@@ -141,17 +141,17 @@ describe('native session continuity', () => {
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('last action');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('End your turn now');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('builder');
-    expect(getNativeHandoffTurnEndGuidance('builder')).toContain('messages list');
+    expect(getNativeHandoffTurnEndGuidance('builder')).toContain('messages download');
   });
 
   test('getNativeHandoffTurnEndGuidance for user handoff', () => {
     expect(getNativeHandoffTurnEndGuidance('user')).toContain('End your turn now');
-    expect(getNativeHandoffTurnEndGuidance('user')).not.toContain('messages list');
+    expect(getNativeHandoffTurnEndGuidance('user')).not.toContain('messages download');
   });
 
   test('getNativePlannerDelegationWaitNote', () => {
     expect(getNativePlannerDelegationWaitNote()).toMatch(/last action/i);
-    expect(getNativePlannerDelegationWaitNote()).toContain('messages list');
+    expect(getNativePlannerDelegationWaitNote()).toContain('messages download');
   });
 });
 

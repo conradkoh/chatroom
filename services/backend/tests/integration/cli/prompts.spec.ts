@@ -142,7 +142,7 @@ describe('Available Actions (Task Delivery)', () => {
 
     // Should have all action sections
     expect(actions).toContain('### Gain Context');
-    expect(actions).toContain('### List Messages');
+    expect(actions).toContain('### Download Message History');
     expect(actions).toContain('### View Code Changes');
     expect(actions).toContain('### Backlog');
 

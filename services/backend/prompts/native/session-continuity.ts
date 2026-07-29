@@ -20,7 +20,7 @@ export function getOperatingModelLoopFooter(nativeIntegration?: boolean): string
 
 /** Planner + builder: wait for handback via daemon delivery, not polling. */
 export function getNativePlannerDelegationWaitNote(): string {
-  return `After delegating to the builder, **run handoff as your last action and end your turn** — no further tool calls after handoff. The system delivers their handback when they finish — do not poll \`messages list\`, sleep, or run other tools while waiting.`;
+  return `After delegating to the builder, **run handoff as your last action and end your turn** — no further tool calls after handoff. The system delivers their handback when they finish — do not poll \`messages download\`, sleep, or run other tools while waiting.`;
 }
 
 /**
@@ -37,7 +37,7 @@ export function getNativeHandoffTurnEndGuidance(nextRole: string): string {
     lines.push('The system delivers the next chatroom task when the user sends one.');
   } else {
     lines.push(
-      `The system delivers \`${nextRole}\`'s handback when they finish — do not poll \`messages list\` or sleep waiting.`
+      `The system delivers \`${nextRole}\`'s handback when they finish — do not poll \`messages download\` or sleep waiting.`
     );
   }
 

@@ -35,20 +35,13 @@ View the latest relevant chat history. Use when starting a new session or when c
 ${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"
 \`\`\`
 
-### List Messages
-Query specific messages with filters.
+### Download Message History
+Download recent chatroom history to local files. Start with the last 10 messages; increase \`--limit\` to fetch more.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom messages list --chatroom-id="${chatroomId}" --role="${role}" --sender-role=user --limit=5 --full
-\`\`\`
-
-### Export Message History
-Download full chatroom history to local .md files for grep/search. Output includes per-message files and \`transcript.md\` for context.
-
-\`\`\`bash
-${cliEnvPrefix}chatroom messages export --chatroom-id="${chatroomId}" --role="${role}"
-rg "pattern" .chatroom/exports/${chatroomId}/
-rg -C 3 "pattern" .chatroom/exports/${chatroomId}/transcript.md
+${cliEnvPrefix}chatroom messages download --chatroom-id="${chatroomId}" --role="${role}" --format=linear --limit=10
+ls .chatroom/downloads/messages/linear/
+rg "pattern" .chatroom/downloads/messages/linear/*/
 \`\`\`
 
 ### View Code Changes
