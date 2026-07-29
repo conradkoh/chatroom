@@ -32,6 +32,16 @@ describe('buildEnhancerTextDiff', () => {
     expect(diff.split.after.lines[1]).toMatchObject({ type: 'addition', content: 'new line' });
   });
 
+  it('decodes XML entities in diff content', () => {
+    const original = '    &lt;RequireFamilyMember&gt;\n      &lt;StoreroomPageAuthed /&gt;';
+    const enhanced =
+      '    &lt;RequireFamilyMember&gt;\n      &lt;StoreroomPageAuthed /&gt;\n      &lt;NewComponent /&gt;';
+    const diff = buildEnhancerTextDiff(original, enhanced);
+
+    expect(diff.unified[0]).toEqual({ type: 'unchanged', content: '    <RequireFamilyMember>' });
+    expect(diff.split.after.lines.some((l) => l.content.includes('<NewComponent />'))).toBe(true);
+  });
+
   it('preserves unchanged lines in both panes', () => {
     const diff = buildEnhancerTextDiff('keep\nold', 'keep\nnew');
 

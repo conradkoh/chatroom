@@ -1,5 +1,6 @@
 import { diffLines } from 'diff';
 
+import { decodeXmlText } from './decodeXmlText';
 import type {
   EnhancerSplitDiffLine,
   EnhancerTextDiff,
@@ -20,7 +21,9 @@ function splitChangeLines(value: string): string[] {
  */
 // fallow-ignore-next-line complexity
 export function buildEnhancerTextDiff(original: string, enhanced: string): EnhancerTextDiff {
-  const changes = diffLines(original, enhanced, { newlineIsToken: true });
+  const decodedOriginal = decodeXmlText(original);
+  const decodedEnhanced = decodeXmlText(enhanced);
+  const changes = diffLines(decodedOriginal, decodedEnhanced, { newlineIsToken: true });
 
   const unified: EnhancerUnifiedDiffLine[] = [];
   const beforeLines: EnhancerSplitDiffLine[] = [];
