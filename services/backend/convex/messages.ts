@@ -355,6 +355,7 @@ async function _sendMessageHandler(
         : {}),
       ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
       ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
+      userId: session.userId,
     });
     if (!result.ok) {
       if (result.reason === 'empty_content') {

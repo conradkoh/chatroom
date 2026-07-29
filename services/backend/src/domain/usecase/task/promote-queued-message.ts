@@ -75,6 +75,9 @@ export async function promoteQueuedMessage(
     sourceMessageId: messageId,
     queuePosition,
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),
+    ...(queueRecord.plannerEnhancerEnabled !== undefined
+      ? { plannerEnhancerEnabled: queueRecord.plannerEnhancerEnabled }
+      : {}),
   });
 
   // Patch message with taskId (bidirectional link)
