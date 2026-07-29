@@ -15,7 +15,7 @@ import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
 } from '../src/domain/usecase/chatroom/lifecycle-impacts';
-import { hasActiveEnhancerWork } from '../src/domain/usecase/enhancer/planner-enhancing-status';
+import { listChatroomIdsWithActiveEnhancerWork } from '../src/domain/usecase/enhancer/planner-enhancing-status';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({
@@ -525,7 +525,7 @@ export const listUnreadStatus = query({
   },
 });
 
-/** Returns active enhancer work status per chatroom for the authenticated user. */
+/** Returns chatrooms with active enhancer work for the authenticated user. */
 export const listActiveEnhancerWork = query({
   args: {
     ...SessionIdArg,
@@ -534,17 +534,12 @@ export const listActiveEnhancerWork = query({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return [];
 
-    const chatrooms = await ctx.db
-      .query('chatroom_rooms')
-      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.userId))
-      .collect();
+    const chatroomIds = await listChatroomIdsWithActiveEnhancerWork(ctx, auth.userId);
 
-    return Promise.all(
-      chatrooms.map(async (chatroom) => ({
-        chatroomId: chatroom._id as string,
-        hasActiveEnhancerWork: await hasActiveEnhancerWork(ctx, chatroom._id),
-      }))
-    );
+    return chatroomIds.map((chatroomId) => ({
+      chatroomId: chatroomId as string,
+      hasActiveEnhancerWork: true as const,
+    }));
   },
 });
 
