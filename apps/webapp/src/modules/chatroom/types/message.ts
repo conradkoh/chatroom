@@ -66,12 +66,6 @@ export interface Message {
   attachedMessages?: AttachedMessage[];
   /** Explorer file snippets attached via Cmd+I */
   attachedSnippets?: AttachedSnippet[];
-  /** Latest progress message for inline display */
-  latestProgress?: {
-    content: string;
-    senderRole: string;
-    _creationTime: number;
-  };
   /** Queued message flag (from chatroom_messageQueue) */
   isQueued?: boolean;
   /** Role that set the context (new-context messages only) */
