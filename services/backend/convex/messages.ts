@@ -33,6 +33,10 @@ import {
   transitionPlannerFromEnhancingToWaiting,
   transitionPlannerToEnhancing,
 } from '../src/domain/usecase/enhancer/planner-enhancing-status';
+import {
+  resolveTaskPlannerEnhancerEnabled,
+  validatePlannerEnhancerHandoff,
+} from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
 import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
 import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
@@ -557,13 +561,40 @@ export async function runHandoffHandler(
       )
       .unique();
 
-    if (!enhancerConfig?.enabled || enhancerConfig.targetId !== 'handoff:planner-to-builder') {
+    const activePlannerTasks = await collectActiveTasks(ctx, args.chatroomId, {
+      assignedTo: 'planner',
+    });
+    if (activePlannerTasks.length === 0) {
       return {
         success: false,
         error: {
-          code: 'ENHANCER_NOT_ENABLED',
-          message: 'Enhancer not enabled',
+          code: 'NO_PLANNER_USER_TASK',
+          message:
+            'Cannot hand off to enhancer without an active planner task from a user instruction',
         },
+        messageId: null,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+      };
+    }
+
+    const userOriginTask =
+      activePlannerTasks.find((t) => t.createdBy === 'user') ?? activePlannerTasks[0];
+
+    const handoffValidation = validatePlannerEnhancerHandoff({
+      taskPlannerEnhancerEnabled: userOriginTask?.plannerEnhancerEnabled,
+      config: enhancerConfig,
+    });
+
+    if (!handoffValidation.allowed) {
+      const message =
+        handoffValidation.code === 'ENHANCER_CONFIG_INCOMPLETE'
+          ? 'Enhancer configuration is incomplete. Configure harness, model, and machine before handing off.'
+          : 'Enhancer not enabled';
+      return {
+        success: false,
+        error: { code: handoffValidation.code, message },
         messageId: null,
         completedTaskIds: [],
         newTaskId: null,
@@ -591,26 +622,6 @@ export async function runHandoffHandler(
   }
 
   const now = Date.now();
-
-  if (isHandoffToEnhancer) {
-    const activePlannerTasks = await collectActiveTasks(ctx, args.chatroomId, {
-      assignedTo: 'planner',
-    });
-    if (activePlannerTasks.length === 0) {
-      return {
-        success: false,
-        error: {
-          code: 'NO_PLANNER_USER_TASK',
-          message:
-            'Cannot hand off to enhancer without an active planner task from a user instruction',
-        },
-        messageId: null,
-        completedTaskIds: [],
-        newTaskId: null,
-        promotedTaskId: null,
-      };
-    }
-  }
 
   // Step 1: Complete ALL in_progress and acknowledged tasks
   const tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
@@ -1087,6 +1098,7 @@ export const listQueued = query({
       // Add queue-specific flags
       isQueued: true as const,
       queuePosition: qMsg.queuePosition,
+      plannerEnhancerEnabled: qMsg.plannerEnhancerEnabled,
     }));
 
     // Enrich queued messages with attachment details (shared helper)
@@ -1098,6 +1110,27 @@ export const listQueued = query({
     );
 
     return enrichedMessages.slice(-limit);
+  },
+});
+
+export const updateQueuedMessagePlannerEnhancer = mutation({
+  args: {
+    ...SessionIdArg,
+    queuedMessageId: v.id('chatroom_messageQueue'),
+    plannerEnhancerEnabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const record = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
+    if (!record) {
+      throw new ConvexError({
+        code: 'QUEUED_MESSAGE_NOT_FOUND',
+        message: 'Queued message not found',
+      });
+    }
+    await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
+    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, {
+      plannerEnhancerEnabled: args.plannerEnhancerEnabled,
+    });
   },
 });
 
@@ -1716,10 +1749,11 @@ export const getTaskDeliveryPrompt = query({
       )
       .unique();
 
-    const plannerEnhancerEnabled =
-      args.role.toLowerCase() === 'planner' &&
-      enhancerConfig?.enabled === true &&
-      enhancerConfig.targetId === 'handoff:planner-to-builder';
+    const plannerEnhancerEnabled = resolveTaskPlannerEnhancerEnabled({
+      taskPlannerEnhancerEnabled: task.plannerEnhancerEnabled,
+      liveConfig: enhancerConfig,
+      role: args.role,
+    });
 
     const deliveryMessageSenderRole =
       message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
