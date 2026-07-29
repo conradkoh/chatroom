@@ -354,7 +354,10 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     this.children.set(def.id, child);
     this.updateState(def.id, { status: 'running', pid: child.pid ?? null });
 
+    const activeChild = child;
+
     const onData = (stream: 'stdout' | 'stderr') => (chunk: Buffer) => {
+      if (this.children.get(def.id) !== activeChild) return;
       const pending = (this.lineBuffers.get(def.id) ?? '') + chunk.toString('utf8');
       const parts = pending.split(/\r?\n/);
       this.lineBuffers.set(def.id, parts.pop() ?? '');
@@ -373,6 +376,7 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     child.stderr.on('data', onData('stderr'));
 
     child.on('exit', (code) => {
+      if (this.children.get(def.id) !== activeChild) return;
       this.lineBuffers.delete(def.id);
       this.children.delete(def.id);
       const crashed = code !== 0;
