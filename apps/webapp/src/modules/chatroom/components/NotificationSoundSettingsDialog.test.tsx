@@ -28,6 +28,8 @@ describe('NotificationSoundSettingsDialog', () => {
     expect(screen.getByTestId('notification-sound-profile-subtle')).toBeInTheDocument();
     expect(screen.getByTestId('notification-sound-profile-standard')).toBeInTheDocument();
     expect(screen.getByTestId('notification-sound-profile-urgent')).toBeInTheDocument();
+    expect(screen.getByTestId('notification-sound-profile-bright')).toBeInTheDocument();
+    expect(screen.getByTestId('notification-sound-profile-alarm')).toBeInTheDocument();
   });
 
   it('selecting urgent profile persists it', () => {

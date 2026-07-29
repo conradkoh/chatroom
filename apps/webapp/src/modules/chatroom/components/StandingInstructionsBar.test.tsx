@@ -10,7 +10,7 @@ const mockSetEnabled = vi.fn();
 const mockClear = vi.fn();
 const mockRecordUse = vi.fn();
 const mockUseIsDesktop = vi.fn(() => true);
-let mockQueryResult: { content: string; enabled: boolean; name: string } = {
+let mockQueryResult: { content: string; enabled: boolean; name: string } | undefined = {
   content: '',
   enabled: false,
   name: '',
@@ -73,6 +73,25 @@ describe('StandingInstructionsBar', () => {
   it('shows add button when no standing instructions', () => {
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     expect(screen.getByText('Add standing instructions')).toBeInTheDocument();
+  });
+
+  it('shows loading placeholder while query is unresolved', () => {
+    mockQueryResult = undefined;
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+
+    const loading = screen.getByTestId('standing-instructions-bar-loading');
+    expect(loading).toBeInTheDocument();
+    expect(loading).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('Add standing instructions')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('renders content bar after query resolves', () => {
+    mockQueryResult = { content: 'Always use TypeScript', enabled: true, name: '' };
+    render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+
+    expect(screen.queryByTestId('standing-instructions-bar-loading')).not.toBeInTheDocument();
+    expect(screen.getByText('Always use TypeScript')).toBeInTheDocument();
   });
 
   it('shows active bar with label and content', () => {
