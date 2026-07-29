@@ -9,6 +9,7 @@ import Markdown from 'react-markdown';
 
 import { MessageAttachmentChips, countMessageAttachments } from '../../attachments';
 import type { Message } from '../../types/message';
+import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { baseMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
 import {
@@ -42,6 +43,7 @@ interface QueuedMessageDetailModalProps {
   onPromote: (queuedMessageId: string) => Promise<void>;
   /** Called when the user deletes the message. */
   onDelete: (queuedMessageId: string) => Promise<void>;
+  teamSupportsEnhancer?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -80,6 +82,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
   onClose,
   onPromote,
   onDelete,
+  teamSupportsEnhancer,
 }: QueuedMessageDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
@@ -285,6 +288,14 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
                 <ArrowUp size={12} />
                 {isSaving ? 'Working...' : 'Promote'}
               </button>
+
+              {teamSupportsEnhancer ? (
+                <QueuedMessageEnhancerToggle
+                  chatroomId={_chatroomId}
+                  queuedMessageId={message._id}
+                  plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
+                />
+              ) : null}
 
               <div className="flex-1" />
 

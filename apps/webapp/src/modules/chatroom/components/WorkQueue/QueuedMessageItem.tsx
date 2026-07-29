@@ -5,6 +5,7 @@ import { ArrowUp, Trash2 } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
+import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
 import { MessageAttachmentChips } from '../../attachments';
 import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 import type { Message } from '../../types/message';
@@ -44,6 +45,7 @@ interface QueuedMessageItemProps {
   message: Message;
   onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
+  teamSupportsEnhancer?: boolean;
 }
 
 /**
@@ -56,6 +58,7 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
   message,
   onPromote,
   onDelete,
+  teamSupportsEnhancer,
 }: QueuedMessageItemProps) {
   const elapsed = useElapsedTime(message._creationTime);
   const [isPromoting, setIsPromoting] = useState(false);
@@ -126,6 +129,13 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
 
         {/* Inline quick actions — always visible. */}
         <div className="flex items-center gap-1" onClick={stopRowClick}>
+          {teamSupportsEnhancer ? (
+            <QueuedMessageEnhancerToggle
+              chatroomId={chatroomId}
+              queuedMessageId={message._id}
+              plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
+            />
+          ) : null}
           <button
             type="button"
             onClick={handleRowPromote}
@@ -154,6 +164,7 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
         onClose={closeModal}
         onPromote={onPromote}
         onDelete={onDelete}
+        teamSupportsEnhancer={teamSupportsEnhancer}
       />
     </>
   );
