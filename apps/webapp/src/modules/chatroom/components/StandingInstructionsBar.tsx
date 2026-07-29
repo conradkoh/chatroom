@@ -36,6 +36,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
 }: StandingInstructionsBarProps) {
   const isDesktop = useIsDesktop();
   const queryResult = useSessionQuery(api.standingInstructions.get, { chatroomId });
+  const isLoading = queryResult === undefined;
   const storedContent = queryResult?.content ?? '';
   const storedName = queryResult?.name ?? '';
   const enabled = queryResult?.enabled ?? false;
@@ -107,6 +108,31 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const handleDelete = useCallback(async () => {
     await clearMutation({ chatroomId });
   }, [chatroomId, clearMutation]);
+
+  if (isLoading) {
+    return (
+      <div
+        className={`${BAR_SHELL} w-full opacity-50`}
+        aria-busy="true"
+        aria-label="Loading standing instructions"
+        data-testid="standing-instructions-bar-loading"
+      >
+        <BookOpen
+          size={mobileIconSize(isDesktop)}
+          className="shrink-0 text-chatroom-text-muted animate-pulse"
+        />
+        <span
+          className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider shrink-0 hidden sm:inline text-chatroom-text-muted`}
+        >
+          Standing instructions
+        </span>
+        <span
+          className="flex-1 h-3 max-w-[8rem] bg-chatroom-border/50 animate-pulse"
+          aria-hidden="true"
+        />
+      </div>
+    );
+  }
 
   const dialog = (
     <StandingInstructionsDialog
