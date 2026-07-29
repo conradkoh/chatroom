@@ -605,3 +605,71 @@ input,
 [data-rich-colors='true'][data-sonner-toast] [data-close-button]:hover {
   color: var(--foreground) !important;
 }
+
+/* Listing ↔ chatroom page transitions (content-scoped via app-page-content) */
+html[data-app-page-transition-active='true'] {
+  overflow-x: clip;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(app-page-content) {
+    animation: app-page-exit 280ms ease-in forwards;
+  }
+  ::view-transition-new(app-page-content) {
+    animation: app-page-enter 280ms ease-out forwards;
+  }
+
+  html[data-app-page-transition='forward'] ::view-transition-old(app-page-content) {
+    animation-name: app-page-exit-left;
+  }
+  html[data-app-page-transition='forward'] ::view-transition-new(app-page-content) {
+    animation-name: app-page-enter-right;
+  }
+  html[data-app-page-transition='back'] ::view-transition-old(app-page-content) {
+    animation-name: app-page-exit-right;
+  }
+  html[data-app-page-transition='back'] ::view-transition-new(app-page-content) {
+    animation-name: app-page-enter-left;
+  }
+}
+
+@keyframes app-page-exit-left {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+@keyframes app-page-enter-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes app-page-exit-right {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes app-page-enter-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
