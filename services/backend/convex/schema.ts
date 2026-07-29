@@ -607,7 +607,8 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])
     .index('by_chatroom_status_assignedTo', ['chatroomId', 'status', 'assignedTo'])
-    .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
+    .index('by_chatroom_queue', ['chatroomId', 'queuePosition'])
+    .index('by_assignedTo_status', ['assignedTo', 'status']),
 
   /**
    * Slim timeline task-status signals — one row per FSM transition.
@@ -3133,7 +3134,8 @@ export default defineSchema({
     .index('by_chatroom_status', ['chatroomId', 'status'])
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_status_nextRetryAt', ['status', 'nextRetryAt'])
-    .index('by_chatroom_originUserMessageId', ['chatroomId', 'originUserMessageId']),
+    .index('by_chatroom_originUserMessageId', ['chatroomId', 'originUserMessageId'])
+    .index('by_userId_status', ['userId', 'status']),
 
   chatroom_taskDeliveryReceipts: defineTable({
     chatroomId: v.id('chatroom_rooms'),
