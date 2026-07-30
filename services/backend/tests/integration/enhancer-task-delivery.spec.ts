@@ -98,6 +98,29 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     );
   });
 
+  test('planner user task omits enhancer when snapshot true but no config', async () => {
+    const { sessionId, chatroomId } = await setupWorkspaceForSession(
+      'enh-delivery-snapshot-noconfig'
+    );
+    await joinParticipant(sessionId, chatroomId, 'planner');
+
+    const { messageId, taskId } = await createPlannerTaskFromUserMessage(
+      sessionId,
+      chatroomId,
+      'Task with stale snapshot'
+    );
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', taskId, { plannerEnhancerEnabled: true });
+    });
+
+    const output = await getPlannerDeliveryPrompt(sessionId, chatroomId, taskId, messageId);
+
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).not.toContain('--next-role="enhancer"');
+  });
+
   test('planner user task omits enhancer guidance when config disabled', async () => {
     const { sessionId, chatroomId } = await setupWorkspaceForSession('enh-delivery-disabled');
     await joinParticipant(sessionId, chatroomId, 'planner');

@@ -1,25 +1,29 @@
 import type { Doc } from '../../../../convex/_generated/dataModel';
 
+/** Delivery prompt only — uses handoff validation for unified behavior. */
+export function resolveTaskPlannerEnhancerEnabled(args: {
+  taskPlannerEnhancerEnabled?: boolean;
+  liveConfig: Doc<'chatroom_enhancerConfigs'> | null | undefined;
+  role: string;
+}): boolean {
+  if (args.role.toLowerCase() !== 'planner') {
+    return false;
+  }
+  return validatePlannerEnhancerHandoff({
+    taskPlannerEnhancerEnabled: args.taskPlannerEnhancerEnabled,
+    config: args.liveConfig,
+  }).allowed;
+}
+
 export function resolvePlannerEnhancerEnabledFromConfig(
   config: Doc<'chatroom_enhancerConfigs'> | null | undefined
 ): boolean {
   return config?.enabled === true && config.targetId === 'handoff:planner-to-builder';
 }
 
-/** Delivery prompt only — uses task snapshot when set, else live config. */
-export function resolveTaskPlannerEnhancerEnabled(args: {
-  taskPlannerEnhancerEnabled?: boolean;
-  liveConfig: Doc<'chatroom_enhancerConfigs'> | null | undefined;
-  role: string;
-}): boolean {
-  if (args.taskPlannerEnhancerEnabled !== undefined) {
-    return args.taskPlannerEnhancerEnabled;
-  }
-  return (
-    args.role.toLowerCase() === 'planner' &&
-    resolvePlannerEnhancerEnabledFromConfig(args.liveConfig)
-  );
-}
+export type PlannerEnhancerHandoffValidation =
+  | { allowed: true; config: Doc<'chatroom_enhancerConfigs'> }
+  | { allowed: false; code: 'ENHANCER_NOT_ENABLED' | 'ENHANCER_CONFIG_INCOMPLETE' };
 
 function hasUsableEnhancerConfig(
   config: Doc<'chatroom_enhancerConfigs'> | null | undefined
@@ -31,10 +35,6 @@ function hasUsableEnhancerConfig(
     !!config.machineId
   );
 }
-
-export type PlannerEnhancerHandoffValidation =
-  | { allowed: true; config: Doc<'chatroom_enhancerConfigs'> }
-  | { allowed: false; code: 'ENHANCER_NOT_ENABLED' | 'ENHANCER_CONFIG_INCOMPLETE' };
 
 /** Handoff guard — three-case logic per task snapshot. */
 export function validatePlannerEnhancerHandoff(args: {

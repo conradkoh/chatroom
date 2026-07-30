@@ -49,11 +49,38 @@ describe('resolveTaskPlannerEnhancerEnabled', () => {
         liveConfig: null,
         role: 'planner',
       })
+    ).toBe(false); // snapshot true but no config → drift bug fixed
+    expect(
+      resolveTaskPlannerEnhancerEnabled({
+        taskPlannerEnhancerEnabled: true,
+        liveConfig: makeConfig(),
+        role: 'planner',
+      })
     ).toBe(true);
     expect(
       resolveTaskPlannerEnhancerEnabled({
         taskPlannerEnhancerEnabled: false,
         liveConfig: makeConfig(),
+        role: 'planner',
+      })
+    ).toBe(false);
+  });
+
+  test('snapshot true with global disabled but complete config still allows enhancer', () => {
+    expect(
+      resolveTaskPlannerEnhancerEnabled({
+        taskPlannerEnhancerEnabled: true,
+        liveConfig: makeConfig({ enabled: false }),
+        role: 'planner',
+      })
+    ).toBe(true);
+  });
+
+  test('snapshot true with incomplete config returns false for delivery', () => {
+    expect(
+      resolveTaskPlannerEnhancerEnabled({
+        taskPlannerEnhancerEnabled: true,
+        liveConfig: makeConfig({ agentHarness: '' }),
         role: 'planner',
       })
     ).toBe(false);
