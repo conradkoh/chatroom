@@ -153,7 +153,7 @@ export function useAllTabConversation(chatroomId: string) {
     goToLatestAnchor,
     hasPrev: !!nav?.prevAnchorId,
     hasNext: !!nav?.nextAnchorId,
-    isOnLatestAnchor: !nav?.nextAnchorId,
+    isOnLatestAnchor: selectedAnchorId === null,
     anchorId: effectiveAnchorId,
   };
 }

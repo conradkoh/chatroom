@@ -47,26 +47,25 @@ export function AllTabConversationPanel({
     chatroomId
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center h-full">
-        <ChatroomLoader />
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
       <AllTabAnchorNavigator
         hasPrev={hasPrev}
         hasNext={hasNext}
         isOnLatestAnchor={isOnLatestAnchor}
+        isLoading={isLoading}
         onPrev={goToPrev}
         onNext={goToNext}
         onJumpToLatest={goToLatestAnchor}
       />
 
-      <AllTabMessageList events={events} anchorId={anchorId} machines={machines} />
+      {isLoading ? (
+        <div className="flex-1 flex items-center justify-center min-h-0">
+          <ChatroomLoader />
+        </div>
+      ) : (
+        <AllTabMessageList events={events} anchorId={anchorId} machines={machines} />
+      )}
 
       <ComposerPreflightBar chatroomId={chatroomId as never} />
 

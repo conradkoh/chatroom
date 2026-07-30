@@ -55,6 +55,24 @@ describe('AllTabAnchorNavigator', () => {
     expect(onJumpToLatest).toHaveBeenCalledTimes(1);
   });
 
+  it('disables all buttons when isLoading is true', () => {
+    render(
+      <AllTabAnchorNavigator
+        hasPrev={true}
+        hasNext={true}
+        isOnLatestAnchor={false}
+        isLoading={true}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+        onJumpToLatest={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText('Previous user message')).toBeDisabled();
+    expect(screen.getByLabelText('Jump to latest')).toBeDisabled();
+    expect(screen.getByLabelText('Next user message')).toBeDisabled();
+  });
+
   it('uses compact mobile height classes on nav buttons', () => {
     render(
       <AllTabAnchorNavigator

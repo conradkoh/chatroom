@@ -18,6 +18,7 @@ export function AllTabAnchorNavigator({
   hasPrev,
   hasNext,
   isOnLatestAnchor,
+  isLoading = false,
   onPrev,
   onNext,
   onJumpToLatest,
@@ -25,6 +26,7 @@ export function AllTabAnchorNavigator({
   hasPrev: boolean;
   hasNext: boolean;
   isOnLatestAnchor: boolean;
+  isLoading?: boolean;
   onPrev: () => void;
   onNext: () => void;
   onJumpToLatest: () => void;
@@ -38,7 +40,7 @@ export function AllTabAnchorNavigator({
         type="button"
         className={navButtonClass}
         onClick={onPrev}
-        disabled={!hasPrev}
+        disabled={isLoading || !hasPrev}
         aria-label="Previous user message"
       >
         <ArrowLeft className="h-3.5 w-3.5 md:h-3.5 md:w-3.5" strokeWidth={2.5} />
@@ -53,7 +55,7 @@ export function AllTabAnchorNavigator({
             : 'bg-chatroom-accent text-chatroom-text-on-accent hover:bg-chatroom-accent/90'
         )}
         onClick={onJumpToLatest}
-        disabled={isOnLatestAnchor}
+        disabled={isLoading || isOnLatestAnchor}
         aria-label="Jump to latest"
       >
         Jump to latest
@@ -62,7 +64,7 @@ export function AllTabAnchorNavigator({
         type="button"
         className={navButtonClass}
         onClick={onNext}
-        disabled={!hasNext}
+        disabled={isLoading || !hasNext}
         aria-label="Next user message"
       >
         <span className={navLabelClass}>Next</span>

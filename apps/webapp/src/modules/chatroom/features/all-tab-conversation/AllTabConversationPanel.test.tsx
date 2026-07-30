@@ -50,19 +50,26 @@ describe('AllTabConversationPanel', () => {
     });
   });
 
-  it('renders loading state', () => {
+  it('renders anchor navigator during loading state', () => {
     mockUseAllTabConversation.mockReturnValue({
       events: [],
       messages: [],
       nav: null,
       isLoading: true,
-      hasPrev: false,
+      hasPrev: true,
       hasNext: false,
-      isOnLatestAnchor: true,
+      isOnLatestAnchor: false,
+      goToPrev: vi.fn(),
+      goToNext: vi.fn(),
+      goToLatestAnchor: vi.fn(),
     });
 
     render(<AllTabConversationPanel chatroomId="room-1" />);
+    expect(screen.getByTestId('all-tab-anchor-navigator')).toBeDefined();
     expect(screen.getByRole('status')).toBeDefined();
+    expect(screen.getByLabelText('Previous user message')).toBeDefined();
+    expect(screen.getByLabelText('Jump to latest')).toBeDefined();
+    expect(screen.getByLabelText('Next user message')).toBeDefined();
   });
 
   it('renders anchor navigator with jump to latest when on latest anchor', () => {

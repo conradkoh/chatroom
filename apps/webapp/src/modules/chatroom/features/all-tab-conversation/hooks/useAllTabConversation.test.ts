@@ -101,6 +101,14 @@ describe('useAllTabConversation', () => {
 
     expect(result.current.hasPrev).toBe(true);
     expect(result.current.hasNext).toBe(true);
+    // Initially selectedAnchorId is null, so user is on latest
+    expect(result.current.isOnLatestAnchor).toBe(true);
+
+    act(() => {
+      result.current.goToPrev();
+    });
+
+    // After navigating, isOnLatestAnchor should be false
     expect(result.current.isOnLatestAnchor).toBe(false);
     expect(result.current.nav?.sliceUpperBoundExclusive).toBe(200);
   });
@@ -112,6 +120,23 @@ describe('useAllTabConversation', () => {
     expect(result.current.messages).toHaveLength(2);
     expect(result.current.messages[0]._id).toBe('msg-1');
     expect(result.current.messages[1]._id).toBe('msg-2');
+  });
+
+  it('isOnLatestAnchor is false when selectedAnchorId is set', () => {
+    mockUseSessionQuery.mockReturnValue({
+      anchor: { _id: 'anchor-mid', _creationTime: 150, contentPreview: 'middle' },
+      prevAnchorId: 'anchor-old',
+      nextAnchorId: null,
+      sliceUpperBoundExclusive: 200,
+    });
+
+    const { result } = renderHook(() => useAllTabConversation('room-1'));
+
+    act(() => {
+      result.current.goToPrev();
+    });
+
+    expect(result.current.isOnLatestAnchor).toBe(false);
   });
 
   it('goToLatestAnchor clears selected anchor so navigation uses latest', () => {
