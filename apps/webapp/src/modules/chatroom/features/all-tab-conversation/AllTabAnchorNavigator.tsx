@@ -1,20 +1,18 @@
 'use client';
 
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
 const navButtonClass = cn(
-  'rounded-none w-9 h-9 shrink-0 flex items-center justify-center',
-  'border-2 border-chatroom-border',
-  'bg-white dark:bg-chatroom-bg-tertiary',
-  'text-chatroom-text-primary',
-  'hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong',
-  'transition-all duration-100',
+  'rounded-none shrink-0 flex items-center gap-1 h-9 px-2.5',
+  'bg-chatroom-accent text-chatroom-text-on-accent',
   'disabled:opacity-50 disabled:cursor-not-allowed',
-  'disabled:text-chatroom-text-muted',
-  'disabled:bg-chatroom-bg-tertiary dark:disabled:bg-chatroom-bg-secondary'
+  'disabled:bg-chatroom-bg-tertiary disabled:text-chatroom-text-muted',
+  'dark:disabled:bg-chatroom-bg-secondary dark:disabled:text-chatroom-text-muted'
 );
+
+const navLabelClass = 'text-[10px] font-bold uppercase tracking-wide leading-none';
 
 export function AllTabAnchorNavigator({
   contentPreview,
@@ -41,7 +39,8 @@ export function AllTabAnchorNavigator({
         disabled={!hasPrev}
         aria-label="Previous user message"
       >
-        <ChevronLeft size={20} />
+        <ArrowLeft size={14} strokeWidth={2.5} />
+        <span className={navLabelClass}>Prev</span>
       </button>
       <span className="flex-1 truncate text-xs text-chatroom-text-muted">
         {contentPreview ?? 'No user messages'}
@@ -53,7 +52,8 @@ export function AllTabAnchorNavigator({
         disabled={!hasNext}
         aria-label="Next user message"
       >
-        <ChevronRight size={20} />
+        <span className={navLabelClass}>Next</span>
+        <ArrowRight size={14} strokeWidth={2.5} />
       </button>
     </div>
   );
