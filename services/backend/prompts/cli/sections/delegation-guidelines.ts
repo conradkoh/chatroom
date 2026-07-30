@@ -31,7 +31,8 @@ Break complex features into small, focused slices. For code review guidance, act
 function getBuilderDelegationGuidelines(
   cmd: CmdHelper,
   feedingNote: string,
-  delegationBriefRef: string
+  delegationBriefRef: string,
+  plannerEnhancerActive?: boolean
 ): string {
   return `**Delegation Guidelines:**
 
@@ -78,7 +79,7 @@ flowchart TD
 - Send back with specific feedback if requirements aren't met.
 - ${feedingNote}.
 
-**When enhancement is enabled:** See \`<handoff-enhancer>\` in task delivery — one check-in per delegation before builder.`;
+${plannerEnhancerActive ? `**When enhancement is enabled:** See \`<handoff-enhancer>\` in task delivery — one check-in per delegation before builder.` : ''}`;
 }
 
 /**
@@ -91,6 +92,7 @@ export function getDelegationGuidelinesSection(
     cliEnvPrefix?: string;
     chatroomId?: string;
     role?: string;
+    plannerEnhancerActive?: boolean;
   }
 ): string {
   const feedingNote = config.hasBuilder
@@ -106,5 +108,10 @@ export function getDelegationGuidelinesSection(
     return getSoloImplementationGuidelines(cmd, feedingNote);
   }
 
-  return getBuilderDelegationGuidelines(cmd, feedingNote, getDelegationBriefReference());
+  return getBuilderDelegationGuidelines(
+    cmd,
+    feedingNote,
+    getDelegationBriefReference(),
+    options?.plannerEnhancerActive
+  );
 }

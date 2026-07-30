@@ -96,6 +96,7 @@ export async function sendAutomatedUserMessage(
     sourceMessageId: messageId,
     attachedTaskIds: args.attachedTaskIds,
     queuePosition,
+    ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
   });
   await ctx.db.patch('chatroom_messages', messageId, { taskId });
   await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);

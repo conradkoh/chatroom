@@ -154,6 +154,18 @@ export function isPlanningReviewOutcomeContent(content: string): boolean {
   return /<planning-review-outcome\s/i.test(content);
 }
 
+/** Shown when enhancer is NOT active for this task — prevents spurious check-in attempts. */
+export function appendTaskDeliveryEnhancerDisabledGuidance(lines: string[]): void {
+  lines.push('');
+  lines.push('<handoff-enhancer-disabled>');
+  lines.push('## Handoff Enhancer (not active for this task)');
+  lines.push('');
+  lines.push(
+    '**Do not hand off to `enhancer` for this task.** Enhancer is not enabled for this chatroom or this task snapshot. Delegate directly to `builder` or deliver to `user` per `<next-steps>`.'
+  );
+  lines.push('</handoff-enhancer-disabled>');
+}
+
 export function appendPlanningReviewOutcomeGuidance(lines: string[]): void {
   lines.push('');
   lines.push('<planning-review-outcome-intake>');

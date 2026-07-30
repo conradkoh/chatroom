@@ -36,6 +36,7 @@ import {
 } from '../src/domain/usecase/enhancer/planner-enhancing-status';
 import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import {
+  resolvePlannerEnhancerEnabledFromConfig,
   resolveTaskPlannerEnhancerEnabled,
   validatePlannerEnhancerHandoff,
 } from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
@@ -102,7 +103,8 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
+    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
+    | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -119,7 +121,8 @@ async function enrichMessageAttachments(
 
   // Resolve attached artifacts
   let attachedArtifacts:
-    { _id: string; filename: string; description?: string; mimeType?: string }[] | undefined;
+    | { _id: string; filename: string; description?: string; mimeType?: string }[]
+    | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
       msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
@@ -1585,7 +1588,7 @@ export const getRolePrompt = query({
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Get participants
     const participants = await ctx.db
@@ -1601,6 +1604,17 @@ export const getRolePrompt = query({
     const currentClassification = await getLatestUserMessageClassification(ctx, args.chatroomId);
     const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles);
 
+    let plannerEnhancerActive: boolean | undefined;
+    if (args.role.toLowerCase() === 'planner') {
+      const enhancerConfig = await ctx.db
+        .query('chatroom_enhancerConfigs')
+        .withIndex('by_chatroom_user', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
+        )
+        .unique();
+      plannerEnhancerActive = resolvePlannerEnhancerEnabledFromConfig(enhancerConfig);
+    }
+
     // Generate the role-specific prompt
     const prompt = generateRolePrompt({
       chatroomId: args.chatroomId,
@@ -1612,6 +1626,7 @@ export const getRolePrompt = query({
       currentClassification,
       availableHandoffRoles,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
+      plannerEnhancerActive,
     });
 
     return {

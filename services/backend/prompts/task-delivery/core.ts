@@ -8,6 +8,7 @@ import type { TaskDeliveryContextWindow } from './context-staleness';
 import {
   appendPlanningReviewOutcomeGuidance,
   appendTaskDeliveryEnhancerGuidance,
+  appendTaskDeliveryEnhancerDisabledGuidance,
   appendTaskDeliveryEnhancerReviewGuidance,
   isPlanningReviewOutcomeContent,
 } from './enhancer-guidance.js';
@@ -56,15 +57,20 @@ function appendTaskDeliveryEnhancerGuidanceIfEnabled(
   lines: string[],
   params: Pick<TaskDeliveryParams, 'role' | 'plannerEnhancerEnabled' | 'message' | 'task'>
 ): void {
-  if (!params.plannerEnhancerEnabled || params.role.toLowerCase() !== 'planner') {
+  if (params.role.toLowerCase() !== 'planner') return;
+  if (params.plannerEnhancerEnabled) {
+    appendPlannerEnhancerGuidanceForMessage(
+      lines,
+      params.message,
+      params.task?.content,
+      params.plannerEnhancerEnabled
+    );
     return;
   }
-  appendPlannerEnhancerGuidanceForMessage(
-    lines,
-    params.message,
-    params.task?.content,
-    params.plannerEnhancerEnabled
-  );
+  const senderRole = params.message?.senderRole?.toLowerCase();
+  if (senderRole === 'user' || senderRole === 'builder') {
+    appendTaskDeliveryEnhancerDisabledGuidance(lines);
+  }
 }
 
 function appendTaskDeliveryNextSteps(
