@@ -76,6 +76,18 @@ describe('WorkspaceBottomBarShell', () => {
     mockUseEditableFocused.mockReturnValue(false);
   });
 
+  it('uses opaque primary background instead of translucent surface', () => {
+    render(
+      <WorkspaceBottomBarShell>
+        <span>content</span>
+      </WorkspaceBottomBarShell>
+    );
+
+    const outer = screen.getByTestId('workspace-bottom-bar');
+    expect(outer.className).toContain('bg-chatroom-bg-primary');
+    expect(outer.className).not.toContain('bg-chatroom-bg-surface');
+  });
+
   it('reserves safe-area padding outside a fixed-height content row', () => {
     render(
       <WorkspaceBottomBarShell>

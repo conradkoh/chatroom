@@ -48,6 +48,7 @@ import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit, useGitRefresh } from '../hooks/useWorkspaceGit';
 import type { GitPullRequest, GitRemote, CommitStatusSummary } from '../types/git';
+import { copyWorkspacePathToClipboard } from '../utils/clipboard';
 
 import {
   FixedModal,
@@ -66,7 +67,6 @@ import {
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { cn } from '@/lib/utils';
-import { copyWorkspacePathToClipboard } from '../utils/clipboard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1036,7 +1036,7 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
   return (
     <div
       data-testid="workspace-bottom-bar"
-      className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface select-none"
+      className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary select-none"
       style={{
         paddingBottom: getWorkspaceBottomBarPaddingBottom(suppressSafeArea),
         ...getMobileStickyFooterOffsetStyle(keyboardInsetPx),
