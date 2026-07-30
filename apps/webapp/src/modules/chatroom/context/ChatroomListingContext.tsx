@@ -9,6 +9,7 @@ import {
   usePresenceForChatrooms,
 } from '../hooks/usePresenceForChatrooms';
 import { deriveChatStatus } from '../utils/deriveChatStatus';
+import type { ChatStatus } from '../utils/deriveChatStatus';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -149,9 +150,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         hasUnread: unreadMap.get(chatroom._id) ?? false,
         hasUnreadHandoff: unreadHandoffMap.get(chatroom._id) ?? false,
         remoteAgentStatus: (remoteAgentStatusMap.get(chatroom._id)?.agentStatus ?? 'none') as
-          | 'running'
-          | 'stopped'
-          | 'none',
+          'running' | 'stopped' | 'none',
         runningRoles: remoteAgentStatusMap.get(chatroom._id)?.runningRoles ?? [],
         runningAgentConfigs: remoteAgentStatusMap.get(chatroom._id)?.runningAgents ?? [],
       } as ChatroomWithStatus;
@@ -194,4 +193,23 @@ export function useChatroomListing() {
     throw new Error('useChatroomListing must be used within ChatroomListingProvider');
   }
   return context;
+}
+
+/** Lookup pre-computed chatStatus from listing context (SSOT — includes enhancer work). */
+// fallow-ignore-next-line unused-export — consumed by unit tests
+export function selectChatroomChatStatus(
+  chatrooms: ChatroomWithStatus[] | undefined,
+  chatroomId: string
+): ChatStatus {
+  return chatrooms?.find((c) => c._id === chatroomId)?.chatStatus ?? 'idle';
+}
+
+/**
+ * Returns the chatroom-level status indicator value for a single room.
+ * Must be used within ChatroomListingProvider.
+ * Same value as listing page, sidebar, and switcher.
+ */
+export function useChatroomChatStatus(chatroomId: string): ChatStatus {
+  const { chatrooms } = useChatroomListing();
+  return useMemo(() => selectChatroomChatStatus(chatrooms, chatroomId), [chatrooms, chatroomId]);
 }

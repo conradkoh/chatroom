@@ -52,6 +52,7 @@ import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
 import { MessageViewToggle } from './components/timeline/MessageViewToggle';
 import { WorkQueue } from './components/WorkQueue';
+import { useChatroomChatStatus } from './context/ChatroomListingContext';
 import { useCommandDialog } from './context/CommandDialogContext';
 import { PendingFileHighlightProvider } from './context/PendingFileHighlightContext';
 import { WorkspaceFileLinkProvider } from './context/WorkspaceFileLinkContext';
@@ -79,7 +80,6 @@ import {
   runAgentStartBatch,
   startAgentsForRoles,
 } from './utils/agentBulkStart';
-import { deriveChatStatus, type AgentPresence, type ChatStatus } from './utils/deriveChatStatus';
 import { isFocusModeActive } from './utils/focusMode';
 import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
@@ -1103,18 +1103,7 @@ export function ChatroomDashboard({
     [teamRoles, participants]
   );
 
-  const chatStatus = useMemo((): ChatStatus => {
-    if (!chatroom) return 'idle';
-    const agents: AgentPresence[] = participants.map((participant) => ({
-      lastSeenAction: participant.lastSeenAction ?? null,
-      lastStatus: participant.lastStatus ?? null,
-      lastDesiredState: participant.lastDesiredState ?? null,
-      isAlive: participant.isAlive ?? false,
-    }));
-    const roomStatus: 'active' | 'completed' =
-      chatroom.status === 'completed' ? 'completed' : 'active';
-    return deriveChatStatus(roomStatus, agents);
-  }, [chatroom, participants]);
+  const chatStatus = useChatroomChatStatus(chatroomId);
 
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
