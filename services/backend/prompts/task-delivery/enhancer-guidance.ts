@@ -80,7 +80,7 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
   );
   lines.push('');
   lines.push(
-    '**The enhancer has no context.** It cannot see this session, prior messages, attachments, or the codebase — only your check-in markdown.'
+    '**The enhancer starts from your check-in** — it does not see this planner session, prior messages, or attachments, but **may read files in the repo** to verify grounding and strengthen feedback.'
   );
   lines.push('');
   lines.push('**Your check-in MUST use these XML sections:**');
@@ -142,7 +142,7 @@ export function appendTaskDeliveryEnhancerReviewGuidance(lines: string[]): void 
     '- Treat feedback as **advisory** — you make the final call; do not blindly follow suggestions.'
   );
   lines.push(
-    '- Ignore file-level edit prescriptions — the enhancer has not seen your session or codebase.'
+    '- Ignore file-level edit prescriptions — feedback should critique approach and risks, not prescribe line-by-line changes.'
   );
   lines.push(
     '- **One round only** for this check-in — proceed to `builder` or `user` without re-enhancing this slice.'

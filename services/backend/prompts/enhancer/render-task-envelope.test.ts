@@ -61,10 +61,12 @@ describe('renderEnhancerTaskEnvelope', () => {
     expect(result).toContain('</planner-check-in>');
   });
 
-  it('forbids codebase exploration in requirements', () => {
+  it('encourages repo investigation in requirements', () => {
     const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('No codebase exploration');
-    expect(result).toContain('do not investigate the repository');
+    expect(result).toContain('Read files and use tools');
+    expect(result).toContain('targeted repo investigation');
+    expect(result).not.toContain('No codebase exploration');
+    expect(result).not.toContain('do not investigate the repository');
   });
 
   it('references handoff-templates and references for output and alignment', () => {
@@ -82,6 +84,7 @@ describe('renderEnhancerTaskEnvelope', () => {
   it('contains requirements list', () => {
     const result = renderEnhancerTaskEnvelope(params);
     expect(result).toContain('Single-turn only.');
-    expect(result).toContain('No tools');
+    expect(result).toContain('No subagents');
+    expect(result).not.toContain('No tools');
   });
 });

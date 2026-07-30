@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import {
   Dialog,
@@ -67,14 +67,6 @@ export function StandingInstructionsDialog({
   const [addSelection, setAddSelection] = useState<StandingInstructionsAddSelection>(null);
   const [draft, setDraft] = useState(storedContent);
   const [draftName, setDraftName] = useState(storedName);
-
-  useEffect(() => {
-    if (!open) return;
-    setView(initialView);
-    setAddSelection(null);
-    setDraft(storedContent);
-    setDraftName(storedName);
-  }, [open, initialView, storedContent, storedName]);
 
   const handleSelectHistory = useCallback(
     async (item: StandingInstructionHistoryItem) => {
@@ -178,6 +170,7 @@ export function StandingInstructionsDialog({
       onOpenChange={(nextOpen) => {
         if (!nextOpen) handleCancel();
       }}
+      modal={false}
     >
       <DialogContent floating className="sm:max-w-md max-h-[min(90dvh,100%)]">
         <DialogHeader>

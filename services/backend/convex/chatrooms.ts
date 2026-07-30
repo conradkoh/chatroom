@@ -15,6 +15,7 @@ import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
 } from '../src/domain/usecase/chatroom/lifecycle-impacts';
+import { listChatroomIdsWithActiveEnhancerWork } from '../src/domain/usecase/enhancer/planner-enhancing-status';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({
@@ -521,6 +522,24 @@ export const listUnreadStatus = query({
     );
 
     return unreadStatus;
+  },
+});
+
+/** Returns chatrooms with active enhancer work for the authenticated user. */
+export const listActiveEnhancerWork = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+
+    const chatroomIds = await listChatroomIdsWithActiveEnhancerWork(ctx, auth.userId);
+
+    return chatroomIds.map((chatroomId) => ({
+      chatroomId: chatroomId as string,
+      hasActiveEnhancerWork: true as const,
+    }));
   },
 });
 

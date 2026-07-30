@@ -23,9 +23,11 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).toContain('job-id=job-123');
   });
 
-  it('forbids codebase exploration', () => {
+  it('encourages codebase investigation', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('Do NOT explore the codebase');
+    expect(result).toContain('read those files');
+    expect(result).toContain('Use tools to investigate');
+    expect(result).not.toContain('Do NOT explore the codebase');
   });
 
   it('references handoff-templates and references', () => {
