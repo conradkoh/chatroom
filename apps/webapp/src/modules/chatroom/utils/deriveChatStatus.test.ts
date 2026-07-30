@@ -108,4 +108,20 @@ describe('deriveChatStatus', () => {
       ])
     ).toBe('active');
   });
+
+  it('returns working when hasActiveEnhancerWork is true even with no online agents', () => {
+    expect(deriveChatStatus('active', [], { hasActiveEnhancerWork: true })).toBe('working');
+  });
+
+  it('returns working when hasActiveEnhancerWork is true even when agents are waiting', () => {
+    expect(
+      deriveChatStatus('active', [agent({ lastStatus: 'agent.waiting' })], {
+        hasActiveEnhancerWork: true,
+      })
+    ).toBe('working');
+  });
+
+  it('returns completed even when hasActiveEnhancerWork is true', () => {
+    expect(deriveChatStatus('completed', [], { hasActiveEnhancerWork: true })).toBe('completed');
+  });
 });

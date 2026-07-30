@@ -23,6 +23,19 @@ export function getNotificationSoundSchedules(
         { frequency: 587, startTime: 0, duration: 0.12, type: 'sine', peakGain: v * 0.45 },
         { frequency: 880, startTime: 0.14, duration: 0.18, type: 'sine', peakGain: v * 0.55 },
       ];
+    case 'bright':
+      return [
+        { frequency: 784, startTime: 0, duration: 0.1, type: 'triangle', peakGain: v * 0.5 },
+        { frequency: 988, startTime: 0.11, duration: 0.1, type: 'triangle', peakGain: v * 0.55 },
+        { frequency: 1175, startTime: 0.22, duration: 0.15, type: 'triangle', peakGain: v * 0.6 },
+      ];
+    case 'alarm':
+      return [
+        { frequency: 880, startTime: 0, duration: 0.07, type: 'square', peakGain: v * 0.45 },
+        { frequency: 880, startTime: 0.09, duration: 0.07, type: 'square', peakGain: v * 0.5 },
+        { frequency: 1100, startTime: 0.2, duration: 0.08, type: 'square', peakGain: v * 0.55 },
+        { frequency: 1100, startTime: 0.3, duration: 0.1, type: 'square', peakGain: v * 0.6 },
+      ];
   }
 }
 

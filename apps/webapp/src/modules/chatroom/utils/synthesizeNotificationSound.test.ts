@@ -35,4 +35,22 @@ describe('getNotificationSoundSchedules', () => {
     const s = getNotificationSoundSchedules('standard', 0);
     expect(s[0].peakGain).toBe(0);
   });
+
+  it('bright returns three ascending triangle schedules', () => {
+    const s = getNotificationSoundSchedules('bright', 1);
+    expect(s).toHaveLength(3);
+    expect(s[0]).toMatchObject({ frequency: 784, type: 'triangle' });
+    expect(s[1]).toMatchObject({ frequency: 988, type: 'triangle' });
+    expect(s[2]).toMatchObject({ frequency: 1175, type: 'triangle' });
+    expect(s[0].peakGain).toBeCloseTo(0.5);
+  });
+
+  it('alarm returns four square-wave pulse schedules', () => {
+    const s = getNotificationSoundSchedules('alarm', 1);
+    expect(s).toHaveLength(4);
+    expect(s.every((x) => x.type === 'square')).toBe(true);
+    expect(s[0].frequency).toBe(880);
+    expect(s[2].frequency).toBe(1100);
+    expect(s[3].peakGain).toBeCloseTo(0.6);
+  });
 });
