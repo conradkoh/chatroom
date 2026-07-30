@@ -1,18 +1,40 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  navigateWithAppPageTransition,
-  resetAppPageTransitionForTests,
-  type AppPageTransitionDirection,
-} from './appPageTransition';
+import { navigateWithAppPageTransition, resetAppPageTransitionForTests } from './appPageTransition';
 
 function createMockRouter() {
-  return { push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), prefetch: vi.fn() };
+  return {
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
+    refresh: vi.fn(),
+  };
+}
+
+function mockMatchMedia(matches: boolean) {
+  window.matchMedia = vi.fn().mockReturnValue({
+    matches,
+    media: '',
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  } as unknown as MediaQueryList);
 }
 
 describe('navigateWithAppPageTransition', () => {
   beforeEach(() => {
     resetAppPageTransitionForTests();
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: undefined,
+    });
+    mockMatchMedia(false);
   });
 
   afterEach(() => {
@@ -67,16 +89,7 @@ describe('navigateWithAppPageTransition', () => {
       writable: true,
       configurable: true,
     });
-    vi.spyOn(window, 'matchMedia').mockReturnValue({
-      matches: true,
-      media: '(prefers-reduced-motion: reduce)',
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    });
+    mockMatchMedia(true);
 
     navigateWithAppPageTransition(router, '/app', 'forward');
 
@@ -86,9 +99,8 @@ describe('navigateWithAppPageTransition', () => {
 
   it('ignores second call while transition is in progress', () => {
     const router = createMockRouter();
-    let neverResolve!: (_: void) => void;
-    const neverFinish = new Promise<void>((resolve) => {
-      neverResolve = resolve;
+    const neverFinish = new Promise<void>(() => {
+      // Intentionally never resolves — overlap guard test
     });
     const startVT = vi.fn((callback: () => void) => {
       callback();
