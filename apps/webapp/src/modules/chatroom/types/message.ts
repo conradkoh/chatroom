@@ -74,4 +74,6 @@ export interface Message {
   enhancerOriginalContent?: string;
   /** Scheduled prompt ID that triggered this message */
   scheduledPromptId?: string;
+  /** Snapshot of enhancer enabled at enqueue time (queued messages only) */
+  plannerEnhancerEnabled?: boolean;
 }

@@ -6,9 +6,11 @@ import { getActiveStandingInstructions } from '@workspace/backend/src/domain/ent
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
+
 import { StandingInstructionsDialog } from '../features/standing-instructions/components';
 import type { StandingInstructionsDialogInitialView } from '../features/standing-instructions/types/standingInstructionsDialog';
+
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 interface StandingInstructionsBarProps {
   chatroomId: Id<'chatroom_rooms'>;
@@ -36,6 +38,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
 }: StandingInstructionsBarProps) {
   const isDesktop = useIsDesktop();
   const queryResult = useSessionQuery(api.standingInstructions.get, { chatroomId });
+  const isLoading = queryResult === undefined;
   const storedContent = queryResult?.content ?? '';
   const storedName = queryResult?.name ?? '';
   const enabled = queryResult?.enabled ?? false;
@@ -108,10 +111,37 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     await clearMutation({ chatroomId });
   }, [chatroomId, clearMutation]);
 
-  const dialog = (
+  if (isLoading) {
+    return (
+      <div
+        className={`${BAR_SHELL} w-full opacity-50`}
+        aria-busy="true"
+        aria-label="Loading standing instructions"
+        data-testid="standing-instructions-bar-loading"
+      >
+        <BookOpen
+          size={mobileIconSize(isDesktop)}
+          className="shrink-0 text-chatroom-text-muted animate-pulse"
+        />
+        <span
+          className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider shrink-0 hidden sm:inline text-chatroom-text-muted`}
+        >
+          Standing instructions
+        </span>
+        <span
+          className="flex-1 h-3 max-w-[8rem] bg-chatroom-border/50 animate-pulse"
+          aria-hidden="true"
+        />
+      </div>
+    );
+  }
+
+  const dialog = dialogOpen ? (
     <StandingInstructionsDialog
-      open={dialogOpen}
-      onOpenChange={setDialogOpen}
+      open
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) setDialogOpen(false);
+      }}
       initialView={dialogInitialView}
       storedContent={storedContent}
       storedName={storedName}
@@ -123,7 +153,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       onDelete={handleDelete}
       onRecordHistoryUse={handleRecordHistoryUse}
     />
-  );
+  ) : null;
 
   if (!hasContent) {
     return (

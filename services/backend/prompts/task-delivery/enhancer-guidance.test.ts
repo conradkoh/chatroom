@@ -23,7 +23,7 @@ describe('appendTaskDeliveryEnhancerGuidance', () => {
     expect(output).toContain('<user-message>');
     expect(output).toContain('<grounding>');
     expect(output).toContain('<builder-handoff>');
-    expect(output).toContain('enhancer has no context');
+    expect(output).toContain('may read files in the repo');
     expect(output).toContain('asynchronously');
     expect(output).toContain('Run get-next-task immediately');
     expect(output).toContain('Do not hand off to enhancer again');

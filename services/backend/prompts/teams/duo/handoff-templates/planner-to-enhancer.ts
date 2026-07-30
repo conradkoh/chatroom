@@ -18,7 +18,7 @@ export function getPlannerToEnhancerHandoffTemplate(): string {
 
 **Mandatory Planning Check-in (Planner → Enhancer)** — paste into the handoff message. **Do not skip this check-in** when the enhancer is enabled.
 
-The enhancer has **no session context** — only this message. Use the three XML sections below **exactly** — they delimit what the enhancer will review.
+The enhancer starts from this check-in — it may read files in the repo to verify your grounding. Use the three XML sections below **exactly** — they delimit what the enhancer will review.
 
 \`\`\`markdown
 <user-message>
@@ -26,7 +26,7 @@ The enhancer has **no session context** — only this message. Use the three XML
 </user-message>
 
 <grounding>
-<fully detailed research the enhancer cannot see from your session — be exhaustive>
+<fully detailed research — include file paths and snippets the enhancer should verify; it may read the codebase to validate your proposal>
 
 Include:
 - **Existing code examples** — relevant snippets, patterns, and conventions already in the codebase

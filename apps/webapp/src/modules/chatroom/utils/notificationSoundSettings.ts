@@ -1,7 +1,7 @@
 const STORAGE_KEY = 'chatroom:notification-sound-settings';
 const LEGACY_MUTE_KEY = 'chatroom:notification-sound-muted';
 
-export type NotificationSoundProfile = 'subtle' | 'standard' | 'urgent';
+export type NotificationSoundProfile = 'subtle' | 'standard' | 'urgent' | 'bright' | 'alarm';
 
 export interface NotificationSoundSettings {
   muted: boolean;
@@ -24,9 +24,11 @@ export const NOTIFICATION_SOUND_PROFILE_OPTIONS: {
   { id: 'subtle', label: 'Subtle', description: 'Soft single tone — minimal interruption' },
   { id: 'standard', label: 'Standard', description: 'Balanced chime — everyday attention' },
   { id: 'urgent', label: 'Urgent', description: 'Double ascending tone — high attention' },
+  { id: 'bright', label: 'Bright', description: 'Triple ascending chime — clear and lively' },
+  { id: 'alarm', label: 'Alarm', description: 'Pulsing alert — maximum attention' },
 ];
 
-const PROFILES: NotificationSoundProfile[] = ['subtle', 'standard', 'urgent'];
+const PROFILES: NotificationSoundProfile[] = ['subtle', 'standard', 'urgent', 'bright', 'alarm'];
 
 function clampVolume(v: number): number {
   if (!Number.isFinite(v)) return DEFAULT_NOTIFICATION_SOUND_SETTINGS.volume;

@@ -7,6 +7,7 @@ import { ArrowUp, Check, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide
 import React, { memo, useCallback, useState } from 'react';
 import Markdown from 'react-markdown';
 
+import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
 import { MessageAttachmentChips, countMessageAttachments } from '../../attachments';
 import type { Message } from '../../types/message';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
@@ -42,6 +43,7 @@ interface QueuedMessageDetailModalProps {
   onPromote: (queuedMessageId: string) => Promise<void>;
   /** Called when the user deletes the message. */
   onDelete: (queuedMessageId: string) => Promise<void>;
+  teamSupportsEnhancer?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -80,6 +82,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
   onClose,
   onPromote,
   onDelete,
+  teamSupportsEnhancer,
 }: QueuedMessageDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
@@ -285,6 +288,13 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
                 <ArrowUp size={12} />
                 {isSaving ? 'Working...' : 'Promote'}
               </button>
+
+              {teamSupportsEnhancer ? (
+                <QueuedMessageEnhancerToggle
+                  queuedMessageId={message._id}
+                  plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
+                />
+              ) : null}
 
               <div className="flex-1" />
 

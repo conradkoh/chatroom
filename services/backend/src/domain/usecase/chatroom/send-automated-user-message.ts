@@ -5,6 +5,7 @@ import { getTeamEntryPoint } from '../../entities/team';
 import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agents-on-user-message';
 import { createTask as createTaskUsecase, shouldEnqueueMessage } from '../task/create-task';
 import { adjustTaskCount } from '../task/task-counts';
+import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-planner-enhancer-enabled';
 
 export type SendAutomatedUserMessageResult =
   | { ok: true; messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> }
@@ -21,6 +22,7 @@ export async function sendAutomatedUserMessage(
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
     attachedMessageIds?: Id<'chatroom_messages'>[];
     attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
+    userId?: Id<'users'>;
   }
 ): Promise<SendAutomatedUserMessageResult> {
   const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
@@ -33,6 +35,17 @@ export async function sendAutomatedUserMessage(
   const targetRole = getTeamEntryPoint(chatroom) ?? undefined;
   const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
   const enqueue = await shouldEnqueueMessage(ctx, args.chatroomId);
+
+  let plannerEnhancerEnabled: boolean | undefined;
+  if (args.userId) {
+    const config = await ctx.db
+      .query('chatroom_enhancerConfigs')
+      .withIndex('by_chatroom_user', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('userId', args.userId!)
+      )
+      .unique();
+    plannerEnhancerEnabled = resolvePlannerEnhancerEnabledFromConfig(config);
+  }
 
   if (enqueue) {
     const queuedMessageId = await ctx.db.insert('chatroom_messageQueue', {
@@ -50,6 +63,7 @@ export async function sendAutomatedUserMessage(
       ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
       ...(args.sourcePlatform ? { sourcePlatform: args.sourcePlatform } : {}),
       ...(args.scheduledPromptId ? { scheduledPromptId: args.scheduledPromptId } : {}),
+      ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
     });
     await adjustTaskCount(ctx, args.chatroomId, 'queueSize', 1);
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: Date.now() });
@@ -82,6 +96,7 @@ export async function sendAutomatedUserMessage(
     sourceMessageId: messageId,
     attachedTaskIds: args.attachedTaskIds,
     queuePosition,
+    ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
   });
   await ctx.db.patch('chatroom_messages', messageId, { taskId });
   await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);

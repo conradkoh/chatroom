@@ -285,9 +285,9 @@ describe('Solo Team > Solo > System Prompt', () => {
       ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To implement** → Work on the chatroom task directly (you are acting as implementer)
+      - **For rework** → Revise your implementation directly and re-validate
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-      - **For rework** → Revise your implementation directly and re-validate
 
       **When you receive work back from team members:**
       1. Review the completed work against the original user request

@@ -16,6 +16,7 @@ import {
 export interface QueuedMessagesModalProps {
   chatroomId: Id<'chatroom_rooms'>;
   messages: Message[];
+  teamSupportsEnhancer?: boolean;
   onClose: () => void;
   onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
@@ -25,6 +26,7 @@ export interface QueuedMessagesModalProps {
 export function QueuedMessagesModal({
   chatroomId,
   messages,
+  teamSupportsEnhancer,
   onClose,
   onPromote,
   onDelete,
@@ -49,6 +51,7 @@ export function QueuedMessagesModal({
                 key={message._id}
                 chatroomId={chatroomId}
                 message={message}
+                teamSupportsEnhancer={teamSupportsEnhancer}
                 onPromote={onPromote}
                 onDelete={onDelete}
               />

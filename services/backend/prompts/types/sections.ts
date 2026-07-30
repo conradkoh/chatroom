@@ -42,6 +42,8 @@ export interface SelectorContext {
   agentType: 'remote' | 'custom' | 'unset';
   /** True when harness uses native task injection (no listen loop) */
   nativeIntegration?: boolean;
+  /** When true, static planner guidance includes enhancer workflow references. */
+  plannerEnhancerActive?: boolean;
 }
 
 /**

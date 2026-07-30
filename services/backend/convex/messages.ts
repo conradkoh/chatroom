@@ -28,13 +28,19 @@ import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-tea
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { loadCurrentContext } from '../src/domain/usecase/context/load-current-context';
+import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
+import { getEnhancerConfigForUser } from '../src/domain/usecase/enhancer/get-enhancer-config-for-user';
 import {
   hasActiveEnhancerWork,
   transitionPlannerFromEnhancingToWaiting,
   transitionPlannerToEnhancing,
 } from '../src/domain/usecase/enhancer/planner-enhancing-status';
-import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
 import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
+import {
+  resolvePlannerEnhancerEnabledFromConfig,
+  resolveTaskPlannerEnhancerEnabled,
+  validatePlannerEnhancerHandoff,
+} from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
 import {
   collectActiveTasks,
@@ -98,8 +104,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached messages
   let attachedMessages:
-    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
-    | undefined;
+    { _id: string; content: string; senderRole: string; _creationTime: number }[] | undefined;
   if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
     const msgs = await Promise.all(
       msg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
@@ -116,8 +121,7 @@ async function enrichMessageAttachments(
 
   // Resolve attached artifacts
   let attachedArtifacts:
-    | { _id: string; filename: string; description?: string; mimeType?: string }[]
-    | undefined;
+    { _id: string; filename: string; description?: string; mimeType?: string }[] | undefined;
   if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
     const artifacts = await Promise.all(
       msg.attachedArtifactIds.map((artifactId) => ctx.db.get('chatroom_artifacts', artifactId))
@@ -220,7 +224,7 @@ async function _sendMessageHandler(
     attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
   }
 ) {
-  const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+  const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
   // Validate attached tasks if provided
   if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
@@ -355,6 +359,7 @@ async function _sendMessageHandler(
         : {}),
       ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
       ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
+      userId: session.userId,
     });
     if (!result.ok) {
       if (result.reason === 'empty_content') {
@@ -549,20 +554,42 @@ export async function runHandoffHandler(
       };
     }
 
-    const enhancerConfig = await ctx.db
-      .query('chatroom_enhancerConfigs')
-      .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
-      )
-      .unique();
+    const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
 
-    if (!enhancerConfig?.enabled || enhancerConfig.targetId !== 'handoff:planner-to-builder') {
+    const activePlannerTasks = await collectActiveTasks(ctx, args.chatroomId, {
+      assignedTo: 'planner',
+    });
+    if (activePlannerTasks.length === 0) {
       return {
         success: false,
         error: {
-          code: 'ENHANCER_NOT_ENABLED',
-          message: 'Enhancer not enabled',
+          code: 'NO_PLANNER_USER_TASK',
+          message:
+            'Cannot hand off to enhancer without an active planner task from a user instruction',
         },
+        messageId: null,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+      };
+    }
+
+    const userOriginTask =
+      activePlannerTasks.find((t) => t.createdBy === 'user') ?? activePlannerTasks[0];
+
+    const handoffValidation = validatePlannerEnhancerHandoff({
+      taskPlannerEnhancerEnabled: userOriginTask?.plannerEnhancerEnabled,
+      config: enhancerConfig,
+    });
+
+    if (!handoffValidation.allowed) {
+      const message =
+        handoffValidation.code === 'ENHANCER_CONFIG_INCOMPLETE'
+          ? 'Enhancer configuration is incomplete. Configure harness, model, and machine before handing off.'
+          : 'Enhancer not enabled';
+      return {
+        success: false,
+        error: { code: handoffValidation.code, message },
         messageId: null,
         completedTaskIds: [],
         newTaskId: null,
@@ -590,26 +617,6 @@ export async function runHandoffHandler(
   }
 
   const now = Date.now();
-
-  if (isHandoffToEnhancer) {
-    const activePlannerTasks = await collectActiveTasks(ctx, args.chatroomId, {
-      assignedTo: 'planner',
-    });
-    if (activePlannerTasks.length === 0) {
-      return {
-        success: false,
-        error: {
-          code: 'NO_PLANNER_USER_TASK',
-          message:
-            'Cannot hand off to enhancer without an active planner task from a user instruction',
-        },
-        messageId: null,
-        completedTaskIds: [],
-        newTaskId: null,
-        promotedTaskId: null,
-      };
-    }
-  }
 
   // Step 1: Complete ALL in_progress and acknowledged tasks
   const tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
@@ -725,12 +732,7 @@ export async function runHandoffHandler(
 
   let enhancerJobId: Id<'chatroom_enhancerJobs'> | null = null;
   if (isHandoffToEnhancer && newTaskId) {
-    const enhancerConfig = await ctx.db
-      .query('chatroom_enhancerConfigs')
-      .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
-      )
-      .unique();
+    const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
     if (!enhancerConfig) {
       throw new ConvexError({ code: 'ENHANCER_NOT_ENABLED', message: 'Enhancer not enabled' });
     }
@@ -1086,6 +1088,7 @@ export const listQueued = query({
       // Add queue-specific flags
       isQueued: true as const,
       queuePosition: qMsg.queuePosition,
+      plannerEnhancerEnabled: qMsg.plannerEnhancerEnabled,
     }));
 
     // Enrich queued messages with attachment details (shared helper)
@@ -1097,6 +1100,27 @@ export const listQueued = query({
     );
 
     return enrichedMessages.slice(-limit);
+  },
+});
+
+export const updateQueuedMessagePlannerEnhancer = mutation({
+  args: {
+    ...SessionIdArg,
+    queuedMessageId: v.id('chatroom_messageQueue'),
+    plannerEnhancerEnabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const record = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
+    if (!record) {
+      throw new ConvexError({
+        code: 'QUEUED_MESSAGE_NOT_FOUND',
+        message: 'Queued message not found',
+      });
+    }
+    await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
+    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, {
+      plannerEnhancerEnabled: args.plannerEnhancerEnabled,
+    });
   },
 });
 
@@ -1553,7 +1577,7 @@ export const getRolePrompt = query({
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Get participants
     const participants = await ctx.db
@@ -1569,6 +1593,12 @@ export const getRolePrompt = query({
     const currentClassification = await getLatestUserMessageClassification(ctx, args.chatroomId);
     const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles);
 
+    let plannerEnhancerActive: boolean | undefined;
+    if (args.role.toLowerCase() === 'planner') {
+      const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
+      plannerEnhancerActive = resolvePlannerEnhancerEnabledFromConfig(enhancerConfig);
+    }
+
     // Generate the role-specific prompt
     const prompt = generateRolePrompt({
       chatroomId: args.chatroomId,
@@ -1580,6 +1610,7 @@ export const getRolePrompt = query({
       currentClassification,
       availableHandoffRoles,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
+      plannerEnhancerActive,
     });
 
     return {
@@ -1708,17 +1739,13 @@ export const getTaskDeliveryPrompt = query({
     const availableRoles = waitingParticipants.map((p) => p.role);
     const currentClassification = await getLatestUserMessageClassification(ctx, args.chatroomId);
 
-    const enhancerConfig = await ctx.db
-      .query('chatroom_enhancerConfigs')
-      .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', session.userId)
-      )
-      .unique();
+    const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
 
-    const plannerEnhancerEnabled =
-      args.role.toLowerCase() === 'planner' &&
-      enhancerConfig?.enabled === true &&
-      enhancerConfig.targetId === 'handoff:planner-to-builder';
+    const plannerEnhancerEnabled = resolveTaskPlannerEnhancerEnabled({
+      taskPlannerEnhancerEnabled: task.plannerEnhancerEnabled,
+      liveConfig: enhancerConfig,
+      role: args.role,
+    });
 
     const deliveryMessageSenderRole =
       message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;

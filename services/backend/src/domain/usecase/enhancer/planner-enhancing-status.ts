@@ -76,6 +76,48 @@ export async function hasActivePlannerEnhancerJob(
   return active !== null;
 }
 
+const ACTIVE_ENHANCER_JOB_STATUSES = ['pending', 'running'] as const;
+
+/** Chatroom IDs with active enhancer jobs or enhancer-assigned tasks owned by the user. */
+export async function listChatroomIdsWithActiveEnhancerWork(
+  ctx: QueryCtx,
+  userId: Id<'users'>
+): Promise<Id<'chatroom_rooms'>[]> {
+  const chatroomIds = new Set<Id<'chatroom_rooms'>>();
+
+  for (const status of ACTIVE_ENHANCER_JOB_STATUSES) {
+    const jobs = await ctx.db
+      .query('chatroom_enhancerJobs')
+      .withIndex('by_userId_status', (q) => q.eq('userId', userId).eq('status', status))
+      .collect();
+    for (const job of jobs) {
+      if (job.fromRole === 'planner' && job.toRole === 'enhancer') {
+        chatroomIds.add(job.chatroomId);
+      }
+    }
+  }
+
+  const taskChatroomIds = new Set<Id<'chatroom_rooms'>>();
+  for (const status of ACTIVE_TASK_STATUSES) {
+    const tasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_assignedTo_status', (q) => q.eq('assignedTo', 'enhancer').eq('status', status))
+      .collect();
+    for (const task of tasks) {
+      taskChatroomIds.add(task.chatroomId);
+    }
+  }
+
+  for (const chatroomId of taskChatroomIds) {
+    const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+    if (chatroom?.ownerId === userId) {
+      chatroomIds.add(chatroomId);
+    }
+  }
+
+  return [...chatroomIds];
+}
+
 /** True while an enhancer job or enhancer task row is in flight. */
 export async function hasActiveEnhancerWork(
   ctx: QueryCtx | MutationCtx,

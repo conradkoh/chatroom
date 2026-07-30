@@ -46,10 +46,15 @@ function isAgentWaitingForChatStatus(agent: AgentPresence): boolean {
  */
 export function deriveChatStatus(
   chatroomStatus: 'active' | 'completed',
-  agents: AgentPresence[]
+  agents: AgentPresence[],
+  options?: { hasActiveEnhancerWork?: boolean }
 ): ChatStatus {
   if (chatroomStatus === 'completed') {
     return 'completed';
+  }
+
+  if (options?.hasActiveEnhancerWork) {
+    return 'working';
   }
 
   const onlineAgents = agents.filter((a) => a.isAlive);

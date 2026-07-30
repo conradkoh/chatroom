@@ -21,23 +21,25 @@ import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { ReviewPanel } from './ReviewPanel';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
-import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
-import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
-import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
-import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
-import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
-import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
-import { TaskItem } from './WorkQueue/TaskItem';
-import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
-import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
-import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
-import type { Message } from '../types/message';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
+import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
+import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
+import type { Message } from '../types/message';
+import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
+import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
+import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
+import { TaskItem } from './WorkQueue/TaskItem';
+import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
+import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
+import { teamSupportsEnhancer } from '../hooks/persistence/messageViewMode';
+import { useAgentPanelData } from '../hooks/useAgentPanelData';
+import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 
 // Maximum number of pending review items to show in sidebar before "View More"
 const PENDING_REVIEW_PREVIEW_LIMIT = 3;
@@ -164,6 +166,9 @@ export function WorkQueue({
     chatroomId,
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
+
+  const { teamRoles, isLoading: teamRolesLoading } = useAgentPanelData(chatroomId);
+  const teamSupportsEnhancerFlag = !teamRolesLoading && teamSupportsEnhancer(teamRoles);
 
   // Categorize tasks by status
   const categorizedTasks = useMemo(() => {
@@ -387,6 +392,7 @@ export function WorkQueue({
                 key={message._id}
                 chatroomId={chatroomId}
                 message={message}
+                teamSupportsEnhancer={teamSupportsEnhancerFlag}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
               />
@@ -544,6 +550,7 @@ export function WorkQueue({
         <QueuedMessagesModal
           chatroomId={chatroomId}
           messages={queuedMessages}
+          teamSupportsEnhancer={teamSupportsEnhancerFlag}
           onClose={() => setIsQueuedMessagesModalOpen(false)}
           onPromote={handleQueuedPromote}
           onDelete={handleQueuedDelete}
