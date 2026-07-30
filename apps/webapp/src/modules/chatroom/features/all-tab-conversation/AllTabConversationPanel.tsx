@@ -28,7 +28,6 @@ export function AllTabConversationPanel({
   const {
     events,
     messages,
-    nav,
     isLoading,
     hasPrev,
     hasNext,
@@ -36,6 +35,7 @@ export function AllTabConversationPanel({
     goToNext,
     anchorId,
     goToLatestAnchor,
+    isOnLatestAnchor,
   } = useAllTabConversation(chatroomId);
 
   useEffect(() => {
@@ -58,11 +58,12 @@ export function AllTabConversationPanel({
   return (
     <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
       <AllTabAnchorNavigator
-        contentPreview={nav?.anchor?.contentPreview ?? null}
         hasPrev={hasPrev}
         hasNext={hasNext}
+        isOnLatestAnchor={isOnLatestAnchor}
         onPrev={goToPrev}
         onNext={goToNext}
+        onJumpToLatest={goToLatestAnchor}
       />
 
       <AllTabMessageList events={events} anchorId={anchorId} machines={machines} />

@@ -65,11 +65,12 @@ describe('AllTabConversationPanel', () => {
     expect(screen.getByRole('status')).toBeDefined();
   });
 
-  it('renders anchor navigator with no user messages when nav is null', () => {
+  it('renders anchor navigator with jump to latest when on latest anchor', () => {
     render(<AllTabConversationPanel chatroomId="room-1" />);
 
     expect(screen.getByTestId('all-tab-anchor-navigator')).toBeDefined();
-    expect(screen.getByText('No user messages')).toBeDefined();
+    const jumpButton = screen.getByRole('button', { name: 'Jump to latest' });
+    expect((jumpButton as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('renders message list and navigator with anchor preview', () => {
