@@ -134,7 +134,7 @@ describe('listAllTabSlicePaginated', () => {
       paginationOpts: { numItems: 10, cursor: null },
     });
 
-    expect(result.sliceMetadata.nextUserMessageId).toBeDefined();
+    expect(result.sliceMetadata.upperBoundExclusive).not.toBeNull();
     const contents = result.page.map((m) => m.content);
     expect(contents).toContain('anchor');
     expect(contents).toContain('reply1');
@@ -162,6 +162,86 @@ describe('listAllTabSlicePaginated', () => {
     expect(contents).toContain('anchor');
     expect(contents).toContain('work');
     expect(contents).not.toContain('follow up');
+  });
+
+  test('follow_up user message provides correct sliceUpperBoundExclusive', async () => {
+    const { sessionId } = await createTestSession('alltab-slice-bound-fu');
+    const chatroomId = await createChatroom(sessionId);
+    const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
+    await insertTimelineMessage(chatroomId, 'builder', 'work');
+    const followUpId = await insertTimelineMessage(chatroomId, 'user', 'follow up', {
+      classification: 'follow_up',
+    });
+
+    const followUpTime = await t.run(async (ctx) => {
+      const msg = await ctx.db.get('chatroom_messages', followUpId as Id<'chatroom_messages'>);
+      return msg!._creationTime;
+    });
+
+    const result = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId as Id<'chatroom_messages'>,
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    expect(result.sliceMetadata.upperBoundExclusive).toBe(followUpTime);
+    const contents = result.page.map((m) => m.content);
+    expect(contents).toContain('anchor');
+    expect(contents).toContain('work');
+    expect(contents).not.toContain('follow up');
+  });
+
+  test('bounded slice via explicit sliceUpperBoundExclusive arg', async () => {
+    const { sessionId } = await createTestSession('alltab-slice-explicit');
+    const chatroomId = await createChatroom(sessionId);
+    const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
+    await insertTimelineMessage(chatroomId, 'builder', 'reply1');
+    const nextUser = await insertTimelineMessage(chatroomId, 'user', 'next user');
+    await insertTimelineMessage(chatroomId, 'builder', 'after page');
+
+    const bound = await t.run(async (ctx) => {
+      const msg = await ctx.db.get('chatroom_messages', nextUser as Id<'chatroom_messages'>);
+      return msg!._creationTime;
+    });
+
+    const result = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId as Id<'chatroom_messages'>,
+      paginationOpts: { numItems: 10, cursor: null },
+      sliceUpperBoundExclusive: bound,
+    });
+
+    const contents = result.page.map((m) => m.content);
+    expect(contents).toContain('anchor');
+    expect(contents).toContain('reply1');
+    expect(contents).not.toContain('next user');
+    expect(contents).not.toContain('after page');
+  });
+
+  test('bounded slice excludes messages after page end', async () => {
+    const { sessionId } = await createTestSession('alltab-slice-postbound');
+    const chatroomId = await createChatroom(sessionId);
+    const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
+    await insertTimelineMessage(chatroomId, 'builder', 'in-slice reply');
+    await insertTimelineMessage(chatroomId, 'user', 'next user msg');
+    for (let i = 0; i < 20; i++) {
+      await insertTimelineMessage(chatroomId, 'builder', `post-page ${i}`);
+    }
+
+    const result = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId as Id<'chatroom_messages'>,
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    const contents = result.page.map((m) => m.content);
+    expect(contents).toContain('anchor');
+    expect(contents).toContain('in-slice reply');
+    expect(contents).not.toContain('next user msg');
+    expect(contents).not.toContain('post-page');
   });
 
   test('excludes join and progress messages', async () => {

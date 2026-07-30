@@ -70,10 +70,17 @@ export function useAllTabConversation(chatroomId: string) {
 
   const effectiveAnchorId = nav?.anchor?._id ?? null;
 
+  const sliceUpperBound = nav?.sliceUpperBoundExclusive;
+
   const paginated = usePaginatedQuery(
     api.allTabConversation.listAllTabSlicePaginated as PaginatedQueryReference,
     effectiveAnchorId && sessionId
-      ? { chatroomId: typedChatroomId, sessionId, anchorMessageId: effectiveAnchorId }
+      ? {
+          chatroomId: typedChatroomId,
+          sessionId,
+          anchorMessageId: effectiveAnchorId,
+          ...(sliceUpperBound != null ? { sliceUpperBoundExclusive: sliceUpperBound } : {}),
+        }
       : 'skip',
     { initialNumItems: PAGE_SIZE }
   );
@@ -93,8 +100,6 @@ export function useAllTabConversation(chatroomId: string) {
     });
   }, [paginated.results]);
 
-  const sliceUpperBound = nav?.sliceUpperBoundExclusive ?? null;
-
   const lastMessageCreationTime = useMemo(() => {
     if (state.messages.length === 0) return 0;
     const lastMessage = state.messages.at(-1);
@@ -107,7 +112,7 @@ export function useAllTabConversation(chatroomId: string) {
       ? {
           chatroomId: typedChatroomId,
           afterCreationTime: lastMessageCreationTime,
-          upperBoundExclusive: sliceUpperBound,
+          upperBoundExclusive: sliceUpperBound ?? null,
         }
       : 'skip'
   );

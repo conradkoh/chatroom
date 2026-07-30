@@ -49,32 +49,23 @@ async function findLatestUserAnchor(
   );
 }
 
-async function findAdjacentUserAnchor(
+async function findPrevUserAnchorId(
   ctx: QueryCtx,
   chatroomId: Id<'chatroom_rooms'>,
-  anchor: Doc<'chatroom_messages'>,
-  direction: 'prev' | 'next'
+  anchorCreationTime: number
 ): Promise<Id<'chatroom_messages'> | null> {
-  if (direction === 'prev') {
-    const older = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', chatroomId).eq('senderRole', 'user').eq('type', 'message')
-      )
-      .filter((q) => q.lt(q.field('_creationTime'), anchor._creationTime))
-      .order('desc')
-      .first();
-    return older?._id ?? null;
-  }
-  const newer = await ctx.db
+  const older = await ctx.db
     .query('chatroom_messages')
     .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-      q.eq('chatroomId', chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      q
+        .eq('chatroomId', chatroomId)
+        .eq('senderRole', 'user')
+        .eq('type', 'message')
+        .lt('_creationTime', anchorCreationTime)
     )
-    .filter((q) => q.gt(q.field('_creationTime'), anchor._creationTime))
-    .order('asc')
+    .order('desc')
     .first();
-  return newer?._id ?? null;
+  return older?._id ?? null;
 }
 
 async function findNextUserMessageAfter(
@@ -86,9 +77,12 @@ async function findNextUserMessageAfter(
     (await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', chatroomId).eq('senderRole', 'user').eq('type', 'message')
+        q
+          .eq('chatroomId', chatroomId)
+          .eq('senderRole', 'user')
+          .eq('type', 'message')
+          .gt('_creationTime', anchorCreationTime)
       )
-      .filter((q) => q.gt(q.field('_creationTime'), anchorCreationTime))
       .order('asc')
       .first()) ?? null
   );
@@ -117,15 +111,9 @@ export const getAllTabAnchorNavigation = query({
       };
     }
 
-    const nextUserMessage = await findNextUserMessageAfter(
-      ctx,
-      args.chatroomId,
-      anchor._creationTime
-    );
-
-    const [prevAnchorId, nextAnchorId] = await Promise.all([
-      findAdjacentUserAnchor(ctx, args.chatroomId, anchor, 'prev'),
-      findAdjacentUserAnchor(ctx, args.chatroomId, anchor, 'next'),
+    const [nextUserMessage, prevAnchorId] = await Promise.all([
+      findNextUserMessageAfter(ctx, args.chatroomId, anchor._creationTime),
+      findPrevUserAnchorId(ctx, args.chatroomId, anchor._creationTime),
     ]);
 
     return {
@@ -135,7 +123,7 @@ export const getAllTabAnchorNavigation = query({
         contentPreview: anchor.content.slice(0, 120),
       },
       prevAnchorId,
-      nextAnchorId,
+      nextAnchorId: nextUserMessage?._id ?? null,
       sliceUpperBoundExclusive: nextUserMessage?._creationTime ?? null,
     };
   },
@@ -148,16 +136,17 @@ export const listAllTabSlicePaginated = query({
     chatroomId: v.id('chatroom_rooms'),
     anchorMessageId: v.id('chatroom_messages'),
     paginationOpts: paginationOptsValidator,
+    sliceUpperBoundExclusive: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const anchor = await getAnchorOrThrow(ctx, args.chatroomId, args.anchorMessageId);
-    const nextUserMessage = await findNextUserMessageAfter(
-      ctx,
-      args.chatroomId,
-      anchor._creationTime
-    );
-    const upperBoundExclusive = nextUserMessage?._creationTime ?? null;
+
+    const upperBoundExclusive =
+      args.sliceUpperBoundExclusive !== undefined
+        ? args.sliceUpperBoundExclusive
+        : ((await findNextUserMessageAfter(ctx, args.chatroomId, anchor._creationTime))
+            ?._creationTime ?? null);
 
     let cursor = args.paginationOpts.cursor;
     let isDone = false;
@@ -168,16 +157,15 @@ export const listAllTabSlicePaginated = query({
       const batch = await ctx.db
         .query('chatroom_messages')
         .withIndex('by_chatroom', (q) =>
-          q.eq('chatroomId', args.chatroomId).gte('_creationTime', anchor._creationTime)
+          q
+            .eq('chatroomId', args.chatroomId)
+            .gte('_creationTime', anchor._creationTime)
+            .lt('_creationTime', upperBoundExclusive ?? 999999999999999)
         )
         .order('asc')
         .paginate({ ...args.paginationOpts, cursor, numItems: numItems * 2 });
 
       for (const msg of batch.page) {
-        if (upperBoundExclusive !== null && msg._creationTime >= upperBoundExclusive) {
-          isDone = true;
-          break;
-        }
         if (!isTimelineMessage(msg)) continue;
         collected.push(msg);
         if (collected.length >= numItems) break;
@@ -195,7 +183,7 @@ export const listAllTabSlicePaginated = query({
       continueCursor: cursor,
       sliceMetadata: {
         anchorMessageId: anchor._id,
-        nextUserMessageId: nextUserMessage?._id ?? null,
+        nextUserMessageId: null,
         upperBoundExclusive,
       },
     };
@@ -218,18 +206,15 @@ export const subscribeAllTabSliceTail = query({
     const rows = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) =>
-        q.eq('chatroomId', args.chatroomId).gt('_creationTime', args.afterCreationTime)
+        q
+          .eq('chatroomId', args.chatroomId)
+          .gt('_creationTime', args.afterCreationTime)
+          .lt('_creationTime', args.upperBoundExclusive ?? 999999999999999)
       )
       .order('asc')
       .take(MAX_SLICE_TAIL_LIMIT);
 
-    const filtered = rows.filter((msg) => {
-      if (!isTimelineMessage(msg)) return false;
-      if (args.upperBoundExclusive !== null && msg._creationTime >= args.upperBoundExclusive) {
-        return false;
-      }
-      return true;
-    });
+    const filtered = rows.filter(isTimelineMessage);
 
     if (filtered.length === 0) return null;
     return await enrichMessages(ctx, filtered);
