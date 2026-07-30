@@ -2,14 +2,18 @@
  * Enhancer disabled — handoff behaviour should be normal.
  */
 
-import { describe, expect, test } from 'vitest';
-
 import type { SessionId } from 'convex-helpers/server/sessions';
+import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { joinParticipant } from '../helpers/integration';
+import {
+  joinParticipant,
+  createTestSession,
+  createPlannerBuilderDuoChatroom,
+  registerMachineWithDaemon,
+} from '../helpers/integration';
 import { setupWorkspaceForSession } from './direct-harness/fixtures';
 
 async function enableEnhancer(
@@ -26,6 +30,26 @@ async function enableEnhancer(
     model: 'anthropic/claude-opus-4',
     machineId,
   });
+}
+
+async function setupPlannerEntryWorkspace(prefix: string) {
+  const { sessionId } = await createTestSession(`${prefix}-session`);
+  const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+  const machineId = `${prefix}-machine`;
+  await registerMachineWithDaemon(sessionId, machineId);
+  await t.mutation(api.workspaces.registerWorkspace, {
+    sessionId,
+    chatroomId,
+    machineId,
+    workingDir: '/home/test/repo',
+    hostname: 'test-host',
+    registeredBy: 'builder',
+  });
+  await t.mutation(api.chatrooms.recordChatroomObservation, {
+    sessionId,
+    chatroomId,
+  });
+  return { sessionId, chatroomId, machineId };
 }
 
 describe('enhancer disabled handoff', () => {
@@ -134,6 +158,66 @@ describe('enhancer disabled handoff', () => {
     expect(prompt).not.toContain('handoff-enhancer');
     expect(prompt).not.toContain('When enhancement is enabled');
   });
+  test('preserves enhancer snapshot when enabled at send then disabled globally', async () => {
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerEntryWorkspace('enh-snapshot-preserve');
+    await enableEnhancer(sessionId, chatroomId, machineId);
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Send enhanced delegation to builder',
+      targetRole: 'planner',
+      type: 'message',
+    });
+
+    await t.mutation(api.web.enhancer.index.disableConfig, {
+      sessionId,
+      chatroomId,
+    });
+
+    const task = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .order('desc')
+        .first()
+    );
+    expect(task?.plannerEnhancerEnabled).toBe(true);
+    expect(task?.assignedTo).toBe('planner');
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_tasks', task!._id, { status: 'in_progress' });
+    });
+
+    const handoffResult = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: 'check-in',
+    });
+    if (!handoffResult.success) {
+      throw new Error(`handoff failed: ${JSON.stringify(handoffResult.error)}`);
+    }
+    expect(handoffResult.success).toBe(true);
+
+    const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId: task!._id,
+      messageId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+    expect(fullCliOutput).toContain('<handoff-enhancer>');
+    expect(fullCliOutput).not.toContain('<handoff-enhancer-disabled>');
+    expect(fullCliOutput).toContain('--next-role="enhancer"');
+  });
+
   test('planner handoff to builder succeeds when enhancer disabled', async () => {
     const { sessionId, chatroomId } = await setupWorkspaceForSession('enh-off-handoff');
     await joinParticipant(sessionId, chatroomId, 'planner');
