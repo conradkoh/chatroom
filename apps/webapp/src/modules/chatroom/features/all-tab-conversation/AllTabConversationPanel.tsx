@@ -1,23 +1,29 @@
 'use client';
 
-import { useMemo } from 'react';
-
-import { ComposerPreflightBar } from '../../components/timeline/ComposerPreflightBar';
-import { QueuedMessagesIndicator } from '../../components/QueuedMessagesIndicator';
-import type { MachineNameEntry } from '../../components/timeline/timelineRowStyles';
-import { useHandoffNotification } from '../../hooks/useHandoffNotification';
-import { ChatroomLoader } from '@/components/ui/chatroom-loader';
+import { useEffect, useMemo } from 'react';
 
 import { AllTabAnchorNavigator } from './AllTabAnchorNavigator';
 import { AllTabMessageList } from './AllTabMessageList';
 import { useAllTabConversation } from './hooks/useAllTabConversation';
+import { QueuedMessagesIndicator } from '../../components/QueuedMessagesIndicator';
+import { ComposerPreflightBar } from '../../components/timeline/ComposerPreflightBar';
+import type { MachineNameEntry } from '../../components/timeline/timelineRowStyles';
+import { useHandoffNotification } from '../../hooks/useHandoffNotification';
+
+import { ChatroomLoader } from '@/components/ui/chatroom-loader';
+
+export type AllTabNavigationActions = {
+  goToLatestAnchor: () => void;
+};
 
 export function AllTabConversationPanel({
   chatroomId,
   machines,
+  onRegisterAllTabNavigation,
 }: {
   chatroomId: string;
   machines?: Map<string, MachineNameEntry>;
+  onRegisterAllTabNavigation?: (actions: AllTabNavigationActions) => void;
 }) {
   const {
     events,
@@ -28,8 +34,13 @@ export function AllTabConversationPanel({
     hasNext,
     goToPrev,
     goToNext,
-    isOnLatestAnchor,
+    anchorId,
+    goToLatestAnchor,
   } = useAllTabConversation(chatroomId);
+
+  useEffect(() => {
+    onRegisterAllTabNavigation?.({ goToLatestAnchor });
+  }, [onRegisterAllTabNavigation, goToLatestAnchor]);
 
   useHandoffNotification(
     useMemo(() => messages.map((m) => m), [messages]),
@@ -54,7 +65,7 @@ export function AllTabConversationPanel({
         onNext={goToNext}
       />
 
-      <AllTabMessageList events={events} isOnLatestAnchor={isOnLatestAnchor} machines={machines} />
+      <AllTabMessageList events={events} anchorId={anchorId} machines={machines} />
 
       <ComposerPreflightBar chatroomId={chatroomId as never} />
 

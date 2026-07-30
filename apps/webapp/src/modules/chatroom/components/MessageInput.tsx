@@ -47,6 +47,8 @@ export interface MessageInputProps {
   hasAutocompleteWorkspace?: boolean;
   /** Refreshes autocomplete files when the @ trigger opens. */
   onAtTriggerActivate?: () => void;
+  /** Called after a message is successfully sent. */
+  onMessageSent?: () => void;
 }
 
 // ── Touch detection ──────────────────────────────────────────────────────────
@@ -143,6 +145,7 @@ export function MessageInput({
   files = [],
   hasAutocompleteWorkspace = false,
   onAtTriggerActivate,
+  onMessageSent,
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -326,6 +329,7 @@ export function MessageInput({
         setMessage('');
         setSendError(null);
         localStorage.removeItem(draftKey);
+        onMessageSent?.();
         if (
           attachedTasks.length > 0 ||
           attachedBacklogItems.length > 0 ||
@@ -339,6 +343,7 @@ export function MessageInput({
           textareaRef.current.style.height = 'auto';
         }
         setTimeout(() => textareaRef.current?.focus(), 0);
+        onMessageSent?.();
       } catch (error) {
         console.error('Failed to send message:', error);
         setSendError(
@@ -360,6 +365,7 @@ export function MessageInput({
       snippetAttachments,
       clearAll,
       draftKey,
+      onMessageSent,
     ]
   );
 

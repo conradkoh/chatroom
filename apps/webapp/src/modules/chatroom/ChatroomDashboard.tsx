@@ -778,9 +778,21 @@ export function ChatroomDashboard({
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
+  const allTabNavigationRef = useRef<{ goToLatestAnchor: () => void } | null>(null);
 
   const handleRegisterSendFormFocus = useCallback((fn: () => void) => {
     focusSendFormRef.current = fn;
+  }, []);
+
+  const handleRegisterAllTabNavigation = useCallback(
+    (actions: { goToLatestAnchor: () => void }) => {
+      allTabNavigationRef.current = actions;
+    },
+    []
+  );
+
+  const handleAllTabMessageSent = useCallback(() => {
+    allTabNavigationRef.current?.goToLatestAnchor();
   }, []);
 
   const handleExplorerSelectionToComposer = useCallback(
@@ -1991,6 +2003,8 @@ export function ChatroomDashboard({
                               onRegisterMessageStoreActions: handleRegisterMessageStoreActions,
                               machines: machineNameMap,
                               onRegisterSendFormFocus: handleRegisterSendFormFocus,
+                              onRegisterAllTabNavigation: handleRegisterAllTabNavigation,
+                              onMessageSent: handleAllTabMessageSent,
                               autocompleteFiles,
                               refreshAutocompleteFiles: handleAtTriggerActivate,
                               hasAutocompleteWorkspace,
@@ -2011,11 +2025,15 @@ export function ChatroomDashboard({
                         onRegisterMessageStoreActions={handleRegisterMessageStoreActions}
                         machines={machineNameMap}
                         viewMode={messageViewMode}
+                        onRegisterAllTabNavigation={handleRegisterAllTabNavigation}
                         footer={
                           <div className="shrink-0 border-t-2 border-chatroom-border-strong">
                             <MessageInput
                               chatroomId={chatroomId}
                               onRegisterFocus={handleRegisterSendFormFocus}
+                              onMessageSent={
+                                messageViewMode === 'all' ? handleAllTabMessageSent : undefined
+                              }
                               files={autocompleteFiles}
                               hasAutocompleteWorkspace={hasAutocompleteWorkspace}
                               onAtTriggerActivate={handleAtTriggerActivate}

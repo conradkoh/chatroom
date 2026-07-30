@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAllTabConversation } from './useAllTabConversation';
@@ -112,5 +112,41 @@ describe('useAllTabConversation', () => {
     expect(result.current.messages).toHaveLength(2);
     expect(result.current.messages[0]._id).toBe('msg-1');
     expect(result.current.messages[1]._id).toBe('msg-2');
+  });
+
+  it('goToLatestAnchor clears selected anchor so navigation uses latest', () => {
+    mockUseSessionQuery.mockReturnValue({
+      anchor: { _id: 'anchor-mid', _creationTime: 150, contentPreview: 'middle' },
+      prevAnchorId: 'anchor-old',
+      nextAnchorId: 'anchor-new',
+      sliceUpperBoundExclusive: 200,
+    });
+
+    const { result } = renderHook(() => useAllTabConversation('room-1'));
+
+    act(() => {
+      result.current.goToPrev();
+    });
+
+    const callsWithAnchor = mockUseSessionQuery.mock.calls.filter(
+      (call) =>
+        call[0] === 'getAllTabAnchorNavigation' &&
+        call[1] !== 'skip' &&
+        typeof call[1] === 'object' &&
+        'anchorMessageId' in call[1]
+    );
+    expect(callsWithAnchor.length).toBeGreaterThan(0);
+
+    act(() => {
+      result.current.goToLatestAnchor();
+    });
+
+    const latestNavCall = mockUseSessionQuery.mock.calls
+      .filter((call) => call[0] === 'getAllTabAnchorNavigation')
+      .map((call) => call[1])
+      .filter((args) => args !== 'skip')
+      .at(-1);
+    expect(latestNavCall).toEqual({ chatroomId: 'room-1' });
+    expect(latestNavCall).not.toHaveProperty('anchorMessageId');
   });
 });

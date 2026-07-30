@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AllTabConversationPanel } from './AllTabConversationPanel';
 
@@ -45,6 +45,8 @@ describe('AllTabConversationPanel', () => {
       hasPrev: false,
       hasNext: false,
       isOnLatestAnchor: true,
+      anchorId: null,
+      goToLatestAnchor: vi.fn(),
     });
   });
 
@@ -130,5 +132,31 @@ describe('AllTabConversationPanel', () => {
     const nextButton = screen.getByLabelText('Next user message');
     expect((prevButton as HTMLButtonElement).disabled).toBe(false);
     expect((nextButton as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('registers all-tab navigation actions on mount', () => {
+    const goToLatestAnchor = vi.fn();
+    const onRegisterAllTabNavigation = vi.fn();
+    mockUseAllTabConversation.mockReturnValue({
+      events: [],
+      messages: [],
+      nav: null,
+      isLoading: false,
+      hasPrev: false,
+      hasNext: false,
+      goToPrev: vi.fn(),
+      goToNext: vi.fn(),
+      anchorId: null,
+      goToLatestAnchor,
+    });
+
+    render(
+      <AllTabConversationPanel
+        chatroomId="room-1"
+        onRegisterAllTabNavigation={onRegisterAllTabNavigation}
+      />
+    );
+
+    expect(onRegisterAllTabNavigation).toHaveBeenCalledWith({ goToLatestAnchor });
   });
 });

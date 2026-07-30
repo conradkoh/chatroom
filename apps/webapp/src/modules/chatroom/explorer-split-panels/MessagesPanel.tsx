@@ -31,6 +31,8 @@ export interface MessagesPanelProps {
   viewMode: MessageViewMode;
   // SendForm props
   onRegisterSendFormFocus?: (focusFn: () => void) => void;
+  onRegisterAllTabNavigation?: (actions: { goToLatestAnchor: () => void }) => void;
+  onMessageSent?: () => void;
   autocompleteFiles?: FileEntry[];
   refreshAutocompleteFiles?: () => void;
   hasAutocompleteWorkspace?: boolean;
@@ -48,6 +50,8 @@ export function MessagesPanel({
   machines,
   viewMode,
   onRegisterSendFormFocus,
+  onRegisterAllTabNavigation,
+  onMessageSent,
   autocompleteFiles,
   refreshAutocompleteFiles,
   hasAutocompleteWorkspace,
@@ -61,11 +65,13 @@ export function MessagesPanel({
         onRegisterMessageStoreActions={onRegisterMessageStoreActions}
         machines={machines}
         viewMode={viewMode}
+        onRegisterAllTabNavigation={onRegisterAllTabNavigation}
         footer={
           <div className="shrink-0 border-t-2 border-chatroom-border-strong">
             <MessageInput
               chatroomId={chatroomId}
               onRegisterFocus={onRegisterSendFormFocus}
+              onMessageSent={viewMode === 'all' ? onMessageSent : undefined}
               files={autocompleteFiles}
               hasAutocompleteWorkspace={hasAutocompleteWorkspace}
               onAtTriggerActivate={refreshAutocompleteFiles}

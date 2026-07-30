@@ -3,30 +3,26 @@
 import { useEffect, useRef } from 'react';
 
 import { TimelineEventRow } from '../../components/timeline/TimelineEventRow';
-import type { TimelineEvent } from '../../timeline/types';
 import type { MachineNameEntry } from '../../components/timeline/timelineRowStyles';
+import type { TimelineEvent } from '../../timeline/types';
 
 export function AllTabMessageList({
   events,
-  isOnLatestAnchor,
   machines,
+  anchorId,
 }: {
   events: TimelineEvent[];
-  isOnLatestAnchor: boolean;
   machines?: Map<string, MachineNameEntry>;
+  anchorId: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const prevEventCountRef = useRef(events.length);
 
   useEffect(() => {
-    if (isOnLatestAnchor && events.length > prevEventCountRef.current) {
-      const el = containerRef.current;
-      if (el) {
-        el.scrollTop = el.scrollHeight;
-      }
+    const el = containerRef.current;
+    if (el) {
+      el.scrollTop = 0;
     }
-    prevEventCountRef.current = events.length;
-  }, [events.length, isOnLatestAnchor]);
+  }, [anchorId]);
 
   if (events.length === 0) {
     return (

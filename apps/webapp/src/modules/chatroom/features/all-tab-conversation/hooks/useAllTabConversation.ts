@@ -52,6 +52,7 @@ function sliceReducer(state: SliceState, action: SliceAction): SliceState {
   }
 }
 
+// fallow-ignore-next-line complexity
 export function useAllTabConversation(chatroomId: string) {
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
   const [sessionId] = useSessionId();
@@ -96,7 +97,8 @@ export function useAllTabConversation(chatroomId: string) {
 
   const lastMessageCreationTime = useMemo(() => {
     if (state.messages.length === 0) return 0;
-    return state.messages[state.messages.length - 1]!._creationTime;
+    const lastMessage = state.messages.at(-1);
+    return lastMessage?._creationTime ?? 0;
   }, [state.messages]);
 
   const tail = useSessionQuery(
@@ -124,6 +126,10 @@ export function useAllTabConversation(chatroomId: string) {
     if (nav?.nextAnchorId) setSelectedAnchorId(nav.nextAnchorId);
   }, [nav?.nextAnchorId]);
 
+  const goToLatestAnchor = useCallback(() => {
+    setSelectedAnchorId(null);
+  }, []);
+
   const events: TimelineEvent[] = useMemo(
     () => state.messages.map((m) => mapMessageToTimelineEvent(m)),
     [state.messages]
@@ -139,8 +145,10 @@ export function useAllTabConversation(chatroomId: string) {
     loadMore: () => paginated.loadMore(PAGE_SIZE),
     goToPrev,
     goToNext,
+    goToLatestAnchor,
     hasPrev: !!nav?.prevAnchorId,
     hasNext: !!nav?.nextAnchorId,
     isOnLatestAnchor: !nav?.nextAnchorId,
+    anchorId: effectiveAnchorId,
   };
 }

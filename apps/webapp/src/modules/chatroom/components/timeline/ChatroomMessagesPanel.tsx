@@ -6,12 +6,15 @@ import type React from 'react';
 import { ChatroomTimelineFeed } from './ChatroomTimelineFeed';
 import type { MachineNameEntry } from './timelineRowStyles';
 import {
+  AllTabConversationPanel,
+  type AllTabNavigationActions,
+} from '../../features/all-tab-conversation/AllTabConversationPanel';
+import {
   isFilteredMessageViewMode,
   messageViewModeToSenderRole,
   type MessageViewMode,
 } from '../../hooks/persistence/messageViewMode';
 import type { TimelineScrollCoordinator } from '../../hooks/timelineScrollCoordinator';
-import { AllTabConversationPanel } from '../../features/all-tab-conversation/AllTabConversationPanel';
 
 export interface ChatroomMessagesPanelProps {
   chatroomId: string;
@@ -22,6 +25,7 @@ export interface ChatroomMessagesPanelProps {
   }) => void;
   machines?: Map<string, MachineNameEntry>;
   viewMode: MessageViewMode;
+  onRegisterAllTabNavigation?: (actions: AllTabNavigationActions) => void;
   /** Optional footer (MessageInput) rendered below feed */
   footer?: React.ReactNode;
 }
@@ -33,6 +37,7 @@ export function ChatroomMessagesPanel({
   onRegisterMessageStoreActions,
   machines,
   viewMode,
+  onRegisterAllTabNavigation,
   footer,
 }: ChatroomMessagesPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -54,7 +59,11 @@ export function ChatroomMessagesPanel({
   return (
     <div ref={panelRef} className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
       {viewMode === 'all' ? (
-        <AllTabConversationPanel chatroomId={chatroomId} machines={machines} />
+        <AllTabConversationPanel
+          chatroomId={chatroomId}
+          machines={machines}
+          onRegisterAllTabNavigation={onRegisterAllTabNavigation}
+        />
       ) : (
         <ChatroomTimelineFeed
           key={filterRole ?? 'all'}
