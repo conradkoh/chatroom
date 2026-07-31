@@ -89,6 +89,46 @@ let mockFirstVisibleIndex = 0;
 /** When set, include the tail row in getVirtualItems (for in-place tail growth tests). */
 let mockTailItemIndex: number | null = null;
 let mockTailItemSize = 100;
+/** How many consecutive virtual rows to expose starting at mockFirstVisibleIndex. */
+let mockVisibleRowCount = 1;
+
+const { mockUseConversationSlice } = vi.hoisted(() => ({
+  mockUseConversationSlice: vi.fn((_chatroomId: string, _anchorMessageId: unknown) => ({
+    events: [],
+    isLoading: false,
+    isLoadingMore: false,
+    canLoadMore: false,
+    loadMore: vi.fn(),
+  })),
+}));
+
+function resetTimelineFeedTestHarness(): void {
+  virtualizerOptions.length = 0;
+  lastVirtualizerInstance = null;
+  mockScrollToEnd.mockClear();
+  mockScrollToOffset.mockClear();
+  mockScrollToIndex.mockClear();
+  loadOlderEvents.mockClear();
+  mockHasMoreOlder = false;
+  mockFirstVisibleIndex = 0;
+  mockTailItemIndex = null;
+  mockTailItemSize = 100;
+  mockVisibleRowCount = 1;
+  timelineEvents = [...baseEvents];
+  timelineIsLoadingOlder = false;
+  mockUseConversationSlice.mockReset();
+  mockUseConversationSlice.mockReturnValue({
+    events: [],
+    isLoading: false,
+    isLoadingMore: false,
+    canLoadMore: false,
+    loadMore: vi.fn(),
+  });
+}
+
+beforeEach(() => {
+  resetTimelineFeedTestHarness();
+});
 
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: (options: (typeof virtualizerOptions)[0]) => {
@@ -103,12 +143,19 @@ vi.mock('@tanstack/react-virtual', () => ({
           key: string;
         }[] = [];
         if (mockFirstVisibleIndex >= 0) {
-          items.push({
-            index: mockFirstVisibleIndex,
-            start: mockFirstVisibleIndex * 100,
-            size: 100,
-            key: `row-${mockFirstVisibleIndex}`,
-          });
+          const visibleCount = Math.min(
+            mockVisibleRowCount,
+            Math.max(0, options.count - mockFirstVisibleIndex)
+          );
+          for (let offset = 0; offset < visibleCount; offset++) {
+            const index = mockFirstVisibleIndex + offset;
+            items.push({
+              index,
+              start: index * 100,
+              size: 100,
+              key: `row-${index}`,
+            });
+          }
         }
         if (mockTailItemIndex !== null && !items.some((row) => row.index === mockTailItemIndex)) {
           items.push({
@@ -174,6 +221,11 @@ vi.mock('../EventStreamModal', () => ({
 
 vi.mock('../../hooks/useHandoffNotification', () => ({
   useHandoffNotification: vi.fn(),
+}));
+
+vi.mock('../../hooks/useConversationSlice', () => ({
+  useConversationSlice: (chatroomId: string, anchorMessageId: unknown) =>
+    mockUseConversationSlice(chatroomId, anchorMessageId),
 }));
 
 const baseEvents: TimelineEvent[] = [
@@ -1120,49 +1172,54 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
       TimelineScrollCoordinator.prototype,
       'notifyTopChromeDelta'
     );
-    const { rerender, coordinator } = renderFeed();
-    await flushRaf();
+    try {
+      const { rerender, coordinator } = renderFeed();
+      await flushRaf();
 
-    const el = screen.getByTestId('chatroom-timeline-scroll');
-    const chrome = el.firstElementChild as HTMLElement;
-    timelineIsLoadingOlder = true;
-    Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 56 });
-    scrollElProps(el, 300, 2500);
+      const el = screen.getByTestId('chatroom-timeline-scroll');
+      const chrome = el.firstElementChild as HTMLElement;
+      timelineIsLoadingOlder = true;
+      Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 56 });
+      scrollElProps(el, 300, 2500);
 
-    await waitFor(() => {
-      expect(coordinator.current.getAllowLoadOlder()).toBe(true);
-    });
+      await waitFor(() => {
+        expect(coordinator.current.getAllowLoadOlder()).toBe(true);
+      });
 
-    act(() => {
-      rerender(
-        <TimelineFeedWithProviders
-          chatroomId="room-1"
-          coordinator={coordinator}
-          senderRoleFilter="user"
-        />
-      );
-    });
+      act(() => {
+        rerender(
+          <TimelineFeedWithProviders
+            chatroomId="room-1"
+            coordinator={coordinator}
+            senderRoleFilter="user"
+          />
+        );
+      });
+      await flushRaf();
 
-    notifyTopChromeDelta.mockClear();
-    Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 32 });
-    timelineIsLoadingOlder = false;
-    timelineEvents = [
-      ...buildEvents(10).map((e, i) => ({ ...e, id: `older-${i}` })),
-      ...buildEvents(25),
-    ];
+      notifyTopChromeDelta.mockClear();
+      Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 32 });
+      timelineIsLoadingOlder = false;
+      timelineEvents = [
+        ...buildEvents(10).map((e, i) => ({ ...e, id: `older-${i}` })),
+        ...buildEvents(25),
+      ];
 
-    act(() => {
-      rerender(
-        <TimelineFeedWithProviders
-          chatroomId="room-1"
-          coordinator={coordinator}
-          senderRoleFilter="user"
-        />
-      );
-    });
+      act(() => {
+        rerender(
+          <TimelineFeedWithProviders
+            chatroomId="room-1"
+            coordinator={coordinator}
+            senderRoleFilter="user"
+          />
+        );
+      });
+      await flushRaf();
 
-    expect(notifyTopChromeDelta).not.toHaveBeenCalled();
-    notifyTopChromeDelta.mockRestore();
+      expect(notifyTopChromeDelta).not.toHaveBeenCalled();
+    } finally {
+      notifyTopChromeDelta.mockRestore();
+    }
   });
 
   it('registers custom measureElement that caches rounded heights by data-id', () => {
@@ -1253,6 +1310,7 @@ describe('ChatroomTimelineFeed conversation slice', () => {
     mockHasMoreOlder = false;
     timelineIsLoadingOlder = false;
     mockFirstVisibleIndex = 0;
+    mockVisibleRowCount = 2;
   });
 
   it('opens conversation slice panel when a user message is clicked on the User tab', async () => {
@@ -1266,8 +1324,11 @@ describe('ChatroomTimelineFeed conversation slice', () => {
     );
     await flushRaf();
 
-    await user.click(screen.getByTestId('conversation-anchor-evt-0'));
-    expect(screen.getAllByTestId('conversation-slice-panel').length).toBeGreaterThan(0);
+    const anchor = await screen.findByTestId('conversation-anchor-evt-0');
+    await user.click(anchor);
+    await waitFor(() => {
+      expect(screen.getAllByTestId('conversation-slice-panel').length).toBeGreaterThan(0);
+    });
   });
 
   it('does not make rows selectable on non-user role tabs', async () => {
