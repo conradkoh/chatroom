@@ -217,3 +217,54 @@ describe('AllTabMessageList', () => {
     expect(document.querySelector('[data-testid="all-tab-loading-more"]')).toBeNull();
   });
 });
+
+describe('per-message jump to top', () => {
+  it('renders a jump-to-top button per message row', () => {
+    const events = [makeEvent('msg-1'), makeEvent('msg-2')];
+    render(<AllTabMessageList events={events} anchorId="a1" />);
+
+    expect(document.querySelector('[data-testid="jump-to-message-top-msg-1"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="jump-to-message-top-msg-2"]')).not.toBeNull();
+  });
+
+  it('clicking jump-to-top scrolls that row to container top', () => {
+    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+
+    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    const row = list.querySelector('[data-message-id="msg-1"]') as HTMLElement;
+
+    row.getBoundingClientRect = () =>
+      ({
+        top: 320,
+        bottom: 400,
+        left: 0,
+        right: 0,
+        x: 0,
+        y: 320,
+        width: 100,
+        height: 80,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    list.getBoundingClientRect = () =>
+      ({
+        top: 0,
+        bottom: 400,
+        left: 0,
+        right: 0,
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 400,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    Object.defineProperty(list, 'scrollTop', { value: 100, writable: true, configurable: true });
+    const scrollTo = vi.fn();
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(
+      document.querySelector('[data-testid="jump-to-message-top-msg-1"]') as HTMLElement
+    );
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
+  });
+});
