@@ -30,6 +30,7 @@ export function getEnhancerFeedbackTemplateBody(): string {
 <flow complexity: click count, nested modals, simpler alternatives>
 <presentation: which existing pattern (command dialog, overlay, responsive density, separate mobile UI) fits best — recommend one if planner offered multiple>
 <keyboard shortcuts: alignment with ⌘K/⌘⇧P/⌘P/Enter/Shift+Enter/⌘Enter; flag gaps or conflicts>
+<layout simplification: flag extra rows, misaligned CTAs, or redundant wrappers — suggest compact title+menu row, description, trailing end-aligned action when applicable>
 <mobile vs desktop: shared component with md: variants, or separate mobile flow — flag if planner treats all viewports identically when they should not>
 </handoff-direction>
 

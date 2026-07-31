@@ -62,6 +62,7 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).toContain('UI/UX validation');
     expect(result).toContain('Flow complexity');
     expect(result).toContain('Keyboard shortcuts');
+    expect(result).toContain('Layout simplification');
     expect(result).toContain('ux-reference');
   });
 });

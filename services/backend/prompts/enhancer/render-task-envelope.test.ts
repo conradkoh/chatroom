@@ -99,5 +99,12 @@ describe('renderEnhancerTaskEnvelope', () => {
     const result = renderEnhancerTaskEnvelope(params);
     expect(result).toContain('UX consistency review');
     expect(result).toContain('<ux-reference>');
+    expect(result).toContain('layout simplification');
+  });
+
+  it('ux-reference contains layout simplification patterns', () => {
+    const result = renderEnhancerTaskEnvelope(params);
+    expect(result).toContain('Layout simplification');
+    expect(result).toContain('overflow-menu');
   });
 });

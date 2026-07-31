@@ -42,10 +42,23 @@ export function renderWebappUxReference(): string {
     '- Reuse existing components: `CommandPalette`, industrial dialogs, `ChatroomLoader`, timeline row chrome',
     '- Match badge/button patterns from timeline (`BADGE_BASE`, `navButtonClass` in All-tab)',
     '- When multiple valid patterns exist, recommend one and explain tradeoff',
+    '',
+    '### Layout simplification',
+    '- Review card/section layouts for unnecessary rows, nested wrappers, or misaligned actions',
+    '- Prefer compact rows: title and overflow menu (⋮ `MoreVertical` popover) on one line via flex/grid',
+    '- Description on the next line; primary CTA (e.g. "View Details") on a trailing row aligned end',
+    '- Canonical simplified card pattern:',
+    '  ```',
+    '  <title>          <overflow-menu ⋮>',
+    '  <description>',
+    '                   <primary-cta aligned end>',
+    '  ```',
+    '- Reuse `CardHeader` + `CardAction` grid (`grid-cols-[1fr_auto]`) or equivalent flex `justify-between` — avoid duplicating title/action on separate stacked blocks when one row suffices',
+    '- Flag when planner proposes multi-row chrome that could collapse (e.g. menu on its own row, CTA left-aligned when end-aligned matches existing cards)',
   ].join('\n');
 }
 
 /** One-line trigger condition for when enhancer should run UX review. */
 export function getUxReviewTriggerDescription(): string {
-  return 'when the planner check-in proposes user interface changes (components, modals, navigation, forms, keyboard interactions, or responsive layouts)';
+  return 'when the planner check-in proposes user interface changes (components, modals, navigation, forms, keyboard interactions, responsive layouts, or layout arrangements)';
 }

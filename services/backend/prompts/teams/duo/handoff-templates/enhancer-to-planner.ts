@@ -23,7 +23,7 @@ export function getEnhancerToPlannerHandoffTemplate(): string {
 
 ${getHandoffReportTemplateIntro('Planning Feedback (Enhancer → Planner)')}
 
-The planner sent you three XML sections. Your job is **advisory adversarial review** — raise risks, challenge assumptions, and help the planner align with user intent. Keep most sections abstract; when you recommend removing or changing specific content, put file-level detail and code examples in **Suggested edits (remove or change only)** only. **Do not rewrite their full builder brief.** The planner makes the final call. When the planner proposes **user interface changes**, include **UX consistency review** (flow complexity, presentation patterns, keyboard shortcuts, mobile vs desktop) using <ux-reference> from the task envelope.
+The planner sent you three XML sections. Your job is **advisory adversarial review** — raise risks, challenge assumptions, and help the planner align with user intent. Keep most sections abstract; when you recommend removing or changing specific content, put file-level detail and code examples in **Suggested edits (remove or change only)** only. **Do not rewrite their full builder brief.** The planner makes the final call. When the planner proposes **user interface changes**, include **UX consistency review** (flow complexity, presentation patterns, keyboard shortcuts, layout simplification, mobile vs desktop) using <ux-reference> from the task envelope.
 
 \`\`\`markdown
 ${getEnhancerFeedbackTemplateBody()}

@@ -35,6 +35,7 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
     '- **Flow complexity:** flag unnecessary clicks, nested modals, or multi-step flows when a simpler path exists.',
     '- **Presentation consistency:** compare to existing chatroom patterns; if multiple approaches are valid, recommend one and note mobile vs desktop handling (shared component with md: variants vs separate mobile UI).',
     '- **Keyboard shortcuts:** ensure proposed interactions align with established shortcuts (⌘K, ⌘⇧P, ⌘P, Enter/Shift+Enter, ⌘Enter for confirm); flag conflicts or missing keyboard access.',
+    '- **Layout simplification:** suggest simpler card/section arrangements when the proposal uses extra rows or poor alignment; prefer title + overflow menu on one row, description below, trailing CTA aligned end (see <ux-reference> layout patterns).',
     '- Put findings in the **UX consistency review** section of your feedback; omit or write "Not Applicable." for non-UI tasks.',
     '',
     '## What you must NOT do',

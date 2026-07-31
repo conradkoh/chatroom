@@ -36,5 +36,6 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     expect(body).toContain('## UX consistency review');
     expect(body).toContain('Not Applicable.');
     expect(body).toContain('keyboard shortcuts');
+    expect(body).toContain('layout simplification');
   });
 });
