@@ -23,10 +23,7 @@ export const WorkingIndicator = memo(function WorkingIndicator({
   // Compact mode: inline in bottom bar
   if (compact) {
     return (
-      <button
-        type="button"
-        className="flex items-center gap-2 cursor-default rounded"
-      >
+      <button type="button" className="flex items-center gap-2 cursor-default rounded">
         <div className="flex items-center gap-1.5">
           {/* Pulsing indicator - square per theme */}
           <span className="w-2 h-2 bg-chatroom-status-info animate-pulse" />

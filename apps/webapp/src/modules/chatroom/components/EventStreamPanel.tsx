@@ -24,6 +24,7 @@ export interface EventStreamPanelProps {
   className?: string;
 }
 
+// fallow-ignore-next-line complexity
 function restoreScrollAfterLoadMore(
   container: HTMLDivElement | null,
   events: EventStreamEvent[],

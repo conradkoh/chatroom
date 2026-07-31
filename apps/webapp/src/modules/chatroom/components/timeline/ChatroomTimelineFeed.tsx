@@ -97,14 +97,8 @@ export function ChatroomTimelineFeed({
     };
   }, []);
 
-  const {
-    events,
-    isLoading,
-    hasMoreOlder,
-    isLoadingOlder,
-    loadOlderEvents,
-    purgeToInitialWindow,
-  } = useChatroomTimelineFeedData(chatroomId, senderRoleFilter);
+  const { events, isLoading, hasMoreOlder, isLoadingOlder, loadOlderEvents, purgeToInitialWindow } =
+    useChatroomTimelineFeedData(chatroomId, senderRoleFilter);
 
   const isPinned = useSyncExternalStore(
     (onStoreChange) => coordinator.current.subscribe(onStoreChange),
