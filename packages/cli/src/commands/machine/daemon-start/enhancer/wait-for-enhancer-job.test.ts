@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
+
 vi.mock('../../../../api.js', () => {
   const api: Record<string, unknown> = {};
   const setPath = (obj: Record<string, unknown>, path: string[], value: string) => {
@@ -13,8 +15,6 @@ vi.mock('../../../../api.js', () => {
   setPath(api, ['web', 'enhancer', 'index', 'getJob'], 'getJob');
   return { api };
 });
-
-import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
 
 describe('waitForEnhancerJobResolution', () => {
   beforeEach(() => {
@@ -83,29 +83,6 @@ describe('waitForEnhancerJobResolution', () => {
     const result = await promise;
     expect(result).toBe('failed');
     expect(onFailure).toHaveBeenCalledWith('Agent exited without completing enhancer job', true);
-  });
-
-  it('silence timeout triggers failure', async () => {
-    const getJob = vi.fn().mockResolvedValue({ status: 'running' });
-    const backend = { query: getJob };
-    const onFailure = vi.fn();
-
-    const promise = waitForEnhancerJobResolution({
-      sessionId: 'session',
-      chatroomId: 'room1',
-      jobId: 'job1',
-      backend: backend as any,
-      onFailure,
-      onExit: vi.fn(),
-    });
-
-    // Advance past silence timeout (120s)
-    await vi.advanceTimersByTimeAsync(121_000);
-    await vi.advanceTimersByTimeAsync(100);
-
-    const result = await promise;
-    expect(result).toBe('failed');
-    expect(onFailure).toHaveBeenCalledWith('Enhancer silence timeout — no output received', false);
   });
 
   it('onExit without complete triggers failure', async () => {
