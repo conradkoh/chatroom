@@ -50,6 +50,4 @@ export interface WorkQueueProps {
     openPendingReview: () => void;
     openBacklogCreate: () => void;
   }) => void;
-  /** Called after a task is deleted so the timeline can evict linked messages immediately. */
-  onTaskDeleted?: (taskId: string) => void;
 }
