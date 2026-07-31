@@ -1,7 +1,11 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { computeKeyboardInsetPx, useEditableElementFocused } from './useMobileKeyboard';
+import {
+  computeKeyboardInsetPx,
+  computeVisualViewportOffsetTopPx,
+  useEditableElementFocused,
+} from './useMobileKeyboard';
 
 describe('useEditableElementFocused', () => {
   afterEach(() => {
@@ -166,5 +170,50 @@ describe('computeKeyboardInsetPx', () => {
       value: { height: 900, offsetTop: 0 },
     });
     expect(computeKeyboardInsetPx()).toBe(0);
+  });
+});
+
+describe('computeVisualViewportOffsetTopPx', () => {
+  afterEach(() => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  it('returns 0 when visualViewport is not available', () => {
+    expect(computeVisualViewportOffsetTopPx()).toBe(0);
+  });
+
+  it('returns 0 when offsetTop is 0', () => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { offsetTop: 0 },
+    });
+    expect(computeVisualViewportOffsetTopPx()).toBe(0);
+  });
+
+  it('returns offsetTop when keyboard scrolls the layout viewport', () => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { offsetTop: 120 },
+    });
+    expect(computeVisualViewportOffsetTopPx()).toBe(120);
+  });
+
+  it('rounds fractional offsetTop', () => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { offsetTop: 120.6 },
+    });
+    expect(computeVisualViewportOffsetTopPx()).toBe(121);
+  });
+
+  it('clamps negative offsetTop to 0', () => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { offsetTop: -40 },
+    });
+    expect(computeVisualViewportOffsetTopPx()).toBe(0);
   });
 });

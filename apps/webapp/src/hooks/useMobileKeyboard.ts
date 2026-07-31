@@ -70,15 +70,32 @@ export function computeKeyboardInsetPx(): number {
   return Math.max(0, Math.round(layoutHeight - vv.height - vv.offsetTop));
 }
 
-export function useVisualViewportKeyboardInset(enabled = true): number {
-  const [insetPx, setInsetPx] = useState(0);
+/**
+ * How far the browser scrolled the layout viewport to keep the focused element
+ * visible above the software keyboard. 0 when no keyboard scroll is active.
+ */
+// fallow-ignore-next-line unused-export
+export function computeVisualViewportOffsetTopPx(): number {
+  if (typeof window === 'undefined') return 0;
+  const vv = window.visualViewport;
+  if (!vv) return 0;
+  return Math.max(0, Math.round(vv.offsetTop));
+}
+
+/**
+ * Shared subscription for visualViewport-derived metrics (keyboard inset,
+ * offset top). Recomputes on resize/scroll/focus changes with rAF + delayed
+ * rechecks to catch late browser layout/scroll settles.
+ */
+function useVisualViewportValue(enabled: boolean, compute: () => number): number {
+  const [valuePx, setValuePx] = useState(0);
 
   useEffect(() => {
     if (!enabled) {
-      setInsetPx(0);
+      setValuePx(0);
       return;
     }
-    const update = () => setInsetPx(computeKeyboardInsetPx());
+    const update = () => setValuePx(compute());
     let rafId: number | null = null;
     const timeoutIds: number[] = [];
 
@@ -115,13 +132,21 @@ export function useVisualViewportKeyboardInset(enabled = true): number {
       document.removeEventListener('focusout', scheduleUpdate, true);
       clearPending();
     };
-  }, [enabled]);
+  }, [enabled, compute]);
 
-  if (!enabled) return 0;
+  return enabled ? valuePx : 0;
+}
+
+export function useVisualViewportKeyboardInset(enabled = true): number {
+  const insetPx = useVisualViewportValue(enabled, computeKeyboardInsetPx);
 
   if (typeof window !== 'undefined' && typeof window.__MOBILE_KEYBOARD_TEST_INSET__ === 'number') {
     return Math.max(0, window.__MOBILE_KEYBOARD_TEST_INSET__);
   }
 
   return insetPx;
+}
+
+export function useVisualViewportOffsetTop(enabled = true): number {
+  return useVisualViewportValue(enabled, computeVisualViewportOffsetTopPx);
 }
