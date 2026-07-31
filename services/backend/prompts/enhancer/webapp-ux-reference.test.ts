@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { getUxReviewTriggerDescription, renderWebappUxReference } from './webapp-ux-reference';
+import {
+  getUxReviewTriggerDescription,
+  renderWebappUxHandoffReference,
+  renderWebappUxReference,
+} from './webapp-ux-reference';
 
 describe('renderWebappUxReference', () => {
   it('lists canonical keyboard shortcuts', () => {
@@ -22,6 +26,22 @@ describe('renderWebappUxReference', () => {
     expect(ref).toContain('### UX review checklist');
     expect(ref).toContain('1. **Flows**');
     expect(ref.indexOf('### UX review checklist') < ref.indexOf('### Keyboard shortcuts'));
+  });
+});
+
+describe('renderWebappUxHandoffReference', () => {
+  it('contains checklist and keyboard table', () => {
+    const ref = renderWebappUxHandoffReference();
+    expect(ref).toContain('### UX review checklist');
+    expect(ref).toContain('1. **Flows**');
+    expect(ref).toContain('⌘K');
+    expect(ref.indexOf('### UX review checklist') < ref.indexOf('### Keyboard shortcuts'));
+  });
+
+  it('points UX findings to the optional UX output section', () => {
+    const ref = renderWebappUxHandoffReference();
+    expect(ref).toContain('**UX** section');
+    expect(ref).toContain('"Not Applicable."');
   });
 });
 

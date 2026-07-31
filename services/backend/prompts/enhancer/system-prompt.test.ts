@@ -59,12 +59,13 @@ describe('renderEnhancerSystemPrompt', () => {
 
   it('includes UI/UX validation and output order guidance', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('UX review checklist');
+    expect(result).toContain('optional **UX** section');
     expect(result).toContain('Recommendations');
     expect(result).toContain('Suggested edits');
     expect(result).toContain('always last');
     expect(result).toContain('specific, targeted');
     expect(result).toContain('vague');
+    expect(result).not.toContain('<ux-reference>');
     expect(result).not.toContain('abstract bullets');
     expect(result).not.toContain('stay abstract');
   });

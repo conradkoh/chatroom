@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { renderEnhancerTaskEnvelope } from './render-task-envelope';
+import { getEnhancerToPlannerHandoffTemplate } from '../teams/duo/handoff-templates/enhancer-to-planner.js';
 
 describe('renderEnhancerTaskEnvelope', () => {
   const params = {
@@ -88,22 +89,23 @@ describe('renderEnhancerTaskEnvelope', () => {
     expect(result).not.toContain('No tools');
   });
 
-  it('contains ux-reference block with keyboard shortcuts', () => {
+  it('does not embed a separate ux-reference block', () => {
     const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('<ux-reference>');
-    expect(result).toContain('⌘K');
-    expect(result).toContain('</ux-reference>');
+    expect(result).not.toContain('<ux-reference>');
   });
 
-  it('requirements mention UX checklist and output order', () => {
+  it('requirements mention optional UX section and output order', () => {
     const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('UX review checklist');
+    expect(result).toContain('optional **UX** section');
     expect(result).toContain('Suggested edits');
     expect(result).toContain('must be last');
   });
 
-  it('ux-reference contains layout simplification patterns', () => {
-    const result = renderEnhancerTaskEnvelope(params);
+  it('handoff-templates output embeds the UX reference catalog', () => {
+    const result = renderEnhancerTaskEnvelope({
+      ...params,
+      outputTemplateContent: getEnhancerToPlannerHandoffTemplate(),
+    });
     expect(result).toContain('Layout simplification');
     expect(result).toContain('overflow-menu');
   });

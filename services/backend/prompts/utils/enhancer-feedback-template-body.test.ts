@@ -39,6 +39,19 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     expect(lastH2).toBe('## Suggested edits (remove or change only)');
   });
 
+  test('contains optional UX section in direction with checklist bullets', () => {
+    const body = getEnhancerFeedbackTemplateBody();
+    expect(body).toContain('## UX');
+    expect(body).toContain('**Flows:**');
+    expect(body).toContain('**Patterns:**');
+    expect(body).toContain('**Layout:**');
+    expect(body).toContain('**Shortcuts:**');
+    expect(body.indexOf('## UX')).toBeGreaterThan(
+      body.indexOf('## Alignment with eventual user handoff')
+    );
+    expect(body.indexOf('## UX')).toBeLessThan(body.indexOf('</handoff-direction>'));
+  });
+
   test('Recommendations precedes Suggested edits', () => {
     const body = getEnhancerFeedbackTemplateBody();
     expect(body.indexOf('## Recommendations')).toBeLessThan(
@@ -46,11 +59,14 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     );
   });
 
-  test('Recommendations includes UX checklist bullets', () => {
+  test('Recommendations has no UX checklist bullets', () => {
     const body = getEnhancerFeedbackTemplateBody();
-    expect(body).toContain('**Flows:**');
-    expect(body).toContain('**Patterns:**');
-    expect(body).toContain('**Layout:**');
-    expect(body).toContain('**Shortcuts:**');
+    expect(body).not.toContain('For UI changes: report specific UX checklist findings');
+    const recommendations = body.slice(
+      body.indexOf('## Recommendations'),
+      body.indexOf('## Suggested edits (remove or change only)')
+    );
+    expect(recommendations).not.toContain('**Flows:**');
+    expect(recommendations).not.toContain('**Shortcuts:**');
   });
 });

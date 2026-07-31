@@ -1,8 +1,8 @@
 /**
  * XML-wrapped planning feedback body for enhancer → planner handoffs.
- * Maps the 7 advisory sections into 5 collapsible UI categories
- * (same tags as planner→user report handoffs). Suggested edits is the
- * last `##` heading — code examples come last for LLM generation.
+ * Maps 8 sections into 5 collapsible UI categories (same tags as
+ * planner→user report handoffs). UX is optional in direction; Suggested
+ * edits is the last `##` heading — code examples come last for LLM generation.
  */
 import { getFileReferenceGuidanceComment } from './file-reference-guidance';
 
@@ -25,6 +25,14 @@ export function getEnhancerFeedbackTemplateBody(): string {
 <handoff-direction>
 ## Alignment with eventual user handoff
 <specific gaps for user-facing completeness — what proof or report sections would be missing>
+
+## UX
+<!-- Optional — write exactly "Not Applicable." when no UI changes are proposed -->
+<!-- When UI is proposed: specific findings tied to the planner's proposal. No code blocks (use Suggested edits). -->
+- **Flows:** <specific finding — click count, nested modals, simpler alternatives>
+- **Patterns:** <which existing pattern fits; recommend one if multiple; mobile vs desktop>
+- **Layout:** <compact rows, trailing CTAs, unnecessary wrappers>
+- **Shortcuts:** <alignment with catalog; gaps or conflicts>
 </handoff-direction>
 
 <handoff-notes>
@@ -38,11 +46,6 @@ export function getEnhancerFeedbackTemplateBody(): string {
 
 ## Recommendations
 <!-- SECOND-LAST — concrete, actionable suggestions tied to the check-in. Include tradeoffs and considerations. No code blocks here (use Suggested edits for snippets). -->
-<!-- For UI changes: report specific UX checklist findings (write "Not Applicable." for non-UI tasks): -->
-- **Flows:** ...
-- **Patterns:** ... (include mobile vs desktop)
-- **Layout:** ...
-- **Shortcuts:** ...
 
 ## Suggested edits (remove or change only)
 <!-- LAST — proposed edits to grounding and builder-handoff. File paths and code snippets required when recommending changes. Omit entirely if none. -->

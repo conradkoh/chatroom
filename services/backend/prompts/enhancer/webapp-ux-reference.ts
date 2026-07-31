@@ -3,15 +3,12 @@
  * SSOT — update when shortcuts or responsive conventions change.
  */
 
-/** Markdown reference block included in enhancer task envelope <ux-reference>. */
-export function renderWebappUxReference(): string {
+/** Handoff-formatted UX reference embedded in the enhancer→planner template. */
+export function renderWebappUxHandoffReference(): string {
   return [
-    '## Webapp UX reference (chatroom)',
-    '',
-    'Use when the planner proposes user interface changes.',
-    '',
     '### UX review checklist',
-    'Report **specific** findings tied to the planner\'s proposal in **Recommendations**. Put code snippets in **Suggested edits**. Write "Not Applicable." for non-UI tasks.',
+    'Complete the optional **UX** section in your output when the planner proposes UI changes. Write exactly "Not Applicable." for non-UI tasks. Put code snippets in **Suggested edits** only.',
+    '',
     '1. **Flows** — primary action ≤3 clicks? simpler path exists?',
     '2. **Patterns** — matches existing components? recommend one if multiple. mobile vs desktop (md: variants vs separate mobile UI)?',
     '3. **Layout** — compact title+menu row, description, trailing end-aligned CTA? unnecessary wrappers?',
@@ -61,6 +58,15 @@ export function renderWebappUxReference(): string {
     '| ⌘S / Ctrl+S | Save in workspace file dialogs |',
     '| Escape | Close modal/dialog |',
   ].join('\n');
+}
+
+/**
+ * Backward-compatible alias — the catalog now ships inside the enhancer→planner
+ * template rather than a separate envelope block.
+ */
+// fallow-ignore-next-line unused-export
+export function renderWebappUxReference(): string {
+  return renderWebappUxHandoffReference();
 }
 
 /** One-line trigger condition for when enhancer should run UX review. */
