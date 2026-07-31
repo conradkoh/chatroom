@@ -30,7 +30,6 @@ import { SiGithub } from 'react-icons/si';
 import { toast } from 'sonner';
 
 import type { CommandItem, SettingsTab } from './types';
-import { toTitleCase } from '../AgentPanel/PromptViewerModal';
 import { useCommandFavorites } from '../../features/run-command/hooks/useCommandFavorites';
 import { useCommandUsage } from '../../features/run-command/hooks/useCommandUsage';
 import type { SavedCommand, SavedCommandScope } from '../../types/savedCommand';
@@ -38,6 +37,7 @@ import {
   formatSavedCommandPaletteLabel,
   savedCommandScopeKeywords,
 } from '../../types/savedCommand';
+import { toTitleCase } from '../AgentPanel/PromptViewerModal';
 
 export type { SettingsTab };
 
@@ -45,7 +45,6 @@ export type { SavedCommand };
 
 interface UseCommandPaletteCommandsProps {
   onOpenSettings: (tab: SettingsTab) => void;
-  onOpenEventStream: () => void;
   /** @deprecated Use onSwitchToSourceControl instead. */
   onOpenGitPanel?: (() => void) | null;
   onOpenBacklog: () => void;
@@ -126,7 +125,6 @@ interface UseCommandPaletteCommandsProps {
  */
 export function useCommandPaletteCommands({
   onOpenSettings,
-  onOpenEventStream,
   onOpenGitPanel,
   onOpenBacklog,
   onOpenPendingReview,
@@ -405,11 +403,11 @@ export function useCommandPaletteCommands({
       },
       {
         id: 'panel-event-stream',
-        label: 'View: Show Event Stream',
+        label: 'Preferences: Event Stream',
         icon: <Activity size={14} />,
-        category: 'Panels',
+        category: 'Preferences',
         keywords: ['event', 'events', 'stream', 'activity'],
-        action: onOpenEventStream,
+        action: () => onOpenSettings('event-stream'),
       },
       {
         id: 'panel-pending-review',
@@ -569,7 +567,6 @@ export function useCommandPaletteCommands({
     return commands;
   }, [
     onOpenSettings,
-    onOpenEventStream,
     onOpenGitPanel,
     onOpenBacklog,
     onOpenPendingReview,

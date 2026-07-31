@@ -24,7 +24,6 @@ vi.mock('../../features/run-command/hooks/useCommandUsage', () => ({
 describe('useCommandPaletteCommands', () => {
   const baseProps = {
     onOpenSettings: vi.fn(),
-    onOpenEventStream: vi.fn(),
     onOpenGitPanel: vi.fn(),
     onOpenBacklog: vi.fn(),
     onOpenPendingReview: vi.fn(),
