@@ -776,6 +776,8 @@ export function ChatroomDashboard({
     onCloseTab: fileTabs.closeTab,
   });
 
+  const { activeDialog, openDialog } = useCommandDialog();
+
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
   const allTabNavigationRef = useRef<{ goToLatestAnchor: () => void } | null>(null);
@@ -783,6 +785,23 @@ export function ChatroomDashboard({
   const handleRegisterSendFormFocus = useCallback((fn: () => void) => {
     focusSendFormRef.current = fn;
   }, []);
+
+  const prevActiveDialogRef = useRef(activeDialog);
+  useEffect(() => {
+    const wasOpen = prevActiveDialogRef.current !== null;
+    const isOpen = activeDialog !== null;
+    prevActiveDialogRef.current = activeDialog;
+
+    if (!wasOpen || isOpen) return;
+
+    const messageInputVisible =
+      activeView === 'messages' ||
+      ((activeView === 'explorer' || activeView === 'source-control') && explorerSplitViewEnabled);
+
+    if (messageInputVisible) {
+      setTimeout(() => focusSendFormRef.current?.(), 0);
+    }
+  }, [activeDialog, activeView, explorerSplitViewEnabled]);
 
   const handleRegisterAllTabNavigation = useCallback(
     (actions: { goToLatestAnchor: () => void }) => {
@@ -1540,8 +1559,6 @@ export function ChatroomDashboard({
   );
 
   // Build command palette commands
-  const { openDialog } = useCommandDialog();
-
   const handleOpenChatroomSwitcher = useCallback(() => {
     openDialog('switcher');
   }, [openDialog]);
