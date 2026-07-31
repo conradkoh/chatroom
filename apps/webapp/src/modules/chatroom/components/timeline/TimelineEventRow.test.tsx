@@ -90,6 +90,7 @@ describe('TimelineEventRow', () => {
     renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
     const header = screen.getByTestId('timeline-message-header');
     expect(header).toHaveClass(...TIMELINE_MESSAGE_HEADER_STICKY.split(' '));
+    expect(header.className).not.toContain('-mx-4');
     expect(screen.getByText('planner')).toBeInTheDocument();
     expect(screen.getByText('user')).toBeInTheDocument();
 
