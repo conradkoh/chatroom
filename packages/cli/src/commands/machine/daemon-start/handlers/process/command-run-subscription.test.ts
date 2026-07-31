@@ -16,7 +16,7 @@ import {
   _resetCommandRunSubscriptionStateForTest,
   startCommandRunSubscription,
 } from './command-run-subscription.js';
-import type { api } from '../../../../../api.js';
+import type { api, Id } from '../../../../../api.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../../daemon-services.js';
 import { onCommandRunEffect, onCommandStopEffect } from '../command-runner.js';
 
@@ -47,6 +47,8 @@ const mockedOnCommandRunEffect = vi.mocked(onCommandRunEffect);
 const mockedOnCommandStopEffect = vi.mocked(onCommandStopEffect);
 
 const FLUSH = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+const rid = (id: string): Id<'chatroom_commandRuns'> => id as Id<'chatroom_commandRuns'>;
 
 function makeSession(): DaemonSessionServiceShape {
   return {
@@ -105,7 +107,9 @@ describe('startCommandRunSubscription', () => {
     });
 
     callback({
-      pendingRuns: [{ _id: 'run-1', workingDir: '/tmp/ws', commandName: 'dev', script: 'echo hi' }],
+      pendingRuns: [
+        { _id: rid('run-1'), workingDir: '/tmp/ws', commandName: 'dev', script: 'echo hi' },
+      ],
       stopRequestedRuns: [],
     });
     await FLUSH();
@@ -124,7 +128,7 @@ describe('startCommandRunSubscription', () => {
     const onUpdate = vi.fn();
     const { callback } = startSubscription(onUpdate);
 
-    callback({ pendingRuns: [], stopRequestedRuns: [{ _id: 'run-9' }] });
+    callback({ pendingRuns: [], stopRequestedRuns: [{ _id: rid('run-9') }] });
     await FLUSH();
 
     expect(mockedOnCommandStopEffect).toHaveBeenCalledTimes(1);
@@ -137,7 +141,9 @@ describe('startCommandRunSubscription', () => {
     const { callback } = startSubscription(onUpdate);
 
     const result: ActionableCommandRuns = {
-      pendingRuns: [{ _id: 'run-1', workingDir: '/tmp/ws', commandName: 'dev', script: 'echo hi' }],
+      pendingRuns: [
+        { _id: rid('run-1'), workingDir: '/tmp/ws', commandName: 'dev', script: 'echo hi' },
+      ],
       stopRequestedRuns: [],
     };
 
@@ -151,7 +157,7 @@ describe('startCommandRunSubscription', () => {
     // A new pending run is still dispatched
     callback({
       pendingRuns: [
-        { _id: 'run-2', workingDir: '/tmp/ws', commandName: 'build', script: 'echo build' },
+        { _id: rid('run-2'), workingDir: '/tmp/ws', commandName: 'build', script: 'echo build' },
       ],
       stopRequestedRuns: [],
     });
@@ -166,7 +172,7 @@ describe('startCommandRunSubscription', () => {
 
     const result: ActionableCommandRuns = {
       pendingRuns: [],
-      stopRequestedRuns: [{ _id: 'run-5' }],
+      stopRequestedRuns: [{ _id: rid('run-5') }],
     };
 
     callback(result);
@@ -199,7 +205,9 @@ describe('startCommandRunSubscription', () => {
     expect(typeof onUpdate.mock.calls[0]?.[3]).toBe('function');
 
     callback({
-      pendingRuns: [{ _id: 'run-1', workingDir: '/tmp/ws', commandName: 'dev', script: 'echo hi' }],
+      pendingRuns: [
+        { _id: rid('run-1'), workingDir: '/tmp/ws', commandName: 'dev', script: 'echo hi' },
+      ],
       stopRequestedRuns: [],
     });
     await FLUSH();
