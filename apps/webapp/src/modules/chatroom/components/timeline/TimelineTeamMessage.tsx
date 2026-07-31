@@ -65,11 +65,11 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
 
   return (
     <div
-      className={`px-4 py-3 ${TIMELINE_ROW_BORDER} bg-transparent ${TIMELINE_ROW_ROOT}`}
+      className={`${TIMELINE_ROW_BORDER} bg-transparent ${TIMELINE_ROW_ROOT}`}
       data-testid="timeline-team-message"
     >
       <div
-        className={`flex flex-wrap justify-between items-center gap-y-1 gap-x-2 -mx-4 px-4 py-1.5 mb-2 ${TIMELINE_MESSAGE_HEADER_STICKY}`}
+        className={`flex flex-wrap justify-between items-center gap-y-1 gap-x-2 px-4 py-1.5 mb-2 ${TIMELINE_MESSAGE_HEADER_STICKY}`}
         data-testid="timeline-message-header"
       >
         <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5">
@@ -107,7 +107,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
         </div>
       </div>
 
-      <div className={TIMELINE_MESSAGE_BODY}>
+      <div className={`px-4 py-3 ${TIMELINE_MESSAGE_BODY}`}>
         {hasFeatureTitle && (
           <div className="mb-2 px-3 py-2 bg-chatroom-status-warning/10 dark:bg-chatroom-status-warning/15 border border-chatroom-status-warning/20 cursor-pointer hover:bg-chatroom-status-warning/20 transition-colors">
             <div className="flex items-center gap-2">

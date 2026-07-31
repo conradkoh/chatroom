@@ -5,6 +5,7 @@ import {
   getTimelineVirtualRowZIndex,
   TIMELINE_MESSAGE_BODY,
   TIMELINE_ROW_ROOT,
+  TIMELINE_SCROLL_CONTAINER,
 } from './timelineRowStyles';
 
 describe('formatMachineLabel', () => {
@@ -37,5 +38,12 @@ describe('timeline row stacking classes', () => {
   it('exports row isolation and body z-0 classes', () => {
     expect(TIMELINE_ROW_ROOT).toContain('isolate');
     expect(TIMELINE_MESSAGE_BODY).toContain('z-0');
+  });
+});
+
+describe('TIMELINE_SCROLL_CONTAINER', () => {
+  it('reserves scrollbar gutter for sticky headers', () => {
+    expect(TIMELINE_SCROLL_CONTAINER).toContain('[scrollbar-gutter:stable]');
+    expect(TIMELINE_SCROLL_CONTAINER).toContain('overflow-y-auto');
   });
 });

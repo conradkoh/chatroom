@@ -16,6 +16,9 @@ export function getTimelineVirtualRowZIndex(index: number): number {
   return index + 1;
 }
 
+/** Scrollable timeline/message list — reserves gutter so sticky row headers do not paint over the scrollbar. */
+export const TIMELINE_SCROLL_CONTAINER = 'overflow-y-auto [scrollbar-gutter:stable]';
+
 export const BADGE_BASE =
   'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5';
 
