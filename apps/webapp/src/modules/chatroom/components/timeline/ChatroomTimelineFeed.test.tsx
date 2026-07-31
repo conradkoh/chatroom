@@ -153,7 +153,9 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     },
     messages: {
       listMessagesBySenderRolePaginated: 'listMessagesBySenderRolePaginated',
-      listConversationSlicePaginated: 'listConversationSlicePaginated',
+    },
+    allTabConversation: {
+      listAllTabSlicePaginated: 'listAllTabSlicePaginated',
     },
   },
 }));
@@ -204,25 +206,22 @@ const baseEvents: TimelineEvent[] = [
 let timelineEvents = [...baseEvents];
 let timelineIsLoadingOlder = false;
 
-vi.mock('../../hooks/useFilteredMessagesByRole', () => ({
-  useFilteredMessagesByRole: () => ({
-    messages: timelineEvents
-      .filter((event) => event.kind === 'user_message')
-      .map((event) => event.message),
-    isLoading: false,
-    isLoadingMore: false,
-    canLoadMore: mockHasMoreOlder,
-    loadMore: loadOlderEvents,
-  }),
-}));
-
-vi.mock('../../hooks/useChatroomTimeline', () => ({
-  useChatroomTimeline: () => ({
+vi.mock('../../hooks/useChatroomTimelineFeedData', () => ({
+  useChatroomTimelineFeedData: () => ({
     events: timelineEvents,
     isLoading: false,
     hasMoreOlder: mockHasMoreOlder,
     isLoadingOlder: timelineIsLoadingOlder,
     loadOlderEvents,
+    purgeToInitialWindow: vi.fn(),
+    isEventStreamOpen: false,
+    setIsEventStreamOpen: vi.fn(),
+    latestEvent: null,
+    eventsPaginated: {
+      results: [],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    },
   }),
 }));
 
@@ -263,7 +262,13 @@ function setScrollPinned(pinned: boolean) {
 
 function renderFeed(initialPinned = true) {
   const coordinator = createCoordinatorRef(initialPinned);
-  const view = render(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+  const view = render(
+    <TimelineFeedWithProviders
+      chatroomId="room-1"
+      coordinator={coordinator}
+      senderRoleFilter="user"
+    />
+  );
   return { ...view, coordinator };
 }
 
@@ -305,7 +310,13 @@ describe('ChatroomTimelineFeed initial tail scroll', () => {
     Object.defineProperty(chrome, 'offsetHeight', { configurable: true, value: 40 });
 
     mockHasMoreOlder = true;
-    rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    rerender(
+      <TimelineFeedWithProviders
+        chatroomId="room-1"
+        coordinator={coordinator}
+        senderRoleFilter="user"
+      />
+    );
     await flushRaf();
 
     expect(virtualizerOptions.some((o) => o.scrollMargin === 40)).toBe(true);
@@ -458,7 +469,13 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     act(() => {
       el.dispatchEvent(new Event('scroll'));
     });
-    rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    rerender(
+      <TimelineFeedWithProviders
+        chatroomId="room-1"
+        coordinator={coordinator}
+        senderRoleFilter="user"
+      />
+    );
 
     const pinnedOptions = virtualizerOptions.at(-1) as (typeof virtualizerOptions)[0] & {
       anchorTo?: string;
@@ -469,7 +486,11 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
 
     virtualizerOptions.length = 0;
     render(
-      <TimelineFeedWithProviders chatroomId="room-1" coordinator={createCoordinatorRef(false)} />
+      <TimelineFeedWithProviders
+        chatroomId="room-1"
+        coordinator={createCoordinatorRef(false)}
+        senderRoleFilter="user"
+      />
     );
     const unpinnedOptions = virtualizerOptions.at(-1) as (typeof virtualizerOptions)[0] & {
       followOnAppend?: boolean | 'auto';
@@ -484,7 +505,13 @@ describe('ChatroomTimelineFeed virtualizer ref stability', () => {
     const firstOptions = virtualizerOptions.at(-1) as (typeof virtualizerOptions)[0];
     const keyBeforeRerender = firstOptions.getItemKey(0);
 
-    rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+    rerender(
+      <TimelineFeedWithProviders
+        chatroomId="room-1"
+        coordinator={coordinator}
+        senderRoleFilter="user"
+      />
+    );
 
     const secondOptions = virtualizerOptions.at(-1) as (typeof virtualizerOptions)[0];
     expect(secondOptions.getItemKey(0)).toBe(keyBeforeRerender);
@@ -544,7 +571,13 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
     ];
 
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     expect(mockScrollToEnd).toHaveBeenCalled();
@@ -579,7 +612,13 @@ describe('ChatroomTimelineFeed tail follow on send', () => {
     ];
 
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     expect(mockScrollToEnd).toHaveBeenCalled();
@@ -610,13 +649,25 @@ describe('ChatroomTimelineFeed tail row in-place growth', () => {
     const notifyTailRowResized = vi.spyOn(coordinator.current, 'notifyTailRowResized');
 
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
     notifyTailRowResized.mockClear();
 
     mockTailItemSize = 280;
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     expect(notifyTailRowResized).toHaveBeenCalledWith(24);
@@ -634,13 +685,25 @@ describe('ChatroomTimelineFeed tail row in-place growth', () => {
     const notifyTailRowResized = vi.spyOn(coordinator.current, 'notifyTailRowResized');
 
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
     notifyTailRowResized.mockClear();
 
     mockTailItemSize = 280;
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     expect(notifyTailRowResized).not.toHaveBeenCalled();
@@ -682,7 +745,13 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     ];
 
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     expect(mockScrollToEnd).toHaveBeenCalled();
@@ -713,7 +782,13 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     ];
 
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     expect(mockScrollToEnd).toHaveBeenCalled();
@@ -743,7 +818,13 @@ describe('ChatroomTimelineFeed scroll pin behavior', () => {
     ];
 
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     expect(mockScrollToEnd).not.toHaveBeenCalled();
@@ -913,7 +994,13 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
 
     timelineIsLoadingOlder = true;
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     const olderBatch = buildEvents(20).map((e, i) => ({
@@ -928,7 +1015,13 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     scrollElProps(el, scrollTopBeforeLoad, 4500);
 
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     expect(el.scrollTop).toBe(expectedScrollTopAfterPrepend);
@@ -996,7 +1089,13 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     timelineIsLoadingOlder = true;
 
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     expect(el.scrollTop).toBe(scrollTopBeforeSpinner + 24);
@@ -1035,7 +1134,13 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     });
 
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     notifyTopChromeDelta.mockClear();
@@ -1047,7 +1152,13 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
     ];
 
     act(() => {
-      rerender(<TimelineFeedWithProviders chatroomId="room-1" coordinator={coordinator} />);
+      rerender(
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={coordinator}
+          senderRoleFilter="user"
+        />
+      );
     });
 
     expect(notifyTopChromeDelta).not.toHaveBeenCalled();
@@ -1104,7 +1215,11 @@ describe('ChatroomTimelineFeed load-more scroll preservation', () => {
 
     act(() => {
       rerender(
-        <TimelineFeedWithProviders chatroomId="room-1" coordinator={createCoordinatorRef()} />
+        <TimelineFeedWithProviders
+          chatroomId="room-1"
+          coordinator={createCoordinatorRef()}
+          senderRoleFilter="user"
+        />
       );
     });
     await flushRaf();
@@ -1151,12 +1266,18 @@ describe('ChatroomTimelineFeed conversation slice', () => {
     );
     await flushRaf();
 
-    await user.click(screen.getByTestId('conversation-anchor-evt-1'));
+    await user.click(screen.getByTestId('conversation-anchor-evt-0'));
     expect(screen.getAllByTestId('conversation-slice-panel').length).toBeGreaterThan(0);
   });
 
-  it('does not make rows selectable on the All tab', async () => {
-    render(<TimelineFeedWithProviders chatroomId="room-1" coordinator={createCoordinatorRef()} />);
+  it('does not make rows selectable on non-user role tabs', async () => {
+    render(
+      <TimelineFeedWithProviders
+        chatroomId="room-1"
+        coordinator={createCoordinatorRef()}
+        senderRoleFilter="builder"
+      />
+    );
     await flushRaf();
 
     expect(screen.queryByTestId('conversation-anchor-evt-0')).not.toBeInTheDocument();

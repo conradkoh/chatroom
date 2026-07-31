@@ -52,22 +52,18 @@ export interface ChatroomTimelineFeedProps {
   chatroomId: string;
   coordinator: React.MutableRefObject<TimelineScrollCoordinator>;
   onRegisterOpenEventStream?: (openFn: () => void) => void;
-  onRegisterMessageStoreActions?: (actions: {
-    removeMessagesForTask: (taskId: string) => void;
-  }) => void;
   machines?: Map<string, MachineNameEntry>;
-  senderRoleFilter?: string | null;
+  senderRoleFilter: string;
 }
 
 export function ChatroomTimelineFeed({
   chatroomId,
   coordinator,
   onRegisterOpenEventStream,
-  onRegisterMessageStoreActions,
   machines,
   senderRoleFilter,
 }: ChatroomTimelineFeedProps) {
-  const isUserFilteredView = senderRoleFilter?.toLowerCase() === 'user';
+  const isUserFilteredView = senderRoleFilter.toLowerCase() === 'user';
   const [selectedAnchorId, setSelectedAnchorId] = useState<Id<'chatroom_messages'> | null>(null);
   const scrollParentRef = useRef<HTMLDivElement>(null);
   const boundCoordinatorRef = useRef<TimelineScrollCoordinator | null>(null);
@@ -112,13 +108,12 @@ export function ChatroomTimelineFeed({
     hasMoreOlder,
     isLoadingOlder,
     loadOlderEvents,
-    removeMessagesForTask,
     purgeToInitialWindow,
     isEventStreamOpen,
     setIsEventStreamOpen,
     latestEvent,
     eventsPaginated,
-  } = useChatroomTimelineFeedData(chatroomId, senderRoleFilter ?? null);
+  } = useChatroomTimelineFeedData(chatroomId, senderRoleFilter);
 
   const isPinned = useSyncExternalStore(
     (onStoreChange) => coordinator.current.subscribe(onStoreChange),
@@ -138,10 +133,6 @@ export function ChatroomTimelineFeed({
   useEffect(() => {
     onRegisterOpenEventStream?.(() => setIsEventStreamOpen(true));
   }, [onRegisterOpenEventStream, setIsEventStreamOpen]);
-
-  useEffect(() => {
-    onRegisterMessageStoreActions?.({ removeMessagesForTask });
-  }, [onRegisterMessageStoreActions, removeMessagesForTask]);
 
   const initialMeasurementsCache = useMemo((): VirtualItem[] => {
     // Snapshot the cache once at mount. Re-mounts (chatroom switch) re-create.

@@ -3,9 +3,8 @@
 /**
  * useChatroomTimelineFeedData — data layer for ChatroomTimelineFeed.
  *
- * Owns timeline message fetch (via useChatroomTimeline or useFilteredMessagesByRole),
- * handoff notifications, and event-stream Convex queries. The feed component handles
- * virtualizer/scroll only.
+ * Owns role-filtered timeline message fetch, handoff notifications, and
+ * event-stream Convex queries. The feed component handles virtualizer/scroll only.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -14,7 +13,6 @@ import { usePaginatedQuery } from 'convex/react';
 import { useSessionQuery, useSessionId } from 'convex-helpers/react/sessions';
 import { useMemo, useState } from 'react';
 
-import { useChatroomTimeline, type UseChatroomTimelineResult } from './useChatroomTimeline';
 import { useFilteredMessagesByRole } from './useFilteredMessagesByRole';
 import { useHandoffNotification } from './useHandoffNotification';
 import { mapMessageToTimelineEvent } from '../timeline/mapMessageToTimelineEvent';
@@ -23,29 +21,15 @@ import type { EventStreamEvent } from '../viewModels/eventStreamViewModel';
 
 const noop = () => {};
 
-type TimelineFeedSource = Pick<
-  UseChatroomTimelineResult,
-  | 'events'
-  | 'isLoading'
-  | 'hasMoreOlder'
-  | 'isLoadingOlder'
-  | 'loadOlderEvents'
-  | 'removeMessagesForTask'
-  | 'purgeToInitialWindow'
->;
+function useRoleFilteredTimelineSource(chatroomId: string, senderRole: string) {
+  const filteredTimeline = useFilteredMessagesByRole(chatroomId, senderRole, true);
 
-function useRoleFilteredTimelineSource(
-  chatroomId: string,
-  senderRole: string,
-  enabled: boolean
-): TimelineFeedSource {
-  const filteredTimeline = useFilteredMessagesByRole(chatroomId, senderRole, enabled);
-
-  const events: TimelineEvent[] = useMemo(() => {
-    if (!enabled) return [];
-    // Role query returns newest-first; timeline feed expects chronological order.
-    return [...filteredTimeline.messages].reverse().map(mapMessageToTimelineEvent);
-  }, [enabled, filteredTimeline.messages]);
+  const events: TimelineEvent[] = useMemo(
+    () =>
+      // Role query returns newest-first; timeline feed expects chronological order.
+      [...filteredTimeline.messages].reverse().map(mapMessageToTimelineEvent),
+    [filteredTimeline.messages]
+  );
 
   return {
     events,
@@ -53,25 +37,13 @@ function useRoleFilteredTimelineSource(
     hasMoreOlder: filteredTimeline.canLoadMore,
     isLoadingOlder: filteredTimeline.isLoadingMore,
     loadOlderEvents: filteredTimeline.loadMore,
-    removeMessagesForTask: noop,
     purgeToInitialWindow: noop,
   };
 }
 
-export function useChatroomTimelineFeedData(
-  chatroomId: string,
-  senderRoleFilter: string | null = null
-) {
+export function useChatroomTimelineFeedData(chatroomId: string, senderRoleFilter: string) {
   const typedChatroomId = chatroomId as Id<'chatroom_rooms'>;
-  const isFiltered = senderRoleFilter !== null;
-
-  const mainTimeline = useChatroomTimeline(chatroomId, !isFiltered);
-  const filteredTimeline = useRoleFilteredTimelineSource(
-    chatroomId,
-    senderRoleFilter ?? '',
-    isFiltered
-  );
-  const timeline = isFiltered ? filteredTimeline : mainTimeline;
+  const timeline = useRoleFilteredTimelineSource(chatroomId, senderRoleFilter);
 
   const messagesForNotify = useMemo(() => timeline.events.map((e) => e.message), [timeline.events]);
   useHandoffNotification(messagesForNotify, chatroomId);
@@ -101,7 +73,6 @@ export function useChatroomTimelineFeedData(
     hasMoreOlder: timeline.hasMoreOlder,
     isLoadingOlder: timeline.isLoadingOlder,
     loadOlderEvents: timeline.loadOlderEvents,
-    removeMessagesForTask: timeline.removeMessagesForTask,
     purgeToInitialWindow: timeline.purgeToInitialWindow,
     isEventStreamOpen,
     setIsEventStreamOpen,

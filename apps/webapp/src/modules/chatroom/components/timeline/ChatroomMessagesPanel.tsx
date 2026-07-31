@@ -20,9 +20,6 @@ export interface ChatroomMessagesPanelProps {
   chatroomId: string;
   coordinator: React.MutableRefObject<TimelineScrollCoordinator>;
   onRegisterOpenEventStream?: (openFn: () => void) => void;
-  onRegisterMessageStoreActions?: (actions: {
-    removeMessagesForTask: (taskId: string) => void;
-  }) => void;
   machines?: Map<string, MachineNameEntry>;
   viewMode: MessageViewMode;
   onRegisterAllTabNavigation?: (actions: AllTabNavigationActions) => void;
@@ -34,7 +31,6 @@ export function ChatroomMessagesPanel({
   chatroomId,
   coordinator,
   onRegisterOpenEventStream,
-  onRegisterMessageStoreActions,
   machines,
   viewMode,
   onRegisterAllTabNavigation,
@@ -64,17 +60,16 @@ export function ChatroomMessagesPanel({
           machines={machines}
           onRegisterAllTabNavigation={onRegisterAllTabNavigation}
         />
-      ) : (
+      ) : filterRole !== null ? (
         <ChatroomTimelineFeed
-          key={filterRole ?? 'all'}
+          key={filterRole}
           chatroomId={chatroomId}
           coordinator={coordinator}
           onRegisterOpenEventStream={onRegisterOpenEventStream}
-          onRegisterMessageStoreActions={onRegisterMessageStoreActions}
           machines={machines}
           senderRoleFilter={filterRole}
         />
-      )}
+      ) : null}
 
       {footer ? <div className="shrink-0">{footer}</div> : null}
     </div>

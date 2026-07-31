@@ -1,5 +1,5 @@
 /**
- * Unit tests for useChatroomTimelineFeedData — all vs role-filtered data paths.
+ * Unit tests for useChatroomTimelineFeedData — role-filtered data path.
  */
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,13 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useChatroomTimelineFeedData } from './useChatroomTimelineFeedData';
 import type { Message } from '../types/message';
 
-const mockUseChatroomTimeline = vi.fn();
 const mockUseFilteredMessagesByRole = vi.fn();
 const mockUseHandoffNotification = vi.fn();
-
-vi.mock('./useChatroomTimeline', () => ({
-  useChatroomTimeline: (...args: unknown[]) => mockUseChatroomTimeline(...args),
-}));
 
 vi.mock('./useFilteredMessagesByRole', () => ({
   useFilteredMessagesByRole: (...args: unknown[]) => mockUseFilteredMessagesByRole(...args),
@@ -58,19 +53,8 @@ function makeMessage(id: string, creationTime: number, overrides: Partial<Messag
 
 describe('useChatroomTimelineFeedData', () => {
   beforeEach(() => {
-    mockUseChatroomTimeline.mockReset();
     mockUseFilteredMessagesByRole.mockReset();
     mockUseHandoffNotification.mockReset();
-
-    mockUseChatroomTimeline.mockReturnValue({
-      events: [],
-      isLoading: false,
-      hasMoreOlder: false,
-      isLoadingOlder: false,
-      loadOlderEvents: vi.fn(),
-      removeMessagesForTask: vi.fn(),
-      purgeToInitialWindow: vi.fn(),
-    });
 
     mockUseFilteredMessagesByRole.mockReturnValue({
       messages: [],
@@ -79,36 +63,6 @@ describe('useChatroomTimelineFeedData', () => {
       canLoadMore: false,
       loadMore: vi.fn(),
     });
-  });
-
-  it('uses main timeline data when senderRoleFilter is null', () => {
-    const loadOlderEvents = vi.fn();
-    mockUseChatroomTimeline.mockReturnValue({
-      events: [
-        {
-          id: 'evt-1',
-          kind: 'user_message',
-          creationTime: 100,
-          message: makeMessage('evt-1', 100),
-        },
-      ],
-      isLoading: true,
-      hasMoreOlder: true,
-      isLoadingOlder: true,
-      loadOlderEvents,
-      removeMessagesForTask: vi.fn(),
-      purgeToInitialWindow: vi.fn(),
-    });
-
-    const { result } = renderHook(() => useChatroomTimelineFeedData('room-1', null));
-
-    expect(mockUseChatroomTimeline).toHaveBeenCalledWith('room-1', true);
-    expect(mockUseFilteredMessagesByRole).toHaveBeenCalledWith('room-1', '', false);
-    expect(result.current.events).toHaveLength(1);
-    expect(result.current.isLoading).toBe(true);
-    expect(result.current.hasMoreOlder).toBe(true);
-    expect(result.current.isLoadingOlder).toBe(true);
-    expect(result.current.loadOlderEvents).toBe(loadOlderEvents);
   });
 
   it('uses role-filtered pagination and reverses to chronological order', () => {
@@ -127,14 +81,10 @@ describe('useChatroomTimelineFeedData', () => {
 
     const { result } = renderHook(() => useChatroomTimelineFeedData('room-1', 'user'));
 
-    expect(mockUseChatroomTimeline).toHaveBeenCalledWith('room-1', false);
     expect(mockUseFilteredMessagesByRole).toHaveBeenCalledWith('room-1', 'user', true);
     expect(result.current.events.map((event) => event.id)).toEqual(['oldest', 'middle', 'newest']);
     expect(result.current.hasMoreOlder).toBe(true);
     expect(result.current.isLoadingOlder).toBe(true);
     expect(result.current.loadOlderEvents).toBe(loadMore);
-    expect(result.current.removeMessagesForTask).not.toBe(
-      mockUseChatroomTimeline.mock.results[0]?.value.removeMessagesForTask
-    );
   });
 });
