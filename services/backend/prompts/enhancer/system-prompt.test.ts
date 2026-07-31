@@ -44,9 +44,10 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).not.toContain('planner>builder');
   });
 
-  it('forbids file-level edit prescriptions', () => {
+  it('scopes file-level edits to Suggested edits section only', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('Do NOT prescribe file-level edits');
+    expect(result).toContain('Suggested edits (remove or change only)');
+    expect(result).not.toContain('Do NOT prescribe file-level edits, target code snippets');
     expect(result).toContain('Do NOT rewrite');
   });
 

@@ -5,14 +5,14 @@
  * to tighten research and conclusions before the planner proceeds to builder
  * or user handoff.
  *
- * Maps 7 advisory sections into 5 XML tags matching the HandoffReportView
+ * Maps 8 advisory sections into 5 XML tags matching the HandoffReportView
  * collapsible UI (overview/proofs/direction/notes/action required).
- *  → 2 sections each in overview and action; 1 each in proofs, direction, notes.
+ *  → 2 sections in overview, 3 in action; 1 each in proofs, direction, notes.
  */
 
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
-import { getHandoffReportTemplateIntro } from '../../../utils/handoff-section-guidance';
 import { getEnhancerFeedbackTemplateBody } from '../../../utils/enhancer-feedback-template-body';
+import { getHandoffReportTemplateIntro } from '../../../utils/handoff-section-guidance';
 
 /**
  * Returns the markdown feedback template the enhancer uses when returning
@@ -23,7 +23,7 @@ export function getEnhancerToPlannerHandoffTemplate(): string {
 
 ${getHandoffReportTemplateIntro('Planning Feedback (Enhancer → Planner)')}
 
-The planner sent you three XML sections. Your job is **advisory adversarial review** — raise risks, challenge assumptions, and help the planner align with user intent. **Do not prescribe file-level changes or rewrite their builder brief.** The planner makes the final call.
+The planner sent you three XML sections. Your job is **advisory adversarial review** — raise risks, challenge assumptions, and help the planner align with user intent. Keep most sections abstract; when you recommend removing or changing specific content, put file-level detail and code examples in **Suggested edits (remove or change only)** only. **Do not rewrite their full builder brief.** The planner makes the final call.
 
 \`\`\`markdown
 ${getEnhancerFeedbackTemplateBody()}

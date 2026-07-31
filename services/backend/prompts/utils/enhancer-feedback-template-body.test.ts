@@ -12,7 +12,7 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     expect(body).toContain('<handoff-action>');
   });
 
-  test('contains all 7 enhancer section headings', () => {
+  test('contains all 8 enhancer section headings', () => {
     const body = getEnhancerFeedbackTemplateBody();
     expect(body).toContain('## Summary');
     expect(body).toContain('## User intent alignment');
@@ -21,5 +21,13 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     expect(body).toContain('## Reasoning review');
     expect(body).toContain('## Questions for the planner');
     expect(body).toContain('## Alignment with eventual user handoff');
+    expect(body).toContain('## Suggested edits (remove or change only)');
+  });
+
+  test('contains Suggested edits section with file-level guidance', () => {
+    const body = getEnhancerFeedbackTemplateBody();
+    expect(body).toContain('## Suggested edits (remove or change only)');
+    expect(body).toContain('**File:**');
+    expect(body).toContain('repo-relative paths');
   });
 });

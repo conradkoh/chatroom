@@ -45,6 +45,7 @@ describe('handoff-templates > resolver', () => {
     expect(template).toContain('<handoff-overview>');
     expect(template).toContain('<handoff-action>');
     expect(template).toContain('## Risks & failure modes');
+    expect(template).toContain('## Suggested edits (remove or change only)');
   });
 
   test('resolves planner → user to the report template', () => {

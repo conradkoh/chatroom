@@ -1,8 +1,10 @@
 /**
  * XML-wrapped planning feedback body for enhancer → planner handoffs.
- * Maps the 7 advisory sections into 5 collapsible UI categories
+ * Maps the 8 advisory sections into 5 collapsible UI categories
  * (same tags as planner→user report handoffs).
  */
+import { getFileReferenceGuidanceComment } from './file-reference-guidance';
+
 export function getEnhancerFeedbackTemplateBody(): string {
   return `<handoff-overview>
 ## Summary
@@ -35,5 +37,19 @@ export function getEnhancerFeedbackTemplateBody(): string {
 
 ## Questions for the planner
 <specific questions they should answer before delegating — not instructions disguised as questions>
+
+## Suggested edits (remove or change only)
+When you recommend removing or changing specific content in the planner's check-in (grounding, builder-handoff sections, or proposed approach), list each change here with file-level detail and code examples. **Omit this entire section** if you have no concrete removals or changes to suggest — keep other sections abstract.
+${getFileReferenceGuidanceComment()}
+
+### <section or claim to remove or change — e.g. "builder-handoff > Files to implement" or "grounding: auth middleware claim">
+**File:** \`apps/webapp/src/path/to/file.ts\`
+**Change:** <what to remove, replace, or correct and why>
+
+\`\`\`typescript
+// Code snippet: what should change, be removed, or what the planner got wrong
+\`\`\`
+
+(Add one ### block per distinct removal or change. Use repo-relative paths with file extensions.)
 </handoff-action>`;
 }
