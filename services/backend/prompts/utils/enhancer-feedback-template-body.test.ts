@@ -30,4 +30,11 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     expect(body).toContain('**File:**');
     expect(body).toContain('repo-relative paths');
   });
+
+  test('contains UX consistency review section', () => {
+    const body = getEnhancerFeedbackTemplateBody();
+    expect(body).toContain('## UX consistency review');
+    expect(body).toContain('Not Applicable.');
+    expect(body).toContain('keyboard shortcuts');
+  });
 });

@@ -24,6 +24,13 @@ export function getEnhancerFeedbackTemplateBody(): string {
 <handoff-direction>
 ## Alignment with eventual user handoff
 <will this approach produce a credible planner→user report? what's missing for user-facing completeness?>
+
+## UX consistency review
+<!-- REQUIRED when planner proposes UI changes; write exactly "Not Applicable." for backend/CLI-only tasks -->
+<flow complexity: click count, nested modals, simpler alternatives>
+<presentation: which existing pattern (command dialog, overlay, responsive density, separate mobile UI) fits best — recommend one if planner offered multiple>
+<keyboard shortcuts: alignment with ⌘K/⌘⇧P/⌘P/Enter/Shift+Enter/⌘Enter; flag gaps or conflicts>
+<mobile vs desktop: shared component with md: variants, or separate mobile flow — flag if planner treats all viewports identically when they should not>
 </handoff-direction>
 
 <handoff-notes>

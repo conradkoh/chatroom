@@ -56,4 +56,12 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).toContain('advisory');
     expect(result).toContain('bar raiser');
   });
+
+  it('includes UI/UX validation guidance for interface changes', () => {
+    const result = renderEnhancerSystemPrompt(params);
+    expect(result).toContain('UI/UX validation');
+    expect(result).toContain('Flow complexity');
+    expect(result).toContain('Keyboard shortcuts');
+    expect(result).toContain('ux-reference');
+  });
 });
