@@ -185,6 +185,10 @@ vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
 }));
 
+vi.mock('./handlers/process/command-run-subscription.js', () => ({
+  startCommandRunSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
+}));
+
 vi.mock('./handlers/ping.js', () => ({
   handlePing: vi.fn().mockReturnValue({ result: 'pong', failed: false }),
 }));

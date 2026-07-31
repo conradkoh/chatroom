@@ -10,6 +10,7 @@ import {
 import type { FunctionReturnType } from 'convex/server';
 import { Effect, Ref } from 'effect';
 
+import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
 import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
 import { api } from '../../../api.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
@@ -31,7 +32,6 @@ import {
 } from './daemon-services.js';
 import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
-import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
 import { startEnhancerSubscriptions } from './enhancer/start-subscriptions.js';
 import {
   startFileContentSubscriptionEffect,
@@ -57,6 +57,7 @@ import {
 } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { handlePing } from './handlers/ping.js';
+import { startCommandRunSubscription } from './handlers/process/command-run-subscription.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
 import { refreshModelsEffect } from './models-refresh.js';
@@ -116,9 +117,7 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
 
 /** Union of services required to dispatch any command event. */
 type CommandDispatchDeps =
-  | DaemonAgentProcessManagerService
-  | DaemonMutableStateService
-  | DaemonSessionService;
+  DaemonAgentProcessManagerService | DaemonMutableStateService | DaemonSessionService;
 
 // ── Per-event Effect helpers (private) ────────────────────────────────────────
 
@@ -399,6 +398,7 @@ export const startCommandLoopEffect: Effect.Effect<
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
   let observedSyncSubscriptionHandle: { stop: () => void } | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
+  let commandRunSubscriptionHandle: { stop: () => void } | null = null;
   let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
   let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
   let commandSubscriptionHandle: { stop: () => void } | null = null;
@@ -484,6 +484,7 @@ export const startCommandLoopEffect: Effect.Effect<
     observedSyncSubscriptionHandle?.stop();
     taskMonitorHandle?.stop();
     logObserverSubscriptionHandle?.stop();
+    commandRunSubscriptionHandle?.stop();
     pendingPromptSubscriptionHandle?.stop();
     pendingHarnessSessionSubscriptionHandle?.stop();
     commandSubscriptionHandle?.stop();
@@ -547,6 +548,12 @@ export const startCommandLoopEffect: Effect.Effect<
     wsClient
   );
 
+  // Dedicated imperative channel for process-host commands (run/stop).
+  // Isolated from the multiplexed getCommandEvents stream so UI-initiated
+  // runs are not delayed by agent lifecycle or git events in flight.
+  const commandRunRuntime = yield* Effect.runtime<DaemonSessionService>();
+  commandRunSubscriptionHandle = startCommandRunSubscription(session, wsClient, commandRunRuntime);
+
   if (featureFlags.directHarnessWorkers) {
     const handles = startDirectHarnessSubscriptions(
       {
@@ -579,7 +586,7 @@ export const startCommandLoopEffect: Effect.Effect<
     aqPendingPromptSubscriptionHandle = aqHandles.pendingPromptSubscriptionHandle;
     aqPendingHarnessSessionSubscriptionHandle = aqHandles.pendingHarnessSessionSubscriptionHandle;
 
-    const enhancerSub = startEnhancerSubscriptions(
+    startEnhancerSubscriptions(
       session.sessionId,
       session.machineId,
       session.convexUrl,
