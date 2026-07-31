@@ -23,7 +23,6 @@ import type { TimelineScrollCoordinator } from '../hooks/timelineScrollCoordinat
 export interface MessagesPanelProps {
   chatroomId: string;
   coordinator: React.MutableRefObject<TimelineScrollCoordinator>;
-  onRegisterOpenEventStream?: (openFn: () => void) => void;
   machines?: Map<string, { hostname: string; alias?: string }>;
   viewMode: MessageViewMode;
   // SendForm props
@@ -42,7 +41,6 @@ export interface MessagesPanelProps {
 export function MessagesPanel({
   chatroomId,
   coordinator,
-  onRegisterOpenEventStream,
   machines,
   viewMode,
   onRegisterSendFormFocus,
@@ -57,7 +55,6 @@ export function MessagesPanel({
       <ChatroomMessagesPanel
         chatroomId={chatroomId}
         coordinator={coordinator}
-        onRegisterOpenEventStream={onRegisterOpenEventStream}
         machines={machines}
         viewMode={viewMode}
         onRegisterAllTabNavigation={onRegisterAllTabNavigation}

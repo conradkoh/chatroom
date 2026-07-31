@@ -45,7 +45,7 @@ export type { BadgeColor } from './shared';
  *
  * The spread below must cover every key in EventTypeName.
  * TypeScript enforces this: missing any key is a compile-time error.
- * Call once at application startup (e.g. top of EventStreamModal).
+ * Call once at application startup (e.g. top of EventStreamPanel).
  */
 export function initializeEventTypes(): void {
   initRegistry({

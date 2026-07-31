@@ -18,28 +18,6 @@ vi.mock('./useHandoffNotification', () => ({
   useHandoffNotification: (...args: unknown[]) => mockUseHandoffNotification(...args),
 }));
 
-vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionQuery: () => [],
-  useSessionId: () => ['session-1'],
-}));
-
-vi.mock('convex/react', () => ({
-  usePaginatedQuery: () => ({
-    results: [],
-    status: 'Exhausted',
-    loadMore: vi.fn(),
-  }),
-}));
-
-vi.mock('@workspace/backend/convex/_generated/api', () => ({
-  api: {
-    events: {
-      listLatestEvents: 'listLatestEvents',
-      listLatestEventsPaginated: 'listLatestEventsPaginated',
-    },
-  },
-}));
-
 function makeMessage(id: string, creationTime: number, overrides: Partial<Message> = {}): Message {
   return {
     _id: id,

@@ -215,10 +215,6 @@ vi.mock('../QueuedMessagesIndicator', () => ({
   QueuedMessagesIndicator: () => null,
 }));
 
-vi.mock('../EventStreamModal', () => ({
-  EventStreamModal: () => null,
-}));
-
 vi.mock('../../hooks/useHandoffNotification', () => ({
   useHandoffNotification: vi.fn(),
 }));
@@ -266,9 +262,6 @@ vi.mock('../../hooks/useChatroomTimelineFeedData', () => ({
     isLoadingOlder: timelineIsLoadingOlder,
     loadOlderEvents,
     purgeToInitialWindow: vi.fn(),
-    isEventStreamOpen: false,
-    setIsEventStreamOpen: vi.fn(),
-    latestEvent: null,
     eventsPaginated: {
       results: [],
       status: 'Exhausted',

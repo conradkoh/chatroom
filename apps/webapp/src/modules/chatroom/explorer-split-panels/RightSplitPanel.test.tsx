@@ -57,7 +57,6 @@ const DEFAULT_MESSAGES_PROPS = {
       getSnapshot: vi.fn(() => true),
     },
   },
-  onRegisterOpenEventStream: vi.fn(),
 } as any;
 const DEFAULT_HARNESS_PROPS = {
   selectedHarnessSessionId: null,

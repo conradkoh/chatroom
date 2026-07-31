@@ -1209,14 +1209,9 @@ export function ChatroomDashboard({
 
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
   // Refs to hold imperative open callbacks registered by child components
-  const openEventStreamRef = useRef<(() => void) | null>(null);
   const openBacklogRef = useRef<(() => void) | null>(null);
   const openBacklogCreateRef = useRef<(() => void) | null>(null);
   const openPendingReviewRef = useRef<(() => void) | null>(null);
-
-  const handleRegisterOpenEventStream = useCallback((fn: () => void) => {
-    openEventStreamRef.current = fn;
-  }, []);
 
   const handleRegisterWorkQueueActions = useCallback(
     (actions: {
@@ -1246,10 +1241,6 @@ export function ChatroomDashboard({
   const handleSwitchToPullRequests = useCallback(() => {
     setActivityView('pull-requests');
   }, [setActivityView]);
-
-  const handleCmdOpenEventStream = useCallback(() => {
-    openEventStreamRef.current?.();
-  }, []);
 
   const handleCmdOpenBacklog = useCallback(() => {
     openBacklogRef.current?.();
@@ -1636,7 +1627,6 @@ export function ChatroomDashboard({
 
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
-    onOpenEventStream: handleCmdOpenEventStream,
     onOpenBacklog: handleCmdOpenBacklog,
     onCreateBacklogItem: handleCmdCreateBacklogItem,
     onOpenPendingReview: handleCmdOpenPendingReview,
@@ -1976,7 +1966,6 @@ export function ChatroomDashboard({
                             teamRoles={teamRoles}
                             messagesPanelProps={{
                               coordinator: timelineScrollCoordinator,
-                              onRegisterOpenEventStream: handleRegisterOpenEventStream,
                               machines: machineNameMap,
                               onRegisterSendFormFocus: handleRegisterSendFormFocus,
                               onRegisterAllTabNavigation: handleRegisterAllTabNavigation,
@@ -1997,7 +1986,6 @@ export function ChatroomDashboard({
                       <ChatroomMessagesPanel
                         chatroomId={chatroomId}
                         coordinator={timelineScrollCoordinator}
-                        onRegisterOpenEventStream={handleRegisterOpenEventStream}
                         machines={machineNameMap}
                         viewMode={messageViewMode}
                         onRegisterAllTabNavigation={handleRegisterAllTabNavigation}
