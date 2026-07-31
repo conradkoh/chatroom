@@ -20,8 +20,8 @@ export function getNotificationSoundSchedules(
       return [{ frequency: 880, startTime: 0, duration: 0.25, type: 'sine', peakGain: v * 0.33 }];
     case 'urgent':
       return [
-        { frequency: 587, startTime: 0, duration: 0.12, type: 'sine', peakGain: v * 0.45 },
-        { frequency: 880, startTime: 0.14, duration: 0.18, type: 'sine', peakGain: v * 0.55 },
+        { frequency: 587, startTime: 0, duration: 0.11, type: 'sine', peakGain: v * 0.4 },
+        { frequency: 784, startTime: 0.14, duration: 0.13, type: 'sine', peakGain: v * 0.35 },
       ];
     case 'bright':
       return [
@@ -59,7 +59,9 @@ export function synthesizeNotificationSound(
     osc.type = s.type;
     osc.frequency.value = s.frequency;
     const t0 = ctx.currentTime + s.startTime;
-    gain.gain.setValueAtTime(s.peakGain, t0);
+    const attack = Math.min(0.008, s.duration * 0.15);
+    gain.gain.setValueAtTime(0.001, t0);
+    gain.gain.exponentialRampToValueAtTime(Math.max(s.peakGain, 0.001), t0 + attack);
     gain.gain.exponentialRampToValueAtTime(0.001, t0 + s.duration);
     osc.connect(gain);
     gain.connect(ctx.destination);

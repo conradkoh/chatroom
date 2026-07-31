@@ -22,8 +22,13 @@ describe('getNotificationSoundSchedules', () => {
     expect(s).toHaveLength(2);
     expect(s[0].frequency).toBe(587);
     expect(s[0].startTime).toBe(0);
-    expect(s[1].frequency).toBe(880);
+    expect(s[1].frequency).toBe(784);
     expect(s[1].startTime).toBe(0.14);
+  });
+
+  it('urgent second tone peakGain is lower than first (no clipping)', () => {
+    const s = getNotificationSoundSchedules('urgent', 1);
+    expect(s[1].peakGain).toBeLessThan(s[0].peakGain);
   });
 
   it('volume scales peakGain linearly', () => {

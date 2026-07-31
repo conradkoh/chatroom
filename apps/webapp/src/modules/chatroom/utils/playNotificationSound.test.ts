@@ -92,4 +92,19 @@ describe('playNotificationSound', () => {
 
     expect(ctxMock.createOscillator).toHaveBeenCalled();
   });
+
+  it('preview volume scales peak gain (0.3 lower than 1.0)', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile: 'standard', volume: 1 }));
+
+    playNotificationSound({ preview: { profile: 'standard', volume: 1 } });
+    const gainHigh = ctxMock.createGain.mock.results[0]?.value;
+    const highPeak = gainHigh.gain.exponentialRampToValueAtTime.mock.calls[0][0];
+
+    ctxMock.createGain.mockClear();
+    playNotificationSound({ preview: { profile: 'standard', volume: 0.3 } });
+    const gainLow = ctxMock.createGain.mock.results[0]?.value;
+    const lowPeak = gainLow.gain.exponentialRampToValueAtTime.mock.calls[0][0];
+
+    expect(lowPeak).toBeLessThan(highPeak);
+  });
 });
