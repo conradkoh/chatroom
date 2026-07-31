@@ -51,6 +51,7 @@ import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-pro
 import { resolveUserMessageRef } from '../src/domain/usecase/task/resolve-user-message-task-link';
 import { type TaskStatus } from '../src/domain/usecase/task/transition-task';
 import { updateUserMessageOrTask as updateUserMessageOrTaskUsecase } from '../src/domain/usecase/task/update-user-message-or-task';
+import { requestSyncOnHandoffToUser } from '../src/domain/usecase/workspace/request-sync-on-handoff-to-user';
 
 const config = getConfig();
 
@@ -786,6 +787,21 @@ export async function runHandoffHandler(
   await ctx.db.patch('chatroom_rooms', args.chatroomId, {
     lastActivityAt: now,
   });
+
+  // After the handoff message is inserted, enqueue workspace git+command sync
+  // for handoff-to-user only. Do not fail the handoff if enqueueing fails.
+  if (isHandoffToUser) {
+    try {
+      const syncCount = await requestSyncOnHandoffToUser(ctx, args.chatroomId);
+      if (syncCount > 0) {
+        console.log(
+          `[handoff] Enqueued git refresh for ${syncCount} workspace(s) in chatroom ${args.chatroomId}`
+        );
+      }
+    } catch (err) {
+      console.warn(`[handoff] Failed to enqueue workspace sync on handoff-to-user:`, err);
+    }
+  }
 
   // Step 3: Create task for target agent (if not user)
   let newTaskId: Id<'chatroom_tasks'> | null = null;
