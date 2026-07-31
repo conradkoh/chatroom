@@ -95,11 +95,11 @@ describe('renderEnhancerTaskEnvelope', () => {
     expect(result).toContain('</ux-reference>');
   });
 
-  it('requirements mention UX validation for UI proposals', () => {
+  it('requirements mention UX checklist and output order', () => {
     const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('UX consistency review');
-    expect(result).toContain('<ux-reference>');
-    expect(result).toContain('layout simplification');
+    expect(result).toContain('UX review checklist');
+    expect(result).toContain('Suggested edits');
+    expect(result).toContain('must be last');
   });
 
   it('ux-reference contains layout simplification patterns', () => {

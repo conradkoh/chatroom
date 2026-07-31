@@ -57,12 +57,12 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).toContain('bar raiser');
   });
 
-  it('includes UI/UX validation guidance for interface changes', () => {
+  it('includes UI/UX validation and output order guidance', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('UI/UX validation');
-    expect(result).toContain('Flow complexity');
-    expect(result).toContain('Keyboard shortcuts');
-    expect(result).toContain('Layout simplification');
-    expect(result).toContain('ux-reference');
+    expect(result).toContain('UX review checklist');
+    expect(result).toContain('Recommendations');
+    expect(result).toContain('Suggested edits');
+    expect(result).toContain('always last');
+    expect(result).not.toContain('**Flow complexity:**');
   });
 });

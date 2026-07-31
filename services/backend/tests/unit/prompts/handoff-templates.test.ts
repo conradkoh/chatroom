@@ -44,8 +44,10 @@ describe('handoff-templates > resolver', () => {
     const template = getEnhancerToPlannerHandoffTemplate();
     expect(template).toContain('<handoff-overview>');
     expect(template).toContain('<handoff-action>');
-    expect(template).toContain('## Risks & failure modes');
+    expect(template).toContain('## Recommendations');
     expect(template).toContain('## Suggested edits (remove or change only)');
+    expect(template).not.toContain('## Questions for the planner');
+    expect(template).not.toContain('## UX consistency review');
   });
 
   test('resolves planner → user to the report template', () => {
