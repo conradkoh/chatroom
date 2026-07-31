@@ -48,26 +48,6 @@ async function insertTimelineMessage(
   });
 }
 
-describe('listUserMessagesPaginated', () => {
-  test('returns only user messages, newest first', async () => {
-    const { sessionId } = await createTestSession('pag-user-1');
-    const chatroomId = await createChatroom(sessionId);
-    await insertTimelineMessage(chatroomId, 'user', 'u1');
-    await insertTimelineMessage(chatroomId, 'builder', 'b1');
-    await insertTimelineMessage(chatroomId, 'user', 'u2');
-
-    const result = await t.query(api.messages.listUserMessagesPaginated, {
-      sessionId,
-      chatroomId,
-      paginationOpts: { numItems: 10, cursor: null },
-    });
-
-    expect(result.page).toHaveLength(2);
-    expect(result.page.every((m) => m.senderRole === 'user')).toBe(true);
-    expect(result.page[0].content).toBe('u2');
-  });
-});
-
 describe('listMessagesBySenderRolePaginated', () => {
   test('returns planner handoffs and messages, newest first', async () => {
     const { sessionId } = await createTestSession('pag-role-1');
@@ -215,52 +195,5 @@ describe('listMessagesBySenderRolePaginated', () => {
     const contents = result.page.map((m) => m.content);
     expect(contents).toEqual(expect.arrayContaining(['user msg', 'handoff to user']));
     expect(result.page.some((m) => m.type === 'handoff' && m.targetRole === 'user')).toBe(true);
-  });
-});
-
-describe('listConversationSlicePaginated', () => {
-  test('slice from anchor until before next user message', async () => {
-    const { sessionId } = await createTestSession('pag-slice-1');
-    const chatroomId = await createChatroom(sessionId);
-    const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
-    await insertTimelineMessage(chatroomId, 'builder', 'reply1');
-    await insertTimelineMessage(chatroomId, 'planner', 'reply2');
-    await insertTimelineMessage(chatroomId, 'user', 'next user');
-
-    const result = await t.query(api.messages.listConversationSlicePaginated, {
-      sessionId,
-      chatroomId,
-      anchorMessageId: anchorId as Id<'chatroom_messages'>,
-      paginationOpts: { numItems: 10, cursor: null },
-    });
-
-    expect(result.sliceMetadata.nextUserMessageId).toBeDefined();
-    const contents = result.page.map((m) => m.content);
-    expect(contents).toContain('anchor');
-    expect(contents).toContain('reply1');
-    expect(contents).toContain('reply2');
-    expect(contents).not.toContain('next user');
-  });
-
-  test('follow_up user message ends previous slice', async () => {
-    const { sessionId } = await createTestSession('pag-slice-2');
-    const chatroomId = await createChatroom(sessionId);
-    const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
-    await insertTimelineMessage(chatroomId, 'builder', 'work');
-    await insertTimelineMessage(chatroomId, 'user', 'follow up', {
-      classification: 'follow_up',
-    });
-
-    const result = await t.query(api.messages.listConversationSlicePaginated, {
-      sessionId,
-      chatroomId,
-      anchorMessageId: anchorId as Id<'chatroom_messages'>,
-      paginationOpts: { numItems: 10, cursor: null },
-    });
-
-    const contents = result.page.map((m) => m.content);
-    expect(contents).toContain('anchor');
-    expect(contents).toContain('work');
-    expect(contents).not.toContain('follow up');
   });
 });

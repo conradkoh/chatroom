@@ -19,7 +19,7 @@ export function useConversationSlice(
   const [sessionId] = useSessionId();
 
   const paginated = usePaginatedQuery(
-    api.messages.listConversationSlicePaginated as PaginatedQueryReference,
+    api.allTabConversation.listAllTabSlicePaginated as PaginatedQueryReference,
     anchorMessageId && sessionId
       ? {
           chatroomId: typedChatroomId,

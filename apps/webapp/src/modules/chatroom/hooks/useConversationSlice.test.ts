@@ -31,8 +31,8 @@ vi.mock('../timeline/mapMessageToTimelineEvent', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
-    messages: {
-      listConversationSlicePaginated: 'listConversationSlicePaginated',
+    allTabConversation: {
+      listAllTabSlicePaginated: 'listAllTabSlicePaginated',
     },
   },
 }));
@@ -59,7 +59,7 @@ describe('useConversationSlice', () => {
     const { result } = renderHook(() => useConversationSlice('room-1', 'anchor-1' as never));
 
     expect(mockUsePaginatedQuery).toHaveBeenCalledWith(
-      'listConversationSlicePaginated',
+      'listAllTabSlicePaginated',
       {
         chatroomId: 'room-1',
         sessionId: 'session-1',
@@ -74,7 +74,7 @@ describe('useConversationSlice', () => {
   it('skips query when anchor is null', () => {
     renderHook(() => useConversationSlice('room-1', null));
 
-    expect(mockUsePaginatedQuery).toHaveBeenCalledWith('listConversationSlicePaginated', 'skip', {
+    expect(mockUsePaginatedQuery).toHaveBeenCalledWith('listAllTabSlicePaginated', 'skip', {
       initialNumItems: 30,
     });
   });
