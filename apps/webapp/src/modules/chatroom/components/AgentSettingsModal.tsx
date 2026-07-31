@@ -17,10 +17,12 @@ import {
   Trash2,
   Database,
   FileText,
+  Activity,
 } from 'lucide-react';
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
+import { EventStreamTab } from './EventStreamTab';
 import { useDaemonConnected } from '../../../hooks/useDaemonConnected';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
@@ -72,6 +74,7 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'workspaces', label: 'Workspaces', icon: <HardDrive size={16} /> },
   { id: 'skills', label: 'Skills', icon: <FileText size={16} /> },
   { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
+  { id: 'event-stream', label: 'Event Stream', icon: <Activity size={16} /> },
 ];
 
 // ─── Tab Content Components ─────────────────────────────────────────────
@@ -1009,7 +1012,9 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           </ResponsivePickerShell>
         </div>
 
-        <FixedModalBody className="p-6">
+        <FixedModalBody
+          className={activeTab === 'event-stream' ? 'p-4 flex flex-col min-h-0' : 'p-6'}
+        >
           {activeTab === 'setup' && (
             <SetupContent chatroomId={chatroomId} onArchiveComplete={onClose} />
           )}
@@ -1025,6 +1030,12 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
           {activeTab === 'skills' && <SkillsTab chatroomId={chatroomId} />}
           {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}
+          {activeTab === 'event-stream' && (
+            <EventStreamTab
+              chatroomId={chatroomId}
+              isActive={isOpen && activeTab === 'event-stream'}
+            />
+          )}
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>
