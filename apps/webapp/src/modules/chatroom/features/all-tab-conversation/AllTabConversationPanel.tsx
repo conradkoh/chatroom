@@ -29,6 +29,9 @@ export function AllTabConversationPanel({
     events,
     messages,
     isLoading,
+    isLoadingMore,
+    canLoadMore,
+    loadMore,
     hasPrev,
     hasNext,
     goToPrev,
@@ -64,7 +67,14 @@ export function AllTabConversationPanel({
           <ChatroomLoader />
         </div>
       ) : (
-        <AllTabMessageList events={events} anchorId={anchorId} machines={machines} />
+        <AllTabMessageList
+          events={events}
+          anchorId={anchorId}
+          machines={machines}
+          canLoadMore={canLoadMore}
+          isLoadingMore={isLoadingMore}
+          onLoadMore={loadMore}
+        />
       )}
 
       <ComposerPreflightBar chatroomId={chatroomId as never} />
