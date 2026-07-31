@@ -23,12 +23,85 @@ const makeEvent = (id: string) => ({
   },
 });
 
+function setScrollMetrics(
+  el: HTMLElement,
+  metrics: { clientHeight: number; scrollHeight: number; scrollTop: number }
+) {
+  Object.defineProperty(el, 'clientHeight', { value: metrics.clientHeight, configurable: true });
+  Object.defineProperty(el, 'scrollHeight', { value: metrics.scrollHeight, configurable: true });
+  Object.defineProperty(el, 'scrollTop', {
+    value: metrics.scrollTop,
+    writable: true,
+    configurable: true,
+  });
+}
+
 function scrollToBottom(el: HTMLElement) {
-  Object.defineProperty(el, 'clientHeight', { value: 400, configurable: true });
-  Object.defineProperty(el, 'scrollHeight', { value: 1200, configurable: true });
-  Object.defineProperty(el, 'scrollTop', { value: 1000, writable: true, configurable: true });
+  setScrollMetrics(el, { clientHeight: 400, scrollHeight: 1200, scrollTop: 1000 });
   fireEvent.scroll(el);
 }
+
+describe('scroll pinning and jump chip', () => {
+  it('shows jump chip when scrolled away from bottom', () => {
+    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+
+    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
+    fireEvent.scroll(list);
+
+    expect(document.querySelector('[data-testid="all-tab-jump-to-new-messages"]')).not.toBeNull();
+  });
+
+  it('hides jump chip when at bottom (pinned)', () => {
+    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+
+    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    scrollToBottom(list);
+
+    expect(document.querySelector('[data-testid="all-tab-jump-to-new-messages"]')).toBeNull();
+  });
+
+  it('clicking jump chip scrolls to bottom and hides chip', () => {
+    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+
+    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
+    fireEvent.scroll(list);
+
+    const chip = document.querySelector('[data-testid="all-tab-jump-to-new-messages"]');
+    expect(chip).not.toBeNull();
+
+    const scrollTo = vi.fn((opts?: ScrollToOptions | number) => {
+      if (opts && typeof opts === 'object' && typeof opts.top === 'number') {
+        Object.defineProperty(list, 'scrollTop', {
+          value: opts.top,
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(chip as HTMLElement);
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1200, behavior: 'smooth' });
+    expect(list.scrollTop).toBe(1200);
+    expect(document.querySelector('[data-testid="all-tab-jump-to-new-messages"]')).toBeNull();
+  });
+
+  it('dispatches scroll on anchorId change to unpin', () => {
+    const events = [makeEvent('msg-1')];
+    const { rerender } = render(<AllTabMessageList events={events} anchorId="a1" />);
+
+    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 800 });
+
+    rerender(<AllTabMessageList events={events} anchorId="a2" />);
+
+    expect(list.scrollTop).toBe(0);
+    expect(document.querySelector('[data-testid="all-tab-jump-to-new-messages"]')).not.toBeNull();
+  });
+});
 
 describe('AllTabMessageList', () => {
   it('scrolls to top when anchorId changes', () => {
@@ -63,6 +136,7 @@ describe('AllTabMessageList', () => {
     );
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    onLoadMore.mockClear();
     scrollToBottom(list);
 
     expect(onLoadMore).toHaveBeenCalledTimes(1);
