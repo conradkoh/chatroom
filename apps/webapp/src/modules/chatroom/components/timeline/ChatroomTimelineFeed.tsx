@@ -27,6 +27,7 @@ import { TimelineEventCountMenu } from './TimelineEventCountMenu';
 import { TimelineEventRow } from './TimelineEventRow';
 import { TimelineLatestEventTicker } from './TimelineLatestEventTicker';
 import { logLoadOlder } from './timelineLoadOlderDebug';
+import { getTimelineVirtualRowZIndex } from './timelineRowStyles';
 import type { MachineNameEntry } from './timelineRowStyles';
 import {
   getTimelineItemKey,
@@ -523,6 +524,7 @@ export function ChatroomTimelineFeed({
                   top: virtualRow.start,
                   left: 0,
                   width: '100%',
+                  zIndex: getTimelineVirtualRowZIndex(virtualRow.index),
                   contain: 'layout style',
                 }}
               >

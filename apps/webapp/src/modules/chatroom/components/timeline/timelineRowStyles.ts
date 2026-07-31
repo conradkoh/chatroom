@@ -1,9 +1,20 @@
 /** Shared row chrome for timeline cells. */
 export const TIMELINE_ROW_BORDER = 'border-b-2 border-chatroom-border';
 
+/** Row root — establishes an isolated stacking context for sticky header vs body. */
+export const TIMELINE_ROW_ROOT = 'relative isolate';
+
+/** Message body — stays below the sticky header within the row. */
+export const TIMELINE_MESSAGE_BODY = 'relative z-0';
+
 /** Sticky header within a timeline row — keeps sender/target visible while scrolling long bodies. */
 export const TIMELINE_MESSAGE_HEADER_STICKY =
   'sticky top-0 z-10 bg-chatroom-bg-primary border-b border-chatroom-border';
+
+/** Virtual-row z-index so later rows stack above earlier sticky headers. 1-based. */
+export function getTimelineVirtualRowZIndex(index: number): number {
+  return index + 1;
+}
 
 export const BADGE_BASE =
   'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5';

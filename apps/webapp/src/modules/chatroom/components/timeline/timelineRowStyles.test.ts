@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
-import { formatMachineLabel } from './timelineRowStyles';
+import {
+  formatMachineLabel,
+  getTimelineVirtualRowZIndex,
+  TIMELINE_MESSAGE_BODY,
+  TIMELINE_ROW_ROOT,
+} from './timelineRowStyles';
 
 describe('formatMachineLabel', () => {
   it('returns alias when present', () => {
@@ -18,5 +23,19 @@ describe('formatMachineLabel', () => {
     expect(formatMachineLabel(undefined, 'm1')).toBeNull();
     expect(formatMachineLabel(machines, undefined)).toBeNull();
     expect(formatMachineLabel(machines, 'unknown')).toBeNull();
+  });
+});
+
+describe('getTimelineVirtualRowZIndex', () => {
+  it('returns 1-based index for virtual row stacking', () => {
+    expect(getTimelineVirtualRowZIndex(0)).toBe(1);
+    expect(getTimelineVirtualRowZIndex(5)).toBe(6);
+  });
+});
+
+describe('timeline row stacking classes', () => {
+  it('exports row isolation and body z-0 classes', () => {
+    expect(TIMELINE_ROW_ROOT).toContain('isolate');
+    expect(TIMELINE_MESSAGE_BODY).toContain('z-0');
   });
 });

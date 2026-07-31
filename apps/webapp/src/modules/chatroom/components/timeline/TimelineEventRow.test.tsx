@@ -6,7 +6,7 @@ import type React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { TimelineEventRow } from './TimelineEventRow';
-import { TIMELINE_MESSAGE_HEADER_STICKY } from './timelineRowStyles';
+import { TIMELINE_MESSAGE_HEADER_STICKY, TIMELINE_ROW_ROOT } from './timelineRowStyles';
 import { AttachmentsProvider } from '../../attachments';
 import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
 import type { Message } from '../../types/message';
@@ -92,5 +92,8 @@ describe('TimelineEventRow', () => {
     expect(header).toHaveClass(...TIMELINE_MESSAGE_HEADER_STICKY.split(' '));
     expect(screen.getByText('planner')).toBeInTheDocument();
     expect(screen.getByText('user')).toBeInTheDocument();
+
+    const row = screen.getByTestId('timeline-team-message');
+    expect(row).toHaveClass(...TIMELINE_ROW_ROOT.split(' '));
   });
 });

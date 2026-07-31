@@ -1,5 +1,6 @@
 'use client';
 
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import {
   Archive,
   CheckCircle2,
@@ -17,14 +18,15 @@ import { TimelineMessageFooter } from './TimelineMessageFooter';
 import {
   BADGE_BASE,
   ICON_SIZE,
+  TIMELINE_MESSAGE_BODY,
   TIMELINE_MESSAGE_HEADER_STICKY,
   TIMELINE_ROW_BORDER,
+  TIMELINE_ROW_ROOT,
 } from './timelineRowStyles';
 import { MessageAttachmentChips } from '../../attachments';
-import type { Message, MessageClassification } from '../../types/message';
 import { ScheduledMessageBadge } from '../../features/scheduled-prompts/components/ScheduledMessageBadge';
 import { ScheduledPromptDetailDialog } from '../../features/scheduled-prompts/components/ScheduledPromptDetailDialog';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { Message, MessageClassification } from '../../types/message';
 
 function getClassificationBadge(classification: MessageClassification | undefined) {
   if (!classification) return null;
@@ -119,7 +121,10 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
   const [detailOpen, setDetailOpen] = useState(false);
 
   return (
-    <div className={`${TIMELINE_ROW_BORDER} bg-transparent`} data-testid="timeline-user-message">
+    <div
+      className={`${TIMELINE_ROW_BORDER} bg-transparent ${TIMELINE_ROW_ROOT}`}
+      data-testid="timeline-user-message"
+    >
       <div
         className={`w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong ${TIMELINE_MESSAGE_HEADER_STICKY}`}
         data-testid="timeline-message-header"
@@ -173,7 +178,7 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
         </div>
       </div>
 
-      <div className="px-4 py-3">
+      <div className={`px-4 py-3 ${TIMELINE_MESSAGE_BODY}`}>
         <TimelineMarkdownBody content={message.content} />
         <div className="mt-2 empty:hidden">
           <MessageAttachmentChips message={message} />
