@@ -96,7 +96,7 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
   lines.push('- Whether the planner read user intent correctly');
   lines.push('- Risks, failure modes, and missing groundwork');
   lines.push(
-    '- Knowledge gaps and weak reasoning — as questions in advisory sections; concrete removals/changes go in **Suggested edits (remove or change only)**'
+    '- Specific risks, gaps, and concrete recommendations in every section; proposed plan edits with code snippets in **Suggested edits (remove or change only)**'
   );
   lines.push('- Whether the approach will support a strong planner→user handoff');
   lines.push('- The planner makes the final call — feedback is consultative, not authoritative');
@@ -144,7 +144,7 @@ export function appendTaskDeliveryEnhancerReviewGuidance(lines: string[]): void 
     '- Treat feedback as **advisory** — you make the final call; do not blindly follow suggestions.'
   );
   lines.push(
-    '- **Suggested edits** may include file-level removals/changes with code snippets — evaluate on merit; other sections remain advisory.'
+    '- **Suggested edits** include proposed plan changes with file-level detail and code snippets — evaluate on merit; other sections should also be specific and actionable.'
   );
   lines.push(
     '- **One round only** for this check-in — proceed to `builder` or `user` without re-enhancing this slice.'

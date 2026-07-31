@@ -46,7 +46,7 @@ describe('renderEnhancerSystemPrompt', () => {
 
   it('scopes file-level edits to Suggested edits section only', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('Suggested edits (remove or change only)');
+    expect(result).toContain('Suggested edits');
     expect(result).not.toContain('Do NOT prescribe file-level edits, target code snippets');
     expect(result).toContain('Do NOT rewrite');
   });
@@ -63,6 +63,9 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).toContain('Recommendations');
     expect(result).toContain('Suggested edits');
     expect(result).toContain('always last');
-    expect(result).not.toContain('**Flow complexity:**');
+    expect(result).toContain('specific, targeted');
+    expect(result).toContain('vague');
+    expect(result).not.toContain('abstract bullets');
+    expect(result).not.toContain('stay abstract');
   });
 });

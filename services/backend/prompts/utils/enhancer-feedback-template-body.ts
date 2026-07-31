@@ -9,44 +9,43 @@ import { getFileReferenceGuidanceComment } from './file-reference-guidance';
 export function getEnhancerFeedbackTemplateBody(): string {
   return `<handoff-overview>
 ## Summary
-<one paragraph: overall assessment — strengths, main risks, and whether the approach is sound>
+<overall assessment — cite specific strengths, risks, and whether the approach is sound; reference concrete elements from the check-in>
 
 ## User intent alignment
-<does the planner's reading of the user request match what was asked? misreadings or missing constraints?>
+<specific misreadings or missing constraints — what the user asked vs what the planner proposed>
 </handoff-overview>
 
 <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
 
 <handoff-proofs>
 ## Reasoning review
-<logical errors, weak inference, contradictions — challenge assumptions>
+<specific logical errors, weak inference, or contradictions — cite the claim and why it fails>
 </handoff-proofs>
 
 <handoff-direction>
 ## Alignment with eventual user handoff
-<will this approach produce a credible planner→user report? what's missing for user-facing completeness?>
+<specific gaps for user-facing completeness — what proof or report sections would be missing>
 </handoff-direction>
 
 <handoff-notes>
 ## Knowledge gaps
-<facts, context, or research the planner should verify — advisory questions, not answers from codebase>
+<specific facts, files, or research to verify — name what to check and why>
 </handoff-notes>
 
 <handoff-action>
 ## Risks & failure modes
-<what could go wrong if they proceed as planned? common pitfalls for this kind of work?>
+<specific risks tied to this plan — what fails, under what conditions, and how to mitigate>
 
 ## Recommendations
-<!-- SECOND-LAST SECTION — abstract guidance only. No file paths, no code blocks. -->
-<!-- For UI changes: report UX checklist findings (write "Not Applicable." for non-UI tasks): -->
+<!-- SECOND-LAST — concrete, actionable suggestions tied to the check-in. Include tradeoffs and considerations. No code blocks here (use Suggested edits for snippets). -->
+<!-- For UI changes: report specific UX checklist findings (write "Not Applicable." for non-UI tasks): -->
 - **Flows:** ...
 - **Patterns:** ... (include mobile vs desktop)
 - **Layout:** ...
 - **Shortcuts:** ...
-<!-- Include questions for the planner and other actionable recommendations here. -->
 
 ## Suggested edits (remove or change only)
-<!-- LAST SECTION — file-level detail and code examples only. Omit entirely if none. -->
+<!-- LAST — proposed edits to grounding and builder-handoff. File paths and code snippets required when recommending changes. Omit entirely if none. -->
 When you recommend removing or changing specific content in the planner's check-in, list each change here with file-level detail and code examples.
 ${getFileReferenceGuidanceComment()}
 

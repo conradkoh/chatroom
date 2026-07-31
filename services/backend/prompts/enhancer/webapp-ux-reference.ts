@@ -11,7 +11,7 @@ export function renderWebappUxReference(): string {
     'Use when the planner proposes user interface changes.',
     '',
     '### UX review checklist',
-    'Report findings in **Recommendations** (abstract bullets — no code). Write "Not Applicable." for non-UI tasks.',
+    'Report **specific** findings tied to the planner\'s proposal in **Recommendations**. Put code snippets in **Suggested edits**. Write "Not Applicable." for non-UI tasks.',
     '1. **Flows** — primary action ≤3 clicks? simpler path exists?',
     '2. **Patterns** — matches existing components? recommend one if multiple. mobile vs desktop (md: variants vs separate mobile UI)?',
     '3. **Layout** — compact title+menu row, description, trailing end-aligned CTA? unnecessary wrappers?',

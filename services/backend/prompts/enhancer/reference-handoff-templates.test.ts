@@ -70,51 +70,50 @@ describe('materialized enhancer handoff-templates block (spawn output contract)'
 
       When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
 
-      The planner sent you three XML sections. Your job is **advisory adversarial review** — raise risks, challenge assumptions, align with user intent. Keep most sections abstract.
+      The planner sent you three XML sections. Your job is **advisory adversarial review** — raise risks, challenge assumptions, align with user intent. Be **specific and targeted**: cite concrete claims, files, UX choices, and gaps from the check-in so the planner can improve the plan without re-synthesizing vague feedback.
 
-      For **user interface changes**, run the UX review checklist in <ux-reference> and report findings under **Recommendations** (no code). Put file-level removals/changes with code snippets only in **Suggested edits** — always the last section. **Do not rewrite their full builder brief.** The planner makes the final call.
+      Give **concrete, actionable recommendations** in every section. End with **Recommendations** (second-last: summarized suggestions, tradeoffs, and considerations) then **Suggested edits** (last: proposed edits to grounding and the builder-handoff with file paths and code snippets). For UI work, run the UX checklist in <ux-reference> and report **specific** findings under **Recommendations**. **Do not rewrite their full builder brief.** The planner makes the final call.
 
       \`\`\`markdown
       <handoff-overview>
       ## Summary
-      <one paragraph: overall assessment — strengths, main risks, and whether the approach is sound>
+      <overall assessment — cite specific strengths, risks, and whether the approach is sound; reference concrete elements from the check-in>
 
       ## User intent alignment
-      <does the planner's reading of the user request match what was asked? misreadings or missing constraints?>
+      <specific misreadings or missing constraints — what the user asked vs what the planner proposed>
       </handoff-overview>
 
       <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
 
       <handoff-proofs>
       ## Reasoning review
-      <logical errors, weak inference, contradictions — challenge assumptions>
+      <specific logical errors, weak inference, or contradictions — cite the claim and why it fails>
       </handoff-proofs>
 
       <handoff-direction>
       ## Alignment with eventual user handoff
-      <will this approach produce a credible planner→user report? what's missing for user-facing completeness?>
+      <specific gaps for user-facing completeness — what proof or report sections would be missing>
       </handoff-direction>
 
       <handoff-notes>
       ## Knowledge gaps
-      <facts, context, or research the planner should verify — advisory questions, not answers from codebase>
+      <specific facts, files, or research to verify — name what to check and why>
       </handoff-notes>
 
       <handoff-action>
       ## Risks & failure modes
-      <what could go wrong if they proceed as planned? common pitfalls for this kind of work?>
+      <specific risks tied to this plan — what fails, under what conditions, and how to mitigate>
 
       ## Recommendations
-      <!-- SECOND-LAST SECTION — abstract guidance only. No file paths, no code blocks. -->
-      <!-- For UI changes: report UX checklist findings (write "Not Applicable." for non-UI tasks): -->
+      <!-- SECOND-LAST — concrete, actionable suggestions tied to the check-in. Include tradeoffs and considerations. No code blocks here (use Suggested edits for snippets). -->
+      <!-- For UI changes: report specific UX checklist findings (write "Not Applicable." for non-UI tasks): -->
       - **Flows:** ...
       - **Patterns:** ... (include mobile vs desktop)
       - **Layout:** ...
       - **Shortcuts:** ...
-      <!-- Include questions for the planner and other actionable recommendations here. -->
 
       ## Suggested edits (remove or change only)
-      <!-- LAST SECTION — file-level detail and code examples only. Omit entirely if none. -->
+      <!-- LAST — proposed edits to grounding and builder-handoff. File paths and code snippets required when recommending changes. Omit entirely if none. -->
       When you recommend removing or changing specific content in the planner's check-in, list each change here with file-level detail and code examples.
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
