@@ -5,8 +5,8 @@
  * to tighten research and conclusions before the planner proceeds to builder
  * or user handoff.
  *
- * Maps 8 sections into 5 XML tags matching HandoffReportView.
- * → 2 in overview, 1 proofs, 1-2 in direction (UX optional), 1 notes, 2 in action
+ * Maps 8 sections into 6 XML tags matching HandoffReportView.
+ * → 2 in overview, 1 proofs, 1 direction, 1 ux (optional), 1 notes, 2 in action
  * (Recommendations then Suggested edits last).
  */
 

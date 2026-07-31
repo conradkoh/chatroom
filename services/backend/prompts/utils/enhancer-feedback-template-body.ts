@@ -1,8 +1,9 @@
 /**
  * XML-wrapped planning feedback body for enhancer → planner handoffs.
- * Maps 8 sections into 5 collapsible UI categories (same tags as
- * planner→user report handoffs). UX is optional in direction; Suggested
- * edits is the last `##` heading — code examples come last for LLM generation.
+ * Maps 8 sections into 6 collapsible UI tags (same tags as
+ * planner→user report handoffs plus handoff-ux). UX is its own optional
+ * tag between direction and notes; Suggested edits is the last `##`
+ * heading — code examples come last for LLM generation.
  */
 import { getFileReferenceGuidanceComment } from './file-reference-guidance';
 
@@ -15,7 +16,7 @@ export function getEnhancerFeedbackTemplateBody(): string {
 <specific misreadings or missing constraints — what the user asked vs what the planner proposed>
 </handoff-overview>
 
-<!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
+<!-- UI collapses proofs, direction, ux, and notes by default; overview and action required are expanded -->
 
 <handoff-proofs>
 ## Reasoning review
@@ -25,15 +26,16 @@ export function getEnhancerFeedbackTemplateBody(): string {
 <handoff-direction>
 ## Alignment with eventual user handoff
 <specific gaps for user-facing completeness — what proof or report sections would be missing>
+</handoff-direction>
 
-## UX
+<handoff-ux>
 <!-- Optional — write exactly "Not Applicable." when no UI changes are proposed -->
 <!-- When UI is proposed: specific findings tied to the planner's proposal. No code blocks (use Suggested edits). -->
 - **Flows:** <specific finding — click count, nested modals, simpler alternatives>
 - **Patterns:** <which existing pattern fits; recommend one if multiple; mobile vs desktop>
 - **Layout:** <compact rows, trailing CTAs, unnecessary wrappers>
 - **Shortcuts:** <alignment with catalog; gaps or conflicts>
-</handoff-direction>
+</handoff-ux>
 
 <handoff-notes>
 ## Knowledge gaps

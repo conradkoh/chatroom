@@ -44,7 +44,8 @@ describe('handoff-templates > resolver', () => {
     const template = getEnhancerToPlannerHandoffTemplate();
     expect(template).toContain('<handoff-overview>');
     expect(template).toContain('<handoff-action>');
-    expect(template).toContain('## UX');
+    expect(template).toContain('<handoff-ux>');
+    expect(template).not.toMatch(/^## UX$/m);
     expect(template).toContain('## Recommendations');
     expect(template).toContain('## Suggested edits (remove or change only)');
     expect(template).not.toContain('## Questions for the planner');
@@ -410,7 +411,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <specific misreadings or missing constraints — what the user asked vs what the planner proposed>
       </handoff-overview>
 
-      <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
+      <!-- UI collapses proofs, direction, ux, and notes by default; overview and action required are expanded -->
 
       <handoff-proofs>
       ## Reasoning review
@@ -420,15 +421,16 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <handoff-direction>
       ## Alignment with eventual user handoff
       <specific gaps for user-facing completeness — what proof or report sections would be missing>
+      </handoff-direction>
 
-      ## UX
+      <handoff-ux>
       <!-- Optional — write exactly "Not Applicable." when no UI changes are proposed -->
       <!-- When UI is proposed: specific findings tied to the planner's proposal. No code blocks (use Suggested edits). -->
       - **Flows:** <specific finding — click count, nested modals, simpler alternatives>
       - **Patterns:** <which existing pattern fits; recommend one if multiple; mobile vs desktop>
       - **Layout:** <compact rows, trailing CTAs, unnecessary wrappers>
       - **Shortcuts:** <alignment with catalog; gaps or conflicts>
-      </handoff-direction>
+      </handoff-ux>
 
       <handoff-notes>
       ## Knowledge gaps

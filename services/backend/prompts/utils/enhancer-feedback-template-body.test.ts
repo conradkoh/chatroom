@@ -3,11 +3,12 @@ import { describe, expect, test } from 'vitest';
 import { getEnhancerFeedbackTemplateBody } from './enhancer-feedback-template-body';
 
 describe('getEnhancerFeedbackTemplateBody', () => {
-  test('contains all 5 XML section wrappers', () => {
+  test('contains all 6 XML section wrappers', () => {
     const body = getEnhancerFeedbackTemplateBody();
     expect(body).toContain('<handoff-overview>');
     expect(body).toContain('<handoff-proofs>');
     expect(body).toContain('<handoff-direction>');
+    expect(body).toContain('<handoff-ux>');
     expect(body).toContain('<handoff-notes>');
     expect(body).toContain('<handoff-action>');
   });
@@ -39,17 +40,20 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     expect(lastH2).toBe('## Suggested edits (remove or change only)');
   });
 
-  test('contains optional UX section in direction with checklist bullets', () => {
+  test('contains optional UX section in handoff-ux tag', () => {
     const body = getEnhancerFeedbackTemplateBody();
-    expect(body).toContain('## UX');
+    expect(body).toContain('<handoff-ux>');
+    expect(body).toContain('</handoff-ux>');
+    expect(body).not.toContain('## UX');
     expect(body).toContain('**Flows:**');
     expect(body).toContain('**Patterns:**');
     expect(body).toContain('**Layout:**');
     expect(body).toContain('**Shortcuts:**');
-    expect(body.indexOf('## UX')).toBeGreaterThan(
-      body.indexOf('## Alignment with eventual user handoff')
-    );
-    expect(body.indexOf('## UX')).toBeLessThan(body.indexOf('</handoff-direction>'));
+    const uxBlock = body.slice(body.indexOf('<handoff-ux>'), body.indexOf('</handoff-ux>'));
+    expect(uxBlock).toContain('**Flows:**');
+    expect(uxBlock).toContain('**Shortcuts:**');
+    expect(body.indexOf('<handoff-ux>')).toBeGreaterThan(body.indexOf('</handoff-direction>'));
+    expect(body.indexOf('<handoff-ux>')).toBeLessThan(body.indexOf('<handoff-notes>'));
   });
 
   test('Recommendations precedes Suggested edits', () => {
