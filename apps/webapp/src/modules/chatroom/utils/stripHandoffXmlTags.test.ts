@@ -17,6 +17,7 @@ describe('stripHandoffXmlTags', () => {
     const input = `<handoff-overview>## Summary</handoff-overview>
 <handoff-proofs>## Proofs</handoff-proofs>
 <handoff-direction>## Direction</handoff-direction>
+<handoff-ux>- **Flows:** Too many clicks</handoff-ux>
 <handoff-notes>## Notes</handoff-notes>
 <handoff-action>## Action</handoff-action>
 <handoff-details>## Details</handoff-details>`;
@@ -24,6 +25,7 @@ describe('stripHandoffXmlTags', () => {
     expect(result).toContain('## Summary');
     expect(result).toContain('## Proofs');
     expect(result).toContain('## Direction');
+    expect(result).toContain('**Flows:** Too many clicks');
     expect(result).toContain('## Notes');
     expect(result).toContain('## Action');
     expect(result).toContain('## Details');

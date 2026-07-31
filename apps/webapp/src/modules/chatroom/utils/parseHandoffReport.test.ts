@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { hasHandoffReport, parseHandoffReport } from './parseHandoffReport';
 
 const STRUCTURED_CONTENT = `<handoff-overview>
@@ -28,6 +29,13 @@ None
 ## Tech Debt Observed
 None
 </handoff-action>`;
+
+const CONTENT_WITH_UX = `${STRUCTURED_CONTENT}
+
+<handoff-ux>
+- **Flows:** Too many clicks
+- **Patterns:** Use existing dialog
+</handoff-ux>`;
 
 const LEGACY_CONTENT = `## Summary
 Implemented login feature
@@ -60,6 +68,17 @@ describe('parseHandoffReport', () => {
     expect(result.direction).toContain('Used JWT');
     expect(result.notes).toContain('None');
     expect(result.action).toContain('Tech Debt Observed');
+  });
+
+  it('returns null ux when handoff-ux tag absent', () => {
+    const result = parseHandoffReport(STRUCTURED_CONTENT);
+    expect(result.ux).toBeNull();
+  });
+
+  it('extracts ux section from handoff-ux tag', () => {
+    const result = parseHandoffReport(CONTENT_WITH_UX);
+    expect(result.ux).toContain('**Flows:** Too many clicks');
+    expect(result.ux).toContain('**Patterns:** Use existing dialog');
   });
 
   it('overview section populates summary for structured format', () => {

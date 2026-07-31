@@ -3,6 +3,7 @@ export const HANDOFF_REPORT_XML_TAGS = [
   'handoff-overview',
   'handoff-proofs',
   'handoff-direction',
+  'handoff-ux',
   'handoff-notes',
   'handoff-action',
   'handoff-details',

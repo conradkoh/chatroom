@@ -4,13 +4,13 @@ import { memo, useMemo, useState } from 'react';
 
 import { HandoffCollapsibleSection } from './HandoffCollapsibleSection';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
-import { parseHandoffReport } from '../../utils/parseHandoffReport';
-import type { HandoffReportParseResult } from '../../utils/parseHandoffReport';
 import {
   countNonemptySubsections,
   extractH2Section,
   isHandoffSectionBodyEmpty,
 } from '../../utils/handoffSectionContent';
+import { parseHandoffReport } from '../../utils/parseHandoffReport';
+import type { HandoffReportParseResult } from '../../utils/parseHandoffReport';
 
 export type HandoffReportViewVariant = 'timeline' | 'detail';
 
@@ -19,7 +19,7 @@ export interface HandoffReportViewProps {
   variant?: HandoffReportViewVariant;
 }
 
-type SectionKey = 'overview' | 'proofs' | 'direction' | 'systemDesign' | 'notes' | 'action';
+type SectionKey = 'overview' | 'proofs' | 'direction' | 'ux' | 'systemDesign' | 'notes' | 'action';
 
 interface SectionDef {
   id: string;
@@ -32,6 +32,7 @@ const STRUCTURED_SECTIONS: SectionDef[] = [
   { id: 'overview', label: 'Overview', key: 'overview', defaultOpenWhenNonempty: true },
   { id: 'proofs', label: 'Proofs', key: 'proofs', defaultOpenWhenNonempty: false },
   { id: 'direction', label: 'Direction', key: 'direction', defaultOpenWhenNonempty: false },
+  { id: 'ux', label: 'UX', key: 'ux', defaultOpenWhenNonempty: false },
   {
     id: 'system-design',
     label: 'System Design',
@@ -50,6 +51,7 @@ function computeSectionBodies(parsed: HandoffReportParseResult): {
     overview: parsed.overview,
     proofs: parsed.proofs,
     direction: null,
+    ux: parsed.ux,
     systemDesign: null,
     notes: parsed.notes,
     action: parsed.action,
@@ -63,6 +65,8 @@ function computeSectionBodies(parsed: HandoffReportParseResult): {
     // systemDesign is absent if the heading was never in the direction body
     isAbsent['system-design'] = extracted === null;
   }
+  // ux is absent when the tag was never present in the message
+  isAbsent['ux'] = parsed.ux === null;
 
   return { bodies, isAbsent };
 }
@@ -76,6 +80,7 @@ function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
       const body = bodies[section.key];
       if (body === null && section.key !== 'direction') continue;
       if (section.key === 'systemDesign' && isAbsent['system-design']) continue;
+      if (section.key === 'ux' && isAbsent['ux']) continue;
       const isEmpty = isHandoffSectionBodyEmpty(body ?? null);
       initial[section.id] = isEmpty ? false : section.defaultOpenWhenNonempty;
     }
@@ -92,8 +97,10 @@ function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
         const body = bodies[section.key];
         if (body === null && section.key !== 'direction') return null;
         if (section.key === 'systemDesign' && isAbsent['system-design']) return null;
+        if (section.key === 'ux' && isAbsent['ux']) return null;
         if (section.key === 'direction' && body === null) return null;
-        const subsectionCount = countNonemptySubsections(body!);
+        if (body === null) return null;
+        const subsectionCount = countNonemptySubsections(body);
         const isEmpty = isHandoffSectionBodyEmpty(body);
         const isOpen = openSections[section.id] ?? false;
         return (
@@ -101,7 +108,7 @@ function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
             key={section.id}
             id={section.id}
             label={section.label}
-            body={body!}
+            body={body}
             isOpen={isOpen}
             onToggle={() => toggleSection(section.id)}
             useActionMarkdown={section.key === 'action'}

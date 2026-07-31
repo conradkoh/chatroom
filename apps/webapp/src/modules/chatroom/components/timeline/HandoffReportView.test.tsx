@@ -121,6 +121,67 @@ Not Applicable
 Pick auth provider
 </handoff-action>`;
 
+const CONTENT_WITH_UX = `<handoff-overview>
+## Summary
+Test
+</handoff-overview>
+
+<handoff-proofs>
+## Reasoning review
+Done
+</handoff-proofs>
+
+<handoff-direction>
+## Alignment with eventual user handoff
+Gaps noted
+</handoff-direction>
+
+<handoff-ux>
+- **Flows:** Too many clicks
+- **Patterns:** Use existing dialog
+- **Layout:** Compact row needed
+- **Shortcuts:** No conflict
+</handoff-ux>
+
+<handoff-notes>
+## Knowledge gaps
+None
+</handoff-notes>
+
+<handoff-action>
+## Recommendations
+Simplify flow
+</handoff-action>`;
+
+const CONTENT_WITH_NA_UX = `<handoff-overview>
+## Summary
+Test
+</handoff-overview>
+
+<handoff-proofs>
+## Reasoning review
+Done
+</handoff-proofs>
+
+<handoff-direction>
+## Alignment with eventual user handoff
+Gaps noted
+</handoff-direction>
+
+<handoff-ux>
+Not Applicable.
+</handoff-ux>
+
+<handoff-notes>
+## Knowledge gaps
+None
+</handoff-notes>
+
+<handoff-action>
+## Recommendations
+Simplify flow
+</handoff-action>`;
+
 const LEGACY_CONTENT = `## Summary
 Implemented login feature
 
@@ -171,6 +232,30 @@ describe('HandoffReportView', () => {
       expect(screen.getByText('Direction (1)')).toBeInTheDocument();
       expect(screen.getByText('Notes (1)')).toBeInTheDocument();
       expect(screen.getByText('Action required (1)')).toBeInTheDocument();
+    });
+  });
+
+  describe('UX section', () => {
+    it('does not render UX section when tag absent', () => {
+      render(<HandoffReportView content={STRUCTURED_CONTENT} />);
+      expect(screen.queryByText(/^UX/)).not.toBeInTheDocument();
+    });
+
+    it('renders UX section label when tag present', () => {
+      render(<HandoffReportView content={CONTENT_WITH_UX} />);
+      expect(screen.getByText('UX (1)')).toBeInTheDocument();
+    });
+
+    it('ux collapsed by default', () => {
+      render(<HandoffReportView content={CONTENT_WITH_UX} />);
+      expect(screen.getByText('UX (1)')).toBeInTheDocument();
+      expect(screen.queryByText('Too many clicks')).not.toBeInTheDocument();
+    });
+
+    it('ux N/A shows UX (0) collapsed', () => {
+      render(<HandoffReportView content={CONTENT_WITH_NA_UX} />);
+      expect(screen.getByText('UX (0)')).toBeInTheDocument();
+      expect(screen.queryByText('Not Applicable.')).not.toBeInTheDocument();
     });
   });
 

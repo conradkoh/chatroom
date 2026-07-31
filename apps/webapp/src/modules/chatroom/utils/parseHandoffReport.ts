@@ -1,3 +1,5 @@
+import { HANDOFF_REPORT_XML_TAGS } from './handoffXmlTags';
+
 export type HandoffReportFormat = 'structured' | 'legacy';
 
 export interface HandoffReportParseResult {
@@ -8,6 +10,7 @@ export interface HandoffReportParseResult {
   overview: string | null;
   proofs: string | null;
   direction: string | null;
+  ux: string | null;
   notes: string | null;
   action: string | null;
   // Legacy fallback
@@ -27,8 +30,6 @@ function extractTag(
   return { body: match ? match[1].trim() : null, hadOpen, hadClose };
 }
 
-import { HANDOFF_REPORT_XML_TAGS } from './handoffXmlTags';
-
 const STRUCTURED_TAGS = [
   'handoff-overview',
   'handoff-direction',
@@ -47,6 +48,7 @@ export function parseHandoffReport(content: string): HandoffReportParseResult {
   const overviewResult = extractTag(content, 'handoff-overview');
   const proofsResult = extractTag(content, 'handoff-proofs');
   const directionResult = extractTag(content, 'handoff-direction');
+  const uxResult = extractTag(content, 'handoff-ux');
   const notesResult = extractTag(content, 'handoff-notes');
   const actionResult = extractTag(content, 'handoff-action');
   const detailsResult = extractTag(content, 'handoff-details');
@@ -69,6 +71,7 @@ export function parseHandoffReport(content: string): HandoffReportParseResult {
       overview: overviewResult.body,
       proofs: proofsResult.body,
       direction: directionResult.body,
+      ux: uxResult.body,
       notes: notesResult.body,
       action: actionResult.body,
       summary: overviewResult.body ?? '',
@@ -86,6 +89,7 @@ export function parseHandoffReport(content: string): HandoffReportParseResult {
       overview: null,
       proofs: proofsResult.body,
       direction: null,
+      ux: null,
       notes: null,
       action: null,
       summary,
@@ -100,6 +104,7 @@ export function parseHandoffReport(content: string): HandoffReportParseResult {
     overview: null,
     proofs: null,
     direction: null,
+    ux: null,
     notes: null,
     action: null,
     summary: '',
