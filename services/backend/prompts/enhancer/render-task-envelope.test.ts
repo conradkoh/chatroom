@@ -87,4 +87,17 @@ describe('renderEnhancerTaskEnvelope', () => {
     expect(result).toContain('No subagents');
     expect(result).not.toContain('No tools');
   });
+
+  it('contains ux-reference block with keyboard shortcuts', () => {
+    const result = renderEnhancerTaskEnvelope(params);
+    expect(result).toContain('<ux-reference>');
+    expect(result).toContain('⌘K');
+    expect(result).toContain('</ux-reference>');
+  });
+
+  it('requirements mention UX validation for UI proposals', () => {
+    const result = renderEnhancerTaskEnvelope(params);
+    expect(result).toContain('UX consistency review');
+    expect(result).toContain('<ux-reference>');
+  });
 });

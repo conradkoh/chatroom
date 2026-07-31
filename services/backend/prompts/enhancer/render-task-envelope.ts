@@ -1,3 +1,4 @@
+import { getUxReviewTriggerDescription, renderWebappUxReference } from './webapp-ux-reference.js';
 import { escapeXmlAttribute, escapeXmlText } from '../attachments/xml.js';
 
 export interface RenderEnhancerTaskEnvelopeParams {
@@ -21,6 +22,9 @@ export function renderEnhancerTaskEnvelope(params: RenderEnhancerTaskEnvelopePar
     '<references>',
     params.referencesXml,
     '</references>',
+    '<ux-reference>',
+    escapeXmlText(renderWebappUxReference()),
+    '</ux-reference>',
     '<planner-check-in>',
     escapeXmlText(params.plannerCheckIn),
     '</planner-check-in>',
@@ -33,6 +37,8 @@ export function renderEnhancerTaskEnvelope(params: RenderEnhancerTaskEnvelopePar
     '- Use `<handoff-template for="planner->builder">` and `<handoff-template for="planner->user">` in <references> to assess alignment with downstream delivery principles.',
     '- Tighten and correct within the existing scope; do not add new requirements.',
     '- Return only the feedback markdown — no preamble.',
+    `- When ${getUxReviewTriggerDescription()}, review against <ux-reference>: flow complexity, presentation consistency (recommend one pattern if multiple apply; assess mobile vs desktop handling), and keyboard shortcut alignment.`,
+    '- Omit the **UX consistency review** feedback section (or write "Not Applicable.") when no UI changes are proposed.',
     '- **Run the CLI complete command** as your final action. Stdout alone does NOT deliver feedback — the planner only receives feedback after you run complete.',
     '- If the plan needs no changes, still run complete with a brief "no changes needed" message. Skipping complete = your work is discarded.',
     '</requirements>',
