@@ -22,7 +22,7 @@ export function ChatroomPageClient() {
     router.push('/app');
   };
 
-  const { refresh: refreshObservedChatroom } = useObserveChatroom(chatroomId);
+  useObserveChatroom(chatroomId);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
   const listingSidebarVisible = isListingSidebarVisible(focusModeEnabled);
 
@@ -93,7 +93,6 @@ export function ChatroomPageClient() {
           key={chatroomId}
           chatroomId={chatroomId}
           onBack={handleBack}
-          refreshObservedChatroom={refreshObservedChatroom}
           focusModeEnabled={focusModeEnabled}
           onSetFocusModeEnabled={setFocusModeEnabled}
         />

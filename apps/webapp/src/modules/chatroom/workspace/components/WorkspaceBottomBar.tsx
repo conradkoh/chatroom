@@ -73,8 +73,6 @@ import { cn } from '@/lib/utils';
 interface WorkspaceBottomBarProps {
   workspaces: Workspace[];
   chatroomId: string;
-  /** From `useObserveChatroom` on the chatroom page; git panel calls this on mount. */
-  refreshObservedChatroom: () => void;
   /** Switches the activity bar to the Source Control view. */
   onSwitchToSourceControl?: () => void;
   /** @deprecated No longer used; removal planned. */
@@ -1050,7 +1048,6 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
 export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
   workspaces,
   chatroomId,
-  refreshObservedChatroom: _refreshObservedChatroom,
   onSwitchToSourceControl,
   onRegisterOpenGitPanel: _onRegisterOpenGitPanel, // deprecated, no-op
 }: WorkspaceBottomBarProps) {
