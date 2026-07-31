@@ -44,16 +44,28 @@ const baseResults = [
   { _id: 'msg-2', type: 'message', senderRole: 'builder', content: 'reply', _creationTime: 101 },
 ];
 
+const navResult = {
+  anchor: { _id: 'anchor-1', _creationTime: 100, contentPreview: 'hello' },
+  prevAnchorId: null,
+  nextAnchorId: null,
+  sliceUpperBoundExclusive: null,
+};
+
+function mockSessionQueryForNav(nav: unknown) {
+  mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
+    if (queryRef === 'subscribeAllTabSliceTail') {
+      if (args === 'skip') return undefined;
+      return null;
+    }
+    return nav;
+  });
+}
+
 describe('useAllTabConversation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseSessionId.mockReturnValue(['session-1']);
-    mockUseSessionQuery.mockReturnValue({
-      anchor: { _id: 'anchor-1', _creationTime: 100, contentPreview: 'hello' },
-      prevAnchorId: null,
-      nextAnchorId: null,
-      sliceUpperBoundExclusive: null,
-    });
+    mockSessionQueryForNav(navResult);
     mockUsePaginatedQuery.mockReturnValue({
       results: baseResults,
       status: 'Exhausted',
@@ -90,7 +102,7 @@ describe('useAllTabConversation', () => {
   });
 
   it('exposes nav state including prev/next and sliceUpperBoundExclusive', () => {
-    mockUseSessionQuery.mockReturnValue({
+    mockSessionQueryForNav({
       anchor: { _id: 'anchor-mid', _creationTime: 150, contentPreview: 'middle' },
       prevAnchorId: 'anchor-old',
       nextAnchorId: 'anchor-new',
@@ -113,17 +125,113 @@ describe('useAllTabConversation', () => {
     expect(result.current.nav?.sliceUpperBoundExclusive).toBe(200);
   });
 
-  it('dispatches SET_INITIAL with paginated results', () => {
-    const { result } = renderHook(() => useAllTabConversation('room-1'));
+  it('derives messages directly from paginated results (no reducer dispatch)', () => {
+    const { result, rerender } = renderHook(() => useAllTabConversation('room-1'));
 
     expect(result.current.events).toHaveLength(2);
     expect(result.current.messages).toHaveLength(2);
     expect(result.current.messages[0]._id).toBe('msg-1');
     expect(result.current.messages[1]._id).toBe('msg-2');
+
+    // When paginated.results updates, messages reflect the new results directly.
+    mockUsePaginatedQuery.mockReturnValue({
+      results: [
+        {
+          _id: 'msg-3',
+          type: 'message',
+          senderRole: 'user',
+          content: 'third',
+          _creationTime: 102,
+        },
+      ],
+      status: 'Exhausted',
+      loadMore: vi.fn(),
+    });
+
+    rerender();
+
+    expect(result.current.messages.map((m) => m._id)).toEqual(['msg-3']);
+  });
+
+  it('skips the tail subscription until pagination is exhausted', () => {
+    mockUsePaginatedQuery.mockReturnValue({
+      results: baseResults,
+      status: 'CanLoadMore',
+      loadMore: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useAllTabConversation('room-1'));
+
+    expect(mockUseSessionQuery).toHaveBeenCalledWith('subscribeAllTabSliceTail', 'skip');
+    expect(result.current.messages).toHaveLength(2);
+    expect(result.current.messages.map((m) => m._id)).toEqual(['msg-1', 'msg-2']);
+  });
+
+  it('subscribes to the tail when pagination is exhausted', () => {
+    const { result } = renderHook(() => useAllTabConversation('room-1'));
+
+    const tailCall = mockUseSessionQuery.mock.calls.find(
+      (call) => call[0] === 'subscribeAllTabSliceTail'
+    );
+    expect(tailCall).toBeDefined();
+    expect(tailCall![1]).toEqual({
+      chatroomId: 'room-1',
+      afterCreationTime: 101,
+      upperBoundExclusive: null,
+    });
+    expect(result.current.messages).toHaveLength(2);
+  });
+
+  it('merges tail messages without duplicates when pagination is exhausted', () => {
+    const tailMessages = [
+      // Duplicate of an already-loaded paginated message (id-based dedup)
+      { _id: 'msg-1', type: 'message', senderRole: 'user', content: 'hello', _creationTime: 100 },
+      // New live message after the loaded slice
+      {
+        _id: 'msg-live',
+        type: 'message',
+        senderRole: 'builder',
+        content: 'live',
+        _creationTime: 150,
+      },
+    ];
+    mockUseSessionQuery.mockImplementation((queryRef: string, args: unknown) => {
+      if (queryRef === 'subscribeAllTabSliceTail') {
+        if (args === 'skip') return 'skip';
+        return tailMessages;
+      }
+      return navResult;
+    });
+
+    const { result } = renderHook(() => useAllTabConversation('room-1'));
+
+    expect(result.current.messages).toHaveLength(3);
+    expect(result.current.messages.map((m) => m._id)).toEqual(['msg-1', 'msg-2', 'msg-live']);
+    expect(result.current.events).toHaveLength(3);
+  });
+
+  it('exposes pagination controls', () => {
+    const loadMore = vi.fn();
+    mockUsePaginatedQuery.mockReturnValue({
+      results: baseResults,
+      status: 'CanLoadMore',
+      loadMore,
+    });
+
+    const { result } = renderHook(() => useAllTabConversation('room-1'));
+
+    expect(result.current.canLoadMore).toBe(true);
+    expect(result.current.isLoadingMore).toBe(false);
+
+    act(() => {
+      result.current.loadMore();
+    });
+
+    expect(loadMore).toHaveBeenCalledWith(50);
   });
 
   it('isOnLatestAnchor is false when selectedAnchorId is set', () => {
-    mockUseSessionQuery.mockReturnValue({
+    mockSessionQueryForNav({
       anchor: { _id: 'anchor-mid', _creationTime: 150, contentPreview: 'middle' },
       prevAnchorId: 'anchor-old',
       nextAnchorId: null,
@@ -140,7 +248,7 @@ describe('useAllTabConversation', () => {
   });
 
   it('goToLatestAnchor clears selected anchor so navigation uses latest', () => {
-    mockUseSessionQuery.mockReturnValue({
+    mockSessionQueryForNav({
       anchor: { _id: 'anchor-mid', _creationTime: 150, contentPreview: 'middle' },
       prevAnchorId: 'anchor-old',
       nextAnchorId: 'anchor-new',
