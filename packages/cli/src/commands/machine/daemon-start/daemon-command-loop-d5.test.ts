@@ -38,7 +38,6 @@ vi.mock('../../../api.js', () => ({
       ackPing: 'mock-ackPing',
       updateDaemonStatus: 'mock-updateDaemonStatus',
       register: 'mock-register',
-      getObservedChatroomsForMachine: 'mock-getObservedChatroomsForMachine',
       daemonHeartbeat: 'mock-daemonHeartbeat',
       refreshCapabilities: 'mock-refreshCapabilities',
       reportFolderPickerResult: 'mock-reportFolderPickerResult',
@@ -133,6 +132,7 @@ vi.mock('./command-sync-heartbeat.js', async () => {
   return {
     pushCommands: vi.fn().mockResolvedValue(undefined),
     pushCommandsEffect: Effect.void,
+    pushSingleWorkspaceCommandsEffect: vi.fn().mockReturnValue(Effect.void),
   };
 });
 
@@ -171,13 +171,6 @@ vi.mock('./workspace-list-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
     startWorkspaceListSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
-  };
-});
-
-vi.mock('./observed-sync.js', async () => {
-  const { Effect } = await import('effect');
-  return {
-    startObservedSyncSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
   };
 });
 
