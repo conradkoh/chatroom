@@ -34,4 +34,11 @@ describe('AllTabMessageList', () => {
 
     expect(list.scrollTop).toBe(0);
   });
+
+  it('uses timeline scroll container with scrollbar width variable', () => {
+    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    expect(list.className).toContain('min-h-0');
+    expect(list.style.getPropertyValue('--timeline-scrollbar-width')).toBe('8px');
+  });
 });

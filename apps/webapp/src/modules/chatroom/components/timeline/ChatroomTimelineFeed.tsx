@@ -27,7 +27,12 @@ import { TimelineEventCountMenu } from './TimelineEventCountMenu';
 import { TimelineEventRow } from './TimelineEventRow';
 import { TimelineLatestEventTicker } from './TimelineLatestEventTicker';
 import { logLoadOlder } from './timelineLoadOlderDebug';
-import { getTimelineVirtualRowZIndex } from './timelineRowStyles';
+import {
+  getTimelineVirtualRowZIndex,
+  TIMELINE_FEED_SCROLL_EXTRAS,
+  TIMELINE_SCROLL_CONTAINER,
+  TIMELINE_SCROLL_CONTAINER_STYLE,
+} from './timelineRowStyles';
 import type { MachineNameEntry } from './timelineRowStyles';
 import {
   getTimelineItemKey,
@@ -476,7 +481,8 @@ export function ChatroomTimelineFeed({
       <div
         ref={scrollRefCallback}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overflow-x-auto overscroll-contain min-h-0 [overflow-anchor:none] [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
+        className={`flex-1 ${TIMELINE_SCROLL_CONTAINER} ${TIMELINE_FEED_SCROLL_EXTRAS}`}
+        style={TIMELINE_SCROLL_CONTAINER_STYLE}
         data-testid="chatroom-timeline-scroll"
       >
         <div ref={topChromeRef}>

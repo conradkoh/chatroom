@@ -4,8 +4,10 @@ import {
   formatMachineLabel,
   getTimelineVirtualRowZIndex,
   TIMELINE_MESSAGE_BODY,
+  TIMELINE_MESSAGE_HEADER_STICKY,
   TIMELINE_ROW_ROOT,
   TIMELINE_SCROLL_CONTAINER,
+  TIMELINE_SCROLL_CONTAINER_STYLE,
 } from './timelineRowStyles';
 
 describe('formatMachineLabel', () => {
@@ -42,8 +44,23 @@ describe('timeline row stacking classes', () => {
 });
 
 describe('TIMELINE_SCROLL_CONTAINER', () => {
-  it('reserves scrollbar gutter for sticky headers', () => {
+  it('establishes flex scroll boundary with gutter and classic scrollbar', () => {
+    expect(TIMELINE_SCROLL_CONTAINER).toContain('min-h-0');
     expect(TIMELINE_SCROLL_CONTAINER).toContain('[scrollbar-gutter:stable]');
-    expect(TIMELINE_SCROLL_CONTAINER).toContain('overflow-y-auto');
+    expect(TIMELINE_SCROLL_CONTAINER).toContain('[&::-webkit-scrollbar]:w-2');
+  });
+});
+
+describe('TIMELINE_MESSAGE_HEADER_STICKY', () => {
+  it('constrains width to content lane left of scrollbar', () => {
+    expect(TIMELINE_MESSAGE_HEADER_STICKY).toContain(
+      'w-[calc(100%-var(--timeline-scrollbar-width,0px))]'
+    );
+  });
+});
+
+describe('TIMELINE_SCROLL_CONTAINER_STYLE', () => {
+  it('sets inherited scrollbar width variable', () => {
+    expect(TIMELINE_SCROLL_CONTAINER_STYLE['--timeline-scrollbar-width']).toBe('8px');
   });
 });
