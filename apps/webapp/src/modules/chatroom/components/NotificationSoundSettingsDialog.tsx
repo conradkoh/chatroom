@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-
 import {
   DEFAULT_NOTIFICATION_SOUND_SETTINGS,
   NOTIFICATION_SOUND_PROFILE_OPTIONS,
@@ -49,15 +48,24 @@ export function NotificationSoundSettingsDialog({
     setIsHydrated(true);
   }, [open]);
 
-  const persistProfile = (next: NotificationSoundProfile) => {
+  const handleProfileChange = (next: NotificationSoundProfile) => {
     setProfile(next);
-    setNotificationSoundSettings({ profile: next });
+    playNotificationSound({ force: true, preview: { profile: next, volume } });
   };
 
-  const persistVolume = (pct: number) => {
-    const v = pct / 100;
-    setVolume(v);
-    setNotificationSoundSettings({ volume: v });
+  const handleVolumeChange = (pct: number) => {
+    const nextVolume = pct / 100;
+    setVolume(nextVolume);
+    playNotificationSound({ force: true, preview: { profile, volume: nextVolume } });
+  };
+
+  const handleSave = () => {
+    setNotificationSoundSettings({ profile, volume });
+    onOpenChange(false);
+  };
+
+  const handleCancel = () => {
+    onOpenChange(false);
   };
 
   return (
@@ -104,7 +112,7 @@ export function NotificationSoundSettingsDialog({
                     name="notification-sound-profile"
                     value={opt.id}
                     checked={profile === opt.id}
-                    onChange={() => persistProfile(opt.id)}
+                    onChange={() => handleProfileChange(opt.id)}
                     className="mt-1 accent-chatroom-status-info"
                   />
                   <div className="flex flex-col">
@@ -132,7 +140,7 @@ export function NotificationSoundSettingsDialog({
                 max={100}
                 step={5}
                 value={Math.round(volume * 100)}
-                onChange={(e) => persistVolume(Number(e.target.value))}
+                onChange={(e) => handleVolumeChange(Number(e.target.value))}
                 className="w-full accent-chatroom-status-info"
                 data-testid="notification-sound-volume-slider"
               />
@@ -141,6 +149,24 @@ export function NotificationSoundSettingsDialog({
         )}
 
         <DialogFooter>
+          <button
+            type="button"
+            disabled={!isHydrated}
+            onClick={handleCancel}
+            data-testid="notification-sound-settings-cancel"
+            className="px-4 py-2 text-sm font-medium rounded-none border-2 border-chatroom-border-strong text-chatroom-text-primary bg-chatroom-bg-secondary hover:bg-chatroom-bg-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!isHydrated}
+            onClick={handleSave}
+            data-testid="notification-sound-settings-save"
+            className="px-4 py-2 text-sm font-medium rounded-none border-2 border-chatroom-accent text-chatroom-text-on-accent bg-chatroom-accent hover:bg-chatroom-accent/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Save
+          </button>
           <button
             type="button"
             disabled={!isHydrated}
