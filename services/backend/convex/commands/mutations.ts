@@ -61,15 +61,9 @@ export async function handleRunCommand(
     requestedBy,
   });
 
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'command.run' as const,
-    machineId,
-    workingDir,
-    commandName,
-    script,
-    runId,
-    timestamp: now,
-  });
+  // The chatroom_commandRuns row is the source of truth for command dispatch:
+  // the daemon subscribes to pending rows on a dedicated channel, so no
+  // chatroom_eventStream event is needed here.
 
   return runId;
 }
@@ -106,12 +100,9 @@ export async function handleStopCommand(
 
   await ctx.db.patch(runId, { terminationReason: 'user-stop' });
 
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'command.stop' as const,
-    machineId,
-    runId,
-    timestamp: now,
-  });
+  // The daemon's dedicated command-run subscription picks up the running row
+  // with terminationReason === 'user-stop' and dispatches the kill — no
+  // chatroom_eventStream event is needed here.
 }
 
 export async function handleAppendOutput(
@@ -123,7 +114,8 @@ export async function handleAppendOutput(
   }
 ) {
   // Size check: for compressed content, check the base64 string length (it's already ≤ original)
-  const sizeForCheck = typeof args.content === 'string' ? args.content.length : args.content.content.length;
+  const sizeForCheck =
+    typeof args.content === 'string' ? args.content.length : args.content.content.length;
   if (sizeForCheck > MAX_OUTPUT_CHUNK_BYTES) {
     throw new ConvexError({
       code: 'OUTPUT_CHUNK_TOO_LARGE',

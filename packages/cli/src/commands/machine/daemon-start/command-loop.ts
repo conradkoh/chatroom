@@ -50,11 +50,7 @@ import {
   startGitRequestSubscriptionEffect,
   type GitSubscriptionHandle,
 } from './git-subscription.js';
-import {
-  forceKillAllCommands,
-  onCommandRunEffect,
-  onCommandStopEffect,
-} from './handlers/command-runner.js';
+import { forceKillAllCommands } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { handlePing } from './handlers/ping.js';
 import { startCommandRunSubscription } from './handlers/process/command-run-subscription.js';
@@ -85,8 +81,6 @@ interface DedupTracker {
   capabilitiesRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
   pickFolderIds: Map<string, number>;
-  commandRunIds: Map<string, number>;
-  commandStopIds: Map<string, number>;
 }
 
 /**
@@ -106,8 +100,6 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.capabilitiesRefreshIds, evictBefore);
   evictStaleEntries(tracker.localActionIds, evictBefore);
   evictStaleEntries(tracker.pickFolderIds, evictBefore);
-  evictStaleEntries(tracker.commandRunIds, evictBefore);
-  evictStaleEntries(tracker.commandStopIds, evictBefore);
 
   // Evict stale pending stops from command-runner (stop-before-run race handling)
   processManager.evictStalePendingStops();
@@ -265,31 +257,6 @@ function handlePickFolderCommandEffect(
   });
 }
 
-function handleCommandRunEffect(
-  event: CommandEvent,
-  tracker: DedupTracker
-): Effect.Effect<void, never, DaemonSessionService> {
-  return Effect.gen(function* () {
-    const eventId = event._id.toString();
-    // command.run: register dedup BEFORE handler (spawning a process is NOT idempotent)
-    if (tracker.commandRunIds.has(eventId)) return;
-    tracker.commandRunIds.set(eventId, Date.now());
-    yield* onCommandRunEffect(event as unknown as Parameters<typeof onCommandRunEffect>[0]);
-  });
-}
-
-function handleCommandStopEffect(
-  event: CommandEvent,
-  tracker: DedupTracker
-): Effect.Effect<void, never, DaemonSessionService> {
-  return Effect.gen(function* () {
-    const eventId = event._id.toString();
-    if (tracker.commandStopIds.has(eventId)) return;
-    yield* onCommandStopEffect(event as unknown as Parameters<typeof onCommandStopEffect>[0]);
-    tracker.commandStopIds.set(eventId, Date.now());
-  });
-}
-
 function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
@@ -341,8 +308,6 @@ const commandEventHandlers: {
   'daemon.gitRefresh': handleGitRefreshCommandEffect,
   'daemon.localAction': handleLocalActionCommandEffect,
   'daemon.pickFolder': handlePickFolderCommandEffect,
-  'command.run': handleCommandRunEffect,
-  'command.stop': handleCommandStopEffect,
   'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
 };
 
@@ -606,8 +571,6 @@ export const startCommandLoopEffect: Effect.Effect<
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
-    commandRunIds: new Map<string, number>(),
-    commandStopIds: new Map<string, number>(),
   };
 
   wsClient.onUpdate(

@@ -96,12 +96,6 @@ export async function clearStuckRuns(
         terminationReason: 'user-clear-stuck',
         completedAt: now,
       });
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'command.stop' as const,
-        machineId: args.machineId,
-        runId: run._id,
-        timestamp: now,
-      });
       clearedCount++;
     }
   }

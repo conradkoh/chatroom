@@ -272,8 +272,6 @@ function createDedupTracker() {
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
-    commandRunIds: new Map<string, number>(),
-    commandStopIds: new Map<string, number>(),
   };
 }
 
