@@ -1,11 +1,7 @@
-import type { BackendOps } from '../../../../infrastructure/deps/index.js';
-import { api } from '../../../../api.js';
+import { ENHANCER_AGENT_END_GRACE_MS, ENHANCER_JOB_POLL_INTERVAL_MS } from './constants.js';
 import { writeEnhancerLog } from './enhancer-log.js';
-import {
-  ENHANCER_AGENT_END_GRACE_MS,
-  ENHANCER_JOB_POLL_INTERVAL_MS,
-  ENHANCER_SILENCE_TIMEOUT_MS,
-} from './constants.js';
+import { api } from '../../../../api.js';
+import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 
 export type EnhancerJobResolution = 'complete' | 'failed';
 
@@ -28,7 +24,6 @@ export async function waitForEnhancerJobResolution(
   const { sessionId, chatroomId, jobId, backend, onFailure, onSalvageComplete } = params;
 
   let outcome: EnhancerJobResolution | null = null;
-  let lastActivityAt = Date.now();
   let salvagedText = '';
 
   const pollInterval = setInterval(async () => {
@@ -49,17 +44,7 @@ export async function waitForEnhancerJobResolution(
     }
   }, ENHANCER_JOB_POLL_INTERVAL_MS);
 
-  const silenceInterval = setInterval(() => {
-    if (outcome) return;
-    if (Date.now() - lastActivityAt >= ENHANCER_SILENCE_TIMEOUT_MS) {
-      outcome = 'failed';
-      writeEnhancerLog(`silence timeout — no activity for ${ENHANCER_SILENCE_TIMEOUT_MS}ms`);
-      void onFailure('Enhancer silence timeout — no output received', false);
-    }
-  }, ENHANCER_JOB_POLL_INTERVAL_MS);
-
   params.onAssistantText?.((text) => {
-    lastActivityAt = Date.now();
     salvagedText += text;
   });
 
@@ -135,7 +120,6 @@ export async function waitForEnhancerJobResolution(
   });
 
   clearInterval(pollInterval);
-  clearInterval(silenceInterval);
 
   return outcome ?? 'failed';
 }
