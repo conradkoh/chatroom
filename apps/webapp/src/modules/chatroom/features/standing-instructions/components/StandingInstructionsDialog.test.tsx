@@ -25,16 +25,31 @@ const mockHistory: StandingInstructionHistoryItem[] = [
   { id: 'h2', content: 'Write unit tests', title: 'Tests first', useCount: 5, lastUsedAt: 4000 },
 ];
 
-describe('StandingInstructionsDialog', () => {
+function renderDialog(overrides: Partial<Parameters<typeof StandingInstructionsDialog>[0]> = {}) {
   const onOpenChange = vi.fn();
   const onConfirm = vi.fn();
-  const onEnable = vi.fn();
-  const onDisable = vi.fn();
-  const onDelete = vi.fn();
   const onRecordHistoryUse = vi
     .fn()
     .mockResolvedValue({ content: 'Always use TypeScript', title: 'Type safety' });
 
+  render(
+    <StandingInstructionsDialog
+      open={true}
+      onOpenChange={onOpenChange}
+      initialView="add"
+      storedContent=""
+      storedTitle=""
+      history={mockHistory}
+      onConfirm={onConfirm}
+      onRecordHistoryUse={onRecordHistoryUse}
+      {...overrides}
+    />
+  );
+
+  return { onOpenChange, onConfirm, onRecordHistoryUse };
+}
+
+describe('StandingInstructionsDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useIsDesktop).mockReturnValue(true);
@@ -42,22 +57,7 @@ describe('StandingInstructionsDialog', () => {
 
   it('renders dialog content on desktop', () => {
     vi.mocked(useIsDesktop).mockReturnValue(true);
-    render(
-      <StandingInstructionsDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        initialView="add"
-        storedContent=""
-        storedTitle=""
-        isActive={false}
-        history={mockHistory}
-        onConfirm={onConfirm}
-        onEnable={onEnable}
-        onDisable={onDisable}
-        onDelete={onDelete}
-        onRecordHistoryUse={onRecordHistoryUse}
-      />
-    );
+    renderDialog();
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('Create new')).toBeInTheDocument();
@@ -66,87 +66,13 @@ describe('StandingInstructionsDialog', () => {
 
   it('renders drawer on mobile', () => {
     vi.mocked(useIsDesktop).mockReturnValue(false);
-    render(
-      <StandingInstructionsDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        initialView="add"
-        storedContent=""
-        storedTitle=""
-        isActive={false}
-        history={mockHistory}
-        onConfirm={onConfirm}
-        onEnable={onEnable}
-        onDisable={onDisable}
-        onDelete={onDelete}
-        onRecordHistoryUse={onRecordHistoryUse}
-      />
-    );
+    renderDialog();
 
     expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
   });
 
-  it('shows Disable when isActive is true in actions view', () => {
-    render(
-      <StandingInstructionsDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        initialView="actions"
-        storedContent="existing content"
-        storedTitle=""
-        isActive={true}
-        history={mockHistory}
-        onConfirm={onConfirm}
-        onEnable={onEnable}
-        onDisable={onDisable}
-        onDelete={onDelete}
-        onRecordHistoryUse={onRecordHistoryUse}
-      />
-    );
-
-    expect(screen.getByText('Disable')).toBeInTheDocument();
-    expect(screen.queryByText('Enable')).not.toBeInTheDocument();
-  });
-
-  it('shows Enable when isActive is false in actions view', () => {
-    render(
-      <StandingInstructionsDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        initialView="actions"
-        storedContent="existing content"
-        storedTitle=""
-        isActive={false}
-        history={mockHistory}
-        onConfirm={onConfirm}
-        onEnable={onEnable}
-        onDisable={onDisable}
-        onDelete={onDelete}
-        onRecordHistoryUse={onRecordHistoryUse}
-      />
-    );
-
-    expect(screen.getByText('Enable')).toBeInTheDocument();
-    expect(screen.queryByText('Disable')).not.toBeInTheDocument();
-  });
-
-  it('selecting create-new reveals textarea', () => {
-    render(
-      <StandingInstructionsDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        initialView="add"
-        storedContent=""
-        storedTitle=""
-        isActive={false}
-        history={[]}
-        onConfirm={onConfirm}
-        onEnable={onEnable}
-        onDisable={onDisable}
-        onDelete={onDelete}
-        onRecordHistoryUse={onRecordHistoryUse}
-      />
-    );
+  it('selecting create-new reveals textarea and title input', () => {
+    renderDialog({ history: [] });
 
     expect(screen.queryByPlaceholderText('Enter standing instructions…')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('standing-instructions-create-new'));
@@ -155,44 +81,14 @@ describe('StandingInstructionsDialog', () => {
   });
 
   it('Confirm is disabled until selection in add flow', () => {
-    render(
-      <StandingInstructionsDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        initialView="add"
-        storedContent=""
-        storedTitle=""
-        isActive={false}
-        history={[]}
-        onConfirm={onConfirm}
-        onEnable={onEnable}
-        onDisable={onDisable}
-        onDelete={onDelete}
-        onRecordHistoryUse={onRecordHistoryUse}
-      />
-    );
+    renderDialog({ history: [] });
 
     const confirmBtn = screen.getByText('Confirm');
     expect(confirmBtn.hasAttribute('disabled')).toBe(true);
   });
 
   it('Confirm stays disabled with content but no title in create-new', () => {
-    render(
-      <StandingInstructionsDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        initialView="add"
-        storedContent=""
-        storedTitle=""
-        isActive={false}
-        history={[]}
-        onConfirm={onConfirm}
-        onEnable={onEnable}
-        onDisable={onDisable}
-        onDelete={onDelete}
-        onRecordHistoryUse={onRecordHistoryUse}
-      />
-    );
+    renderDialog({ history: [] });
 
     fireEvent.click(screen.getByTestId('standing-instructions-create-new'));
     const textarea = screen.getByPlaceholderText('Enter standing instructions…');
@@ -207,70 +103,29 @@ describe('StandingInstructionsDialog', () => {
   });
 
   it('edit view Confirm is enabled when content and title are present', () => {
-    render(
-      <StandingInstructionsDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        initialView="actions"
-        storedContent="existing content"
-        storedTitle="My Title"
-        isActive={true}
-        history={mockHistory}
-        onConfirm={onConfirm}
-        onEnable={onEnable}
-        onDisable={onDisable}
-        onDelete={onDelete}
-        onRecordHistoryUse={onRecordHistoryUse}
-      />
-    );
-
-    fireEvent.click(screen.getByText('Edit'));
+    renderDialog({
+      initialView: 'edit',
+      storedContent: 'existing content',
+      storedTitle: 'My Title',
+    });
 
     const confirmBtn = screen.getByText('Confirm');
     expect(confirmBtn.hasAttribute('disabled')).toBe(false);
   });
 
   it('edit view Confirm is disabled when title is cleared', () => {
-    render(
-      <StandingInstructionsDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        initialView="actions"
-        storedContent="existing content"
-        storedTitle=""
-        isActive={true}
-        history={mockHistory}
-        onConfirm={onConfirm}
-        onEnable={onEnable}
-        onDisable={onDisable}
-        onDelete={onDelete}
-        onRecordHistoryUse={onRecordHistoryUse}
-      />
-    );
-
-    fireEvent.click(screen.getByText('Edit'));
+    renderDialog({
+      initialView: 'edit',
+      storedContent: 'existing content',
+      storedTitle: '',
+    });
 
     const confirmBtn = screen.getByText('Confirm');
     expect(confirmBtn.hasAttribute('disabled')).toBe(true);
   });
 
   it('Ctrl+Enter on textarea with title calls onConfirm', () => {
-    render(
-      <StandingInstructionsDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        initialView="add"
-        storedContent=""
-        storedTitle=""
-        isActive={false}
-        history={[]}
-        onConfirm={onConfirm}
-        onEnable={onEnable}
-        onDisable={onDisable}
-        onDelete={onDelete}
-        onRecordHistoryUse={onRecordHistoryUse}
-      />
-    );
+    const { onConfirm } = renderDialog({ history: [] });
 
     fireEvent.click(screen.getByTestId('standing-instructions-create-new'));
     const textarea = screen.getByPlaceholderText('Enter standing instructions…');
@@ -282,26 +137,22 @@ describe('StandingInstructionsDialog', () => {
     expect(onConfirm).toHaveBeenCalled();
   });
 
-  it('Enable callback closes dialog via onOpenChange(false)', () => {
-    render(
-      <StandingInstructionsDialog
-        open={true}
-        onOpenChange={onOpenChange}
-        initialView="actions"
-        storedContent="existing"
-        storedTitle=""
-        isActive={false}
-        history={[]}
-        onConfirm={onConfirm}
-        onEnable={onEnable}
-        onDisable={onDisable}
-        onDelete={onDelete}
-        onRecordHistoryUse={onRecordHistoryUse}
-      />
-    );
+  it('mobile drawer footer has Cancel before Confirm', () => {
+    vi.mocked(useIsDesktop).mockReturnValue(false);
+    renderDialog({ initialView: 'edit', storedContent: 'content', storedTitle: 'Title' });
 
-    fireEvent.click(screen.getByText('Enable'));
-    expect(onEnable).toHaveBeenCalled();
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    const footer = screen.getByTestId('standing-instructions-dialog-footer');
+    const buttons = footer.querySelectorAll('button');
+    expect(buttons[0]?.textContent).toBe('Cancel');
+    expect(buttons[1]?.textContent).toBe('Confirm');
+  });
+
+  it('mobile drawer does not show footer on history view', () => {
+    vi.mocked(useIsDesktop).mockReturnValue(false);
+    renderDialog();
+
+    fireEvent.click(screen.getByTestId('standing-instructions-view-more'));
+    expect(screen.getByPlaceholderText('Search history…')).toBeInTheDocument();
+    expect(screen.queryByTestId('standing-instructions-dialog-footer')).not.toBeInTheDocument();
   });
 });

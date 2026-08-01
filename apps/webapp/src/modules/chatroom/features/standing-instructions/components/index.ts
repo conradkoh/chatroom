@@ -2,6 +2,7 @@
 export { StandingInstructionsDialog } from './StandingInstructionsDialog';
 export type { StandingInstructionsDialogProps } from './StandingInstructionsDialog';
 export { StandingInstructionsTitleInput } from './StandingInstructionsTitleInput';
+export { StandingInstructionsDialogFooter } from './StandingInstructionsDialogFooter';
 export type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
 export type {
   StandingInstructionsAddSelection,

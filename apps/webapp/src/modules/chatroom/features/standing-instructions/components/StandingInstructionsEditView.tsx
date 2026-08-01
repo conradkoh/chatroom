@@ -34,6 +34,7 @@ export function StandingInstructionsEditView({
         onCancel={onCancel}
         confirmDisabled={confirmDisabled}
         mobile={mobile}
+        showFooter={!mobile}
       />
     </div>
   );

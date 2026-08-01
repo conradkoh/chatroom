@@ -10,8 +10,9 @@ import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessio
 import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
+import { ResponsivePickerShell } from '../components/picker';
 import { StandingInstructionsDialog } from '../features/standing-instructions/components';
-import type { StandingInstructionsDialogInitialView } from '../features/standing-instructions/types/standingInstructionsDialog';
+import { StandingInstructionsActionsView } from '../features/standing-instructions/components/StandingInstructionsActionsView';
 
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 
@@ -36,6 +37,7 @@ const BAR_SHELL = `${BAR_ROW_CHROME} flex items-center gap-2 h-full`;
 const DISABLED_BAR_SHELL =
   'px-3 py-1.5 border-chatroom-border bg-chatroom-bg-secondary flex items-center gap-2 h-full';
 
+// fallow-ignore-next-line complexity
 export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   chatroomId,
 }: StandingInstructionsBarProps) {
@@ -63,9 +65,9 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const history = useSessionQuery(api.standingInstructions.listHistory, {}) ?? [];
   const recordUseMutation = useSessionMutation(api.standingInstructions.recordUse);
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogInitialView, setDialogInitialView] =
-    useState<StandingInstructionsDialogInitialView>('add');
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const historyItems = useMemo(
     () =>
@@ -78,16 +80,6 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       })),
     [history]
   );
-
-  const openAddDialog = useCallback(() => {
-    setDialogInitialView('add');
-    setDialogOpen(true);
-  }, []);
-
-  const openActionsDialog = useCallback(() => {
-    setDialogInitialView('actions');
-    setDialogOpen(true);
-  }, []);
 
   const handleDialogConfirm = useCallback(
     async ({ content, title }: { content: string; title: string }) => {
@@ -143,21 +135,30 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     );
   }
 
-  const dialog = dialogOpen ? (
+  const addDialog = addOpen ? (
     <StandingInstructionsDialog
       open
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) setDialogOpen(false);
-      }}
-      initialView={dialogInitialView}
+      onOpenChange={setAddOpen}
+      initialView="add"
       storedContent={storedContent}
       storedTitle={storedTitle}
-      isActive={isActive}
       history={historyItems}
       onConfirm={handleDialogConfirm}
-      onEnable={handleEnable}
-      onDisable={handleDisable}
-      onDelete={handleDelete}
+      onRecordHistoryUse={handleRecordHistoryUse}
+    />
+  ) : null;
+
+  const editDialog = editOpen ? (
+    <StandingInstructionsDialog
+      open
+      onOpenChange={(open) => {
+        if (!open) setEditOpen(false);
+      }}
+      initialView="edit"
+      storedContent={storedContent}
+      storedTitle={storedTitle}
+      history={historyItems}
+      onConfirm={handleDialogConfirm}
       onRecordHistoryUse={handleRecordHistoryUse}
     />
   ) : null;
@@ -167,8 +168,9 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       <>
         <button
           type="button"
+          data-testid="standing-instructions-add-bar"
           aria-label="Add standing instructions"
-          onClick={openAddDialog}
+          onClick={() => setAddOpen(true)}
           className={`${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
         >
           <Plus
@@ -181,36 +183,68 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
             Add standing instructions
           </span>
         </button>
-        {dialog}
+        {addDialog}
       </>
     );
   }
 
   return (
     <>
-      <button
-        type="button"
-        aria-label={isActive ? 'Standing instructions' : 'Standing instructions (disabled)'}
-        onClick={openActionsDialog}
-        className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
+      <ResponsivePickerShell
+        open={actionsOpen}
+        onOpenChange={setActionsOpen}
+        title="Standing instructions"
+        anchorToPointer
+        contentClassName="w-56 p-0"
+        trigger={
+          <button
+            type="button"
+            data-testid={
+              isActive ? 'standing-instructions-active-bar' : 'standing-instructions-disabled-bar'
+            }
+            aria-label={isActive ? 'Standing instructions' : 'Standing instructions (disabled)'}
+            className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
+          >
+            <BookOpen
+              size={mobileIconSize(isDesktop)}
+              className={`shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+            />
+            <span
+              className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider shrink-0 hidden sm:inline ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+            >
+              Standing instructions{isActive ? '' : ' (disabled)'}
+            </span>
+            <span className="text-xs text-chatroom-text-secondary truncate flex-1">
+              {displayText}
+              {!isActive ? (
+                <span className="sm:hidden text-chatroom-text-muted shrink-0"> (off)</span>
+              ) : null}
+            </span>
+          </button>
+        }
       >
-        <BookOpen
-          size={mobileIconSize(isDesktop)}
-          className={`shrink-0 ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
+        <StandingInstructionsActionsView
+          isActive={isActive}
+          mobile={!isDesktop}
+          onEdit={() => {
+            setActionsOpen(false);
+            setEditOpen(true);
+          }}
+          onEnable={async () => {
+            await handleEnable();
+            setActionsOpen(false);
+          }}
+          onDisable={async () => {
+            await handleDisable();
+            setActionsOpen(false);
+          }}
+          onDelete={async () => {
+            await handleDelete();
+            setActionsOpen(false);
+          }}
         />
-        <span
-          className={`${mobileLabelText(isDesktop)} font-bold uppercase tracking-wider shrink-0 hidden sm:inline ${isActive ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'}`}
-        >
-          Standing instructions{isActive ? '' : ' (disabled)'}
-        </span>
-        <span className="text-xs text-chatroom-text-secondary truncate flex-1">
-          {displayText}
-          {!isActive ? (
-            <span className="sm:hidden text-chatroom-text-muted shrink-0"> (off)</span>
-          ) : null}
-        </span>
-      </button>
-      {dialog}
+      </ResponsivePickerShell>
+      {editDialog}
     </>
   );
 });

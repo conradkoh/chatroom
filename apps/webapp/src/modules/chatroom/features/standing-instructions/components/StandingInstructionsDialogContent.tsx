@@ -1,6 +1,5 @@
 'use client';
 
-import { StandingInstructionsActionsView } from './StandingInstructionsActionsView';
 import { StandingInstructionsAddView } from './StandingInstructionsAddView';
 import { StandingInstructionsEditView } from './StandingInstructionsEditView';
 import { StandingInstructionsHistoryPickerView } from './StandingInstructionsHistoryPickerView';
@@ -13,7 +12,6 @@ import type {
 export interface StandingInstructionsDialogContentProps {
   view: StandingInstructionsDialogView;
   mobile?: boolean;
-  isActive: boolean;
   history: StandingInstructionHistoryItem[];
   historyTop3: StandingInstructionHistoryItem[];
   addSelection: StandingInstructionsAddSelection;
@@ -27,16 +25,11 @@ export interface StandingInstructionsDialogContentProps {
   onViewMore: () => void;
   onConfirm: () => void;
   onCancel: () => void;
-  onEdit: () => void;
-  onEnable: () => void;
-  onDisable: () => void;
-  onDelete: () => void;
 }
 
 export function StandingInstructionsDialogContent({
   view,
   mobile,
-  isActive,
   history,
   historyTop3,
   addSelection,
@@ -50,10 +43,6 @@ export function StandingInstructionsDialogContent({
   onViewMore,
   onConfirm,
   onCancel,
-  onEdit,
-  onEnable,
-  onDisable,
-  onDelete,
 }: StandingInstructionsDialogContentProps) {
   switch (view) {
     case 'add':
@@ -84,17 +73,6 @@ export function StandingInstructionsDialogContent({
           onConfirm={onConfirm}
           onCancel={onCancel}
           confirmDisabled={confirmDisabled}
-          mobile={mobile}
-        />
-      );
-    case 'actions':
-      return (
-        <StandingInstructionsActionsView
-          isActive={isActive}
-          onEdit={onEdit}
-          onEnable={onEnable}
-          onDisable={onDisable}
-          onDelete={onDelete}
           mobile={mobile}
         />
       );

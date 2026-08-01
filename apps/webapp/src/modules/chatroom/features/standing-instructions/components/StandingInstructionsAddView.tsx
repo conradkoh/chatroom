@@ -86,17 +86,20 @@ export function StandingInstructionsAddView({
             confirmDisabled={confirmDisabled}
             mobile={mobile}
             showTitleInput={false}
+            showFooter={!mobile}
           />
         </>
       ) : (
         <>
           {titleInput}
-          <StandingInstructionsDialogFooter
-            onConfirm={onConfirm}
-            onCancel={onCancel}
-            confirmDisabled={confirmDisabled}
-            mobile={mobile}
-          />
+          {!mobile ? (
+            <StandingInstructionsDialogFooter
+              onConfirm={onConfirm}
+              onCancel={onCancel}
+              confirmDisabled={confirmDisabled}
+              mobile={mobile}
+            />
+          ) : null}
         </>
       )}
     </div>

@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 
 import { StandingInstructionsDialogContent } from './StandingInstructionsDialogContent';
+import { StandingInstructionsDialogFooter } from './StandingInstructionsDialogFooter';
 import {
   getMobileDrawerContentStyle,
   MOBILE_DRAWER_CONTENT_CLASSNAME,
@@ -31,17 +32,12 @@ export interface StandingInstructionsDialogProps {
   initialView: StandingInstructionsDialogInitialView;
   storedContent: string;
   storedTitle: string;
-  isActive: boolean;
   history: StandingInstructionHistoryItem[];
   onConfirm: (payload: { content: string; title: string }) => void;
-  onEnable: () => void;
-  onDisable: () => void;
-  onDelete: () => void;
   onRecordHistoryUse: (historyId: string) => Promise<{ content: string; title: string }>;
 }
 
 const TITLES: Record<StandingInstructionsDialogView, string> = {
-  actions: 'Standing instructions',
   add: 'Standing Instructions',
   edit: 'Edit standing instructions',
   history: 'Standing instruction history',
@@ -53,12 +49,8 @@ export function StandingInstructionsDialog({
   initialView,
   storedContent,
   storedTitle,
-  isActive,
   history,
   onConfirm: onConfirmProp,
-  onEnable,
-  onDisable,
-  onDelete,
   onRecordHistoryUse,
 }: StandingInstructionsDialogProps) {
   const isDesktop = useIsDesktop();
@@ -79,21 +71,6 @@ export function StandingInstructionsDialog({
     },
     [onRecordHistoryUse, view]
   );
-
-  const handleEnable = useCallback(() => {
-    onEnable();
-    onOpenChange(false);
-  }, [onEnable, onOpenChange]);
-
-  const handleDisableCb = useCallback(() => {
-    onDisable();
-    onOpenChange(false);
-  }, [onDisable, onOpenChange]);
-
-  const handleDeleteCb = useCallback(() => {
-    onDelete();
-    onOpenChange(false);
-  }, [onDelete, onOpenChange]);
 
   const handleSelectCreateNew = useCallback(() => {
     setAddSelection('create-new');
@@ -129,7 +106,6 @@ export function StandingInstructionsDialog({
     <StandingInstructionsDialogContent
       view={view}
       mobile={!isDesktop}
-      isActive={isActive}
       history={history}
       historyTop3={historyTop3}
       addSelection={addSelection}
@@ -143,14 +119,11 @@ export function StandingInstructionsDialog({
       onViewMore={() => setView('history')}
       onConfirm={handleConfirm}
       onCancel={handleCancel}
-      onEdit={() => setView('edit')}
-      onEnable={handleEnable}
-      onDisable={handleDisableCb}
-      onDelete={handleDeleteCb}
     />
   );
 
   if (!isDesktop) {
+    const showFooter = view === 'add' || view === 'edit';
     return (
       <Drawer
         open={open}
@@ -167,7 +140,19 @@ export function StandingInstructionsDialog({
           <DrawerHeader className="p-0 shrink-0">
             <DrawerTitle className="sr-only">{title}</DrawerTitle>
           </DrawerHeader>
-          <div className="flex flex-col min-h-0 flex-1 overflow-y-auto px-4 pb-4">{content}</div>
+          <div className="flex flex-col min-h-0 flex-1">
+            <div className="flex-1 overflow-y-auto px-4">{content}</div>
+            {showFooter ? (
+              <div className="shrink-0 border-t border-chatroom-border px-4 py-3">
+                <StandingInstructionsDialogFooter
+                  mobile
+                  onConfirm={handleConfirm}
+                  onCancel={handleCancel}
+                  confirmDisabled={confirmDisabled}
+                />
+              </div>
+            ) : null}
+          </div>
         </DrawerContent>
       </Drawer>
     );
@@ -179,18 +164,15 @@ export function StandingInstructionsDialog({
       onOpenChange={(nextOpen) => {
         if (!nextOpen) handleCancel();
       }}
-      modal={false}
     >
       <DialogContent floating className="sm:max-w-md max-h-[min(90dvh,100%)]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          {view !== 'actions' ? (
-            <DialogDescription>
-              {view === 'add' ? 'Choose from history or create new standing instructions.' : null}
-              {view === 'edit' ? 'Edit the standing instructions content.' : null}
-              {view === 'history' ? 'Browse all standing instruction history.' : null}
-            </DialogDescription>
-          ) : null}
+          <DialogDescription>
+            {view === 'add' ? 'Choose from history or create new standing instructions.' : null}
+            {view === 'edit' ? 'Edit the standing instructions content.' : null}
+            {view === 'history' ? 'Browse all standing instruction history.' : null}
+          </DialogDescription>
         </DialogHeader>
         {content}
       </DialogContent>
