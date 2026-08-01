@@ -1,5 +1,7 @@
 'use client';
 
+import { standingInstructionDisplayTitle } from '@workspace/backend/src/domain/entities/standing-instructions';
+
 import { PickerOptionRow } from '../../../components/picker';
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
 import type { StandingInstructionsAddSelection } from '../types/standingInstructionsDialog';
@@ -26,7 +28,7 @@ export function StandingInstructionsHistoryList({
             onSelect={() => onSelect(item)}
             className="rounded-none"
           >
-            {item.content}
+            {standingInstructionDisplayTitle({ title: item.title, content: item.content })}
           </PickerOptionRow>
         </li>
       ))}

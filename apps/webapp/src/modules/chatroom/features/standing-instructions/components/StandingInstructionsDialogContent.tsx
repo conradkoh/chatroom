@@ -1,8 +1,8 @@
 'use client';
 
+import { StandingInstructionsActionsView } from './StandingInstructionsActionsView';
 import { StandingInstructionsAddView } from './StandingInstructionsAddView';
 import { StandingInstructionsEditView } from './StandingInstructionsEditView';
-import { StandingInstructionsActionsView } from './StandingInstructionsActionsView';
 import { StandingInstructionsHistoryPickerView } from './StandingInstructionsHistoryPickerView';
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
 import type {
@@ -18,10 +18,10 @@ export interface StandingInstructionsDialogContentProps {
   historyTop3: StandingInstructionHistoryItem[];
   addSelection: StandingInstructionsAddSelection;
   draft: string;
-  draftName: string;
+  draftTitle: string;
   confirmDisabled: boolean;
   onDraftChange: (value: string) => void;
-  onDraftNameChange: (value: string) => void;
+  onDraftTitleChange: (value: string) => void;
   onSelectHistory: (item: StandingInstructionHistoryItem) => void;
   onSelectCreateNew: () => void;
   onViewMore: () => void;
@@ -41,10 +41,10 @@ export function StandingInstructionsDialogContent({
   historyTop3,
   addSelection,
   draft,
-  draftName,
+  draftTitle,
   confirmDisabled,
   onDraftChange,
-  onDraftNameChange,
+  onDraftTitleChange,
   onSelectHistory,
   onSelectCreateNew,
   onViewMore,
@@ -62,9 +62,9 @@ export function StandingInstructionsDialogContent({
           historyTop3={historyTop3}
           selection={addSelection}
           draft={draft}
-          draftName={draftName}
+          draftTitle={draftTitle}
           onDraftChange={onDraftChange}
-          onDraftNameChange={onDraftNameChange}
+          onDraftTitleChange={onDraftTitleChange}
           onSelectHistory={onSelectHistory}
           onSelectCreateNew={onSelectCreateNew}
           onViewMore={onViewMore}
@@ -78,11 +78,12 @@ export function StandingInstructionsDialogContent({
       return (
         <StandingInstructionsEditView
           draft={draft}
-          draftName={draftName}
+          draftTitle={draftTitle}
           onDraftChange={onDraftChange}
-          onDraftNameChange={onDraftNameChange}
+          onDraftTitleChange={onDraftTitleChange}
           onConfirm={onConfirm}
           onCancel={onCancel}
+          confirmDisabled={confirmDisabled}
           mobile={mobile}
         />
       );

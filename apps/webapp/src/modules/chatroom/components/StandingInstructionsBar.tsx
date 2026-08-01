@@ -2,7 +2,10 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { getActiveStandingInstructions } from '@workspace/backend/src/domain/entities/standing-instructions';
+import {
+  getActiveStandingInstructions,
+  standingInstructionDisplayTitle,
+} from '@workspace/backend/src/domain/entities/standing-instructions';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
@@ -40,7 +43,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const queryResult = useSessionQuery(api.standingInstructions.get, { chatroomId });
   const isLoading = queryResult === undefined;
   const storedContent = queryResult?.content ?? '';
-  const storedName = queryResult?.name ?? '';
+  const storedTitle = queryResult?.title ?? '';
   const enabled = queryResult?.enabled ?? false;
   const isActive =
     getActiveStandingInstructions({
@@ -48,7 +51,10 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       standingInstructionsEnabled: enabled,
     }) !== null;
   const hasContent = storedContent.trim().length > 0;
-  const displayText = storedName.trim() ? storedName.trim() : storedContent;
+  const displayText = standingInstructionDisplayTitle({
+    title: storedTitle,
+    content: storedContent,
+  });
 
   const upsertMutation = useSessionMutation(api.standingInstructions.upsert);
   const setEnabledMutation = useSessionMutation(api.standingInstructions.setEnabled);
@@ -66,6 +72,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       history.map((item) => ({
         id: item._id,
         content: item.content,
+        title: item.title,
         useCount: item.useCount,
         lastUsedAt: item.lastUsedAt,
       })),
@@ -83,8 +90,8 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   }, []);
 
   const handleDialogConfirm = useCallback(
-    async ({ content, name }: { content: string; name: string }) => {
-      await upsertMutation({ chatroomId, content, name });
+    async ({ content, title }: { content: string; title: string }) => {
+      await upsertMutation({ chatroomId, content, title });
     },
     [chatroomId, upsertMutation]
   );
@@ -94,7 +101,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       const result = await recordUseMutation({
         historyId: historyId as Id<'chatroom_standingInstructionHistory'>,
       });
-      return { content: result.content };
+      return { content: result.content, title: result.title };
     },
     [recordUseMutation]
   );
@@ -144,7 +151,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       }}
       initialView={dialogInitialView}
       storedContent={storedContent}
-      storedName={storedName}
+      storedTitle={storedTitle}
       isActive={isActive}
       history={historyItems}
       onConfirm={handleDialogConfirm}

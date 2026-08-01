@@ -2,6 +2,11 @@
 
 import { useCallback, useState } from 'react';
 
+import { StandingInstructionsDialogContent } from './StandingInstructionsDialogContent';
+import {
+  getMobileDrawerContentStyle,
+  MOBILE_DRAWER_CONTENT_CLASSNAME,
+} from '../../../components/picker';
 import {
   Dialog,
   DialogContent,
@@ -9,14 +14,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from '../../../components/ui/dialog';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
-import {
-  getMobileDrawerContentStyle,
-  MOBILE_DRAWER_CONTENT_CLASSNAME,
-} from '../../../components/picker';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
-import { StandingInstructionsDialogContent } from './StandingInstructionsDialogContent';
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
 import type {
   StandingInstructionsAddSelection,
@@ -24,19 +21,23 @@ import type {
   StandingInstructionsDialogView,
 } from '../types/standingInstructionsDialog';
 
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+
 export interface StandingInstructionsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialView: StandingInstructionsDialogInitialView;
   storedContent: string;
-  storedName: string;
+  storedTitle: string;
   isActive: boolean;
   history: StandingInstructionHistoryItem[];
-  onConfirm: (payload: { content: string; name: string }) => void;
+  onConfirm: (payload: { content: string; title: string }) => void;
   onEnable: () => void;
   onDisable: () => void;
   onDelete: () => void;
-  onRecordHistoryUse: (historyId: string) => Promise<{ content: string }>;
+  onRecordHistoryUse: (historyId: string) => Promise<{ content: string; title: string }>;
 }
 
 const TITLES: Record<StandingInstructionsDialogView, string> = {
@@ -51,7 +52,7 @@ export function StandingInstructionsDialog({
   onOpenChange,
   initialView,
   storedContent,
-  storedName,
+  storedTitle,
   isActive,
   history,
   onConfirm: onConfirmProp,
@@ -66,12 +67,13 @@ export function StandingInstructionsDialog({
   const [view, setView] = useState<StandingInstructionsDialogView>(initialView);
   const [addSelection, setAddSelection] = useState<StandingInstructionsAddSelection>(null);
   const [draft, setDraft] = useState(storedContent);
-  const [draftName, setDraftName] = useState(storedName);
+  const [draftTitle, setDraftTitle] = useState(storedTitle);
 
   const handleSelectHistory = useCallback(
     async (item: StandingInstructionHistoryItem) => {
       const result = await onRecordHistoryUse(item.id);
       setDraft(result.content);
+      setDraftTitle(result.title);
       setAddSelection(item.id);
       if (view === 'history') setView('add');
     },
@@ -96,22 +98,24 @@ export function StandingInstructionsDialog({
   const handleSelectCreateNew = useCallback(() => {
     setAddSelection('create-new');
     setDraft('');
+    setDraftTitle('');
   }, []);
 
   const handleConfirm = useCallback(() => {
-    onConfirmProp({ content: draft, name: draftName });
+    onConfirmProp({ content: draft, title: draftTitle });
     onOpenChange(false);
-  }, [draft, draftName, onConfirmProp, onOpenChange]);
+  }, [draft, draftTitle, onConfirmProp, onOpenChange]);
 
   const handleCancel = useCallback(() => {
     setDraft(storedContent);
-    setDraftName(storedName);
+    setDraftTitle(storedTitle);
     setAddSelection(null);
     onOpenChange(false);
-  }, [storedContent, storedName, onOpenChange]);
+  }, [storedContent, storedTitle, onOpenChange]);
 
-  const confirmDisabled =
-    addSelection === null || (addSelection === 'create-new' && draft.trim().length === 0);
+  const hasContent = draft.trim().length > 0;
+  const hasTitle = draftTitle.trim().length > 0;
+  const confirmDisabled = addSelection === null || !hasContent || !hasTitle;
 
   const historyTop3 = history.slice(0, 3);
   const title = TITLES[view];
@@ -125,10 +129,10 @@ export function StandingInstructionsDialog({
       historyTop3={historyTop3}
       addSelection={addSelection}
       draft={draft}
-      draftName={draftName}
-      confirmDisabled={view === 'add' ? confirmDisabled : false}
+      draftTitle={draftTitle}
+      confirmDisabled={confirmDisabled}
       onDraftChange={setDraft}
-      onDraftNameChange={setDraftName}
+      onDraftTitleChange={setDraftTitle}
       onSelectHistory={handleSelectHistory}
       onSelectCreateNew={handleSelectCreateNew}
       onViewMore={() => setView('history')}

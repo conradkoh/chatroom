@@ -1,31 +1,31 @@
 'use client';
 
-import { StandingInstructionsNameInput } from './StandingInstructionsNameInput';
 import { onStandingEditorKeyDown } from './standingInstructionsEditorUtils';
+import { StandingInstructionsTitleInput } from './StandingInstructionsTitleInput';
 
 export interface StandingInstructionsEditorFormProps {
   draft: string;
-  draftName: string;
+  draftTitle: string;
   onDraftChange: (value: string) => void;
-  onDraftNameChange: (value: string) => void;
+  onDraftTitleChange: (value: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
   confirmDisabled?: boolean;
   mobile?: boolean;
-  showNameInput?: boolean;
+  showTitleInput?: boolean;
   autoFocus?: boolean;
 }
 
 export function StandingInstructionsEditorForm({
   draft,
-  draftName,
+  draftTitle,
   onDraftChange,
-  onDraftNameChange,
+  onDraftTitleChange,
   onConfirm,
   onCancel,
   confirmDisabled,
   mobile,
-  showNameInput = true,
+  showTitleInput = true,
   autoFocus = true,
 }: StandingInstructionsEditorFormProps) {
   const textareaClasses = mobile
@@ -34,10 +34,10 @@ export function StandingInstructionsEditorForm({
 
   return (
     <div className="flex flex-col gap-1.5">
-      {showNameInput ? (
-        <StandingInstructionsNameInput
-          value={draftName}
-          onChange={onDraftNameChange}
+      {showTitleInput ? (
+        <StandingInstructionsTitleInput
+          value={draftTitle}
+          onChange={onDraftTitleChange}
           mobile={mobile}
         />
       ) : null}
@@ -45,7 +45,17 @@ export function StandingInstructionsEditorForm({
         autoFocus={autoFocus}
         value={draft}
         onChange={(e) => onDraftChange(e.target.value)}
-        onKeyDown={(e) => onStandingEditorKeyDown(e, onCancel, onConfirm)}
+        onKeyDown={(e) =>
+          onStandingEditorKeyDown(
+            e,
+            onCancel,
+            confirmDisabled
+              ? () => {
+                  // Blocked until content + title are filled
+                }
+              : onConfirm
+          )
+        }
         placeholder="Enter standing instructions…"
         rows={mobile ? 5 : 3}
         className={textareaClasses}

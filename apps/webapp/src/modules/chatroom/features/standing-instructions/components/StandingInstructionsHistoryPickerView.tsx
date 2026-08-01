@@ -1,5 +1,7 @@
 'use client';
 
+import { standingInstructionDisplayTitle } from '@workspace/backend/src/domain/entities/standing-instructions';
+
 import {
   usePickerSearchState,
   PickerSearch,
@@ -21,7 +23,9 @@ export function StandingInstructionsHistoryPickerView({
   onSelect,
 }: StandingInstructionsHistoryPickerViewProps) {
   const { searchTerm, setSearchTerm } = usePickerSearchState(() => {});
-  const filtered = filterPickerItems(items, searchTerm, (item) => item.content);
+  const filtered = filterPickerItems(items, searchTerm, (item) =>
+    `${item.title} ${item.content}`.trim()
+  );
 
   return (
     <>
@@ -39,7 +43,7 @@ export function StandingInstructionsHistoryPickerView({
                 onSelect(item);
               }}
             >
-              {item.content}
+              {standingInstructionDisplayTitle({ title: item.title, content: item.content })}
             </PickerOptionRow>
           ))
         )}

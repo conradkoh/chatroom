@@ -4,6 +4,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { StandingInstructionsDialog } from './StandingInstructionsDialog';
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
 
+import { useIsDesktop } from '@/hooks/useIsDesktop';
+
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: vi.fn(() => true),
 }));
@@ -12,11 +14,15 @@ vi.mock('@/hooks/useMobileKeyboard', () => ({
   useVisualViewportKeyboardInset: () => 0,
 }));
 
-import { useIsDesktop } from '@/hooks/useIsDesktop';
-
 const mockHistory: StandingInstructionHistoryItem[] = [
-  { id: 'h1', content: 'Always use TypeScript', useCount: 10, lastUsedAt: 5000 },
-  { id: 'h2', content: 'Write unit tests', useCount: 5, lastUsedAt: 4000 },
+  {
+    id: 'h1',
+    content: 'Always use TypeScript',
+    title: 'Type safety',
+    useCount: 10,
+    lastUsedAt: 5000,
+  },
+  { id: 'h2', content: 'Write unit tests', title: 'Tests first', useCount: 5, lastUsedAt: 4000 },
 ];
 
 describe('StandingInstructionsDialog', () => {
@@ -25,7 +31,9 @@ describe('StandingInstructionsDialog', () => {
   const onEnable = vi.fn();
   const onDisable = vi.fn();
   const onDelete = vi.fn();
-  const onRecordHistoryUse = vi.fn().mockResolvedValue({ content: 'Always use TypeScript' });
+  const onRecordHistoryUse = vi
+    .fn()
+    .mockResolvedValue({ content: 'Always use TypeScript', title: 'Type safety' });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -40,7 +48,7 @@ describe('StandingInstructionsDialog', () => {
         onOpenChange={onOpenChange}
         initialView="add"
         storedContent=""
-        storedName=""
+        storedTitle=""
         isActive={false}
         history={mockHistory}
         onConfirm={onConfirm}
@@ -64,7 +72,7 @@ describe('StandingInstructionsDialog', () => {
         onOpenChange={onOpenChange}
         initialView="add"
         storedContent=""
-        storedName=""
+        storedTitle=""
         isActive={false}
         history={mockHistory}
         onConfirm={onConfirm}
@@ -85,7 +93,7 @@ describe('StandingInstructionsDialog', () => {
         onOpenChange={onOpenChange}
         initialView="actions"
         storedContent="existing content"
-        storedName=""
+        storedTitle=""
         isActive={true}
         history={mockHistory}
         onConfirm={onConfirm}
@@ -107,7 +115,7 @@ describe('StandingInstructionsDialog', () => {
         onOpenChange={onOpenChange}
         initialView="actions"
         storedContent="existing content"
-        storedName=""
+        storedTitle=""
         isActive={false}
         history={mockHistory}
         onConfirm={onConfirm}
@@ -129,7 +137,7 @@ describe('StandingInstructionsDialog', () => {
         onOpenChange={onOpenChange}
         initialView="add"
         storedContent=""
-        storedName=""
+        storedTitle=""
         isActive={false}
         history={[]}
         onConfirm={onConfirm}
@@ -143,6 +151,7 @@ describe('StandingInstructionsDialog', () => {
     expect(screen.queryByPlaceholderText('Enter standing instructions…')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('standing-instructions-create-new'));
     expect(screen.getByPlaceholderText('Enter standing instructions…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Title')).toBeInTheDocument();
   });
 
   it('Confirm is disabled until selection in add flow', () => {
@@ -152,7 +161,7 @@ describe('StandingInstructionsDialog', () => {
         onOpenChange={onOpenChange}
         initialView="add"
         storedContent=""
-        storedName=""
+        storedTitle=""
         isActive={false}
         history={[]}
         onConfirm={onConfirm}
@@ -167,14 +176,14 @@ describe('StandingInstructionsDialog', () => {
     expect(confirmBtn.hasAttribute('disabled')).toBe(true);
   });
 
-  it('Ctrl+Enter on textarea calls onConfirm', () => {
+  it('Confirm stays disabled with content but no title in create-new', () => {
     render(
       <StandingInstructionsDialog
         open={true}
         onOpenChange={onOpenChange}
         initialView="add"
         storedContent=""
-        storedName=""
+        storedTitle=""
         isActive={false}
         history={[]}
         onConfirm={onConfirm}
@@ -188,6 +197,38 @@ describe('StandingInstructionsDialog', () => {
     fireEvent.click(screen.getByTestId('standing-instructions-create-new'));
     const textarea = screen.getByPlaceholderText('Enter standing instructions…');
     fireEvent.change(textarea, { target: { value: 'test' } });
+
+    const confirmBtn = screen.getByText('Confirm');
+    expect(confirmBtn.hasAttribute('disabled')).toBe(true);
+
+    const titleInput = screen.getByPlaceholderText('Title');
+    fireEvent.change(titleInput, { target: { value: 'My title' } });
+    expect(confirmBtn.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('Ctrl+Enter on textarea with title calls onConfirm', () => {
+    render(
+      <StandingInstructionsDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        initialView="add"
+        storedContent=""
+        storedTitle=""
+        isActive={false}
+        history={[]}
+        onConfirm={onConfirm}
+        onEnable={onEnable}
+        onDisable={onDisable}
+        onDelete={onDelete}
+        onRecordHistoryUse={onRecordHistoryUse}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('standing-instructions-create-new'));
+    const textarea = screen.getByPlaceholderText('Enter standing instructions…');
+    fireEvent.change(textarea, { target: { value: 'test' } });
+    const titleInput = screen.getByPlaceholderText('Title');
+    fireEvent.change(titleInput, { target: { value: 'My title' } });
     fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true });
 
     expect(onConfirm).toHaveBeenCalled();
@@ -200,7 +241,7 @@ describe('StandingInstructionsDialog', () => {
         onOpenChange={onOpenChange}
         initialView="actions"
         storedContent="existing"
-        storedName=""
+        storedTitle=""
         isActive={false}
         history={[]}
         onConfirm={onConfirm}
