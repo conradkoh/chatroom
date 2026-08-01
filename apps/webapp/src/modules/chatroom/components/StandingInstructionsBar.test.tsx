@@ -74,6 +74,7 @@ describe('StandingInstructionsBar', () => {
   it('shows add button when no standing instructions', () => {
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     expect(screen.getByText('Add standing instructions')).toBeInTheDocument();
+    expect(screen.getByTestId('standing-instructions-add-bar')).toBeInTheDocument();
   });
 
   it('shows loading placeholder while query is unresolved', () => {
@@ -165,13 +166,14 @@ describe('StandingInstructionsBar', () => {
       expect(screen.queryByText('Delete')).not.toBeInTheDocument();
     });
 
-    it('opens dialog on desktop with correct slot and Disable present', async () => {
+    it('opens desktop actions in a pointer popover (not a modal dialog) and Disable present', async () => {
       const user = userEvent.setup();
       mockUseIsDesktop.mockReturnValue(true);
       render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
       await user.click(screen.getByText('Standing instructions'));
 
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(document.querySelector('[data-slot="chatroom-popover-content"]')).not.toBeNull();
+      expect(document.querySelector('[data-slot="chatroom-dialog-content"]')).toBeNull();
       expect(document.querySelector('[data-slot="drawer-content"]')).toBeNull();
       expect(screen.getByText('Disable')).toBeInTheDocument();
       expect(screen.queryByText('Enable')).not.toBeInTheDocument();
@@ -184,7 +186,15 @@ describe('StandingInstructionsBar', () => {
       await user.click(screen.getByText('Standing instructions'));
 
       expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
+      expect(document.querySelector('[data-slot="chatroom-popover-content"]')).toBeNull();
       expect(screen.getByText('Disable')).toBeInTheDocument();
+    });
+
+    it('active bar carries the active-bar testid', () => {
+      mockUseIsDesktop.mockReturnValue(true);
+      render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+      expect(screen.getByTestId('standing-instructions-active-bar')).toBeInTheDocument();
+      expect(screen.queryByTestId('standing-instructions-disabled-bar')).not.toBeInTheDocument();
     });
 
     it('clicking Disable calls setEnabled(false)', async () => {
@@ -214,6 +224,7 @@ describe('StandingInstructionsBar', () => {
       await user.click(screen.getByText('Standing instructions'));
       await user.click(screen.getByText('Edit'));
 
+      expect(document.querySelector('[data-slot="chatroom-dialog-content"]')).not.toBeNull();
       expect(screen.getByPlaceholderText('Enter standing instructions…')).toBeInTheDocument();
       expect(screen.getByText('Confirm')).toBeInTheDocument();
       expect(screen.getByText('Cancel')).toBeInTheDocument();
@@ -266,6 +277,13 @@ describe('StandingInstructionsBar', () => {
       await user.click(screen.getByText('Enable'));
 
       expect(mockSetEnabled).toHaveBeenCalledWith({ chatroomId: ROOM_ID, enabled: true });
+    });
+
+    it('disabled bar carries the disabled-bar testid', () => {
+      mockUseIsDesktop.mockReturnValue(true);
+      render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+      expect(screen.getByTestId('standing-instructions-disabled-bar')).toBeInTheDocument();
+      expect(screen.queryByTestId('standing-instructions-active-bar')).not.toBeInTheDocument();
     });
   });
 
