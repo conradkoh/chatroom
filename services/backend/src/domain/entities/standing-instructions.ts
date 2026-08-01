@@ -9,6 +9,27 @@ export function getActiveStandingInstructions(chatroom: StandingInstructionsFiel
   return content ? content : null;
 }
 
+export interface ResolvedStandingInstruction {
+  content: string;
+  title: string;
+  enabled: boolean;
+  presetId?: string;
+}
+
+/**
+ * Active-content check against a read-time resolved standing instruction
+ * (preset-resolved or denormalized). Same semantics as
+ * getActiveStandingInstructions but operating on the resolved shape.
+ */
+// fallow-ignore-next-line unused-export
+export function getActiveStandingInstructionsFromResolved(
+  resolved: Pick<ResolvedStandingInstruction, 'content' | 'enabled'>
+): string | null {
+  if (!resolved.enabled) return null;
+  const content = resolved.content.trim();
+  return content ? content : null;
+}
+
 export function normalizeStandingInstructionContent(content: string): string {
   return content.trim();
 }

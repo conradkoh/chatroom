@@ -302,6 +302,13 @@ export default defineSchema({
     standingInstructions: v.optional(v.string()),
     standingInstructionsEnabled: v.optional(v.boolean()),
     standingInstructionsTitle: v.optional(v.string()),
+    /**
+     * Reference to the user's shared preset (chatroom_standingInstructionHistory)
+     * this chatroom resolves its standing instructions from. When set, content/title
+     * are resolved from the preset at read time; denormalized fields stay in sync
+     * for backward compatibility.
+     */
+    standingInstructionPresetId: v.optional(v.id('chatroom_standingInstructionHistory')),
   })
     .index('by_status', ['status'])
     .index('by_ownerId', ['ownerId'])
