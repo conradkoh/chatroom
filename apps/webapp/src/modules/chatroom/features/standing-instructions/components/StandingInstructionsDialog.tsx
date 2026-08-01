@@ -115,7 +115,12 @@ export function StandingInstructionsDialog({
 
   const hasContent = draft.trim().length > 0;
   const hasTitle = draftTitle.trim().length > 0;
-  const confirmDisabled = addSelection === null || !hasContent || !hasTitle;
+
+  const addConfirmDisabled = addSelection === null || !hasContent || !hasTitle;
+  const editConfirmDisabled = !hasContent || !hasTitle;
+
+  const confirmDisabled =
+    view === 'add' ? addConfirmDisabled : view === 'edit' ? editConfirmDisabled : false;
 
   const historyTop3 = history.slice(0, 3);
   const title = TITLES[view];

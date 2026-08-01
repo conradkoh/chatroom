@@ -206,6 +206,54 @@ describe('StandingInstructionsDialog', () => {
     expect(confirmBtn.hasAttribute('disabled')).toBe(false);
   });
 
+  it('edit view Confirm is enabled when content and title are present', () => {
+    render(
+      <StandingInstructionsDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        initialView="actions"
+        storedContent="existing content"
+        storedTitle="My Title"
+        isActive={true}
+        history={mockHistory}
+        onConfirm={onConfirm}
+        onEnable={onEnable}
+        onDisable={onDisable}
+        onDelete={onDelete}
+        onRecordHistoryUse={onRecordHistoryUse}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Edit'));
+
+    const confirmBtn = screen.getByText('Confirm');
+    expect(confirmBtn.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('edit view Confirm is disabled when title is cleared', () => {
+    render(
+      <StandingInstructionsDialog
+        open={true}
+        onOpenChange={onOpenChange}
+        initialView="actions"
+        storedContent="existing content"
+        storedTitle=""
+        isActive={true}
+        history={mockHistory}
+        onConfirm={onConfirm}
+        onEnable={onEnable}
+        onDisable={onDisable}
+        onDelete={onDelete}
+        onRecordHistoryUse={onRecordHistoryUse}
+      />
+    );
+
+    fireEvent.click(screen.getByText('Edit'));
+
+    const confirmBtn = screen.getByText('Confirm');
+    expect(confirmBtn.hasAttribute('disabled')).toBe(true);
+  });
+
   it('Ctrl+Enter on textarea with title calls onConfirm', () => {
     render(
       <StandingInstructionsDialog
