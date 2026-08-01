@@ -1,5 +1,6 @@
 'use client';
 
+import { StandingInstructionsDialogFooter } from './StandingInstructionsDialogFooter';
 import { onStandingEditorKeyDown } from './standingInstructionsEditorUtils';
 import { StandingInstructionsTitleInput } from './StandingInstructionsTitleInput';
 
@@ -13,6 +14,7 @@ export interface StandingInstructionsEditorFormProps {
   confirmDisabled?: boolean;
   mobile?: boolean;
   showTitleInput?: boolean;
+  showFooter?: boolean;
   autoFocus?: boolean;
 }
 
@@ -26,6 +28,7 @@ export function StandingInstructionsEditorForm({
   confirmDisabled,
   mobile,
   showTitleInput = true,
+  showFooter = true,
   autoFocus = true,
 }: StandingInstructionsEditorFormProps) {
   const textareaClasses = mobile
@@ -60,31 +63,14 @@ export function StandingInstructionsEditorForm({
         rows={mobile ? 5 : 3}
         className={textareaClasses}
       />
-      <div className={`flex items-center gap-2 ${mobile ? 'items-stretch' : ''}`}>
-        <button
-          type="button"
-          onClick={onConfirm}
-          disabled={confirmDisabled}
-          className={
-            mobile
-              ? 'min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 bg-chatroom-accent text-chatroom-text-on-accent hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed'
-              : 'text-xs font-bold uppercase tracking-wider px-2 py-0.5 bg-chatroom-accent text-chatroom-text-on-accent hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed'
-          }
-        >
-          Confirm
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className={
-            mobile
-              ? 'min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors border border-chatroom-border'
-              : 'text-xs font-bold uppercase tracking-wider px-2 py-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors'
-          }
-        >
-          Cancel
-        </button>
-      </div>
+      {showFooter ? (
+        <StandingInstructionsDialogFooter
+          onConfirm={onConfirm}
+          onCancel={onCancel}
+          confirmDisabled={confirmDisabled}
+          mobile={mobile}
+        />
+      ) : null}
     </div>
   );
 }

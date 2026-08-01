@@ -1,6 +1,7 @@
 'use client';
 
 import { StandingInstructionsCreateNewButton } from './StandingInstructionsCreateNewButton';
+import { StandingInstructionsDialogFooter } from './StandingInstructionsDialogFooter';
 import { StandingInstructionsEditorForm } from './StandingInstructionsEditorForm';
 import { StandingInstructionsHistoryList } from './StandingInstructionsHistoryList';
 import { StandingInstructionsTitleInput } from './StandingInstructionsTitleInput';
@@ -90,31 +91,12 @@ export function StandingInstructionsAddView({
       ) : (
         <>
           {titleInput}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onConfirm}
-              disabled={confirmDisabled}
-              className={
-                mobile
-                  ? 'min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 bg-chatroom-accent text-chatroom-text-on-accent hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed'
-                  : 'text-xs font-bold uppercase tracking-wider px-2 py-0.5 bg-chatroom-accent text-chatroom-text-on-accent hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed'
-              }
-            >
-              Confirm
-            </button>
-            <button
-              type="button"
-              onClick={onCancel}
-              className={
-                mobile
-                  ? 'min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors border border-chatroom-border'
-                  : 'text-xs font-bold uppercase tracking-wider px-2 py-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors'
-              }
-            >
-              Cancel
-            </button>
-          </div>
+          <StandingInstructionsDialogFooter
+            onConfirm={onConfirm}
+            onCancel={onCancel}
+            confirmDisabled={confirmDisabled}
+            mobile={mobile}
+          />
         </>
       )}
     </div>
