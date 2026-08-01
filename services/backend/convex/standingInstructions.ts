@@ -13,14 +13,16 @@ import {
 } from '../src/domain/entities/standing-instructions';
 
 const MAX_CONTENT_LENGTH = 10_000;
-const MAX_NAME_LENGTH = 120;
+const MAX_TITLE_LENGTH = 120;
 
 // ─── Internal helpers ─────────────────────────────────────────────────────
 
+// fallow-ignore-next-line complexity
 async function recordStandingInstructionHistory(
   ctx: MutationCtx,
   userId: Id<'users'>,
   rawContent: string,
+  title: string,
   now: number
 ): Promise<Id<'chatroom_standingInstructionHistory'> | null> {
   const content = normalizeStandingInstructionContent(rawContent);
@@ -41,6 +43,7 @@ async function recordStandingInstructionHistory(
       useCount: existing.useCount + 1,
       lastUsedAt: now,
       content,
+      title,
     });
     return existing._id;
   }
@@ -48,6 +51,7 @@ async function recordStandingInstructionHistory(
     userId,
     content,
     contentKey,
+    title,
     useCount: 1,
     lastUsedAt: now,
     createdAt: now,
@@ -67,7 +71,7 @@ export const get = query({
     return {
       content: room?.standingInstructions ?? '',
       enabled: room?.standingInstructionsEnabled ?? false,
-      name: room?.standingInstructionsName ?? '',
+      title: room?.standingInstructionsTitle ?? '',
     };
   },
 });
@@ -84,6 +88,7 @@ export const listHistory = query({
     return rows.map((row) => ({
       _id: row._id,
       content: row.content,
+      title: row.title ?? '',
       useCount: row.useCount,
       lastUsedAt: row.lastUsedAt,
     }));
@@ -97,8 +102,9 @@ export const upsert = mutation({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     content: v.string(),
-    name: v.optional(v.string()),
+    title: v.string(),
   },
+  // fallow-ignore-next-line complexity
   handler: async (ctx, args) => {
     const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const trimmed = args.content.trim();
@@ -108,20 +114,32 @@ export const upsert = mutation({
         message: `Standing instructions must be ${MAX_CONTENT_LENGTH} characters or less`,
       });
     }
-    const trimmedName = args.name?.trim() ?? '';
-    if (trimmedName.length > MAX_NAME_LENGTH) {
+    const trimmedTitle = args.title.trim();
+    if (trimmed.length > 0 && !trimmedTitle) {
       throw new ConvexError({
-        code: 'NAME_TOO_LONG',
-        message: `Standing instruction name must be ${MAX_NAME_LENGTH} characters or less`,
+        code: 'TITLE_REQUIRED',
+        message: 'A title is required for standing instructions',
+      });
+    }
+    if (trimmedTitle.length > MAX_TITLE_LENGTH) {
+      throw new ConvexError({
+        code: 'TITLE_TOO_LONG',
+        message: `Standing instruction title must be ${MAX_TITLE_LENGTH} characters or less`,
       });
     }
     await ctx.db.patch('chatroom_rooms', args.chatroomId, {
       standingInstructions: trimmed,
       standingInstructionsEnabled: trimmed.length > 0,
-      standingInstructionsName: trimmedName.length > 0 ? trimmedName : undefined,
+      standingInstructionsTitle: trimmed.length > 0 ? trimmedTitle : undefined,
     });
     if (trimmed.length > 0) {
-      await recordStandingInstructionHistory(ctx, session.userId, trimmed, Date.now());
+      await recordStandingInstructionHistory(
+        ctx,
+        session.userId,
+        trimmed,
+        trimmedTitle,
+        Date.now()
+      );
     }
   },
 });
@@ -142,7 +160,7 @@ export const recordUse = mutation({
       useCount: row.useCount + 1,
       lastUsedAt: now,
     });
-    return { content: row.content };
+    return { content: row.content, title: row.title ?? '' };
   },
 });
 
@@ -168,6 +186,7 @@ export const setEnabled = mutation({
   },
 });
 
+// fallow-ignore-next-line code-duplication
 export const clear = mutation({
   args: {
     ...SessionIdArg,
@@ -178,7 +197,7 @@ export const clear = mutation({
     await ctx.db.patch('chatroom_rooms', args.chatroomId, {
       standingInstructions: '',
       standingInstructionsEnabled: false,
-      standingInstructionsName: undefined,
+      standingInstructionsTitle: undefined,
     });
   },
 });

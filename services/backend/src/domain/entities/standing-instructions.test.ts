@@ -5,6 +5,7 @@ import {
   getActiveStandingInstructions,
   normalizeStandingInstructionContent,
   standingInstructionContentKey,
+  standingInstructionDisplayTitle,
 } from './standing-instructions';
 
 describe('getActiveStandingInstructions', () => {
@@ -90,5 +91,32 @@ describe('compareStandingInstructionHistoryByRank', () => {
     const a = { useCount: 2, lastUsedAt: 300 };
     const b = { useCount: 2, lastUsedAt: 300 };
     expect(compareStandingInstructionHistoryByRank(a, b)).toBe(0);
+  });
+});
+
+describe('standingInstructionDisplayTitle', () => {
+  test('returns trimmed title when set', () => {
+    expect(
+      standingInstructionDisplayTitle({ title: '  Team rules  ', content: 'long content' })
+    ).toBe('Team rules');
+  });
+
+  test('falls back to first line of content when no title', () => {
+    expect(
+      standingInstructionDisplayTitle({ title: '', content: 'Always use TypeScript\nmore text' })
+    ).toBe('Always use TypeScript');
+  });
+
+  test('returns full first line when short', () => {
+    expect(standingInstructionDisplayTitle({ title: undefined, content: 'Short rule' })).toBe(
+      'Short rule'
+    );
+  });
+
+  test('truncates a long first line with ellipsis', () => {
+    const longFirstLine = 'x'.repeat(100);
+    const result = standingInstructionDisplayTitle({ title: '', content: `${longFirstLine}\ny` });
+    expect(result).toBe(`${'x'.repeat(57)}...`);
+    expect(result.length).toBe(60);
   });
 });

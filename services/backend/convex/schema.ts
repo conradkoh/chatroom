@@ -301,7 +301,7 @@ export default defineSchema({
     messageCount: v.optional(v.number()),
     standingInstructions: v.optional(v.string()),
     standingInstructionsEnabled: v.optional(v.boolean()),
-    standingInstructionsName: v.optional(v.string()),
+    standingInstructionsTitle: v.optional(v.string()),
   })
     .index('by_status', ['status'])
     .index('by_ownerId', ['ownerId'])
@@ -2815,6 +2815,7 @@ export default defineSchema({
     userId: v.id('users'),
     content: v.string(),
     contentKey: v.string(),
+    title: v.optional(v.string()),
     useCount: v.number(),
     lastUsedAt: v.number(),
     createdAt: v.number(),

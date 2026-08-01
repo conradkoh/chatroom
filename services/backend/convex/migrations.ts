@@ -510,6 +510,33 @@ export const seedStandingInstructionHistory = migrations.define({
   },
 });
 
+// --- Standing Instructions Title Migration ---
+
+/**
+ * Migration: Rename chatroom_rooms.standingInstructionsName to
+ * chatroom_rooms.standingInstructionsTitle.
+ *
+ * Standing instruction titles are now required; the legacy optional name field
+ * is removed. Copies any existing name into title and unsets the old field.
+ *
+ * Usage: npx convex run migrations:run '{"fn":"migrations:migrateStandingInstructionsNameToTitle"}'
+ * Idempotent: rows without a legacy name or with title already set are skipped.
+ */
+export const migrateStandingInstructionsNameToTitle = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (_ctx, room) => {
+    const doc = room as Record<string, unknown>;
+    const legacyName =
+      typeof doc.standingInstructionsName === 'string' ? doc.standingInstructionsName.trim() : '';
+    if (!legacyName) return;
+    if (doc.standingInstructionsTitle) return;
+    return {
+      standingInstructionsTitle: legacyName,
+      standingInstructionsName: undefined,
+    };
+  },
+});
+
 // --- Workspace File Tree Migrations ---
 
 /**
@@ -571,4 +598,6 @@ export const runAll = migrations.runner([
   internal.migrations.migrateMachineConfigFavoritesToMachineScope,
   // Standing Instructions History
   internal.migrations.seedStandingInstructionHistory,
+  // Standing Instructions Title
+  internal.migrations.migrateStandingInstructionsNameToTitle,
 ]);
