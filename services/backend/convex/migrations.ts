@@ -11,6 +11,7 @@ import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,
 } from './utils/machineFavoriteScopeKey';
+import { standingInstructionContentKey } from '../src/domain/entities/standing-instructions';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
 
@@ -537,6 +538,50 @@ export const migrateStandingInstructionsNameToTitle = migrations.define({
   },
 });
 
+// --- Standing Instructions Preset Link Migration ---
+
+/**
+ * Migration: Link chatroom_rooms to the user's shared preset
+ * (chatroom_standingInstructionHistory) via standingInstructionPresetId.
+ *
+ * For rooms with non-empty standingInstructions and no preset link, finds the
+ * matching history row for ownerId + contentKey (creating it if missing,
+ * mirroring seedStandingInstructionHistory), then sets the preset reference.
+ *
+ * Usage: npx convex run migrations:run '{"fn":"migrations:linkStandingInstructionPresets"}'
+ * Idempotent: rooms already linked (or with empty content / no owner) are skipped.
+ */
+export const linkStandingInstructionPresets = migrations.define({
+  table: 'chatroom_rooms',
+  // fallow-ignore-next-line complexity
+  migrateOne: async (ctx, room) => {
+    if (room.standingInstructionPresetId) return;
+    const content = (room.standingInstructions ?? '').trim();
+    if (!content || !room.ownerId) return;
+    const contentKey = standingInstructionContentKey(content);
+    const preset = await ctx.db
+      .query('chatroom_standingInstructionHistory')
+      .withIndex('by_userId_contentKey', (q) =>
+        q.eq('userId', room.ownerId).eq('contentKey', contentKey)
+      )
+      .first();
+    if (!preset) {
+      const now = Date.now();
+      const presetId = await ctx.db.insert('chatroom_standingInstructionHistory', {
+        userId: room.ownerId,
+        content,
+        contentKey,
+        title: room.standingInstructionsTitle,
+        useCount: 1,
+        lastUsedAt: now,
+        createdAt: now,
+      });
+      return { standingInstructionPresetId: presetId };
+    }
+    return { standingInstructionPresetId: preset._id };
+  },
+});
+
 // --- Workspace File Tree Migrations ---
 
 /**
@@ -600,4 +645,6 @@ export const runAll = migrations.runner([
   internal.migrations.seedStandingInstructionHistory,
   // Standing Instructions Title
   internal.migrations.migrateStandingInstructionsNameToTitle,
+  // Standing Instructions Preset Link
+  internal.migrations.linkStandingInstructionPresets,
 ]);
