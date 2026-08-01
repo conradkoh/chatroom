@@ -110,6 +110,7 @@ import type * as serviceDesk from "../serviceDesk.js";
 import type * as sessions from "../sessions.js";
 import type * as skills from "../skills.js";
 import type * as standingInstructions from "../standingInstructions.js";
+import type * as standingInstructionsResolver from "../standingInstructionsResolver.js";
 import type * as storageCleanup from "../storageCleanup.js";
 import type * as system_auth_google from "../system/auth/google.js";
 import type * as taskDeliveryReceipts from "../taskDeliveryReceipts.js";
@@ -250,6 +251,7 @@ declare const fullApi: ApiFromModules<{
   sessions: typeof sessions;
   skills: typeof skills;
   standingInstructions: typeof standingInstructions;
+  standingInstructionsResolver: typeof standingInstructionsResolver;
   storageCleanup: typeof storageCleanup;
   "system/auth/google": typeof system_auth_google;
   taskDeliveryReceipts: typeof taskDeliveryReceipts;
