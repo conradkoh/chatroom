@@ -21,7 +21,6 @@ export interface ResolvedStandingInstruction {
  * (preset-resolved or denormalized). Same semantics as
  * getActiveStandingInstructions but operating on the resolved shape.
  */
-// fallow-ignore-next-line unused-export
 export function getActiveStandingInstructionsFromResolved(
   resolved: Pick<ResolvedStandingInstruction, 'content' | 'enabled'>
 ): string | null {

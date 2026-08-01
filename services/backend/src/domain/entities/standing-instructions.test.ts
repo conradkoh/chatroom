@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   compareStandingInstructionHistoryByRank,
   getActiveStandingInstructions,
+  getActiveStandingInstructionsFromResolved,
   normalizeStandingInstructionContent,
   standingInstructionContentKey,
   standingInstructionDisplayTitle,
@@ -49,6 +50,35 @@ describe('getActiveStandingInstructions', () => {
       getActiveStandingInstructions({
         standingInstructionsEnabled: true,
         standingInstructions: '   ',
+      })
+    ).toBeNull();
+  });
+});
+
+describe('getActiveStandingInstructionsFromResolved', () => {
+  test('returns trimmed content when enabled and content present', () => {
+    expect(
+      getActiveStandingInstructionsFromResolved({
+        enabled: true,
+        content: '  Always use TypeScript  ',
+      })
+    ).toBe('Always use TypeScript');
+  });
+
+  test('returns null when disabled', () => {
+    expect(
+      getActiveStandingInstructionsFromResolved({
+        enabled: false,
+        content: 'Do something',
+      })
+    ).toBeNull();
+  });
+
+  test('returns null when content is empty', () => {
+    expect(
+      getActiveStandingInstructionsFromResolved({
+        enabled: true,
+        content: '',
       })
     ).toBeNull();
   });

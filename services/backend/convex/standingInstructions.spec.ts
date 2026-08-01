@@ -155,3 +155,180 @@ describe('standing instructions title', () => {
     expect(result.title).toBe('Tests first');
   });
 });
+
+describe('standing instructions presets', () => {
+  const CONTENT = 'Always use TypeScript';
+  const TITLE = 'Type safety';
+
+  async function setupTwoLinkedRooms(sessionId: SessionId) {
+    const roomA = await createChatroom(sessionId);
+    const roomB = await createChatroom(sessionId);
+
+    // Same content+title on both rooms links them to the same preset
+    await t.mutation(api.standingInstructions.upsert, {
+      sessionId,
+      chatroomId: roomA,
+      content: CONTENT,
+      title: TITLE,
+    });
+    await t.mutation(api.standingInstructions.upsert, {
+      sessionId,
+      chatroomId: roomB,
+      content: CONTENT,
+      title: TITLE,
+    });
+
+    return { roomA, roomB };
+  }
+
+  test('get returns presetId when linked', async () => {
+    const { sessionId } = await createTestSession('si-preset-get');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.standingInstructions.upsert, {
+      sessionId,
+      chatroomId,
+      content: CONTENT,
+      title: TITLE,
+    });
+
+    const result = await t.query(api.standingInstructions.get, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(result.presetId).toBeDefined();
+    expect(result.content).toBe(CONTENT);
+    expect(result.title).toBe(TITLE);
+  });
+
+  test('updatePreset changes get results on all linked rooms', async () => {
+    const { sessionId } = await createTestSession('si-preset-update');
+    const { roomA, roomB } = await setupTwoLinkedRooms(sessionId);
+
+    const beforeA = await t.query(api.standingInstructions.get, {
+      sessionId,
+      chatroomId: roomA,
+    });
+    const beforeB = await t.query(api.standingInstructions.get, {
+      sessionId,
+      chatroomId: roomB,
+    });
+    expect(beforeA.presetId).toBe(beforeB.presetId);
+    expect(beforeA.content).toBe(CONTENT);
+
+    await t.mutation(api.standingInstructions.updatePreset, {
+      sessionId,
+      presetId: beforeA.presetId,
+      content: 'Use strict mode everywhere',
+      title: 'Strict mode',
+    });
+
+    const afterA = await t.query(api.standingInstructions.get, {
+      sessionId,
+      chatroomId: roomA,
+    });
+    const afterB = await t.query(api.standingInstructions.get, {
+      sessionId,
+      chatroomId: roomB,
+    });
+
+    expect(afterA.content).toBe('Use strict mode everywhere');
+    expect(afterA.title).toBe('Strict mode');
+    expect(afterB.content).toBe('Use strict mode everywhere');
+    expect(afterB.title).toBe('Strict mode');
+  });
+
+  test('getPresetUsage returns active/inactive breakdown', async () => {
+    const { sessionId } = await createTestSession('si-preset-usage');
+    const { roomA, roomB } = await setupTwoLinkedRooms(sessionId);
+
+    // Disable one room → inactive
+    await t.mutation(api.standingInstructions.setEnabled, {
+      sessionId,
+      chatroomId: roomB,
+      enabled: false,
+    });
+
+    const getA = await t.query(api.standingInstructions.get, {
+      sessionId,
+      chatroomId: roomA,
+    });
+    const usage = await t.query(api.standingInstructions.getPresetUsage, {
+      sessionId,
+      presetId: getA.presetId,
+    });
+
+    expect(usage.totalCount).toBe(2);
+    expect(usage.activeCount).toBe(1);
+    expect(usage.inactiveCount).toBe(1);
+    const activeRoom = usage.usages.find((u) => u.chatroomId === roomA);
+    const inactiveRoom = usage.usages.find((u) => u.chatroomId === roomB);
+    expect(activeRoom?.enabled).toBe(true);
+    expect(inactiveRoom?.enabled).toBe(false);
+  });
+
+  test('deletePreset removes preset and unlinks all linked rooms', async () => {
+    const { sessionId } = await createTestSession('si-preset-delete');
+    const { roomA, roomB } = await setupTwoLinkedRooms(sessionId);
+
+    const getA = await t.query(api.standingInstructions.get, {
+      sessionId,
+      chatroomId: roomA,
+    });
+
+    await t.mutation(api.standingInstructions.deletePreset, {
+      sessionId,
+      presetId: getA.presetId,
+    });
+
+    const afterA = await t.query(api.standingInstructions.get, {
+      sessionId,
+      chatroomId: roomA,
+    });
+    const afterB = await t.query(api.standingInstructions.get, {
+      sessionId,
+      chatroomId: roomB,
+    });
+    expect(afterA.content).toBe('');
+    expect(afterA.presetId).toBeUndefined();
+    expect(afterB.content).toBe('');
+    expect(afterB.presetId).toBeUndefined();
+
+    const history = await t.query(api.standingInstructions.listHistory, {
+      sessionId,
+    });
+    expect(history).toHaveLength(0);
+  });
+
+  test('clear on one room does not affect other rooms or the preset library', async () => {
+    const { sessionId } = await createTestSession('si-preset-clear');
+    const { roomA, roomB } = await setupTwoLinkedRooms(sessionId);
+
+    await t.mutation(api.standingInstructions.clear, {
+      sessionId,
+      chatroomId: roomA,
+    });
+
+    const afterA = await t.query(api.standingInstructions.get, {
+      sessionId,
+      chatroomId: roomA,
+    });
+    const afterB = await t.query(api.standingInstructions.get, {
+      sessionId,
+      chatroomId: roomB,
+    });
+
+    expect(afterA.content).toBe('');
+    expect(afterA.presetId).toBeUndefined();
+    // Room B untouched and still linked
+    expect(afterB.content).toBe(CONTENT);
+    expect(afterB.presetId).toBeDefined();
+
+    // Preset library entry survives
+    const history = await t.query(api.standingInstructions.listHistory, {
+      sessionId,
+    });
+    expect(history).toHaveLength(1);
+  });
+});
