@@ -10,6 +10,7 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { buildAvailableHandoffRoles, getLatestUserMessageClassification } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
+import { resolveStandingInstructionForRoom } from './standingInstructionsResolver';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
@@ -21,7 +22,7 @@ import {
 import { isNativeHarness } from '../src/domain/entities/harness/types';
 import type { PrimaryDeliveryAttachments } from '../src/domain/entities/message-attachments';
 import { isActiveParticipant } from '../src/domain/entities/participant';
-import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
+import { getActiveStandingInstructionsFromResolved } from '../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
@@ -1727,7 +1728,10 @@ export const getTaskDeliveryPrompt = query({
     const agentHarness = existingAgentConfig?.agentHarness;
     const nativeIntegration = isNativeHarness(agentHarness);
 
-    const standingInstructions = getActiveStandingInstructions(chatroom);
+    const resolvedStandingInstructions = await resolveStandingInstructionForRoom(ctx, chatroom);
+    const standingInstructions = getActiveStandingInstructionsFromResolved(
+      resolvedStandingInstructions
+    );
 
     // Generate the complete CLI output (backend-generated, CLI just prints it)
     const fullCliOutput = generateFullCliOutput({
