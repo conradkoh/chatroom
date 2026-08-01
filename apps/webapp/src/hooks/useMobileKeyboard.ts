@@ -37,7 +37,8 @@ function isEditableElementFocused(): boolean {
   return isContentEditableTarget(el);
 }
 
-export function useEditableElementFocused(enabled = true): boolean {
+/** Shared focus tracking — fires on focusin/focusout while enabled. */
+function useFocusWithin(check: () => boolean, enabled = true): boolean {
   const [focused, setFocused] = useState(false);
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export function useEditableElementFocused(enabled = true): boolean {
       setFocused(false);
       return;
     }
-    const update = () => setFocused(isEditableElementFocused());
+    const update = () => setFocused(check());
     update();
     document.addEventListener('focusin', update, true);
     document.addEventListener('focusout', update, true);
@@ -53,9 +54,14 @@ export function useEditableElementFocused(enabled = true): boolean {
       document.removeEventListener('focusin', update, true);
       document.removeEventListener('focusout', update, true);
     };
-  }, [enabled]);
+  }, [enabled, check]);
 
   return enabled ? focused : false;
+}
+
+// fallow-ignore-next-line unused-export
+export function useEditableElementFocused(enabled = true): boolean {
+  return useFocusWithin(isEditableElementFocused, enabled);
 }
 
 // fallow-ignore-next-line unused-export
@@ -149,4 +155,29 @@ export function useVisualViewportKeyboardInset(enabled = true): number {
 
 export function useVisualViewportOffsetTop(enabled = true): number {
   return useVisualViewportValue(enabled, computeVisualViewportOffsetTopPx);
+}
+
+/** Root selector marking the main chat composer — footer keyboard lift keys off this. */
+// fallow-ignore-next-line unused-export
+export const MAIN_CHAT_COMPOSER_SELECTOR = '[data-main-chat-composer]';
+
+/** True when the focused element is inside the main chat composer (not a dialog input). */
+// fallow-ignore-next-line unused-export
+export function isMainChatComposerFocused(): boolean {
+  if (typeof document === 'undefined') return false;
+  const el = document.activeElement;
+  if (!el || !(el instanceof HTMLElement)) return false;
+  return el.closest(MAIN_CHAT_COMPOSER_SELECTOR) !== null;
+}
+
+/** Mirrors useEditableElementFocused but scoped to the main chat composer root. */
+export function useMainChatComposerFocused(enabled = true): boolean {
+  return useFocusWithin(isMainChatComposerFocused, enabled);
+}
+
+/** Keyboard inset for sticky footers — only non-zero when main chat composer has focus. */
+export function useMainChatComposerKeyboardInset(enabled = true): number {
+  const inset = useVisualViewportKeyboardInset(enabled);
+  const composerFocused = useMainChatComposerFocused(enabled);
+  return composerFocused ? inset : 0;
 }
