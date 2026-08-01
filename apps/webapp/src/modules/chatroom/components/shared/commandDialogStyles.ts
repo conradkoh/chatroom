@@ -1,8 +1,8 @@
 /**
  * Shared styling constants for command-style dialogs (Cmd+P, Cmd+K, Cmd+Shift+P).
  *
- * These dialogs share the same visual treatment: no overlay, industrial theme,
- * instant open animation, and consistent positioning.
+ * These dialogs share the same visual treatment: transparent dismiss backdrop,
+ * industrial theme, instant open animation, and consistent positioning.
  */
 
 import type { CSSProperties } from 'react';
@@ -11,6 +11,16 @@ import {
   chatroomIndustrialPanelBorderClassName,
   chatroomIndustrialSurfaceClassName,
 } from './industrialDialogStyles';
+import { Z_PANEL } from './overlayLayers';
+
+/**
+ * Transparent full-screen layer that intercepts outside pointer events.
+ * Static (no animation) and invisible — distinct from a visible dimming
+ * overlay. Sits below command content (z-50) at z-40.
+ * MUST only render while the dialog is open — CommandDialogContent is forceMount.
+ */
+export const COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES =
+  `${Z_PANEL} fixed inset-0 bg-transparent` as const;
 
 /**
  * Classes for DialogPrimitive.Content in command-style dialogs.
