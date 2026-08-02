@@ -69,6 +69,7 @@ export const getSpawnPayload = query({
     const systemPrompt = renderEnhancerSystemPrompt({
       chatroomId: job.chatroomId,
       jobId: job._id,
+      cliEnvPrefix,
     });
     return {
       chatroomId: job.chatroomId,
