@@ -6,17 +6,18 @@ import { memo, useState } from 'react';
 import { HandoffEnvelopeView } from './HandoffEnvelopeView';
 import { HandoffReportView } from './HandoffReportView';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
+import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
 import {
   BADGE_BASE,
   formatMachineLabel,
   getSenderClasses,
-  getStickyHeaderClickProps,
   ICON_SIZE,
   TIMELINE_MESSAGE_BODY,
   TIMELINE_MESSAGE_HEADER_STICKY,
   TIMELINE_ROW_BORDER,
   TIMELINE_ROW_ROOT,
   type MachineNameEntry,
+  type TimelineMessageHeaderNavigation,
 } from './timelineRowStyles';
 import { MessageAttachmentChips } from '../../attachments';
 import { EnhancerContentToggle } from '../../features/enhancers/components/EnhancerContentToggle';
@@ -44,8 +45,8 @@ export interface TimelineTeamMessageProps {
   machines?: Map<string, MachineNameEntry>;
   /** When set, shows resolved hostname/alias beside the sender role. */
   machineId?: string;
-  /** When set, clicking the sticky message header scrolls this row (All tab). */
-  onHeaderClick?: () => void;
+  /** When set, sticky header shows centered prev/current/next jump controls (All tab). */
+  headerNavigation?: TimelineMessageHeaderNavigation;
 }
 
 // fallow-ignore-next-line complexity
@@ -54,7 +55,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   chatroomId: _chatroomId,
   machines,
   machineId,
-  onHeaderClick,
+  headerNavigation,
 }: TimelineTeamMessageProps) {
   const [showOriginal, setShowOriginal] = useState(false);
   const hasEnhancerOriginal =
@@ -76,14 +77,12 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
     >
       <div
         className={cn(
-          'flex flex-wrap justify-between items-center gap-y-1 gap-x-2 px-4 py-1.5 mb-2',
-          TIMELINE_MESSAGE_HEADER_STICKY,
-          onHeaderClick && 'cursor-pointer'
+          'flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5 mb-2',
+          TIMELINE_MESSAGE_HEADER_STICKY
         )}
         data-testid="timeline-message-header"
-        {...getStickyHeaderClickProps(onHeaderClick)}
       >
-        <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5">
+        <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 flex-shrink-0 min-w-0">
           {messageTypeBadge && (
             <span className={messageTypeBadge.className}>
               {messageTypeBadge.icon}
@@ -97,7 +96,12 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
             />
           )}
         </div>
-        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1">
+        {headerNavigation && (
+          <div className="flex-1 flex justify-center min-w-0">
+            <TimelineMessageHeaderNav {...headerNavigation} />
+          </div>
+        )}
+        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 flex-shrink-0 ml-auto">
           <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
           {machineLabel && (
             <span className="text-[10px] text-chatroom-text-muted font-medium normal-case">
