@@ -25,6 +25,8 @@ export interface StandingInstructionsDialogContentProps {
   onViewMore: () => void;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Called when the user requests deleting a preset from the history picker. */
+  onDeletePreset?: (historyId: string) => void;
 }
 
 export function StandingInstructionsDialogContent({
@@ -43,6 +45,7 @@ export function StandingInstructionsDialogContent({
   onViewMore,
   onConfirm,
   onCancel,
+  onDeletePreset,
 }: StandingInstructionsDialogContentProps) {
   switch (view) {
     case 'add':
@@ -81,6 +84,7 @@ export function StandingInstructionsDialogContent({
         <StandingInstructionsHistoryPickerView
           items={history}
           onSelect={(item) => onSelectHistory(item)}
+          onDeletePreset={onDeletePreset}
         />
       );
     default:

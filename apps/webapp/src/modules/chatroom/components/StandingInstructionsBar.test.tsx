@@ -163,7 +163,7 @@ describe('StandingInstructionsBar', () => {
       render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
       expect(screen.queryByText('Edit')).not.toBeInTheDocument();
       expect(screen.queryByText('Disable')).not.toBeInTheDocument();
-      expect(screen.queryByText('Delete')).not.toBeInTheDocument();
+      expect(screen.queryByText('Remove from chat')).not.toBeInTheDocument();
     });
 
     it('opens desktop actions in a pointer popover (not a modal dialog) and Disable present', async () => {
@@ -207,12 +207,12 @@ describe('StandingInstructionsBar', () => {
       expect(mockSetEnabled).toHaveBeenCalledWith({ chatroomId: ROOM_ID, enabled: false });
     });
 
-    it('clicking Delete calls clear()', async () => {
+    it('clicking Remove from chat calls clear()', async () => {
       const user = userEvent.setup();
       mockUseIsDesktop.mockReturnValue(true);
       render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
       await user.click(screen.getByText('Standing instructions'));
-      await user.click(screen.getByText('Delete'));
+      await user.click(screen.getByText('Remove from chat'));
 
       expect(mockClear).toHaveBeenCalledWith({ chatroomId: ROOM_ID });
     });
@@ -266,7 +266,7 @@ describe('StandingInstructionsBar', () => {
       expect(screen.getByText('Enable')).toBeInTheDocument();
       expect(screen.queryByText('Disable')).not.toBeInTheDocument();
       expect(screen.getByText('Edit')).toBeInTheDocument();
-      expect(screen.getByText('Delete')).toBeInTheDocument();
+      expect(screen.getByText('Remove from chat')).toBeInTheDocument();
     });
 
     it('clicking Enable calls setEnabled(true)', async () => {

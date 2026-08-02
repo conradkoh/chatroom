@@ -38,7 +38,7 @@ export function StandingInstructionsActionsView({
           </PickerOptionRow>
         )}
         <PickerOptionRow onSelect={onDelete} className={rowClassName}>
-          <span className="text-destructive">Delete</span>
+          <span className="text-destructive">Remove from chat</span>
         </PickerOptionRow>
       </PickerScrollBody>
     </>

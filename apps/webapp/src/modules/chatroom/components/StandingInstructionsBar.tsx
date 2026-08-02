@@ -13,6 +13,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { ResponsivePickerShell } from '../components/picker';
 import {
   StandingInstructionsDialog,
+  StandingInstructionsPresetDeleteConfirmDialog,
   StandingInstructionsSharedEditConfirmDialog,
 } from '../features/standing-instructions/components';
 import { StandingInstructionsActionsView } from '../features/standing-instructions/components/StandingInstructionsActionsView';
@@ -64,6 +65,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
 
   const upsertMutation = useSessionMutation(api.standingInstructions.upsert);
   const updatePresetMutation = useSessionMutation(api.standingInstructions.updatePreset);
+  const deletePresetMutation = useSessionMutation(api.standingInstructions.deletePreset);
   const setEnabledMutation = useSessionMutation(api.standingInstructions.setEnabled);
   const clearMutation = useSessionMutation(api.standingInstructions.clear);
 
@@ -78,6 +80,8 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     content: string;
     title: string;
   } | null>(null);
+  const [presetDeleteId, setPresetDeleteId] =
+    useState<Id<'chatroom_standingInstructionHistory'> | null>(null);
 
   // Used to decide whether editing the linked preset needs the shared-edit
   // confirmation (usage > 1) versus a direct single-room update.
@@ -123,6 +127,17 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     setPendingEditPayload(null);
     setSharedEditConfirmOpen(false);
   }, [pendingEditPayload, presetId, updatePresetMutation]);
+
+  const handleDeletePreset = useCallback((historyId: string) => {
+    setPresetDeleteId(historyId as Id<'chatroom_standingInstructionHistory'>);
+  }, []);
+
+  const handlePresetDeleteConfirmed = useCallback(async () => {
+    if (presetDeleteId) {
+      await deletePresetMutation({ presetId: presetDeleteId });
+    }
+    setPresetDeleteId(null);
+  }, [presetDeleteId, deletePresetMutation]);
 
   const handleRecordHistoryUse = useCallback(
     async (historyId: string) => {
@@ -181,6 +196,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       history={historyItems}
       onConfirm={handleDialogConfirm}
       onRecordHistoryUse={handleRecordHistoryUse}
+      onDeletePreset={handleDeletePreset}
     />
   ) : null;
 
@@ -196,6 +212,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       history={historyItems}
       onConfirm={handleDialogConfirm}
       onRecordHistoryUse={handleRecordHistoryUse}
+      onDeletePreset={handleDeletePreset}
     />
   ) : null;
 
@@ -213,6 +230,17 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
         onConfirmed={handleSharedEditConfirmed}
       />
     ) : null;
+
+  const presetDeleteConfirmDialog = presetDeleteId ? (
+    <StandingInstructionsPresetDeleteConfirmDialog
+      open
+      onOpenChange={(open) => {
+        if (!open) setPresetDeleteId(null);
+      }}
+      presetId={presetDeleteId}
+      onConfirmed={handlePresetDeleteConfirmed}
+    />
+  ) : null;
 
   if (!hasContent) {
     return (
@@ -297,6 +325,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       </ResponsivePickerShell>
       {editDialog}
       {sharedEditConfirmDialog}
+      {presetDeleteConfirmDialog}
     </>
   );
 });

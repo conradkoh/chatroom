@@ -35,6 +35,8 @@ export interface StandingInstructionsDialogProps {
   history: StandingInstructionHistoryItem[];
   onConfirm: (payload: { content: string; title: string }) => void;
   onRecordHistoryUse: (historyId: string) => Promise<{ content: string; title: string }>;
+  /** Called when the user requests deleting a preset from the history picker. */
+  onDeletePreset?: (historyId: string) => void;
 }
 
 const TITLES: Record<StandingInstructionsDialogView, string> = {
@@ -52,6 +54,7 @@ export function StandingInstructionsDialog({
   history,
   onConfirm: onConfirmProp,
   onRecordHistoryUse,
+  onDeletePreset,
 }: StandingInstructionsDialogProps) {
   const isDesktop = useIsDesktop();
   const keyboardInsetPx = useVisualViewportKeyboardInset(open && !isDesktop);
@@ -119,6 +122,7 @@ export function StandingInstructionsDialog({
       onViewMore={() => setView('history')}
       onConfirm={handleConfirm}
       onCancel={handleCancel}
+      onDeletePreset={onDeletePreset}
     />
   );
 
