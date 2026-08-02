@@ -1,3 +1,5 @@
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+
 /** Shared row chrome for timeline cells. */
 export const TIMELINE_ROW_BORDER = 'border-b-2 border-chatroom-border';
 
@@ -44,6 +46,37 @@ export const TIMELINE_FEED_SCROLL_EXTRAS = 'overflow-x-auto [overflow-anchor:non
 
 export const BADGE_BASE =
   'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5';
+
+/**
+ * Interaction props for sticky message headers when clicking should scroll the
+ * row (All tab jump-to-top). No-ops when `onHeaderClick` is omitted.
+ */
+export function getStickyHeaderClickProps(onHeaderClick?: () => void): {
+  onClick?: () => void;
+  onKeyDown?: (e: ReactKeyboardEvent<HTMLDivElement>) => void;
+  role?: 'button';
+  tabIndex?: number;
+} {
+  if (!onHeaderClick) {
+    return {
+      onClick: undefined,
+      onKeyDown: undefined,
+      role: undefined,
+      tabIndex: undefined,
+    };
+  }
+  return {
+    onClick: () => onHeaderClick(),
+    onKeyDown: (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onHeaderClick();
+      }
+    },
+    role: 'button',
+    tabIndex: 0,
+  };
+}
 
 export const ICON_SIZE = 10;
 

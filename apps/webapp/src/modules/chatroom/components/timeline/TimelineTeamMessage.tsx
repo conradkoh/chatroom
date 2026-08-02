@@ -10,6 +10,7 @@ import {
   BADGE_BASE,
   formatMachineLabel,
   getSenderClasses,
+  getStickyHeaderClickProps,
   ICON_SIZE,
   TIMELINE_MESSAGE_BODY,
   TIMELINE_MESSAGE_HEADER_STICKY,
@@ -23,6 +24,8 @@ import { EnhancerMessageDiffSection } from '../../features/enhancers/components/
 import type { Message } from '../../types/message';
 import { hasHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
 import { hasHandoffReport } from '../../utils/parseHandoffReport';
+
+import { cn } from '@/lib/utils';
 
 function getMessageTypeBadge(type: string) {
   if (type === 'handoff') {
@@ -41,6 +44,8 @@ export interface TimelineTeamMessageProps {
   machines?: Map<string, MachineNameEntry>;
   /** When set, shows resolved hostname/alias beside the sender role. */
   machineId?: string;
+  /** When set, clicking the sticky message header scrolls this row (All tab). */
+  onHeaderClick?: () => void;
 }
 
 // fallow-ignore-next-line complexity
@@ -49,6 +54,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   chatroomId: _chatroomId,
   machines,
   machineId,
+  onHeaderClick,
 }: TimelineTeamMessageProps) {
   const [showOriginal, setShowOriginal] = useState(false);
   const hasEnhancerOriginal =
@@ -69,8 +75,13 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       data-testid="timeline-team-message"
     >
       <div
-        className={`flex flex-wrap justify-between items-center gap-y-1 gap-x-2 px-4 py-1.5 mb-2 ${TIMELINE_MESSAGE_HEADER_STICKY}`}
+        className={cn(
+          'flex flex-wrap justify-between items-center gap-y-1 gap-x-2 px-4 py-1.5 mb-2',
+          TIMELINE_MESSAGE_HEADER_STICKY,
+          onHeaderClick && 'cursor-pointer'
+        )}
         data-testid="timeline-message-header"
+        {...getStickyHeaderClickProps(onHeaderClick)}
       >
         <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5">
           {messageTypeBadge && (

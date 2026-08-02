@@ -17,6 +17,7 @@ import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { TimelineMessageFooter } from './TimelineMessageFooter';
 import {
   BADGE_BASE,
+  getStickyHeaderClickProps,
   ICON_SIZE,
   TIMELINE_MESSAGE_BODY,
   TIMELINE_MESSAGE_HEADER_STICKY,
@@ -27,6 +28,8 @@ import { MessageAttachmentChips } from '../../attachments';
 import { ScheduledMessageBadge } from '../../features/scheduled-prompts/components/ScheduledMessageBadge';
 import { ScheduledPromptDetailDialog } from '../../features/scheduled-prompts/components/ScheduledPromptDetailDialog';
 import type { Message, MessageClassification } from '../../types/message';
+
+import { cn } from '@/lib/utils';
 
 function getClassificationBadge(classification: MessageClassification | undefined) {
   if (!classification) return null;
@@ -106,11 +109,14 @@ function getDisplayText(message: Message): string {
 interface TimelineUserMessageProps {
   message: Message;
   chatroomId: string;
+  /** When set, clicking the sticky message header scrolls this row (All tab). */
+  onHeaderClick?: () => void;
 }
 
 export const TimelineUserMessage = memo(function TimelineUserMessage({
   message,
   chatroomId: _chatroomId,
+  onHeaderClick,
 }: TimelineUserMessageProps) {
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
@@ -126,8 +132,12 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
       data-testid="timeline-user-message"
     >
       <div
-        className={`w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong ${TIMELINE_MESSAGE_HEADER_STICKY}`}
+        className={cn(
+          `w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong ${TIMELINE_MESSAGE_HEADER_STICKY}`,
+          onHeaderClick && 'cursor-pointer'
+        )}
         data-testid="timeline-message-header"
+        {...getStickyHeaderClickProps(onHeaderClick)}
       >
         <div className="flex items-center h-8 px-3 min-w-0">
           {message.isQueued ? (

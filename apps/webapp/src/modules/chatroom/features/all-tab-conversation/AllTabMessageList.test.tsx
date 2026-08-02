@@ -5,8 +5,17 @@ import { AllTabMessageList } from './AllTabMessageList';
 import { getTimelineVirtualRowZIndex } from '../../components/timeline/timelineRowStyles';
 
 vi.mock('../../components/timeline/TimelineEventRow', () => ({
-  TimelineEventRow: ({ event }: { event: { id: string } }) => (
-    <div data-testid={`event-row-${event.id}`}>{event.id}</div>
+  TimelineEventRow: ({
+    event,
+    onHeaderClick,
+  }: {
+    event: { id: string };
+    onHeaderClick?: () => void;
+  }) => (
+    <div data-testid={`event-row-${event.id}`}>
+      <div data-testid="timeline-message-header" onClick={onHeaderClick} />
+      {event.id}
+    </div>
   ),
 }));
 
@@ -218,20 +227,18 @@ describe('AllTabMessageList', () => {
   });
 });
 
-describe('per-message jump to top', () => {
-  it('renders a jump-to-top button per message row', () => {
-    const events = [makeEvent('msg-1'), makeEvent('msg-2')];
-    render(<AllTabMessageList events={events} anchorId="a1" />);
-
-    expect(document.querySelector('[data-testid="jump-to-message-top-msg-1"]')).not.toBeNull();
-    expect(document.querySelector('[data-testid="jump-to-message-top-msg-2"]')).not.toBeNull();
+describe('sticky header jump to top', () => {
+  it('does not render per-row chevron jump buttons', () => {
+    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    expect(document.querySelector('[data-testid="jump-to-message-top-msg-1"]')).toBeNull();
   });
 
-  it('clicking jump-to-top scrolls that row to container top', () => {
+  it('clicking timeline-message-header scrolls that row to container top', () => {
     render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     const row = list.querySelector('[data-message-id="msg-1"]') as HTMLElement;
+    const header = row.querySelector('[data-testid="timeline-message-header"]') as HTMLElement;
 
     row.getBoundingClientRect = () =>
       ({
@@ -261,9 +268,7 @@ describe('per-message jump to top', () => {
     const scrollTo = vi.fn();
     list.scrollTo = scrollTo;
 
-    fireEvent.click(
-      document.querySelector('[data-testid="jump-to-message-top-msg-1"]') as HTMLElement
-    );
+    fireEvent.click(header);
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
   });

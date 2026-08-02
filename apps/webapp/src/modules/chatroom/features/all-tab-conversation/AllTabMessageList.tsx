@@ -2,7 +2,7 @@
 
 // fallow-ignore-file complexity
 
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
 import { TimelineEventRow } from '../../components/timeline/TimelineEventRow';
@@ -17,7 +17,6 @@ import { useScrollController } from '../../hooks/useScrollController';
 import type { TimelineEvent } from '../../timeline/types';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
-import { cn } from '@/lib/utils';
 
 const LOAD_MORE_THRESHOLD = 120;
 
@@ -127,23 +126,13 @@ export function AllTabMessageList({
             key={event.id}
             data-message-id={event.id}
             style={{ position: 'relative', zIndex: getTimelineVirtualRowZIndex(index) }}
-            className="group/all-tab-row"
           >
-            <button
-              type="button"
-              onClick={() => scrollToMessageTop(event.id)}
-              className={cn(
-                'absolute right-2 top-2 z-20 flex items-center justify-center w-6 h-6',
-                'bg-chatroom-bg-surface border border-chatroom-border-strong text-chatroom-text-muted',
-                'hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors',
-                'opacity-0 group-hover/all-tab-row:opacity-100 focus:opacity-100'
-              )}
-              aria-label="Jump to top of message"
-              data-testid={`jump-to-message-top-${event.id}`}
-            >
-              <ChevronUp size={12} strokeWidth={2.5} />
-            </button>
-            <TimelineEventRow event={event} chatroomId="" machines={machines} />
+            <TimelineEventRow
+              event={event}
+              chatroomId=""
+              machines={machines}
+              onHeaderClick={() => scrollToMessageTop(event.id)}
+            />
           </div>
         ))}
         {isLoadingMore && (
