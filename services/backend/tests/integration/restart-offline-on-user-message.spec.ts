@@ -51,7 +51,7 @@ test('restarts offline builder on user sendMessage', async () => {
       )
       .first();
     if (config) {
-      await ctx.db.patch(config._id, { desiredState: 'running' });
+      await ctx.db.patch(config._id, { desiredState: 'running', wantResume: true });
     }
 
     const participant = await ctx.db
@@ -87,6 +87,7 @@ test('restarts offline builder on user sendMessage', async () => {
   expect(restartEvents[0].machineId).toBe(machineId);
   if (restartEvents[0].type === 'agent.requestStart') {
     expect(restartEvents[0].reason).toBe('platform.restart_offline_on_user_message');
+    expect(restartEvents[0].wantResume).toBe(false); // duo builder ALWAYS cold-starts on wake
   }
 });
 
@@ -502,6 +503,9 @@ test('restarts offline planner on user sendMessage (production duo: planner entr
   expect(restartEvents).toHaveLength(1);
   expect(restartEvents[0].role).toBe('planner');
   expect(restartEvents[0].machineId).toBe(machineId);
+  if (restartEvents[0].type === 'agent.requestStart') {
+    expect(restartEvents[0].wantResume).toBe(true);
+  }
 });
 
 test('restarts when participant lastDesiredState is stale stopped but config desiredState is running', async () => {
