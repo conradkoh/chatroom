@@ -39,31 +39,31 @@ export function StandingInstructionsHistoryPickerView({
           <div className="px-3 py-2 text-xs text-chatroom-text-muted">No matches</div>
         ) : (
           filtered.map((item) => (
-            <PickerOptionRow
+            <div
               key={item.id}
-              selected={false}
-              onSelect={() => {
-                onSelect(item);
-              }}
+              className="flex items-stretch border-b border-chatroom-border last:border-b-0"
             >
-              <span className="flex-1 min-w-0 truncate">
+              <PickerOptionRow
+                selected={false}
+                onSelect={() => {
+                  onSelect(item);
+                }}
+                className="flex-1 min-w-0"
+              >
                 {standingInstructionDisplayTitle({ title: item.title, content: item.content })}
-              </span>
+              </PickerOptionRow>
               {onDeletePreset ? (
                 <button
                   type="button"
                   data-testid={`standing-instructions-delete-preset-${item.id}`}
                   aria-label={`Delete preset ${item.title || 'untitled'}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeletePreset(item.id);
-                  }}
-                  className="shrink-0 p-1 text-chatroom-text-muted hover:text-destructive transition-colors"
+                  onClick={() => onDeletePreset(item.id)}
+                  className="shrink-0 px-3 flex items-center text-chatroom-text-muted hover:text-destructive transition-colors"
                 >
                   <Trash2 size={14} aria-hidden="true" />
                 </button>
               ) : null}
-            </PickerOptionRow>
+            </div>
           ))
         )}
       </PickerScrollBody>

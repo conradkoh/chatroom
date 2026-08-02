@@ -263,6 +263,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
           </span>
         </button>
         {addDialog}
+        {presetDeleteConfirmDialog}
       </>
     );
   }
