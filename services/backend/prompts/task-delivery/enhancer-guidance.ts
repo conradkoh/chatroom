@@ -80,7 +80,7 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
   );
   lines.push('');
   lines.push(
-    '**The enhancer starts from your check-in** — it does not see this planner session, prior messages, or attachments, but **may read files in the repo** to verify grounding and strengthen feedback.'
+    '**The enhancer starts from your check-in** — it does not see this planner session or attachments, but **may download chatroom message history and read files in the repo** to verify grounding and strengthen feedback.'
   );
   lines.push('');
   lines.push('**Your check-in MUST use these XML sections:**');
