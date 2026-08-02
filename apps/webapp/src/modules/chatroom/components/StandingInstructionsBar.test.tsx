@@ -9,8 +9,11 @@ const mockUpsert = vi.fn();
 const mockSetEnabled = vi.fn();
 const mockClear = vi.fn();
 const mockRecordUse = vi.fn();
+const mockUpdatePreset = vi.fn();
+const mockDeletePreset = vi.fn();
 const mockUseIsDesktop = vi.fn(() => true);
-let mockQueryResult: { content: string; enabled: boolean; title: string } | undefined = {
+let mockQueryResult:
+  { content: string; enabled: boolean; title: string; presetId?: string } | undefined = {
   content: '',
   enabled: false,
   title: '',
@@ -22,10 +25,17 @@ let mockHistory: {
   useCount: number;
   lastUsedAt: number;
 }[] = [];
+let mockPresetUsage: {
+  totalCount: number;
+  activeCount: number;
+  inactiveCount: number;
+  usages: { chatroomId: string; title: string; enabled: boolean }[];
+} = { totalCount: 1, activeCount: 1, inactiveCount: 0, usages: [] };
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (queryName: unknown) => {
     if (queryName === 'standingInstructions:listHistory') return mockHistory;
+    if (queryName === 'standingInstructions:getPresetUsage') return mockPresetUsage;
     return mockQueryResult;
   },
   useSessionMutation: (mutationName: string) => {
@@ -33,6 +43,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
     if (mutationName === 'standingInstructions:setEnabled') return mockSetEnabled;
     if (mutationName === 'standingInstructions:clear') return mockClear;
     if (mutationName === 'standingInstructions:recordUse') return mockRecordUse;
+    if (mutationName === 'standingInstructions:updatePreset') return mockUpdatePreset;
+    if (mutationName === 'standingInstructions:deletePreset') return mockDeletePreset;
     return vi.fn();
   },
 }));
@@ -46,6 +58,9 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       clear: 'standingInstructions:clear',
       listHistory: 'standingInstructions:listHistory',
       recordUse: 'standingInstructions:recordUse',
+      getPresetUsage: 'standingInstructions:getPresetUsage',
+      updatePreset: 'standingInstructions:updatePreset',
+      deletePreset: 'standingInstructions:deletePreset',
     },
   },
 }));
@@ -69,6 +84,7 @@ describe('StandingInstructionsBar', () => {
     mockHistory = [];
     mockUseIsDesktop.mockReturnValue(true);
     mockRecordUse.mockResolvedValue({ content: 'Always use TypeScript', title: 'Type safety' });
+    mockPresetUsage = { totalCount: 1, activeCount: 1, inactiveCount: 0, usages: [] };
   });
 
   it('shows add button when no standing instructions', () => {
@@ -581,5 +597,118 @@ describe('StandingInstructionsBar', () => {
     mockQueryResult = { content: 'Always use TypeScript', enabled: true, title: '' };
     render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
     expect(screen.getByText('Always use TypeScript')).toBeInTheDocument();
+  });
+
+  describe('shared preset edit + delete', () => {
+    async function openEditFlow(user: ReturnType<typeof userEvent.setup>) {
+      render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+      await user.click(screen.getByText('Standing instructions'));
+      await user.click(screen.getByText('Edit'));
+    }
+
+    it('edit with linked preset and single usage calls updatePreset directly', async () => {
+      const user = userEvent.setup();
+      mockQueryResult = {
+        content: 'Always use TypeScript',
+        enabled: true,
+        title: 'Type safety',
+        presetId: 'p1',
+      };
+      await openEditFlow(user);
+
+      const titleInput = screen.getByPlaceholderText('Title');
+      await user.clear(titleInput);
+      await user.type(titleInput, 'New title');
+
+      await user.click(screen.getByText('Confirm'));
+
+      expect(mockUpdatePreset).toHaveBeenCalledWith({
+        presetId: 'p1',
+        content: 'Always use TypeScript',
+        title: 'New title',
+      });
+      expect(mockUpsert).not.toHaveBeenCalled();
+    });
+
+    it('edit with shared preset (usage > 1) shows confirm dialog before updating', async () => {
+      const user = userEvent.setup();
+      mockQueryResult = {
+        content: 'Always use TypeScript',
+        enabled: true,
+        title: 'Type safety',
+        presetId: 'p1',
+      };
+      mockPresetUsage = {
+        totalCount: 2,
+        activeCount: 1,
+        inactiveCount: 1,
+        usages: [
+          { chatroomId: 'r1', title: 'Chat A', enabled: true },
+          { chatroomId: 'r2', title: 'Chat B', enabled: false },
+        ],
+      };
+      await openEditFlow(user);
+
+      const titleInput = screen.getByPlaceholderText('Title');
+      await user.clear(titleInput);
+      await user.type(titleInput, 'New title');
+
+      await user.click(screen.getByText('Confirm'));
+
+      expect(screen.getByText('Edit shared preset?')).toBeInTheDocument();
+      expect(mockUpdatePreset).not.toHaveBeenCalled();
+
+      await user.click(screen.getByText('Continue editing'));
+
+      expect(mockUpdatePreset).toHaveBeenCalledWith({
+        presetId: 'p1',
+        content: 'Always use TypeScript',
+        title: 'New title',
+      });
+    });
+
+    it('edit without a linked preset calls upsert', async () => {
+      const user = userEvent.setup();
+      mockQueryResult = { content: 'Always use TypeScript', enabled: true, title: '' };
+      await openEditFlow(user);
+
+      const titleInput = screen.getByPlaceholderText('Title');
+      await user.clear(titleInput);
+      await user.type(titleInput, 'My title');
+
+      await user.click(screen.getByText('Confirm'));
+
+      expect(mockUpsert).toHaveBeenCalledWith({
+        chatroomId: ROOM_ID,
+        content: 'Always use TypeScript',
+        title: 'My title',
+      });
+      expect(mockUpdatePreset).not.toHaveBeenCalled();
+    });
+
+    it('deleting a preset from history confirms then calls deletePreset', async () => {
+      const user = userEvent.setup();
+      mockHistory = [
+        {
+          _id: 'h1',
+          content: 'Always use TypeScript',
+          title: 'Type safety',
+          useCount: 10,
+          lastUsedAt: 5000,
+        },
+      ];
+      render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+      await user.click(screen.getByText('Add standing instructions'));
+      await user.click(screen.getByText('View more'));
+
+      await user.click(screen.getByTestId('standing-instructions-delete-preset-h1'));
+
+      expect(screen.getByText('Delete preset?')).toBeInTheDocument();
+      expect(mockDeletePreset).not.toHaveBeenCalled();
+
+      await user.click(screen.getByText('Delete'));
+
+      expect(mockDeletePreset).toHaveBeenCalledWith({ presetId: 'h1' });
+    });
   });
 });

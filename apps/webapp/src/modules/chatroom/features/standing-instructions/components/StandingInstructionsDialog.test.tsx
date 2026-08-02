@@ -28,6 +28,7 @@ const mockHistory: StandingInstructionHistoryItem[] = [
 function renderDialog(overrides: Partial<Parameters<typeof StandingInstructionsDialog>[0]> = {}) {
   const onOpenChange = vi.fn();
   const onConfirm = vi.fn();
+  const onDeletePreset = vi.fn();
   const onRecordHistoryUse = vi
     .fn()
     .mockResolvedValue({ content: 'Always use TypeScript', title: 'Type safety' });
@@ -42,11 +43,12 @@ function renderDialog(overrides: Partial<Parameters<typeof StandingInstructionsD
       history={mockHistory}
       onConfirm={onConfirm}
       onRecordHistoryUse={onRecordHistoryUse}
+      onDeletePreset={onDeletePreset}
       {...overrides}
     />
   );
 
-  return { onOpenChange, onConfirm, onRecordHistoryUse };
+  return { onOpenChange, onConfirm, onDeletePreset, onRecordHistoryUse };
 }
 
 describe('StandingInstructionsDialog', () => {
@@ -154,5 +156,14 @@ describe('StandingInstructionsDialog', () => {
     fireEvent.click(screen.getByTestId('standing-instructions-view-more'));
     expect(screen.getByPlaceholderText('Search history…')).toBeInTheDocument();
     expect(screen.queryByTestId('standing-instructions-dialog-footer')).not.toBeInTheDocument();
+  });
+
+  it('history view delete button calls onDeletePreset', () => {
+    const { onDeletePreset } = renderDialog();
+
+    fireEvent.click(screen.getByTestId('standing-instructions-view-more'));
+    fireEvent.click(screen.getByTestId('standing-instructions-delete-preset-h1'));
+
+    expect(onDeletePreset).toHaveBeenCalledWith('h1');
   });
 });
