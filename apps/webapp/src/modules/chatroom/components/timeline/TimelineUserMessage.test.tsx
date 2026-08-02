@@ -64,4 +64,23 @@ describe('TimelineUserMessage', () => {
     render(<TimelineUserMessage message={createMessage()} chatroomId="room-1" />);
     expect(screen.getAllByText('hello').length).toBeGreaterThan(0);
   });
+
+  it('uses true-center grid on nav header when headerNavigation provided', () => {
+    render(
+      <TimelineUserMessage
+        message={createMessage()}
+        chatroomId="room-1"
+        headerNavigation={{
+          onJumpToPrevious: vi.fn(),
+          onJumpToCurrent: vi.fn(),
+          onJumpToNext: vi.fn(),
+          hasPrevious: true,
+          hasNext: true,
+        }}
+      />
+    );
+    const navRow = screen.getByTestId('timeline-message-header-nav').parentElement as HTMLElement;
+    expect(navRow.className).toContain('grid-cols-[1fr_auto_1fr]');
+    expect(screen.getByTestId('timeline-message-header-nav')).toBeInTheDocument();
+  });
 });

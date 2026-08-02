@@ -123,18 +123,20 @@ function UserMessageHeaderNav({
   headerNavigation,
 }: UserMessageHeaderNavProps) {
   return (
-    <div className="flex items-center gap-2 h-8 px-3 min-w-0">
-      <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 h-8 px-3 min-w-0 w-full">
+      <div className="flex items-center gap-2 min-w-0 justify-self-start">
         {isQueued ? queuedBadge : statusBadges}
       </div>
-      <div className="flex-1 flex justify-center min-w-0">
-        <TimelineMessageHeaderNav {...headerNavigation} />
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
-        <span className="text-xs font-medium text-chatroom-text-primary truncate max-w-[200px]">
-          {displayText}
-        </span>
-        {taskStatusBadgeEl}
+      <TimelineMessageHeaderNav {...headerNavigation} />
+      <div className="flex items-center gap-2 min-w-0 justify-self-end">
+        {!isQueued && (
+          <>
+            <span className="text-xs font-medium text-chatroom-text-primary truncate max-w-[200px]">
+              {displayText}
+            </span>
+            {taskStatusBadgeEl}
+          </>
+        )}
       </div>
     </div>
   );

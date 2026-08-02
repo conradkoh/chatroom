@@ -77,12 +77,14 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
     >
       <div
         className={cn(
-          'flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5 mb-2',
+          headerNavigation
+            ? 'grid grid-cols-[1fr_auto_1fr] items-center gap-x-2 gap-y-1 px-4 py-1.5 mb-2 w-full'
+            : 'flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5 mb-2',
           TIMELINE_MESSAGE_HEADER_STICKY
         )}
         data-testid="timeline-message-header"
       >
-        <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 flex-shrink-0 min-w-0">
+        <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 min-w-0 justify-self-start">
           {messageTypeBadge && (
             <span className={messageTypeBadge.className}>
               {messageTypeBadge.icon}
@@ -96,12 +98,8 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
             />
           )}
         </div>
-        {headerNavigation && (
-          <div className="flex-1 flex justify-center min-w-0">
-            <TimelineMessageHeaderNav {...headerNavigation} />
-          </div>
-        )}
-        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 flex-shrink-0 ml-auto">
+        {headerNavigation && <TimelineMessageHeaderNav {...headerNavigation} />}
+        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0 justify-self-end">
           <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
           {machineLabel && (
             <span className="text-[10px] text-chatroom-text-muted font-medium normal-case">
