@@ -8,7 +8,7 @@
 
 import { isAgentAlive } from './is-agent-alive';
 import { listTeamAgentConfigsForChatroom } from './list-team-agent-configs-for-chatroom';
-import { resolveDefaultWantResume } from './resolve-default-want-resume';
+import { resolveOfflineRestartWantResume } from './resolve-offline-restart-want-resume';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { isOfflineForUserMessageRestart } from '../../entities/participant';
@@ -80,7 +80,7 @@ async function emitOfflineUserMessageRestart(
         model: config.model,
         workingDir: config.workingDir,
         reason: 'platform.restart_offline_on_user_message',
-        wantResume: config.wantResume ?? resolveDefaultWantResume(teamId, config.role),
+        wantResume: resolveOfflineRestartWantResume(teamId, config.role),
       },
       now
     )
