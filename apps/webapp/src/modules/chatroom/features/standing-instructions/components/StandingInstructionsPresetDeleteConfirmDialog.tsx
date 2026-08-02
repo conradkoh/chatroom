@@ -29,7 +29,6 @@ export interface StandingInstructionsPresetDeleteConfirmDialogProps {
  * Shows the usage breakdown and warns that every linked chatroom will lose its
  * standing instructions.
  */
-// fallow-ignore-next-line unused-export
 export const StandingInstructionsPresetDeleteConfirmDialog = memo(
   function StandingInstructionsPresetDeleteConfirmDialog({
     open,

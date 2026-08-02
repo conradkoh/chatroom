@@ -29,7 +29,6 @@ export interface StandingInstructionsSharedEditConfirmDialogProps {
  * chatrooms. Displays the active/inactive usage breakdown so the user knows the
  * edit will propagate everywhere.
  */
-// fallow-ignore-next-line unused-export
 export const StandingInstructionsSharedEditConfirmDialog = memo(
   function StandingInstructionsSharedEditConfirmDialog({
     open,
