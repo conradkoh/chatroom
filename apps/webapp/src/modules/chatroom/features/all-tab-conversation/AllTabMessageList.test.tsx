@@ -3,17 +3,34 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AllTabMessageList } from './AllTabMessageList';
 import { getTimelineVirtualRowZIndex } from '../../components/timeline/timelineRowStyles';
+import type { TimelineMessageHeaderNavigation } from '../../components/timeline/timelineRowStyles';
 
 vi.mock('../../components/timeline/TimelineEventRow', () => ({
   TimelineEventRow: ({
     event,
-    onHeaderClick,
+    headerNavigation,
   }: {
     event: { id: string };
-    onHeaderClick?: () => void;
+    headerNavigation?: TimelineMessageHeaderNavigation;
   }) => (
     <div data-testid={`event-row-${event.id}`}>
-      <div data-testid="timeline-message-header" onClick={onHeaderClick} />
+      <button
+        type="button"
+        data-testid={`timeline-header-nav-previous-${event.id}`}
+        disabled={headerNavigation ? !headerNavigation.hasPrevious : true}
+        onClick={headerNavigation?.onJumpToPrevious}
+      />
+      <button
+        type="button"
+        data-testid={`timeline-header-nav-current-${event.id}`}
+        onClick={headerNavigation?.onJumpToCurrent}
+      />
+      <button
+        type="button"
+        data-testid={`timeline-header-nav-next-${event.id}`}
+        disabled={headerNavigation ? !headerNavigation.hasNext : true}
+        onClick={headerNavigation?.onJumpToNext}
+      />
       {event.id}
     </div>
   ),
@@ -227,31 +244,11 @@ describe('AllTabMessageList', () => {
   });
 });
 
-describe('sticky header jump to top', () => {
-  it('does not render per-row chevron jump buttons', () => {
-    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
-    expect(document.querySelector('[data-testid="jump-to-message-top-msg-1"]')).toBeNull();
-  });
-
-  it('clicking timeline-message-header scrolls that row to container top', () => {
-    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
-
+describe('sticky header message navigation', () => {
+  function renderTwoEvents() {
+    render(<AllTabMessageList events={[makeEvent('msg-1'), makeEvent('msg-2')]} anchorId="a1" />);
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
-    const row = list.querySelector('[data-message-id="msg-1"]') as HTMLElement;
-    const header = row.querySelector('[data-testid="timeline-message-header"]') as HTMLElement;
 
-    row.getBoundingClientRect = () =>
-      ({
-        top: 320,
-        bottom: 400,
-        left: 0,
-        right: 0,
-        x: 0,
-        y: 320,
-        width: 100,
-        height: 80,
-        toJSON: () => ({}),
-      }) as DOMRect;
     list.getBoundingClientRect = () =>
       ({
         top: 0,
@@ -264,12 +261,112 @@ describe('sticky header jump to top', () => {
         height: 400,
         toJSON: () => ({}),
       }) as DOMRect;
+
+    const msg1Row = list.querySelector('[data-message-id="msg-1"]') as HTMLElement;
+    const msg2Row = list.querySelector('[data-message-id="msg-2"]') as HTMLElement;
+    msg1Row.getBoundingClientRect = () =>
+      ({
+        top: 320,
+        bottom: 400,
+        left: 0,
+        right: 0,
+        x: 0,
+        y: 320,
+        width: 100,
+        height: 80,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    msg2Row.getBoundingClientRect = () =>
+      ({
+        top: 480,
+        bottom: 560,
+        left: 0,
+        right: 0,
+        x: 0,
+        y: 480,
+        width: 100,
+        height: 80,
+        toJSON: () => ({}),
+      }) as DOMRect;
     Object.defineProperty(list, 'scrollTop', { value: 100, writable: true, configurable: true });
+
+    return list;
+  }
+
+  it('does not render per-row chevron jump buttons', () => {
+    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    expect(document.querySelector('[data-testid="jump-to-message-top-msg-1"]')).toBeNull();
+  });
+
+  it('clicking nav-current scrolls that row to container top', () => {
+    const list = renderTwoEvents();
+
     const scrollTo = vi.fn();
     list.scrollTo = scrollTo;
 
-    fireEvent.click(header);
+    fireEvent.click(
+      document.querySelector('[data-testid="timeline-header-nav-current-msg-1"]') as HTMLElement
+    );
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
+  });
+
+  it('clicking nav-previous scrolls previous row', () => {
+    const list = renderTwoEvents();
+
+    const scrollTo = vi.fn();
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(
+      document.querySelector('[data-testid="timeline-header-nav-previous-msg-2"]') as HTMLElement
+    );
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
+  });
+
+  it('clicking nav-next scrolls next row', () => {
+    const list = renderTwoEvents();
+
+    const scrollTo = vi.fn();
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(
+      document.querySelector('[data-testid="timeline-header-nav-next-msg-1"]') as HTMLElement
+    );
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 480 - 0 + 100, behavior: 'smooth' });
+  });
+
+  it('disables previous on first message and next on last message', () => {
+    renderTwoEvents();
+
+    expect(
+      (
+        document.querySelector(
+          '[data-testid="timeline-header-nav-previous-msg-1"]'
+        ) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+    expect(
+      (
+        document.querySelector(
+          '[data-testid="timeline-header-nav-next-msg-1"]'
+        ) as HTMLButtonElement
+      ).disabled
+    ).toBe(false);
+    expect(
+      (
+        document.querySelector(
+          '[data-testid="timeline-header-nav-previous-msg-2"]'
+        ) as HTMLButtonElement
+      ).disabled
+    ).toBe(false);
+    expect(
+      (
+        document.querySelector(
+          '[data-testid="timeline-header-nav-next-msg-2"]'
+        ) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
   });
 });
