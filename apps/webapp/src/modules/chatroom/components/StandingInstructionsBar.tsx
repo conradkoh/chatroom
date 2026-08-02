@@ -11,7 +11,10 @@ import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
 import { ResponsivePickerShell } from '../components/picker';
-import { StandingInstructionsDialog } from '../features/standing-instructions/components';
+import {
+  StandingInstructionsDialog,
+  StandingInstructionsSharedEditConfirmDialog,
+} from '../features/standing-instructions/components';
 import { StandingInstructionsActionsView } from '../features/standing-instructions/components/StandingInstructionsActionsView';
 
 import { useIsDesktop } from '@/hooks/useIsDesktop';
@@ -46,6 +49,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const isLoading = queryResult === undefined;
   const storedContent = queryResult?.content ?? '';
   const storedTitle = queryResult?.title ?? '';
+  const presetId = queryResult?.presetId;
   const enabled = queryResult?.enabled ?? false;
   const isActive =
     getActiveStandingInstructions({
@@ -59,6 +63,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   });
 
   const upsertMutation = useSessionMutation(api.standingInstructions.upsert);
+  const updatePresetMutation = useSessionMutation(api.standingInstructions.updatePreset);
   const setEnabledMutation = useSessionMutation(api.standingInstructions.setEnabled);
   const clearMutation = useSessionMutation(api.standingInstructions.clear);
 
@@ -68,6 +73,18 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const [actionsOpen, setActionsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [sharedEditConfirmOpen, setSharedEditConfirmOpen] = useState(false);
+  const [pendingEditPayload, setPendingEditPayload] = useState<{
+    content: string;
+    title: string;
+  } | null>(null);
+
+  // Used to decide whether editing the linked preset needs the shared-edit
+  // confirmation (usage > 1) versus a direct single-room update.
+  const presetUsage = useSessionQuery(
+    api.standingInstructions.getPresetUsage,
+    presetId && editOpen ? { presetId } : 'skip'
+  );
 
   const historyItems = useMemo(
     () =>
@@ -83,10 +100,29 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
 
   const handleDialogConfirm = useCallback(
     async ({ content, title }: { content: string; title: string }) => {
-      await upsertMutation({ chatroomId, content, title });
+      if (presetId) {
+        // Editing a linked preset — shared edit requires confirmation when the
+        // preset is used in more than one chatroom.
+        if (presetUsage && presetUsage.totalCount > 1) {
+          setPendingEditPayload({ content, title });
+          setSharedEditConfirmOpen(true);
+          return;
+        }
+        await updatePresetMutation({ presetId, content, title });
+      } else {
+        await upsertMutation({ chatroomId, content, title });
+      }
     },
-    [chatroomId, upsertMutation]
+    [chatroomId, presetId, presetUsage, upsertMutation, updatePresetMutation]
   );
+
+  const handleSharedEditConfirmed = useCallback(async () => {
+    if (pendingEditPayload && presetId) {
+      await updatePresetMutation({ presetId, ...pendingEditPayload });
+    }
+    setPendingEditPayload(null);
+    setSharedEditConfirmOpen(false);
+  }, [pendingEditPayload, presetId, updatePresetMutation]);
 
   const handleRecordHistoryUse = useCallback(
     async (historyId: string) => {
@@ -162,6 +198,21 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       onRecordHistoryUse={handleRecordHistoryUse}
     />
   ) : null;
+
+  const sharedEditConfirmDialog =
+    sharedEditConfirmOpen && presetId && pendingEditPayload ? (
+      <StandingInstructionsSharedEditConfirmDialog
+        open
+        onOpenChange={(open) => {
+          if (!open) {
+            setSharedEditConfirmOpen(false);
+            setPendingEditPayload(null);
+          }
+        }}
+        presetId={presetId}
+        onConfirmed={handleSharedEditConfirmed}
+      />
+    ) : null;
 
   if (!hasContent) {
     return (
@@ -245,6 +296,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
         />
       </ResponsivePickerShell>
       {editDialog}
+      {sharedEditConfirmDialog}
     </>
   );
 });
