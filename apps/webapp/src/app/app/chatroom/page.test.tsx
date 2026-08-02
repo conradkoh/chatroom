@@ -18,6 +18,14 @@ vi.mock('@/modules/chatroom/hooks/useObserveChatroom', () => ({
   useObserveChatroom: () => ({ refresh: vi.fn() }),
 }));
 
+vi.mock('@/modules/chatroom/context/CommandDialogContext', () => ({
+  useCommandDialog: () => ({
+    activeDialog: null,
+    openDialog: vi.fn(),
+    closeDialog: vi.fn(),
+  }),
+}));
+
 vi.mock('@/modules/chatroom/components/ChatroomSidebar', () => ({
   ChatroomSidebar: () => <div data-testid="chatroom-sidebar" />,
 }));
