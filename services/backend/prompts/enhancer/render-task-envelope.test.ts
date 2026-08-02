@@ -109,4 +109,10 @@ describe('renderEnhancerTaskEnvelope', () => {
     expect(result).toContain('Layout simplification');
     expect(result).toContain('overflow-menu');
   });
+
+  it('requirements include message history download for user-intent validation', () => {
+    const result = renderEnhancerTaskEnvelope(params);
+    expect(result).toContain('download chatroom message history');
+    expect(result).toContain('actual user messages as authoritative');
+  });
 });

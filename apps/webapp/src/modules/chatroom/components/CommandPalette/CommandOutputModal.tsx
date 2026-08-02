@@ -4,9 +4,9 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useCallback } from 'react';
 
 import { CommandOutputPanel } from './CommandOutputPanel';
+import { CommandDialogContent } from '../shared/CommandDialogContent';
 
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
 
 interface CommandOutputModalProps {
@@ -57,25 +57,10 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange} modal={false}>
       <DialogPortal>
-        <DialogPrimitive.Content
-          forceMount
+        <CommandDialogContent
+          open={open}
           onEscapeKeyDown={handleEscapeKeyDown}
-          className={cn(
-            // Position: top-anchored, matching CommandPalette position
-            'fixed left-[50%] translate-x-[-50%] top-[10%] sm:top-[15%] z-50',
-            'w-[600px] max-w-[90vw] h-[320px]',
-            // Industrial theme: sharp corners, 2px adaptive border, drop shadow for depth
-            'rounded-none border-2 border-chatroom-border shadow-lg',
-            // Background
-            'bg-chatroom-bg-primary overflow-hidden',
-            // Animation: open instantly (duration-0), close with smooth fade+zoom-out
-            'data-[state=open]:animate-in data-[state=closed]:animate-out',
-            'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
-            'data-[state=closed]:zoom-out-95',
-            'data-[state=open]:duration-0 data-[state=closed]:duration-200',
-            'data-[state=closed]:fill-mode-forwards',
-            'data-[state=closed]:pointer-events-none'
-          )}
+          className="h-[320px]"
         >
           <DialogPrimitive.Title className="sr-only">Command Output</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
@@ -96,7 +81,7 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
               fullOutputPending={inlineCommand.fullOutputPending}
             />
           )}
-        </DialogPrimitive.Content>
+        </CommandDialogContent>
       </DialogPortal>
     </Dialog>
   );
