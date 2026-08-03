@@ -13,6 +13,11 @@ const STRUCTURED_REPORT = `<handoff-overview>## Summary\nDone</handoff-overview>
 <handoff-notes>## Notes\nNone</handoff-notes>
 <handoff-action>## Tech Debt\nNone</handoff-action>`;
 
+const PLANNING_REVIEW_OUTCOME = `<planning-review-outcome status="cancelled">
+## Planning review cancelled
+Body
+</planning-review-outcome>`;
+
 describe('HandoffStructuredContent', () => {
   it('renders HandoffEnvelopeView for envelope content', () => {
     render(<HandoffStructuredContent content={ENVELOPE} />);
@@ -22,6 +27,11 @@ describe('HandoffStructuredContent', () => {
   it('renders HandoffReportView for structured report', () => {
     render(<HandoffStructuredContent content={STRUCTURED_REPORT} />);
     expect(screen.getByTestId('handoff-report-view')).toBeInTheDocument();
+  });
+
+  it('renders PlanningReviewOutcomeView for planning-review-outcome content', () => {
+    render(<HandoffStructuredContent content={PLANNING_REVIEW_OUTCOME} />);
+    expect(screen.getByTestId('planning-review-outcome-view')).toBeInTheDocument();
   });
 
   it('renders fallback for plain markdown', () => {

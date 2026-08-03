@@ -5,6 +5,7 @@ import { memo, useState } from 'react';
 
 import { HandoffEnvelopeView } from './HandoffEnvelopeView';
 import { HandoffReportView } from './HandoffReportView';
+import { PlanningReviewOutcomeView } from './PlanningReviewOutcomeView';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
 import {
@@ -25,6 +26,7 @@ import { EnhancerMessageDiffSection } from '../../features/enhancers/components/
 import type { Message } from '../../types/message';
 import { hasHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
 import { hasHandoffReport } from '../../utils/parseHandoffReport';
+import { hasPlanningReviewOutcome } from '../../utils/parsePlanningReviewOutcome';
 
 import { cn } from '@/lib/utils';
 
@@ -132,7 +134,9 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
           </div>
         )}
 
-        {message.type === 'handoff' && hasHandoffEnvelope(displayContent) ? (
+        {message.type === 'handoff' && hasPlanningReviewOutcome(displayContent) ? (
+          <PlanningReviewOutcomeView content={displayContent} variant="timeline" />
+        ) : message.type === 'handoff' && hasHandoffEnvelope(displayContent) ? (
           <HandoffEnvelopeView content={displayContent} variant="timeline" />
         ) : message.type === 'handoff' && hasHandoffReport(displayContent) ? (
           <HandoffReportView content={displayContent} variant="timeline" />

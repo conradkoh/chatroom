@@ -188,6 +188,18 @@ Edge case X
     expect(screen.getByTestId('handoff-section-action')).toBeInTheDocument();
   });
 
+  it('renders PlanningReviewOutcomeView for planning-review-outcome content', () => {
+    const msg: Message = {
+      ...BASE_MESSAGE,
+      type: 'handoff',
+      content:
+        '<planning-review-outcome status="cancelled">\n## Planning review cancelled\nBody\n</planning-review-outcome>',
+    };
+    render(<TimelineTeamMessage message={msg} chatroomId="room-1" />);
+    expect(screen.getByTestId('planning-review-outcome-view')).toBeInTheDocument();
+    expect(screen.queryByText(/<planning-review-outcome/)).not.toBeInTheDocument();
+  });
+
   it('uses true-center grid on header when headerNavigation provided', () => {
     render(
       <TimelineTeamMessage

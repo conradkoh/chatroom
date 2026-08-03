@@ -10,21 +10,47 @@ import {
   ArrowRight,
   MessageSquare,
 } from 'lucide-react';
-import React, { useEffect, useCallback, memo } from 'react';
+import React, { useEffect, useCallback, memo, type ReactNode } from 'react';
 import Markdown from 'react-markdown';
 
-import { HandoffEnvelopeView } from './timeline/HandoffEnvelopeView';
-import { HandoffReportView } from './timeline/HandoffReportView';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
+import { HandoffEnvelopeView } from './timeline/HandoffEnvelopeView';
+import { HandoffReportView } from './timeline/HandoffReportView';
+import { PlanningReviewOutcomeView } from './timeline/PlanningReviewOutcomeView';
+import type { Message } from '../types/message';
 import { hasHandoffEnvelope } from '../utils/parseHandoffEnvelope';
 import { hasHandoffReport } from '../utils/parseHandoffReport';
-import type { Message } from '../types/message';
+import { hasPlanningReviewOutcome } from '../utils/parsePlanningReviewOutcome';
 
 interface MessageDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   message: Message | null;
+}
+
+/**
+ * Renders a message body using the shared structured-content render chain:
+ * planning-review-outcome → envelope → report → markdown fallback.
+ */
+// fallow-ignore-next-line complexity
+function renderMessageContent(message: Message): ReactNode {
+  const markdown = (
+    <Markdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
+      {message.content}
+    </Markdown>
+  );
+  if (message.type !== 'handoff') return markdown;
+  if (hasPlanningReviewOutcome(message.content)) {
+    return <PlanningReviewOutcomeView content={message.content} variant="detail" />;
+  }
+  if (hasHandoffEnvelope(message.content)) {
+    return <HandoffEnvelopeView content={message.content} variant="detail" />;
+  }
+  if (hasHandoffReport(message.content)) {
+    return <HandoffReportView content={message.content} variant="detail" />;
+  }
+  return markdown;
 }
 
 // Get classification icon and label
@@ -217,20 +243,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                     Original Message
                   </span>
                 </div>
-                <div className={proseClassNames}>
-                  {message.type === 'handoff' && hasHandoffEnvelope(message.content) ? (
-                    <HandoffEnvelopeView content={message.content} variant="detail" />
-                  ) : message.type === 'handoff' && hasHandoffReport(message.content) ? (
-                    <HandoffReportView content={message.content} variant="detail" />
-                  ) : (
-                    <Markdown
-                      remarkPlugins={chatroomRemarkPlugins}
-                      components={fullMarkdownComponents}
-                    >
-                      {message.content}
-                    </Markdown>
-                  )}
-                </div>
+                <div className={proseClassNames}>{renderMessageContent(message)}</div>
               </div>
               ) : ( // Question/Follow-up: show full message content
               <div>
@@ -240,20 +253,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                     Full Message
                   </span>
                 </div>
-                <div className={proseClassNames}>
-                  {message.type === 'handoff' && hasHandoffEnvelope(message.content) ? (
-                    <HandoffEnvelopeView content={message.content} variant="detail" />
-                  ) : message.type === 'handoff' && hasHandoffReport(message.content) ? (
-                    <HandoffReportView content={message.content} variant="detail" />
-                  ) : (
-                    <Markdown
-                      remarkPlugins={chatroomRemarkPlugins}
-                      components={fullMarkdownComponents}
-                    >
-                      {message.content}
-                    </Markdown>
-                  )}
-                </div>
+                <div className={proseClassNames}>{renderMessageContent(message)}</div>
               </div>
             </>
           ) : (
@@ -265,18 +265,7 @@ export const MessageDetailModal = memo(function MessageDetailModal({
                   Full Message
                 </span>
               </div>
-              <div className={proseClassNames}>
-                {message.type === 'handoff' && hasHandoffEnvelope(message.content) ? (
-                  <HandoffEnvelopeView content={message.content} variant="detail" />
-                ) : (
-                  <Markdown
-                    remarkPlugins={chatroomRemarkPlugins}
-                    components={fullMarkdownComponents}
-                  >
-                    {message.content}
-                  </Markdown>
-                )}
-              </div>
+              <div className={proseClassNames}>{renderMessageContent(message)}</div>
             </div>
           )}
         </div>

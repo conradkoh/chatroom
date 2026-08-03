@@ -42,6 +42,12 @@ describe('stripHandoffXmlTags', () => {
     expect(result).not.toContain('<grounding>');
   });
 
+  it('strips planning-review-outcome wrapper including status attribute', () => {
+    const input =
+      '<planning-review-outcome status="cancelled">\n## Planning review cancelled\nBody\n</planning-review-outcome>';
+    expect(stripHandoffXmlTags(input)).toBe('## Planning review cancelled\nBody');
+  });
+
   it('removes HTML comments', () => {
     const input = '<!-- REQUIRED comment -->\n## Summary\nFoo';
     expect(stripHandoffXmlTags(input)).toBe('## Summary\nFoo');
