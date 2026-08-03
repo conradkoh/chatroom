@@ -60,6 +60,21 @@ export const chatroomIndustrialButtonSecondaryClassName =
 export const chatroomIndustrialButtonDestructiveClassName =
   'inline-flex h-9 items-center justify-center px-4 text-sm font-bold rounded-none bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0 transition-opacity';
 
+/** Outlined destructive text button — colors shared by compact and industrial sizes. */
+// fallow-ignore-next-line unused-export
+export const chatroomDestructiveTextButtonColorsClassName =
+  'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-950/40';
+
+/** Compact layout — Archive Chat (10px uppercase). */
+// fallow-ignore-next-line unused-export
+export const chatroomDestructiveTextButtonCompactClassName =
+  'inline-flex items-center justify-center px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
+/** Industrial layout — dialog footer height match (h-9 text-sm). */
+// fallow-ignore-next-line unused-export
+export const chatroomDestructiveTextButtonIndustrialClassName =
+  'inline-flex h-9 items-center justify-center px-4 text-sm font-bold rounded-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
 export const chatroomIndustrialInputClassName =
   'bg-chatroom-bg-secondary border border-chatroom-border text-chatroom-text-primary placeholder:text-chatroom-text-muted rounded-none outline-none focus-visible:ring-0 focus-visible:border-chatroom-border-strong';
 
