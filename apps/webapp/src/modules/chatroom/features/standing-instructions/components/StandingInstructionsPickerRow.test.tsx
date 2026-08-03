@@ -11,7 +11,7 @@ describe('StandingInstructionsPickerRow', () => {
     const contentLine = screen.getByText((_, el) =>
       Boolean(el?.classList.contains('text-chatroom-text-muted') && el.textContent === content)
     );
-    expect(contentLine).toHaveClass('line-clamp-3');
+    expect(contentLine).toHaveClass('line-clamp-1');
     expect(contentLine).toHaveClass('break-words');
   });
 
@@ -27,7 +27,7 @@ describe('StandingInstructionsPickerRow', () => {
     expect(screen.getByText('Always use TypeScript')).toBeInTheDocument();
   });
 
-  it('label column has min-w-0 and flex-1; title line-clamp-1, content line-clamp-3', () => {
+  it('label column has min-w-0 and flex-1; title and content both line-clamp-1', () => {
     render(
       <StandingInstructionsPickerRow title="Title" content="Content body" onSelect={vi.fn()} />
     );
@@ -39,18 +39,18 @@ describe('StandingInstructionsPickerRow', () => {
     expect(labelColumn).toHaveClass('flex-1');
     expect(titleLine).toHaveClass('line-clamp-1');
     expect(titleLine).toHaveClass('break-words');
-    expect(contentLine).toHaveClass('line-clamp-3');
+    expect(contentLine).toHaveClass('line-clamp-1');
     expect(contentLine).toHaveClass('break-words');
   });
 
-  it('long content has line-clamp-3 and break-words classes', () => {
+  it('long content has line-clamp-1 and break-words classes', () => {
     const longContent =
-      'This is a very long standing instruction that should wrap across multiple lines before ellipsis appears at the third line boundary';
+      'This is a very long standing instruction that should truncate with ellipsis on a single line';
     render(
       <StandingInstructionsPickerRow title="Long rule" content={longContent} onSelect={vi.fn()} />
     );
     const contentLine = screen.getByText(longContent);
-    expect(contentLine).toHaveClass('line-clamp-3');
+    expect(contentLine).toHaveClass('line-clamp-1');
     expect(contentLine).toHaveClass('break-words');
   });
 

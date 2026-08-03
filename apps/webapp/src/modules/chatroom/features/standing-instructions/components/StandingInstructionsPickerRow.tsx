@@ -94,7 +94,7 @@ export function StandingInstructionsPickerRow({
     >
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
         <span className="line-clamp-1 break-words font-medium">{displayTitle}</span>
-        <span className="line-clamp-3 break-words text-chatroom-text-muted">{content}</span>
+        <span className="line-clamp-1 break-words text-chatroom-text-muted">{content}</span>
       </span>
     </PickerOptionRow>
   );
