@@ -9,6 +9,7 @@ import {
   ListChecks,
   MoreHorizontal,
   Pencil,
+  Trash2,
   X,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -20,6 +21,16 @@ import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { modalMarkdownComponents, backlogRichTextEditorProseClassNames } from './markdown-utils';
 import { useAttachments } from '../attachments';
 import { useOverlayDismissStack } from '../hooks/useOverlayDismissStack';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,6 +66,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Track which item we've initialized for — prevents resetting during edits
   const [initializedItemId, setInitializedItemId] = useState<string | null>(null);
@@ -68,6 +80,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
   const reopenItem = useSessionMutation(api.backlog.reopenBacklogItem);
   const closeItem = useSessionMutation(api.backlog.closeBacklogItem);
   const updateItem = useSessionMutation(api.backlog.updateBacklogItem);
+  const deleteItem = useSessionMutation(api.backlog.deleteBacklogItem);
 
   // Reset state when modal opens with a different item
   useEffect(() => {
@@ -110,6 +123,12 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!item) return;
+    setDeleteDialogOpen(false);
+    await handleMutation(() => deleteItem({ chatroomId: item.chatroomId, itemId: item._id }));
   };
 
   if (!item) return null;
@@ -354,12 +373,37 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                       </DropdownMenuItem>
                     </>
                   )}
+
+                  {/* Permanently delete — available for all statuses */}
+                  {item.status === 'closed' && <DropdownMenuSeparator />}
+                  <DropdownMenuItem
+                    onClick={() => setDeleteDialogOpen(true)}
+                    disabled={isLoading}
+                    className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"
+                  >
+                    <Trash2 size={14} />
+                    Delete
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
           )}
         </div>
       </FixedModalContent>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete backlog item?</AlertDialogTitle>
+            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </FixedModal>
   );
 }
