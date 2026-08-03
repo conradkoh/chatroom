@@ -7,7 +7,6 @@
  *   startFileContentSubscriptionEffect    (E4.2)
  *   startGitRequestSubscriptionEffect     (E4.3)
  *   processRequestsEffect                 (E4.3)
- *   startObservedSyncSubscriptionEffect   (E4.4)
  */
 
 import type { Runtime } from 'effect';
@@ -42,9 +41,7 @@ vi.mock('../../../api.js', () => ({
       upsertWorkspaceGitState: 'mock-upsertWorkspaceGitState',
       upsertRecentCommits: 'mock-upsertRecentCommits',
     },
-    machines: {
-      getObservedChatroomsForMachine: 'mock-getObservedChatroomsForMachine',
-    },
+    machines: {},
     commands: {
       syncCommands: 'mock-syncCommands',
     },
@@ -331,44 +328,5 @@ describe('processRequestsEffect', () => {
 
     // updateRequestStatus should have been called (at least once)
     expect(deps.backend.mutation).toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// E. observed-sync Effect twin (E4.4 — DaemonSessionService)
-// ---------------------------------------------------------------------------
-
-describe('startObservedSyncSubscriptionEffect', () => {
-  it('returns a handle with a stop() method', async () => {
-    const { startObservedSyncSubscriptionEffect } = await import('./observed-sync.js');
-    const deps = createMockDaemonDeps();
-    const wsClient = makeMockWsClient();
-
-    const handle = await runWithSession(
-      startObservedSyncSubscriptionEffect(wsClient),
-      withDeps(deps)
-    );
-
-    expect(handle).toHaveProperty('stop');
-    expect(typeof handle.stop).toBe('function');
-    handle.stop();
-  });
-
-  it('calls onUpdate with sessionId and machineId from session', async () => {
-    const { startObservedSyncSubscriptionEffect } = await import('./observed-sync.js');
-    const wsClient = makeMockWsClient();
-
-    const handle = await runWithSession(startObservedSyncSubscriptionEffect(wsClient), {
-      sessionId: 'session-observed',
-      machineId: 'machine-observed',
-    });
-
-    expect(wsClient.onUpdate).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ sessionId: 'session-observed', machineId: 'machine-observed' }),
-      expect.any(Function),
-      expect.any(Function)
-    );
-    handle.stop();
   });
 });

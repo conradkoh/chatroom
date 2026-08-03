@@ -6,7 +6,7 @@ import { memo, useCallback, useEffect, useState, useRef } from 'react';
 
 import { FileTypeIcon } from './fileIcons';
 import type { FileEntry } from './useFileSelector';
-import { COMMAND_DIALOG_CONTENT_CLASSES } from '../shared/commandDialogStyles';
+import { CommandDialogContent } from '../shared/CommandDialogContent';
 
 import {
   Command,
@@ -19,9 +19,8 @@ import {
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { getFileName, getParentDir } from '@/lib/pathUtils';
-import { cn } from '@/lib/utils';
-import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import { useCommandListScrollReset } from '@/modules/chatroom/hooks/useCommandListScrollReset';
+import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 
 interface FileSelectorModalProps {
   open: boolean;
@@ -73,10 +72,9 @@ export const FileSelectorModal = memo(function FileSelectorModal({
     <Dialog open={open} onOpenChange={handleOpenChange} modal={false}>
       <DialogPortal>
         {/* No overlay — file selector is a quick-picker, not a blocking modal. */}
-        <DialogPrimitive.Content
-          forceMount
+        <CommandDialogContent
+          open={open}
           onEscapeKeyDown={onEscapeKeyDown}
-          className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
           style={{ maxHeight: '60vh' }}
         >
           {/* Accessible title and description (sr-only) */}
@@ -201,7 +199,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
               </CommandList>
             </div>
           </Command>
-        </DialogPrimitive.Content>
+        </CommandDialogContent>
       </DialogPortal>
     </Dialog>
   );

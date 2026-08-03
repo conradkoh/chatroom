@@ -61,8 +61,8 @@ import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterO
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import {
-  useEditableElementFocused,
-  useVisualViewportKeyboardInset,
+  useMainChatComposerFocused,
+  useMainChatComposerKeyboardInset,
 } from '@/hooks/useMobileKeyboard';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
@@ -73,8 +73,6 @@ import { cn } from '@/lib/utils';
 interface WorkspaceBottomBarProps {
   workspaces: Workspace[];
   chatroomId: string;
-  /** From `useObserveChatroom` on the chatroom page; git panel calls this on mount. */
-  refreshObservedChatroom: () => void;
   /** Switches the activity bar to the Source Control view. */
   onSwitchToSourceControl?: () => void;
   /** @deprecated No longer used; removal planned. */
@@ -96,10 +94,10 @@ export const WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS = 300;
 
 export function shouldSuppressWorkspaceBottomBarSafeArea(
   keyboardInsetPx: number,
-  editableFocused: boolean,
+  composerFocused: boolean,
   insetSettled = true
 ): boolean {
-  if (editableFocused) return true;
+  if (composerFocused) return true;
   if (!insetSettled) return false;
   return keyboardInsetPx >= WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX;
 }
@@ -1010,8 +1008,8 @@ export function getWorkspaceBottomBarPaddingBottom(suppressSafeArea: boolean): s
 export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
   const isDesktop = useIsDesktop(640);
   const mobile = !isDesktop;
-  const keyboardInsetPx = useVisualViewportKeyboardInset(mobile);
-  const editableFocused = useEditableElementFocused(mobile);
+  const keyboardInsetPx = useMainChatComposerKeyboardInset(mobile);
+  const composerFocused = useMainChatComposerFocused(mobile);
   const [insetSettled, setInsetSettled] = useState(!mobile);
 
   useEffect(() => {
@@ -1029,7 +1027,7 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
 
   const suppressSafeArea = shouldSuppressWorkspaceBottomBarSafeArea(
     keyboardInsetPx,
-    editableFocused,
+    composerFocused,
     insetSettled
   );
 
@@ -1050,7 +1048,6 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
 export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
   workspaces,
   chatroomId,
-  refreshObservedChatroom: _refreshObservedChatroom,
   onSwitchToSourceControl,
   onRegisterOpenGitPanel: _onRegisterOpenGitPanel, // deprecated, no-op
 }: WorkspaceBottomBarProps) {

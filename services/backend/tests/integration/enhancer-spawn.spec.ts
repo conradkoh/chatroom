@@ -178,6 +178,8 @@ describe('daemon.enhancer.index', () => {
     expect(payload.workingDir).toBeDefined();
     expect(payload.systemPrompt).toContain('enhancer complete');
     expect(payload.systemPrompt).toContain(jobId);
+    expect(payload.systemPrompt).toContain('messages download');
+    expect(payload.systemPrompt).toContain('Do not rely solely');
     expect(payload.taskEnvelope).toContain('<handoff-templates>');
     expect(payload.taskEnvelope).toContain('### Handoff to `planner` (your output)');
     expect(payload.taskEnvelope).toContain('<references>');

@@ -12,19 +12,7 @@ import { Effect, Ref } from 'effect';
 
 import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
 import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
-import { api } from '../../../api.js';
-import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
-import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
-import { onRequestRestartAgentEffect } from '../../../events/daemon/agent/on-request-restart-agent.js';
-import { onRequestStartAgentEffect } from '../../../events/daemon/agent/on-request-start-agent.js';
-import { onRequestStopAgentEffect } from '../../../events/daemon/agent/on-request-stop-agent.js';
-import { onDaemonShutdownEffect } from '../../../events/lifecycle/on-daemon-shutdown.js';
-import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
-import { makeGitStateKey } from '../../../infrastructure/git/types.js';
-import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
-import { pickFolderDialog } from '../../../infrastructure/local-actions/pick-folder.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
-import { releaseLock } from '../pid.js';
+import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
 import {
   DaemonMutableStateService,
   DaemonSessionService,
@@ -57,11 +45,23 @@ import { startCommandRunSubscription } from './handlers/process/command-run-subs
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
 import { refreshModelsEffect } from './models-refresh.js';
-import { startObservedSyncSubscriptionEffect } from './observed-sync.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { startTaskMonitorEffect } from './task-monitor.js';
 import { formatTimestamp } from './utils.js';
 import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
+import { api } from '../../../api.js';
+import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
+import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
+import { onRequestRestartAgentEffect } from '../../../events/daemon/agent/on-request-restart-agent.js';
+import { onRequestStartAgentEffect } from '../../../events/daemon/agent/on-request-start-agent.js';
+import { onRequestStopAgentEffect } from '../../../events/daemon/agent/on-request-stop-agent.js';
+import { onDaemonShutdownEffect } from '../../../events/lifecycle/on-daemon-shutdown.js';
+import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { makeGitStateKey } from '../../../infrastructure/git/types.js';
+import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
+import { pickFolderDialog } from '../../../infrastructure/local-actions/pick-folder.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
+import { releaseLock } from '../pid.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -183,6 +183,7 @@ function handleGitRefreshCommandEffect(
     lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
     console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${typedEvent.workingDir}`);
     yield* pushSingleWorkspaceGitStateEffect(typedEvent.workingDir);
+    yield* pushSingleWorkspaceCommandsEffect(typedEvent.workingDir);
     tracker.gitRefreshIds.set(eventId, Date.now());
   });
 }
@@ -361,7 +362,6 @@ export const startCommandLoopEffect: Effect.Effect<
   let fileWriteSubscriptionHandle: FileWriteSubscriptionHandle | null = null;
   let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
-  let observedSyncSubscriptionHandle: { stop: () => void } | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
   let commandRunSubscriptionHandle: { stop: () => void } | null = null;
   let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
@@ -374,10 +374,8 @@ export const startCommandLoopEffect: Effect.Effect<
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 
-  // Observed-sync handles git/command sync; heartbeat is liveness-only.
-  console.log(
-    `[${formatTimestamp()}] 👁️ Observed-sync active — git/command sync is observation-driven`
-  );
+  // Git/command pushes are handoff-to-user driven via daemon.gitRefresh events;
+  // observation heartbeats keep the workspace-list subscription scoped only.
 
   // ── Shutdown timeouts ──────────────────────────────────────────────────
   const PROCESS_KILL_TIMEOUT_MS = 6_000;
@@ -446,7 +444,6 @@ export const startCommandLoopEffect: Effect.Effect<
     fileWriteSubscriptionHandle?.stop();
     fileTreeSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
-    observedSyncSubscriptionHandle?.stop();
     taskMonitorHandle?.stop();
     logObserverSubscriptionHandle?.stop();
     commandRunSubscriptionHandle?.stop();
@@ -504,7 +501,6 @@ export const startCommandLoopEffect: Effect.Effect<
   fileWriteSubscriptionHandle = yield* startFileWriteSubscriptionEffect(wsClient);
   fileTreeSubscriptionHandle = yield* startFileTreeSubscriptionEffect(wsClient);
   workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
-  observedSyncSubscriptionHandle = yield* startObservedSyncSubscriptionEffect(wsClient);
 
   const taskMonitorHandle = yield* startTaskMonitorEffect(wsClient);
 
@@ -551,7 +547,7 @@ export const startCommandLoopEffect: Effect.Effect<
     aqPendingPromptSubscriptionHandle = aqHandles.pendingPromptSubscriptionHandle;
     aqPendingHarnessSessionSubscriptionHandle = aqHandles.pendingHarnessSessionSubscriptionHandle;
 
-    startEnhancerSubscriptions(
+    const _enhancerSub = startEnhancerSubscriptions(
       session.sessionId,
       session.machineId,
       session.convexUrl,

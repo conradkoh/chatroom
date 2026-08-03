@@ -68,7 +68,7 @@ import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
-import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
+import { useHandoffGitRefresh } from './hooks/useHandoffGitRefresh';
 import { useTimelineScroll } from './hooks/useTimelineScroll';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
@@ -176,6 +176,9 @@ const ProcessesPanel = dynamic(
 // Constant to indicate "all machines" when stopping agents across all connected machines
 const ALL_MACHINES = '';
 
+/** Minimum time between manual workspace-state refresh requests. */
+const REFRESH_COOLDOWN_MS = 5000;
+
 // ─── Teams Config ────────────────────────────────────────────────────────────
 // NOTE: For chatroom-themed floating popups/dropdowns, use `modules/chatroom/components/ui/dropdown-menu`.
 // For modals and delete confirmations, use `modules/chatroom/components/ui/dialog` and `alert-dialog`.
@@ -185,8 +188,6 @@ const ALL_MACHINES = '';
 interface ChatroomDashboardProps {
   chatroomId: string;
   onBack?: () => void;
-  /** From the chatroom page (`useObserveChatroom`); forwarded to the git panel for on-demand observed-sync refresh. */
-  refreshObservedChatroom: () => void;
   focusModeEnabled?: boolean;
   onSetFocusModeEnabled?: (enabled: boolean) => void;
 }
@@ -648,7 +649,6 @@ function useIsSmallScreen(): boolean | undefined {
 export function ChatroomDashboard({
   chatroomId,
   onBack,
-  refreshObservedChatroom,
   focusModeEnabled = false,
   onSetFocusModeEnabled,
 }: ChatroomDashboardProps) {
@@ -776,7 +776,7 @@ export function ChatroomDashboard({
     onCloseTab: fileTabs.closeTab,
   });
 
-  const { activeDialog, openDialog } = useCommandDialog();
+  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
@@ -968,9 +968,15 @@ export function ChatroomDashboard({
 
   // Send message mutation (used to execute saved commands)
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
-  const recordObservationMutation = useSessionMutation(api.chatrooms.recordChatroomObservation);
   const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);
   const lastRefreshRef = useRef(0);
+
+  useHandoffGitRefresh(
+    chatroomId,
+    chatroomWorkspaces,
+    requestGitRefreshMutation,
+    REFRESH_COOLDOWN_MS
+  );
 
   const handleConfirmedDelete = useCallback(
     async (commandId: string) => {
@@ -1585,9 +1591,10 @@ export function ChatroomDashboard({
   inlineCommandRef.current = inlineCommand;
   useEffect(() => {
     return () => {
+      closeDialog();
       inlineCommandRef.current.detach();
     };
-  }, [chatroomId]);
+  }, [chatroomId, closeDialog]);
 
   // Handler to open Processes panel from command palette
   const handleOpenProcessesPanel = useCallback(() => {
@@ -1617,12 +1624,6 @@ export function ChatroomDashboard({
     }
     lastRefreshRef.current = now;
     try {
-      await recordObservationMutation({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        refresh: true,
-      });
-      // Observed-sync handles refresh via lastRefreshedAt on recordObservation.
-      // requestGitRefreshMutation is an event-stream fallback for immediate git push.
       if (activeWorkspace?.machineId && activeWorkspace?.workingDir) {
         await requestGitRefreshMutation({
           machineId: activeWorkspace.machineId,
@@ -1634,13 +1635,7 @@ export function ChatroomDashboard({
       toast.error('Failed to refresh workspace state');
       console.error('Refresh workspace state failed:', err);
     }
-  }, [
-    activeWorkspace?.machineId,
-    activeWorkspace?.workingDir,
-    chatroomId,
-    recordObservationMutation,
-    requestGitRefreshMutation,
-  ]);
+  }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, requestGitRefreshMutation]);
 
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
@@ -2114,7 +2109,6 @@ export function ChatroomDashboard({
                 <WorkspaceBottomBar
                   workspaces={chatroomWorkspaces}
                   chatroomId={chatroomId}
-                  refreshObservedChatroom={refreshObservedChatroom}
                   onSwitchToSourceControl={handleSwitchToSourceControl}
                 />
               </div>

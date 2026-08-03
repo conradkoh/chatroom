@@ -187,4 +187,30 @@ Edge case X
     expect(screen.getByTestId('handoff-section-overview')).toBeInTheDocument();
     expect(screen.getByTestId('handoff-section-action')).toBeInTheDocument();
   });
+
+  it('uses true-center grid on header when headerNavigation provided', () => {
+    render(
+      <TimelineTeamMessage
+        message={BASE_MESSAGE}
+        chatroomId="room-1"
+        headerNavigation={{
+          onJumpToPrevious: vi.fn(),
+          onJumpToCurrent: vi.fn(),
+          onJumpToNext: vi.fn(),
+          hasPrevious: true,
+          hasNext: true,
+        }}
+      />
+    );
+    const header = screen.getByTestId('timeline-message-header');
+    expect(header.className).toContain('grid-cols-[1fr_auto_1fr]');
+    expect(screen.getByTestId('timeline-message-header-nav')).toBeInTheDocument();
+  });
+
+  it('keeps flex layout on header when headerNavigation omitted', () => {
+    render(<TimelineTeamMessage message={BASE_MESSAGE} chatroomId="room-1" />);
+    const header = screen.getByTestId('timeline-message-header');
+    expect(header.className).not.toContain('grid-cols-[1fr_auto_1fr]');
+    expect(screen.queryByTestId('timeline-message-header-nav')).not.toBeInTheDocument();
+  });
 });

@@ -14,7 +14,7 @@ import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';
 import { validateWorkingDir } from './workspacePathSecurity';
-import { DAEMON_LIVENESS_WRITE_INTERVAL_MS, OBSERVATION_TTL_MS } from '../config/reliability';
+import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
 import {
   agentStopReasonValidator,
   agentTypeValidator,
@@ -3325,82 +3325,6 @@ export const clearAllSpawnedPids = mutation({
     await projectAssignedTaskSnapshotsForMachine(ctx, args.machineId);
 
     return { clearedCount };
-  },
-});
-
-/**
- * Returns observed chatrooms for a machine — daemon subscribes to drive selective sync.
- * Only returns chatrooms where the frontend has sent a heartbeat within OBSERVATION_TTL_MS.
- */
-export const getObservedChatroomsForMachine = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) {
-      throw new Error('Authentication required');
-    }
-
-    // Verify machine belongs to user
-    await getOwnedMachine(ctx, args.machineId, auth.userId);
-
-    const now = Date.now();
-    const ttlThreshold = now - OBSERVATION_TTL_MS;
-
-    // Get all workspaces on this machine and build a chatroomId → workingDirs map
-    const workspaces = await ctx.db
-      .query('chatroom_workspaces')
-      .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
-      .collect();
-
-    const chatroomWorkingDirsMap = new Map<Id<'chatroom_rooms'>, string[]>();
-    for (const ws of workspaces) {
-      if (ws.removedAt) continue;
-      const existing = chatroomWorkingDirsMap.get(ws.chatroomId) ?? [];
-      existing.push(ws.workingDir);
-      chatroomWorkingDirsMap.set(ws.chatroomId, existing);
-    }
-
-    // Observation reads scoped to this machine's chatrooms (point lookups on
-    // by_chatroomId). Avoids a global by_lastObservedAt collect so unrelated
-    // observation heartbeats elsewhere in the deployment are not in the read set.
-    const chatroomIds = [...chatroomWorkingDirsMap.keys()];
-    const observationMap = new Map<Id<'chatroom_rooms'>, { lastRefreshedAt?: number }>();
-    await Promise.all(
-      chatroomIds.map(async (chatroomId) => {
-        const obs = await ctx.db
-          .query('chatroom_observation')
-          .withIndex('by_chatroomId', (q) => q.eq('chatroomId', chatroomId))
-          .first();
-        if (obs && obs.lastObservedAt >= ttlThreshold) {
-          observationMap.set(chatroomId, obs);
-        }
-      })
-    );
-
-    const result: {
-      chatroomId: Id<'chatroom_rooms'>;
-      workingDirs: string[];
-      lastRefreshedAt?: number;
-    }[] = [];
-    for (const [chatroomId, workingDirs] of chatroomWorkingDirsMap) {
-      const obs = observationMap.get(chatroomId);
-      if (obs) {
-        result.push({
-          chatroomId,
-          workingDirs,
-          ...(obs.lastRefreshedAt !== undefined ? { lastRefreshedAt: obs.lastRefreshedAt } : {}),
-        });
-      }
-    }
-
-    // Return null when idle to suppress subscription bandwidth (same pattern as getFileTreeDeltas)
-    if (result.length === 0) {
-      return null;
-    }
-    return result;
   },
 });
 

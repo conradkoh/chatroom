@@ -1,21 +1,20 @@
 'use client';
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { EyeOff } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 import { CommandOutputModal } from './CommandOutputModal';
-import { EyeOff } from 'lucide-react';
 import { buildCommandPaletteRows } from './commandPaletteRows';
 import { CommandPaletteVirtualizedList } from './CommandPaletteVirtualizedList';
 import type { CommandItem } from './types';
-import { COMMAND_DIALOG_CONTENT_CLASSES } from '../shared/commandDialogStyles';
+import { CommandDialogContent } from '../shared/CommandDialogContent';
 
 import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
-import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useCommandBlacklist } from '@/modules/chatroom/hooks/useCommandBlacklist';
+import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
 import { sortCommandsByFrecency } from '@/modules/chatroom/lib/sortCommandsByFrecency';
@@ -203,11 +202,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     <>
       <Dialog open={open} onOpenChange={setOpen} modal={false}>
         <DialogPortal>
-          <DialogPrimitive.Content
-            forceMount
-            onEscapeKeyDown={handleEscapeKeyDown}
-            className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
-          >
+          <CommandDialogContent open={open} onEscapeKeyDown={handleEscapeKeyDown}>
             <DialogPrimitive.Title className="sr-only">Command Palette</DialogPrimitive.Title>
             <DialogPrimitive.Description className="sr-only">
               Search and execute a command
@@ -243,7 +238,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
                 </CommandList>
               </Command>
             </div>
-          </DialogPrimitive.Content>
+          </CommandDialogContent>
         </DialogPortal>
       </Dialog>
       <CommandOutputModal inlineCommand={inlineCommand} />
