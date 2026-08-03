@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowRight, ArrowRightLeft, Sparkles } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo } from 'react';
 
 import { HandoffEnvelopeView } from './HandoffEnvelopeView';
 import { HandoffReportView } from './HandoffReportView';
@@ -21,7 +21,6 @@ import {
   type TimelineMessageHeaderNavigation,
 } from './timelineRowStyles';
 import { MessageAttachmentChips } from '../../attachments';
-import { EnhancerContentToggle } from '../../features/enhancers/components/EnhancerContentToggle';
 import { EnhancerMessageDiffSection } from '../../features/enhancers/components/EnhancerMessageDiffSection';
 import type { Message } from '../../types/message';
 import { hasHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
@@ -59,14 +58,10 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   machineId,
   headerNavigation,
 }: TimelineTeamMessageProps) {
-  const [showOriginal, setShowOriginal] = useState(false);
   const hasEnhancerOriginal =
     typeof message.enhancerOriginalContent === 'string' &&
     message.enhancerOriginalContent.length > 0;
-  const displayContent =
-    showOriginal && hasEnhancerOriginal
-      ? (message.enhancerOriginalContent ?? message.content)
-      : message.content;
+  const displayContent = message.content;
 
   const messageTypeBadge = getMessageTypeBadge(message.type);
   const machineLabel = formatMachineLabel(machines, machineId);
@@ -92,12 +87,6 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
               {messageTypeBadge.icon}
               {messageTypeBadge.label}
             </span>
-          )}
-          {hasEnhancerOriginal && (
-            <EnhancerContentToggle
-              showOriginal={showOriginal}
-              onToggle={() => setShowOriginal((v) => !v)}
-            />
           )}
         </div>
         {headerNavigation && <TimelineMessageHeaderNav {...headerNavigation} />}

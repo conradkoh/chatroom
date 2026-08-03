@@ -84,56 +84,16 @@ describe('TimelineTeamMessage enhancer toggle', () => {
     );
   });
 
-  it('shows toggle and enhanced content by default when enhancerOriginalContent exists', () => {
+  it('does not show enhancer toggle in header when enhancerOriginalContent exists', () => {
     render(
       <TimelineTeamMessage
-        message={{
-          ...BASE_MESSAGE,
-          enhancerOriginalContent: 'Original draft content',
-        }}
+        message={{ ...BASE_MESSAGE, enhancerOriginalContent: 'Original draft content' }}
         chatroomId="room-1"
       />
     );
-
-    expect(screen.getByTestId('enhancer-content-toggle')).toBeInTheDocument();
+    expect(screen.queryByTestId('enhancer-content-toggle')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Show original version/ })).not.toBeInTheDocument();
     expect(screen.getByTestId('timeline-enhanced-indicator')).toBeInTheDocument();
-    expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
-      'Enhanced handoff content'
-    );
-  });
-
-  it('clicking toggle switches body to original content', () => {
-    render(
-      <TimelineTeamMessage
-        message={{
-          ...BASE_MESSAGE,
-          enhancerOriginalContent: 'Original draft content',
-        }}
-        chatroomId="room-1"
-      />
-    );
-
-    fireEvent.click(screen.getByTestId('enhancer-content-toggle'));
-
-    expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
-      'Original draft content'
-    );
-  });
-
-  it('clicking toggle twice switches back to enhanced content', () => {
-    render(
-      <TimelineTeamMessage
-        message={{
-          ...BASE_MESSAGE,
-          enhancerOriginalContent: 'Original draft content',
-        }}
-        chatroomId="room-1"
-      />
-    );
-
-    fireEvent.click(screen.getByTestId('enhancer-content-toggle'));
-    fireEvent.click(screen.getByTestId('enhancer-content-toggle'));
-
     expect(screen.getByTestId('timeline-markdown-body')).toHaveTextContent(
       'Enhanced handoff content'
     );
