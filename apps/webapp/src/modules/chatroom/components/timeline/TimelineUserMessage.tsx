@@ -11,10 +11,11 @@ import {
   Sparkles,
   XCircle,
 } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
 import { TimelineMessageFooter } from './TimelineMessageFooter';
+import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
 import {
   BADGE_BASE,
   ICON_SIZE,
@@ -22,6 +23,7 @@ import {
   TIMELINE_MESSAGE_HEADER_STICKY,
   TIMELINE_ROW_BORDER,
   TIMELINE_ROW_ROOT,
+  type TimelineMessageHeaderNavigation,
 } from './timelineRowStyles';
 import { MessageAttachmentChips } from '../../attachments';
 import { ScheduledMessageBadge } from '../../features/scheduled-prompts/components/ScheduledMessageBadge';
@@ -103,14 +105,97 @@ function getDisplayText(message: Message): string {
   return text.replace(/\n+/g, ' ').trim();
 }
 
+interface UserMessageHeaderNavProps {
+  queuedBadge: ReactNode;
+  statusBadges: ReactNode;
+  taskStatusBadgeEl: ReactNode;
+  displayText: string;
+  isQueued?: boolean;
+  headerNavigation: TimelineMessageHeaderNavigation;
+}
+
+function UserMessageHeaderNav({
+  queuedBadge,
+  statusBadges,
+  taskStatusBadgeEl,
+  displayText,
+  isQueued,
+  headerNavigation,
+}: UserMessageHeaderNavProps) {
+  return (
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 h-8 px-3 min-w-0 w-full">
+      <div className="flex items-center gap-2 min-w-0 justify-self-start">
+        {isQueued ? queuedBadge : statusBadges}
+      </div>
+      <TimelineMessageHeaderNav {...headerNavigation} />
+      <div className="flex items-center gap-2 min-w-0 justify-self-end">
+        {!isQueued && (
+          <>
+            <span className="text-xs font-medium text-chatroom-text-primary truncate max-w-[200px]">
+              {displayText}
+            </span>
+            {taskStatusBadgeEl}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface UserMessageHeaderDefaultProps {
+  queuedBadge: ReactNode;
+  statusBadges: ReactNode;
+  taskStatusBadgeEl: ReactNode;
+  displayText: string;
+  isQueued?: boolean;
+  isAwaitingClassification: boolean;
+}
+
+function UserMessageHeaderDefault({
+  queuedBadge,
+  statusBadges,
+  taskStatusBadgeEl,
+  displayText,
+  isQueued,
+  isAwaitingClassification,
+}: UserMessageHeaderDefaultProps) {
+  return (
+    <div className="flex items-center h-8 px-3 min-w-0">
+      {isQueued ? (
+        queuedBadge
+      ) : (
+        <div className="flex items-center gap-2 w-full min-w-0">
+          {isAwaitingClassification ? (
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
+              <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
+            </div>
+          ) : (
+            <>
+              {statusBadges}
+              <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
+                {displayText}
+              </span>
+            </>
+          )}
+          {taskStatusBadgeEl}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface TimelineUserMessageProps {
   message: Message;
   chatroomId: string;
+  /** When set, sticky header shows centered prev/current/next jump controls (All tab). */
+  headerNavigation?: TimelineMessageHeaderNavigation;
 }
 
 export const TimelineUserMessage = memo(function TimelineUserMessage({
   message,
   chatroomId: _chatroomId,
+  headerNavigation,
 }: TimelineUserMessageProps) {
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
@@ -119,6 +204,61 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
   const showScheduledBadge =
     message.sourcePlatform === 'scheduled' || message.scheduledPromptId != null;
   const [detailOpen, setDetailOpen] = useState(false);
+
+  const queuedBadge = (
+    <span className={`${BADGE_BASE} bg-chatroom-status-warning/15 text-chatroom-status-warning`}>
+      queued
+    </span>
+  );
+
+  const statusBadges = (
+    <>
+      {classificationBadge && (
+        <span className={`${classificationBadge.className} flex-shrink-0`}>
+          {classificationBadge.icon}
+          {classificationBadge.label}
+        </span>
+      )}
+      {message.sourcePlatform === 'telegram' && (
+        <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-hover rounded flex-shrink-0">
+          Telegram
+        </span>
+      )}
+      {showScheduledBadge && (
+        <ScheduledMessageBadge
+          scheduledPromptId={message.scheduledPromptId}
+          onClick={message.scheduledPromptId ? () => setDetailOpen(true) : undefined}
+        />
+      )}
+    </>
+  );
+
+  const taskStatusBadgeEl = taskStatusBadge ? (
+    <span className={`${taskStatusBadge.className} flex-shrink-0`}>
+      {taskStatusBadge.icon}
+      {taskStatusBadge.label}
+    </span>
+  ) : null;
+
+  const header = headerNavigation ? (
+    <UserMessageHeaderNav
+      queuedBadge={queuedBadge}
+      statusBadges={statusBadges}
+      taskStatusBadgeEl={taskStatusBadgeEl}
+      displayText={getDisplayText(message)}
+      isQueued={message.isQueued}
+      headerNavigation={headerNavigation}
+    />
+  ) : (
+    <UserMessageHeaderDefault
+      queuedBadge={queuedBadge}
+      statusBadges={statusBadges}
+      taskStatusBadgeEl={taskStatusBadgeEl}
+      displayText={getDisplayText(message)}
+      isQueued={message.isQueued}
+      isAwaitingClassification={isAwaitingClassification}
+    />
+  );
 
   return (
     <div
@@ -129,53 +269,7 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
         className={`w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong ${TIMELINE_MESSAGE_HEADER_STICKY}`}
         data-testid="timeline-message-header"
       >
-        <div className="flex items-center h-8 px-3 min-w-0">
-          {message.isQueued ? (
-            <span
-              className={`${BADGE_BASE} bg-chatroom-status-warning/15 text-chatroom-status-warning`}
-            >
-              queued
-            </span>
-          ) : (
-            <div className="flex items-center gap-2 w-full min-w-0">
-              {isAwaitingClassification ? (
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
-                  <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
-                </div>
-              ) : (
-                <>
-                  {classificationBadge && (
-                    <span className={`${classificationBadge.className} flex-shrink-0`}>
-                      {classificationBadge.icon}
-                      {classificationBadge.label}
-                    </span>
-                  )}
-                  {message.sourcePlatform === 'telegram' && (
-                    <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-hover rounded flex-shrink-0">
-                      Telegram
-                    </span>
-                  )}
-                  {showScheduledBadge && (
-                    <ScheduledMessageBadge
-                      scheduledPromptId={message.scheduledPromptId}
-                      onClick={message.scheduledPromptId ? () => setDetailOpen(true) : undefined}
-                    />
-                  )}
-                  <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
-                    {getDisplayText(message)}
-                  </span>
-                </>
-              )}
-              {taskStatusBadge && (
-                <span className={`${taskStatusBadge.className} flex-shrink-0`}>
-                  {taskStatusBadge.icon}
-                  {taskStatusBadge.label}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        {header}
       </div>
 
       <div className={`px-4 py-3 ${TIMELINE_MESSAGE_BODY}`}>

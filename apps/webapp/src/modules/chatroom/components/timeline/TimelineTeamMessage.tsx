@@ -6,6 +6,7 @@ import { memo, useState } from 'react';
 import { HandoffEnvelopeView } from './HandoffEnvelopeView';
 import { HandoffReportView } from './HandoffReportView';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
+import { TimelineMessageHeaderNav } from './TimelineMessageHeaderNav';
 import {
   BADGE_BASE,
   formatMachineLabel,
@@ -16,6 +17,7 @@ import {
   TIMELINE_ROW_BORDER,
   TIMELINE_ROW_ROOT,
   type MachineNameEntry,
+  type TimelineMessageHeaderNavigation,
 } from './timelineRowStyles';
 import { MessageAttachmentChips } from '../../attachments';
 import { EnhancerContentToggle } from '../../features/enhancers/components/EnhancerContentToggle';
@@ -23,6 +25,8 @@ import { EnhancerMessageDiffSection } from '../../features/enhancers/components/
 import type { Message } from '../../types/message';
 import { hasHandoffEnvelope } from '../../utils/parseHandoffEnvelope';
 import { hasHandoffReport } from '../../utils/parseHandoffReport';
+
+import { cn } from '@/lib/utils';
 
 function getMessageTypeBadge(type: string) {
   if (type === 'handoff') {
@@ -41,6 +45,8 @@ export interface TimelineTeamMessageProps {
   machines?: Map<string, MachineNameEntry>;
   /** When set, shows resolved hostname/alias beside the sender role. */
   machineId?: string;
+  /** When set, sticky header shows centered prev/current/next jump controls (All tab). */
+  headerNavigation?: TimelineMessageHeaderNavigation;
 }
 
 // fallow-ignore-next-line complexity
@@ -49,6 +55,7 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
   chatroomId: _chatroomId,
   machines,
   machineId,
+  headerNavigation,
 }: TimelineTeamMessageProps) {
   const [showOriginal, setShowOriginal] = useState(false);
   const hasEnhancerOriginal =
@@ -69,10 +76,15 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       data-testid="timeline-team-message"
     >
       <div
-        className={`flex flex-wrap justify-between items-center gap-y-1 gap-x-2 px-4 py-1.5 mb-2 ${TIMELINE_MESSAGE_HEADER_STICKY}`}
+        className={cn(
+          headerNavigation
+            ? 'grid grid-cols-[1fr_auto_1fr] items-center gap-x-2 gap-y-1 px-4 py-1.5 mb-2 w-full'
+            : 'flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5 mb-2',
+          TIMELINE_MESSAGE_HEADER_STICKY
+        )}
         data-testid="timeline-message-header"
       >
-        <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5">
+        <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5 min-w-0 justify-self-start">
           {messageTypeBadge && (
             <span className={messageTypeBadge.className}>
               {messageTypeBadge.icon}
@@ -86,7 +98,8 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
             />
           )}
         </div>
-        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1">
+        {headerNavigation && <TimelineMessageHeaderNav {...headerNavigation} />}
+        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0 justify-self-end">
           <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
           {machineLabel && (
             <span className="text-[10px] text-chatroom-text-muted font-medium normal-case">
