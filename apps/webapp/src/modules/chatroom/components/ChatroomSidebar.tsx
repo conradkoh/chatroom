@@ -18,8 +18,8 @@ import React, { memo, useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
-import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
+import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { getChatStatusIndicatorClasses } from '../utils/chatStatusDisplay';
 import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionChatroomListing';
@@ -49,6 +49,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const sendCommand = useSessionMutation(api.machines.sendCommand);
+  const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
   const restartOfflineAgents = useSessionMutation(api.machines.restartOfflineAgentsFromConfig);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
@@ -57,17 +58,23 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     async (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      await Promise.all(
-        chatroom.runningAgentConfigs.map(({ machineId, role }) =>
-          sendCommand({
-            machineId,
-            type: 'stop-agent',
-            payload: { chatroomId: chatroom._id as Id<'chatroom_rooms'>, role },
-          })
-        )
-      );
+      try {
+        await Promise.all([
+          ...chatroom.runningAgentConfigs.map(({ machineId, role }) =>
+            sendCommand({
+              machineId,
+              type: 'stop-agent',
+              payload: { chatroomId: chatroom._id as Id<'chatroom_rooms'>, role },
+            })
+          ),
+          stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> }),
+        ]);
+      } catch (error) {
+        console.error('Failed to stop agent and processes:', error);
+        toast.error(error instanceof Error ? error.message : 'Failed to stop');
+      }
     },
-    [chatroom.runningAgentConfigs, chatroom._id, sendCommand]
+    [chatroom.runningAgentConfigs, chatroom._id, sendCommand, stopAllCommandRuns]
   );
 
   const handleStart = useCallback(
@@ -163,7 +170,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
             {chatroom.remoteAgentStatus === 'running' && (
               <button
                 onClick={handleStop}
-                title="Stop agent"
+                title="Stop agent and processes"
                 className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
               >
                 <Square size={8} fill="currentColor" />

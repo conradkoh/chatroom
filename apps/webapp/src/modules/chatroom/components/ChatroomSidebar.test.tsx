@@ -9,15 +9,18 @@ import { useChatroomListing } from '../context/ChatroomListingContext';
 
 const mockArchiveChatroom = vi.fn().mockResolvedValue({ success: true, disabledPromptCount: 0 });
 const mockSendCommand = vi.fn().mockResolvedValue(undefined);
+const mockStopAllCommandRuns = vi.fn().mockResolvedValue({ stoppedCount: 0 });
 const mockRestartOfflineAgents = vi.fn().mockResolvedValue({ restartedRoles: ['builder'] });
 const mockMarkAsUnread = vi.fn().mockResolvedValue(undefined);
 const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
 const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 const mockPush = vi.fn();
 
 vi.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
+    error: (...args: unknown[]) => mockToastError(...args),
   },
 }));
 
@@ -65,6 +68,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
       if (name === 'sendCommand') {
         return mockSendCommand;
       }
+      if (name === 'stopAllCommandRunsForChatroom') {
+        return mockStopAllCommandRuns;
+      }
       if (name === 'restartOfflineAgentsFromConfig') {
         return mockRestartOfflineAgents;
       }
@@ -84,6 +90,9 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
     machines: {
       sendCommand: { name: 'sendCommand' },
       restartOfflineAgentsFromConfig: { name: 'restartOfflineAgentsFromConfig' },
+    },
+    commands: {
+      stopAllCommandRunsForChatroom: { name: 'stopAllCommandRunsForChatroom' },
     },
   },
 }));
@@ -158,13 +167,14 @@ describe('ChatroomSidebar', () => {
     mockArchiveChatroom.mockResolvedValue({ success: true, disabledPromptCount: 0 });
     mockSendCommand.mockReset();
     mockSendCommand.mockResolvedValue(undefined);
+    mockStopAllCommandRuns.mockReset();
+    mockStopAllCommandRuns.mockResolvedValue({ stoppedCount: 0 });
     mockRestartOfflineAgents.mockReset();
     mockRestartOfflineAgents.mockResolvedValue({ restartedRoles: ['builder'] });
     mockMarkAsUnread.mockReset();
-    mockMarkAsUnread.mockResolvedValue(undefined);
     mockMarkAsRead.mockReset();
-    mockMarkAsRead.mockResolvedValue(undefined);
     mockToastSuccess.mockReset();
+    mockToastError.mockReset();
     mockPush.mockReset();
     (useChatroomListing as ReturnType<typeof vi.fn>).mockClear();
   });
@@ -422,5 +432,26 @@ describe('ChatroomSidebar', () => {
     });
 
     expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it('stop button stops agents AND command processes for the chatroom', async () => {
+    const chatroom = makeChatroom({
+      remoteAgentStatus: 'running',
+      runningAgentConfigs: [{ machineId: 'machine-1', role: 'builder' }],
+    });
+    renderSidebar([chatroom]);
+
+    fireEvent.click(screen.getByTitle('Stop agent and processes'));
+
+    await waitFor(() => {
+      expect(mockSendCommand).toHaveBeenCalledWith({
+        machineId: 'machine-1',
+        type: 'stop-agent',
+        payload: { chatroomId: chatroom._id, role: 'builder' },
+      });
+      expect(mockStopAllCommandRuns).toHaveBeenCalledWith({
+        chatroomId: chatroom._id,
+      });
+    });
   });
 });
