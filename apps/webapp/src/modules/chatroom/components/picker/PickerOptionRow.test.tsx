@@ -103,4 +103,75 @@ describe('PickerOptionRow', () => {
     expect(label.parentElement).toBe(button);
     expect(adornment.parentElement).toBe(button);
   });
+
+  it('renders trailingActions outside the option button', () => {
+    render(
+      <PickerOptionRow
+        onSelect={vi.fn()}
+        trailingActions={
+          <button type="button" data-testid="trailing-action">
+            Act
+          </button>
+        }
+      >
+        Option A
+      </PickerOptionRow>
+    );
+    const option = screen.getByRole('option');
+    const action = screen.getByTestId('trailing-action');
+    expect(option.parentElement).toContainElement(action);
+    expect(option).not.toContainElement(action);
+  });
+
+  it('hides Check icon when trailingActions and selected', () => {
+    render(
+      <PickerOptionRow
+        selected
+        onSelect={vi.fn()}
+        trailingActions={<span data-testid="trailing-wrap">actions</span>}
+      >
+        Option A
+      </PickerOptionRow>
+    );
+    const option = screen.getByRole('option');
+    expect(option.querySelector('svg')).toBeNull();
+  });
+
+  it('when multiline, label wrapper has overflow-hidden and not truncate', () => {
+    render(
+      <PickerOptionRow multiline onSelect={vi.fn()}>
+        Option A
+      </PickerOptionRow>
+    );
+    const label = screen.getByText('Option A');
+    expect(label).toHaveClass('overflow-hidden');
+    expect(label).not.toHaveClass('truncate');
+  });
+
+  it('when multiline, button has items-start', () => {
+    render(
+      <PickerOptionRow multiline onSelect={vi.fn()}>
+        Option A
+      </PickerOptionRow>
+    );
+    expect(screen.getByRole('option')).toHaveClass('items-start');
+  });
+
+  it('does not call onSelect when trailing action is clicked', () => {
+    const onSelect = vi.fn();
+    render(
+      <PickerOptionRow
+        onSelect={onSelect}
+        trailingActions={
+          <button type="button" data-testid="trailing-action" onClick={() => {}}>
+            Act
+          </button>
+        }
+      >
+        Option A
+      </PickerOptionRow>
+    );
+    fireEvent.click(screen.getByTestId('trailing-action'));
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });
