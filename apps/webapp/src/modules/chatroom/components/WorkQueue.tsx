@@ -30,6 +30,8 @@ import {
 import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
 import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
 import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
+import { useActiveEnhancerJob } from '../features/enhancers/hooks/useActiveEnhancerJob';
+import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 import type { Message } from '../types/message';
 import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
 import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
@@ -39,7 +41,6 @@ import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
 import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
 import { teamSupportsEnhancer } from '../hooks/persistence/messageViewMode';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
-import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 
 // Maximum number of pending review items to show in sidebar before "View More"
 const PENDING_REVIEW_PREVIEW_LIMIT = 3;
@@ -86,6 +87,9 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   const counts = useSessionQuery(api.tasks.getTaskCounts, {
     chatroomId,
   }) as TaskCounts | undefined;
+
+  // Active planner→enhancer job (job-only hook; disabling enhancement is separate)
+  const { isEnhancing, cancelJob, isCancelling } = useActiveEnhancerJob(chatroomId as string);
 
   // Derive needsPromotion from counts and lifecycle (replaces checkQueueHealth subscription)
   // A promotion is needed when: no active task, there are queued tasks, and all agents are waiting
@@ -361,6 +365,9 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
                 task={task}
                 isProtected
                 onClick={() => handleOpenTaskDetail(task)}
+                showCancelEnhancer={task.assignedTo === 'enhancer' && isEnhancing}
+                onCancelEnhancer={cancelJob}
+                isCancellingEnhancer={isCancelling}
               />
             ))}
             {/* Show "View More" button when there are more items */}
@@ -510,6 +517,8 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
           onTaskClick={(task) => {
             handleOpenTaskDetail(task);
           }}
+          onCancelEnhancer={cancelJob}
+          isCancellingEnhancer={isCancelling}
         />
       )}
 

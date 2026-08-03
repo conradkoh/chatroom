@@ -75,7 +75,7 @@ export function PlannerEnhancerToggleButton({
             isUnsupported
               ? UNSUPPORTED_TITLE
               : isActive
-                ? 'Enhancement enabled — click to turn off'
+                ? 'Enhancement enabled — click to disable for the next message. Use ✕ on the enhancer task to cancel the active review.'
                 : 'Enhancement disabled — click to turn on'
           }
           aria-label={label}

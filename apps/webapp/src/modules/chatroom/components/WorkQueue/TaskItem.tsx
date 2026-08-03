@@ -1,19 +1,31 @@
-import { Trash2 } from 'lucide-react';
+import { Trash2, XCircle } from 'lucide-react';
 
-import { MessageAttachmentChips } from '../../attachments';
-import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 import type { Task } from './types';
 import { getStatusBadge } from './utils';
+import { WorkQueuePreviewText } from './WorkQueuePreviewText';
+import { MessageAttachmentChips } from '../../attachments';
 
 export interface TaskItemProps {
   task: Task;
   isProtected?: boolean;
   onDelete?: () => void;
   onClick?: () => void;
+  /** Show the cancel-enhancer control for enhancer-assigned current tasks. */
+  showCancelEnhancer?: boolean;
+  onCancelEnhancer?: () => void;
+  isCancellingEnhancer?: boolean;
 }
 
 // fallow-ignore-next-line complexity
-export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskItemProps) {
+export function TaskItem({
+  task,
+  isProtected = false,
+  onDelete,
+  onClick,
+  showCancelEnhancer = false,
+  onCancelEnhancer,
+  isCancellingEnhancer = false,
+}: TaskItemProps) {
   const badge = getStatusBadge(task.status);
 
   const isClickable = !!onClick;
@@ -74,6 +86,25 @@ export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskI
           />
         </div>
       ) : null}
+
+      {/* Cancel enhancer — rendered outside the !isProtected gate so it works for current tasks */}
+      {showCancelEnhancer && onCancelEnhancer && (
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            data-testid="cancel-enhancer-task"
+            title="Cancel planning review"
+            disabled={isCancellingEnhancer}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCancelEnhancer();
+            }}
+            className="p-1 text-chatroom-text-muted hover:text-chatroom-status-error transition-colors disabled:opacity-50"
+          >
+            <XCircle size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Actions for editable tasks */}
       {!isProtected && (
