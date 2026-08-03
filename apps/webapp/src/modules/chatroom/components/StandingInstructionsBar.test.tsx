@@ -7,6 +7,8 @@ import { StandingInstructionsBar } from './StandingInstructionsBar';
 
 const mockUpsert = vi.fn();
 const mockSetEnabled = vi.fn();
+const mockUpdateHistory = vi.fn();
+const mockDeleteHistory = vi.fn();
 const mockUseIsDesktop = vi.fn(() => true);
 let mockQueryResult: { content: string; enabled: boolean; title: string } | undefined = {
   content: '',
@@ -29,6 +31,8 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: (mutationName: string) => {
     if (mutationName === 'standingInstructions:upsert') return mockUpsert;
     if (mutationName === 'standingInstructions:setEnabled') return mockSetEnabled;
+    if (mutationName === 'standingInstructions:updateHistory') return mockUpdateHistory;
+    if (mutationName === 'standingInstructions:deleteHistory') return mockDeleteHistory;
     return vi.fn();
   },
 }));
@@ -39,6 +43,8 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       get: 'standingInstructions:get',
       upsert: 'standingInstructions:upsert',
       setEnabled: 'standingInstructions:setEnabled',
+      updateHistory: 'standingInstructions:updateHistory',
+      deleteHistory: 'standingInstructions:deleteHistory',
       listHistory: 'standingInstructions:listHistory',
     },
   },
@@ -202,6 +208,54 @@ describe('StandingInstructionsBar', () => {
 
       expect(mockSetEnabled).toHaveBeenCalledWith({ chatroomId: ROOM_ID, enabled: false });
     });
+
+    it('edit from picker calls updateHistory', async () => {
+      const user = userEvent.setup();
+      mockUseIsDesktop.mockReturnValue(true);
+      render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+      await user.click(screen.getByText('Standing instructions'));
+      await user.click(screen.getAllByLabelText('Edit')[1]);
+      await user.click(screen.getByText('Confirm'));
+
+      expect(mockUpdateHistory).toHaveBeenCalledWith({
+        historyId: 'h2',
+        content: 'Use async/await',
+        title: 'Async patterns',
+      });
+      expect(mockUpsert).not.toHaveBeenCalled();
+    });
+
+    it('edit active match also calls upsert', async () => {
+      const user = userEvent.setup();
+      mockUseIsDesktop.mockReturnValue(true);
+      render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+      await user.click(screen.getByText('Standing instructions'));
+      await user.click(screen.getAllByLabelText('Edit')[0]);
+      await user.click(screen.getByText('Confirm'));
+
+      expect(mockUpdateHistory).toHaveBeenCalledWith({
+        historyId: 'h1',
+        content: 'Always use TypeScript',
+        title: 'Type safety',
+      });
+      expect(mockUpsert).toHaveBeenCalledWith({
+        chatroomId: ROOM_ID,
+        content: 'Always use TypeScript',
+        title: 'Type safety',
+      });
+    });
+
+    it('delete calls deleteHistory only', async () => {
+      const user = userEvent.setup();
+      mockUseIsDesktop.mockReturnValue(true);
+      render(<StandingInstructionsBar chatroomId={ROOM_ID} />);
+      await user.click(screen.getByText('Standing instructions'));
+      await user.click(screen.getAllByLabelText('Delete')[1]);
+      await user.click(screen.getByText('Delete'));
+
+      expect(mockDeleteHistory).toHaveBeenCalledWith({ historyId: 'h2' });
+      expect(mockUpsert).not.toHaveBeenCalled();
+    });
   });
 
   describe('picker — disabled with content', () => {
@@ -360,8 +414,11 @@ describe('StandingInstructionsBar', () => {
 
     const createNewBtn = screen.getByTestId('standing-instructions-create-new');
     expect(createNewBtn.className).toContain('justify-center');
-    expect(createNewBtn.className).toContain('bg-chatroom-status-success/5');
-    expect(createNewBtn.className).toContain('min-h-11');
+    expect(createNewBtn.className).toContain('border-t border-chatroom-border');
+    expect(createNewBtn.className).toContain('hover:bg-chatroom-bg-hover');
+    expect(createNewBtn.className).toContain('text-xs font-bold uppercase tracking-wider');
+    expect(createNewBtn.className).not.toContain('bg-chatroom-status-success');
+    expect(createNewBtn.className).not.toContain('min-h-11');
     expect(screen.queryByRole('option', { name: 'Create new' })).toBeNull();
   });
 

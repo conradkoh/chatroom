@@ -2,43 +2,30 @@
 
 import { StandingInstructionsCreateNewButton } from './StandingInstructionsCreateNewButton';
 import { StandingInstructionsPickerRow } from './StandingInstructionsPickerRow';
-import type { PickerListItem } from './standingInstructionsPickerUtils';
-import { PickerPanelHeader } from '../../../components/picker';
+import { isSyntheticCurrentItem, type PickerListItem } from './standingInstructionsPickerUtils';
 
 export function StandingInstructionsPickerContent({
   visible,
   activeId,
   selectedId,
-  hasMore,
   onSelect,
-  onViewMore,
   onCreateNew,
+  onEditItem,
+  onDeleteItem,
   mobile,
 }: {
   visible: PickerListItem[];
   activeId: string | null;
   selectedId: string | null;
-  hasMore: boolean;
   onSelect: (id: string) => void;
-  onViewMore: () => void;
   onCreateNew: () => void;
+  onEditItem: (item: PickerListItem) => void;
+  onDeleteItem: (item: PickerListItem) => void;
   mobile?: boolean;
 }) {
   return (
     <>
-      <PickerPanelHeader title="Standing instructions">
-        {hasMore ? (
-          <button
-            type="button"
-            onClick={onViewMore}
-            data-testid="standing-instructions-view-more"
-            className="text-[10px] font-bold uppercase tracking-wider text-chatroom-accent hover:opacity-80 cursor-pointer shrink-0"
-          >
-            View more
-          </button>
-        ) : null}
-      </PickerPanelHeader>
-      <ul className="flex w-full flex-col border border-chatroom-border divide-y divide-chatroom-border">
+      <ul className="flex w-full flex-col divide-y divide-chatroom-border">
         {visible.map((item) => (
           <li key={item.id}>
             <StandingInstructionsPickerRow
@@ -47,16 +34,15 @@ export function StandingInstructionsPickerContent({
               selected={item.id === selectedId}
               showActiveBadge={item.id === activeId}
               onSelect={() => onSelect(item.id)}
+              onEdit={() => onEditItem(item)}
+              onDelete={isSyntheticCurrentItem(item) ? undefined : () => onDeleteItem(item)}
+              mobile={mobile}
               className="rounded-none"
             />
           </li>
         ))}
       </ul>
-      <StandingInstructionsCreateNewButton
-        selected={false}
-        onSelect={onCreateNew}
-        mobile={mobile}
-      />
+      <StandingInstructionsCreateNewButton selected={false} onSelect={onCreateNew} />
     </>
   );
 }

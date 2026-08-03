@@ -3,7 +3,16 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { StandingInstructionsPicker } from './StandingInstructionsPicker';
+import type { PickerListItem } from './standingInstructionsPickerUtils';
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
+
+const mockToastError = vi.fn();
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: (...args: unknown[]) => mockToastError(...args),
+  },
+}));
 
 const mockUseIsDesktop = vi.fn(() => true);
 
@@ -49,11 +58,18 @@ function renderPicker(
     onConfirm: (payload: { content: string; title: string }) => void | Promise<void>;
     onEnable: () => void | Promise<void>;
     onDisable: () => void | Promise<void>;
+    onEditItem: (
+      item: PickerListItem,
+      payload: { content: string; title: string }
+    ) => void | Promise<void>;
+    onDeleteItem: (item: PickerListItem) => void | Promise<void>;
   }> = {}
 ) {
   const onConfirm = vi.fn();
   const onEnable = vi.fn();
   const onDisable = vi.fn();
+  const onEditItem = vi.fn();
+  const onDeleteItem = vi.fn();
 
   render(
     <StandingInstructionsPicker
@@ -67,10 +83,12 @@ function renderPicker(
       onConfirm={overrides.onConfirm ?? onConfirm}
       onEnable={overrides.onEnable ?? onEnable}
       onDisable={overrides.onDisable ?? onDisable}
+      onEditItem={overrides.onEditItem ?? onEditItem}
+      onDeleteItem={overrides.onDeleteItem ?? onDeleteItem}
     />
   );
 
-  return { onConfirm, onEnable, onDisable };
+  return { onConfirm, onEnable, onDisable, onEditItem, onDeleteItem };
 }
 
 describe('StandingInstructionsPicker', () => {
@@ -85,6 +103,36 @@ describe('StandingInstructionsPicker', () => {
     expect(screen.getByText('Type safety')).toBeInTheDocument();
     expect(screen.getByText('Async patterns')).toBeInTheDocument();
     expect(screen.getByText('Tests')).toBeInTheDocument();
+  });
+
+  it('shows visible dialog heading on desktop', () => {
+    renderPicker();
+    expect(screen.getByRole('heading', { name: 'Standing instructions' })).toBeInTheDocument();
+  });
+
+  it('shows View more in header when hasMore and opens history modal on click', async () => {
+    const user = userEvent.setup();
+    const fourItemHistory: StandingInstructionHistoryItem[] = [
+      ...history,
+      {
+        id: 'h4',
+        content: 'Fourth rule',
+        title: 'Fourth',
+        useCount: 1,
+        lastUsedAt: 2000,
+      },
+    ];
+    renderPicker({ history: fourItemHistory, isActive: true });
+
+    const viewMore = screen.getByTestId('standing-instructions-view-more');
+    expect(viewMore).toBeInTheDocument();
+    await user.click(viewMore);
+    expect(screen.getByText('Standing instruction history')).toBeInTheDocument();
+  });
+
+  it('does not show View more when hasMore is false', () => {
+    renderPicker({ history: [], isActive: true, storedContent: 'x', storedTitle: 'y' });
+    expect(screen.queryByTestId('standing-instructions-view-more')).not.toBeInTheDocument();
   });
 
   it('shows Update when active and a different item is selected', async () => {
@@ -112,6 +160,13 @@ describe('StandingInstructionsPicker', () => {
     const { onDisable } = renderPicker();
     await user.click(screen.getByText('Disable'));
     expect(onDisable).toHaveBeenCalledTimes(1);
+  });
+
+  it('Disable button uses destructive industrial styling', () => {
+    renderPicker();
+    const disableBtn = screen.getByText('Disable');
+    expect(disableBtn.className).toContain('bg-chatroom-status-error');
+    expect(disableBtn.className).toContain('text-white');
   });
 
   it('Apply uses display title for legacy empty-title history rows', async () => {
@@ -196,6 +251,8 @@ describe('StandingInstructionsPicker', () => {
         onConfirm={onConfirm}
         onEnable={vi.fn()}
         onDisable={vi.fn()}
+        onEditItem={vi.fn()}
+        onDeleteItem={vi.fn()}
       />
     );
 
@@ -206,5 +263,29 @@ describe('StandingInstructionsPicker', () => {
 
     expect(onConfirm).toHaveBeenCalledWith({ content: 'new rule', title: 'New title' });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('edit icon opens edit dialog', async () => {
+    const user = userEvent.setup();
+    renderPicker();
+    await user.click(screen.getAllByLabelText('Edit')[0]);
+    expect(screen.getByText('Edit standing instruction')).toBeInTheDocument();
+  });
+
+  it('delete icon opens confirm dialog', async () => {
+    const user = userEvent.setup();
+    renderPicker();
+    await user.click(screen.getAllByLabelText('Delete')[0]);
+    expect(screen.getByText('Delete standing instruction?')).toBeInTheDocument();
+  });
+
+  it('keeps edit modal open and shows toast when save fails', async () => {
+    const user = userEvent.setup();
+    const onEditItem = vi.fn().mockRejectedValue(new Error('CONFLICT: already exists'));
+    renderPicker({ onEditItem });
+    await user.click(screen.getAllByLabelText('Edit')[0]);
+    await user.click(screen.getByText('Confirm'));
+    expect(screen.getByText('Edit standing instruction')).toBeInTheDocument();
+    expect(mockToastError).toHaveBeenCalled();
   });
 });

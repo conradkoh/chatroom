@@ -15,11 +15,17 @@ export function StandingInstructionsHistoryModal({
   onOpenChange,
   history,
   onSelect,
+  onEditItem,
+  onDeleteItem,
+  mobile,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   history: StandingInstructionHistoryItem[];
   onSelect: (item: StandingInstructionHistoryItem) => void;
+  onEditItem: (item: StandingInstructionHistoryItem) => void;
+  onDeleteItem: (item: StandingInstructionHistoryItem) => void;
+  mobile?: boolean;
 }) {
   const { searchTerm, setSearchTerm } = usePickerSearchState(() => {});
   const filtered = filterPickerItems(history, searchTerm, (item) =>
@@ -44,6 +50,9 @@ export function StandingInstructionsHistoryModal({
                     title={item.title}
                     content={item.content}
                     onSelect={() => onSelect(item)}
+                    onEdit={() => onEditItem(item)}
+                    onDelete={() => onDeleteItem(item)}
+                    mobile={mobile}
                     className="rounded-none"
                   />
                 </li>

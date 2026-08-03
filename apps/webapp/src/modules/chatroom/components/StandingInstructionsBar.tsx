@@ -11,6 +11,11 @@ import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
 import { StandingInstructionsPicker } from '../features/standing-instructions/components';
+import {
+  findActiveHistoryMatch,
+  isSyntheticCurrentItem,
+  type PickerListItem,
+} from '../features/standing-instructions/components/standingInstructionsPickerUtils';
 
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 
@@ -57,6 +62,8 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
 
   const upsertMutation = useSessionMutation(api.standingInstructions.upsert);
   const setEnabledMutation = useSessionMutation(api.standingInstructions.setEnabled);
+  const updateHistoryMutation = useSessionMutation(api.standingInstructions.updateHistory);
+  const deleteHistoryMutation = useSessionMutation(api.standingInstructions.deleteHistory);
 
   const history = useSessionQuery(api.standingInstructions.listHistory, {}) ?? [];
 
@@ -92,6 +99,34 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const handleDisable = useCallback(async () => {
     await setEnabledMutation({ chatroomId, enabled: false });
   }, [chatroomId, setEnabledMutation]);
+
+  const handleEditItem = useCallback(
+    async (item: PickerListItem, payload: { content: string; title: string }) => {
+      if (isSyntheticCurrentItem(item)) {
+        await handleUpsert(payload);
+        return;
+      }
+      await updateHistoryMutation({
+        historyId: item.id as Id<'chatroom_standingInstructionHistory'>,
+        content: payload.content,
+        title: payload.title,
+      });
+      if (findActiveHistoryMatch(historyItems, storedContent) === item.id) {
+        await handleUpsert(payload);
+      }
+    },
+    [updateHistoryMutation, handleUpsert, historyItems, storedContent]
+  );
+
+  const handleDeleteItem = useCallback(
+    async (item: PickerListItem) => {
+      if (isSyntheticCurrentItem(item)) return;
+      await deleteHistoryMutation({
+        historyId: item.id as Id<'chatroom_standingInstructionHistory'>,
+      });
+    },
+    [deleteHistoryMutation]
+  );
 
   if (isLoading) {
     return (
@@ -132,6 +167,8 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       onConfirm={handleUpsert}
       onEnable={handleEnable}
       onDisable={handleDisable}
+      onEditItem={handleEditItem}
+      onDeleteItem={handleDeleteItem}
     />
   ) : null;
 
