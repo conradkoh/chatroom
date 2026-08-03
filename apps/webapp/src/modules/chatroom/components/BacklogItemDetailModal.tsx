@@ -73,7 +73,8 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
   useEffect(() => {
     if (isOpen && item && item._id !== initializedItemId) {
       setEditedContent(item.content);
-      setIsEditing(false);
+      // Backlog items open directly in the WYSIWYG editor; other statuses stay read-only.
+      setIsEditing(item.status === 'backlog');
       setInitializedItemId(item._id);
     } else if (!isOpen) {
       setInitializedItemId(null);
