@@ -14,6 +14,10 @@ import {
   getMobileDrawerContentStyle,
   MOBILE_DRAWER_CONTENT_CLASSNAME,
 } from '@/modules/chatroom/components/picker';
+import {
+  chatroomIndustrialButtonPrimaryClassName,
+  chatroomIndustrialButtonSecondaryClassName,
+} from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { useOverlayPortalContainer } from '@/modules/chatroom/components/shared/overlayPortalContainer';
 
 export function StandingInstructionsBarSection() {
@@ -126,14 +130,14 @@ export function StandingInstructionsBarSection() {
                 <button
                   type="button"
                   onClick={() => setEditOpen(false)}
-                  className="min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 bg-chatroom-accent text-chatroom-text-on-accent"
+                  className={`flex-1 ${chatroomIndustrialButtonPrimaryClassName}`}
                 >
                   Confirm
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditOpen(false)}
-                  className="min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 text-chatroom-text-muted border border-chatroom-border"
+                  className={`flex-1 ${chatroomIndustrialButtonSecondaryClassName}`}
                 >
                   Cancel
                 </button>

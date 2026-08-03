@@ -1,15 +1,17 @@
 'use client';
 
+import { chatroomIndustrialInputClassName } from '../../../components/shared/industrialDialogStyles';
+
+import { cn } from '@/lib/utils';
+
 export interface StandingInstructionsTitleInputProps {
   value: string;
   onChange: (value: string) => void;
-  mobile?: boolean;
 }
 
 export function StandingInstructionsTitleInput({
   value,
   onChange,
-  mobile,
 }: StandingInstructionsTitleInputProps) {
   return (
     <input
@@ -20,9 +22,7 @@ export function StandingInstructionsTitleInput({
       maxLength={120}
       required
       aria-required="true"
-      className={`w-full bg-chatroom-bg-primary border border-chatroom-border placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent ${
-        mobile ? 'px-3 py-2 text-sm' : 'px-2 py-1 text-xs'
-      }`}
+      className={cn('h-9 w-full px-3 text-sm', chatroomIndustrialInputClassName)}
     />
   );
 }

@@ -17,6 +17,11 @@ import {
   usePickerSearchState,
 } from '@/modules/chatroom/components/picker';
 import { MOBILE_DRAWER_CONTENT_CLASSNAME } from '@/modules/chatroom/components/picker/mobileDrawerLayout';
+import {
+  chatroomIndustrialButtonPrimaryClassName,
+  chatroomIndustrialButtonSecondaryClassName,
+  chatroomIndustrialDialogTitleClassName,
+} from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { useOverlayPortalContainer } from '@/modules/chatroom/components/shared/overlayPortalContainer';
 
 type HistoryItem = {
@@ -85,24 +90,19 @@ function HistorySelectionList(props: {
   );
 }
 
-function CreateNewButton(props: { selected: boolean; onSelect: () => void; mobile?: boolean }) {
-  const { selected, onSelect, mobile } = props;
-
-  const baseClasses =
-    'w-full flex items-center justify-center gap-2 font-bold uppercase tracking-wider border-0 transition-colors cursor-pointer';
-  const sizeClasses = mobile ? 'min-h-11 px-3 py-2 text-sm' : 'px-4 py-2 text-xs';
-  const stateClasses = selected
-    ? 'bg-chatroom-status-success/10 text-chatroom-accent'
-    : 'bg-chatroom-status-success/5 text-chatroom-text-primary hover:bg-chatroom-status-success/10';
+function CreateNewButton(props: { selected: boolean; onSelect: () => void }) {
+  const { selected, onSelect } = props;
 
   return (
     <button
       type="button"
       onClick={onSelect}
       data-testid="standing-instructions-harness-create-new"
-      className={`${baseClasses} ${sizeClasses} ${stateClasses}`}
+      className={`w-full flex items-center justify-center gap-2 border-t border-chatroom-border px-3 py-2 text-xs font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer ${
+        selected ? 'bg-chatroom-bg-hover' : ''
+      }`}
     >
-      <Plus size={mobile ? 14 : 12} className="shrink-0" aria-hidden="true" />
+      <Plus size={12} className="shrink-0" aria-hidden="true" />
       <span>Create new</span>
     </button>
   );
@@ -176,14 +176,14 @@ function AddingPanel(props: {
           type="button"
           onClick={onConfirm}
           disabled={confirmDisabled}
-          className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 bg-chatroom-accent text-chatroom-text-on-accent hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`${chatroomIndustrialButtonPrimaryClassName} disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           Confirm
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+          className={chatroomIndustrialButtonSecondaryClassName}
         >
           Cancel
         </button>
@@ -257,14 +257,14 @@ function EditingPanel(props: {
         <button
           type="button"
           onClick={onConfirm}
-          className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 bg-chatroom-accent text-chatroom-text-on-accent hover:opacity-80 transition-opacity"
+          className={chatroomIndustrialButtonPrimaryClassName}
         >
           Confirm
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+          className={chatroomIndustrialButtonSecondaryClassName}
         >
           Cancel
         </button>
@@ -317,14 +317,14 @@ function MobileEditingDrawer(props: {
             <button
               type="button"
               onClick={onConfirm}
-              className="min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 bg-chatroom-accent text-chatroom-text-on-accent hover:opacity-80 transition-opacity"
+              className={`flex-1 ${chatroomIndustrialButtonPrimaryClassName}`}
             >
               Confirm
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors border border-chatroom-border"
+              className={`flex-1 ${chatroomIndustrialButtonSecondaryClassName}`}
             >
               Cancel
             </button>
@@ -382,27 +382,26 @@ function MobileAddingDrawer(props: {
         <DrawerHeader className="p-0 shrink-0">
           <DrawerTitle className="sr-only">Add standing instructions</DrawerTitle>
         </DrawerHeader>
-        <PickerPanelHeader title="Standing Instructions">
+        <div className="flex items-center justify-between gap-2 px-4 pt-4 pb-2 border-b border-chatroom-border">
+          <span className={`${chatroomIndustrialDialogTitleClassName} min-w-0 leading-tight`}>
+            Standing instructions
+          </span>
           <button
             type="button"
             onClick={onViewMore}
             data-testid="standing-instructions-harness-view-more"
-            className="text-[10px] font-bold uppercase tracking-wider text-chatroom-accent hover:opacity-80 cursor-pointer shrink-0"
+            className="text-xs font-bold uppercase tracking-wider text-chatroom-accent hover:opacity-80 cursor-pointer shrink-0"
           >
             View more
           </button>
-        </PickerPanelHeader>
+        </div>
         <div className="flex flex-col gap-3 py-3">
           <HistorySelectionList
             items={historyTop3}
             selection={selection}
             onSelectHistory={onSelectHistory}
           />
-          <CreateNewButton
-            selected={selection === 'create-new'}
-            onSelect={onSelectCreateNew}
-            mobile
-          />
+          <CreateNewButton selected={selection === 'create-new'} onSelect={onSelectCreateNew} />
           {selection === 'create-new' ? (
             <textarea
               autoFocus
@@ -419,14 +418,14 @@ function MobileAddingDrawer(props: {
               type="button"
               onClick={onConfirm}
               disabled={confirmDisabled}
-              className="min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 bg-chatroom-accent text-chatroom-text-on-accent hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`flex-1 ${chatroomIndustrialButtonPrimaryClassName} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               Confirm
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors border border-chatroom-border"
+              className={`flex-1 ${chatroomIndustrialButtonSecondaryClassName}`}
             >
               Cancel
             </button>

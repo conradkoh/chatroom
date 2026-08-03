@@ -89,10 +89,10 @@ describe('StandingInstructionsCreateModal', () => {
     });
   });
 
-  it('Confirm button uses text-chatroom-text-on-accent not text-white', () => {
+  it('Confirm button uses industrial primary styling', () => {
     render(<StandingInstructionsCreateModal open onOpenChange={vi.fn()} onConfirm={vi.fn()} />);
     const confirmBtn = screen.getByText('Confirm');
-    expect(confirmBtn.className).toContain('text-chatroom-text-on-accent');
-    expect(confirmBtn.className).not.toContain('text-white');
+    expect(confirmBtn.className).toContain('bg-chatroom-accent');
+    expect(confirmBtn.className).toContain('text-chatroom-bg-primary');
   });
 });
