@@ -6,6 +6,7 @@ describe('renderEnhancerSystemPrompt', () => {
   const params = {
     chatroomId: 'room-abc',
     jobId: 'job-123',
+    cliEnvPrefix: '',
   };
 
   it('contains CHATROOM_ENHANCER_END delimiter', () => {
@@ -68,5 +69,14 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).not.toContain('<ux-reference>');
     expect(result).not.toContain('abstract bullets');
     expect(result).not.toContain('stay abstract');
+  });
+
+  it('includes message history download guidance', () => {
+    const result = renderEnhancerSystemPrompt(params);
+    expect(result).toContain('## Message history');
+    expect(result).toContain('messages download');
+    expect(result).toContain('--role="enhancer"');
+    expect(result).toContain('--chatroom-id="room-abc"');
+    expect(result).toContain('Do not rely solely');
   });
 });

@@ -45,6 +45,18 @@ export const TIMELINE_FEED_SCROLL_EXTRAS = 'overflow-x-auto [overflow-anchor:non
 export const BADGE_BASE =
   'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5';
 
+/**
+ * Sticky-header message navigation (All tab): jump to the top of the previous,
+ * current, or next message row. `hasPrevious`/`hasNext` drive disabled state.
+ */
+export type TimelineMessageHeaderNavigation = {
+  onJumpToPrevious: () => void;
+  onJumpToCurrent: () => void;
+  onJumpToNext: () => void;
+  hasPrevious: boolean;
+  hasNext: boolean;
+};
+
 export const ICON_SIZE = 10;
 
 export function getSenderClasses(role: string): string {

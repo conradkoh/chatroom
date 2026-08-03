@@ -34,7 +34,7 @@ import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocompl
 
 import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+import { useMainChatComposerKeyboardInset } from '@/hooks/useMobileKeyboard';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -157,7 +157,7 @@ export function MessageInput({
   const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
   const isDesktop = useIsDesktop(640);
   const mobile = !isDesktop;
-  const keyboardInsetPx = useVisualViewportKeyboardInset(mobile);
+  const keyboardInsetPx = useMainChatComposerKeyboardInset(mobile);
 
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -432,6 +432,7 @@ export function MessageInput({
   return (
     <div
       ref={formContainerRef}
+      data-main-chat-composer
       className="relative bg-chatroom-bg-surface backdrop-blur-xl"
       style={getMobileStickyFooterOffsetStyle(keyboardInsetPx)}
     >

@@ -5,7 +5,7 @@ import { Star } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 
-import { COMMAND_DIALOG_CONTENT_CLASSES } from './shared/commandDialogStyles';
+import { CommandDialogContent } from './shared/CommandDialogContent';
 
 import {
   Command,
@@ -17,13 +17,12 @@ import {
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
-import { useCommandListScrollReset } from '@/modules/chatroom/hooks/useCommandListScrollReset';
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
-import { cn } from '@/lib/utils';
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
 import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
+import { useCommandListScrollReset } from '@/modules/chatroom/hooks/useCommandListScrollReset';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import { getChatStatusIndicatorClasses } from '@/modules/chatroom/utils/chatStatusDisplay';
 import { sortChatroomsWithCurrentFirst } from '@/modules/chatroom/utils/sortChatroomsWithCurrentFirst';
@@ -131,11 +130,7 @@ export function ChatroomSwitcher() {
     <Dialog open={open} onOpenChange={setOpen} modal={false}>
       <DialogPortal>
         {/* No overlay — cmd+k is a quick-picker, not a blocking modal. Avoids backdrop fade lag. */}
-        <DialogPrimitive.Content
-          forceMount
-          onEscapeKeyDown={onEscapeKeyDown}
-          className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
-        >
+        <CommandDialogContent open={open} onEscapeKeyDown={onEscapeKeyDown}>
           {/* Accessible title and description (sr-only) */}
           <DialogPrimitive.Title className="sr-only">Switch Chatroom</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">
@@ -174,7 +169,7 @@ export function ChatroomSwitcher() {
               </CommandList>
             </div>
           </Command>
-        </DialogPrimitive.Content>
+        </CommandDialogContent>
       </DialogPortal>
     </Dialog>
   );

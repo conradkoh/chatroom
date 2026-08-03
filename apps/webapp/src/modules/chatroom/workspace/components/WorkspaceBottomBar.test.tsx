@@ -1,17 +1,16 @@
-import { act, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   WorkspaceBottomBarShell,
   getWorkspaceBottomBarPaddingBottom,
   shouldSuppressWorkspaceBottomBarSafeArea,
-  WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS,
   WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX,
 } from './WorkspaceBottomBar';
 
 const mockUseIsDesktop = vi.fn();
 const mockUseKeyboardInset = vi.fn();
-const mockUseEditableFocused = vi.fn();
+const mockUseMainChatComposerFocused = vi.fn();
 
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => mockUseIsDesktop(),
@@ -21,8 +20,13 @@ vi.mock('@/hooks/useMobileKeyboard', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...(actual as Record<string, unknown>),
-    useVisualViewportKeyboardInset: (enabled?: boolean) => (enabled ? mockUseKeyboardInset() : 0),
-    useEditableElementFocused: (enabled?: boolean) => (enabled ? mockUseEditableFocused() : false),
+    useMainChatComposerKeyboardInset: (enabled?: boolean) => {
+      if (!enabled) return 0;
+      // Mirrors production: composer-gated — inset only reaches the footer when focused.
+      return mockUseMainChatComposerFocused() ? mockUseKeyboardInset() : 0;
+    },
+    useMainChatComposerFocused: (enabled?: boolean) =>
+      enabled ? mockUseMainChatComposerFocused() : false,
   };
 });
 
@@ -73,7 +77,7 @@ describe('WorkspaceBottomBarShell', () => {
     vi.useRealTimers();
     mockUseIsDesktop.mockReturnValue(false);
     mockUseKeyboardInset.mockReturnValue(0);
-    mockUseEditableFocused.mockReturnValue(false);
+    mockUseMainChatComposerFocused.mockReturnValue(false);
   });
 
   it('uses opaque primary background instead of translucent surface', () => {
@@ -107,24 +111,33 @@ describe('WorkspaceBottomBarShell', () => {
     expect(inner.className).toContain('min-h-[32px]');
   });
 
-  it('suppresses safe-area when keyboard inset is non-zero', () => {
-    vi.useFakeTimers();
+  it('does not lift the footer when keyboard inset is non-zero but main composer is not focused', () => {
     mockUseKeyboardInset.mockReturnValue(300);
     render(
       <WorkspaceBottomBarShell>
         <span>content</span>
       </WorkspaceBottomBarShell>
     );
-    act(() => {
-      vi.advanceTimersByTime(WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS);
-    });
     const outer = screen.getByTestId('workspace-bottom-bar');
-    expect(outer.style.paddingBottom).toBe('0px');
-    vi.useRealTimers();
+    expect(outer.style.transform).toBe('');
+    expect(outer.style.paddingBottom).toBe('');
   });
 
-  it('suppresses safe-area when editable element is focused (iOS fallback)', () => {
-    mockUseEditableFocused.mockReturnValue(true);
+  it('lifts the footer and suppresses safe-area when main composer is focused with keyboard inset', () => {
+    mockUseKeyboardInset.mockReturnValue(300);
+    mockUseMainChatComposerFocused.mockReturnValue(true);
+    render(
+      <WorkspaceBottomBarShell>
+        <span>content</span>
+      </WorkspaceBottomBarShell>
+    );
+    const outer = screen.getByTestId('workspace-bottom-bar');
+    expect(outer.style.transform).toContain('translateY');
+    expect(outer.style.paddingBottom).toBe('0px');
+  });
+
+  it('suppresses safe-area when main composer is focused (iOS fallback)', () => {
+    mockUseMainChatComposerFocused.mockReturnValue(true);
     render(
       <WorkspaceBottomBarShell>
         <span>content</span>
@@ -134,9 +147,9 @@ describe('WorkspaceBottomBarShell', () => {
     expect(outer.style.paddingBottom).toBe('0px');
   });
 
-  it('keeps safe-area on desktop even when editable focused', () => {
+  it('keeps safe-area on desktop even when main composer is focused', () => {
     mockUseIsDesktop.mockReturnValue(true);
-    mockUseEditableFocused.mockReturnValue(true);
+    mockUseMainChatComposerFocused.mockReturnValue(true);
     render(
       <WorkspaceBottomBarShell>
         <span>content</span>
@@ -159,17 +172,10 @@ describe('WorkspaceBottomBarShell', () => {
     expect(outer.style.paddingBottom).toBe('');
   });
 
-  describe('inset settle', () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it('does not suppress large inset until settle timeout elapses', () => {
+  describe('main composer focus', () => {
+    it('suppresses safe-area immediately when main composer is focused even before settle', () => {
       mockUseKeyboardInset.mockReturnValue(300);
+      mockUseMainChatComposerFocused.mockReturnValue(true);
       render(
         <WorkspaceBottomBarShell>
           <span>content</span>
@@ -177,29 +183,7 @@ describe('WorkspaceBottomBarShell', () => {
       );
 
       const outer = screen.getByTestId('workspace-bottom-bar');
-      // Before settle: not suppressed (JSDOM returns empty for env())
-      expect(outer.style.paddingBottom).toBe('');
-
-      // Advance past settle timeout
-      act(() => {
-        vi.advanceTimersByTime(WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS);
-      });
-
-      // After settle: suppressed (0px)
-      expect(outer.style.paddingBottom).toBe('0px');
-    });
-
-    it('suppresses immediately when editable focused before settle', () => {
-      mockUseKeyboardInset.mockReturnValue(300);
-      mockUseEditableFocused.mockReturnValue(true);
-      render(
-        <WorkspaceBottomBarShell>
-          <span>content</span>
-        </WorkspaceBottomBarShell>
-      );
-
-      const outer = screen.getByTestId('workspace-bottom-bar');
-      // editableFocused takes effect immediately even before settle
+      // composer focus suppresses right away — no 300ms settle wait needed
       expect(outer.style.paddingBottom).toBe('0px');
     });
   });

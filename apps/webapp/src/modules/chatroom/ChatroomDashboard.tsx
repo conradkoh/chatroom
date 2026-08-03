@@ -775,7 +775,7 @@ export function ChatroomDashboard({
     onCloseTab: fileTabs.closeTab,
   });
 
-  const { activeDialog, openDialog } = useCommandDialog();
+  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
@@ -1583,9 +1583,10 @@ export function ChatroomDashboard({
   inlineCommandRef.current = inlineCommand;
   useEffect(() => {
     return () => {
+      closeDialog();
       inlineCommandRef.current.detach();
     };
-  }, [chatroomId]);
+  }, [chatroomId, closeDialog]);
 
   // Handler to open Processes panel from command palette
   const handleOpenProcessesPanel = useCallback(() => {

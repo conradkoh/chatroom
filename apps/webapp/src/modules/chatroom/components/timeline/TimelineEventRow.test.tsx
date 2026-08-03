@@ -97,4 +97,34 @@ describe('TimelineEventRow', () => {
     const row = screen.getByTestId('timeline-team-message');
     expect(row).toHaveClass(...TIMELINE_ROW_ROOT.split(' '));
   });
+
+  it('renders nav cluster on team handoff header when headerNavigation is provided', () => {
+    const event = mapMessageToTimelineEvent(
+      makeMessage({ type: 'handoff', senderRole: 'planner', targetRole: 'user', content: 'Done' })
+    );
+    renderRow(
+      <TimelineEventRow
+        event={event}
+        chatroomId={TEST_CHATROOM_ID}
+        headerNavigation={{
+          onJumpToPrevious: vi.fn(),
+          onJumpToCurrent: vi.fn(),
+          onJumpToNext: vi.fn(),
+          hasPrevious: true,
+          hasNext: false,
+        }}
+      />
+    );
+    expect(screen.getByTestId('timeline-message-header-nav')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-header-nav-previous')).not.toBeDisabled();
+    expect(screen.getByTestId('timeline-header-nav-next')).toBeDisabled();
+  });
+
+  it('does not render nav cluster when headerNavigation is omitted', () => {
+    const event = mapMessageToTimelineEvent(
+      makeMessage({ senderRole: 'planner', content: 'No nav' })
+    );
+    renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
+    expect(screen.queryByTestId('timeline-message-header-nav')).toBeNull();
+  });
 });

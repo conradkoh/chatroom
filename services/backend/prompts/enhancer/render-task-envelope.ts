@@ -29,6 +29,7 @@ export function renderEnhancerTaskEnvelope(params: RenderEnhancerTaskEnvelopePar
     '- Single-turn only. No subagents.',
     "- Read files and use tools as needed to understand the problem and validate the planner's proposal against the codebase.",
     '- Start from <handoff-templates>, <references>, and <planner-check-in>; supplement with targeted repo investigation when grounding is thin or claims need verification.',
+    '- When validating user intent, download chatroom message history first (see **Message history** in your system prompt) — treat actual user messages as authoritative over planner paraphrase.',
     '- Critique the planner check-in (`<user-message>`, `<grounding>`, draft `<builder-handoff>`): user-intent assessment, knowledge gaps, reasoning errors, and delegation quality.',
     '- Output must follow the **Handoff to `planner`** section in <handoff-templates> (planning feedback, not a builder delegation brief).',
     '- Use `<handoff-template for="planner->builder">` and `<handoff-template for="planner->user">` in <references> to assess alignment with downstream delivery principles.',
