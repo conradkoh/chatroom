@@ -185,7 +185,7 @@ export function useTriggerAutocomplete<T = unknown>(
         // Calculate position from caret if available, otherwise use default
         const caretPos = options?.getCaretPosition?.();
         if (caretPos) {
-          setPosition({ top: caretPos.height + 4, left: caretPos.left });
+          setPosition({ top: caretPos.top, left: caretPos.left });
         } else {
           setPosition({ top: 4, left: 0 });
         }

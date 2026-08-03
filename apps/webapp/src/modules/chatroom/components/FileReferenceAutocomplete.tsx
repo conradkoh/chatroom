@@ -1,11 +1,14 @@
 'use client';
 
 import { memo, useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 
 import { FileTypeIcon } from './FileSelector/fileIcons';
 import type { FileEntry } from './FileSelector/useFileSelector';
+import { chatroomPortaledMenuFloatingClassName } from './shared/industrialDialogStyles';
 
 import { getFileName, getParentDir } from '@/lib/pathUtils';
+import { cn } from '@/lib/utils';
 import { decodeWorkspaceId, getWorkspaceDisplayName } from '@/lib/workspaceIdentifier';
 import type { FileReferenceDropdownPlacement } from '@/modules/chatroom/hooks/useFileReferenceAutocomplete';
 
@@ -14,7 +17,7 @@ interface FileReferenceAutocompleteProps {
   results: FileEntry[];
   /** Currently highlighted item index */
   selectedIndex: number;
-  /** Position of the dropdown (relative to the anchor) */
+  /** Viewport coordinates for `position: fixed` placement (via portal to body) */
   position: { top: number; left: number } | null;
   /** Called when a file is selected (via mouse click) */
   onSelect: (filePath: string) => void;
@@ -22,7 +25,7 @@ interface FileReferenceAutocompleteProps {
   onHoverItem: (index: number) => void;
   /** Whether the autocomplete is visible */
   visible: boolean;
-  /** `above` anchors with `bottom`; `below` anchors with `top`. */
+  /** `above` translates the panel up so its bottom edge sits at the caret; `below` drops it under the caret. */
   placement?: FileReferenceDropdownPlacement;
 }
 
@@ -35,10 +38,11 @@ function autocompleteDropdownStyle(
   placement: FileReferenceDropdownPlacement,
   position: { top: number; left: number }
 ): CSSProperties {
-  if (placement === 'below') {
-    return { top: position.top, left: position.left };
-  }
-  return { bottom: position.top, left: position.left };
+  return {
+    top: position.top,
+    left: position.left,
+    ...(placement === 'above' ? { transform: 'translateY(-100%)' } : {}),
+  };
 }
 
 /**
@@ -66,6 +70,7 @@ function resolveWorkspaceLabels(results: FileEntry[]): Map<string, string> {
   return labels;
 }
 
+// fallow-ignore-next-line complexity
 export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete({
   results,
   selectedIndex,
@@ -107,15 +112,18 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
     return null;
   }
 
-  return (
+  const dropdown = (
     <div
       ref={containerRef}
-      className="absolute z-50 w-[400px] max-w-[90vw] border-2 border-chatroom-border bg-chatroom-bg-primary shadow-lg overflow-hidden"
+      className={cn(
+        'fixed w-[400px] max-w-[90vw] overflow-hidden',
+        chatroomPortaledMenuFloatingClassName
+      )}
       style={autocompleteDropdownStyle(placement, position)}
     >
       <div
         ref={listRef}
-        className="overflow-y-auto"
+        className="overflow-y-auto bg-chatroom-bg-primary"
         style={{ maxHeight: `${MAX_VISIBLE_ITEMS * 32}px` }}
       >
         {results.map((file, index) => {
@@ -136,9 +144,12 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
                 lastMousePosRef.current = { x: e.clientX, y: e.clientY };
                 onHoverItem(index);
               }}
-              className={`flex items-center gap-2 px-3 py-1 min-h-[32px] cursor-pointer text-chatroom-text-primary ${
-                index === selectedIndex ? 'bg-chatroom-bg-hover' : 'hover:bg-chatroom-bg-hover/50'
-              }`}
+              className={cn(
+                'flex items-center gap-2 px-3 py-1 min-h-[32px] cursor-pointer text-chatroom-text-primary',
+                index === selectedIndex
+                  ? 'bg-chatroom-bg-hover'
+                  : 'bg-chatroom-bg-primary hover:bg-chatroom-bg-hover'
+              )}
             >
               <FileTypeIcon
                 path={file.path}
@@ -162,4 +173,7 @@ export const FileReferenceAutocomplete = memo(function FileReferenceAutocomplete
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(dropdown, document.body);
 });

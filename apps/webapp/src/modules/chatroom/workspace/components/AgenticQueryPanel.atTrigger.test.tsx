@@ -181,8 +181,10 @@ describe('AgenticQueryPanel @ trigger', () => {
       const dropdown = document.querySelector('[data-autocomplete-item]')?.parentElement
         ?.parentElement;
       expect(dropdown).toBeTruthy();
-      expect(dropdown?.style.bottom).not.toBe('');
-      expect(dropdown?.style.top).toBe('');
+      expect(dropdown?.className).toContain('fixed');
+      expect(dropdown?.style.top).not.toBe('');
+      expect(dropdown?.style.bottom).toBe('');
+      expect(dropdown?.style.transform).toContain('translateY(-100%)');
     });
   });
 });
