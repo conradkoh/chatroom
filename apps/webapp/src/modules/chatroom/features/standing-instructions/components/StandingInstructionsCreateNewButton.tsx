@@ -19,7 +19,7 @@ export function StandingInstructionsCreateNewButton({
       onClick={onSelect}
       data-testid="standing-instructions-create-new"
       className={cn(
-        'w-full flex items-center justify-center gap-2 border-t border-chatroom-border px-3 py-2',
+        'w-full flex items-center justify-center gap-2 px-3 py-2',
         'text-xs font-bold uppercase tracking-wider text-chatroom-text-primary',
         'hover:bg-chatroom-bg-hover transition-colors cursor-pointer',
         selected && 'bg-chatroom-bg-hover'

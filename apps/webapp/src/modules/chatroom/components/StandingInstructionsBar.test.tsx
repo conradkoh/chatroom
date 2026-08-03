@@ -414,7 +414,7 @@ describe('StandingInstructionsBar', () => {
 
     const createNewBtn = screen.getByTestId('standing-instructions-create-new');
     expect(createNewBtn.className).toContain('justify-center');
-    expect(createNewBtn.className).toContain('border-t border-chatroom-border');
+    expect(createNewBtn.className).not.toContain('border-t');
     expect(createNewBtn.className).toContain('hover:bg-chatroom-bg-hover');
     expect(createNewBtn.className).toContain('text-xs font-bold uppercase tracking-wider');
     expect(createNewBtn.className).not.toContain('bg-chatroom-status-success');
