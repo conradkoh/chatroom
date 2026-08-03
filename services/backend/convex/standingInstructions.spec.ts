@@ -155,3 +155,153 @@ describe('standing instructions title', () => {
     expect(result.title).toBe('Tests first');
   });
 });
+
+describe('updateHistory and deleteHistory', () => {
+  test('updateHistory trims title and content and persists', async () => {
+    const { sessionId } = await createTestSession('si-update-history');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.standingInstructions.upsert, {
+      sessionId,
+      chatroomId,
+      content: 'Always use TypeScript',
+      title: 'Type safety',
+    });
+
+    const history = await t.query(api.standingInstructions.listHistory, { sessionId });
+
+    await t.mutation(api.standingInstructions.updateHistory, {
+      sessionId,
+      historyId: history[0]!._id,
+      content: '  updated content  ',
+      title: '  Updated Title  ',
+    });
+
+    const updated = await t.query(api.standingInstructions.listHistory, { sessionId });
+    expect(updated[0]!.content).toBe('updated content');
+    expect(updated[0]!.title).toBe('Updated Title');
+  });
+
+  test('updateHistory throws TITLE_REQUIRED on empty title', async () => {
+    const { sessionId } = await createTestSession('si-update-title-required');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.standingInstructions.upsert, {
+      sessionId,
+      chatroomId,
+      content: 'Rule one',
+      title: 'Rule one',
+    });
+
+    const history = await t.query(api.standingInstructions.listHistory, { sessionId });
+
+    await expect(
+      t.mutation(api.standingInstructions.updateHistory, {
+        sessionId,
+        historyId: history[0]!._id,
+        content: 'Rule one',
+        title: '',
+      })
+    ).rejects.toThrow(/TITLE_REQUIRED/i);
+  });
+
+  test('updateHistory throws CONTENT_EMPTY on empty content', async () => {
+    const { sessionId } = await createTestSession('si-update-content-empty');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.standingInstructions.upsert, {
+      sessionId,
+      chatroomId,
+      content: 'Rule one',
+      title: 'Rule one',
+    });
+
+    const history = await t.query(api.standingInstructions.listHistory, { sessionId });
+
+    await expect(
+      t.mutation(api.standingInstructions.updateHistory, {
+        sessionId,
+        historyId: history[0]!._id,
+        content: '   ',
+        title: 'Rule one',
+      })
+    ).rejects.toThrow(/CONTENT_EMPTY/i);
+  });
+
+  test('updateHistory throws CONFLICT when contentKey matches another row', async () => {
+    const { sessionId } = await createTestSession('si-update-conflict');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.standingInstructions.upsert, {
+      sessionId,
+      chatroomId,
+      content: 'First rule',
+      title: 'First',
+    });
+    await t.mutation(api.standingInstructions.upsert, {
+      sessionId,
+      chatroomId,
+      content: 'Second rule',
+      title: 'Second',
+    });
+
+    const history = await t.query(api.standingInstructions.listHistory, { sessionId });
+    const second = history.find((row) => row.content === 'Second rule');
+
+    await expect(
+      t.mutation(api.standingInstructions.updateHistory, {
+        sessionId,
+        historyId: second!._id,
+        content: 'First rule',
+        title: 'First copy',
+      })
+    ).rejects.toThrow(/CONFLICT/i);
+  });
+
+  test('deleteHistory removes row and listHistory reflects deletion', async () => {
+    const { sessionId } = await createTestSession('si-delete-history');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.standingInstructions.upsert, {
+      sessionId,
+      chatroomId,
+      content: 'Delete me',
+      title: 'Delete me',
+    });
+
+    const history = await t.query(api.standingInstructions.listHistory, { sessionId });
+    expect(history).toHaveLength(1);
+
+    await t.mutation(api.standingInstructions.deleteHistory, {
+      sessionId,
+      historyId: history[0]!._id,
+    });
+
+    const after = await t.query(api.standingInstructions.listHistory, { sessionId });
+    expect(after).toHaveLength(0);
+  });
+
+  test('deleteHistory throws NOT_FOUND for wrong user', async () => {
+    const owner = await createTestSession('si-delete-owner');
+    const other = await createTestSession('si-delete-other');
+    const chatroomId = await createChatroom(owner.sessionId);
+
+    await t.mutation(api.standingInstructions.upsert, {
+      sessionId: owner.sessionId,
+      chatroomId,
+      content: 'Owner rule',
+      title: 'Owner rule',
+    });
+
+    const history = await t.query(api.standingInstructions.listHistory, {
+      sessionId: owner.sessionId,
+    });
+
+    await expect(
+      t.mutation(api.standingInstructions.deleteHistory, {
+        sessionId: other.sessionId,
+        historyId: history[0]!._id,
+      })
+    ).rejects.toThrow(/NOT_FOUND/i);
+  });
+});

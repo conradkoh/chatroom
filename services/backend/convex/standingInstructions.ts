@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
@@ -56,6 +56,18 @@ async function recordStandingInstructionHistory(
     lastUsedAt: now,
     createdAt: now,
   });
+}
+
+async function requireOwnedHistoryRow(
+  ctx: MutationCtx,
+  historyId: Id<'chatroom_standingInstructionHistory'>,
+  userId: Id<'users'>
+): Promise<Doc<'chatroom_standingInstructionHistory'>> {
+  const row = await ctx.db.get('chatroom_standingInstructionHistory', historyId);
+  if (!row || row.userId !== userId) {
+    throw new ConvexError({ code: 'NOT_FOUND', message: 'History item not found' });
+  }
+  return row;
 }
 
 // ─── Public queries ───────────────────────────────────────────────────────
@@ -151,16 +163,80 @@ export const recordUse = mutation({
   },
   handler: async (ctx, args) => {
     const { userId } = await requireSession(ctx, args.sessionId);
-    const row = await ctx.db.get('chatroom_standingInstructionHistory', args.historyId);
-    if (!row || row.userId !== userId) {
-      throw new ConvexError({ code: 'NOT_FOUND', message: 'History item not found' });
-    }
+    const row = await requireOwnedHistoryRow(ctx, args.historyId, userId);
     const now = Date.now();
     await ctx.db.patch('chatroom_standingInstructionHistory', row._id, {
       useCount: row.useCount + 1,
       lastUsedAt: now,
     });
     return { content: row.content, title: row.title ?? '' };
+  },
+});
+
+export const updateHistory = mutation({
+  args: {
+    ...SessionIdArg,
+    historyId: v.id('chatroom_standingInstructionHistory'),
+    content: v.string(),
+    title: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { userId } = await requireSession(ctx, args.sessionId);
+    await requireOwnedHistoryRow(ctx, args.historyId, userId);
+    const trimmed = normalizeStandingInstructionContent(args.content);
+    if (!trimmed) {
+      throw new ConvexError({
+        code: 'CONTENT_EMPTY',
+        message: 'Standing instruction content cannot be empty',
+      });
+    }
+    if (trimmed.length > MAX_CONTENT_LENGTH) {
+      throw new ConvexError({
+        code: 'CONTENT_TOO_LONG',
+        message: `Standing instructions must be ${MAX_CONTENT_LENGTH} characters or less`,
+      });
+    }
+    const trimmedTitle = args.title.trim();
+    if (!trimmedTitle) {
+      throw new ConvexError({
+        code: 'TITLE_REQUIRED',
+        message: 'A title is required for standing instructions',
+      });
+    }
+    if (trimmedTitle.length > MAX_TITLE_LENGTH) {
+      throw new ConvexError({
+        code: 'TITLE_TOO_LONG',
+        message: `Standing instruction title must be ${MAX_TITLE_LENGTH} characters or less`,
+      });
+    }
+    const contentKey = standingInstructionContentKey(trimmed);
+    const conflict = await ctx.db
+      .query('chatroom_standingInstructionHistory')
+      .withIndex('by_userId_contentKey', (q) => q.eq('userId', userId).eq('contentKey', contentKey))
+      .first();
+    if (conflict && conflict._id !== args.historyId) {
+      throw new ConvexError({
+        code: 'CONFLICT',
+        message: 'Another standing instruction with this content already exists',
+      });
+    }
+    await ctx.db.patch('chatroom_standingInstructionHistory', args.historyId, {
+      content: trimmed,
+      contentKey,
+      title: trimmedTitle,
+    });
+  },
+});
+
+export const deleteHistory = mutation({
+  args: {
+    ...SessionIdArg,
+    historyId: v.id('chatroom_standingInstructionHistory'),
+  },
+  handler: async (ctx, args) => {
+    const { userId } = await requireSession(ctx, args.sessionId);
+    await requireOwnedHistoryRow(ctx, args.historyId, userId);
+    await ctx.db.delete('chatroom_standingInstructionHistory', args.historyId);
   },
 });
 
