@@ -232,6 +232,7 @@ interface ExplorerEditorTabContentProps {
   onAtTriggerActivate: () => void;
   agenticFocusToken: number;
   onAgenticMetaChange: (meta: { title: string; mode: AgenticQueryMode }) => void;
+  onAgenticUnavailable: (queryId: string) => void;
   onOpenPreview: (filePath: string) => void;
   onOpenTableView: (filePath: string) => void;
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
@@ -257,6 +258,7 @@ function areExplorerEditorTabContentPropsEqual(
     prev.onAtTriggerActivate === next.onAtTriggerActivate &&
     prev.agenticFocusToken === next.agenticFocusToken &&
     prev.onAgenticMetaChange === next.onAgenticMetaChange &&
+    prev.onAgenticUnavailable === next.onAgenticUnavailable &&
     prev.onOpenPreview === next.onOpenPreview &&
     prev.onOpenTableView === next.onOpenTableView &&
     prev.onSendSelectionToComposer === next.onSendSelectionToComposer &&
@@ -276,6 +278,7 @@ const ExplorerEditorTabContent = memo(function ExplorerEditorTabContent({
   onAtTriggerActivate,
   agenticFocusToken,
   onAgenticMetaChange,
+  onAgenticUnavailable,
   onOpenPreview,
   onOpenTableView,
   onSendSelectionToComposer,
@@ -293,6 +296,7 @@ const ExplorerEditorTabContent = memo(function ExplorerEditorTabContent({
         onAtTriggerActivate={onAtTriggerActivate}
         focusToken={agenticFocusToken}
         onMetaChange={onAgenticMetaChange}
+        onUnavailable={() => onAgenticUnavailable(tab.queryId)}
       />
     );
   }
@@ -473,6 +477,13 @@ const ExplorerContent = memo(function ExplorerContent({
     [activeAgenticQueryId, fileTabs]
   );
 
+  const handleAgenticUnavailable = useCallback(
+    (queryId: string) => {
+      fileTabs.closeAgenticQueryTab(queryId);
+    },
+    [fileTabs]
+  );
+
   const secondaryTabKeySet = useMemo(() => new Set(secondaryTabKeys), [secondaryTabKeys]);
   const secondaryTabs = useMemo(
     () =>
@@ -520,6 +531,7 @@ const ExplorerContent = memo(function ExplorerContent({
     onAtTriggerActivate,
     agenticFocusToken,
     onAgenticMetaChange: handleAgenticMetaChange,
+    onAgenticUnavailable: handleAgenticUnavailable,
     onOpenPreview,
     onOpenTableView,
     onSendSelectionToComposer,

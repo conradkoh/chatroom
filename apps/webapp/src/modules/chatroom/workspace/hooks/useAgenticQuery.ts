@@ -37,8 +37,14 @@ export function useAgenticQuery(queryId: string) {
   const submitMutation = useSessionMutation(api.web.agenticQuery.mutations.submit);
   const submitFollowUpMutation = useSessionMutation(api.web.agenticQuery.mutations.submitFollowUp);
 
+  const isNotFound = data === null;
+  const isLoading = data === undefined;
+
   const submit = useCallback(
     async (message: string, selection: AgenticQueryHarnessSelection) => {
+      if (isNotFound) {
+        throw new Error('This search session is no longer available.');
+      }
       const harnessArgs = {
         harnessName: selection.harnessName,
         model: selection.model,
@@ -56,7 +62,7 @@ export function useAgenticQuery(queryId: string) {
         ...harnessArgs,
       });
     },
-    [data?.query.status, queryId, submitFollowUpMutation, submitMutation]
+    [data?.query.status, isNotFound, queryId, submitFollowUpMutation, submitMutation]
   );
 
   const isRunning = data?.query.status === 'running';
@@ -71,7 +77,8 @@ export function useAgenticQuery(queryId: string) {
     () => ({
       query: data?.query as AgenticQueryData | undefined,
       turns: (data?.turns ?? []) as AgenticQueryTurn[],
-      isLoading: data === undefined,
+      isLoading,
+      isNotFound,
       isRunning,
       isDraft,
       canFollowUp,
@@ -79,6 +86,6 @@ export function useAgenticQuery(queryId: string) {
       activeRunId,
       submit,
     }),
-    [activeRunId, canFollowUp, canSubmit, data, isDraft, isRunning, submit]
+    [activeRunId, canFollowUp, canSubmit, data, isDraft, isLoading, isNotFound, isRunning, submit]
   );
 }

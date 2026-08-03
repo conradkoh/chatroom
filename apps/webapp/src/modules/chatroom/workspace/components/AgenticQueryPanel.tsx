@@ -24,10 +24,11 @@ import {
   chatroomIndustrialButtonSecondaryClassName,
 } from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { TimelineMarkdownBody } from '@/modules/chatroom/components/timeline/TimelineMarkdownBody';
-import { ThinkingBlock } from '@/modules/chatroom/direct-harness/components/ThinkingBlock';
 import { JUMP_TO_NEW_MESSAGES_GAP_PX } from '@/modules/chatroom/components/timeline/timelineVirtualizerConfig';
-import { useScrollController } from '@/modules/chatroom/hooks/useScrollController';
+import { ThinkingBlock } from '@/modules/chatroom/direct-harness/components/ThinkingBlock';
 import { useFileReferenceAutocomplete } from '@/modules/chatroom/hooks/useFileReferenceAutocomplete';
+import { useScrollController } from '@/modules/chatroom/hooks/useScrollController';
+import type { ScrollController } from '@/modules/chatroom/hooks/useScrollController';
 
 export interface AgenticQueryPanelProps {
   queryId: string;
@@ -40,6 +41,7 @@ export interface AgenticQueryPanelProps {
   onAtTriggerActivate?: () => void;
   onMetaChange?: (meta: { title: string; mode: AgenticQueryMode }) => void;
   focusToken?: number;
+  onUnavailable?: () => void;
 }
 
 type AgenticTurn = {
@@ -128,9 +130,7 @@ function AgenticQueryStreamScrollSync({
   feedRef,
 }: {
   runId: Id<'chatroom_agenticQueryRuns'>;
-  controller: React.MutableRefObject<
-    import('@/modules/chatroom/hooks/useScrollController').ScrollController
-  >;
+  controller: React.MutableRefObject<ScrollController>;
   feedRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const { streamingOverlay } = useAgenticQueryRunTurnStore(runId);
@@ -160,6 +160,7 @@ export function AgenticQueryPanel({
   onAtTriggerActivate,
   onMetaChange,
   focusToken,
+  onUnavailable,
 }: AgenticQueryPanelProps) {
   const [composerText, setComposerText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -167,8 +168,23 @@ export function AgenticQueryPanel({
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const lastMetaRef = useRef<{ title: string; mode: AgenticQueryMode } | null>(null);
 
-  const { query, turns, isRunning, canSubmit, canFollowUp, activeRunId, submit, isLoading } =
-    useAgenticQuery(queryId);
+  const {
+    query,
+    turns,
+    isRunning,
+    canSubmit,
+    canFollowUp,
+    activeRunId,
+    submit,
+    isLoading,
+    isNotFound,
+  } = useAgenticQuery(queryId);
+
+  useEffect(() => {
+    if (isNotFound) {
+      onUnavailable?.();
+    }
+  }, [isNotFound, onUnavailable]);
 
   const harnessSelection = useAgenticQueryHarnessSelection(workspaceId);
   const { refresh: refreshCapabilities } = useRefreshCapabilities();
@@ -216,12 +232,19 @@ export function AgenticQueryPanel({
       await submit(message, harnessSelection.toSubmitSelection());
       setComposerText('');
     } catch (e) {
+      const message = e instanceof Error ? e.message : '';
+      const isMissing =
+        message.includes('Agentic query not found') ||
+        message.includes('NOT_FOUND') ||
+        message.includes('no longer available');
       setError(
-        e instanceof Error
-          ? e.message
-          : isFollowUpMode
-            ? 'Failed to submit follow-up'
-            : 'Failed to submit query'
+        isMissing
+          ? 'This search session is no longer available.'
+          : e instanceof Error
+            ? e.message
+            : isFollowUpMode
+              ? 'Failed to submit follow-up'
+              : 'Failed to submit query'
       );
     } finally {
       setIsSubmitting(false);
@@ -330,6 +353,19 @@ export function AgenticQueryPanel({
     : isFollowUpMode
       ? 'Follow up'
       : 'Search';
+
+  if (isNotFound) {
+    return (
+      <div
+        className="flex-1 flex items-center justify-center p-8 text-center"
+        data-testid="agentic-query-unavailable"
+      >
+        <p className="text-sm text-chatroom-text-muted max-w-md">
+          This search session is no longer available. It may have expired or been removed.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-0" data-testid="agentic-query-panel">

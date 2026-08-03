@@ -114,6 +114,7 @@ describe('AgenticQueryPanel', () => {
       query: { status: 'draft', mode: 'search', title: 'Agentic Search' },
       turns: [],
       isLoading: false,
+      isNotFound: false,
       isRunning: false,
       isDraft: true,
       canFollowUp: false,
@@ -121,6 +122,34 @@ describe('AgenticQueryPanel', () => {
       harnessSessionId: undefined,
       submit: mockSubmit,
     });
+  });
+
+  it('shows unavailable message and calls onUnavailable when query is not found', () => {
+    const onUnavailable = vi.fn();
+    mockUseAgenticQuery.mockReturnValue({
+      query: undefined,
+      turns: [],
+      isLoading: false,
+      isNotFound: true,
+      isRunning: false,
+      isDraft: false,
+      canFollowUp: false,
+      canSubmit: false,
+      activeRunId: undefined,
+      submit: mockSubmit,
+    });
+
+    render(
+      <AgenticQueryPanel
+        queryId="query-missing"
+        mode="search"
+        workspaceId="ws-1"
+        onUnavailable={onUnavailable}
+      />
+    );
+
+    expect(screen.getByTestId('agentic-query-unavailable')).toBeInTheDocument();
+    expect(onUnavailable).toHaveBeenCalled();
   });
 
   it('renders config bar for draft queries', () => {
