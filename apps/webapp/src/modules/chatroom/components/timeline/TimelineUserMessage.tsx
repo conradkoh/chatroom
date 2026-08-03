@@ -100,16 +100,10 @@ function getTaskStatusBadge(status: Message['taskStatus']) {
   }
 }
 
-function getDisplayText(message: Message): string {
-  const text = message.featureTitle || message.content;
-  return text.replace(/\n+/g, ' ').trim();
-}
-
 interface UserMessageHeaderNavProps {
   queuedBadge: ReactNode;
   statusBadges: ReactNode;
   taskStatusBadgeEl: ReactNode;
-  displayText: string;
   isQueued?: boolean;
   headerNavigation: TimelineMessageHeaderNavigation;
 }
@@ -118,7 +112,6 @@ function UserMessageHeaderNav({
   queuedBadge,
   statusBadges,
   taskStatusBadgeEl,
-  displayText,
   isQueued,
   headerNavigation,
 }: UserMessageHeaderNavProps) {
@@ -129,14 +122,7 @@ function UserMessageHeaderNav({
       </div>
       <TimelineMessageHeaderNav {...headerNavigation} />
       <div className="flex items-center gap-2 min-w-0 justify-self-end">
-        {!isQueued && (
-          <>
-            <span className="text-xs font-medium text-chatroom-text-primary truncate max-w-[200px]">
-              {displayText}
-            </span>
-            {taskStatusBadgeEl}
-          </>
-        )}
+        {!isQueued && taskStatusBadgeEl}
       </div>
     </div>
   );
@@ -146,7 +132,6 @@ interface UserMessageHeaderDefaultProps {
   queuedBadge: ReactNode;
   statusBadges: ReactNode;
   taskStatusBadgeEl: ReactNode;
-  displayText: string;
   isQueued?: boolean;
   isAwaitingClassification: boolean;
 }
@@ -155,7 +140,6 @@ function UserMessageHeaderDefault({
   queuedBadge,
   statusBadges,
   taskStatusBadgeEl,
-  displayText,
   isQueued,
   isAwaitingClassification,
 }: UserMessageHeaderDefaultProps) {
@@ -166,17 +150,9 @@ function UserMessageHeaderDefault({
       ) : (
         <div className="flex items-center gap-2 w-full min-w-0">
           {isAwaitingClassification ? (
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
-              <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
-            </div>
+            <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
           ) : (
-            <>
-              {statusBadges}
-              <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
-                {displayText}
-              </span>
-            </>
+            statusBadges
           )}
           {taskStatusBadgeEl}
         </div>
@@ -245,7 +221,6 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
       queuedBadge={queuedBadge}
       statusBadges={statusBadges}
       taskStatusBadgeEl={taskStatusBadgeEl}
-      displayText={getDisplayText(message)}
       isQueued={message.isQueued}
       headerNavigation={headerNavigation}
     />
@@ -254,7 +229,6 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
       queuedBadge={queuedBadge}
       statusBadges={statusBadges}
       taskStatusBadgeEl={taskStatusBadgeEl}
-      displayText={getDisplayText(message)}
       isQueued={message.isQueued}
       isAwaitingClassification={isAwaitingClassification}
     />

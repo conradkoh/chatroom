@@ -62,7 +62,7 @@ describe('TimelineUserMessage', () => {
 
   it('renders message content', () => {
     render(<TimelineUserMessage message={createMessage()} chatroomId="room-1" />);
-    expect(screen.getAllByText('hello').length).toBeGreaterThan(0);
+    expect(screen.getByText('hello')).toBeInTheDocument();
   });
 
   it('uses true-center grid on nav header when headerNavigation provided', () => {
@@ -82,5 +82,36 @@ describe('TimelineUserMessage', () => {
     const navRow = screen.getByTestId('timeline-message-header-nav').parentElement as HTMLElement;
     expect(navRow.className).toContain('grid-cols-[1fr_auto_1fr]');
     expect(screen.getByTestId('timeline-message-header-nav')).toBeInTheDocument();
+  });
+
+  it('does not show message text in header when headerNavigation provided', () => {
+    render(
+      <TimelineUserMessage
+        message={createMessage({ content: 'secret header text' })}
+        chatroomId="room-1"
+        headerNavigation={{
+          onJumpToPrevious: vi.fn(),
+          onJumpToCurrent: vi.fn(),
+          onJumpToNext: vi.fn(),
+          hasPrevious: true,
+          hasNext: true,
+        }}
+      />
+    );
+    const header = screen.getByTestId('timeline-message-header');
+    expect(header).not.toHaveTextContent('secret header text');
+    expect(screen.getByText('secret header text')).toBeInTheDocument(); // still in body
+  });
+
+  it('does not show message text in default header', () => {
+    render(
+      <TimelineUserMessage
+        message={createMessage({ content: 'default header text' })}
+        chatroomId="room-1"
+      />
+    );
+    const header = screen.getByTestId('timeline-message-header');
+    expect(header).not.toHaveTextContent('default header text');
+    expect(screen.getByText('default header text')).toBeInTheDocument();
   });
 });
