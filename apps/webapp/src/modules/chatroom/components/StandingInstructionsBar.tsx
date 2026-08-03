@@ -10,10 +10,7 @@ import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessio
 import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
-import {
-  StandingInstructionsDialog,
-  StandingInstructionsPicker,
-} from '../features/standing-instructions/components';
+import { StandingInstructionsPicker } from '../features/standing-instructions/components';
 
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 
@@ -62,9 +59,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const setEnabledMutation = useSessionMutation(api.standingInstructions.setEnabled);
 
   const history = useSessionQuery(api.standingInstructions.listHistory, {}) ?? [];
-  const recordUseMutation = useSessionMutation(api.standingInstructions.recordUse);
 
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const historyItems = useMemo(
@@ -79,29 +74,15 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     [history]
   );
 
-  const openAddDialog = useCallback(() => {
-    setDialogOpen(true);
-  }, []);
-
   const openPicker = useCallback(() => {
     setPickerOpen(true);
   }, []);
 
-  const handleDialogConfirm = useCallback(
+  const handleUpsert = useCallback(
     async ({ content, title }: { content: string; title: string }) => {
       await upsertMutation({ chatroomId, content, title });
     },
     [chatroomId, upsertMutation]
-  );
-
-  const handleRecordHistoryUse = useCallback(
-    async (historyId: string) => {
-      const result = await recordUseMutation({
-        historyId: historyId as Id<'chatroom_standingInstructionHistory'>,
-      });
-      return { content: result.content, title: result.title };
-    },
-    [recordUseMutation]
   );
 
   const handleEnable = useCallback(async () => {
@@ -137,25 +118,6 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     );
   }
 
-  const addDialog = dialogOpen ? (
-    <StandingInstructionsDialog
-      open
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) setDialogOpen(false);
-      }}
-      initialView="add"
-      storedContent={storedContent}
-      storedTitle={storedTitle}
-      isActive={isActive}
-      history={historyItems}
-      onConfirm={handleDialogConfirm}
-      onEnable={handleEnable}
-      onDisable={handleDisable}
-      onDelete={() => {}}
-      onRecordHistoryUse={handleRecordHistoryUse}
-    />
-  ) : null;
-
   const picker = pickerOpen ? (
     <StandingInstructionsPicker
       open
@@ -167,7 +129,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       isActive={isActive}
       hasContent={hasContent}
       history={historyItems}
-      onConfirm={handleDialogConfirm}
+      onConfirm={handleUpsert}
       onEnable={handleEnable}
       onDisable={handleDisable}
     />
@@ -179,7 +141,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
         <button
           type="button"
           aria-label="Add standing instructions"
-          onClick={openAddDialog}
+          onClick={openPicker}
           className={`${BAR_SHELL} w-full text-left hover:bg-chatroom-status-success/10 transition-colors cursor-pointer`}
         >
           <Plus
@@ -192,7 +154,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
             Add standing instructions
           </span>
         </button>
-        {addDialog}
+        {picker}
       </>
     );
   }

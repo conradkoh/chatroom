@@ -1,5 +1,6 @@
 'use client';
 
+import { StandingInstructionsCreateNewButton } from './StandingInstructionsCreateNewButton';
 import { StandingInstructionsPickerRow } from './StandingInstructionsPickerRow';
 import type { PickerListItem } from './standingInstructionsPickerUtils';
 import { PickerPanelHeader } from '../../../components/picker';
@@ -11,6 +12,8 @@ export function StandingInstructionsPickerContent({
   hasMore,
   onSelect,
   onViewMore,
+  onCreateNew,
+  mobile,
 }: {
   visible: PickerListItem[];
   activeId: string | null;
@@ -18,6 +21,8 @@ export function StandingInstructionsPickerContent({
   hasMore: boolean;
   onSelect: (id: string) => void;
   onViewMore: () => void;
+  onCreateNew: () => void;
+  mobile?: boolean;
 }) {
   return (
     <>
@@ -47,6 +52,11 @@ export function StandingInstructionsPickerContent({
           </li>
         ))}
       </ul>
+      <StandingInstructionsCreateNewButton
+        selected={false}
+        onSelect={onCreateNew}
+        mobile={mobile}
+      />
     </>
   );
 }

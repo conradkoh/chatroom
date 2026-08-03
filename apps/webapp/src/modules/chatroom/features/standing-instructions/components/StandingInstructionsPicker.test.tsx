@@ -167,4 +167,44 @@ describe('StandingInstructionsPicker', () => {
     await user.click(screen.getByText('Async patterns'));
     expect(screen.queryByText('Enable')).not.toBeInTheDocument();
   });
+
+  it('shows Create new button in picker', () => {
+    renderPicker();
+    expect(screen.getByTestId('standing-instructions-create-new')).toBeInTheDocument();
+  });
+
+  it('Create new opens create dialog', async () => {
+    const user = userEvent.setup();
+    renderPicker();
+    await user.click(screen.getByTestId('standing-instructions-create-new'));
+    expect(screen.getByText('Create standing instruction')).toBeInTheDocument();
+  });
+
+  it('create flow calls onConfirm and closes picker', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <StandingInstructionsPicker
+        open
+        onOpenChange={onOpenChange}
+        storedContent=""
+        storedTitle=""
+        isActive={false}
+        hasContent={false}
+        history={[]}
+        onConfirm={onConfirm}
+        onEnable={vi.fn()}
+        onDisable={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByTestId('standing-instructions-create-new'));
+    await user.type(screen.getByPlaceholderText('Enter standing instructions…'), 'new rule');
+    await user.type(screen.getByPlaceholderText('Title'), 'New title');
+    await user.click(screen.getByText('Confirm'));
+
+    expect(onConfirm).toHaveBeenCalledWith({ content: 'new rule', title: 'New title' });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
 });

@@ -3,6 +3,7 @@
 import { standingInstructionDisplayTitle } from '@workspace/backend/src/domain/entities/standing-instructions';
 import { useCallback, useState } from 'react';
 
+import { StandingInstructionsCreateModal } from './StandingInstructionsCreateModal';
 import { StandingInstructionsHistoryModal } from './StandingInstructionsHistoryModal';
 import { StandingInstructionsPickerContent } from './StandingInstructionsPickerContent';
 import { StandingInstructionsPickerFooter } from './StandingInstructionsPickerFooter';
@@ -58,6 +59,7 @@ export function StandingInstructionsPicker({
 
   const [selectedId, setSelectedId] = useState<string | null>(activeId);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const resolveSelectedItem = useCallback(
     (id: string | null): PickerListItem | undefined => {
@@ -107,6 +109,8 @@ export function StandingInstructionsPicker({
         hasMore={hasMore}
         onSelect={setSelectedId}
         onViewMore={() => setHistoryModalOpen(true)}
+        onCreateNew={() => setCreateModalOpen(true)}
+        mobile={!isDesktop}
       />
       <StandingInstructionsPickerFooter
         isActive={isActive}
@@ -123,6 +127,14 @@ export function StandingInstructionsPicker({
         onOpenChange={setHistoryModalOpen}
         history={history}
         onSelect={handleHistorySelect}
+      />
+      <StandingInstructionsCreateModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        onConfirm={async (payload) => {
+          await onConfirm(payload);
+          onOpenChange(false);
+        }}
       />
     </>
   );

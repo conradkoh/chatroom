@@ -11,12 +11,6 @@ export type { StandingInstructionsPickerProps } from './StandingInstructionsPick
 export { StandingInstructionsPickerContent } from './StandingInstructionsPickerContent';
 export { StandingInstructionsPickerFooter } from './StandingInstructionsPickerFooter';
 export { StandingInstructionsHistoryModal } from './StandingInstructionsHistoryModal';
-export { StandingInstructionsDialog } from './StandingInstructionsDialog';
-export type { StandingInstructionsDialogProps } from './StandingInstructionsDialog';
+export { StandingInstructionsCreateModal } from './StandingInstructionsCreateModal';
 export { StandingInstructionsTitleInput } from './StandingInstructionsTitleInput';
 export type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
-export type {
-  StandingInstructionsAddSelection,
-  StandingInstructionsDialogInitialView,
-  StandingInstructionsDialogView,
-} from '../types/standingInstructionsDialog';
