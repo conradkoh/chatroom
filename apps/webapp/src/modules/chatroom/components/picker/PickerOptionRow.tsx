@@ -10,6 +10,7 @@ export interface PickerOptionRowProps {
   onSelect: () => void;
   disabled?: boolean;
   className?: string;
+  endAdornment?: React.ReactNode;
 }
 
 export function PickerOptionRow({
@@ -18,6 +19,7 @@ export function PickerOptionRow({
   onSelect,
   disabled,
   className,
+  endAdornment,
 }: PickerOptionRowProps) {
   return (
     <button
@@ -27,7 +29,7 @@ export function PickerOptionRow({
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        'w-full px-3 py-2 text-xs text-left flex items-center justify-between gap-2',
+        'w-full min-w-0 px-3 py-2 text-xs text-left flex items-center justify-between gap-2',
         'cursor-pointer hover:bg-chatroom-bg-hover transition-colors',
         'outline-none focus-visible:outline-none focus-visible:bg-chatroom-bg-hover',
         'disabled:opacity-50 disabled:cursor-not-allowed',
@@ -35,7 +37,8 @@ export function PickerOptionRow({
         className
       )}
     >
-      <span className="truncate">{children}</span>
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {endAdornment}
       {selected ? <Check size={12} className="shrink-0 text-chatroom-accent" /> : null}
     </button>
   );

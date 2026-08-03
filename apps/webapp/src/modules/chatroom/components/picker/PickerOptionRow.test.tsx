@@ -72,4 +72,35 @@ describe('PickerOptionRow', () => {
     fireEvent.click(option);
     expect(onSelect).not.toHaveBeenCalled();
   });
+
+  it('button has min-w-0 for truncation in flex layouts', () => {
+    render(<PickerOptionRow onSelect={vi.fn()}>Option A</PickerOptionRow>);
+    expect(screen.getByRole('option')).toHaveClass('min-w-0');
+  });
+
+  it('label span has min-w-0, flex-1, and truncate classes', () => {
+    render(<PickerOptionRow onSelect={vi.fn()}>Option A</PickerOptionRow>);
+    const label = screen.getByText('Option A');
+    expect(label).toHaveClass('min-w-0');
+    expect(label).toHaveClass('flex-1');
+    expect(label).toHaveClass('truncate');
+  });
+
+  it('renders endAdornment outside the label span', () => {
+    render(
+      <PickerOptionRow
+        onSelect={vi.fn()}
+        endAdornment={<span data-testid="picker-row-end-adornment">Badge</span>}
+      >
+        Option A
+      </PickerOptionRow>
+    );
+    const adornment = screen.getByTestId('picker-row-end-adornment');
+    const label = screen.getByText('Option A');
+    const button = screen.getByRole('option');
+
+    expect(label).not.toContainElement(adornment);
+    expect(label.parentElement).toBe(button);
+    expect(adornment.parentElement).toBe(button);
+  });
 });
