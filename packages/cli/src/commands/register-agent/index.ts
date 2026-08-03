@@ -15,6 +15,12 @@ import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import {
+  DAEMON_EVENT_TYPES,
+  DaemonEventRecorder,
+  getEventStorePath,
+  SqliteEventStore,
+} from '../../infrastructure/event-store/index.js';
 import { getMachineId, loadMachineConfig } from '../../infrastructure/machine/index.js';
 import type { SessionService } from '../../infrastructure/services/index.js';
 import {
@@ -126,9 +132,10 @@ export const registerAgentEffect = (
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
       })
       .pipe(
-        Effect.mapError(
-          (cause): RegisterAgentError => ({ _tag: 'RegisterFailed', cause: cause as Error })
-        )
+        Effect.mapError((cause): RegisterAgentError => ({
+          _tag: 'RegisterFailed',
+          cause: cause as Error,
+        }))
       );
 
     if (!chatroom) {
@@ -138,50 +145,78 @@ export const registerAgentEffect = (
       });
     }
 
-    if (type === 'remote') {
-      // Remote type: emit agent.registered event so the frontend shows the agent as online.
-      const machineId = yield* machine.getMachineId();
-      if (!machineId) {
-        return yield* Effect.fail<RegisterAgentError>({ _tag: 'MachineNotRegistered' });
-      }
+    // Per-invocation local event store (agent.registered dual-write). Falls back
+    // to Convex-only when the local machine id is unavailable.
+    const resolved = yield* machine.getMachineId().pipe(Effect.either);
+    const localMachineId = resolved._tag === 'Right' ? resolved.right : null;
+    const store = localMachineId ? new SqliteEventStore(getEventStorePath(localMachineId)) : null;
+    const recorder =
+      store && localMachineId ? new DaemonEventRecorder(store, localMachineId) : null;
 
-      const config = yield* machine.loadMachineConfig();
+    const publishRegistered = <T>(
+      fn: unknown,
+      args: Record<string, unknown>
+    ): Effect.Effect<T, Error> =>
+      recorder
+        ? Effect.tryPromise({
+            try: () =>
+              recorder.appendAndPublish(
+                {
+                  chatroomId,
+                  type: DAEMON_EVENT_TYPES.AGENT_REGISTERED,
+                  timestamp: Date.now(),
+                  payload: args,
+                },
+                () => Effect.runPromise(backend.mutation(fn as never, args))
+              ),
+            catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+          })
+        : backend.mutation(fn as never, args);
 
-      // Try to record registration (non-critical)
-      yield* backend
-        .mutation<void>(api.machines.recordRemoteAgentRegistered, {
+    try {
+      if (type === 'remote') {
+        // Remote type: emit agent.registered event so the frontend shows the agent as online.
+        if (!localMachineId) {
+          return yield* Effect.fail<RegisterAgentError>({ _tag: 'MachineNotRegistered' });
+        }
+
+        const config = yield* machine.loadMachineConfig();
+
+        // Try to record registration (non-critical)
+        yield* publishRegistered(api.machines.recordRemoteAgentRegistered, {
           sessionId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
-          machineId,
-        })
-        .pipe(Effect.catchAll(() => Effect.succeed(undefined))); // Non-critical
+          machineId: localMachineId,
+        }).pipe(Effect.catchAll(() => Effect.succeed(undefined))); // Non-critical
 
-      // Print success
-      yield* Effect.sync(() => {
-        console.log(`✅ Registered as remote agent for role "${role}"`);
-        console.log(`   Machine: ${config?.hostname ?? 'unknown'} (${machineId})`);
-        console.log(`   Working directory: ${process.cwd()}`);
-      });
-    } else {
-      // Custom type: team config + agent.registered (via dedicated mutation)
-      yield* backend
-        .mutation<void>(api.machines.recordCustomAgentRegistered, {
+        // Print success
+        yield* Effect.sync(() => {
+          console.log(`✅ Registered as remote agent for role "${role}"`);
+          console.log(`   Machine: ${config?.hostname ?? 'unknown'} (${localMachineId})`);
+          console.log(`   Working directory: ${process.cwd()}`);
+        });
+      } else {
+        // Custom type: team config + agent.registered (via dedicated mutation)
+        yield* publishRegistered(api.machines.recordCustomAgentRegistered, {
           sessionId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           allowTypeChange,
-        })
-        .pipe(
-          Effect.mapError(
-            (cause): RegisterAgentError => ({ _tag: 'RegisterFailed', cause: cause as Error })
-          )
+        }).pipe(
+          Effect.mapError((cause): RegisterAgentError => ({
+            _tag: 'RegisterFailed',
+            cause: cause as Error,
+          }))
         );
 
-      // Print success
-      yield* Effect.sync(() => {
-        console.log(`✅ Registered as custom agent for role "${role}"`);
-      });
+        // Print success
+        yield* Effect.sync(() => {
+          console.log(`✅ Registered as custom agent for role "${role}"`);
+        });
+      }
+    } finally {
+      store?.close();
     }
   });
 

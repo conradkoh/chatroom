@@ -535,6 +535,27 @@ backlogCommand
   });
 
 // ============================================================================
+// EVENTS COMMANDS (local SQLite event store — no auth required)
+// ============================================================================
+
+const eventsCommand = program.command('events').description('Query the local daemon event store');
+
+eventsCommand
+  .command('list')
+  .description('List events for a chatroom from the local SQLite event store (newest first)')
+  .requiredOption('--machine-id <id>', 'Machine ID')
+  .requiredOption('--chatroom-id <id>', 'Chatroom ID')
+  .option('--limit <n>', 'Max events to list', '20')
+  .action(async (options: { machineId: string; chatroomId: string; limit?: string }) => {
+    const { listEvents } = await import('./commands/events/list.js');
+    await listEvents({
+      machineId: options.machineId,
+      chatroomId: options.chatroomId,
+      limit: options.limit ? parseInt(options.limit, 10) : 20,
+    });
+  });
+
+// ============================================================================
 // TASK COMMANDS (auth required)
 // ============================================================================
 
