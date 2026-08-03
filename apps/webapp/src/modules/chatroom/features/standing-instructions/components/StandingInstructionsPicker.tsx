@@ -12,6 +12,7 @@ import { StandingInstructionsPickerContent } from './StandingInstructionsPickerC
 import { StandingInstructionsPickerFooter } from './StandingInstructionsPickerFooter';
 import {
   buildStandingInstructionsPickerList,
+  isSyntheticCurrentItem,
   type PickerListItem,
 } from './standingInstructionsPickerUtils';
 import {
@@ -40,7 +41,7 @@ export interface StandingInstructionsPickerProps {
   onDisable: () => void | Promise<void>;
   onEditItem: (
     item: PickerListItem,
-    payload: { content: string; title: string }
+    payload: { content: string; title: string; applyToAllChatrooms?: boolean }
   ) => void | Promise<void>;
   onDeleteItem: (item: PickerListItem) => void | Promise<void>;
 }
@@ -117,7 +118,7 @@ export function StandingInstructionsPicker({
 
   // fallow-ignore-next-line complexity
   const handleEditSave = useCallback(
-    async (payload: { content: string; title: string }) => {
+    async (payload: { content: string; title: string; applyToAllChatrooms?: boolean }) => {
       if (!editTarget) return;
       try {
         await onEditItem(editTarget, payload);
@@ -211,6 +212,7 @@ export function StandingInstructionsPicker({
         }
         initialContent={editTarget?.content ?? ''}
         onConfirm={handleEditSave}
+        showApplyToAllChatrooms={editTarget !== null && !isSyntheticCurrentItem(editTarget)}
       />
       <StandingInstructionsDeleteConfirm
         open={deleteTarget !== null}
@@ -218,6 +220,11 @@ export function StandingInstructionsPicker({
           if (!nextOpen) setDeleteTarget(null);
         }}
         onConfirm={handleDeleteConfirm}
+        description={
+          deleteTarget && isSyntheticCurrentItem(deleteTarget)
+            ? 'Clear this standing instruction and disable it in this chatroom?'
+            : undefined
+        }
       />
     </>
   );

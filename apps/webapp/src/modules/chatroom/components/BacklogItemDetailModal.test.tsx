@@ -1,5 +1,8 @@
 /**
- * BacklogItemDetailModal — Delete action with confirmation dialog.
+ * BacklogItemDetailModal — editor initialization and delete action.
+ *
+ * Backlog-status items open directly in the WYSIWYG editor; other statuses
+ * open in read-only markdown view. Delete action shows confirmation dialog.
  */
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -92,7 +95,7 @@ vi.mock('./ui/alert-dialog', () => ({
   AlertDialogCancel: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
 }));
 
-function makeBacklogItem(status: BacklogItem['status'] = 'backlog'): BacklogItem {
+function makeBacklogItem(status: BacklogItem['status']): BacklogItem {
   return {
     _id: 'bl-1' as Id<'chatroom_backlog'>,
     chatroomId: 'room-1' as Id<'chatroom_rooms'>,
@@ -104,15 +107,47 @@ function makeBacklogItem(status: BacklogItem['status'] = 'backlog'): BacklogItem
   };
 }
 
+describe('BacklogItemDetailModal editor initialization', () => {
+  it('opens in editor mode immediately for backlog status', () => {
+    render(<BacklogItemDetailModal isOpen item={makeBacklogItem('backlog')} onClose={vi.fn()} />);
+
+    expect(screen.getByTestId('backlog-rich-text-editor')).toBeInTheDocument();
+    expect(screen.getByText('Save')).toBeInTheDocument();
+    expect(screen.queryByText('Edit')).not.toBeInTheDocument();
+  });
+
+  it('opens in view mode for pending_user_review status', () => {
+    render(
+      <BacklogItemDetailModal
+        isOpen
+        item={makeBacklogItem('pending_user_review')}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByTestId('backlog-rich-text-editor')).not.toBeInTheDocument();
+    expect(screen.queryByText('Save')).not.toBeInTheDocument();
+    expect(screen.getByText('Mark Complete')).toBeInTheDocument();
+  });
+
+  it('opens in view mode for closed status', () => {
+    render(<BacklogItemDetailModal isOpen item={makeBacklogItem('closed')} onClose={vi.fn()} />);
+
+    expect(screen.queryByTestId('backlog-rich-text-editor')).not.toBeInTheDocument();
+    expect(screen.queryByText('Save')).not.toBeInTheDocument();
+    expect(screen.getByText('Reopen')).toBeInTheDocument();
+  });
+});
+
 describe('BacklogItemDetailModal delete action', () => {
   beforeEach(() => {
     mockDeleteBacklogItem.mockReset();
     mockDeleteBacklogItem.mockResolvedValue({ success: true });
   });
 
-  it('confirms then calls deleteBacklogItem for a backlog item', async () => {
+  it('confirms then calls deleteBacklogItem for a closed item', async () => {
     const onClose = vi.fn();
-    const item = makeBacklogItem('backlog');
+    const item = makeBacklogItem('closed');
     render(<BacklogItemDetailModal isOpen item={item} onClose={onClose} />);
 
     fireEvent.click(screen.getByText('Actions'));

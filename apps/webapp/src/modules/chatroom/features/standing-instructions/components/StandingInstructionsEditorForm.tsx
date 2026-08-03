@@ -40,7 +40,11 @@ export function StandingInstructionsEditorForm({
   return (
     <div className="flex flex-col gap-1.5">
       {showTitleInput ? (
-        <StandingInstructionsTitleInput value={draftTitle} onChange={onDraftTitleChange} />
+        <StandingInstructionsTitleInput
+          value={draftTitle}
+          onChange={onDraftTitleChange}
+          onCmdEnter={confirmDisabled ? undefined : onConfirm}
+        />
       ) : null}
       <textarea
         autoFocus={autoFocus}

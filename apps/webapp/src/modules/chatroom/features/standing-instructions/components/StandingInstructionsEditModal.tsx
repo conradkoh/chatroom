@@ -8,12 +8,19 @@ export function StandingInstructionsEditModal({
   initialTitle,
   initialContent,
   onConfirm,
+  showApplyToAllChatrooms,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialTitle: string;
   initialContent: string;
-  onConfirm: (payload: { content: string; title: string }) => void | Promise<void>;
+  onConfirm: (payload: {
+    content: string;
+    title: string;
+    applyToAllChatrooms?: boolean;
+  }) => void | Promise<void>;
+  /** Show the "apply to all my chatrooms" checkbox for history-template edits. */
+  showApplyToAllChatrooms?: boolean;
 }) {
   return (
     <StandingInstructionsEditorDialog
@@ -23,6 +30,7 @@ export function StandingInstructionsEditModal({
       initialContent={initialContent}
       initialTitle={initialTitle}
       onConfirm={onConfirm}
+      showApplyToAllChatrooms={showApplyToAllChatrooms}
     />
   );
 }

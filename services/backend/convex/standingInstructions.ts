@@ -179,10 +179,13 @@ export const updateHistory = mutation({
     historyId: v.id('chatroom_standingInstructionHistory'),
     content: v.string(),
     title: v.string(),
+    /** When true, also applies the update to every owned chatroom currently using this template. */
+    applyToOwnerChatrooms: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { userId } = await requireSession(ctx, args.sessionId);
-    await requireOwnedHistoryRow(ctx, args.historyId, userId);
+    const row = await requireOwnedHistoryRow(ctx, args.historyId, userId);
+    const oldContentKey = row.contentKey;
     const trimmed = normalizeStandingInstructionContent(args.content);
     if (!trimmed) {
       throw new ConvexError({
@@ -225,8 +228,39 @@ export const updateHistory = mutation({
       contentKey,
       title: trimmedTitle,
     });
+    if (args.applyToOwnerChatrooms) {
+      await propagateHistoryUpdate(ctx, userId, oldContentKey, trimmed, trimmedTitle);
+    }
   },
 });
+
+/**
+ * Push a history-template update to every chatroom the user owns whose current
+ * standing instructions match the previous content key. Only content + title
+ * are patched — `standingInstructionsEnabled` is preserved.
+ */
+async function propagateHistoryUpdate(
+  ctx: MutationCtx,
+  ownerId: Id<'users'>,
+  oldContentKey: string,
+  content: string,
+  title: string
+): Promise<void> {
+  const ownedRooms = await ctx.db
+    .query('chatroom_rooms')
+    .withIndex('by_ownerId', (q) => q.eq('ownerId', ownerId))
+    .collect();
+
+  for (const room of ownedRooms) {
+    const roomContent = room.standingInstructions?.trim() ?? '';
+    if (roomContent.length === 0) continue;
+    if (standingInstructionContentKey(roomContent) !== oldContentKey) continue;
+    await ctx.db.patch('chatroom_rooms', room._id, {
+      standingInstructions: content,
+      standingInstructionsTitle: title,
+    });
+  }
+}
 
 export const deleteHistory = mutation({
   args: {

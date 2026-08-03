@@ -6,7 +6,7 @@ import type { EnhancerConfig } from '../types/enhancer';
 
 const mockSaveConfig = vi.fn();
 const mockDisable = vi.fn();
-const mockDisableEnhancer = vi.fn();
+const mockCancelJob = vi.fn();
 const mockOpenDialog = vi.fn();
 const mockToastMessage = vi.fn();
 
@@ -35,8 +35,8 @@ vi.mock('../hooks/useEnhancerConfigDialogHost', () => ({
 vi.mock('../hooks/useActiveEnhancerJob', () => ({
   useActiveEnhancerJob: () => ({
     isEnhancing: mockIsEnhancing,
-    disableEnhancer: mockDisableEnhancer,
-    isDisabling: false,
+    cancelJob: mockCancelJob,
+    isCancelling: false,
   }),
 }));
 
@@ -96,14 +96,15 @@ describe('PlannerEnhancerToggle', () => {
     await waitFor(() => expect(mockDisable).toHaveBeenCalled());
   });
 
-  it('cancels active job when disabling while enhancing', async () => {
+  it('disables without cancelling when enhancing', async () => {
     mockConfig = { ...SAVED_CONFIG, enabled: true };
     mockIsActive = true;
     mockIsEnhancing = true;
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
 
     fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
-    await waitFor(() => expect(mockDisableEnhancer).toHaveBeenCalled());
+    await waitFor(() => expect(mockDisable).toHaveBeenCalled());
+    expect(mockCancelJob).not.toHaveBeenCalled();
   });
 
   it('unsupported click calls toast message', async () => {

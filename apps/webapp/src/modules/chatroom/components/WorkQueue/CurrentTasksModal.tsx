@@ -1,11 +1,12 @@
 'use client';
 
+import { XCircle } from 'lucide-react';
 import React from 'react';
 
-import { MessageAttachmentChips } from '../../attachments';
-import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 import type { Task } from './types';
 import { getStatusBadge, formatRelativeTime } from './utils';
+import { WorkQueuePreviewText } from './WorkQueuePreviewText';
+import { MessageAttachmentChips } from '../../attachments';
 
 import {
   FixedModal,
@@ -19,9 +20,18 @@ export interface CurrentTasksModalProps {
   tasks: Task[];
   onClose: () => void;
   onTaskClick: (task: Task) => void;
+  /** Cancel the active enhancer job for an enhancer-assigned task. */
+  onCancelEnhancer?: (task: Task) => void;
+  isCancellingEnhancer?: boolean;
 }
 
-export function CurrentTasksModal({ tasks, onClose, onTaskClick }: CurrentTasksModalProps) {
+export function CurrentTasksModal({
+  tasks,
+  onClose,
+  onTaskClick,
+  onCancelEnhancer,
+  isCancellingEnhancer = false,
+}: CurrentTasksModalProps) {
   return (
     <FixedModal isOpen onClose={onClose} maxWidth="max-w-xl" className="sm:max-h-[70vh]">
       <FixedModalContent>
@@ -36,7 +46,13 @@ export function CurrentTasksModal({ tasks, onClose, onTaskClick }: CurrentTasksM
             <div className="p-8 text-center text-chatroom-text-muted text-sm">No current tasks</div>
           ) : (
             tasks.map((task) => (
-              <CurrentTasksModalItem key={task._id} task={task} onClick={() => onTaskClick(task)} />
+              <CurrentTasksModalItem
+                key={task._id}
+                task={task}
+                onClick={() => onTaskClick(task)}
+                onCancelEnhancer={onCancelEnhancer}
+                isCancellingEnhancer={isCancellingEnhancer}
+              />
             ))
           )}
         </FixedModalBody>
@@ -49,10 +65,17 @@ export function CurrentTasksModal({ tasks, onClose, onTaskClick }: CurrentTasksM
 export interface CurrentTasksModalItemProps {
   task: Task;
   onClick: () => void;
+  onCancelEnhancer?: (task: Task) => void;
+  isCancellingEnhancer?: boolean;
 }
 
 // fallow-ignore-next-line complexity
-export function CurrentTasksModalItem({ task, onClick }: CurrentTasksModalItemProps) {
+export function CurrentTasksModalItem({
+  task,
+  onClick,
+  onCancelEnhancer,
+  isCancellingEnhancer = false,
+}: CurrentTasksModalItemProps) {
   const badge = getStatusBadge(task.status);
   const relativeTime = task.updatedAt ? formatRelativeTime(task.updatedAt) : '';
 
@@ -95,6 +118,24 @@ export function CurrentTasksModalItem({ task, onClick }: CurrentTasksModalItemPr
 
         {/* Relative Time */}
         <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>
+
+        {/* Cancel enhancer — inline trailing control (no separate actions row) */}
+        {task.assignedTo === 'enhancer' && onCancelEnhancer && (
+          <button
+            type="button"
+            data-testid="cancel-enhancer-modal-item"
+            title="Cancel planning review"
+            disabled={isCancellingEnhancer}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCancelEnhancer(task);
+            }}
+            onKeyDown={(e) => e.stopPropagation()}
+            className="flex-shrink-0 p-1 text-chatroom-text-muted hover:text-chatroom-status-error transition-colors disabled:opacity-50"
+          >
+            <XCircle size={12} />
+          </button>
+        )}
       </div>
 
       {/* Attachment chips */}

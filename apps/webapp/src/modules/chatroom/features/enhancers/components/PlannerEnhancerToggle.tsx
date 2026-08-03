@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
 import { PlannerEnhancerToggleButton, type TeamSupportState } from './PlannerEnhancerToggleButton';
@@ -21,15 +21,14 @@ function hasEnhancerConfigFields(config: EnhancerConfig | null): config is Enhan
 
 async function toggleEnhancerState(args: {
   isActive: boolean;
-  isEnhancing: boolean;
   config: EnhancerConfig | null;
-  disableEnhancer: () => Promise<void>;
   disable: () => Promise<void>;
   saveConfig: (cfg: EnhancerConfig) => Promise<void>;
   openDialog: () => void;
 }): Promise<void> {
   if (args.isActive) {
-    await (args.isEnhancing ? args.disableEnhancer() : args.disable());
+    // Disabling only affects the next message — never cancels the in-flight job.
+    await args.disable();
     return;
   }
 
@@ -49,21 +48,18 @@ export function PlannerEnhancerToggle({
   const { config, isActive, saveConfig, disable, openDialog, dialog } = useEnhancerConfigDialogHost(
     { chatroomId, workspaceMachineId: machineId }
   );
-  const { isEnhancing, disableEnhancer, isDisabling } = useActiveEnhancerJob(chatroomId);
+  const { isEnhancing } = useActiveEnhancerJob(chatroomId);
+  const [isDisabling, setIsDisabling] = useState(false);
 
-  const handleToggle = useCallback(
-    () =>
-      toggleEnhancerState({
-        isActive,
-        isEnhancing,
-        config,
-        disableEnhancer,
-        disable,
-        saveConfig,
-        openDialog,
-      }),
-    [isActive, isEnhancing, config, disableEnhancer, disable, saveConfig, openDialog]
-  );
+  const handleToggle = useCallback(async () => {
+    if (isDisabling) return;
+    setIsDisabling(true);
+    try {
+      await toggleEnhancerState({ isActive, config, disable, saveConfig, openDialog });
+    } finally {
+      setIsDisabling(false);
+    }
+  }, [isActive, config, disable, saveConfig, openDialog, isDisabling]);
 
   const handleUnsupportedClick = useCallback(() => {
     toast.message(

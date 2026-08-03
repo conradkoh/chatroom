@@ -84,4 +84,44 @@ describe('StandingInstructionsEditModal', () => {
     expect(screen.getByPlaceholderText('Title')).toHaveValue('Second');
     expect(screen.getByPlaceholderText('Enter standing instructions…')).toHaveValue('Second body');
   });
+
+  it('saves with Cmd+Enter from the textarea', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <StandingInstructionsEditModal
+        open
+        onOpenChange={vi.fn()}
+        initialTitle="My rule"
+        initialContent="Rule body"
+        onConfirm={onConfirm}
+      />
+    );
+
+    const contentInput = screen.getByPlaceholderText('Enter standing instructions…');
+    await user.click(contentInput);
+    await user.keyboard('{Control>}{Enter}{/Control}');
+
+    expect(onConfirm).toHaveBeenCalledWith({ content: 'Rule body', title: 'My rule' });
+  });
+
+  it('saves with Cmd+Enter from the title input', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <StandingInstructionsEditModal
+        open
+        onOpenChange={vi.fn()}
+        initialTitle="My rule"
+        initialContent="Rule body"
+        onConfirm={onConfirm}
+      />
+    );
+
+    const titleInput = screen.getByPlaceholderText('Title');
+    await user.click(titleInput);
+    await user.keyboard('{Control>}{Enter}{/Control}');
+
+    expect(onConfirm).toHaveBeenCalledWith({ content: 'Rule body', title: 'My rule' });
+  });
 });
