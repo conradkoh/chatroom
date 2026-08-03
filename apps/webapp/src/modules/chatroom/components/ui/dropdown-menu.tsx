@@ -12,6 +12,7 @@ import type * as React from 'react';
 
 import { useOverlayDismissStack } from '../../hooks/useOverlayDismissStack';
 import { chatroomPortaledMenuFloatingClassName } from '../shared/industrialDialogStyles';
+import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
 
 import { cn } from '@/lib/utils';
 
@@ -64,8 +65,9 @@ function DropdownMenuContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+  const portalContainer = useOverlayPortalContainer();
   return (
-    <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.Portal container={portalContainer ?? undefined}>
       <DropdownMenuPrimitive.Content
         data-slot="chatroom-dropdown-menu-content"
         sideOffset={sideOffset}
