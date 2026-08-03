@@ -51,8 +51,12 @@ export function StandingInstructionsEditorDialog({
   const confirmDisabled = !draft.trim() || !draftTitle.trim();
 
   const handleConfirm = async () => {
-    await onConfirm({ content: draft.trim(), title: draftTitle.trim() });
-    if (closeOnConfirm) onOpenChange(false);
+    try {
+      await onConfirm({ content: draft.trim(), title: draftTitle.trim() });
+      if (closeOnConfirm) onOpenChange(false);
+    } catch {
+      // Keep dialog open so the user can retry after a failed save.
+    }
   };
 
   return (

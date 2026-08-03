@@ -129,6 +129,7 @@ export function StandingInstructionsPicker({
             ? 'Another standing instruction with this content already exists.'
             : 'Failed to update standing instruction. Please try again.'
         );
+        throw error;
       }
     },
     [editTarget, onEditItem]
