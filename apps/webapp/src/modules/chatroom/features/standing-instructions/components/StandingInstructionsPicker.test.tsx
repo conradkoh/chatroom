@@ -162,11 +162,14 @@ describe('StandingInstructionsPicker', () => {
     expect(onDisable).toHaveBeenCalledTimes(1);
   });
 
-  it('Disable button uses destructive industrial styling', () => {
+  it('Disable button uses outlined destructive text styling', () => {
     renderPicker();
     const disableBtn = screen.getByText('Disable');
-    expect(disableBtn.className).toContain('bg-chatroom-status-error');
-    expect(disableBtn.className).toContain('text-white');
+    expect(disableBtn.className).toContain('bg-red-50');
+    expect(disableBtn.className).toContain('text-red-600');
+    expect(disableBtn.className).toContain('border-red-200');
+    expect(disableBtn.className).toContain('h-9');
+    expect(disableBtn.className).toContain('text-sm');
   });
 
   it('Apply uses display title for legacy empty-title history rows', async () => {
