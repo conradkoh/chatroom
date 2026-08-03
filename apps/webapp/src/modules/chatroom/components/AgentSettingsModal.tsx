@@ -21,17 +21,18 @@ import {
 } from 'lucide-react';
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
-import { CopyButton } from './CopyButton';
 import { EventStreamTab } from './EventStreamTab';
 import { useDaemonConnected } from '../../../hooks/useDaemonConnected';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
 import type { SettingsTab } from './CommandPalette/types';
+import { CopyButton } from './CopyButton';
 import { IntegrationsTab } from './IntegrationsTab';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './picker';
 import { SkillsTab } from './SkillsTab';
+import { ChatroomDestructiveTextButton } from './ui/ChatroomDestructiveTextButton';
 import { useTeamConfigs } from '../hooks/use-team-configs';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
@@ -149,12 +150,9 @@ const SetupContent = memo(function SetupContent({
         <p className="text-[10px] text-chatroom-text-muted">
           Archive this chat to mark it as complete. Archived chats appear in the Complete tab.
         </p>
-        <button
-          onClick={handleArchive}
-          className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors"
-        >
+        <ChatroomDestructiveTextButton size="compact" onClick={handleArchive}>
           Archive Chat
-        </button>
+        </ChatroomDestructiveTextButton>
       </div>
 
       <LifecycleConfirmDialog
