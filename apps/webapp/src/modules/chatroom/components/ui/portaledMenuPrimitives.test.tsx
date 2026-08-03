@@ -63,6 +63,79 @@ describe('DropdownMenuContent', () => {
   });
 });
 
+describe('DropdownMenuContent inside FixedModal', () => {
+  it('portals content into the FixedModal portal host (not document.body)', () => {
+    render(
+      <FixedModal isOpen onClose={() => undefined}>
+        <DropdownMenu open onOpenChange={vi.fn()} modal={false}>
+          <DropdownMenuTrigger asChild>
+            <button type="button">open</button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent data-testid="dropdown-content">item</DropdownMenuContent>
+        </DropdownMenu>
+      </FixedModal>
+    );
+
+    const content = screen.getByTestId('dropdown-content');
+    const host = document.body.querySelector('[data-slot="chatroom-dialog-portal-host"]');
+    expect(host).not.toBeNull();
+    expect(host?.contains(content)).toBe(true);
+  });
+
+  it('nested FixedModal (list -> detail): portals into the innermost modal host', () => {
+    render(
+      <FixedModal isOpen onClose={() => undefined}>
+        <FixedModal isOpen onClose={() => undefined}>
+          <DropdownMenu open onOpenChange={vi.fn()} modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button type="button">open</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent data-testid="dropdown-content">item</DropdownMenuContent>
+          </DropdownMenu>
+        </FixedModal>
+      </FixedModal>
+    );
+
+    const content = screen.getByTestId('dropdown-content');
+    const hosts = document.body.querySelectorAll('[data-slot="chatroom-dialog-portal-host"]');
+    expect(hosts.length).toBe(2);
+    expect(hosts[1].contains(content)).toBe(true);
+  });
+
+  it('registers above FixedModal so escape dismisses dropdown before modal', () => {
+    const onModalClose = vi.fn();
+    const onDropdownOpenChange = vi.fn();
+
+    const view = render(
+      <FixedModal isOpen onClose={onModalClose}>
+        <DropdownMenu open onOpenChange={onDropdownOpenChange}>
+          <DropdownMenuTrigger asChild>
+            <button type="button">open</button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent data-testid="dropdown-content">item</DropdownMenuContent>
+        </DropdownMenu>
+      </FixedModal>
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onModalClose).not.toHaveBeenCalled();
+
+    view.rerender(
+      <FixedModal isOpen onClose={onModalClose}>
+        <DropdownMenu open={false} onOpenChange={onDropdownOpenChange}>
+          <DropdownMenuTrigger asChild>
+            <button type="button">open</button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent data-testid="dropdown-content">item</DropdownMenuContent>
+        </DropdownMenu>
+      </FixedModal>
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onModalClose).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('SelectContent', () => {
   it('renders with opaque chatroom primary background', () => {
     render(
