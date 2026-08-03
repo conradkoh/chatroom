@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-export
+// fallow-ignore-file unused-export — re-exported from index for slice 3 consumers
 import { standingInstructionContentKey } from '@workspace/backend/src/domain/entities/standing-instructions';
 
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';

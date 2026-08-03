@@ -10,8 +10,10 @@ import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessio
 import { BookOpen, Plus } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
-import { StandingInstructionsDialog } from '../features/standing-instructions/components';
-import type { StandingInstructionsDialogInitialView } from '../features/standing-instructions/types/standingInstructionsDialog';
+import {
+  StandingInstructionsDialog,
+  StandingInstructionsPicker,
+} from '../features/standing-instructions/components';
 
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 
@@ -58,14 +60,12 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
 
   const upsertMutation = useSessionMutation(api.standingInstructions.upsert);
   const setEnabledMutation = useSessionMutation(api.standingInstructions.setEnabled);
-  const clearMutation = useSessionMutation(api.standingInstructions.clear);
 
   const history = useSessionQuery(api.standingInstructions.listHistory, {}) ?? [];
   const recordUseMutation = useSessionMutation(api.standingInstructions.recordUse);
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogInitialView, setDialogInitialView] =
-    useState<StandingInstructionsDialogInitialView>('add');
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const historyItems = useMemo(
     () =>
@@ -80,13 +80,11 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   );
 
   const openAddDialog = useCallback(() => {
-    setDialogInitialView('add');
     setDialogOpen(true);
   }, []);
 
-  const openActionsDialog = useCallback(() => {
-    setDialogInitialView('actions');
-    setDialogOpen(true);
+  const openPicker = useCallback(() => {
+    setPickerOpen(true);
   }, []);
 
   const handleDialogConfirm = useCallback(
@@ -114,10 +112,6 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     await setEnabledMutation({ chatroomId, enabled: false });
   }, [chatroomId, setEnabledMutation]);
 
-  const handleDelete = useCallback(async () => {
-    await clearMutation({ chatroomId });
-  }, [chatroomId, clearMutation]);
-
   if (isLoading) {
     return (
       <div
@@ -143,13 +137,13 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
     );
   }
 
-  const dialog = dialogOpen ? (
+  const addDialog = dialogOpen ? (
     <StandingInstructionsDialog
       open
       onOpenChange={(nextOpen) => {
         if (!nextOpen) setDialogOpen(false);
       }}
-      initialView={dialogInitialView}
+      initialView="add"
       storedContent={storedContent}
       storedTitle={storedTitle}
       isActive={isActive}
@@ -157,8 +151,25 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       onConfirm={handleDialogConfirm}
       onEnable={handleEnable}
       onDisable={handleDisable}
-      onDelete={handleDelete}
+      onDelete={() => {}}
       onRecordHistoryUse={handleRecordHistoryUse}
+    />
+  ) : null;
+
+  const picker = pickerOpen ? (
+    <StandingInstructionsPicker
+      open
+      onOpenChange={(next) => {
+        if (!next) setPickerOpen(false);
+      }}
+      storedContent={storedContent}
+      storedTitle={storedTitle}
+      isActive={isActive}
+      hasContent={hasContent}
+      history={historyItems}
+      onConfirm={handleDialogConfirm}
+      onEnable={handleEnable}
+      onDisable={handleDisable}
     />
   ) : null;
 
@@ -181,7 +192,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
             Add standing instructions
           </span>
         </button>
-        {dialog}
+        {addDialog}
       </>
     );
   }
@@ -191,7 +202,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
       <button
         type="button"
         aria-label={isActive ? 'Standing instructions' : 'Standing instructions (disabled)'}
-        onClick={openActionsDialog}
+        onClick={openPicker}
         className={`${isActive ? BAR_SHELL : DISABLED_BAR_SHELL} w-full text-left cursor-pointer transition-colors ${isActive ? 'hover:bg-chatroom-status-success/10' : 'hover:bg-chatroom-bg-hover'}`}
       >
         <BookOpen
@@ -210,7 +221,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
           ) : null}
         </span>
       </button>
-      {dialog}
+      {picker}
     </>
   );
 });

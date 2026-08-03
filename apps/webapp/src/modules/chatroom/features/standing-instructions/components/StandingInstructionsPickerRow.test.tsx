@@ -8,8 +8,8 @@ describe('StandingInstructionsPickerRow', () => {
     const content = 'Fallback headline\nbody line';
     render(<StandingInstructionsPickerRow title="" content={content} onSelect={vi.fn()} />);
     expect(screen.getByText('Fallback headline', { exact: true })).toHaveClass('font-medium');
-    const contentLine = screen.getByText(
-      (_, el) => el?.classList.contains('text-chatroom-text-muted') && el.textContent === content
+    const contentLine = screen.getByText((_, el) =>
+      Boolean(el?.classList.contains('text-chatroom-text-muted') && el.textContent === content)
     );
     expect(contentLine).toHaveClass('truncate');
   });

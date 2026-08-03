@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-export
 'use client';
 
 import { standingInstructionDisplayTitle } from '@workspace/backend/src/domain/entities/standing-instructions';
