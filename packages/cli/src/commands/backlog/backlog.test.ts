@@ -15,6 +15,7 @@ import {
   addBacklogEffect,
   closeBacklogEffect,
   completeBacklogEffect,
+  deleteBacklogEffect,
   exportBacklogEffect,
   historyBacklogEffect,
   importBacklogEffect,
@@ -518,6 +519,46 @@ describe('closeBacklogEffect', () => {
         role: 'builder',
         backlogItemId: VALID_ITEM_ID,
         reason: 'done',
+      }).pipe(Effect.provide(testLayer))
+    );
+    consoleSpy.mockRestore();
+
+    expect(exit._tag).toBe('Failure');
+    const err = extractError<BacklogError>(exit as any);
+    expect(err?._tag).toBe('NotAuthenticated');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteBacklogEffect
+// ---------------------------------------------------------------------------
+
+describe('deleteBacklogEffect', () => {
+  test('succeeds and deletes backlog item', async () => {
+    const backendLayer = makeTestBackend({ mutationResponse: undefined });
+    const testLayer = Layer.mergeAll(backendLayer, AUTHENTICATED);
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const exit = await Effect.runPromiseExit(
+      deleteBacklogEffect(VALID_CHATROOM_ID, {
+        role: 'builder',
+        backlogItemId: VALID_ITEM_ID,
+      }).pipe(Effect.provide(testLayer))
+    );
+    logSpy.mockRestore();
+
+    expect(exit._tag).toBe('Success');
+  });
+
+  test('fails with NotAuthenticated when no session', async () => {
+    const backendLayer = makeTestBackend({});
+    const testLayer = Layer.mergeAll(backendLayer, UNAUTHENTICATED);
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const exit = await Effect.runPromiseExit(
+      deleteBacklogEffect(VALID_CHATROOM_ID, {
+        role: 'builder',
+        backlogItemId: VALID_ITEM_ID,
       }).pipe(Effect.provide(testLayer))
     );
     consoleSpy.mockRestore();

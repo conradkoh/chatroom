@@ -511,6 +511,18 @@ backlogCommand
   );
 
 backlogCommand
+  .command('delete')
+  .description('Permanently delete a backlog item (cannot be undone)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--backlog-item-id <id>', 'Backlog item ID to delete')
+  .action(async (options: { chatroomId: string; role: string; backlogItemId: string }) => {
+    await maybeRequireAuth();
+    const { deleteBacklog } = await import('./commands/backlog/index.js');
+    await deleteBacklog(options.chatroomId, options);
+  });
+
+backlogCommand
   .command('export')
   .description('Export backlog items to a JSON file')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
