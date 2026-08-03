@@ -4,8 +4,13 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Loader2, Power, PowerOff, Trash2 } from 'lucide-react';
 import React, { useCallback, useRef, useState } from 'react';
 
-import { formatSchedule, formatTime } from '../utils/scheduledPromptFormat';
 import { ScheduledPromptDetailDialog } from './ScheduledPromptDetailDialog';
+import { useOverlayPortalContainer } from '../../../components/shared/overlayPortalContainer';
+import { ChatroomDestructiveTextButton } from '../../../components/ui/ChatroomDestructiveTextButton';
+import { Popover, PopoverAnchor, PopoverContent } from '../../../components/ui/popover';
+import { useOverlayDismissStack } from '../../../hooks/useOverlayDismissStack';
+import { formatSchedule, formatTime } from '../utils/scheduledPromptFormat';
+
 import { Button } from '@/components/ui/button';
 import {
   Drawer,
@@ -17,9 +22,6 @@ import {
 } from '@/components/ui/drawer';
 import { Switch } from '@/components/ui/switch';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useOverlayDismissStack } from '../../../hooks/useOverlayDismissStack';
-import { useOverlayPortalContainer } from '../../../components/shared/overlayPortalContainer';
-import { Popover, PopoverAnchor, PopoverContent } from '../../../components/ui/popover';
 
 interface ScheduledPromptCardProps {
   prompt: {
@@ -74,15 +76,14 @@ export function ActionsMenuContent({
       </Button>
       {showDeleteConfirm ? (
         <div className="flex gap-2">
-          <Button
-            variant="destructive"
-            size="sm"
-            className="flex-1 text-xs"
+          <ChatroomDestructiveTextButton
+            size="compact"
+            className="flex-1"
             onClick={onDelete}
             disabled={isDeleting}
           >
             {isDeleting ? <Loader2 size={12} className="animate-spin" /> : 'Confirm Delete'}
-          </Button>
+          </ChatroomDestructiveTextButton>
           <Button
             variant="ghost"
             size="sm"

@@ -9,8 +9,11 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useSessionAction } from 'convex-helpers/react/sessions';
+import {
+  useSessionMutation,
+  useSessionQuery,
+  useSessionAction,
+} from 'convex-helpers/react/sessions';
 import {
   Bot,
   Check,
@@ -27,6 +30,8 @@ import {
 } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
 import { FaTelegram } from 'react-icons/fa';
+
+import { ChatroomDestructiveTextButton } from './ui/ChatroomDestructiveTextButton';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -249,15 +254,14 @@ const IntegrationCard = memo(function IntegrationCard({
           />
           {showDeleteConfirm ? (
             <div className="flex items-center gap-1">
-              <Button
-                variant="destructive"
-                size="sm"
+              <ChatroomDestructiveTextButton
+                size="compact"
+                className="text-xs h-7 px-2"
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="text-xs h-7 px-2"
               >
                 {isDeleting ? <Loader2 size={12} className="animate-spin" /> : 'Delete'}
-              </Button>
+              </ChatroomDestructiveTextButton>
               <Button
                 variant="ghost"
                 size="sm"

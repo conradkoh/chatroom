@@ -20,6 +20,7 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
 import { EmptyOutputState } from './EmptyOutputState';
+import { ChatroomDestructiveTextButton } from '../../../components/ui/ChatroomDestructiveTextButton';
 import { CommandDetailPanel } from '../../../features/run-command/components/CommandDetailPanel';
 import { OutputPanel } from '../../../features/run-command/components/OutputPanel';
 import { ProcessList } from '../../../features/run-command/components/ProcessList';
@@ -384,14 +385,14 @@ export function ProcessesPanel({
             Processes
           </h2>
           {machineId && workingDir && (
-            <button
-              type="button"
+            <ChatroomDestructiveTextButton
+              size="compact"
+              className="px-2 py-1"
               disabled={pendingOrRunningCount === 0}
               onClick={() => setClearStuckOpen(true)}
-              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider border border-destructive/40 text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               Clear stuck
-            </button>
+            </ChatroomDestructiveTextButton>
           )}
         </div>
 
