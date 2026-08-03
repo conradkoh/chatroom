@@ -68,6 +68,7 @@ import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
+import { useHandoffGitRefresh } from './hooks/useHandoffGitRefresh';
 import { useTimelineScroll } from './hooks/useTimelineScroll';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
@@ -969,6 +970,13 @@ export function ChatroomDashboard({
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
   const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);
   const lastRefreshRef = useRef(0);
+
+  useHandoffGitRefresh(
+    chatroomId,
+    chatroomWorkspaces,
+    requestGitRefreshMutation,
+    REFRESH_COOLDOWN_MS
+  );
 
   const handleConfirmedDelete = useCallback(
     async (commandId: string) => {
