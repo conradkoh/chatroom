@@ -8,6 +8,7 @@ import {
   DaemonSessionService,
 } from '../../../commands/machine/daemon-start/daemon-services.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import { createNoopEventRecorder } from '../../../infrastructure/event-store/index.js';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ describe('onRequestStartAgentEffect', () => {
       config: { hostname: 'test-host' } as any,
       backend: { mutation: backendMutation, query: vi.fn().mockResolvedValue(undefined) } as any,
       fs: { stat: vi.fn() } as any,
+      eventRecorder: createNoopEventRecorder('test-machine'),
       agentServices: new Map(),
       events: new DaemonEventBus(),
       lastPushedGitState: new Map(),
