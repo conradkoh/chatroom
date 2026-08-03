@@ -10,20 +10,9 @@ import {
 import type { FunctionReturnType } from 'convex/server';
 import { Effect, Ref } from 'effect';
 
+import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
 import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
-import { api } from '../../../api.js';
-import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
-import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
-import { onRequestRestartAgentEffect } from '../../../events/daemon/agent/on-request-restart-agent.js';
-import { onRequestStartAgentEffect } from '../../../events/daemon/agent/on-request-start-agent.js';
-import { onRequestStopAgentEffect } from '../../../events/daemon/agent/on-request-stop-agent.js';
-import { onDaemonShutdownEffect } from '../../../events/lifecycle/on-daemon-shutdown.js';
-import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
-import { makeGitStateKey } from '../../../infrastructure/git/types.js';
-import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
-import { pickFolderDialog } from '../../../infrastructure/local-actions/pick-folder.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
-import { releaseLock } from '../pid.js';
+import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
 import {
   DaemonMutableStateService,
   DaemonSessionService,
@@ -31,7 +20,6 @@ import {
 } from './daemon-services.js';
 import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
-import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
 import { startEnhancerSubscriptions } from './enhancer/start-subscriptions.js';
 import {
   startFileContentSubscriptionEffect,
@@ -50,21 +38,30 @@ import {
   startGitRequestSubscriptionEffect,
   type GitSubscriptionHandle,
 } from './git-subscription.js';
-import {
-  forceKillAllCommands,
-  onCommandRunEffect,
-  onCommandStopEffect,
-} from './handlers/command-runner.js';
+import { forceKillAllCommands } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { handlePing } from './handlers/ping.js';
+import { startCommandRunSubscription } from './handlers/process/command-run-subscription.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
 import { refreshModelsEffect } from './models-refresh.js';
-import { startObservedSyncSubscriptionEffect } from './observed-sync.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { startTaskMonitorEffect } from './task-monitor.js';
 import { formatTimestamp } from './utils.js';
 import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
+import { api } from '../../../api.js';
+import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
+import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
+import { onRequestRestartAgentEffect } from '../../../events/daemon/agent/on-request-restart-agent.js';
+import { onRequestStartAgentEffect } from '../../../events/daemon/agent/on-request-start-agent.js';
+import { onRequestStopAgentEffect } from '../../../events/daemon/agent/on-request-stop-agent.js';
+import { onDaemonShutdownEffect } from '../../../events/lifecycle/on-daemon-shutdown.js';
+import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { makeGitStateKey } from '../../../infrastructure/git/types.js';
+import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
+import { pickFolderDialog } from '../../../infrastructure/local-actions/pick-folder.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
+import { releaseLock } from '../pid.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -84,8 +81,6 @@ interface DedupTracker {
   capabilitiesRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
   pickFolderIds: Map<string, number>;
-  commandRunIds: Map<string, number>;
-  commandStopIds: Map<string, number>;
 }
 
 /**
@@ -105,8 +100,6 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.capabilitiesRefreshIds, evictBefore);
   evictStaleEntries(tracker.localActionIds, evictBefore);
   evictStaleEntries(tracker.pickFolderIds, evictBefore);
-  evictStaleEntries(tracker.commandRunIds, evictBefore);
-  evictStaleEntries(tracker.commandStopIds, evictBefore);
 
   // Evict stale pending stops from command-runner (stop-before-run race handling)
   processManager.evictStalePendingStops();
@@ -116,9 +109,7 @@ function evictStaleDedupEntries(tracker: DedupTracker): void {
 
 /** Union of services required to dispatch any command event. */
 type CommandDispatchDeps =
-  | DaemonAgentProcessManagerService
-  | DaemonMutableStateService
-  | DaemonSessionService;
+  DaemonAgentProcessManagerService | DaemonMutableStateService | DaemonSessionService;
 
 // ── Per-event Effect helpers (private) ────────────────────────────────────────
 
@@ -192,6 +183,7 @@ function handleGitRefreshCommandEffect(
     lastPushedGitState.delete(makeGitStateKey(session.machineId, typedEvent.workingDir));
     console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${typedEvent.workingDir}`);
     yield* pushSingleWorkspaceGitStateEffect(typedEvent.workingDir);
+    yield* pushSingleWorkspaceCommandsEffect(typedEvent.workingDir);
     tracker.gitRefreshIds.set(eventId, Date.now());
   });
 }
@@ -266,31 +258,6 @@ function handlePickFolderCommandEffect(
   });
 }
 
-function handleCommandRunEffect(
-  event: CommandEvent,
-  tracker: DedupTracker
-): Effect.Effect<void, never, DaemonSessionService> {
-  return Effect.gen(function* () {
-    const eventId = event._id.toString();
-    // command.run: register dedup BEFORE handler (spawning a process is NOT idempotent)
-    if (tracker.commandRunIds.has(eventId)) return;
-    tracker.commandRunIds.set(eventId, Date.now());
-    yield* onCommandRunEffect(event as unknown as Parameters<typeof onCommandRunEffect>[0]);
-  });
-}
-
-function handleCommandStopEffect(
-  event: CommandEvent,
-  tracker: DedupTracker
-): Effect.Effect<void, never, DaemonSessionService> {
-  return Effect.gen(function* () {
-    const eventId = event._id.toString();
-    if (tracker.commandStopIds.has(eventId)) return;
-    yield* onCommandStopEffect(event as unknown as Parameters<typeof onCommandStopEffect>[0]);
-    tracker.commandStopIds.set(eventId, Date.now());
-  });
-}
-
 function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
@@ -342,8 +309,6 @@ const commandEventHandlers: {
   'daemon.gitRefresh': handleGitRefreshCommandEffect,
   'daemon.localAction': handleLocalActionCommandEffect,
   'daemon.pickFolder': handlePickFolderCommandEffect,
-  'command.run': handleCommandRunEffect,
-  'command.stop': handleCommandStopEffect,
   'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
 };
 
@@ -397,8 +362,8 @@ export const startCommandLoopEffect: Effect.Effect<
   let fileWriteSubscriptionHandle: FileWriteSubscriptionHandle | null = null;
   let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
-  let observedSyncSubscriptionHandle: { stop: () => void } | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
+  let commandRunSubscriptionHandle: { stop: () => void } | null = null;
   let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
   let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
   let commandSubscriptionHandle: { stop: () => void } | null = null;
@@ -409,10 +374,8 @@ export const startCommandLoopEffect: Effect.Effect<
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 
-  // Observed-sync handles git/command sync; heartbeat is liveness-only.
-  console.log(
-    `[${formatTimestamp()}] 👁️ Observed-sync active — git/command sync is observation-driven`
-  );
+  // Git/command pushes are handoff-to-user driven via daemon.gitRefresh events;
+  // observation heartbeats keep the workspace-list subscription scoped only.
 
   // ── Shutdown timeouts ──────────────────────────────────────────────────
   const PROCESS_KILL_TIMEOUT_MS = 6_000;
@@ -481,9 +444,9 @@ export const startCommandLoopEffect: Effect.Effect<
     fileWriteSubscriptionHandle?.stop();
     fileTreeSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
-    observedSyncSubscriptionHandle?.stop();
     taskMonitorHandle?.stop();
     logObserverSubscriptionHandle?.stop();
+    commandRunSubscriptionHandle?.stop();
     pendingPromptSubscriptionHandle?.stop();
     pendingHarnessSessionSubscriptionHandle?.stop();
     commandSubscriptionHandle?.stop();
@@ -538,7 +501,6 @@ export const startCommandLoopEffect: Effect.Effect<
   fileWriteSubscriptionHandle = yield* startFileWriteSubscriptionEffect(wsClient);
   fileTreeSubscriptionHandle = yield* startFileTreeSubscriptionEffect(wsClient);
   workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
-  observedSyncSubscriptionHandle = yield* startObservedSyncSubscriptionEffect(wsClient);
 
   const taskMonitorHandle = yield* startTaskMonitorEffect(wsClient);
 
@@ -546,6 +508,12 @@ export const startCommandLoopEffect: Effect.Effect<
     { sessionId: session.sessionId, machineId: session.machineId },
     wsClient
   );
+
+  // Dedicated imperative channel for process-host commands (run/stop).
+  // Isolated from the multiplexed getCommandEvents stream so UI-initiated
+  // runs are not delayed by agent lifecycle or git events in flight.
+  const commandRunRuntime = yield* Effect.runtime<DaemonSessionService>();
+  commandRunSubscriptionHandle = startCommandRunSubscription(session, wsClient, commandRunRuntime);
 
   if (featureFlags.directHarnessWorkers) {
     const handles = startDirectHarnessSubscriptions(
@@ -579,7 +547,7 @@ export const startCommandLoopEffect: Effect.Effect<
     aqPendingPromptSubscriptionHandle = aqHandles.pendingPromptSubscriptionHandle;
     aqPendingHarnessSessionSubscriptionHandle = aqHandles.pendingHarnessSessionSubscriptionHandle;
 
-    const enhancerSub = startEnhancerSubscriptions(
+    const _enhancerSub = startEnhancerSubscriptions(
       session.sessionId,
       session.machineId,
       session.convexUrl,
@@ -599,8 +567,6 @@ export const startCommandLoopEffect: Effect.Effect<
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
-    commandRunIds: new Map<string, number>(),
-    commandStopIds: new Map<string, number>(),
   };
 
   wsClient.onUpdate(

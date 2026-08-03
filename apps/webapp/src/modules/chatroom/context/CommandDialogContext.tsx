@@ -7,7 +7,16 @@
  * command palette) can be open at a time. Opening one auto-closes any other.
  */
 
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 export type CommandDialogType = 'switcher' | 'file-selector' | 'command-palette' | null;
 
@@ -29,6 +38,18 @@ export function CommandDialogProvider({ children }: { children: ReactNode }) {
   const closeDialog = useCallback(() => {
     setActiveDialog(null);
   }, []);
+
+  // Reset open dialog on route change so a stale `activeDialog` cannot leave a
+  // force-mounted dialog in `data-state=open` after back navigation or unmount
+  // without closeDialog() being called. `useLayoutEffect` closes before paint.
+  const pathname = usePathname();
+  const prevPathnameRef = useRef(pathname);
+  useLayoutEffect(() => {
+    if (prevPathnameRef.current !== pathname) {
+      prevPathnameRef.current = pathname;
+      setActiveDialog(null);
+    }
+  }, [pathname]);
 
   return (
     <CommandDialogContext.Provider value={{ activeDialog, openDialog, closeDialog }}>

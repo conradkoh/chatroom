@@ -8,9 +8,9 @@
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { t } from '../test.setup';
 import { createTestSession, registerMachineWithDaemon } from '../tests/helpers/integration';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -107,7 +107,7 @@ describe('stopCommand', () => {
     expect(stopEvents).toHaveLength(0);
   });
 
-  test('running run → terminationReason set, command.stop event dispatched', async () => {
+  test('running run → terminationReason set, no command.stop event (row is source of truth)', async () => {
     const { sessionId, machineId } = await setupMachine('stop-running');
     const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
@@ -118,8 +118,10 @@ describe('stopCommand', () => {
     // Status should NOT be changed by stopCommand for running runs
     expect(run!.status).toBe('running');
 
+    // The daemon's dedicated subscription observes the terminationReason on the
+    // run row — no chatroom_eventStream event is emitted anymore.
     const stopEvents = await getRunStopEvents(runId);
-    expect(stopEvents).toHaveLength(1);
+    expect(stopEvents).toHaveLength(0);
   });
 
   test('terminal run → throws ConvexError COMMAND_NOT_RUNNING', async () => {
@@ -561,6 +563,66 @@ describe('listRunsWithLogObservers', () => {
     ]);
 
     expect(daemonRuns.map((r) => r._id).sort()).toEqual(commandsRuns.map((r) => r._id).sort());
+  });
+});
+
+// ─── listActionableCommandRuns tests ─────────────────────────────────────────
+
+describe('listActionableCommandRuns', () => {
+  test('returns pending spawns and running runs with a user-requested stop', async () => {
+    const { sessionId, machineId } = await setupMachine('lacr-scope');
+    const otherMachine = 'machine-lacr-other';
+    await registerMachineWithDaemon(sessionId, otherMachine);
+
+    const pendingRunId = await createPendingRun(sessionId, machineId, '/tmp/ws', 'dev');
+    const runningRunId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'build');
+    const stopRequestedRunId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'lint');
+    const otherMachineRunId = await createPendingRun(sessionId, otherMachine, '/tmp/other', 'dev');
+
+    // Mark one running run as stop-requested
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_commandRuns', stopRequestedRunId, {
+        terminationReason: 'user-stop',
+      });
+    });
+
+    const result = await t.query(api.daemon.commands.listActionableCommandRuns, {
+      sessionId,
+      machineId,
+    });
+
+    expect(result.pendingRuns.map((r) => r._id).sort()).toEqual([pendingRunId].sort());
+    expect(result.stopRequestedRuns.map((r) => r._id).sort()).toEqual([stopRequestedRunId].sort());
+
+    // Running run without a stop request is NOT included
+    expect(result.stopRequestedRuns.map((r) => r._id)).not.toContain(runningRunId);
+    // Other-machine runs are NOT included
+    expect(result.pendingRuns.map((r) => r._id)).not.toContain(otherMachineRunId);
+    expect(result.stopRequestedRuns.map((r) => r._id)).not.toContain(otherMachineRunId);
+  });
+
+  test('returns empty result when nothing is actionable', async () => {
+    const { sessionId, machineId } = await setupMachine('lacr-empty');
+
+    const result = await t.query(api.daemon.commands.listActionableCommandRuns, {
+      sessionId,
+      machineId,
+    });
+
+    expect(result.pendingRuns).toHaveLength(0);
+    expect(result.stopRequestedRuns).toHaveLength(0);
+  });
+
+  test('auth — caller without machine owner access is rejected', async () => {
+    const { sessionId: _sessionId, machineId } = await setupMachine('lacr-auth');
+    const { sessionId: otherSession } = await createTestSession('cmds-spec-lacr-auth-other');
+
+    await expect(
+      t.query(api.daemon.commands.listActionableCommandRuns, {
+        sessionId: otherSession,
+        machineId,
+      })
+    ).rejects.toThrow();
   });
 });
 

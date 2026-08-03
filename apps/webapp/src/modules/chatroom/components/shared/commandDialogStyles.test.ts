@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   COMMAND_DIALOG_CONTENT_CLASSES,
+  COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES,
   getCommandDialogContentStyle,
 } from './commandDialogStyles';
 
@@ -11,6 +12,16 @@ describe('commandDialogStyles close animation', () => {
   it('persists exit animation end state to prevent forceMount close flash', () => {
     expect(classNames).toContain('data-[state=closed]:fill-mode-forwards');
     expect(classNames).toContain('data-[state=closed]:pointer-events-none');
+  });
+});
+
+describe('COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES', () => {
+  it('is a transparent full-screen layer below command content', () => {
+    expect(COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES).toContain('z-40');
+    expect(COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES).toContain('fixed');
+    expect(COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES).toContain('inset-0');
+    expect(COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES).toContain('bg-transparent');
+    expect(COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES).not.toContain('z-50');
   });
 });
 

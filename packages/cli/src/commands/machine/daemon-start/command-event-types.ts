@@ -7,8 +7,6 @@ export const DAEMON_COMMAND_EVENT_TYPES = [
   'daemon.gitRefresh',
   'daemon.localAction',
   'daemon.pickFolder',
-  'command.run',
-  'command.stop',
   'daemon.refreshCapabilities',
 ] as const;
 

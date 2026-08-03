@@ -38,7 +38,6 @@ vi.mock('../../../api.js', () => ({
       ackPing: 'mock-ackPing',
       updateDaemonStatus: 'mock-updateDaemonStatus',
       register: 'mock-register',
-      getObservedChatroomsForMachine: 'mock-getObservedChatroomsForMachine',
       daemonHeartbeat: 'mock-daemonHeartbeat',
       refreshCapabilities: 'mock-refreshCapabilities',
       reportFolderPickerResult: 'mock-reportFolderPickerResult',
@@ -133,6 +132,7 @@ vi.mock('./command-sync-heartbeat.js', async () => {
   return {
     pushCommands: vi.fn().mockResolvedValue(undefined),
     pushCommandsEffect: Effect.void,
+    pushSingleWorkspaceCommandsEffect: vi.fn().mockReturnValue(Effect.void),
   };
 });
 
@@ -174,15 +174,12 @@ vi.mock('./workspace-list-subscription.js', async () => {
   };
 });
 
-vi.mock('./observed-sync.js', async () => {
-  const { Effect } = await import('effect');
-  return {
-    startObservedSyncSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
-  };
-});
-
 vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
+}));
+
+vi.mock('./handlers/process/command-run-subscription.js', () => ({
+  startCommandRunSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
 }));
 
 vi.mock('./handlers/ping.js', () => ({
@@ -268,8 +265,6 @@ function createDedupTracker() {
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
-    commandRunIds: new Map<string, number>(),
-    commandStopIds: new Map<string, number>(),
   };
 }
 

@@ -171,3 +171,33 @@ export async function handleGetRunStatus(
 
   return { status: run.status };
 }
+
+/** Runs the daemon must act on: pending spawns + running with user-requested stop. */
+export async function handleListActionableCommandRuns(ctx: QueryCtx, args: { machineId: string }) {
+  const [pendingRuns, runningRuns] = await Promise.all([
+    ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machineId_status', (q) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
+      .collect(),
+    ctx.db
+      .query('chatroom_commandRuns')
+      .withIndex('by_machineId_status', (q) =>
+        q.eq('machineId', args.machineId).eq('status', 'running')
+      )
+      .collect(),
+  ]);
+
+  const stopRequestedRuns = runningRuns.filter((r) => r.terminationReason === 'user-stop');
+
+  return {
+    pendingRuns: pendingRuns.map((r) => ({
+      _id: r._id,
+      workingDir: r.workingDir,
+      commandName: r.commandName,
+      script: r.script,
+    })),
+    stopRequestedRuns: stopRequestedRuns.map((r) => ({ _id: r._id })),
+  };
+}

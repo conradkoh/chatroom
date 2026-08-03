@@ -1,3 +1,4 @@
+import { getEnhancerHistoryRetrievalGuidance } from './history-retrieval';
 import {
   ENHANCER_STDIN_DELIMITER,
   HANDOFF_MESSAGE_MARKER,
@@ -7,6 +8,7 @@ import {
 export interface RenderEnhancerSystemPromptParams {
   chatroomId: string;
   jobId: string;
+  cliEnvPrefix: string;
 }
 
 export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptParams): string {
@@ -30,6 +32,11 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
     '- When grounding references files or the approach depends on code not fully quoted in the check-in, read those files (and closely related code) to understand the problem and validate the proposal.',
     '- Use tools to investigate the repository — focus on whether the proposed approach fits the codebase and addresses the user request.',
     '- Give **specific, targeted feedback** in every section — cite concrete claims, files, and choices from the check-in; avoid vague platitudes.',
+    '',
+    getEnhancerHistoryRetrievalGuidance({
+      chatroomId: params.chatroomId,
+      cliEnvPrefix: params.cliEnvPrefix,
+    }),
     '',
     '## UI/UX validation (when planner proposes interface changes)',
     '- Complete the optional **UX** section using the reference in <handoff-templates>; write "Not Applicable." when no UI changes are proposed.',

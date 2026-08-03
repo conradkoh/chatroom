@@ -15,7 +15,15 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/modules/chatroom/hooks/useObserveChatroom', () => ({
-  useObserveChatroom: () => ({ refresh: vi.fn() }),
+  useObserveChatroom: () => undefined,
+}));
+
+vi.mock('@/modules/chatroom/context/CommandDialogContext', () => ({
+  useCommandDialog: () => ({
+    activeDialog: null,
+    openDialog: vi.fn(),
+    closeDialog: vi.fn(),
+  }),
 }));
 
 vi.mock('@/modules/chatroom/components/ChatroomSidebar', () => ({
