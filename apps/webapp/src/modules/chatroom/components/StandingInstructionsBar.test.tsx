@@ -221,6 +221,7 @@ describe('StandingInstructionsBar', () => {
         historyId: 'h2',
         content: 'Use async/await',
         title: 'Async patterns',
+        applyToOwnerChatrooms: false,
       });
       expect(mockUpsert).not.toHaveBeenCalled();
     });
@@ -237,6 +238,7 @@ describe('StandingInstructionsBar', () => {
         historyId: 'h1',
         content: 'Always use TypeScript',
         title: 'Type safety',
+        applyToOwnerChatrooms: false,
       });
       expect(mockUpsert).toHaveBeenCalledWith({
         chatroomId: ROOM_ID,

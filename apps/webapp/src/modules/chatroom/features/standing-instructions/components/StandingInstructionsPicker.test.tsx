@@ -282,6 +282,24 @@ describe('StandingInstructionsPicker', () => {
     expect(screen.getByText('Delete standing instruction?')).toBeInTheDocument();
   });
 
+  it('synthetic current item shows delete and confirms with synthetic-specific copy', async () => {
+    const user = userEvent.setup();
+    const { onDeleteItem } = renderPicker({
+      history: [],
+      isActive: true,
+      storedContent: 'Current rule',
+      storedTitle: 'Current',
+    });
+
+    await user.click(screen.getAllByLabelText('Delete')[0]);
+    expect(
+      screen.getByText('Clear this standing instruction and disable it in this chatroom?')
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByText('Delete'));
+    expect(onDeleteItem).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps edit modal open and shows toast when save fails', async () => {
     const user = userEvent.setup();
     const onEditItem = vi.fn().mockRejectedValue(new Error('CONFLICT: already exists'));

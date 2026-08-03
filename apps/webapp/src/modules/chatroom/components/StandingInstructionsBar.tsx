@@ -64,6 +64,7 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   const setEnabledMutation = useSessionMutation(api.standingInstructions.setEnabled);
   const updateHistoryMutation = useSessionMutation(api.standingInstructions.updateHistory);
   const deleteHistoryMutation = useSessionMutation(api.standingInstructions.deleteHistory);
+  const clearMutation = useSessionMutation(api.standingInstructions.clear);
 
   const history = useSessionQuery(api.standingInstructions.listHistory, {}) ?? [];
 
@@ -101,7 +102,10 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
   }, [chatroomId, setEnabledMutation]);
 
   const handleEditItem = useCallback(
-    async (item: PickerListItem, payload: { content: string; title: string }) => {
+    async (
+      item: PickerListItem,
+      payload: { content: string; title: string; applyToAllChatrooms?: boolean }
+    ) => {
       if (isSyntheticCurrentItem(item)) {
         await handleUpsert(payload);
         return;
@@ -110,8 +114,14 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
         historyId: item.id as Id<'chatroom_standingInstructionHistory'>,
         content: payload.content,
         title: payload.title,
+        applyToOwnerChatrooms: payload.applyToAllChatrooms,
       });
-      if (findActiveHistoryMatch(historyItems, storedContent) === item.id) {
+      // When propagating to all owner chatrooms, the backend scan already covers
+      // the current chatroom — skip the redundant conditional upsert.
+      if (
+        !payload.applyToAllChatrooms &&
+        findActiveHistoryMatch(historyItems, storedContent) === item.id
+      ) {
         await handleUpsert(payload);
       }
     },
@@ -120,12 +130,15 @@ export const StandingInstructionsBar = memo(function StandingInstructionsBar({
 
   const handleDeleteItem = useCallback(
     async (item: PickerListItem) => {
-      if (isSyntheticCurrentItem(item)) return;
+      if (isSyntheticCurrentItem(item)) {
+        await clearMutation({ chatroomId });
+        return;
+      }
       await deleteHistoryMutation({
         historyId: item.id as Id<'chatroom_standingInstructionHistory'>,
       });
     },
-    [deleteHistoryMutation]
+    [clearMutation, chatroomId, deleteHistoryMutation]
   );
 
   if (isLoading) {

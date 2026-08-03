@@ -2,7 +2,7 @@
 
 import { StandingInstructionsCreateNewButton } from './StandingInstructionsCreateNewButton';
 import { StandingInstructionsPickerRow } from './StandingInstructionsPickerRow';
-import { isSyntheticCurrentItem, type PickerListItem } from './standingInstructionsPickerUtils';
+import type { PickerListItem } from './standingInstructionsPickerUtils';
 
 export function StandingInstructionsPickerContent({
   visible,
@@ -35,7 +35,7 @@ export function StandingInstructionsPickerContent({
               showActiveBadge={item.id === activeId}
               onSelect={() => onSelect(item.id)}
               onEdit={() => onEditItem(item)}
-              onDelete={isSyntheticCurrentItem(item) ? undefined : () => onDeleteItem(item)}
+              onDelete={() => onDeleteItem(item)}
               mobile={mobile}
               className="rounded-none"
             />
