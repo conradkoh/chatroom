@@ -11,9 +11,8 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
-import { requireMachineOwner } from './auth/cli/machineAccess.js';
+import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession, requireSession } from './auth/session';
-
 import {
   handleRunCommand,
   handleStopCommand,
@@ -24,6 +23,12 @@ import {
   handleClearPendingFullOutputSync,
 } from './commands/mutations';
 import {
+  updateRunStatus as handleUpdateRunStatus,
+  clearStuckRuns as handleClearStuckCommandRuns,
+  reapOrphansForMachine as handleReapOrphansForDaemonRestart,
+} from './commands/process/run_status';
+import { syncCommands as handleSyncCommands } from './commands/process/sync';
+import {
   handleListCommands,
   handleListActiveRuns,
   handleListRunsV2,
@@ -31,12 +36,8 @@ import {
   handleGetRunStatus,
   handleListRunsWithLogObservers,
 } from './commands/queries';
-import { syncCommands as handleSyncCommands } from './commands/process/sync';
-import {
-  updateRunStatus as handleUpdateRunStatus,
-  clearStuckRuns as handleClearStuckCommandRuns,
-  reapOrphansForMachine as handleReapOrphansForDaemonRestart,
-} from './commands/process/run_status';
+import { str } from './utils/types';
+import { stopAllCommandRunsForChatroom as stopAllCommandRunsForChatroomUseCase } from '../src/domain/usecase/commands/stop-all-command-runs-for-chatroom';
 
 // ─── Mutations ──────────────────────────────────────────────────────────────
 
@@ -137,6 +138,25 @@ export const stopCommand = mutation({
     });
 
     await handleStopCommand(ctx, args);
+  },
+});
+
+export const stopAllCommandRunsForChatroom = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireSession(ctx, args.sessionId);
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
+      permission: 'write-access',
+    });
+
+    return await stopAllCommandRunsForChatroomUseCase(ctx, {
+      chatroomId: args.chatroomId,
+    });
   },
 });
 
