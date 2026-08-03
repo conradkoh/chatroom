@@ -18,13 +18,17 @@ import { isAgentReadyForNativeDelivery } from './native-ready-invariant.js';
 import { resetRoleDeliveryState } from './native-task-delivery-coordinator.js';
 import { explainLedgerDeliveryBlock } from './native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
-import type { AgentHarness } from './types.js';
-import { api } from '../../../api.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
 import {
   markRestartOrchestratorInFlight,
   clearRestartOrchestratorInFlight,
 } from './restart-orchestrator-in-flight.js';
+import type { AgentHarness } from './types.js';
+import { api } from '../../../api.js';
+import {
+  DAEMON_EVENT_TYPES,
+  type DaemonEventRecorder,
+} from '../../../infrastructure/event-store/index.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
 
 interface RestartOrchestratorEvent {
   chatroomId: string;
@@ -44,6 +48,8 @@ export interface RestartOrchestratorSession {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
   };
+  /** Local SQLite event-store recorder (dual-write). */
+  eventRecorder: DaemonEventRecorder;
 }
 
 interface RestartOrchestratorDeps {
@@ -57,7 +63,7 @@ async function emitPhase(
   phase: AgentRestartPhase | 'completed' | 'failed',
   detail?: string
 ): Promise<void> {
-  await deps.session.backend.mutation(api.machines.emitRestartPhase, {
+  const args = {
     sessionId: deps.session.sessionId,
     machineId: deps.session.machineId,
     chatroomId: event.chatroomId,
@@ -65,7 +71,16 @@ async function emitPhase(
     correlationId: event.correlationId,
     phase,
     detail,
-  });
+  };
+  await deps.session.eventRecorder.appendAndPublish(
+    {
+      chatroomId: event.chatroomId,
+      type: DAEMON_EVENT_TYPES.AGENT_RESTART_PHASE,
+      timestamp: Date.now(),
+      payload: args,
+    },
+    () => deps.session.backend.mutation(api.machines.emitRestartPhase, args)
+  );
 }
 
 function sleep(ms: number): Promise<void> {
@@ -179,6 +194,7 @@ async function deliverOneTask(
         sessionId: deps.session.sessionId,
         machineId: deps.session.machineId,
         backend: deps.session.backend,
+        eventRecorder: deps.session.eventRecorder,
         convexUrl: deps.session.convexUrl,
         agentMgr: {
           resumeTurnForSlot: async (args) => {
@@ -266,14 +282,23 @@ export async function runRestartOrchestrator(
 
     const deliveredTaskIds = await deliverPendingTasks(deps, event);
 
-    await deps.session.backend.mutation(api.machines.emitRestartCompleted, {
+    const completedArgs = {
       sessionId: deps.session.sessionId,
       machineId: deps.session.machineId,
       chatroomId,
       role,
       correlationId: event.correlationId,
       deliveredTaskIds,
-    });
+    };
+    await deps.session.eventRecorder.appendAndPublish(
+      {
+        chatroomId,
+        type: DAEMON_EVENT_TYPES.AGENT_RESTART_COMPLETED,
+        timestamp: Date.now(),
+        payload: completedArgs,
+      },
+      () => deps.session.backend.mutation(api.machines.emitRestartCompleted, completedArgs)
+    );
   } catch (err) {
     console.warn(`[RestartOrchestrator] failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`);
     await emitPhase(deps, event, 'failed', getErrorMessage(err));

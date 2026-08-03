@@ -5,6 +5,7 @@ import {
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
 } from './agent-process-manager.js';
+import { createNoopEventRecorder } from '../../event-store/index.js';
 import { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
 
@@ -43,6 +44,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     },
     sessionId: 'test-session',
     machineId: 'test-machine',
+    eventRecorder: createNoopEventRecorder('test-machine'),
     processes: { kill: vi.fn() },
     clock: {
       delay: vi.fn().mockResolvedValue(undefined),

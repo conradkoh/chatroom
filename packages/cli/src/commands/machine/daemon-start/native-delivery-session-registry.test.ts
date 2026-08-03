@@ -7,6 +7,7 @@ import {
   unregisterNativeDeliverySession,
   type NativeDeliverySessionContext,
 } from './native-delivery-session-registry.js';
+import { createNoopEventRecorder } from '../../../infrastructure/event-store/index.js';
 
 describe('native-delivery-session-registry', () => {
   test('returns null when not registered', () => {
@@ -24,6 +25,7 @@ describe('native-delivery-session-registry', () => {
         machineId: 'm',
         convexUrl: 'http://x',
         backend: { mutation: vi.fn(), query: vi.fn() },
+        eventRecorder: createNoopEventRecorder('m'),
       },
       machineId: 'm',
     };

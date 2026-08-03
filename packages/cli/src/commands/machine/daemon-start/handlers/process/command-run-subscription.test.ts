@@ -17,6 +17,7 @@ import {
   startCommandRunSubscription,
 } from './command-run-subscription.js';
 import type { api, Id } from '../../../../../api.js';
+import { createNoopEventRecorder } from '../../../../../infrastructure/event-store/index.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../../daemon-services.js';
 import { onCommandRunEffect, onCommandStopEffect } from '../command-runner.js';
 
@@ -59,6 +60,7 @@ function makeSession(): DaemonSessionServiceShape {
     config: null,
     backend: {} as DaemonSessionServiceShape['backend'],
     fs: {} as DaemonSessionServiceShape['fs'],
+    eventRecorder: createNoopEventRecorder('test-machine-id'),
     agentServices: new Map(),
     events: {} as DaemonSessionServiceShape['events'],
     lastPushedGitState: new Map(),

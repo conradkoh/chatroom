@@ -26,6 +26,7 @@ import {
 } from './daemon-services.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
+import { createNoopEventRecorder } from '../../../infrastructure/event-store/index.js';
 
 // ---------------------------------------------------------------------------
 // A. DaemonMachineService
@@ -185,6 +186,7 @@ describe('DaemonSessionService', () => {
       config: null,
       backend: { mutation: vi.fn(), query: vi.fn() } as any,
       fs: { stat: vi.fn() } as any,
+      eventRecorder: createNoopEventRecorder('test-machine-id'),
       agentServices: new Map(),
       events: {} as any,
       lastPushedGitState: new Map(),
@@ -215,6 +217,7 @@ describe('DaemonSessionService', () => {
       config: null,
       backend: backendMock,
       fs: fsMock,
+      eventRecorder: createNoopEventRecorder('test-machine-id'),
       agentServices: new Map(),
       events: {} as any,
       lastPushedGitState: new Map(),
@@ -245,6 +248,7 @@ describe('DaemonSessionService', () => {
       config: null,
       backend: { mutation: vi.fn(), query: vi.fn() } as any,
       fs: { stat: vi.fn() } as any,
+      eventRecorder: createNoopEventRecorder('test-machine-id'),
       agentServices: new Map(),
       events: {} as any,
       lastPushedGitState,

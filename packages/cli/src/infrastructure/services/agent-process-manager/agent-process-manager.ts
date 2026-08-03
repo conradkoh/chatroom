@@ -20,14 +20,7 @@
  */
 
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
-import {
-  NATIVE_HANDOFF_REMINDER,
-  NATIVE_WAITING_ACTION,
-} from '@workspace/backend/src/domain/entities/participant.js';
-import {
-  emitNativeWaitingAfterSpawn,
-  wireThrottledTokenActivityOnOutput,
-} from '../remote-agents/native-spawn-presence.js';
+import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
@@ -73,6 +66,7 @@ import type { ResumeStormTracker } from '../../../domain/agent-lifecycle/ports/r
 import { handleTurnCompleted } from '../../../domain/agent-lifecycle/use-cases/handle-turn-completed.js';
 import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
 import { isProcessAlive } from '../../deps/process.js';
+import { DAEMON_EVENT_TYPES, type DaemonEventRecorder } from '../../event-store/index.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
 import type { AgentHarness } from '../../machine/types.js';
@@ -88,6 +82,10 @@ import {
   type OperationResult,
   type StopOpts,
 } from '../agent-lifecycle/agent-lifecycle-types.js';
+import {
+  emitNativeWaitingAfterSpawn,
+  wireThrottledTokenActivityOnOutput,
+} from '../remote-agents/native-spawn-presence.js';
 import type {
   HarnessReconnectMetadata,
   HarnessSessionIdUpdatedInfo,
@@ -165,6 +163,8 @@ export interface AgentProcessManagerDeps {
   };
   sessionId: string;
   machineId: string;
+  /** Local SQLite event-store recorder for daemon-originated events (dual-write). */
+  eventRecorder: DaemonEventRecorder;
   processes: { kill: (pid: number, signal?: number | Signals) => void };
   clock: { delay: (ms: number) => Promise<void>; now: () => number };
   fs: { stat: (path: string) => Promise<{ isDirectory: () => boolean }> };
@@ -473,10 +473,11 @@ export class AgentProcessManager {
       signal: undefined as string | undefined,
       agentHarness: undefined as string | undefined,
     };
-    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs1).catch((err: Error) => {
-      console.log(`   ⚠️  Failed to record agent exit (idle cleanup): ${err.message}`);
-      this.queueExitRetry({ role: opts.role, args: exitArgs1 });
-    });
+    this.recordAgentExitedOrQueueRetry(
+      opts.role,
+      exitArgs1,
+      'Failed to record agent exit (idle cleanup)'
+    );
   }
 
   // fallow-ignore-next-line complexity
@@ -735,10 +736,7 @@ export class AgentProcessManager {
       signal: opts.signal ?? undefined,
       agentHarness: ctx.harness,
     };
-    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs2).catch((err: Error) => {
-      console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
-      this.queueExitRetry({ role: opts.role, args: exitArgs2 });
-    });
+    this.recordAgentExitedOrQueueRetry(opts.role, exitArgs2, 'Failed to record agent exit event');
   }
 
   private untrackAllServices(pid: number): void {
@@ -973,14 +971,23 @@ export class AgentProcessManager {
   }
 
   private emitStartFailedEvent(role: string, chatroomId: string, error: string): void {
-    this.deps.backend
-      .mutation(api.machines.emitAgentStartFailed, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId,
-        role,
-        error,
-      })
+    const args = {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId,
+      role,
+      error,
+    };
+    void this.deps.eventRecorder
+      .appendAndPublish(
+        {
+          chatroomId,
+          type: DAEMON_EVENT_TYPES.AGENT_START_FAILED,
+          timestamp: Date.now(),
+          payload: args,
+        },
+        () => this.deps.backend.mutation(api.machines.emitAgentStartFailed, args)
+      )
       .catch(() => {});
   }
 
@@ -1244,10 +1251,20 @@ export class AgentProcessManager {
     exitArgs: RetryQueueItem['args'],
     failureLog: string
   ): void {
-    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs).catch((err: Error) => {
-      console.log(`   ⚠️  ${failureLog}: ${err.message}`);
-      this.queueExitRetry({ role, args: exitArgs });
-    });
+    void this.deps.eventRecorder
+      .appendAndPublish(
+        {
+          chatroomId: exitArgs.chatroomId,
+          type: DAEMON_EVENT_TYPES.AGENT_EXITED,
+          timestamp: Date.now(),
+          payload: exitArgs,
+        },
+        () => this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs)
+      )
+      .catch((err: Error) => {
+        console.log(`   ⚠️  ${failureLog}: ${err.message}`);
+        this.queueExitRetry({ role, args: exitArgs });
+      });
   }
 
   private async clearAgentPidQuietly(chatroomId: string, role: string): Promise<void> {
@@ -1438,14 +1455,23 @@ export class AgentProcessManager {
     harnessSessionId?: string
   ): Promise<void> {
     try {
-      await this.deps.backend.mutation(api.machines.emitSessionResumeRequested, {
+      const args = {
         sessionId: this.deps.sessionId,
         machineId: this.deps.machineId,
         chatroomId,
         role,
         agentHarness,
         ...(harnessSessionId ? { harnessSessionId } : {}),
-      });
+      };
+      await this.deps.eventRecorder.appendAndPublish(
+        {
+          chatroomId,
+          type: DAEMON_EVENT_TYPES.AGENT_SESSION_RESUME_REQUESTED,
+          timestamp: Date.now(),
+          payload: args,
+        },
+        () => this.deps.backend.mutation(api.machines.emitSessionResumeRequested, args)
+      );
       console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumeRequested for ${role}`);
     } catch (err) {
       console.log(`   ⚠️  Failed to emit sessionResumeRequested event: ${(err as Error).message}`);
@@ -1458,13 +1484,22 @@ export class AgentProcessManager {
     harnessSessionId?: string
   ): Promise<void> {
     try {
-      await this.deps.backend.mutation(api.machines.emitSessionResumed, {
+      const args = {
         sessionId: this.deps.sessionId,
         machineId: this.deps.machineId,
         chatroomId,
         role,
         ...(harnessSessionId ? { harnessSessionId } : {}),
-      });
+      };
+      await this.deps.eventRecorder.appendAndPublish(
+        {
+          chatroomId,
+          type: DAEMON_EVENT_TYPES.AGENT_SESSION_RESUMED,
+          timestamp: Date.now(),
+          payload: args,
+        },
+        () => this.deps.backend.mutation(api.machines.emitSessionResumed, args)
+      );
       console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${role}`);
     } catch (err) {
       console.log(`   ⚠️  Failed to emit sessionResumed event: ${(err as Error).message}`);
@@ -1478,14 +1513,23 @@ export class AgentProcessManager {
     harnessSessionId?: string
   ): Promise<void> {
     try {
-      await this.deps.backend.mutation(api.machines.emitSessionResumeFailed, {
+      const args = {
         sessionId: this.deps.sessionId,
         machineId: this.deps.machineId,
         chatroomId,
         role,
         reason,
         ...(harnessSessionId ? { harnessSessionId } : {}),
-      });
+      };
+      await this.deps.eventRecorder.appendAndPublish(
+        {
+          chatroomId,
+          type: DAEMON_EVENT_TYPES.AGENT_SESSION_RESUME_FAILED,
+          timestamp: Date.now(),
+          payload: args,
+        },
+        () => this.deps.backend.mutation(api.machines.emitSessionResumeFailed, args)
+      );
       console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumeFailed for ${role}`);
     } catch (err) {
       console.log(`   ⚠️  Failed to emit sessionResumeFailed event: ${(err as Error).message}`);
@@ -1500,7 +1544,7 @@ export class AgentProcessManager {
     harnessSessionId?: string
   ): Promise<void> {
     try {
-      await this.deps.backend.mutation(api.machines.emitSessionReopenRetry, {
+      const args = {
         sessionId: this.deps.sessionId,
         machineId: this.deps.machineId,
         chatroomId,
@@ -1509,7 +1553,16 @@ export class AgentProcessManager {
         maxAttempts: CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
         ...(error ? { error } : {}),
         ...(harnessSessionId ? { harnessSessionId } : {}),
-      });
+      };
+      await this.deps.eventRecorder.appendAndPublish(
+        {
+          chatroomId,
+          type: DAEMON_EVENT_TYPES.AGENT_SESSION_REOPEN_RETRY,
+          timestamp: Date.now(),
+          payload: args,
+        },
+        () => this.deps.backend.mutation(api.machines.emitSessionReopenRetry, args)
+      );
       console.log(
         `[AgentProcessManager] ✅ Emitted agent.sessionReopenRetry for ${role} (attempt ${attempt}/${CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS})`
       );
@@ -1545,7 +1598,7 @@ export class AgentProcessManager {
     info: HarnessSessionIdUpdatedInfo
   ): Promise<void> {
     try {
-      await this.deps.backend.mutation(api.machines.emitHarnessSessionIdUpdated, {
+      const args = {
         sessionId: this.deps.sessionId,
         machineId: this.deps.machineId,
         chatroomId,
@@ -1554,7 +1607,16 @@ export class AgentProcessManager {
         ...(info.previousResumableId ? { previousResumableId: info.previousResumableId } : {}),
         resumableId: info.resumableId,
         source: info.source,
-      });
+      };
+      await this.deps.eventRecorder.appendAndPublish(
+        {
+          chatroomId,
+          type: DAEMON_EVENT_TYPES.AGENT_HARNESS_SESSION_ID_UPDATED,
+          timestamp: Date.now(),
+          payload: args,
+        },
+        () => this.deps.backend.mutation(api.machines.emitHarnessSessionIdUpdated, args)
+      );
     } catch (err) {
       console.log(`   ⚠️  Failed to emit harnessSessionIdUpdated event: ${(err as Error).message}`);
     }
@@ -1590,15 +1652,24 @@ export class AgentProcessManager {
       return { success: false, error: 'backoff', retryAfterMs: loopCheck.waitMs };
     }
 
-    this.deps.backend
-      .mutation(api.machines.emitRestartLimitReached, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        restartCount: loopCheck.restartCount,
-        windowMs: loopCheck.windowMs,
-      })
+    const restartLimitArgs = {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      restartCount: loopCheck.restartCount,
+      windowMs: loopCheck.windowMs,
+    };
+    void this.deps.eventRecorder
+      .appendAndPublish(
+        {
+          chatroomId: opts.chatroomId,
+          type: DAEMON_EVENT_TYPES.AGENT_RESTART_LIMIT_REACHED,
+          timestamp: Date.now(),
+          payload: restartLimitArgs,
+        },
+        () => this.deps.backend.mutation(api.machines.emitRestartLimitReached, restartLimitArgs)
+      )
       .catch((err: Error) => {
         console.log(`   ⚠️  Failed to emit restartLimitReached event: ${err.message}`);
       });
@@ -1770,20 +1841,32 @@ export class AgentProcessManager {
     spawnResult: SpawnResult,
     pid: number
   ): void {
-    this.deps.backend
-      .mutation(api.machines.updateSpawnedAgent, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        pid,
-        model: opts.model,
-        reason: opts.reason,
-        ...(spawnResult.harnessSessionId ? { harnessSessionId: spawnResult.harnessSessionId } : {}),
-      })
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to update PID in backend: ${err.message}`);
-      });
+    const args = {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      pid,
+      model: opts.model,
+      reason: opts.reason,
+      ...(spawnResult.harnessSessionId ? { harnessSessionId: spawnResult.harnessSessionId } : {}),
+    };
+    const publish = () => this.deps.backend.mutation(api.machines.updateSpawnedAgent, args);
+    // Only dual-write as agent.started when a pid is present (CLI always spawns with one).
+    const record = pid
+      ? this.deps.eventRecorder.appendAndPublish(
+          {
+            chatroomId: opts.chatroomId,
+            type: DAEMON_EVENT_TYPES.AGENT_STARTED,
+            timestamp: Date.now(),
+            payload: args,
+          },
+          publish
+        )
+      : publish();
+    void record.catch((err: Error) => {
+      console.log(`   ⚠️  Failed to update PID in backend: ${err.message}`);
+    });
   }
 
   private registerSpawnCallbacks(
@@ -2062,15 +2145,24 @@ export class AgentProcessManager {
     this.bumpStopGeneration(slot);
     this.clearSlotRuntimeState(slot);
 
-    void this.deps.backend
-      .mutation(api.machines.emitAgentStopTimeout, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId,
-        role,
-        pid,
-        durationMs,
-      })
+    const stopTimeoutArgs = {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId,
+      role,
+      pid,
+      durationMs,
+    };
+    void this.deps.eventRecorder
+      .appendAndPublish(
+        {
+          chatroomId,
+          type: DAEMON_EVENT_TYPES.AGENT_STOP_TIMEOUT,
+          timestamp: Date.now(),
+          payload: stopTimeoutArgs,
+        },
+        () => this.deps.backend.mutation(api.machines.emitAgentStopTimeout, stopTimeoutArgs)
+      )
       .catch((err: Error) => {
         console.log(`   ⚠️  Failed to emit agent.stopTimeout event: ${err.message}`);
       });
@@ -2109,10 +2201,7 @@ export class AgentProcessManager {
       signal: undefined as string | undefined,
       agentHarness: slot.harness,
     };
-    this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs3).catch((err: Error) => {
-      console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
-      this.queueExitRetry({ role: opts.role, args: exitArgs3 });
-    });
+    this.recordAgentExitedOrQueueRetry(opts.role, exitArgs3, 'Failed to record agent exit event');
   }
 
   private async doStop(

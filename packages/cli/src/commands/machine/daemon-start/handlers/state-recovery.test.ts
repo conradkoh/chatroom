@@ -9,6 +9,7 @@ import { Effect, Layer } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
+import { createNoopEventRecorder } from '../../../../infrastructure/event-store/index.js';
 import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
 import { recoverAgentStateEffect } from './state-recovery.js';
 
@@ -42,6 +43,7 @@ function makeSessionLayer(overrides?: {
       mutation: overrides?.backendMutation ?? vi.fn().mockResolvedValue({ failedTurns: 0 }),
     } as any,
     fs: { stat: vi.fn().mockResolvedValue({ isDirectory: () => true }) } as any,
+    eventRecorder: createNoopEventRecorder(overrides?.machineId ?? 'test-machine-id'),
     agentServices: new Map(),
     events: new DaemonEventBus(),
     lastPushedGitState: new Map(),

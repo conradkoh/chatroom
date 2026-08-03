@@ -9,6 +9,10 @@ import { Effect } from 'effect';
 
 import { buildNativeInjectionPrompt } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
+import {
+  DAEMON_EVENT_TYPES,
+  type DaemonEventRecorder,
+} from '../../../infrastructure/event-store/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 export interface NativeInjectorDeps {
@@ -18,6 +22,8 @@ export interface NativeInjectorDeps {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
   };
+  /** Local SQLite event-store recorder (dual-write). */
+  eventRecorder: DaemonEventRecorder;
   agentMgr: {
     resumeTurnForSlot: (args: {
       chatroomId: string;
@@ -39,14 +45,23 @@ async function emitTaskDeliveryFailed(
   }
 ): Promise<void> {
   try {
-    await deps.backend.mutation(api.machines.emitTaskDeliveryFailed, {
+    const mutationArgs = {
       sessionId: deps.sessionId,
       machineId: deps.machineId,
       chatroomId: args.chatroomId,
       role: args.role,
       taskId: args.taskId,
       error: args.error,
-    });
+    };
+    await deps.eventRecorder.appendAndPublish(
+      {
+        chatroomId: args.chatroomId,
+        type: DAEMON_EVENT_TYPES.AGENT_TASK_DELIVERY_FAILED,
+        timestamp: Date.now(),
+        payload: mutationArgs,
+      },
+      () => deps.backend.mutation(api.machines.emitTaskDeliveryFailed, mutationArgs)
+    );
   } catch {
     // Non-critical observability
   }
@@ -148,8 +163,8 @@ export function runNativeInjectionEffect(
 
     if (roleSupportsSessionAugmentation(role)) {
       yield* Effect.tryPromise({
-        try: () =>
-          deps.backend.mutation(api.machines.emitSessionAugmented, {
+        try: () => {
+          const augmentationArgs = {
             sessionId: deps.sessionId,
             machineId: deps.machineId,
             chatroomId,
@@ -158,7 +173,17 @@ export function runNativeInjectionEffect(
             mode: augmentationMode,
             newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
             harnessSessionId,
-          }),
+          };
+          return deps.eventRecorder.appendAndPublish(
+            {
+              chatroomId,
+              type: DAEMON_EVENT_TYPES.AGENT_SESSION_AUGMENTED,
+              timestamp: Date.now(),
+              payload: augmentationArgs,
+            },
+            () => deps.backend.mutation(api.machines.emitSessionAugmented, augmentationArgs)
+          );
+        },
         catch: (err) => err,
       }).pipe(Effect.catchAll(() => Effect.void));
     }
@@ -185,14 +210,24 @@ export function runNativeInjectionEffect(
     }
 
     yield* Effect.tryPromise({
-      try: () =>
-        deps.backend.mutation(api.machines.emitTaskDelivered, {
+      try: () => {
+        const deliveredArgs = {
           sessionId: deps.sessionId,
           machineId: deps.machineId,
           chatroomId,
           role,
           taskId,
-        }),
+        };
+        return deps.eventRecorder.appendAndPublish(
+          {
+            chatroomId,
+            type: DAEMON_EVENT_TYPES.AGENT_TASK_DELIVERED,
+            timestamp: Date.now(),
+            payload: deliveredArgs,
+          },
+          () => deps.backend.mutation(api.machines.emitTaskDelivered, deliveredArgs)
+        );
+      },
       catch: (err) => err,
     }).pipe(Effect.catchAll(() => Effect.void));
 

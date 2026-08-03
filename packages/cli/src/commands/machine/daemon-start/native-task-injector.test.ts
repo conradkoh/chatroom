@@ -3,6 +3,7 @@ import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { runNativeInjectionEffect, type NativeInjectorDeps } from './native-task-injector.js';
+import { createNoopEventRecorder } from '../../../infrastructure/event-store/index.js';
 
 const HARNESS_SESSION_ID = 'sess_1';
 
@@ -40,6 +41,7 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
       mutation: vi.fn().mockResolvedValue(undefined),
       query: vi.fn().mockResolvedValue({ fullCliOutput: 'DELIVERY OUTPUT' }),
     },
+    eventRecorder: createNoopEventRecorder('machine_1'),
     agentMgr: {
       resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
     },

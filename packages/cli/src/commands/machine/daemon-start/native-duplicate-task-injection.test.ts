@@ -17,6 +17,7 @@ import {
 } from './native-delivery-ledger.js';
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import { explainLedgerDeliveryBlock } from './native-task-injector-logic.js';
+import { createNoopEventRecorder } from '../../../infrastructure/event-store/index.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
 const TASK_ID = 'task_dup_1';
@@ -100,6 +101,7 @@ describe('native duplicate task injection', () => {
         machineId: 'machine_dup',
         convexUrl: 'http://test:3210',
         backend: { mutation: backendMutation, query: backendQuery },
+        eventRecorder: createNoopEventRecorder('machine_dup'),
       },
       machineId: 'machine_dup',
     };

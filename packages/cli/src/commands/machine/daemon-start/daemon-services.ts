@@ -14,6 +14,7 @@ import type { MachineStateOps, SpawningOps } from './deps.js';
 import type { ConvexClient, SessionId, WorkspaceForSync } from './types.js';
 import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type { BackendOps, FsOps } from '../../../infrastructure/deps/index.js';
+import type { DaemonEventRecorder } from '../../../infrastructure/event-store/index.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
 import type {
   AgentProcessManager,
@@ -149,6 +150,8 @@ export interface DaemonSessionServiceShape {
   backend: BackendOps;
   /** Direct access to filesystem ops — same as ctx.deps.fs but without the .deps. layer. */
   fs: FsOps;
+  /** Local SQLite event-store recorder for daemon-originated events (dual-write). */
+  eventRecorder: DaemonEventRecorder;
 
   // ─── Shared data ──────────────────────────────────────────────────
   agentServices: Map<string, RemoteAgentService>;

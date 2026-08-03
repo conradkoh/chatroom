@@ -13,6 +13,7 @@ import { RecordingHarness } from './recording-harness.js';
 import { api } from '../api.js';
 import { buildNativeInjectionPrompt } from '../commands/machine/daemon-start/native-task-injector-logic.js';
 import { runNativeInjectionEffect } from '../commands/machine/daemon-start/native-task-injector.js';
+import { createNoopEventRecorder } from '../infrastructure/event-store/index.js';
 
 export interface SimulateInjectionOptions {
   task: AssignedTaskView;
@@ -104,6 +105,7 @@ export class NativeOrchestrationSimulator {
         machineId: task.agentConfig.machineId,
         convexUrl,
         backend,
+        eventRecorder: createNoopEventRecorder(task.agentConfig.machineId),
         agentMgr: this.harness,
       })
     );

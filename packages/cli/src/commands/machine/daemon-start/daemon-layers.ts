@@ -59,6 +59,7 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
       config: init.config,
       backend: init.backend,
       fs: init.fs,
+      eventRecorder: init.eventRecorder,
       agentServices: init.agentServices,
       events: init.events,
       workspaceListStore: init.workspaceListStore,

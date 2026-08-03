@@ -33,6 +33,7 @@ import {
 } from './native-task-injector-logic.js';
 import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
 import { api } from '../../../api.js';
+import { createNoopEventRecorder } from '../../../infrastructure/event-store/index.js';
 
 const HARNESS_SESSION_ID = 'harness-user-message';
 const MACHINE_ID = 'machine-user-message-pending';
@@ -155,6 +156,7 @@ describe('user message pending delivery path', () => {
             throw new Error(`Unexpected query: ${String(fn)}`);
           }),
         },
+        eventRecorder: createNoopEventRecorder(MACHINE_ID),
       } satisfies NativeTaskDeliverySessionDeps,
       machineId: MACHINE_ID,
     });
@@ -219,6 +221,7 @@ describe('user message pending delivery path', () => {
           mutation: vi.fn(),
           query: vi.fn(),
         },
+        eventRecorder: createNoopEventRecorder(MACHINE_ID),
       },
       machineId: MACHINE_ID,
     });
@@ -258,6 +261,7 @@ describe('user message pending delivery path', () => {
           mutation: vi.fn(),
           query: vi.fn(),
         },
+        eventRecorder: createNoopEventRecorder(MACHINE_ID),
       },
       machineId: MACHINE_ID,
     });
@@ -297,6 +301,7 @@ describe('user message pending delivery path', () => {
           mutation: vi.fn(),
           query: vi.fn(),
         },
+        eventRecorder: createNoopEventRecorder(MACHINE_ID),
       },
       machineId: MACHINE_ID,
     });

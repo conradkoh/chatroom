@@ -16,6 +16,7 @@ import { handlePingEffect } from './ping.js';
 import { recoverAgentStateEffect } from './state-recovery.js';
 import { handleStatusEffect } from './status.js';
 import { executeStopAgentEffect, handleStopAgentEffect } from './stop-agent.js';
+import { createNoopEventRecorder } from '../../../../infrastructure/event-store/index.js';
 import { createMockDaemonSessionInit } from '../testing/index.js';
 import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
 import type { DaemonSessionInit, MachineConfig } from '../types.js';
@@ -61,6 +62,7 @@ function makeSessionLayer(config: MachineConfig | null = null): Layer.Layer<Daem
       query: vi.fn().mockResolvedValue(undefined),
     } as any,
     fs: { stat: vi.fn() } as any,
+    eventRecorder: createNoopEventRecorder('test-machine-id'),
     agentServices: new Map(),
     events: new DaemonEventBus(),
     lastPushedGitState: new Map(),

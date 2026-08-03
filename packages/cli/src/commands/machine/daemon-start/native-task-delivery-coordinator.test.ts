@@ -15,6 +15,7 @@ import {
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
+import { createNoopEventRecorder } from '../../../infrastructure/event-store/index.js';
 import {
   clearAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
@@ -104,6 +105,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
       machineId: 'm',
       convexUrl: 'http://x',
       backend: { mutation: backendMutation, query: backendQuery },
+      eventRecorder: createNoopEventRecorder('m'),
     };
 
     const agentMgr = {
@@ -161,6 +163,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
         machineId: 'm',
         convexUrl: 'http://x',
         backend: { mutation: vi.fn(), query: vi.fn() },
+        eventRecorder: createNoopEventRecorder('m'),
       },
       machineId: 'm',
     });

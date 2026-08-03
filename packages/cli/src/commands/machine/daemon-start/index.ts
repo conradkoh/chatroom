@@ -22,7 +22,11 @@ export async function daemonStart(): Promise<void> {
   const init = await initDaemon();
   const layers = daemonSessionToLayers(init);
   Effect.runFork(startBackgroundModelDiscoveryEffect.pipe(Effect.provide(layers)));
-  await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(layers)));
+  try {
+    await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(layers)));
+  } finally {
+    init.eventStore.close();
+  }
 }
 
 // ─── Re-exports for Testing ─────────────────────────────────────────────────

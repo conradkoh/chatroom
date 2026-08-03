@@ -22,6 +22,11 @@ import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import { registerEventListenersEffect } from '../../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
+import {
+  DaemonEventRecorder,
+  getEventStorePath,
+  SqliteEventStore,
+} from '../../../infrastructure/event-store/index.js';
 import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import {
   clearAgentPid,
@@ -159,6 +164,8 @@ function createDefaultDeps(): DaemonDeps {
     spawning: new HarnessSpawningService({ rateLimiter: new SpawnRateLimiter() }),
     // Placeholder — initDaemon() creates the real instance after context is assembled.
     agentProcessManager: null as unknown as AgentProcessManager,
+    // Placeholder — initDaemon() creates the real instance once machineId is known.
+    eventRecorder: null as unknown as DaemonEventRecorder,
   };
 }
 
@@ -365,11 +372,14 @@ function assembleDaemonSessionInit(args: {
 
   deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
   deps.backend.query = (endpoint, args) => client.query(endpoint, args);
+  const eventStore = new SqliteEventStore(getEventStorePath(machineId));
+  deps.eventRecorder = new DaemonEventRecorder(eventStore, machineId);
   deps.agentProcessManager = new AgentProcessManager({
     agentServices,
     backend: deps.backend,
     sessionId: typedSessionId,
     machineId,
+    eventRecorder: deps.eventRecorder,
     processes: deps.processes,
     clock: deps.clock,
     fs: deps.fs,
@@ -390,6 +400,8 @@ function assembleDaemonSessionInit(args: {
     machine: deps.machine,
     spawning: deps.spawning,
     agentProcessManager: deps.agentProcessManager,
+    eventRecorder: deps.eventRecorder,
+    eventStore,
     events: new DaemonEventBus(),
     agentServices,
     lastPushedGitState: new Map(),

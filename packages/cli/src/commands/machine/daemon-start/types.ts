@@ -10,6 +10,7 @@ import type {
 import type { MachineStateOps, SpawningOps } from './deps.js';
 import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type { BackendOps, FsOps } from '../../../infrastructure/deps/index.js';
+import type { DaemonEventRecorder, EventStore } from '../../../infrastructure/event-store/index.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
 import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
@@ -114,6 +115,10 @@ export interface DaemonSessionInit {
   machine: MachineStateOps;
   spawning: SpawningOps;
   agentProcessManager: AgentProcessManager;
+  /** Local SQLite event-store recorder for daemon-originated events (dual-write). */
+  eventRecorder: DaemonEventRecorder;
+  /** SQLite event store backing the recorder — closed on daemon shutdown. */
+  eventStore: EventStore;
 
   // ─── Shared data ──────────────────────────────────────────────────
   events: DaemonEventBus;

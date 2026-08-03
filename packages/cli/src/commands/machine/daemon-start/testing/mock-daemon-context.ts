@@ -29,6 +29,12 @@ export function createMockDaemonSessionInit(
     machine: deps.machine,
     spawning: deps.spawning,
     agentProcessManager: deps.agentProcessManager,
+    eventRecorder: deps.eventRecorder,
+    eventStore: {
+      append: () => '',
+      listByChatroom: () => ({ page: [], continueCursor: null, isDone: true }),
+      close: () => {},
+    },
     events: new DaemonEventBus(),
     agentServices: new Map(),
     lastPushedGitState: new Map(),

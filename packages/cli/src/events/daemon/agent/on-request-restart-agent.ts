@@ -50,6 +50,7 @@ export const onRequestRestartAgentEffect = (
             machineId: session.machineId,
             convexUrl: session.convexUrl,
             backend: session.backend,
+            eventRecorder: session.eventRecorder,
           },
           agentMgr,
         },

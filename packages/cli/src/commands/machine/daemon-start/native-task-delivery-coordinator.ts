@@ -24,14 +24,15 @@ import {
   explainNativeDeliveryBlock,
 } from './native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
-import { getRoleDeliveryState } from './role-delivery-state.js';
-import { api } from '../../../api.js';
-import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
 import {
   filterSnapshotsExcludingRestartInFlight,
   isRestartOrchestratorInFlight,
 } from './restart-orchestrator-in-flight.js';
+import { getRoleDeliveryState } from './role-delivery-state.js';
+import { api } from '../../../api.js';
+import type { DaemonEventRecorder } from '../../../infrastructure/event-store/index.js';
+import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -44,6 +45,8 @@ export interface NativeTaskDeliverySessionDeps {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
   };
+  /** Local SQLite event-store recorder (dual-write). */
+  eventRecorder: DaemonEventRecorder;
 }
 
 export interface NativeSessionLostParams {
@@ -177,6 +180,7 @@ export class NativeTaskDeliveryCoordinator {
             sessionId: sessionDeps.sessionId,
             machineId: sessionDeps.machineId,
             backend: sessionDeps.backend,
+            eventRecorder: sessionDeps.eventRecorder,
             agentMgr: {
               resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
             },

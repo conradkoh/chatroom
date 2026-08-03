@@ -37,6 +37,7 @@ import {
 } from './native-task-delivery-coordinator.js';
 import { listTasksReadyForNudge, NudgeCooldown } from './task-monitor-logic.js';
 import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
+import { createNoopEventRecorder } from '../../../infrastructure/event-store/index.js';
 import {
   clearAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
@@ -168,6 +169,7 @@ describe('native signal-presence stuck after planner handoff', () => {
         convexUrl: 'http://test:3210',
         machineId: MACHINE_ID,
         backend: { mutation: vi.fn(), query: vi.fn() },
+        eventRecorder: createNoopEventRecorder(MACHINE_ID),
       },
     });
 
@@ -205,6 +207,7 @@ describe('native signal-presence stuck after planner handoff', () => {
         machineId: MACHINE_ID,
         convexUrl: 'http://test:3210',
         backend: { mutation: vi.fn(), query: backendQuery },
+        eventRecorder: createNoopEventRecorder(MACHINE_ID),
       },
       machineId: MACHINE_ID,
     });
@@ -242,6 +245,7 @@ describe('native signal-presence stuck after planner handoff', () => {
           mutation: vi.fn(),
           query: vi.fn(async () => ({ fullCliOutput: 'SHOULD NOT REACH' })),
         },
+        eventRecorder: createNoopEventRecorder(MACHINE_ID),
       },
     });
 
@@ -308,6 +312,7 @@ describe('native signal-presence stuck after planner handoff', () => {
             throw new Error(`Unexpected query: ${String(_fn)}`);
           }),
         },
+        eventRecorder: createNoopEventRecorder(MACHINE_ID),
       },
     });
 

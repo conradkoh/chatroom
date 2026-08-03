@@ -2,6 +2,7 @@ import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { runRestartOrchestrator } from './restart-orchestrator.js';
+import { createNoopEventRecorder } from '../../../infrastructure/event-store/index.js';
 
 vi.mock('../../../api.js', () => ({
   api: {
@@ -54,6 +55,7 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean; harnessSessionId?:
         machineId: 'test-machine',
         convexUrl: 'http://test:3210',
         backend,
+        eventRecorder: createNoopEventRecorder('test-machine'),
       },
       agentMgr,
     },

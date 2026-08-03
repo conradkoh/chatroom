@@ -17,6 +17,7 @@ import type {
   FsOps,
   ProcessOps,
 } from '../../../infrastructure/deps/index.js';
+import type { DaemonEventRecorder } from '../../../infrastructure/event-store/index.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import type { TryConsumeResult } from '../../../infrastructure/services/harness-spawning/index.js';
@@ -100,4 +101,6 @@ export interface DaemonDeps {
   clock: ClockOps;
   spawning: SpawningOps;
   agentProcessManager: AgentProcessManager;
+  /** Local SQLite event-store recorder for daemon-originated events (dual-write). */
+  eventRecorder: DaemonEventRecorder;
 }

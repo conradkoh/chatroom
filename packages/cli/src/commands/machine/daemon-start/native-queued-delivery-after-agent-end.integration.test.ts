@@ -30,6 +30,7 @@ import {
 } from './native-task-injector-logic.js';
 import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
 import { api } from '../../../api.js';
+import { createNoopEventRecorder } from '../../../infrastructure/event-store/index.js';
 import {
   clearAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
@@ -125,6 +126,7 @@ describe('native queued delivery after agent_end', () => {
             throw new Error(`Unexpected query: ${String(fn)}`);
           }),
         },
+        eventRecorder: createNoopEventRecorder(MACHINE_ID),
       } satisfies NativeTaskDeliverySessionDeps,
       machineId: MACHINE_ID,
     });
@@ -237,6 +239,7 @@ describe('native queued delivery after agent_end', () => {
           mutation: backendMutation,
           query: backendQuery,
         },
+        eventRecorder: createNoopEventRecorder(MACHINE_ID),
       } satisfies NativeTaskDeliverySessionDeps,
       machineId: MACHINE_ID,
     });

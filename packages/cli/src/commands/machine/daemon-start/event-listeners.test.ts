@@ -6,6 +6,7 @@ import { createMockDaemonSessionInit } from './testing/index.js';
 import type { DaemonSessionInit } from './types.js';
 import type { Id } from '../../../api.js';
 import { registerEventListenersEffect } from '../../../events/daemon/register-listeners.js';
+import { createNoopEventRecorder } from '../../../infrastructure/event-store/index.js';
 import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
 
 const CHATROOM_ID = 'test-chatroom' as Id<'chatroom_rooms'>;
@@ -47,6 +48,7 @@ function registerListeners(
         config: null,
         backend: {} as any,
         fs: {} as any,
+        eventRecorder: createNoopEventRecorder('test-machine-id'),
         agentServices: new Map(),
         events: init.events,
         lastPushedGitState: new Map(),

@@ -16,6 +16,7 @@
 
 import { vi } from 'vitest';
 
+import { createNoopEventRecorder } from '../../../../infrastructure/event-store/index.js';
 import type { DaemonDeps } from '../deps.js';
 
 /**
@@ -52,6 +53,7 @@ export function createMockDaemonDeps(overrides?: Partial<DaemonDeps>): DaemonDep
     spawning: {
       shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
     },
+    eventRecorder: createNoopEventRecorder('test-machine'),
     agentProcessManager: {
       ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 12345 }),
       stop: vi.fn().mockResolvedValue({ success: true }),

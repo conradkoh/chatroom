@@ -15,6 +15,7 @@ import {
   CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
 } from '../../../domain/agent-lifecycle/policies/cursor-sdk-session-reopen-retry.js';
 import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
+import { createNoopEventRecorder } from '../../event-store/index.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../../harnesses/registry.js';
 import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
@@ -80,6 +81,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     },
     sessionId: 'test-session',
     machineId: 'test-machine',
+    eventRecorder: createNoopEventRecorder('test-machine'),
     processes: { kill: vi.fn() },
     clock: {
       delay: vi.fn().mockResolvedValue(undefined),

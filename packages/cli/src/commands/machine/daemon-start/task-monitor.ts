@@ -36,15 +36,15 @@ import {
 } from './native-delivery-session-registry.js';
 import { isAgentReadyForNativeDelivery } from './native-ready-invariant.js';
 import {
-  filterSnapshotsExcludingRestartInFlight,
-  isRestartOrchestratorInFlight,
-} from './restart-orchestrator-in-flight.js';
-import {
   getNativeTaskDeliveryCoordinator,
   resetRoleDeliveryState,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
 import { isNativeHarness } from './native-task-injector-logic.js';
+import {
+  filterSnapshotsExcludingRestartInFlight,
+  isRestartOrchestratorInFlight,
+} from './restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
 import {
   listTasksReadyForNudge,
@@ -57,6 +57,7 @@ import type { AgentHarness } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
+import { DAEMON_EVENT_TYPES } from '../../../infrastructure/event-store/index.js';
 import {
   runDualChannelFeedLive,
   runIncrementalSubscribeLive,
@@ -176,8 +177,8 @@ function executeCliNudge(
       });
       if (roleSupportsSessionAugmentation(role)) {
         yield* Effect.tryPromise({
-          try: () =>
-            sessionDeps.backend.mutation(api.machines.emitSessionAugmented, {
+          try: () => {
+            const augmentedArgs = {
               sessionId: sessionDeps.sessionId,
               machineId,
               chatroomId,
@@ -185,7 +186,17 @@ function executeCliNudge(
               taskId: task.taskId,
               mode: augmentationMode,
               newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
-            }),
+            };
+            return sessionDeps.eventRecorder.appendAndPublish(
+              {
+                chatroomId,
+                type: DAEMON_EVENT_TYPES.AGENT_SESSION_AUGMENTED,
+                timestamp: Date.now(),
+                payload: augmentedArgs,
+              },
+              () => sessionDeps.backend.mutation(api.machines.emitSessionAugmented, augmentedArgs)
+            );
+          },
           catch: (err) => err,
         }).pipe(Effect.catchAll(() => Effect.void));
       }
@@ -376,7 +387,7 @@ async function reviveNativeTasks(
 }
 
 async function processTasksUpdate(
-  tasks: AssignedTaskSnapshotView[],
+  incomingTasks: AssignedTaskSnapshotView[],
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
   cooldown: NudgeCooldown,
@@ -385,7 +396,7 @@ async function processTasksUpdate(
   machineId: string,
   _pass: TaskMonitorPass
 ): Promise<void> {
-  tasks = filterSnapshotsExcludingRestartInFlight(tasks);
+  const tasks = filterSnapshotsExcludingRestartInFlight(incomingTasks);
   if (tasks.length === 0) return;
 
   const now = Date.now();
@@ -534,6 +545,7 @@ export const startTaskMonitorEffect = (
           session.backend.mutation(fn, args),
         query: (fn: unknown, args: Record<string, unknown>) => session.backend.query(fn, args),
       },
+      eventRecorder: session.eventRecorder,
     };
 
     registerNativeDeliverySession({
