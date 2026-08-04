@@ -544,10 +544,18 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
             const restoreStreamTap = tapProcessStreamWrites(notifyHarnessOutput);
 
             try {
+              // Reassigned after send() resolves; the onDelta closure reads it, and
+              // withTimeout does not abort the underlying promise, so a timed-out send
+              // must no-op via optional chaining rather than write through a live adapter.
+              // eslint-disable-next-line prefer-const -- closure-captured deferred assignment
+              let adapter: CursorSdkStreamAdapter | undefined;
               const run = await withTimeout(
                 agent.send(nextPrompt, {
                   local: { force: isFirstTurn },
                   idempotencyKey: randomUUID(),
+                  onDelta: ({ update }) => {
+                    adapter?.handleInteractionUpdate(update);
+                  },
                 }),
                 SEND_TIMEOUT_MS,
                 'agent.send'
@@ -555,7 +563,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               session.run = run;
               isFirstTurn = false;
 
-              const adapter = new CursorSdkStreamAdapter(logPrefix, emitLogLine);
+              adapter = new CursorSdkStreamAdapter(logPrefix, emitLogLine);
               wireNativeStreamAdapter({
                 adapter,
                 assistantTextCallbacks,

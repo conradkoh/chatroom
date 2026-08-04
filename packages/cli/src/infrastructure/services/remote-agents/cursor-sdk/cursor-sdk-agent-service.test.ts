@@ -81,6 +81,7 @@ function stubSdkAgent() {
 }
 
 const SPAWN_CONTEXT = { machineId: 'm1', chatroomId: 'c1', role: 'builder' };
+const SPAWN_PREFIX = '[cursor-sdk:builder@c1';
 
 describe('CursorSdkAgentService', () => {
   let stderrWriteSpy: MockInstance<typeof process.stderr.write>;
@@ -239,6 +240,42 @@ describe('CursorSdkAgentService', () => {
       result.onExit(exitInfo);
       void service.stop(result.pid);
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
+    });
+
+    it('wires onDelta so InteractionUpdate deltas stream through the adapter', async () => {
+      stubSdkAgent();
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CursorSdkAgentService(deps);
+
+      const stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+      await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(1));
+      const sendOptions = sharedAgentSendFn.mock.calls[0][1] as {
+        onDelta?: (args: { update: { type: string; text?: string } }) => void;
+      };
+      expect(typeof sendOptions.onDelta).toBe('function');
+
+      // Wait until the turn loop has created the adapter (finish() emits agent_end),
+      // so the onDelta closure below observes a non-undefined adapter.
+      await vi.waitFor(() =>
+        expect(stdoutWriteSpy).toHaveBeenCalledWith(`${SPAWN_PREFIX} agent_end]\n`)
+      );
+
+      sendOptions.onDelta?.({ update: { type: 'text-delta', text: 'streamed delta\n' } });
+
+      await vi.waitFor(() =>
+        expect(stdoutWriteSpy).toHaveBeenCalledWith(`${SPAWN_PREFIX} text] streamed delta\n`)
+      );
+      stdoutWriteSpy.mockRestore();
     });
   });
 
