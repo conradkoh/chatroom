@@ -557,6 +557,26 @@ export const compactWorkspaceFileTreeDeltaOperations = migrations.define({
   },
 });
 
+// --- Command Run Migrations ---
+
+/**
+ * Migration: Strip legacy tailOutput from chatroom_commandRuns.
+ * Live tails now live in chatroom_commandRunTails; documents retaining tailOutput
+ * fail Convex schema validation after the field was removed from the table definition.
+ *
+ * Usage: npx convex run migrations:run '{"fn":"migrations:stripCommandRunTailOutput"}'
+ * Idempotent: documents without tailOutput are skipped.
+ */
+export const stripCommandRunTailOutput = migrations.define({
+  table: 'chatroom_commandRuns',
+  migrateOne: async (_ctx, run) => {
+    const doc = run as Record<string, unknown>;
+    if ('tailOutput' in doc) {
+      return Object.fromEntries([['tailOutput', undefined]]);
+    }
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================
@@ -586,6 +606,8 @@ export const runAll = migrations.runner([
   internal.migrations.purgeWorkspaceCommitDetails,
   // Workspace File Tree
   internal.migrations.compactWorkspaceFileTreeDeltaOperations,
+  // Command Runs
+  internal.migrations.stripCommandRunTailOutput,
   // Git State
   internal.migrations.dropEmbeddedRecentCommits,
   // Machine Models
