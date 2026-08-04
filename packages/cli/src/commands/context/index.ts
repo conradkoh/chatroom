@@ -89,9 +89,7 @@ export const readContextEffect = (
           senderRole: string;
           targetRole?: string;
           type: string;
-          classification?: string;
           content: string;
-          featureTitle?: string;
           taskId?: string;
           taskStatus?: string;
           taskContent?: string;
@@ -108,9 +106,7 @@ export const readContextEffect = (
         originMessage?: {
           _id: string;
           _creationTime: number;
-          featureTitle?: string;
         };
-        classification?: string;
         pendingTasksForRole: number;
       }>(api.messages.getContextForRole, {
         sessionId,
@@ -118,9 +114,10 @@ export const readContextEffect = (
         role: options.role,
       })
       .pipe(
-        Effect.mapError(
-          (cause): ContextError => ({ _tag: 'ReadContextFailed', cause: cause as Error })
-        )
+        Effect.mapError((cause): ContextError => ({
+          _tag: 'ReadContextFailed',
+          cause: cause as Error,
+        }))
       );
 
     // Print context
@@ -159,12 +156,6 @@ export const readContextEffect = (
         console.log(`\n🎯 Origin Message:`);
         console.log(`   ID: ${context.originMessage._id}`);
         console.log(`   Time: ${new Date(context.originMessage._creationTime).toLocaleString()}`);
-        if (context.classification) {
-          console.log(`   Classification: ${context.classification.toUpperCase()}`);
-        }
-        if (context.originMessage.featureTitle) {
-          console.log(`   Feature: ${context.originMessage.featureTitle}`);
-        }
       }
 
       console.log(`\n📊 Status:`);
@@ -177,16 +168,9 @@ export const readContextEffect = (
       for (const message of context.messages) {
         // Build the opening <message> tag with attributes
         const toAttr = message.targetRole ? ` to="${message.targetRole}"` : '';
-        const classAttr = message.classification
-          ? ` classification="${message.classification}"`
-          : '';
         console.log(
-          `<message id="${message._id}" from="${message.senderRole}"${toAttr} type="${message.type}"${classAttr}>`
+          `<message id="${message._id}" from="${message.senderRole}"${toAttr} type="${message.type}">`
         );
-
-        if (message.featureTitle) {
-          console.log(`   Feature: ${sanitizeForTerminal(message.featureTitle)}`);
-        }
 
         // Show task info if available
         if (message.taskId) {
@@ -338,9 +322,10 @@ export const listContextsEffect = (
         limit: options.limit ?? 10,
       })
       .pipe(
-        Effect.mapError(
-          (cause): ContextError => ({ _tag: 'ListContextsFailed', cause: cause as Error })
-        )
+        Effect.mapError((cause): ContextError => ({
+          _tag: 'ListContextsFailed',
+          cause: cause as Error,
+        }))
       );
 
     // Print contexts
@@ -411,9 +396,10 @@ export const inspectContextEffect = (
         contextId: options.contextId as Id<'chatroom_contexts'>,
       })
       .pipe(
-        Effect.mapError(
-          (cause): ContextError => ({ _tag: 'InspectContextFailed', cause: cause as Error })
-        )
+        Effect.mapError((cause): ContextError => ({
+          _tag: 'InspectContextFailed',
+          cause: cause as Error,
+        }))
       );
 
     // Print context

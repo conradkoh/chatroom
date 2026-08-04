@@ -122,9 +122,8 @@ describe('Context Read Command Output', () => {
     // ===== VERIFY BACKEND DATA =====
     // The backend should provide all necessary data for the CLI to format correctly
 
-    // Verify origin message exists (classification is optional — no longer set via classify CLI)
+    // Verify origin message exists
     expect(context.originMessage).toBeDefined();
-    expect(context.originMessage?.classification).toBeUndefined();
 
     // Verify messages array has content
     expect(context.messages.length).toBeGreaterThan(0);
@@ -331,7 +330,6 @@ describe('Context Read Command Output', () => {
 
     expect(normalizedContext).toMatchInlineSnapshot(`
       {
-        "classification": null,
         "currentContext": null,
         "messages": [
           {

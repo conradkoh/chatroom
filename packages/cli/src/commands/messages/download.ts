@@ -35,9 +35,7 @@ type DownloadMessage = {
   type: string;
   content: string;
   targetRole?: string | null;
-  classification?: string | null;
   taskStatus?: string | null;
-  featureTitle?: string | null;
 };
 
 export type DownloadMessagesError =
@@ -142,13 +140,11 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
       const content = buildLinearMessageContent(msg);
       const filePath = nodePath.join(outputDir, file);
       yield* fs.writeFile(filePath, content).pipe(
-        Effect.mapError(
-          (cause): DownloadMessagesError => ({
-            _tag: 'WriteFailed',
-            path: filePath,
-            cause,
-          })
-        )
+        Effect.mapError((cause): DownloadMessagesError => ({
+          _tag: 'WriteFailed',
+          path: filePath,
+          cause,
+        }))
       );
       manifestEntries.push({
         id: msg._id,
@@ -174,13 +170,11 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
     };
     const manifestPath = nodePath.join(outputDir, 'manifest.json');
     yield* fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2)).pipe(
-      Effect.mapError(
-        (cause): DownloadMessagesError => ({
-          _tag: 'WriteFailed',
-          path: manifestPath,
-          cause,
-        })
-      )
+      Effect.mapError((cause): DownloadMessagesError => ({
+        _tag: 'WriteFailed',
+        path: manifestPath,
+        cause,
+      }))
     );
 
     yield* Effect.sync(() => {

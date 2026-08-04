@@ -47,9 +47,7 @@ export function buildMessageMarkdown(msg: {
   type: string;
   content: string;
   targetRole?: string | null;
-  classification?: string | null;
   taskStatus?: string | null;
-  featureTitle?: string | null;
 }): string {
   const ts = new Date(msg._creationTime).toISOString();
   const parts: string[] = [];
@@ -59,9 +57,7 @@ export function buildMessageMarkdown(msg: {
   parts.push(`senderRole: ${msg.senderRole}`);
   parts.push(`type: ${msg.type}`);
   if (msg.targetRole) parts.push(`targetRole: ${msg.targetRole}`);
-  if (msg.classification) parts.push(`classification: ${msg.classification}`);
   if (msg.taskStatus) parts.push(`taskStatus: ${msg.taskStatus}`);
-  if (msg.featureTitle) parts.push(`featureTitle: ${msg.featureTitle}`);
   parts.push('---');
   parts.push('');
   parts.push(msg.content);

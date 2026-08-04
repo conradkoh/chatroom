@@ -28,9 +28,7 @@ const MOCK_MESSAGE = {
   content: 'Hello world',
   senderRole: 'user',
   targetRole: null as string | null,
-  classification: null as string | null,
   taskStatus: null as string | null,
-  featureTitle: null as string | null,
 };
 
 /** Create a test backend service with configurable query responses */

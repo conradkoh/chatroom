@@ -17,9 +17,7 @@ const sampleMsg = {
 const fullMsg = {
   ...sampleMsg,
   targetRole: 'builder',
-  classification: 'new_feature',
   taskStatus: 'completed',
-  featureTitle: 'Add login',
 };
 
 describe('messageFilename', () => {
@@ -64,8 +62,6 @@ describe('buildMessageMarkdown', () => {
   test('includes optional fields when present', () => {
     const md = buildMessageMarkdown(fullMsg);
     expect(md).toContain('targetRole: builder');
-    expect(md).toContain('classification: new_feature');
     expect(md).toContain('taskStatus: completed');
-    expect(md).toContain('featureTitle: Add login');
   });
 });
