@@ -14,7 +14,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 import { startCursorSdkHarness } from './index.js';
 import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
@@ -62,6 +62,32 @@ describe.skipIf(SKIP)('Cursor SDK harness integration', { timeout: 180_000 }, ()
     });
 
     expect(chunks.join('').length).toBeGreaterThan(0);
+    await session.close();
+  });
+
+  it('smoke: composer-2.5 run with tool use emits chunks without unhandled stream warnings', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const session = await harness.newSession({ agent: 'builder', title: 'sdk-smoke' });
+    const extract = createStandardSdkChunkExtractor();
+    const chunks: string[] = [];
+
+    session.onEvent((event) => {
+      const chunk = extract(event);
+      if (chunk?.partType === 'text') chunks.push(chunk.content);
+    });
+
+    await session.prompt({
+      agent: 'builder',
+      model: { providerID: 'cursor', modelID: 'composer-2.5' },
+      parts: [{ type: 'text', text: 'Reply with exactly: pong. Do not use any tools.' }],
+    });
+
+    expect(chunks.join('').toLowerCase()).toContain('pong');
+    const unhandledWarnings = warnSpy.mock.calls.filter(
+      (args) => typeof args[0] === 'string' && args[0].includes('unhandled')
+    );
+    expect(unhandledWarnings).toEqual([]);
+    warnSpy.mockRestore();
     await session.close();
   });
 });
