@@ -215,7 +215,7 @@ describe('isTerminalProviderFailureInLogs', () => {
       isTerminalProviderFailureInLogs([
         '[cursor-sdk:planner@7z81x2 tool: bash] running: chatroom handoff << EOF\nThen in chatroom harness output:\n```\nrole:builder agent_end] reason: provider_rate_limit\n```\nEOF',
         '[cursor-sdk:planner@7z81x2 text] ending in `provider_rate_limit` and skipped restarts.',
-        '[cursor-sdk:planner@7z81x2 stream] unhandled type: usage',
+        '[cursor-sdk:planner@7z81x2 stream:unhandled] usage: {"type":"usage"}',
         '[cursor-sdk:planner@7z81x2 status] FINISHED',
         '[cursor-sdk:planner@7z81x2 agent_end]',
       ])

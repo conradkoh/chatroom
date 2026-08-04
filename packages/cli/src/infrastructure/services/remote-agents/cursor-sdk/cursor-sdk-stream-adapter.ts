@@ -13,6 +13,10 @@ import {
   formatBashRunningPayload,
 } from '../agent-log-format.js';
 import { NativeStreamAdapterBase } from '../native-stream-adapter-base.js';
+import {
+  logUnhandledInteractionDelta,
+  logUnhandledSdkMessage,
+} from './cursor-sdk-stream-fallback.js';
 
 type ToolCallStartedUpdate = Extract<InteractionUpdate, { type: 'tool-call-started' }>;
 
@@ -83,10 +87,11 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
         break;
       case 'user':
       case 'request':
-        // Echo/internal protocol messages — expected, not agent output.
+        // Echo/internal protocol messages — informational, not agent output.
+        logUnhandledSdkMessage(this.logPrefix, message, (line) => this.writeLine(line));
         break;
       default:
-        this.logUnhandledSdkMessage(message as SDKMessage);
+        logUnhandledSdkMessage(this.logPrefix, message, (line) => this.writeLine(line));
         break;
     }
   }
@@ -97,7 +102,7 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
    * run.stream() SDKMessages remain for terminal status/tool_call records.
    */
   // fallow-ignore-next-line complexity
-  handleInteractionUpdate(update: InteractionUpdate): void {
+  handleInteractionDelta(update: InteractionUpdate): void {
     this.notifyOutput();
     switch (update.type) {
       case 'text-delta':
@@ -131,7 +136,7 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
         // intentionally silent — informational / handled elsewhere
         break;
       default:
-        this.logUnhandledInteractionUpdate(update);
+        logUnhandledInteractionDelta(this.logPrefix, update, (line) => this.writeLine(line));
     }
   }
 
@@ -160,21 +165,6 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
     if (this.textBuffer.includes('\n')) this.flushText();
   }
 
-  private logUnhandledSdkMessage(message: SDKMessage): void {
-    console.warn(
-      `[cursor-sdk] unhandled SDKMessage type="${message.type}"`,
-      JSON.stringify(message).slice(0, 500)
-    );
-    this.writeLine(formatAgentLogLine(this.logPrefix, 'stream', `unhandled type: ${message.type}`));
-  }
-
-  private logUnhandledInteractionUpdate(update: InteractionUpdate): void {
-    console.warn(
-      `[cursor-sdk] unhandled InteractionUpdate type="${update.type}"`,
-      JSON.stringify(update).slice(0, 500)
-    );
-  }
-
   // fallow-ignore-next-line complexity
   private handleToolCallDelta(
     update: Extract<InteractionUpdate, { type: 'tool-call-delta' }>
@@ -196,15 +186,12 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
       case 'step-completed':
         // informational — handled via top-level updates or elsewhere
         break;
-      default: {
-        const unknown = nested as { type?: string };
-        if (unknown.type) {
-          console.warn(
-            `[cursor-sdk] unhandled nested taskUpdate type="${unknown.type}" in tool-call-delta`,
-            JSON.stringify(nested).slice(0, 500)
-          );
-        }
-      }
+      default:
+        logUnhandledInteractionDelta(
+          this.logPrefix,
+          nested as unknown as InteractionUpdate,
+          (line) => this.writeLine(line)
+        );
     }
   }
 

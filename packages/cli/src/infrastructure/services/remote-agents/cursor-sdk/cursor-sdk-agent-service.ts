@@ -554,7 +554,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
                   local: { force: isFirstTurn },
                   idempotencyKey: randomUUID(),
                   onDelta: ({ update }) => {
-                    adapter?.handleInteractionUpdate(update);
+                    adapter?.handleInteractionDelta(update);
                   },
                 }),
                 SEND_TIMEOUT_MS,

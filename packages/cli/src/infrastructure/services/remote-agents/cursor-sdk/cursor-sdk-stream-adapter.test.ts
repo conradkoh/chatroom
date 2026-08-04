@@ -260,21 +260,21 @@ describe('CursorSdkStreamAdapter', () => {
 
   it('handles text-delta interaction updates as buffered stdout text', () => {
     const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
-    adapter.handleInteractionUpdate(textDelta('Hello delta\n'));
+    adapter.handleInteractionDelta(textDelta('Hello delta\n'));
 
     expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} text] Hello delta\n`);
   });
 
   it('writes tool-call-started shell as a clean bash running line', () => {
     const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
-    adapter.handleInteractionUpdate(shellToolCallStarted('pnpm test'));
+    adapter.handleInteractionDelta(shellToolCallStarted('pnpm test'));
 
     expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} tool: bash] running: pnpm test\n`);
   });
 
   it('writes non-shell tool-call-started as a tool line with JSON args', () => {
     const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
-    adapter.handleInteractionUpdate(nonShellToolCallStarted());
+    adapter.handleInteractionDelta(nonShellToolCallStarted());
 
     expect(stdoutWriteSpy).toHaveBeenCalledWith(
       `${LOG_PREFIX} tool: call-4 read] {"path":"README.md"}\n`
@@ -283,24 +283,25 @@ describe('CursorSdkStreamAdapter', () => {
 
   it('handles tool-call-delta with a nested text-delta as buffered stdout text', () => {
     const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
-    adapter.handleInteractionUpdate(toolCallDeltaWithNestedText('Nested delta\n'));
+    adapter.handleInteractionDelta(toolCallDeltaWithNestedText('Nested delta\n'));
 
     expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} text] Nested delta\n`);
   });
 
-  it('warns on unknown InteractionUpdate types without writing stdout lines', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
-    adapter.handleInteractionUpdate({ type: 'mystery-delta' } as unknown as InteractionUpdate);
+  it('logs unknown InteractionUpdate types as delta:unhandled without throwing', () => {
+    const onLogLine = vi.fn();
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine);
+    adapter.handleInteractionDelta({ type: 'mystery-delta' } as unknown as InteractionUpdate);
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[cursor-sdk] unhandled InteractionUpdate type="mystery-delta"'),
-      expect.any(String)
+    expect(onLogLine).toHaveBeenCalledWith(
+      `${LOG_PREFIX} delta:unhandled] mystery-delta: {"type":"mystery-delta"}`
     );
-    expect(stdoutWriteSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('silently accepts user SDKMessages without stdout or warnings', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+  it('logs user SDKMessages as stream:unhandled without throwing', () => {
+    const onLogLine = vi.fn();
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine);
     adapter.handleMessage({
       type: 'user',
       agent_id: 'agent-1',
@@ -308,12 +309,14 @@ describe('CursorSdkStreamAdapter', () => {
       message: { role: 'user', content: [{ type: 'text', text: 'hello' }] },
     });
 
-    expect(stdoutWriteSpy).not.toHaveBeenCalled();
-    expect(warnSpy).not.toHaveBeenCalled();
+    expect(onLogLine).toHaveBeenCalledWith(
+      expect.stringContaining(`${LOG_PREFIX} stream:unhandled] user: {"type":"user"`)
+    );
   });
 
-  it('silently accepts request SDKMessages without stdout or warnings', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+  it('logs request SDKMessages as stream:unhandled without throwing', () => {
+    const onLogLine = vi.fn();
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine);
     adapter.handleMessage({
       type: 'request',
       agent_id: 'agent-1',
@@ -321,33 +324,34 @@ describe('CursorSdkStreamAdapter', () => {
       request_id: 'req-1',
     });
 
-    expect(stdoutWriteSpy).not.toHaveBeenCalled();
-    expect(warnSpy).not.toHaveBeenCalled();
+    expect(onLogLine).toHaveBeenCalledWith(
+      expect.stringContaining(`${LOG_PREFIX} stream:unhandled] request: {"type":"request"`)
+    );
   });
 
-  it('warns on unknown SDKMessage types and writes a stream line', () => {
+  it('logs unknown SDKMessage types as stream:unhandled without throwing', () => {
     const onLogLine = vi.fn();
     const adapter = new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine);
     adapter.handleMessage({ type: 'mystery-message' } as unknown as SDKMessage);
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[cursor-sdk] unhandled SDKMessage type="mystery-message"'),
-      expect.any(String)
+    expect(onLogLine).toHaveBeenCalledWith(
+      `${LOG_PREFIX} stream:unhandled] mystery-message: {"type":"mystery-message"}`
     );
-    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} stream] unhandled type: mystery-message`);
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('warns on unknown nested taskUpdate types inside tool-call-delta', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
-    adapter.handleInteractionUpdate({
+  it('logs unknown nested taskUpdate types inside tool-call-delta as unhandled', () => {
+    const onLogLine = vi.fn();
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine);
+    adapter.handleInteractionDelta({
       type: 'tool-call-delta',
       callId: 'call-6',
       taskUpdate: { type: 'mystery-nested' },
     } as unknown as InteractionUpdate);
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[cursor-sdk] unhandled nested taskUpdate type="mystery-nested"'),
-      expect.any(String)
+    expect(onLogLine).toHaveBeenCalledWith(
+      `${LOG_PREFIX} delta:unhandled] mystery-nested: {"type":"mystery-nested"}`
     );
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
