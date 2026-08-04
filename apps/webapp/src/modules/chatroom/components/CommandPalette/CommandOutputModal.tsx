@@ -1,7 +1,7 @@
 'use client';
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { CommandOutputPanel } from './CommandOutputPanel';
 import { CommandDialogContent } from '../shared/CommandDialogContent';
@@ -18,9 +18,40 @@ interface CommandOutputModalProps {
  *
  * Isolated from the CommandPalette dialog: ESC on this modal closes only
  * the output panel, not the command palette behind it.
+ *
+ * Open-grace guard: when the palette closes right after a command is selected,
+ * Radix focus-restore moves focus outside this non-modal dialog, firing
+ * `onFocusOutside` (and on some gestures `onPointerDownOutside`) within the same
+ * interaction. These spurious dismisses flash the output modal closed. The guard
+ * ignores outside-interaction dismissals during the brief open window.
  */
+const OPEN_GRACE_MS = 300;
+// fallow-ignore-next-line unused-export — consumed by CommandOutputModal.test.tsx
+export { OPEN_GRACE_MS };
+
 export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
   const open = inlineCommand.commandName !== null;
+
+  const openedAtRef = useRef(0);
+  useEffect(() => {
+    if (open) openedAtRef.current = Date.now();
+  }, [open]);
+
+  const withinGrace = useCallback(() => Date.now() - openedAtRef.current < OPEN_GRACE_MS, []);
+
+  const handlePointerDownOutside = useCallback(
+    (event: Event) => {
+      if (withinGrace()) event.preventDefault();
+    },
+    [withinGrace]
+  );
+
+  const handleFocusOutside = useCallback(
+    (event: Event) => {
+      if (withinGrace()) event.preventDefault();
+    },
+    [withinGrace]
+  );
 
   const handleOpenChange = useCallback(
     (val: boolean) => {
@@ -60,6 +91,8 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
         <CommandDialogContent
           open={open}
           onEscapeKeyDown={handleEscapeKeyDown}
+          onPointerDownOutside={handlePointerDownOutside}
+          onFocusOutside={handleFocusOutside}
           className="h-[320px]"
         >
           <DialogPrimitive.Title className="sr-only">Command Output</DialogPrimitive.Title>
