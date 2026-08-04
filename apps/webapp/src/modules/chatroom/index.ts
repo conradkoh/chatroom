@@ -14,7 +14,6 @@ export { ChatroomSidebar } from './components/ChatroomSidebar';
 export { CopyButton } from './components/CopyButton';
 export { CreateChatroomForm } from './components/CreateChatroomForm';
 export { ErrorBoundary } from './components/ErrorBoundary';
-export { ChatroomTimelineFeed } from './components/timeline/ChatroomTimelineFeed';
 export { PromptModal } from './components/PromptModal';
 export { MessageInput } from './components/MessageInput';
 export { WorkingIndicator } from './components/WorkingIndicator';
