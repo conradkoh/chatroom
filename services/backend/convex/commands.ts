@@ -126,7 +126,7 @@ export const stopCommand = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
   },
   handler: async (ctx, args) => {
     const auth = await requireSession(ctx, args.sessionId);
@@ -163,7 +163,7 @@ export const updateRunStatus = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
     status: v.union(
       v.literal('running'),
       v.literal('completed'),
@@ -196,8 +196,8 @@ export const appendOutput = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
-    content: v.union(v.string(), v.object({ compression: v.literal('gzip'), content: v.string() })),
+    runId: v.id('chatroom_commandRunsV2'),
+    content: v.object({ compression: v.literal('gzip'), content: v.string() }),
     chunkIndex: v.number(),
   },
   handler: async (ctx, args) => {
@@ -220,12 +220,12 @@ export const appendOutput = mutation({
 export const controlRunOutputV2 = mutation({
   args: {
     ...SessionIdArg,
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
     action: v.union(v.literal('observe'), v.literal('unobserve'), v.literal('requestFull')),
   },
   handler: async (ctx, args) => {
     const auth = await requireSession(ctx, args.sessionId);
-    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+    const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
     if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
 
     await requireAccess(ctx, {
@@ -250,7 +250,7 @@ export const clearPendingFullOutputSync = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
   },
   handler: async (ctx, args) => {
     const auth = await requireSession(ctx, args.sessionId);
@@ -331,14 +331,14 @@ export const listRunsV2 = query({
 export const getRunOutputV2 = query({
   args: {
     ...SessionIdArg,
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
     loadFull: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return { chunks: [], run: null, tail: null, fullOutputPending: false };
 
-    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+    const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
     if (!run) return { chunks: [], run: null, tail: null, fullOutputPending: false };
 
     await requireAccess(ctx, {
@@ -355,13 +355,13 @@ export const getRunStatus = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return null;
 
-    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+    const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
     if (!run) return null;
     if (run.machineId !== args.machineId) return null;
 

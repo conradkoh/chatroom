@@ -1,10 +1,9 @@
 import { ConvexError } from 'convex/values';
 
 import { upsertRunTail, type TailPayload } from './tail';
+import type { CommandRunId } from './types';
 import { MAX_OUTPUT_CHUNK_BYTES, MAX_OUTPUT_CHUNKS_PER_RUN, MAX_TAIL_LINES_V2 } from './types';
 import type { MutationCtx } from '../_generated/server';
-
-type RunId = any;
 
 export async function handleRunCommand(
   ctx: MutationCtx,
@@ -20,7 +19,7 @@ export async function handleRunCommand(
   const now = Date.now();
 
   const recentPending = await ctx.db
-    .query('chatroom_commandRuns')
+    .query('chatroom_commandRunsV2')
     .withIndex('by_machine_workingDir_status', (q) =>
       q.eq('machineId', machineId).eq('workingDir', workingDir).eq('status', 'pending')
     )
@@ -38,7 +37,7 @@ export async function handleRunCommand(
   }
 
   const activeRun = await ctx.db
-    .query('chatroom_commandRuns')
+    .query('chatroom_commandRunsV2')
     .withIndex('by_machine_workingDir_status', (q) =>
       q.eq('machineId', machineId).eq('workingDir', workingDir).eq('status', 'running')
     )
@@ -46,14 +45,14 @@ export async function handleRunCommand(
     .first();
 
   if (activeRun) {
-    await ctx.db.patch('chatroom_commandRuns', activeRun._id, {
+    await ctx.db.patch('chatroom_commandRunsV2', activeRun._id, {
       status: 'killed',
       terminationReason: 'replaced',
       completedAt: now,
     });
   }
 
-  const runId: RunId = await ctx.db.insert('chatroom_commandRuns', {
+  const runId: CommandRunId = await ctx.db.insert('chatroom_commandRunsV2', {
     machineId,
     workingDir,
     commandName,
@@ -63,7 +62,7 @@ export async function handleRunCommand(
     requestedBy,
   });
 
-  // The chatroom_commandRuns row is the source of truth for command dispatch:
+  // The chatroom_commandRunsV2 row is the source of truth for command dispatch:
   // the daemon subscribes to pending rows on a dedicated channel, so no
   // chatroom_eventStream event is needed here.
 
@@ -73,12 +72,12 @@ export async function handleRunCommand(
 export async function handleStopCommand(
   ctx: MutationCtx,
   args: {
-    runId: RunId;
+    runId: CommandRunId;
     machineId: string;
   }
 ) {
   const { runId, machineId } = args;
-  const run = await ctx.db.get('chatroom_commandRuns', runId);
+  const run = await ctx.db.get('chatroom_commandRunsV2', runId);
   if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
   if (run.machineId !== machineId)
     throw new ConvexError({
@@ -92,7 +91,7 @@ export async function handleStopCommand(
   const now = Date.now();
 
   if (run.status === 'pending') {
-    await ctx.db.patch('chatroom_commandRuns', runId, {
+    await ctx.db.patch('chatroom_commandRunsV2', runId, {
       status: 'stopped',
       terminationReason: 'user-stop',
       completedAt: now,
@@ -100,7 +99,7 @@ export async function handleStopCommand(
     return;
   }
 
-  await ctx.db.patch('chatroom_commandRuns', runId, { terminationReason: 'user-stop' });
+  await ctx.db.patch('chatroom_commandRunsV2', runId, { terminationReason: 'user-stop' });
 
   // The daemon's dedicated command-run subscription picks up the running row
   // with terminationReason === 'user-stop' and dispatches the kill — no
@@ -110,14 +109,12 @@ export async function handleStopCommand(
 export async function handleAppendOutput(
   ctx: MutationCtx,
   args: {
-    runId: RunId;
-    content: string | { compression: 'gzip'; content: string };
+    runId: CommandRunId;
+    content: { compression: 'gzip'; content: string };
     chunkIndex: number;
   }
 ) {
-  // Size check: for compressed content, check the base64 string length (it's already ≤ original)
-  const sizeForCheck =
-    typeof args.content === 'string' ? args.content.length : args.content.content.length;
+  const sizeForCheck = args.content.content.length;
   if (sizeForCheck > MAX_OUTPUT_CHUNK_BYTES) {
     throw new ConvexError({
       code: 'OUTPUT_CHUNK_TOO_LARGE',
@@ -126,7 +123,7 @@ export async function handleAppendOutput(
   }
 
   const existingChunks = await ctx.db
-    .query('chatroom_commandOutput')
+    .query('chatroom_commandOutputV2')
     .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', args.runId))
     .take(MAX_OUTPUT_CHUNKS_PER_RUN);
 
@@ -134,9 +131,10 @@ export async function handleAppendOutput(
     return;
   }
 
-  await ctx.db.insert('chatroom_commandOutput', {
+  await ctx.db.insert('chatroom_commandOutputV2', {
     runId: args.runId,
-    content: args.content,
+    compression: args.content.compression,
+    content: args.content.content,
     chunkIndex: args.chunkIndex,
     timestamp: Date.now(),
   });
@@ -146,11 +144,11 @@ export async function handleUpsertRunTail(
   ctx: MutationCtx,
   args: {
     machineId: string;
-    runId: RunId;
+    runId: CommandRunId;
     tailOutput: TailPayload;
   }
 ) {
-  const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+  const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
   if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
   if (run.machineId !== args.machineId)
     throw new ConvexError({
@@ -182,17 +180,17 @@ export async function handleUpsertRunTail(
 export async function handleSetRunLogObserver(
   ctx: MutationCtx,
   args: {
-    runId: RunId;
+    runId: CommandRunId;
     observing: boolean;
   }
 ) {
-  const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+  const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
   if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
 
   const current = run.logObserverCount ?? 0;
   const next = args.observing ? current + 1 : Math.max(0, current - 1);
 
-  await ctx.db.patch('chatroom_commandRuns', args.runId, {
+  await ctx.db.patch('chatroom_commandRunsV2', args.runId, {
     logObserverCount: next,
   });
 
@@ -202,13 +200,13 @@ export async function handleSetRunLogObserver(
 export async function handleRequestRunOutputFullSync(
   ctx: MutationCtx,
   args: {
-    runId: RunId;
+    runId: CommandRunId;
   }
 ) {
-  const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+  const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
   if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
 
-  await ctx.db.patch('chatroom_commandRuns', args.runId, {
+  await ctx.db.patch('chatroom_commandRunsV2', args.runId, {
     pendingFullOutputSync: true,
   });
 }
@@ -217,14 +215,14 @@ export async function handleClearPendingFullOutputSync(
   ctx: MutationCtx,
   args: {
     machineId: string;
-    runId: RunId;
+    runId: CommandRunId;
   }
 ) {
-  const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+  const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
   if (!run) return;
   if (run.machineId !== args.machineId) return;
 
-  await ctx.db.patch('chatroom_commandRuns', args.runId, {
+  await ctx.db.patch('chatroom_commandRunsV2', args.runId, {
     pendingFullOutputSync: false,
   });
 }

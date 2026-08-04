@@ -1,6 +1,5 @@
+import type { CommandRunId } from './types';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
-
-type RunId = any;
 
 export type TailPayload = {
   compression: 'gzip';
@@ -13,10 +12,10 @@ export type TailPayload = {
 
 export async function getRunTail(
   ctx: QueryCtx | MutationCtx,
-  runId: RunId
+  runId: CommandRunId
 ): Promise<TailPayload | null> {
   const row = await ctx.db
-    .query('chatroom_commandRunTails')
+    .query('chatroom_commandRunTailsV2')
     .withIndex('by_runId', (q) => q.eq('runId', runId))
     .first();
 
@@ -34,10 +33,10 @@ export async function getRunTail(
 
 export async function upsertRunTail(
   ctx: MutationCtx,
-  args: { runId: RunId; machineId: string; tail: TailPayload }
+  args: { runId: CommandRunId; machineId: string; tail: TailPayload }
 ): Promise<void> {
   const existing = await ctx.db
-    .query('chatroom_commandRunTails')
+    .query('chatroom_commandRunTailsV2')
     .withIndex('by_runId', (q) => q.eq('runId', args.runId))
     .first();
 
@@ -53,20 +52,20 @@ export async function upsertRunTail(
   };
 
   if (existing) {
-    await ctx.db.patch('chatroom_commandRunTails', existing._id, doc);
+    await ctx.db.patch('chatroom_commandRunTailsV2', existing._id, doc);
     return;
   }
 
-  await ctx.db.insert('chatroom_commandRunTails', doc);
+  await ctx.db.insert('chatroom_commandRunTailsV2', doc);
 }
 
-export async function deleteRunTail(ctx: MutationCtx, runId: RunId): Promise<void> {
+export async function deleteRunTail(ctx: MutationCtx, runId: CommandRunId): Promise<void> {
   const existing = await ctx.db
-    .query('chatroom_commandRunTails')
+    .query('chatroom_commandRunTailsV2')
     .withIndex('by_runId', (q) => q.eq('runId', runId))
     .first();
 
   if (existing) {
-    await ctx.db.delete('chatroom_commandRunTails', existing._id);
+    await ctx.db.delete('chatroom_commandRunTailsV2', existing._id);
   }
 }

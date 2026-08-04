@@ -1,10 +1,9 @@
 import { getRunTail } from './tail';
+import type { CommandRunId } from './types';
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
-type RunId = any;
-
-function toRunMeta(run: Doc<'chatroom_commandRuns'>) {
+function toRunMeta(run: Doc<'chatroom_commandRunsV2'>) {
   return {
     _id: run._id,
     machineId: run.machineId,
@@ -46,14 +45,14 @@ export async function handleListActiveRuns(
   }
 ) {
   const pendingRuns = await ctx.db
-    .query('chatroom_commandRuns')
+    .query('chatroom_commandRunsV2')
     .withIndex('by_machine_workingDir_status', (q) =>
       q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('status', 'pending')
     )
     .collect();
 
   const runningRuns = await ctx.db
-    .query('chatroom_commandRuns')
+    .query('chatroom_commandRunsV2')
     .withIndex('by_machine_workingDir_status', (q) =>
       q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('status', 'running')
     )
@@ -70,7 +69,7 @@ export async function handleListActiveRuns(
     }));
 }
 
-/** Run metadata for history lists — tail lives in chatroom_commandRunTails. */
+/** Run metadata for history lists — tail lives in chatroom_commandRunTailsV2. */
 export async function handleListRunsV2(
   ctx: QueryCtx,
   args: {
@@ -79,7 +78,7 @@ export async function handleListRunsV2(
   }
 ) {
   return await ctx.db
-    .query('chatroom_commandRuns')
+    .query('chatroom_commandRunsV2')
     .withIndex('by_machine_workingDir', (q) =>
       q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
     )
@@ -97,13 +96,13 @@ export async function handleListRunsWithLogObservers(
 ) {
   const [observed, pendingFull] = await Promise.all([
     ctx.db
-      .query('chatroom_commandRuns')
+      .query('chatroom_commandRunsV2')
       .withIndex('by_machineId_logObserverCount', (q) =>
         q.eq('machineId', args.machineId).gte('logObserverCount', 1)
       )
       .collect(),
     ctx.db
-      .query('chatroom_commandRuns')
+      .query('chatroom_commandRunsV2')
       .withIndex('by_machineId_pendingFullOutputSync', (q) =>
         q.eq('machineId', args.machineId).eq('pendingFullOutputSync', true)
       )
@@ -129,17 +128,30 @@ export async function handleListRunsWithLogObservers(
 export async function handleGetRunOutputV2(
   ctx: QueryCtx,
   args: {
-    runId: RunId;
+    runId: CommandRunId;
     loadFull?: boolean;
   }
 ) {
-  const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+  const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
   if (!run) return { run: null, tail: null, chunks: [], fullOutputPending: false };
 
   const isActive = run.status === 'running' || run.status === 'pending';
   const hasObserver = (run.logObserverCount ?? 0) > 0;
   const tailPayload = await getRunTail(ctx, args.runId);
   const tail = hasObserver && tailPayload ? tailPayload : null;
+
+  const loadChunks = async () => {
+    const rawChunks = await ctx.db
+      .query('chatroom_commandOutputV2')
+      .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', args.runId))
+      .collect();
+    rawChunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+    return rawChunks.map((c) => ({
+      chunkIndex: c.chunkIndex,
+      timestamp: c.timestamp,
+      content: { compression: c.compression, content: c.content },
+    }));
+  };
 
   if (isActive && !args.loadFull) {
     return {
@@ -150,13 +162,9 @@ export async function handleGetRunOutputV2(
     };
   }
 
-  if (isActive && args.loadFull) {
-    const chunks = await ctx.db
-      .query('chatroom_commandOutput')
-      .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', args.runId))
-      .collect();
-    chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+  const chunks = await loadChunks();
 
+  if (isActive && args.loadFull) {
     return {
       run: toRunMeta(run),
       tail,
@@ -164,12 +172,6 @@ export async function handleGetRunOutputV2(
       fullOutputPending: run.pendingFullOutputSync === true,
     };
   }
-
-  const chunks = await ctx.db
-    .query('chatroom_commandOutput')
-    .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', args.runId))
-    .collect();
-  chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
 
   return {
     run: toRunMeta(run),
@@ -183,10 +185,10 @@ export async function handleGetRunStatus(
   ctx: QueryCtx,
   args: {
     machineId: string;
-    runId: RunId;
+    runId: CommandRunId;
   }
 ) {
-  const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+  const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
   if (!run) return null;
   if (run.machineId !== args.machineId) return null;
 
@@ -197,13 +199,13 @@ export async function handleGetRunStatus(
 export async function handleListActionableCommandRuns(ctx: QueryCtx, args: { machineId: string }) {
   const [pendingRuns, runningRuns] = await Promise.all([
     ctx.db
-      .query('chatroom_commandRuns')
+      .query('chatroom_commandRunsV2')
       .withIndex('by_machineId_status', (q) =>
         q.eq('machineId', args.machineId).eq('status', 'pending')
       )
       .collect(),
     ctx.db
-      .query('chatroom_commandRuns')
+      .query('chatroom_commandRunsV2')
       .withIndex('by_machineId_status', (q) =>
         q.eq('machineId', args.machineId).eq('status', 'running')
       )

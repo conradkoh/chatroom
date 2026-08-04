@@ -1,10 +1,9 @@
+import type { Id } from '../_generated/dataModel';
+
+export type CommandRunId = Id<'chatroom_commandRunsV2'>;
+
 export type CommandRunStatus =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'stopped'
-  | 'killed';
+  'pending' | 'running' | 'completed' | 'failed' | 'stopped' | 'killed';
 
 /** Max commands per workspace sync to prevent abuse. */
 export const MAX_COMMANDS_PER_SYNC = 500;

@@ -31,14 +31,14 @@ export const listRunsWithLogObservers = query({
 });
 
 /**
- * Daemon-only live tail sync — isolated from chatroom_commandRuns so metadata
+ * Daemon-only live tail sync — isolated from chatroom_commandRunsV2 so metadata
  * subscriptions are not invalidated on each flush. Replaces commands.updateRunTailV2.
  */
 export const updateRunTail = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
     tailOutput: v.object({
       compression: v.literal('gzip'),
       content: v.string(),
