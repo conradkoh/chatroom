@@ -340,23 +340,23 @@ export function CodeBlock({
     <div className="relative group not-prose mb-3">
       {/* Header bar */}
       <div className="flex items-center justify-between bg-chatroom-bg-secondary border-2 border-b-0 border-chatroom-border px-4 py-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+        <span className="text-[10px] font-bold tracking-wide text-chatroom-text-muted">
           {language || 'code'}
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-text-primary transition-opacity opacity-80 hover:opacity-100"
+          className="flex items-center gap-2 text-[10px] font-bold tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary transition-opacity opacity-80 hover:opacity-100"
           title={copied ? 'Copied!' : 'Copy code'}
         >
           {copied ? (
             <>
               <Check size={12} className="text-chatroom-status-success" />
-              <span className="text-chatroom-status-success font-mono">COPIED</span>
+              <span className="text-chatroom-status-success font-mono">Copied</span>
             </>
           ) : (
             <>
               <Copy size={12} />
-              <span>COPY</span>
+              <span>Copy</span>
             </>
           )}
         </button>
