@@ -1691,21 +1691,23 @@ export default defineSchema({
         workingDir: v.string(),
         timestamp: v.number(),
       }),
-      // Request to run a command on a machine (dispatched from web UI)
+      // DEPRECATED: command.run/command.stop — command dispatch moved to dedicated
+      // chatroom_commandRunsV2 subscription channel. Variants retained so existing
+      // chatroom_eventStream documents (with v1 runIds) continue to validate until
+      // deleteDeprecatedCommandEventStreamEvents migration runs.
       v.object({
         type: v.literal('command.run'),
         machineId: v.string(),
         workingDir: v.string(),
         commandName: v.string(),
         script: v.string(),
-        runId: v.id('chatroom_commandRunsV2'),
+        runId: v.string(),
         timestamp: v.number(),
       }),
-      // Request to stop a running command on a machine
       v.object({
         type: v.literal('command.stop'),
         machineId: v.string(),
-        runId: v.id('chatroom_commandRunsV2'),
+        runId: v.string(),
         timestamp: v.number(),
       }),
       // Agent's native harness turn ended with in_progress work — awaiting handoff
