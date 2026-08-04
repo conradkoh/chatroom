@@ -5,6 +5,7 @@ import { memo } from 'react';
 
 import { HandoffActionMarkdownBody } from './HandoffActionMarkdownBody';
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
+
 import { cn } from '@/lib/utils';
 
 export interface HandoffCollapsibleSectionProps {
@@ -45,7 +46,7 @@ export const HandoffCollapsibleSection = memo(function HandoffCollapsibleSection
         type="button"
         onClick={onToggle}
         className={cn(
-          'w-full flex items-center gap-1.5 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider',
+          'w-full flex items-center gap-1.5 px-3 py-2 text-left text-[10px] font-bold tracking-wide',
           isEmpty === undefined && 'text-chatroom-text-muted hover:bg-chatroom-bg-hover',
           isEmpty === false &&
             'bg-chatroom-bg-tertiary text-chatroom-text-secondary hover:bg-chatroom-bg-hover',

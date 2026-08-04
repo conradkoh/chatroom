@@ -39,7 +39,7 @@ export const HandoffEnvelopeView = memo(function HandoffEnvelopeView({
         <button
           type="button"
           onClick={() => setShowRaw((v) => !v)}
-          className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info hover:underline"
+          className="text-[10px] font-bold tracking-wide text-chatroom-status-info hover:underline"
           data-testid="handoff-raw-toggle"
         >
           {showRaw ? 'Structured' : 'Raw'}

@@ -171,7 +171,7 @@ export const HandoffReportView = memo(function HandoffReportView({
           <button
             type="button"
             onClick={() => setShowRaw(false)}
-            className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info hover:underline"
+            className="text-[10px] font-bold tracking-wide text-chatroom-status-info hover:underline"
             data-testid="handoff-report-raw-toggle"
           >
             Structured
@@ -190,7 +190,7 @@ export const HandoffReportView = memo(function HandoffReportView({
         <button
           type="button"
           onClick={() => setShowRaw(true)}
-          className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info hover:underline"
+          className="text-[10px] font-bold tracking-wide text-chatroom-status-info hover:underline"
           data-testid="handoff-report-raw-toggle"
         >
           Raw

@@ -49,4 +49,10 @@ describe('getSeverityChipClassNames', () => {
     expect(classNames).not.toContain('rounded-md');
     expect(classNames).toContain('bg-chatroom-status-error/15');
   });
+
+  it('does not transform severity labels to uppercase', () => {
+    for (const severity of ['high', 'medium', 'low'] as const) {
+      expect(getSeverityChipClassNames(severity)).not.toContain('uppercase');
+    }
+  });
 });
