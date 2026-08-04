@@ -338,10 +338,7 @@ export function inferLegacySavedCommandScope(row: { chatroomId?: string }): 'use
  * Migration: Backfill scope field for saved commands created before the scope feature.
  * Legacy rows have no scope field — chatroomId present → 'chatroom', otherwise → 'user'.
  *
- * Run via:
- *   cd services/backend && pnpm migrate:saved-command-scope
- *   # or: npx convex run migrations:run '{"fn":"migrations:backfillSavedCommandScope"}'
- *   # or: pnpm migrate  (included in migrations:runAll)
+ * Run via: pnpm migrate  (included in migrations:runAll)
  *
  * Idempotent: rows with scope already set are skipped.
  */
@@ -563,7 +560,7 @@ export const compactWorkspaceFileTreeDeltaOperations = migrations.define({
 
 /**
  * Run all migrations in order.
- * Usage: npx convex run migrations:runAll
+ * Usage: pnpm migrate  (from repo root; CI uses the same command with CONVEX_DEPLOY_KEY set)
  *
  * Migrations are run sequentially. Each migration tracks its own progress —
  * if interrupted, it will resume from where it left off on the next run.

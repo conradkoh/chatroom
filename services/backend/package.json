@@ -6,10 +6,6 @@
   "scripts": {
     "dev": "CONVEX_NON_INTERACTIVE=true DOCUMENT_RETENTION_DELAY=1 INDEX_RETENTION_DELAY=1 RETENTION_DELETE_FREQUENCY=10 convex dev",
     "deploy": "convex deploy",
-    "migrate": "bun ../../scripts/migrate.ts",
-    "migrate:saved-command-scope": "convex run migrations:run '{\"fn\":\"migrations:backfillSavedCommandScope\"}'",
-    "migrate:duo-builder-want-resume": "convex run migrations:run '{\"fn\":\"migrations:setDuoBuilderWantResumeFalse\"}'",
-    "migrate:strip-command-run-tail-output": "convex run migrations:run '{\"fn\":\"migrations:stripCommandRunTailOutput\"}'",
     "typecheck": "tsc --build",
     "test": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run",
     "test:watch": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest"
