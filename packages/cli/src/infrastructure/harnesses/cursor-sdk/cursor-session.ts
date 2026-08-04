@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { SDKAgent, SDKMessage } from '@cursor/sdk';
+import type { InteractionUpdate, SDKAgent, SDKMessage } from '@cursor/sdk';
 
 import type {
   DirectHarnessSession,
@@ -9,10 +9,22 @@ import type {
 } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
 import { resolveCursorSdkModel } from '../../services/remote-agents/cursor-sdk/cursor-models.js';
+import {
+  logUnhandledInteractionDelta,
+  logUnhandledSdkMessage,
+} from '../../services/remote-agents/cursor-sdk/cursor-sdk-stream-fallback.js';
 import { withTimeout } from '../../services/remote-agents/with-timeout.js';
 
 const SEND_TIMEOUT_MS = 60_000;
 const RUN_WAIT_TIMEOUT_MS = 3_600_000;
+
+const HARNESS_LOG_PREFIX = '[cursor-sdk-harness';
+
+// The harness surfaces agent output via typed events, not stdout log lines, so
+// fallback logging for unhandled protocol events goes to console.warn.
+function warnWriteLine(line: string): void {
+  console.warn(line);
+}
 
 export interface CursorSdkSessionOptions {
   readonly agent: SDKAgent;
@@ -63,6 +75,9 @@ export class CursorSdkSession implements DirectHarnessSession {
         local: { force: isFirstTurn },
         idempotencyKey: randomUUID(),
         ...(modelId ? { model: { id: modelId } } : {}),
+        onDelta: ({ update }) => {
+          this.handleInteractionDelta(messageId, update);
+        },
       }),
       SEND_TIMEOUT_MS,
       'agent.send'
@@ -119,6 +134,48 @@ export class CursorSdkSession implements DirectHarnessSession {
     });
   }
 
+  /**
+   * Stream InteractionUpdate deltas delivered via SendOptions.onDelta into the
+   * same message.part.delta events as run.stream() SDKMessages. Known non-text
+   * deltas (token accounting, tool lifecycle, step/turn transitions) are
+   * expected protocol traffic and ignored; unknown deltas are logged (not
+   * thrown) so prompt() continues regardless of SDK additions.
+   */
+  // fallow-ignore-next-line complexity
+  private handleInteractionDelta(messageId: string, update: InteractionUpdate): void {
+    switch (update.type) {
+      case 'text-delta':
+        this.emitDelta(messageId, update.text, 'text');
+        break;
+      case 'thinking-delta':
+        this.emitDelta(messageId, update.text, 'reasoning');
+        break;
+      case 'tool-call-delta':
+        if (update.taskUpdate.type === 'text-delta') {
+          this.emitDelta(messageId, update.taskUpdate.text, 'text');
+        }
+        break;
+      case 'token-delta':
+      case 'tool-call-started':
+      case 'tool-call-completed':
+      case 'turn-ended':
+      case 'thinking-completed':
+      case 'summary-started':
+      case 'summary-completed':
+      case 'summary':
+      case 'user-message-appended':
+      case 'partial-tool-call':
+      case 'shell-output-delta':
+      case 'step-started':
+      case 'step-completed':
+        // Expected protocol deltas — not agent output for the direct harness.
+        break;
+      default:
+        logUnhandledInteractionDelta(HARNESS_LOG_PREFIX, update, warnWriteLine);
+        break;
+    }
+  }
+
   // fallow-ignore-next-line complexity
   private emitFromSdkMessage(message: SDKMessage, messageId: string): void {
     switch (message.type) {
@@ -134,7 +191,17 @@ export class CursorSdkSession implements DirectHarnessSession {
           this.emitDelta(messageId, message.text, 'reasoning');
         }
         break;
+      case 'status':
+      case 'system':
+      case 'task':
+      case 'tool_call':
+      case 'usage':
+      case 'user':
+      case 'request':
+        // Expected protocol messages — not agent output for the direct harness.
+        break;
       default:
+        logUnhandledSdkMessage(HARNESS_LOG_PREFIX, message, warnWriteLine);
         break;
     }
   }
