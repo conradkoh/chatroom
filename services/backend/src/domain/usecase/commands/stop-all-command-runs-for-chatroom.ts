@@ -35,7 +35,7 @@ async function stopRunsForWorkspace(
   workingDir: string
 ): Promise<number> {
   const runs = await ctx.db
-    .query('chatroom_commandRuns')
+    .query('chatroom_commandRunsV2')
     .withIndex('by_machine_workingDir', (q) =>
       q.eq('machineId', machineId).eq('workingDir', workingDir)
     )

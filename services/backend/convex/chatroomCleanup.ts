@@ -138,7 +138,7 @@ export const cleanupReadCursors = internalMutation({
  * - chatroom_workspaceFileTreeRequests
  * - chatroom_workspaceCommitDetail
  * - chatroom_runnableCommands
- * - chatroom_commandRuns
+ * - chatroom_commandRunsV2
  * - chatroom_workspaces
  * - chatroom_workspacePRDiffs
  *
@@ -293,24 +293,24 @@ export const cleanupMachines = internalMutation({
       for (const row of runnableCommands) await ctx.db.delete('chatroom_runnableCommands', row._id);
 
       const commandRuns = await ctx.db
-        .query('chatroom_commandRuns')
+        .query('chatroom_commandRunsV2')
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
       for (const row of commandRuns) {
         // Also delete command output chunks and live tail for each run
         const chunks = await ctx.db
-          .query('chatroom_commandOutput')
+          .query('chatroom_commandOutputV2')
           .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', row._id))
           .collect();
-        for (const chunk of chunks) await ctx.db.delete('chatroom_commandOutput', chunk._id);
+        for (const chunk of chunks) await ctx.db.delete('chatroom_commandOutputV2', chunk._id);
 
         const tail = await ctx.db
-          .query('chatroom_commandRunTails')
+          .query('chatroom_commandRunTailsV2')
           .withIndex('by_runId', (q) => q.eq('runId', row._id))
           .first();
-        if (tail) await ctx.db.delete('chatroom_commandRunTails', tail._id);
+        if (tail) await ctx.db.delete('chatroom_commandRunTailsV2', tail._id);
 
-        await ctx.db.delete('chatroom_commandRuns', row._id);
+        await ctx.db.delete('chatroom_commandRunsV2', row._id);
       }
 
       // Finally delete the machine itself

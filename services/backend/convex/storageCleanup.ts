@@ -27,7 +27,7 @@ export const cleanupCommandOutput = internalMutation({
 
     // Find terminal runs older than 7 days
     const oldRuns = await ctx.db
-      .query('chatroom_commandRuns')
+      .query('chatroom_commandRunsV2')
       .filter((q) =>
         q.and(
           q.or(
@@ -43,12 +43,12 @@ export const cleanupCommandOutput = internalMutation({
     let deleted = 0;
     for (const run of oldRuns) {
       const chunks = await ctx.db
-        .query('chatroom_commandOutput')
+        .query('chatroom_commandOutputV2')
         .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', run._id))
         .take(BATCH_SIZE);
 
       for (const chunk of chunks) {
-        await ctx.db.delete('chatroom_commandOutput', chunk._id);
+        await ctx.db.delete('chatroom_commandOutputV2', chunk._id);
         deleted++;
       }
     }
@@ -70,7 +70,7 @@ export const cleanupCommandRuns = internalMutation({
     const cutoff = Date.now() - SEVEN_DAYS_MS;
 
     const oldRuns = await ctx.db
-      .query('chatroom_commandRuns')
+      .query('chatroom_commandRunsV2')
       .filter((q) =>
         q.and(
           q.or(
@@ -87,18 +87,18 @@ export const cleanupCommandRuns = internalMutation({
     for (const run of oldRuns) {
       // Delete any remaining output chunks and tail row first
       const chunks = await ctx.db
-        .query('chatroom_commandOutput')
+        .query('chatroom_commandOutputV2')
         .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', run._id))
         .take(100);
       for (const chunk of chunks) {
-        await ctx.db.delete('chatroom_commandOutput', chunk._id);
+        await ctx.db.delete('chatroom_commandOutputV2', chunk._id);
       }
       const tail = await ctx.db
-        .query('chatroom_commandRunTails')
+        .query('chatroom_commandRunTailsV2')
         .withIndex('by_runId', (q) => q.eq('runId', run._id))
         .first();
-      if (tail) await ctx.db.delete('chatroom_commandRunTails', tail._id);
-      await ctx.db.delete('chatroom_commandRuns', run._id);
+      if (tail) await ctx.db.delete('chatroom_commandRunTailsV2', tail._id);
+      await ctx.db.delete('chatroom_commandRunsV2', run._id);
       deleted++;
     }
 
