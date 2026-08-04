@@ -27,6 +27,26 @@ describe('renderWebappUxReference', () => {
     expect(ref).toContain('1. **Flows**');
     expect(ref.indexOf('### UX review checklist') < ref.indexOf('### Keyboard shortcuts'));
   });
+
+  it('lists all 8 UX review checklist items', () => {
+    const ref = renderWebappUxReference();
+    expect(ref).toContain('5. **States**');
+    expect(ref).toContain('6. **Error boundaries**');
+    expect(ref).toContain('7. **Alignment**');
+    expect(ref).toContain('8. **Feedback**');
+  });
+
+  it('documents error/loading, error boundary, alignment, and feedback sections', () => {
+    const ref = renderWebappUxReference();
+    expect(ref).toContain('### Error & loading states');
+    expect(ref).toContain('### Error boundaries');
+    expect(ref).toContain('### Alignment & component hierarchy');
+    expect(ref).toContain('### Fast user feedback');
+    expect(ref).toContain('ChatroomLoader');
+    expect(ref).toContain('ErrorBoundary');
+    expect(ref).toContain('isModEnterKey');
+    expect(ref).toContain('toMatchInlineSnapshot');
+  });
 });
 
 describe('renderWebappUxHandoffReference', () => {

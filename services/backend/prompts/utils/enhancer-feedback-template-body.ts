@@ -35,6 +35,10 @@ export function getEnhancerFeedbackTemplateBody(): string {
 - **Patterns:** <which existing pattern fits; recommend one if multiple; mobile vs desktop>
 - **Layout:** <compact rows, trailing CTAs, unnecessary wrappers>
 - **Shortcuts:** <alignment with catalog; gaps or conflicts>
+- **States:** <loading/error/empty coverage for async surfaces>
+- **Error boundaries:** <error boundary placement; failure isolated from the whole app>
+- **Alignment:** <hierarchy traced; position/height issues; inline snapshot consideration>
+- **Feedback:** <immediate pending state on async actions; ⌘Enter + button state>
 </handoff-ux>
 
 <handoff-notes>

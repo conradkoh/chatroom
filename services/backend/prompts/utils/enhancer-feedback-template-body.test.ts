@@ -49,9 +49,17 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     expect(body).toContain('**Patterns:**');
     expect(body).toContain('**Layout:**');
     expect(body).toContain('**Shortcuts:**');
+    expect(body).toContain('**States:**');
+    expect(body).toContain('**Error boundaries:**');
+    expect(body).toContain('**Alignment:**');
+    expect(body).toContain('**Feedback:**');
     const uxBlock = body.slice(body.indexOf('<handoff-ux>'), body.indexOf('</handoff-ux>'));
     expect(uxBlock).toContain('**Flows:**');
     expect(uxBlock).toContain('**Shortcuts:**');
+    expect(uxBlock).toContain('**States:**');
+    expect(uxBlock).toContain('**Error boundaries:**');
+    expect(uxBlock).toContain('**Alignment:**');
+    expect(uxBlock).toContain('**Feedback:**');
     expect(body.indexOf('<handoff-ux>')).toBeGreaterThan(body.indexOf('</handoff-direction>'));
     expect(body.indexOf('<handoff-ux>')).toBeLessThan(body.indexOf('<handoff-notes>'));
   });
@@ -72,5 +80,9 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     );
     expect(recommendations).not.toContain('**Flows:**');
     expect(recommendations).not.toContain('**Shortcuts:**');
+    expect(recommendations).not.toContain('**States:**');
+    expect(recommendations).not.toContain('**Error boundaries:**');
+    expect(recommendations).not.toContain('**Alignment:**');
+    expect(recommendations).not.toContain('**Feedback:**');
   });
 });
