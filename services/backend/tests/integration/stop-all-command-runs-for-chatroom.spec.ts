@@ -82,7 +82,7 @@ describe('commands.stopAllCommandRunsForChatroom', () => {
     await t.mutation(api.commands.updateRunStatus, {
       sessionId,
       machineId,
-      runId: runId as Id<'chatroom_commandRuns'>,
+      runId: runId as Id<'chatroom_commandRunsV2'>,
       status: 'running',
     });
 
@@ -92,7 +92,7 @@ describe('commands.stopAllCommandRunsForChatroom', () => {
     });
 
     expect(result.stoppedCount).toBe(1);
-    const run = await t.run(async (ctx) => ctx.db.get(runId as Id<'chatroom_commandRuns'>));
+    const run = await t.run(async (ctx) => ctx.db.get(runId as Id<'chatroom_commandRunsV2'>));
     expect(run?.terminationReason).toBe('user-stop');
     // Status stays 'running' — the daemon actually stops the process afterwards.
     expect(run?.status).toBe('running');
@@ -116,7 +116,7 @@ describe('commands.stopAllCommandRunsForChatroom', () => {
     });
 
     expect(result.stoppedCount).toBe(1);
-    const run = await t.run(async (ctx) => ctx.db.get(runId as Id<'chatroom_commandRuns'>));
+    const run = await t.run(async (ctx) => ctx.db.get(runId as Id<'chatroom_commandRunsV2'>));
     expect(run?.status).toBe('stopped');
     expect(run?.terminationReason).toBe('user-stop');
   });
@@ -137,13 +137,13 @@ describe('commands.stopAllCommandRunsForChatroom', () => {
     await t.mutation(api.commands.updateRunStatus, {
       sessionId,
       machineId,
-      runId: runId as Id<'chatroom_commandRuns'>,
+      runId: runId as Id<'chatroom_commandRunsV2'>,
       status: 'running',
     });
     await t.mutation(api.commands.updateRunStatus, {
       sessionId,
       machineId,
-      runId: runId as Id<'chatroom_commandRuns'>,
+      runId: runId as Id<'chatroom_commandRunsV2'>,
       status: 'completed',
     });
 
@@ -153,7 +153,7 @@ describe('commands.stopAllCommandRunsForChatroom', () => {
     });
 
     expect(result.stoppedCount).toBe(0);
-    const run = await t.run(async (ctx) => ctx.db.get(runId as Id<'chatroom_commandRuns'>));
+    const run = await t.run(async (ctx) => ctx.db.get(runId as Id<'chatroom_commandRunsV2'>));
     expect(run?.status).toBe('completed');
     expect(run?.terminationReason).toBeUndefined();
   });

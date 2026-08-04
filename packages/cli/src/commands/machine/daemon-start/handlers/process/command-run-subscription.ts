@@ -4,7 +4,7 @@
  *
  * Isolated from the multiplexed getCommandEvents stream so UI run/stop
  * requests are not blocked by agent lifecycle or git events. The backend's
- * chatroom_commandRuns rows are the source of truth: pending rows need a
+ * chatroom_commandRunsV2 rows are the source of truth: pending rows need a
  * spawn, running rows with terminationReason === 'user-stop' need a kill.
  *
  * The subscription lifecycle (start/stop handle, error callback) deliberately

@@ -48,7 +48,7 @@ const mockedOnCommandStopEffect = vi.mocked(onCommandStopEffect);
 
 const FLUSH = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-const rid = (id: string): Id<'chatroom_commandRuns'> => id as Id<'chatroom_commandRuns'>;
+const rid = (id: string): Id<'chatroom_commandRunsV2'> => id as Id<'chatroom_commandRunsV2'>;
 
 function makeSession(): DaemonSessionServiceShape {
   return {
