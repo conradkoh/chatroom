@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronUp, CircleDot } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, CircleDot } from 'lucide-react';
 
 import type { TimelineMessageHeaderNavigation } from './timelineRowStyles';
 
@@ -8,11 +8,15 @@ const NAV_BTN =
   'inline-flex items-center justify-center h-6 w-6 rounded text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-30 disabled:pointer-events-none transition-colors';
 
 export function TimelineMessageHeaderNav({
+  onJumpToFirst,
   onJumpToPrevious,
   onJumpToCurrent,
   onJumpToNext,
+  onJumpToLast,
+  hasFirst,
   hasPrevious,
   hasNext,
+  hasLast,
 }: TimelineMessageHeaderNavigation) {
   return (
     <div
@@ -20,6 +24,16 @@ export function TimelineMessageHeaderNav({
       data-testid="timeline-message-header-nav"
       onClick={(e) => e.stopPropagation()}
     >
+      <button
+        type="button"
+        className={NAV_BTN}
+        aria-label="Jump to first message top"
+        data-testid="timeline-header-nav-first"
+        disabled={!hasFirst}
+        onClick={onJumpToFirst}
+      >
+        <ChevronsUp size={14} />
+      </button>
       <button
         type="button"
         className={NAV_BTN}
@@ -48,6 +62,16 @@ export function TimelineMessageHeaderNav({
         onClick={onJumpToNext}
       >
         <ChevronDown size={14} />
+      </button>
+      <button
+        type="button"
+        className={NAV_BTN}
+        aria-label="Jump to last message top"
+        data-testid="timeline-header-nav-last"
+        disabled={!hasLast}
+        onClick={onJumpToLast}
+      >
+        <ChevronsDown size={14} />
       </button>
     </div>
   );

@@ -107,11 +107,15 @@ describe('TimelineEventRow', () => {
         event={event}
         chatroomId={TEST_CHATROOM_ID}
         headerNavigation={{
+          onJumpToFirst: vi.fn(),
           onJumpToPrevious: vi.fn(),
           onJumpToCurrent: vi.fn(),
           onJumpToNext: vi.fn(),
+          onJumpToLast: vi.fn(),
+          hasFirst: true,
           hasPrevious: true,
           hasNext: false,
+          hasLast: false,
         }}
       />
     );

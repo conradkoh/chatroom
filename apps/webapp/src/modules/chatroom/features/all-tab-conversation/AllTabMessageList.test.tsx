@@ -17,6 +17,12 @@ vi.mock('../../components/timeline/TimelineEventRow', () => ({
     <div data-testid={`event-row-${event.id}`}>
       <button
         type="button"
+        data-testid={`timeline-header-nav-first-${event.id}`}
+        disabled={headerNavigation ? !headerNavigation.hasFirst : true}
+        onClick={headerNavigation?.onJumpToFirst}
+      />
+      <button
+        type="button"
         data-testid={`timeline-header-nav-previous-${event.id}`}
         disabled={headerNavigation ? !headerNavigation.hasPrevious : true}
         onClick={headerNavigation?.onJumpToPrevious}
@@ -31,6 +37,12 @@ vi.mock('../../components/timeline/TimelineEventRow', () => ({
         data-testid={`timeline-header-nav-next-${event.id}`}
         disabled={headerNavigation ? !headerNavigation.hasNext : true}
         onClick={headerNavigation?.onJumpToNext}
+      />
+      <button
+        type="button"
+        data-testid={`timeline-header-nav-last-${event.id}`}
+        disabled={headerNavigation ? !headerNavigation.hasLast : true}
+        onClick={headerNavigation?.onJumpToLast}
       />
       {event.id}
     </div>
@@ -353,13 +365,46 @@ describe('sticky header message navigation', () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: 480 - 0 + 100, behavior: 'smooth' });
   });
 
-  it('disables previous on first message and next on last message', () => {
+  it('clicking nav-first on last row scrolls to first row', () => {
+    const list = renderTwoEvents();
+
+    const scrollTo = vi.fn();
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(
+      document.querySelector('[data-testid="timeline-header-nav-first-msg-2"]') as HTMLElement
+    );
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 320 - 0 + 100, behavior: 'smooth' });
+  });
+
+  it('clicking nav-last on first row scrolls to last row', () => {
+    const list = renderTwoEvents();
+
+    const scrollTo = vi.fn();
+    list.scrollTo = scrollTo;
+
+    fireEvent.click(
+      document.querySelector('[data-testid="timeline-header-nav-last-msg-1"]') as HTMLElement
+    );
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 480 - 0 + 100, behavior: 'smooth' });
+  });
+
+  it('disables previous and first on first message, next and last on last message', () => {
     renderTwoEvents();
 
     expect(
       (
         document.querySelector(
           '[data-testid="timeline-header-nav-previous-msg-1"]'
+        ) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+    expect(
+      (
+        document.querySelector(
+          '[data-testid="timeline-header-nav-first-msg-1"]'
         ) as HTMLButtonElement
       ).disabled
     ).toBe(true);
@@ -373,6 +418,13 @@ describe('sticky header message navigation', () => {
     expect(
       (
         document.querySelector(
+          '[data-testid="timeline-header-nav-last-msg-1"]'
+        ) as HTMLButtonElement
+      ).disabled
+    ).toBe(false);
+    expect(
+      (
+        document.querySelector(
           '[data-testid="timeline-header-nav-previous-msg-2"]'
         ) as HTMLButtonElement
       ).disabled
@@ -380,7 +432,21 @@ describe('sticky header message navigation', () => {
     expect(
       (
         document.querySelector(
+          '[data-testid="timeline-header-nav-first-msg-2"]'
+        ) as HTMLButtonElement
+      ).disabled
+    ).toBe(false);
+    expect(
+      (
+        document.querySelector(
           '[data-testid="timeline-header-nav-next-msg-2"]'
+        ) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+    expect(
+      (
+        document.querySelector(
+          '[data-testid="timeline-header-nav-last-msg-2"]'
         ) as HTMLButtonElement
       ).disabled
     ).toBe(true);

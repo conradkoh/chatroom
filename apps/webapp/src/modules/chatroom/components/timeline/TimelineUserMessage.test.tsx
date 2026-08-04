@@ -70,11 +70,15 @@ describe('TimelineUserMessage', () => {
         message={createMessage()}
         chatroomId="room-1"
         headerNavigation={{
+          onJumpToFirst: vi.fn(),
           onJumpToPrevious: vi.fn(),
           onJumpToCurrent: vi.fn(),
           onJumpToNext: vi.fn(),
+          onJumpToLast: vi.fn(),
+          hasFirst: true,
           hasPrevious: true,
           hasNext: true,
+          hasLast: true,
         }}
       />
     );
@@ -89,11 +93,15 @@ describe('TimelineUserMessage', () => {
         message={createMessage({ content: 'secret header text' })}
         chatroomId="room-1"
         headerNavigation={{
+          onJumpToFirst: vi.fn(),
           onJumpToPrevious: vi.fn(),
           onJumpToCurrent: vi.fn(),
           onJumpToNext: vi.fn(),
+          onJumpToLast: vi.fn(),
+          hasFirst: true,
           hasPrevious: true,
           hasNext: true,
+          hasLast: true,
         }}
       />
     );

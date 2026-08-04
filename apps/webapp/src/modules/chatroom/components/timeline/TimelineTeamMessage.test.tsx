@@ -186,11 +186,15 @@ Prior round returned as \`<planning-review-outcome status="cancelled">\`
         message={BASE_MESSAGE}
         chatroomId="room-1"
         headerNavigation={{
+          onJumpToFirst: vi.fn(),
           onJumpToPrevious: vi.fn(),
           onJumpToCurrent: vi.fn(),
           onJumpToNext: vi.fn(),
+          onJumpToLast: vi.fn(),
+          hasFirst: true,
           hasPrevious: true,
           hasNext: true,
+          hasLast: true,
         }}
       />
     );

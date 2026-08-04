@@ -135,6 +135,10 @@ export function AllTabMessageList({
               chatroomId=""
               machines={machines}
               headerNavigation={{
+                onJumpToFirst: () => {
+                  const first = events[0];
+                  if (first) scrollToMessageTop(first.id);
+                },
                 onJumpToPrevious: () => {
                   const previous = events[index - 1];
                   if (previous) scrollToMessageTop(previous.id);
@@ -144,8 +148,14 @@ export function AllTabMessageList({
                   const next = events[index + 1];
                   if (next) scrollToMessageTop(next.id);
                 },
+                onJumpToLast: () => {
+                  const last = events[events.length - 1];
+                  if (last) scrollToMessageTop(last.id);
+                },
+                hasFirst: index > 0,
                 hasPrevious: index > 0,
                 hasNext: index < events.length - 1,
+                hasLast: index < events.length - 1,
               }}
             />
           </div>
