@@ -34,6 +34,7 @@ import type { MachineNameEntry } from './timelineRowStyles';
 import {
   getTimelineItemKey,
   jumpToNewMessagesBottomOffset,
+  JUMP_TO_NEW_MESSAGES_Z_INDEX,
   shouldTriggerLoadOlder,
   TIMELINE_ESTIMATE_SIZE,
   TIMELINE_OVERSCAN,
@@ -496,8 +497,11 @@ export function ChatroomTimelineFeed({
         <button
           type="button"
           onClick={() => coordinator.current.jumpToEnd()}
-          style={{ bottom: jumpToNewMessagesBottomOffset(footerChromeHeight) }}
-          className="absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
+          style={{
+            bottom: jumpToNewMessagesBottomOffset(footerChromeHeight),
+            zIndex: JUMP_TO_NEW_MESSAGES_Z_INDEX,
+          }}
+          className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to new messages"
         >
           <ChevronDown size={16} />

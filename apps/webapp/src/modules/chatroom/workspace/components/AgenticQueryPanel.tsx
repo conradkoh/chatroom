@@ -24,7 +24,10 @@ import {
   chatroomIndustrialButtonSecondaryClassName,
 } from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { TimelineMarkdownBody } from '@/modules/chatroom/components/timeline/TimelineMarkdownBody';
-import { JUMP_TO_NEW_MESSAGES_GAP_PX } from '@/modules/chatroom/components/timeline/timelineVirtualizerConfig';
+import {
+  JUMP_TO_NEW_MESSAGES_GAP_PX,
+  JUMP_TO_NEW_MESSAGES_Z_INDEX,
+} from '@/modules/chatroom/components/timeline/timelineVirtualizerConfig';
 import { ThinkingBlock } from '@/modules/chatroom/direct-harness/components/ThinkingBlock';
 import { useFileReferenceAutocomplete } from '@/modules/chatroom/hooks/useFileReferenceAutocomplete';
 import { useScrollController } from '@/modules/chatroom/hooks/useScrollController';
@@ -404,8 +407,11 @@ export function AgenticQueryPanel({
           <button
             type="button"
             onClick={scrollToBottom}
-            style={{ bottom: JUMP_TO_NEW_MESSAGES_GAP_PX }}
-            className="absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
+            style={{
+              bottom: JUMP_TO_NEW_MESSAGES_GAP_PX,
+              zIndex: JUMP_TO_NEW_MESSAGES_Z_INDEX,
+            }}
+            className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
             aria-label="Jump to new messages"
             data-testid="agentic-query-jump-to-new"
           >

@@ -63,6 +63,9 @@ export function getTimelineItemKey(index: number, events: TimelineEvent[]): stri
 /** Gap between the jump-to-new-messages chip and the timeline footer chrome. */
 export const JUMP_TO_NEW_MESSAGES_GAP_PX = 8;
 
+/** z-index for jump-to-new-messages chip — must exceed getTimelineVirtualRowZIndex for any row count */
+export const JUMP_TO_NEW_MESSAGES_Z_INDEX = 50;
+
 /** Bottom CSS px offset so the chip sits above the measured footer chrome. */
 export function jumpToNewMessagesBottomOffset(
   footerChromeHeightPx: number,

@@ -12,7 +12,10 @@ import {
   TIMELINE_SCROLL_CONTAINER_STYLE,
 } from '../../components/timeline/timelineRowStyles';
 import type { MachineNameEntry } from '../../components/timeline/timelineRowStyles';
-import { JUMP_TO_NEW_MESSAGES_GAP_PX } from '../../components/timeline/timelineVirtualizerConfig';
+import {
+  JUMP_TO_NEW_MESSAGES_GAP_PX,
+  JUMP_TO_NEW_MESSAGES_Z_INDEX,
+} from '../../components/timeline/timelineVirtualizerConfig';
 import { useScrollController } from '../../hooks/useScrollController';
 import type { TimelineEvent } from '../../timeline/types';
 
@@ -158,8 +161,8 @@ export function AllTabMessageList({
         <button
           type="button"
           onClick={scrollToBottom}
-          style={{ bottom: JUMP_TO_NEW_MESSAGES_GAP_PX }}
-          className="absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
+          style={{ bottom: JUMP_TO_NEW_MESSAGES_GAP_PX, zIndex: JUMP_TO_NEW_MESSAGES_Z_INDEX }}
+          className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
           aria-label="Jump to new messages"
           data-testid="all-tab-jump-to-new-messages"
         >

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AllTabMessageList } from './AllTabMessageList';
 import { getTimelineVirtualRowZIndex } from '../../components/timeline/timelineRowStyles';
 import type { TimelineMessageHeaderNavigation } from '../../components/timeline/timelineRowStyles';
+import { JUMP_TO_NEW_MESSAGES_Z_INDEX } from '../../components/timeline/timelineVirtualizerConfig';
 
 vi.mock('../../components/timeline/TimelineEventRow', () => ({
   TimelineEventRow: ({
@@ -76,6 +77,21 @@ describe('scroll pinning and jump chip', () => {
     fireEvent.scroll(list);
 
     expect(document.querySelector('[data-testid="all-tab-jump-to-new-messages"]')).not.toBeNull();
+  });
+
+  it('positions jump chip above timeline row z-index range when visible', () => {
+    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+
+    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
+    fireEvent.scroll(list);
+
+    const chip = document.querySelector(
+      '[data-testid="all-tab-jump-to-new-messages"]'
+    ) as HTMLElement;
+    expect(chip).not.toBeNull();
+    expect(chip.style.zIndex).toBe(String(JUMP_TO_NEW_MESSAGES_Z_INDEX));
+    expect(chip.className).not.toContain('z-10');
   });
 
   it('hides jump chip when at bottom (pinned)', () => {
