@@ -7,8 +7,9 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { query } from '../_generated/server';
+import { mutation, query } from '../_generated/server';
 import { requireMachineOwner } from '../auth/cli/machineAccess';
+import { handleUpsertRunTail } from '../commands/mutations';
 import {
   handleListActionableCommandRuns,
   handleListRunsWithLogObservers,
@@ -26,6 +27,30 @@ export const listRunsWithLogObservers = query({
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
     return await handleListRunsWithLogObservers(ctx, args);
+  },
+});
+
+/**
+ * Daemon-only live tail sync — isolated from chatroom_commandRuns so metadata
+ * subscriptions are not invalidated on each flush. Replaces commands.updateRunTailV2.
+ */
+export const updateRunTail = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    runId: v.id('chatroom_commandRuns'),
+    tailOutput: v.object({
+      compression: v.literal('gzip'),
+      content: v.string(),
+      byteLength: v.number(),
+      totalBytesWritten: v.number(),
+      updatedAt: v.number(),
+      lineCount: v.number(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    await handleUpsertRunTail(ctx, args);
   },
 });
 

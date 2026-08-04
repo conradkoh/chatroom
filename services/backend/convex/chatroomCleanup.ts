@@ -297,12 +297,19 @@ export const cleanupMachines = internalMutation({
         .filter((q) => q.eq(q.field('machineId'), mid))
         .collect();
       for (const row of commandRuns) {
-        // Also delete command output chunks for each run
+        // Also delete command output chunks and live tail for each run
         const chunks = await ctx.db
           .query('chatroom_commandOutput')
           .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', row._id))
           .collect();
         for (const chunk of chunks) await ctx.db.delete('chatroom_commandOutput', chunk._id);
+
+        const tail = await ctx.db
+          .query('chatroom_commandRunTails')
+          .withIndex('by_runId', (q) => q.eq('runId', row._id))
+          .first();
+        if (tail) await ctx.db.delete('chatroom_commandRunTails', tail._id);
+
         await ctx.db.delete('chatroom_commandRuns', row._id);
       }
 

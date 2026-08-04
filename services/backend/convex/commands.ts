@@ -17,7 +17,6 @@ import {
   handleRunCommand,
   handleStopCommand,
   handleAppendOutput,
-  handleUpdateRunTailV2,
   handleSetRunLogObserver,
   handleRequestRunOutputFullSync,
   handleClearPendingFullOutputSync,
@@ -215,37 +214,6 @@ export const appendOutput = mutation({
       });
 
     await handleAppendOutput(ctx, args);
-  },
-});
-
-export const updateRunTailV2 = mutation({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
-    tailOutput: v.object({
-      compression: v.literal('gzip'),
-      content: v.string(),
-      byteLength: v.number(),
-      totalBytesWritten: v.number(),
-      updatedAt: v.number(),
-      lineCount: v.number(),
-    }),
-  },
-  handler: async (ctx, args) => {
-    const auth = await requireSession(ctx, args.sessionId);
-    const ownerCheck = await checkAccess(ctx, {
-      accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'machine', id: args.machineId },
-      permission: 'owner',
-    });
-    if (!ownerCheck.ok)
-      throw new ConvexError({
-        code: 'NOT_AUTHORIZED_MACHINE',
-        message: 'Not authorized for this machine',
-      });
-
-    await handleUpdateRunTailV2(ctx, args);
   },
 });
 

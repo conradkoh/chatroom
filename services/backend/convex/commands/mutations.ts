@@ -1,6 +1,8 @@
 import { ConvexError } from 'convex/values';
-import type { MutationCtx } from '../_generated/server';
+
+import { upsertRunTail, type TailPayload } from './tail';
 import { MAX_OUTPUT_CHUNK_BYTES, MAX_OUTPUT_CHUNKS_PER_RUN, MAX_TAIL_LINES_V2 } from './types';
+import type { MutationCtx } from '../_generated/server';
 
 type RunId = any;
 
@@ -44,7 +46,7 @@ export async function handleRunCommand(
     .first();
 
   if (activeRun) {
-    await ctx.db.patch(activeRun._id, {
+    await ctx.db.patch('chatroom_commandRuns', activeRun._id, {
       status: 'killed',
       terminationReason: 'replaced',
       completedAt: now,
@@ -90,7 +92,7 @@ export async function handleStopCommand(
   const now = Date.now();
 
   if (run.status === 'pending') {
-    await ctx.db.patch(runId, {
+    await ctx.db.patch('chatroom_commandRuns', runId, {
       status: 'stopped',
       terminationReason: 'user-stop',
       completedAt: now,
@@ -98,7 +100,7 @@ export async function handleStopCommand(
     return;
   }
 
-  await ctx.db.patch(runId, { terminationReason: 'user-stop' });
+  await ctx.db.patch('chatroom_commandRuns', runId, { terminationReason: 'user-stop' });
 
   // The daemon's dedicated command-run subscription picks up the running row
   // with terminationReason === 'user-stop' and dispatches the kill — no
@@ -140,19 +142,12 @@ export async function handleAppendOutput(
   });
 }
 
-export async function handleUpdateRunTailV2(
+export async function handleUpsertRunTail(
   ctx: MutationCtx,
   args: {
     machineId: string;
     runId: RunId;
-    tailOutput: {
-      compression: 'gzip';
-      content: string;
-      byteLength: number;
-      totalBytesWritten: number;
-      updatedAt: number;
-      lineCount: number;
-    };
+    tailOutput: TailPayload;
   }
 ) {
   const run = await ctx.db.get('chatroom_commandRuns', args.runId);
@@ -177,8 +172,10 @@ export async function handleUpdateRunTailV2(
     });
   }
 
-  await ctx.db.patch(args.runId, {
-    tailOutput: args.tailOutput,
+  await upsertRunTail(ctx, {
+    runId: args.runId,
+    machineId: args.machineId,
+    tail: args.tailOutput,
   });
 }
 
@@ -195,7 +192,7 @@ export async function handleSetRunLogObserver(
   const current = run.logObserverCount ?? 0;
   const next = args.observing ? current + 1 : Math.max(0, current - 1);
 
-  await ctx.db.patch(args.runId, {
+  await ctx.db.patch('chatroom_commandRuns', args.runId, {
     logObserverCount: next,
   });
 
@@ -211,7 +208,7 @@ export async function handleRequestRunOutputFullSync(
   const run = await ctx.db.get('chatroom_commandRuns', args.runId);
   if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
 
-  await ctx.db.patch(args.runId, {
+  await ctx.db.patch('chatroom_commandRuns', args.runId, {
     pendingFullOutputSync: true,
   });
 }
@@ -227,7 +224,7 @@ export async function handleClearPendingFullOutputSync(
   if (!run) return;
   if (run.machineId !== args.machineId) return;
 
-  await ctx.db.patch(args.runId, {
+  await ctx.db.patch('chatroom_commandRuns', args.runId, {
     pendingFullOutputSync: false,
   });
 }

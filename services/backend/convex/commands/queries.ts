@@ -1,6 +1,27 @@
+import { getRunTail } from './tail';
+import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 
 type RunId = any;
+
+function toRunMeta(run: Doc<'chatroom_commandRuns'>) {
+  return {
+    _id: run._id,
+    machineId: run.machineId,
+    workingDir: run.workingDir,
+    commandName: run.commandName,
+    script: run.script,
+    status: run.status,
+    terminationReason: run.terminationReason,
+    pid: run.pid,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    exitCode: run.exitCode,
+    requestedBy: run.requestedBy,
+    logObserverCount: run.logObserverCount,
+    pendingFullOutputSync: run.pendingFullOutputSync,
+  };
+}
 
 export async function handleListCommands(
   ctx: QueryCtx,
@@ -49,7 +70,7 @@ export async function handleListActiveRuns(
     }));
 }
 
-/** Run metadata for history lists — excludes heavy tailOutput payload. */
+/** Run metadata for history lists — tail lives in chatroom_commandRunTails. */
 export async function handleListRunsV2(
   ctx: QueryCtx,
   args: {
@@ -57,15 +78,13 @@ export async function handleListRunsV2(
     workingDir: string;
   }
 ) {
-  const runs = await ctx.db
+  return await ctx.db
     .query('chatroom_commandRuns')
     .withIndex('by_machine_workingDir', (q) =>
       q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
     )
     .order('desc')
     .take(50);
-
-  return runs.map(({ tailOutput: _tail, ...meta }) => meta);
 }
 
 const ACTIVE_RUN_STATUSES = new Set(['running', 'pending']);
@@ -119,11 +138,13 @@ export async function handleGetRunOutputV2(
 
   const isActive = run.status === 'running' || run.status === 'pending';
   const hasObserver = (run.logObserverCount ?? 0) > 0;
+  const tailPayload = await getRunTail(ctx, args.runId);
+  const tail = hasObserver && tailPayload ? tailPayload : null;
 
   if (isActive && !args.loadFull) {
     return {
-      run,
-      tail: hasObserver ? (run.tailOutput ?? null) : null,
+      run: toRunMeta(run),
+      tail,
       chunks: [],
       fullOutputPending: run.pendingFullOutputSync === true,
     };
@@ -137,8 +158,8 @@ export async function handleGetRunOutputV2(
     chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
 
     return {
-      run,
-      tail: hasObserver ? (run.tailOutput ?? null) : null,
+      run: toRunMeta(run),
+      tail,
       chunks,
       fullOutputPending: run.pendingFullOutputSync === true,
     };
@@ -151,8 +172,8 @@ export async function handleGetRunOutputV2(
   chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
 
   return {
-    run,
-    tail: chunks.length === 0 ? (run.tailOutput ?? null) : null,
+    run: toRunMeta(run),
+    tail: chunks.length === 0 ? tailPayload : null,
     chunks,
     fullOutputPending: false,
   };

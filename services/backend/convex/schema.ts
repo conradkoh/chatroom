@@ -2471,23 +2471,6 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
     exitCode: v.optional(v.number()),
     requestedBy: v.id('users'),
-    /**
-     * Rolling compressed tail of command output for live viewing while the run is active.
-     * Daemon overwrites this field on each flush (every ~3s) with the last ~32KB of output.
-     * When the run terminates, daemon flushes the full output as chatroom_commandOutput chunks
-     * and clears this field. This avoids N× reactive chunk fan-out during a run:
-     * only a single row update per flush instead of an insert per flush.
-     */
-    tailOutput: v.optional(
-      v.object({
-        compression: v.literal('gzip'),
-        content: v.string(), // base64-encoded gzipped UTF-8
-        byteLength: v.number(), // decompressed byte length of the tail window
-        totalBytesWritten: v.number(), // total bytes the daemon has streamed since run start (monotonic)
-        updatedAt: v.number(),
-        lineCount: v.optional(v.number()), // V2: lines included in tail (max 50)
-      })
-    ),
     /** V2: refcount of UI surfaces watching live logs; daemon syncs tail only when > 0 */
     logObserverCount: v.optional(v.number()),
     /** V2: webapp requested one-shot full log flush from daemon temp file */
@@ -2501,8 +2484,24 @@ export default defineSchema({
     .index('by_status', ['status']),
 
   /**
+   * Live tail for active command runs — isolated from run metadata so tail flushes
+   * do not invalidate metadata subscriptions (listRunsV2, actionable runs, observers).
+   * Deleted when run completes or via cleanup. No legacy migration from run.tailOutput.
+   */
+  chatroom_commandRunTails: defineTable({
+    runId: v.id('chatroom_commandRuns'),
+    machineId: v.string(),
+    compression: v.literal('gzip'),
+    content: v.string(),
+    byteLength: v.number(),
+    totalBytesWritten: v.number(),
+    updatedAt: v.number(),
+    lineCount: v.number(),
+  }).index('by_runId', ['runId']),
+
+  /**
    * Buffered output chunks for command runs.
-   * While a run is active, output is streamed via the live tail (chatroom_commandRuns.tailOutput).
+   * While a run is active, output is streamed via chatroom_commandRunTails.
    * On termination, daemon flushes the full output as compressed chunks here.
    * content supports dual-encoding: legacy plaintext (v.string()) and gzip-compressed (v.object).
    */

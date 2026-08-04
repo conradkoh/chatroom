@@ -48,7 +48,7 @@ export const cleanupCommandOutput = internalMutation({
         .take(BATCH_SIZE);
 
       for (const chunk of chunks) {
-        await ctx.db.delete("chatroom_commandOutput", chunk._id);
+        await ctx.db.delete('chatroom_commandOutput', chunk._id);
         deleted++;
       }
     }
@@ -85,15 +85,20 @@ export const cleanupCommandRuns = internalMutation({
 
     let deleted = 0;
     for (const run of oldRuns) {
-      // Delete any remaining output chunks first
+      // Delete any remaining output chunks and tail row first
       const chunks = await ctx.db
         .query('chatroom_commandOutput')
         .withIndex('by_runId_chunkIndex', (q) => q.eq('runId', run._id))
         .take(100);
       for (const chunk of chunks) {
-        await ctx.db.delete("chatroom_commandOutput", chunk._id);
+        await ctx.db.delete('chatroom_commandOutput', chunk._id);
       }
-      await ctx.db.delete("chatroom_commandRuns", run._id);
+      const tail = await ctx.db
+        .query('chatroom_commandRunTails')
+        .withIndex('by_runId', (q) => q.eq('runId', run._id))
+        .first();
+      if (tail) await ctx.db.delete('chatroom_commandRunTails', tail._id);
+      await ctx.db.delete('chatroom_commandRuns', run._id);
       deleted++;
     }
 
@@ -121,7 +126,7 @@ export const cleanupCommitDetails = internalMutation({
 
     let deleted = 0;
     for (const detail of oldDetails) {
-      await ctx.db.delete("chatroom_workspaceCommitDetail", detail._id);
+      await ctx.db.delete('chatroom_workspaceCommitDetail', detail._id);
       deleted++;
     }
 
@@ -132,7 +137,7 @@ export const cleanupCommitDetails = internalMutation({
       .filter((q) => q.lt(q.field('_creationTime'), cutoff))
       .take(BATCH_SIZE);
     for (const detail of oldDetailsV2) {
-      await ctx.db.delete("chatroom_workspaceCommitDetailV2", detail._id);
+      await ctx.db.delete('chatroom_workspaceCommitDetailV2', detail._id);
       deleted++;
     }
 
@@ -164,7 +169,7 @@ export const cleanupCachedContent = internalMutation({
       .filter((q) => q.lt(q.field('_creationTime'), cutoff))
       .take(SMALL_BATCH_SIZE);
     for (const diff of oldDiffs) {
-      await ctx.db.delete("chatroom_workspaceFullDiff", diff._id);
+      await ctx.db.delete('chatroom_workspaceFullDiff', diff._id);
       totalDeleted++;
     }
 
@@ -175,7 +180,7 @@ export const cleanupCachedContent = internalMutation({
       .filter((q) => q.lt(q.field('_creationTime'), cutoff))
       .take(SMALL_BATCH_SIZE);
     for (const diff of oldDiffsV2) {
-      await ctx.db.delete("chatroom_workspaceFullDiffV2", diff._id);
+      await ctx.db.delete('chatroom_workspaceFullDiffV2', diff._id);
       totalDeleted++;
     }
 
@@ -186,7 +191,7 @@ export const cleanupCachedContent = internalMutation({
       .filter((q) => q.lt(q.field('_creationTime'), cutoff))
       .take(SMALL_BATCH_SIZE);
     for (const content of oldContent) {
-      await ctx.db.delete("chatroom_workspaceFileContent", content._id);
+      await ctx.db.delete('chatroom_workspaceFileContent', content._id);
       totalDeleted++;
     }
 
@@ -197,7 +202,7 @@ export const cleanupCachedContent = internalMutation({
       .filter((q) => q.lt(q.field('_creationTime'), cutoff))
       .take(SMALL_BATCH_SIZE);
     for (const contentV2 of oldContentV2) {
-      await ctx.db.delete("chatroom_workspaceFileContentV2", contentV2._id);
+      await ctx.db.delete('chatroom_workspaceFileContentV2', contentV2._id);
       totalDeleted++;
     }
 
@@ -208,7 +213,7 @@ export const cleanupCachedContent = internalMutation({
       .filter((q) => q.lt(q.field('_creationTime'), cutoff))
       .take(SMALL_BATCH_SIZE);
     for (const req of oldDiffRequests) {
-      await ctx.db.delete("chatroom_workspaceDiffRequests", req._id);
+      await ctx.db.delete('chatroom_workspaceDiffRequests', req._id);
       totalDeleted++;
     }
 
@@ -219,7 +224,7 @@ export const cleanupCachedContent = internalMutation({
       .filter((q) => q.lt(q.field('_creationTime'), cutoff))
       .take(SMALL_BATCH_SIZE);
     for (const req of oldFileRequests) {
-      await ctx.db.delete("chatroom_workspaceFileContentRequests", req._id);
+      await ctx.db.delete('chatroom_workspaceFileContentRequests', req._id);
       totalDeleted++;
     }
 
