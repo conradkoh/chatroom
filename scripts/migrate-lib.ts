@@ -16,5 +16,5 @@ export async function runMigrations(): Promise<void> {
     convexArgs.length > 0
       ? $`npx convex run migrations:runAll ${convexArgs[0]}`.cwd(BACKEND_DIR)
       : $`npx convex run migrations:runAll`.cwd(BACKEND_DIR);
-  await cmd.quiet();
+  await cmd; // NOT .quiet() — users need to see migration progress
 }

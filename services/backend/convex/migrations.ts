@@ -564,7 +564,8 @@ export const compactWorkspaceFileTreeDeltaOperations = migrations.define({
  * Live tails now live in chatroom_commandRunTails; documents retaining tailOutput
  * fail Convex schema validation after the field was removed from the table definition.
  *
- * Usage: npx convex run migrations:run '{"fn":"migrations:stripCommandRunTailOutput"}'
+ * Usage: pnpm migrate  (included in migrations:runAll)
+ *   # or: npx convex run migrations:run '{"fn":"migrations:stripCommandRunTailOutput"}'
  * Idempotent: documents without tailOutput are skipped.
  */
 export const stripCommandRunTailOutput = migrations.define({
