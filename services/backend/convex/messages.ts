@@ -8,7 +8,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
-import { buildAvailableHandoffRoles, getLatestUserMessageClassification } from './lib/handoffRoles';
+import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
@@ -756,7 +756,7 @@ export async function runHandoffHandler(
       break;
     }
   }
-  // Fallback: most recent acknowledged non-follow-up user message in chatroom
+  // Fallback: most recent acknowledged user message in chatroom
   if (!taskOriginMessageId) {
     const recentUser = await ctx.db
       .query('chatroom_messages')
@@ -765,7 +765,7 @@ export async function runHandoffHandler(
       )
       .order('desc')
       .take(10);
-    const origin = recentUser.find((m) => m.acknowledgedAt && m.classification !== 'follow_up');
+    const origin = recentUser.find((m) => m.acknowledgedAt);
     if (origin) taskOriginMessageId = origin._id;
   }
 
@@ -991,11 +991,9 @@ export const getAllowedHandoffRoles = query({
     );
 
     const availableRoles = waitingParticipants.map((p) => p.role);
-    const currentClassification = await getLatestUserMessageClassification(ctx, args.chatroomId);
 
     return {
       availableRoles,
-      currentClassification,
     };
   },
 });
@@ -1372,173 +1370,7 @@ export const getLatestForRole = query({
   },
 });
 
-/** Returns messages classified as new_feature with feature metadata, most recent first. */
-export const listFeatures = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const limit = args.limit || 10;
-    const MAX_LIMIT = 50;
-    const effectiveLimit = Math.min(limit, MAX_LIMIT);
-
-    // Use the senderRole+type compound index to narrow to user messages,
-    // then filter for new_feature classification. Scan desc to get newest first.
-    // Over-fetch to compensate for post-filter on classification.
-    const candidateMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
-      )
-      .order('desc')
-      .take(effectiveLimit * 10); // Over-fetch since not all user messages are new_feature
-
-    // Filter to new_feature messages with feature title (type predicate
-    // narrows `featureTitle` to `string` so the map below stays simple).
-    const isFeatureMessage = (
-      msg: Doc<'chatroom_messages'>
-    ): msg is Doc<'chatroom_messages'> & { featureTitle: string } =>
-      msg.classification === 'new_feature' && msg.featureTitle != null;
-
-    const features = candidateMessages
-      .filter(isFeatureMessage)
-      .slice(0, effectiveLimit)
-      .map((msg) => ({
-        id: msg._id,
-        title: msg.featureTitle,
-        descriptionPreview: msg.featureDescription
-          ? msg.featureDescription.substring(0, 100) +
-            (msg.featureDescription.length > 100 ? '...' : '')
-          : undefined,
-        createdAt: msg._creationTime,
-      }));
-
-    return features;
-  },
-});
-
-/** Returns full details and conversation thread for a specific feature message. */
-export const inspectFeature = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    messageId: v.union(v.id('chatroom_messages'), v.id('chatroom_messageQueue')),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Try to get the message from either table
-    // First try chatroom_messages, then chatroom_messageQueue
-    let message: Doc<'chatroom_messages'> | Doc<'chatroom_messageQueue'> | null = null;
-
-    // Check if it's in chatroom_messages
-    const regularMessage = await ctx.db
-      .get('chatroom_messages', args.messageId as Id<'chatroom_messages'>)
-      .catch(() => null);
-    if (regularMessage && regularMessage.chatroomId === args.chatroomId) {
-      message = regularMessage;
-    } else {
-      // Try chatroom_messageQueue
-      const queuedMessage = await ctx.db
-        .get('chatroom_messageQueue', args.messageId as Id<'chatroom_messageQueue'>)
-        .catch(() => null);
-      if (queuedMessage && queuedMessage.chatroomId === args.chatroomId) {
-        message = queuedMessage;
-      }
-    }
-
-    if (!message) {
-      throw new ConvexError({
-        code: 'MESSAGE_NOT_FOUND',
-        message: 'Message not found',
-      });
-    }
-
-    // Verify it belongs to this chatroom
-    if (message.chatroomId !== args.chatroomId) {
-      throw new ConvexError({
-        code: 'INVALID_MESSAGE',
-        message: 'Message does not belong to this chatroom',
-      });
-    }
-
-    // Verify it's a feature
-    // Queued messages never have classification — only promoted chatroom_messages can be features
-    const regularMsg = message as Doc<'chatroom_messages'>;
-    if (regularMsg.classification !== 'new_feature' || !regularMsg.featureTitle) {
-      throw new ConvexError({
-        code: 'INVALID_MESSAGE',
-        message: 'Message is not a feature',
-      });
-    }
-
-    // Use compound index to fetch messages from this message's creation time onward
-    // instead of loading ALL messages in the chatroom
-    const messagesFromFeature = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) =>
-        q.eq('chatroomId', args.chatroomId).gte('_creationTime', regularMsg._creationTime)
-      )
-      .take(500); // Reasonable upper bound for a feature thread
-
-    // Get all messages after this one until the next non-follow-up user message
-    const thread: {
-      id: string;
-      senderRole: string;
-      content: string;
-      type: string;
-      createdAt: number;
-    }[] = [];
-
-    // Skip past the feature message itself, then collect thread
-    let foundFeatureMsg = false;
-    for (const msg of messagesFromFeature) {
-      if (!foundFeatureMsg) {
-        if (msg._id === args.messageId) {
-          foundFeatureMsg = true;
-        }
-        continue;
-      }
-
-      // Stop at the next non-follow-up user message
-      if (
-        msg.senderRole.toLowerCase() === 'user' &&
-        msg.type === 'message' &&
-        msg.classification !== 'follow_up'
-      ) {
-        break;
-      }
-
-      thread.push({
-        id: msg._id,
-        senderRole: msg.senderRole,
-        content: msg.content,
-        type: msg.type,
-        createdAt: msg._creationTime,
-      });
-    }
-
-    return {
-      feature: {
-        id: message._id,
-        title: regularMsg.featureTitle,
-        description: regularMsg.featureDescription,
-        techSpecs: regularMsg.featureTechSpecs,
-        content: message.content,
-        createdAt: message._creationTime,
-      },
-      thread,
-    };
-  },
-});
-
-/** Returns a role-specific prompt with team context, classification, and allowed handoff targets. */
+/** Returns a role-specific prompt with team context and allowed handoff targets. */
 export const getRolePrompt = query({
   args: {
     ...SessionIdArg,
@@ -1561,7 +1393,6 @@ export const getRolePrompt = query({
     );
 
     const availableRoles = waitingParticipants.map((p) => p.role);
-    const currentClassification = await getLatestUserMessageClassification(ctx, args.chatroomId);
     const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles);
 
     let plannerEnhancerActive: boolean | undefined;
@@ -1578,7 +1409,6 @@ export const getRolePrompt = query({
       teamName: chatroom.teamName || 'Team',
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
-      currentClassification,
       availableHandoffRoles,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
       plannerEnhancerActive,
@@ -1586,7 +1416,6 @@ export const getRolePrompt = query({
 
     return {
       prompt,
-      currentClassification,
       availableHandoffRoles,
     };
   },
@@ -1994,7 +1823,7 @@ export const getContextForRole = query({
 
     // Find origin message
     // If triggerMessageId is set from the pinned context, use it directly;
-    // otherwise fall back to the heuristic (latest non-follow-up user message with acknowledgedAt)
+    // otherwise fall back to the heuristic (latest acknowledged user message)
     let originMessage: (typeof messages)[0] | null = null;
     let originIndex = -1;
 
@@ -2003,13 +1832,12 @@ export const getContextForRole = query({
       originIndex = messages.findIndex((m) => m._id.toString() === originMessageId);
       originMessage = originIndex >= 0 ? messages[originIndex] : null;
     } else {
-      // Heuristic: find the latest non-follow-up user message with acknowledgedAt set
+      // Heuristic: find the latest acknowledged user message
       for (let i = messages.length - 1; i >= 0; i--) {
         const msg = messages[i];
         if (
           msg.senderRole.toLowerCase() === 'user' &&
           msg.type === 'message' &&
-          msg.classification !== 'follow_up' &&
           msg.acknowledgedAt !== undefined
         ) {
           originMessage = msg;
@@ -2089,8 +1917,6 @@ export const getContextForRole = query({
           targetRole: message.targetRole,
           content: message.content,
           type: message.type,
-          classification: message.classification,
-          featureTitle: message.featureTitle,
           taskId: message.taskId?.toString(),
           taskStatus,
           taskContent,
@@ -2129,12 +1955,9 @@ export const getContextForRole = query({
             senderRole: originMessage.senderRole,
             content: originMessage.content,
             type: originMessage.type,
-            classification: originMessage.classification,
-            featureTitle: originMessage.featureTitle,
             taskId: originMessage.taskId?.toString(),
           }
         : null,
-      classification: originMessage?.classification || null,
       pendingTasksForRole: pendingTasks.length,
     };
   },

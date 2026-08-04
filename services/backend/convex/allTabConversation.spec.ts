@@ -26,7 +26,6 @@ async function insertTimelineMessage(
   senderRole: string,
   content: string,
   extra?: {
-    classification?: 'question' | 'new_feature' | 'follow_up';
     type?: 'message' | 'handoff' | 'join' | 'progress';
     targetRole?: string;
     visibleInAllTabOnly?: boolean;
@@ -38,7 +37,6 @@ async function insertTimelineMessage(
       senderRole,
       content,
       type: extra?.type ?? 'message',
-      ...(extra?.classification ? { classification: extra.classification } : {}),
       ...(extra?.targetRole ? { targetRole: extra.targetRole } : {}),
       ...(extra?.visibleInAllTabOnly ? { visibleInAllTabOnly: true } : {}),
     })) as Id<'chatroom_messages'>;
@@ -142,14 +140,12 @@ describe('listAllTabSlicePaginated', () => {
     expect(contents).not.toContain('next user');
   });
 
-  test('follow_up user message ends previous slice', async () => {
+  test('user message ends previous slice', async () => {
     const { sessionId } = await createTestSession('alltab-slice-followup');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'work');
-    await insertTimelineMessage(chatroomId, 'user', 'follow up', {
-      classification: 'follow_up',
-    });
+    await insertTimelineMessage(chatroomId, 'user', 'follow up');
 
     const result = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
       sessionId,
@@ -164,14 +160,12 @@ describe('listAllTabSlicePaginated', () => {
     expect(contents).not.toContain('follow up');
   });
 
-  test('follow_up user message provides correct sliceUpperBoundExclusive', async () => {
+  test('next user message provides correct sliceUpperBoundExclusive', async () => {
     const { sessionId } = await createTestSession('alltab-slice-bound-fu');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'work');
-    const followUpId = await insertTimelineMessage(chatroomId, 'user', 'follow up', {
-      classification: 'follow_up',
-    });
+    const followUpId = await insertTimelineMessage(chatroomId, 'user', 'follow up');
 
     const followUpTime = await t.run(async (ctx) => {
       const msg = await ctx.db.get('chatroom_messages', followUpId as Id<'chatroom_messages'>);

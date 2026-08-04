@@ -418,8 +418,7 @@ export default defineSchema({
     ),
     // Role that created the context (new-context messages only; e.g. 'planner', 'solo')
     contextCreatedBy: v.optional(v.string()),
-    // Classification of user messages (set via task read / classify)
-    // Used to determine allowed handoff paths and context window
+    // DEPRECATED: Task classification removed from product. Field retained for existing documents.
     classification: v.optional(
       v.union(
         v.literal('question'), // Quick question - can hand directly back to user
@@ -427,7 +426,7 @@ export default defineSchema({
         v.literal('follow_up') // Follow-up to previous message - part of same context
       )
     ),
-    // Feature metadata (set for new_feature classification)
+    // DEPRECATED: Feature metadata removed from product. Field retained for existing documents.
     featureTitle: v.optional(v.string()),
     featureDescription: v.optional(v.string()),
     featureTechSpecs: v.optional(v.string()),
