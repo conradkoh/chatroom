@@ -2471,6 +2471,22 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
     exitCode: v.optional(v.number()),
     requestedBy: v.id('users'),
+    /**
+     * @deprecated Transitional — legacy live tail on run rows. Live tails now use
+     * chatroom_commandRunTails. Kept optional so Convex can deploy while
+     * migrations:stripCommandRunTailOutput clears existing documents. Remove
+     * after migration has run in all environments.
+     */
+    tailOutput: v.optional(
+      v.object({
+        compression: v.literal('gzip'),
+        content: v.string(),
+        byteLength: v.number(),
+        totalBytesWritten: v.number(),
+        updatedAt: v.number(),
+        lineCount: v.optional(v.number()),
+      })
+    ),
     /** V2: refcount of UI surfaces watching live logs; daemon syncs tail only when > 0 */
     logObserverCount: v.optional(v.number()),
     /** V2: webapp requested one-shot full log flush from daemon temp file */
