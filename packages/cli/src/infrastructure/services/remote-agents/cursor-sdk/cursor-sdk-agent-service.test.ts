@@ -29,7 +29,7 @@ vi.mock('@cursor/sdk', () => ({
 
 vi.mock('./cursor-sdk-package.js', () => ({
   importBundledCursorSdk: vi.fn(async () => import('@cursor/sdk')),
-  getBundledCursorSdkVersion: vi.fn(() => '1.0.23'),
+  getBundledCursorSdkVersion: vi.fn(() => '1.0.26'),
   formatCursorSdkError: (err: unknown) => {
     if (err instanceof Error) {
       const sdkErr = err as Error & { code?: string; name?: string };

@@ -14,7 +14,7 @@ const CLI_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..');
 
 describe('cursor-sdk-package', () => {
   it('resolves the pinned @cursor/sdk version from the chatroom-cli install', () => {
-    expect(getBundledCursorSdkVersion(import.meta.url)).toBe('1.0.23');
+    expect(getBundledCursorSdkVersion(import.meta.url)).toBe('1.0.26');
   });
 
   it('imports @cursor/sdk from the chatroom-cli dependency graph', async () => {
@@ -67,6 +67,6 @@ describe('cursor-sdk-package', () => {
 
   it('resolveChatroomCliRoot works from the compiled dist layout', () => {
     const distFile = join(CLI_ROOT, 'dist', 'index.js');
-    expect(getBundledCursorSdkVersion(pathToFileURL(distFile).href)).toBe('1.0.23');
+    expect(getBundledCursorSdkVersion(pathToFileURL(distFile).href)).toBe('1.0.26');
   });
 });
