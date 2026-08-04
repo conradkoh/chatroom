@@ -1698,14 +1698,14 @@ export default defineSchema({
         workingDir: v.string(),
         commandName: v.string(),
         script: v.string(),
-        runId: v.id('chatroom_commandRuns'),
+        runId: v.id('chatroom_commandRunsV2'),
         timestamp: v.number(),
       }),
       // Request to stop a running command on a machine
       v.object({
         type: v.literal('command.stop'),
         machineId: v.string(),
-        runId: v.id('chatroom_commandRuns'),
+        runId: v.id('chatroom_commandRunsV2'),
         timestamp: v.number(),
       }),
       // Agent's native harness turn ended with in_progress work — awaiting handoff
@@ -2443,9 +2443,10 @@ export default defineSchema({
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
-   * Command execution runs. Tracks lifecycle of a spawned command process.
+   * V2 command execution runs — metadata only. Live tail in chatroom_commandRunTailsV2.
+   * Terminal output in chatroom_commandOutputV2 (gzip-only).
    */
-  chatroom_commandRuns: defineTable({
+  chatroom_commandRunsV2: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
     commandName: v.string(),
@@ -2471,23 +2472,9 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
     exitCode: v.optional(v.number()),
     requestedBy: v.id('users'),
-    /**
-     * @deprecated Legacy live tail on run rows. Live tails now use chatroom_commandRunTails.
-     * Kept optional for backward compatibility with existing documents. Not written by new code.
-     */
-    tailOutput: v.optional(
-      v.object({
-        compression: v.literal('gzip'),
-        content: v.string(),
-        byteLength: v.number(),
-        totalBytesWritten: v.number(),
-        updatedAt: v.number(),
-        lineCount: v.optional(v.number()),
-      })
-    ),
-    /** V2: refcount of UI surfaces watching live logs; daemon syncs tail only when > 0 */
+    /** Refcount of UI surfaces watching live logs; daemon syncs tail only when > 0 */
     logObserverCount: v.optional(v.number()),
-    /** V2: webapp requested one-shot full log flush from daemon temp file */
+    /** Webapp requested one-shot full log flush from daemon temp file */
     pendingFullOutputSync: v.optional(v.boolean()),
   })
     .index('by_machine_workingDir', ['machineId', 'workingDir'])
@@ -2498,12 +2485,11 @@ export default defineSchema({
     .index('by_status', ['status']),
 
   /**
-   * Live tail for active command runs — isolated from run metadata so tail flushes
-   * do not invalidate metadata subscriptions (listRunsV2, actionable runs, observers).
-   * Deleted when run completes or via cleanup. No legacy migration from run.tailOutput.
+   * V2 live tail for active command runs — isolated from run metadata.
+   * Deleted when run completes or via cleanup.
    */
-  chatroom_commandRunTails: defineTable({
-    runId: v.id('chatroom_commandRuns'),
+  chatroom_commandRunTailsV2: defineTable({
+    runId: v.id('chatroom_commandRunsV2'),
     machineId: v.string(),
     compression: v.literal('gzip'),
     content: v.string(),
@@ -2514,17 +2500,12 @@ export default defineSchema({
   }).index('by_runId', ['runId']),
 
   /**
-   * Buffered output chunks for command runs.
-   * While a run is active, output is streamed via chatroom_commandRunTails.
-   * On termination, daemon flushes the full output as compressed chunks here.
-   * content supports dual-encoding: legacy plaintext (v.string()) and gzip-compressed (v.object).
+   * V2 buffered output chunks — gzip-only (base64). Written on termination / full sync.
    */
-  chatroom_commandOutput: defineTable({
-    runId: v.id('chatroom_commandRuns'),
-    content: v.union(
-      v.string(), // Legacy: plain UTF-8 text
-      v.object({ compression: v.literal('gzip'), content: v.string() }) // base64-encoded gzip
-    ),
+  chatroom_commandOutputV2: defineTable({
+    runId: v.id('chatroom_commandRunsV2'),
+    compression: v.literal('gzip'),
+    content: v.string(),
     chunkIndex: v.number(),
     timestamp: v.number(),
   }).index('by_runId_chunkIndex', ['runId', 'chunkIndex']),
