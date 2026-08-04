@@ -23,7 +23,6 @@ function createMessage(overrides: Partial<Message> = {}): Message {
     senderRole: 'user',
     content: 'hello',
     _creationTime: 1000,
-    classification: 'question',
     taskStatus: 'completed',
     ...overrides,
   };

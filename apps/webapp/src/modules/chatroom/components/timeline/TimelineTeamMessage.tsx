@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, ArrowRightLeft, Sparkles } from 'lucide-react';
+import { ArrowRight, ArrowRightLeft } from 'lucide-react';
 import { memo } from 'react';
 
 import { HandoffEnvelopeView } from './HandoffEnvelopeView';
@@ -65,7 +65,6 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
 
   const messageTypeBadge = getMessageTypeBadge(message.type);
   const machineLabel = formatMachineLabel(machines, machineId);
-  const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
 
   return (
     <div
@@ -112,17 +111,6 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
       </div>
 
       <div className={`px-4 py-3 ${TIMELINE_MESSAGE_BODY}`}>
-        {hasFeatureTitle && (
-          <div className="mb-2 px-3 py-2 bg-chatroom-status-warning/10 dark:bg-chatroom-status-warning/15 border border-chatroom-status-warning/20 cursor-pointer hover:bg-chatroom-status-warning/20 transition-colors">
-            <div className="flex items-center gap-2">
-              <Sparkles size={14} className="text-chatroom-status-warning flex-shrink-0" />
-              <span className="text-sm font-semibold text-chatroom-text-primary">
-                {message.featureTitle}
-              </span>
-            </div>
-          </div>
-        )}
-
         {message.type === 'handoff' && hasPlanningReviewOutcome(displayContent) ? (
           <PlanningReviewOutcomeView content={displayContent} variant="timeline" />
         ) : message.type === 'handoff' && hasHandoffEnvelope(displayContent) ? (

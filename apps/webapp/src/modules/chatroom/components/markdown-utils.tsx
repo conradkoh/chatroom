@@ -34,7 +34,7 @@ const proseSelectableInlineCodeClassNames =
 
 /**
  * Full rich content prose styling (tables, blockquotes, links).
- * Used in: MessageDetailModal, FeatureDetailModal, PromptModal.
+ * Used in: PromptModal.
  *
  * Features:
  * - Dark mode support

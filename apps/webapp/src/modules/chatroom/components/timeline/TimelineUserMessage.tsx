@@ -1,16 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import {
-  Archive,
-  CheckCircle2,
-  Clock,
-  HelpCircle,
-  Loader2,
-  RotateCcw,
-  Sparkles,
-  XCircle,
-} from 'lucide-react';
+import { Archive, CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react';
 import { memo, useState, type ReactNode } from 'react';
 
 import { TimelineMarkdownBody } from './TimelineMarkdownBody';
@@ -28,33 +19,7 @@ import {
 import { MessageAttachmentChips } from '../../attachments';
 import { ScheduledMessageBadge } from '../../features/scheduled-prompts/components/ScheduledMessageBadge';
 import { ScheduledPromptDetailDialog } from '../../features/scheduled-prompts/components/ScheduledPromptDetailDialog';
-import type { Message, MessageClassification } from '../../types/message';
-
-function getClassificationBadge(classification: MessageClassification | undefined) {
-  if (!classification) return null;
-  switch (classification) {
-    case 'question':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-info/15 text-chatroom-status-info`,
-        label: 'question',
-        icon: <HelpCircle size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'new_feature':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-warning/15 text-chatroom-status-warning`,
-        label: 'new feature',
-        icon: <Sparkles size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'follow_up':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
-        label: 'follow-up',
-        icon: <RotateCcw size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    default:
-      return null;
-  }
-}
+import type { Message } from '../../types/message';
 
 function getTaskStatusBadge(status: Message['taskStatus']) {
   if (!status) return null;
@@ -133,7 +98,6 @@ interface UserMessageHeaderDefaultProps {
   statusBadges: ReactNode;
   taskStatusBadgeEl: ReactNode;
   isQueued?: boolean;
-  isAwaitingClassification: boolean;
 }
 
 function UserMessageHeaderDefault({
@@ -141,7 +105,6 @@ function UserMessageHeaderDefault({
   statusBadges,
   taskStatusBadgeEl,
   isQueued,
-  isAwaitingClassification,
 }: UserMessageHeaderDefaultProps) {
   return (
     <div className="flex items-center h-8 px-3 min-w-0">
@@ -149,11 +112,7 @@ function UserMessageHeaderDefault({
         queuedBadge
       ) : (
         <div className="flex items-center gap-2 w-full min-w-0">
-          {isAwaitingClassification ? (
-            <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
-          ) : (
-            statusBadges
-          )}
+          {statusBadges}
           {taskStatusBadgeEl}
         </div>
       )}
@@ -173,10 +132,7 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
   chatroomId: _chatroomId,
   headerNavigation,
 }: TimelineUserMessageProps) {
-  const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
-  const isTaskFinished = message.taskStatus === 'completed' || message.taskStatus === 'cancelled';
-  const isAwaitingClassification = !message.classification && !isTaskFinished;
   const showScheduledBadge =
     message.sourcePlatform === 'scheduled' || message.scheduledPromptId != null;
   const [detailOpen, setDetailOpen] = useState(false);
@@ -189,12 +145,6 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
 
   const statusBadges = (
     <>
-      {classificationBadge && (
-        <span className={`${classificationBadge.className} flex-shrink-0`}>
-          {classificationBadge.icon}
-          {classificationBadge.label}
-        </span>
-      )}
       {message.sourcePlatform === 'telegram' && (
         <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-chatroom-text-muted bg-chatroom-bg-hover rounded flex-shrink-0">
           Telegram
@@ -230,7 +180,6 @@ export const TimelineUserMessage = memo(function TimelineUserMessage({
       statusBadges={statusBadges}
       taskStatusBadgeEl={taskStatusBadgeEl}
       isQueued={message.isQueued}
-      isAwaitingClassification={isAwaitingClassification}
     />
   );
 
