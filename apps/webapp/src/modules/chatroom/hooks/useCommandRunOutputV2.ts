@@ -159,10 +159,7 @@ export function useCommandRunOutputV2(
 
   const isActive = result.run?.status === 'running' || result.run?.status === 'pending';
 
-  const canLoadMore =
-    isActive &&
-    !loadFull &&
-    (result.run?.tailOutput?.totalBytesWritten ?? result.tail?.totalBytesWritten ?? 0) > 0;
+  const canLoadMore = isActive && !loadFull && (result.tail?.totalBytesWritten ?? 0) > 0;
 
   const loadMore = useCallback(async () => {
     if (!subscribeRunId) return;

@@ -21,9 +21,15 @@ import { isActiveRun } from '../features/run-command/utils/run-status';
 export interface UseCommandRunnerProps {
   machineId: string | null;
   workingDir: string | null;
+  /** When false, skip listRunsV2 subscription (reduces bandwidth when Processes panel closed). */
+  runsListEnabled?: boolean;
 }
 
-export function useCommandRunner({ machineId, workingDir }: UseCommandRunnerProps) {
+export function useCommandRunner({
+  machineId,
+  workingDir,
+  runsListEnabled = true,
+}: UseCommandRunnerProps) {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
   // Queries
@@ -34,7 +40,7 @@ export function useCommandRunner({ machineId, workingDir }: UseCommandRunnerProp
 
   const runsQuery = useSessionQuery(
     api.commands.listRunsV2,
-    machineId && workingDir ? { machineId, workingDir } : 'skip'
+    machineId && workingDir && runsListEnabled ? { machineId, workingDir } : 'skip'
   );
 
   const runs = useMemo(() => (runsQuery ?? []) as CommandRun[], [runsQuery]);
