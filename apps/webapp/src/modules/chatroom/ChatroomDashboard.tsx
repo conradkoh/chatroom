@@ -1237,7 +1237,8 @@ export function ChatroomDashboard({
   const commandRunner = useCommandRunner({
     machineId: activeWorkspace?.machineId ?? null,
     workingDir: activeWorkspace?.workingDir ?? null,
-    runsListEnabled: activeView === 'processes' || terminalOpen,
+    runsListEnabled:
+      activeView === 'processes' || terminalOpen || activeDialog === 'command-palette',
   });
 
   // Single demand-driven output subscription for processes panel, terminal, and palette.
