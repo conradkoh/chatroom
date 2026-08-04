@@ -39,7 +39,7 @@ import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
 import { TaskItem } from './WorkQueue/TaskItem';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
 import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
-import { teamSupportsEnhancer } from '../hooks/persistence/messageViewMode';
+import { teamSupportsEnhancer } from '../hooks/persistence/teamEnhancerSupport';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 
 // Maximum number of pending review items to show in sidebar before "View More"

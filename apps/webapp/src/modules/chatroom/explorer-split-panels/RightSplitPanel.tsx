@@ -15,7 +15,6 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import { DirectHarnessPanel } from './DirectHarnessPanel';
 import { MessagesPanel, type MessagesPanelProps } from './MessagesPanel';
-import { MessageViewToggle } from '../components/timeline/MessageViewToggle';
 import {
   Select,
   SelectContent,
@@ -27,17 +26,15 @@ import {
   useExplorerSplitPanelMode,
   type ExplorerSplitPanelMode,
 } from '../hooks/persistence/useExplorerSplitPanelMode';
-import { useMessageViewMode, type MessageViewMode } from '../hooks/persistence/useMessageViewMode';
 import { WorkspaceTabBarShell } from '../workspace/components/WorkspaceTabBar';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
-// Props forwarded to MessagesPanel (all except chatroomId and viewMode)
-type MessagesPanelOwnProps = Omit<MessagesPanelProps, 'chatroomId' | 'viewMode'>;
+// Props forwarded to MessagesPanel (all except chatroomId)
+type MessagesPanelOwnProps = Omit<MessagesPanelProps, 'chatroomId'>;
 
 export interface RightSplitPanelProps {
   chatroomId: Id<'chatroom_rooms'>;
-  teamRoles: string[];
   messagesPanelProps: MessagesPanelOwnProps;
   /** Selected harness session ID, persisted by the parent lifecycle hook. */
   selectedHarnessSessionId: string | null;
@@ -59,28 +56,13 @@ const MODE_LABELS: Record<ExplorerSplitPanelMode, string> = {
 function RightSplitPanelHeader({
   mode,
   setMode,
-  messageViewMode,
-  setMessageViewMode,
-  teamRoles,
 }: {
   mode: ExplorerSplitPanelMode;
   setMode: (mode: ExplorerSplitPanelMode) => void;
-  messageViewMode: MessageViewMode;
-  setMessageViewMode: (mode: MessageViewMode) => void;
-  teamRoles: string[];
 }) {
   return (
     <WorkspaceTabBarShell testId="right-split-panel-header">
-      <div className="flex h-full min-w-0 flex-1 items-center justify-between gap-2 px-2">
-        {mode === 'messages' ? (
-          <MessageViewToggle
-            mode={messageViewMode}
-            onChange={setMessageViewMode}
-            teamRoles={teamRoles}
-          />
-        ) : (
-          <div aria-hidden="true" />
-        )}
+      <div className="flex h-full min-w-0 flex-1 items-center justify-end gap-2 px-2">
         <Select value={mode} onValueChange={(val) => setMode(val as ExplorerSplitPanelMode)}>
           <SelectTrigger
             size="sm"
@@ -105,7 +87,6 @@ function RightSplitPanelHeader({
 
 export function RightSplitPanel({
   chatroomId,
-  teamRoles,
   messagesPanelProps,
   selectedHarnessSessionId,
   setSelectedHarnessSessionId,
@@ -115,26 +96,15 @@ export function RightSplitPanel({
   const [internalMode, internalSetMode] = useExplorerSplitPanelMode(chatroomId);
   const mode = modeProp ?? internalMode;
   const setMode = setModeProp ?? internalSetMode;
-  const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <RightSplitPanelHeader
-        mode={mode}
-        setMode={setMode}
-        messageViewMode={messageViewMode}
-        setMessageViewMode={setMessageViewMode}
-        teamRoles={teamRoles}
-      />
+      <RightSplitPanelHeader mode={mode} setMode={setMode} />
 
       {/* Body: panel content */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {mode === 'messages' ? (
-          <MessagesPanel
-            chatroomId={chatroomId as string}
-            viewMode={messageViewMode}
-            {...messagesPanelProps}
-          />
+          <MessagesPanel chatroomId={chatroomId as string} {...messagesPanelProps} />
         ) : (
           <DirectHarnessPanel
             chatroomId={chatroomId}

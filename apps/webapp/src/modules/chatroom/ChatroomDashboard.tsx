@@ -50,7 +50,6 @@ import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
-import { MessageViewToggle } from './components/timeline/MessageViewToggle';
 import { WorkQueue } from './components/WorkQueue';
 import { useChatroomChatStatus } from './context/ChatroomListingContext';
 import { useCommandDialog } from './context/CommandDialogContext';
@@ -60,7 +59,6 @@ import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useExplorerSidebarVisible } from './hooks/persistence/useExplorerSidebarVisible';
 import { useExplorerSidebarWidth } from './hooks/persistence/useExplorerSidebarWidth';
 import { useExplorerSplitPanelSizes } from './hooks/persistence/useExplorerSplitPanelSizes';
-import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
 import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
@@ -69,7 +67,6 @@ import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
 import { useHandoffGitRefresh } from './hooks/useHandoffGitRefresh';
-import { useTimelineScroll } from './hooks/useTimelineScroll';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
 import type { TeamLifecycle } from './types/readiness';
@@ -684,11 +681,6 @@ export function ChatroomDashboard({
     explorerSyncEnabled,
     setExplorerSyncEnabled,
   } = chatroomLifecycle;
-
-  const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
-
-  // ─── Scroll controller (shared between timeline feed and SendForm) ───
-  const { coordinator: timelineScrollCoordinator } = useTimelineScroll(messageViewMode, chatroomId);
 
   const [explorerSplitSizes, setExplorerSplitSizes] = useExplorerSplitPanelSizes(
     chatroomId as Id<'chatroom_rooms'>
@@ -1919,19 +1911,10 @@ export function ChatroomDashboard({
 
                   {/* Main Content Area */}
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    {/* Content Toolbar — always renders, actions change based on active view */}
-                    <WorkspaceHeaderRow className="justify-between gap-2 px-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {activeView === 'messages' && (
-                          <MessageViewToggle
-                            mode={messageViewMode}
-                            onChange={setMessageViewMode}
-                            teamRoles={teamRoles}
-                          />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {(activeView === 'explorer' || activeView === 'source-control') && (
+                    {/* Content Toolbar — shown only for workspace views */}
+                    {(activeView === 'explorer' || activeView === 'source-control') && (
+                      <WorkspaceHeaderRow className="justify-between gap-2 px-2">
+                        <div className="flex items-center gap-2">
                           <button
                             className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
                             onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
@@ -1947,9 +1930,9 @@ export function ChatroomDashboard({
                               <MessageSquare size={14} />
                             )}
                           </button>
-                        )}
-                      </div>
-                    </WorkspaceHeaderRow>
+                        </div>
+                      </WorkspaceHeaderRow>
+                    )}
 
                     {/* When in explorer or source-control with split view enabled, show workspace + messages */}
                     {(activeView === 'explorer' || activeView === 'source-control') &&
@@ -1989,9 +1972,7 @@ export function ChatroomDashboard({
                         >
                           <RightSplitPanel
                             chatroomId={chatroomId as Id<'chatroom_rooms'>}
-                            teamRoles={teamRoles}
                             messagesPanelProps={{
-                              coordinator: timelineScrollCoordinator,
                               machines: machineNameMap,
                               onRegisterSendFormFocus: handleRegisterSendFormFocus,
                               onRegisterAllTabNavigation: handleRegisterAllTabNavigation,
@@ -2011,18 +1992,14 @@ export function ChatroomDashboard({
                       /* Message Feed — shown in messages view */
                       <ChatroomMessagesPanel
                         chatroomId={chatroomId}
-                        coordinator={timelineScrollCoordinator}
                         machines={machineNameMap}
-                        viewMode={messageViewMode}
                         onRegisterAllTabNavigation={handleRegisterAllTabNavigation}
                         footer={
                           <div className="shrink-0 border-t-2 border-chatroom-border-strong">
                             <MessageInput
                               chatroomId={chatroomId}
                               onRegisterFocus={handleRegisterSendFormFocus}
-                              onMessageSent={
-                                messageViewMode === 'all' ? handleAllTabMessageSent : undefined
-                              }
+                              onMessageSent={handleAllTabMessageSent}
                               files={autocompleteFiles}
                               hasAutocompleteWorkspace={hasAutocompleteWorkspace}
                               onAtTriggerActivate={handleAtTriggerActivate}

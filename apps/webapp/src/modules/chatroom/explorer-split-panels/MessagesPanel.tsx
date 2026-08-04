@@ -15,16 +15,12 @@ import type React from 'react';
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
 import { MessageInput } from '../components/MessageInput';
 import { ChatroomMessagesPanel } from '../components/timeline/ChatroomMessagesPanel';
-import type { MessageViewMode } from '../hooks/persistence/useMessageViewMode';
-import type { TimelineScrollCoordinator } from '../hooks/timelineScrollCoordinator';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface MessagesPanelProps {
   chatroomId: string;
-  coordinator: React.MutableRefObject<TimelineScrollCoordinator>;
   machines?: Map<string, { hostname: string; alias?: string }>;
-  viewMode: MessageViewMode;
   // SendForm props
   onRegisterSendFormFocus?: (focusFn: () => void) => void;
   onRegisterAllTabNavigation?: (actions: { goToLatestAnchor: () => void }) => void;
@@ -40,9 +36,7 @@ export interface MessagesPanelProps {
 
 export function MessagesPanel({
   chatroomId,
-  coordinator,
   machines,
-  viewMode,
   onRegisterSendFormFocus,
   onRegisterAllTabNavigation,
   onMessageSent,
@@ -54,16 +48,14 @@ export function MessagesPanel({
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <ChatroomMessagesPanel
         chatroomId={chatroomId}
-        coordinator={coordinator}
         machines={machines}
-        viewMode={viewMode}
         onRegisterAllTabNavigation={onRegisterAllTabNavigation}
         footer={
           <div className="shrink-0 border-t-2 border-chatroom-border-strong">
             <MessageInput
               chatroomId={chatroomId}
               onRegisterFocus={onRegisterSendFormFocus}
-              onMessageSent={viewMode === 'all' ? onMessageSent : undefined}
+              onMessageSent={onMessageSent}
               files={autocompleteFiles}
               hasAutocompleteWorkspace={hasAutocompleteWorkspace}
               onAtTriggerActivate={refreshAutocompleteFiles}

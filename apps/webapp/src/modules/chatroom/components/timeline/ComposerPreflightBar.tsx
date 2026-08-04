@@ -3,7 +3,7 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import { PlannerEnhancerToggle } from '../../features/enhancers/components/PlannerEnhancerToggle';
-import { teamSupportsEnhancer } from '../../hooks/persistence/messageViewMode';
+import { teamSupportsEnhancer } from '../../hooks/persistence/teamEnhancerSupport';
 import { useAgentPanelData } from '../../hooks/useAgentPanelData';
 import { useChatroomLifecycle } from '../../hooks/useChatroomLifecycle';
 import { StandingInstructionsBar } from '../StandingInstructionsBar';
