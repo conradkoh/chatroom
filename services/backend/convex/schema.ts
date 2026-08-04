@@ -2472,10 +2472,8 @@ export default defineSchema({
     exitCode: v.optional(v.number()),
     requestedBy: v.id('users'),
     /**
-     * @deprecated Transitional — legacy live tail on run rows. Live tails now use
-     * chatroom_commandRunTails. Kept optional so Convex can deploy while
-     * migrations:stripCommandRunTailOutput clears existing documents. Remove
-     * after migration has run in all environments.
+     * @deprecated Legacy live tail on run rows. Live tails now use chatroom_commandRunTails.
+     * Kept optional for backward compatibility with existing documents. Not written by new code.
      */
     tailOutput: v.optional(
       v.object({
