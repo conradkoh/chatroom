@@ -228,6 +228,23 @@ export const migrateEventReasonsToActorPrefixed = migrations.define({
 });
 
 /**
+ * Migration: Delete deprecated command.run and command.stop events from chatroom_eventStream.
+ * Command dispatch moved to dedicated chatroom_commandRunsV2 subscription — these events
+ * are no longer emitted. Legacy rows carry v1 chatroom_commandRuns runIds that block schema
+ * validation after the V2 table migration.
+ * Idempotent: only deletes events with type command.run or command.stop.
+ */
+export const deleteDeprecatedCommandEventStreamEvents = migrations.define({
+  table: 'chatroom_eventStream',
+  migrateOne: async (ctx, event) => {
+    const raw = event as Record<string, unknown>;
+    if (raw.type === 'command.run' || raw.type === 'command.stop') {
+      await ctx.db.delete('chatroom_eventStream', event._id);
+    }
+  },
+});
+
+/**
  * Migration: Deduplicate chatroom_teamAgentConfigs by teamRoleKey.
  * Keeps the most recently created row per teamRoleKey and deletes duplicates.
  * Note: This uses a full-table scan approach since dedup requires grouping.
@@ -578,6 +595,7 @@ export const runAll = migrations.runner([
   // Event Stream
   internal.migrations.migrateStopReasonToActorPrefixed,
   internal.migrations.migrateEventReasonsToActorPrefixed,
+  internal.migrations.deleteDeprecatedCommandEventStreamEvents,
   // Cleanup
   internal.migrations.deduplicateTeamAgentConfigs,
   internal.migrations.purgeWorkspaceCommitDetails,
