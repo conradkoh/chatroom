@@ -11,10 +11,14 @@ vi.mock('../../../../../api.js', () => ({
   api: {
     commands: {
       appendOutput: 'mock-appendOutput',
-      updateRunTailV2: 'mock-updateRunTailV2',
       listRunsWithLogObservers: 'mock-listRunsWithLogObservers',
       clearPendingFullOutputSync: 'mock-clearPendingFullOutputSync',
       updateRunStatus: 'mock-updateRunStatus',
+    },
+    daemon: {
+      commands: {
+        updateRunTail: 'mock-updateRunTail',
+      },
     },
   },
 }));
@@ -136,7 +140,7 @@ describe('spawnCommandProcess — new output flow', () => {
     };
   }
 
-  it('calls updateRunTailV2 on flush when observed, not appendOutput during run', async () => {
+  it('calls updateRunTail on flush when observed, not appendOutput during run', async () => {
     vi.useFakeTimers();
     const fakeChild = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(fakeChild as any);
@@ -149,11 +153,11 @@ describe('spawnCommandProcess — new output flow', () => {
     );
 
     fakeChild.stdout.emit('data', Buffer.from('hello output'));
-    await vi.advanceTimersByTimeAsync(3_500);
+    await vi.advanceTimersByTimeAsync(10_500);
 
     const tailCalls = vi
       .mocked(deps.backend.mutation as any)
-      .mock.calls.filter((c: any) => c[0] === 'mock-updateRunTailV2');
+      .mock.calls.filter((c: any) => c[0] === 'mock-updateRunTail');
     expect(tailCalls.length).toBeGreaterThanOrEqual(1);
 
     const appendCalls = vi
@@ -216,7 +220,7 @@ describe('spawnCommandProcess — new output flow', () => {
 
     const tailCalls = vi
       .mocked(deps.backend.mutation as any)
-      .mock.calls.filter((c: any) => c[0] === 'mock-updateRunTailV2');
+      .mock.calls.filter((c: any) => c[0] === 'mock-updateRunTail');
     // Without the force fix this is 0 (gated by isRunLogObserved=false); with it, the
     // final flush still syncs the tail.
     expect(tailCalls.length).toBe(1);

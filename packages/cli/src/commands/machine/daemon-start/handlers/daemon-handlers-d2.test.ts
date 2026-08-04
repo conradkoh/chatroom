@@ -40,7 +40,7 @@ vi.mock('../../../../api.js', () => ({
     commands: {
       updateRunStatus: 'mock-updateRunStatus',
       appendOutput: 'mock-appendOutput',
-      updateRunTailV2: 'mock-updateRunTailV2',
+      updateRunTail: 'mock-updateRunTail',
       getRunStatus: 'mock-getRunStatus',
     },
   },

@@ -45,7 +45,7 @@ async function flushTailV2(deps: SpawnDeps, tracked: RunningProcess, force = fal
 
   const compressed = encodeOutput(tail.content);
   try {
-    await deps.backend.mutation(api.commands.updateRunTailV2, {
+    await deps.backend.mutation(api.daemon.commands.updateRunTail, {
       sessionId: deps.sessionId as SessionId,
       machineId: deps.machineId,
       runId: tracked.runId as any,
