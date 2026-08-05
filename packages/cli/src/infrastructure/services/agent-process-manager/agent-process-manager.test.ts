@@ -10,11 +10,11 @@ import {
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import type * as NativeTaskDeliveryCoordinatorModule from '../../../commands/machine/daemon-start/native-task-delivery-coordinator.js';
 import type { HarnessSessionSnapshot } from '../../../domain/agent-lifecycle/index.js';
+import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
 import {
   CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
   CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
-} from '../../../domain/agent-lifecycle/policies/cursor-sdk-session-reopen-retry.js';
-import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
+} from '../../../v2/domain/usecase/cursor-sdk-session-reopen-retry.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../../harnesses/registry.js';
 import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
