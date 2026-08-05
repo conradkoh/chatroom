@@ -769,6 +769,7 @@
     "packages/cli/src/infrastructure/services/remote-agents/pi-sdk/pi-sdk-agent-service.ts:PiSdkAgentService.getVersion"
   ],
   "unresolved_imports": [
+    "apps/webapp/src/modules/chatroom/components/shared/useCommandDialogStore.ts:@base-ui/react/dialog/root/DialogRootContext",
     "services/backend/convex/api/directHarnessHelpers.ts:../_generated/dataModel.js",
     "services/backend/convex/api/directHarnessHelpers.ts:../_generated/dataModel.js"
   ],
