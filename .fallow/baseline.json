@@ -357,6 +357,8 @@
     "packages/cli/src/utils/serialization/decode/index.ts:detectDelimiterCollisions",
     "packages/cli/src/utils/serialization/decode/index.ts:formatDecodeError",
     "packages/cli/src/v2/domain/entities/inbound-event.ts:isInboundEvent",
+    "packages/cli/src/v2/domain/usecase/open-harness-session.ts:openSession",
+    "packages/cli/src/v2/domain/usecase/update-harness-capabilities.ts:updateCapabilities",
     "packages/cli/src/v2/domain/entities/assigned-task.ts:ACTIVE_TASK_STATUSES",
     "packages/cli/src/v2/domain/entities/assigned-task.ts:AGENT_CIRCUIT_STATES",
     "packages/cli/src/v2/domain/entities/assigned-task.ts:AGENT_DESIRED_STATES",
