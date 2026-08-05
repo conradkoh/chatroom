@@ -1,15 +1,12 @@
 import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/types.js';
 
-import {
-  isSlotRunning,
-  isTurnPhaseIdle,
-} from '../../../domain/agent-lifecycle/predicates/agent-slot.js';
 import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
 import {
   isAgentDesiredRunning,
   isDeliverableTaskStatus,
 } from '../../../v2/domain/entities/assigned-task.js';
+import { isSlotRunning, isTurnPhaseIdle } from '../../../v2/domain/usecase/check-agent-slot.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 export function isAgentReadyForNativeDelivery(

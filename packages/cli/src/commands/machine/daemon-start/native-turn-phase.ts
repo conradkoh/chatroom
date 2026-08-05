@@ -1,14 +1,17 @@
 import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
+import type { NativeTurnPhase } from '../../../v2/domain/entities/native-turn-phase.js';
 
 // fallow-ignore-next-line unused-export
-export const NATIVE_TURN_PHASES = ['idle', 'injecting', 'turn_in_flight'] as const;
-export type NativeTurnPhase = (typeof NATIVE_TURN_PHASES)[number];
+export {
+  NATIVE_TURN_PHASES,
+  type NativeTurnPhase,
+} from '../../../v2/domain/entities/native-turn-phase.js';
 
 export function defaultNativeTurnPhase(): NativeTurnPhase {
   return 'idle';
 }
 
-/** Harness turn is complete — safe to inject next task (Slice 3 will use this for delivery gate). */
+/** Harness turn is complete — safe to inject next task. */
 // fallow-ignore-next-line unused-export
 export function isNativeSlotIdleForDelivery(slot: AgentSlot | undefined): boolean {
   if (slot?.state !== 'running') return false;

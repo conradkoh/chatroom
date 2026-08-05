@@ -60,7 +60,13 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 
 Entity: `resume-storm.ts` (`ResumeStormReason`) — was backend import in classify-resume-storm-reason.
 
-**Not migrated (later slices):** `predicates/agent-slot.ts` (#6).
+Entity: `native-turn-phase.ts` (`NativeTurnPhase`) — SSOT for turn phase type; `daemon-start/native-turn-phase.ts` re-exports.
+
+## Predicates slice (done)
+
+| v2 file               | Legacy source                                     |
+| --------------------- | ------------------------------------------------- |
+| `check-agent-slot.ts` | `domain/agent-lifecycle/predicates/agent-slot.ts` |
 
 ## Turn-completion slice (done)
 
