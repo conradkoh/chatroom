@@ -6,9 +6,12 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { Timer } from 'lucide-react';
 import React, { memo, useState } from 'react';
 
+import { teamSupportsEnhancer } from '../hooks/persistence/teamEnhancerSupport';
+import { useAgentPanelData } from '../hooks/useAgentPanelData';
+import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 import type { Message } from '../types/message';
 import { QueuedMessageDetailModal } from './WorkQueue/QueuedMessageDetailModal';
-import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
+import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -27,7 +30,8 @@ interface QueuedMessagesIndicatorProps {
  * - Minimum 36 px touch target on mobile (`min-h-9`).
  * - Shows the LAST (most recently queued) message truncated to one line.
  * - Shows `(+N more)` badge when more than one message is queued.
- * - Clicking opens the `QueuedMessageDetailModal` for the last message.
+ * - Clicking opens the detail modal when exactly 1 message is queued, or the
+ *   list modal when 2+ messages are queued.
  * - Returns `null` when there are zero queued messages — no visual at all.
  */
 export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
@@ -38,7 +42,11 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { teamRoles, isLoading: teamRolesLoading } = useAgentPanelData(chatroomId);
+  const teamSupportsEnhancerFlag = !teamRolesLoading && teamSupportsEnhancer(teamRoles);
+
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isListModalOpen, setIsListModalOpen] = useState(false);
 
   const { promoteQueuedMessage: handlePromote, deleteQueuedMessage: handleDelete } =
     useQueuedMessageActions();
@@ -51,17 +59,25 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
   if (!lastMessage) return null;
   const extraCount = queuedMessages.length - 1;
 
+  const handleOpen = () => {
+    if (queuedMessages.length > 1) {
+      setIsListModalOpen(true);
+    } else {
+      setIsDetailModalOpen(true);
+    }
+  };
+
   return (
     <>
       <div
         role="button"
         tabIndex={0}
         aria-label={`${queuedMessages.length} queued message${queuedMessages.length > 1 ? 's' : ''} — click to view`}
-        onClick={() => setIsModalOpen(true)}
+        onClick={handleOpen}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            setIsModalOpen(true);
+            handleOpen();
           }
         }}
         className="flex items-center gap-2 min-h-9 px-3 py-1.5 bg-orange-500/5 border-b border-orange-500/15 cursor-pointer hover:bg-orange-500/10 transition-colors"
@@ -87,12 +103,24 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
         )}
       </div>
 
-      {/* Detail modal for the last queued message */}
+      {isListModalOpen && (
+        <QueuedMessagesModal
+          chatroomId={chatroomId}
+          messages={queuedMessages}
+          teamSupportsEnhancer={teamSupportsEnhancerFlag}
+          onClose={() => setIsListModalOpen(false)}
+          onPromote={handlePromote}
+          onDelete={handleDelete}
+        />
+      )}
+
+      {/* Detail modal for the last queued message (single-message tap) */}
       <QueuedMessageDetailModal
         chatroomId={chatroomId}
         message={lastMessage}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isDetailModalOpen}
+        teamSupportsEnhancer={teamSupportsEnhancerFlag}
+        onClose={() => setIsDetailModalOpen(false)}
         onPromote={handlePromote}
         onDelete={handleDelete}
       />

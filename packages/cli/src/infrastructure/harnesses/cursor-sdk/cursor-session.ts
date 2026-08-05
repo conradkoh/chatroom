@@ -187,9 +187,7 @@ export class CursorSdkSession implements DirectHarnessSession {
         }
         break;
       case 'thinking':
-        if (message.text) {
-          this.emitDelta(messageId, message.text, 'reasoning');
-        }
+        // Handled via thinking-delta in onDelta — SDKMessage duplicates content.
         break;
       case 'status':
       case 'system':

@@ -21,7 +21,10 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@base-ui/react/dialog/root/DialogRootContext": [
+        "./node_modules/@base-ui/react/dialog/root/DialogRootContext"
+      ]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

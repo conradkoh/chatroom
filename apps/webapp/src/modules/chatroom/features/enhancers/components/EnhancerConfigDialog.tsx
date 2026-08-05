@@ -26,7 +26,10 @@ import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
 
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+import {
+  useVisualViewportKeyboardInset,
+  useVisualViewportOffsetTop,
+} from '@/hooks/useMobileKeyboard';
 
 interface EnhancerConfigDialogProps {
   open: boolean;
@@ -55,7 +58,9 @@ export function EnhancerConfigDialog({
   onMoveFavorite,
 }: EnhancerConfigDialogProps) {
   const isDesktop = useIsDesktop();
-  const keyboardInsetPx = useVisualViewportKeyboardInset(open && !isDesktop);
+  const mobileActive = open && !isDesktop;
+  const keyboardInsetPx = useVisualViewportKeyboardInset(mobileActive);
+  const viewportOffsetTopPx = useVisualViewportOffsetTop(mobileActive);
 
   const [targetId, setTargetId] = useState<string>(
     initialConfig?.targetId ?? ENHANCER_TARGETS[0].id
@@ -168,7 +173,7 @@ export function EnhancerConfigDialog({
       <Drawer open={open} onOpenChange={handleOpenChange} repositionInputs={false} handleOnly>
         <DrawerContent
           className={MOBILE_DRAWER_CONTENT_CLASSNAME}
-          style={getMobileDrawerContentStyle(keyboardInsetPx)}
+          style={getMobileDrawerContentStyle(keyboardInsetPx, viewportOffsetTopPx)}
         >
           <DrawerHeader className="p-0 shrink-0">
             <DrawerTitle className="sr-only">Enhancer configuration</DrawerTitle>

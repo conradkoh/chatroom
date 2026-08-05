@@ -178,6 +178,7 @@ describe('computeKeyboardInsetPx', () => {
 
 describe('computeVisualViewportOffsetTopPx', () => {
   afterEach(() => {
+    delete window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__;
     Object.defineProperty(window, 'visualViewport', {
       configurable: true,
       value: undefined,
@@ -217,6 +218,16 @@ describe('computeVisualViewportOffsetTopPx', () => {
       configurable: true,
       value: { offsetTop: -40 },
     });
+    expect(computeVisualViewportOffsetTopPx()).toBe(0);
+  });
+
+  it('uses __MOBILE_KEYBOARD_TEST_OFFSET_TOP__ override when set', () => {
+    window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__ = 120;
+    expect(computeVisualViewportOffsetTopPx()).toBe(120);
+  });
+
+  it('clamps negative __MOBILE_KEYBOARD_TEST_OFFSET_TOP__ override to 0', () => {
+    window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__ = -20;
     expect(computeVisualViewportOffsetTopPx()).toBe(0);
   });
 });

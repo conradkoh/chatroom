@@ -25,7 +25,10 @@ import type { StandingInstructionHistoryItem } from '../types/standingInstructio
 
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+import {
+  useVisualViewportKeyboardInset,
+  useVisualViewportOffsetTop,
+} from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
 
 export interface StandingInstructionsPickerProps {
@@ -62,7 +65,9 @@ export function StandingInstructionsPicker({
   onDeleteItem,
 }: StandingInstructionsPickerProps) {
   const isDesktop = useIsDesktop();
-  const keyboardInsetPx = useVisualViewportKeyboardInset(open && !isDesktop);
+  const mobileActive = open && !isDesktop;
+  const keyboardInsetPx = useVisualViewportKeyboardInset(mobileActive);
+  const viewportOffsetTopPx = useVisualViewportOffsetTop(mobileActive);
 
   const { visible, activeId, hasMore } = buildStandingInstructionsPickerList({
     history,
@@ -241,7 +246,7 @@ export function StandingInstructionsPicker({
       >
         <DrawerContent
           className={MOBILE_DRAWER_CONTENT_CLASSNAME}
-          style={getMobileDrawerContentStyle(keyboardInsetPx)}
+          style={getMobileDrawerContentStyle(keyboardInsetPx, viewportOffsetTopPx)}
         >
           <DrawerHeader className="px-4 pt-4 pb-2 shrink-0">
             <div className="flex items-center justify-between gap-2">

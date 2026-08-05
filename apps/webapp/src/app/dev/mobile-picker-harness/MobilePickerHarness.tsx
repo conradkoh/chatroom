@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { FilterPickerSection, FlatPickerSection } from './HarnessPickerSections';
-import { KeyboardInsetSlider } from './KeyboardInsetSlider';
+import { KeyboardViewportSlider } from './KeyboardInsetSlider';
 import { NestedFixedModalPickerSection } from './NestedFixedModalPickerSection';
 import { StandingInstructionsBarSection } from './StandingInstructionsBarSection';
 import { useHarnessDrawerMetrics } from './useHarnessDrawerMetrics';
@@ -33,6 +33,7 @@ export function MobilePickerHarness() {
   const [flatSearch, setFlatSearch] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const [viewportOffsetTop, setViewportOffsetTop] = useState(0);
   const [activeElementDesc, setActiveElementDesc] = useState('(none)');
   useEffect(() => {
     const update = () => setActiveElementDesc(describeActiveElement(document.activeElement));
@@ -45,6 +46,7 @@ export function MobilePickerHarness() {
     flatOpen,
     filterOpen,
     keyboardInset,
+    viewportOffsetTop,
     flatSearch,
     filterSearch
   );
@@ -64,7 +66,12 @@ export function MobilePickerHarness() {
         </p>
       </header>
 
-      <KeyboardInsetSlider value={keyboardInset} onChange={setKeyboardInset} />
+      <KeyboardViewportSlider
+        insetValue={keyboardInset}
+        onInsetChange={setKeyboardInset}
+        offsetTopValue={viewportOffsetTop}
+        onOffsetTopChange={setViewportOffsetTop}
+      />
 
       <NestedFixedModalPickerSection />
 

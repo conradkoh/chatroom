@@ -66,7 +66,8 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
         break;
       }
       case 'thinking':
-        this.writeLine(formatAgentLogLine(this.logPrefix, 'thinking', message.text));
+        // Thinking streams via thinking-delta (onDelta) since SDK 1.0.24+.
+        // run.stream() thinking SDKMessages duplicate the same content.
         break;
       case 'system':
         if (message.subtype === 'init') {

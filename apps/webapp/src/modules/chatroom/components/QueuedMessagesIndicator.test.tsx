@@ -6,7 +6,7 @@
  * - Renders the LAST message content (most recently queued).
  * - Shows (+N more) badge when more than one message is queued.
  * - Does NOT show (+N more) when exactly 1 message is queued.
- * - Clicking the indicator opens the detail modal.
+ * - Clicking with 1 message opens the detail modal; 2+ opens the list modal.
  * - Mobile touch target: rendered element height ≥ 36px.
  */
 
@@ -29,6 +29,10 @@ let mockQueuedMessages: {
   senderRole: string;
 }[] = [];
 
+vi.mock('../hooks/useAgentPanelData', () => ({
+  useAgentPanelData: () => ({ teamRoles: [], isLoading: false }),
+}));
+
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: (_api: unknown, _args: unknown) => mockQueuedMessages,
   useSessionMutation: () => vi.fn().mockResolvedValue(undefined),
@@ -45,6 +49,14 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       promoteSpecificTask: 'tasks:promoteSpecificTask',
     },
   },
+}));
+
+vi.mock('./WorkQueue/QueuedMessagesModal', () => ({
+  QueuedMessagesModal: ({ messages }: { messages: unknown[] }) => (
+    <div role="dialog" aria-label="Queued Messages List Modal">
+      {messages.length} messages
+    </div>
+  ),
 }));
 
 // Mock the detail modal — we just want to assert it opens, not test its internals.
@@ -125,28 +137,54 @@ describe('QueuedMessagesIndicator', () => {
     expect(screen.getByText('last msg')).toBeInTheDocument();
   });
 
-  it('clicking the indicator opens the detail modal for the last message', () => {
+  it('clicking the indicator opens the list modal when multiple messages are queued', () => {
     mockQueuedMessages = [
       makeMessage('msg-1', 'earlier message', 1000),
       makeMessage('msg-2', 'latest queued message', 2000),
     ];
     renderIndicator();
 
-    // Modal should not be open initially
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
-    // Click the indicator
-    const indicator = screen.getByRole('button');
     act(() => {
-      fireEvent.click(indicator);
+      fireEvent.click(screen.getByRole('button'));
     });
 
-    // Modal should now be open and show the LAST message's content
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByRole('dialog')).toHaveTextContent('latest queued message');
+    expect(screen.getByRole('dialog', { name: 'Queued Messages List Modal' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Queued Message Modal' })).not.toBeInTheDocument();
   });
 
-  it('keyboard Enter on indicator opens the modal', () => {
+  it('clicking the indicator opens the detail modal when exactly one message is queued', () => {
+    mockQueuedMessages = [makeMessage('msg-1', 'only message', 1000)];
+    renderIndicator();
+
+    act(() => {
+      fireEvent.click(screen.getByRole('button'));
+    });
+
+    expect(screen.getByRole('dialog', { name: 'Queued Message Modal' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('dialog', { name: 'Queued Messages List Modal' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('keyboard Enter on indicator opens the list modal when multiple messages are queued', () => {
+    mockQueuedMessages = [
+      makeMessage('msg-1', 'earlier message', 1000),
+      makeMessage('msg-2', 'latest queued message', 2000),
+    ];
+    renderIndicator();
+
+    const indicator = screen.getByRole('button');
+    act(() => {
+      fireEvent.keyDown(indicator, { key: 'Enter' });
+    });
+
+    expect(screen.getByRole('dialog', { name: 'Queued Messages List Modal' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Queued Message Modal' })).not.toBeInTheDocument();
+  });
+
+  it('keyboard Enter on indicator opens the detail modal when exactly one message is queued', () => {
     mockQueuedMessages = [makeMessage('msg-1', 'keyboard test message', 1000)];
     renderIndicator();
 
@@ -155,7 +193,10 @@ describe('QueuedMessagesIndicator', () => {
       fireEvent.keyDown(indicator, { key: 'Enter' });
     });
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Queued Message Modal' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('dialog', { name: 'Queued Messages List Modal' })
+    ).not.toBeInTheDocument();
   });
 
   it('has a minimum tap-target height of 36px (mobile-friendly)', () => {
