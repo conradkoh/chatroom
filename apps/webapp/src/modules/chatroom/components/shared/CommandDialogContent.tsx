@@ -1,6 +1,7 @@
 'use client';
 
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
+import { useEffect, useRef } from 'react';
 
 import {
   COMMAND_DIALOG_CONTENT_CLASSES,
@@ -11,6 +12,13 @@ import {
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useVisualViewportOffsetTop } from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
+
+const COMMAND_DIALOG_INPUT_SELECTOR = '[data-slot="command-input"]';
+
+function focusCommandDialogInput(container: HTMLElement | null): void {
+  const input = container?.querySelector<HTMLInputElement>(COMMAND_DIALOG_INPUT_SELECTOR);
+  input?.focus({ preventScroll: true });
+}
 
 type CommandDialogContentProps = React.ComponentProps<typeof DialogPrimitive.Popup> & {
   /** Gate viewport tracking and dismiss backdrop — pass dialog open state */
@@ -46,6 +54,17 @@ export function CommandDialogContent({
   const isDesktop = useIsDesktop(640); // matches sm: breakpoint in COMMAND_DIALOG_CONTENT_CLASSES
   const viewportOffsetTopPx = useVisualViewportOffsetTop(open && !isDesktop);
   const viewportStyle = getCommandDialogContentStyle(viewportOffsetTopPx);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  // Base UI non-modal dialogs do not auto-focus the first field (unlike Radix).
+  // Defer until after Base UI's focus manager runs so the input keeps focus.
+  useEffect(() => {
+    if (!open) return;
+    const timeoutId = window.setTimeout(() => {
+      focusCommandDialogInput(popupRef.current);
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [open]);
 
   // Intercept Escape so consumers can clear search / defer close before Base
   // UI's document-level handler runs. preventDefault() signals "keep open".
@@ -67,6 +86,7 @@ export function CommandDialogContent({
         />
       ) : null}
       <DialogPrimitive.Popup
+        ref={popupRef}
         data-slot="command-dialog-content"
         className={cn(...COMMAND_DIALOG_CONTENT_CLASSES, className)}
         style={{ ...viewportStyle, ...style }}

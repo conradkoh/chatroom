@@ -4,6 +4,8 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { CommandDialogContent } from './CommandDialogContent';
 
+import { Command, CommandInput } from '@/components/ui/command';
+
 const Dialog = DialogPrimitive.Root;
 
 vi.mock('@/hooks/useIsDesktop', () => ({
@@ -78,5 +80,45 @@ describe('CommandDialogContent dismiss backdrop', () => {
     expect(backdrop?.className).toContain('fixed');
     expect(backdrop?.className).toContain('inset-0');
     expect(backdrop?.className).toContain('bg-transparent');
+  });
+});
+
+describe('CommandDialogContent input focus', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('focuses the command input when the dialog opens', async () => {
+    render(
+      <Dialog open onOpenChange={vi.fn()} modal={false}>
+        <CommandDialogContent open>
+          <Command>
+            <CommandInput placeholder="Search..." />
+          </Command>
+        </CommandDialogContent>
+      </Dialog>
+    );
+    vi.advanceTimersByTime(0);
+
+    const input = document.querySelector<HTMLInputElement>('[data-slot="command-input"]');
+    expect(input).not.toBeNull();
+    expect(input).toHaveFocus();
+  });
+
+  it('does not throw when no command input is present', () => {
+    expect(() => {
+      render(
+        <Dialog open onOpenChange={vi.fn()} modal={false}>
+          <CommandDialogContent open data-testid="content">
+            dialog body
+          </CommandDialogContent>
+        </Dialog>
+      );
+      vi.advanceTimersByTime(0);
+    }).not.toThrow();
   });
 });
