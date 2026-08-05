@@ -1,9 +1,9 @@
+import type { ConvexMutationRepositoryOptions } from './convex-repository-options.js';
 import { api } from '../../api.js';
 import type {
   OutputRepository,
   OutputChunk,
-} from '../../domain/direct-harness/ports/output-repository.js';
-import type { ConvexMutationRepositoryOptions } from './convex-repository-options.js';
+} from '../../v2/domain/usecase/open-harness-session.js';
 
 export type ConvexAgenticQueryOutputRepositoryOptions = ConvexMutationRepositoryOptions;
 

@@ -1,10 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import { closeSession } from './close-session.js';
-import type { CloseSessionDeps, CloseSessionInput } from './close-session.js';
-import type { SessionJournal } from './open-session.js';
-import type { DirectHarnessSession } from '../../../v2/domain/entities/direct-harness-session.js';
-import type { SessionRepository } from '../ports/session-repository.js';
+import { closeSession } from './close-harness-session.js';
+import type { CloseSessionDeps, CloseSessionInput } from './close-harness-session.js';
+import type { SessionJournal, SessionRepository } from './open-harness-session.js';
+import type { DirectHarnessSession } from '../entities/direct-harness-session.js';
 
 function mockSession(): DirectHarnessSession {
   return {

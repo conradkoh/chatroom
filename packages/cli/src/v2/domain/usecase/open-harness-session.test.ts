@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest';
 
-import { openSession } from './open-session.js';
-import type { OpenSessionDeps, OpenSessionInput } from './open-session.js';
+import { openSession } from './open-harness-session.js';
+import type { OpenSessionDeps, OpenSessionInput } from './open-harness-session.js';
 
 describe('openSession (deprecated)', () => {
   it('throws with deprecation message', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const deps = {} as OpenSessionDeps;
     const input = {} as OpenSessionInput;
 

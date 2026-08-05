@@ -6,7 +6,10 @@
  */
 
 import { api } from '../../api.js';
-import type { OutputRepository, OutputChunk } from '../../domain/direct-harness/ports/output-repository.js';
+import type {
+  OutputRepository,
+  OutputChunk,
+} from '../../v2/domain/usecase/open-harness-session.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type BackendCall = (endpoint: any, args: any) => Promise<any>;
@@ -19,15 +22,14 @@ export interface ConvexOutputRepositoryOptions {
 export class ConvexOutputRepository implements OutputRepository {
   constructor(private readonly options: ConvexOutputRepositoryOptions) {}
 
-  async appendChunks(
-    harnessSessionId: string,
-    chunks: readonly OutputChunk[]
-  ): Promise<void> {
+  async appendChunks(harnessSessionId: string, chunks: readonly OutputChunk[]): Promise<void> {
     const { backend, sessionId } = this.options;
 
     if (chunks.length === 0) return;
 
-    console.log(`[output-repo] Calling appendMessages: harnessSessionId="${harnessSessionId}", ${chunks.length} chunks`);
+    console.log(
+      `[output-repo] Calling appendMessages: harnessSessionId="${harnessSessionId}", ${chunks.length} chunks`
+    );
     try {
       await backend.mutation(api.daemon.directHarness.messages.appendMessages, {
         sessionId,
@@ -41,9 +43,10 @@ export class ConvexOutputRepository implements OutputRepository {
       });
       console.log(`[output-repo] appendMessages succeeded for "${harnessSessionId}"`);
     } catch (err) {
-      console.error(`[output-repo] appendMessages FAILED for "${harnessSessionId}": ${err instanceof Error ? err.message : String(err)}`);
+      console.error(
+        `[output-repo] appendMessages FAILED for "${harnessSessionId}": ${err instanceof Error ? err.message : String(err)}`
+      );
       throw err;
     }
   }
-
 }

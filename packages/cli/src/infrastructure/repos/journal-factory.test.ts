@@ -4,7 +4,7 @@ import { BufferedJournalFactory } from './journal-factory.js';
 import type {
   OutputRepository,
   OutputChunk,
-} from '../../domain/direct-harness/ports/output-repository.js';
+} from '../../v2/domain/usecase/open-harness-session.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
