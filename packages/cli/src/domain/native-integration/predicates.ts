@@ -1,5 +1,6 @@
 import { GET_NEXT_TASK_STARTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+
+import type { AssignedTask } from '../../v2/domain/entities/assigned-task.js';
 
 /**
  * CLI nudge helpers for get-next-task harnesses.
@@ -8,7 +9,7 @@ import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/use
  */
 
 // fallow-ignore-next-line complexity
-export function isStaleCliGetNextTaskWaiting(task: AssignedTaskSnapshotView): boolean {
+export function isStaleCliGetNextTaskWaiting(task: AssignedTask): boolean {
   const lastSeenAt = task.participant?.lastSeenAt ?? 0;
   return (
     task.participant?.lastSeenAction === GET_NEXT_TASK_STARTED_ACTION && task.createdAt > lastSeenAt
@@ -16,7 +17,7 @@ export function isStaleCliGetNextTaskWaiting(task: AssignedTaskSnapshotView): bo
 }
 
 export function isCliIdleNotListening(
-  task: AssignedTaskSnapshotView,
+  task: AssignedTask,
   now: number,
   thresholdMs: number
 ): boolean {

@@ -1,4 +1,1 @@
-/**
- * How the daemon resumes agent work after a process exit or explicit start.
- */
-export type ResumePath = 'daemon_memory' | 'cold';
+export * from '../../../v2/domain/entities/resume-path.js';

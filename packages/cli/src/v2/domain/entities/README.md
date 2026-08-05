@@ -31,6 +31,12 @@ Pure data types and event registries. No side effects.
 
 Include `harness.stream` on the outbound side for full-granularity stdout/stderr lines (local-web sink).
 
-## Legacy migration
+## Single source of truth
 
-Each entity stub documents `Legacy: <path>` in its file header. Migrate types incrementally; keep placeholders until the legacy type is copied and trimmed.
+v2 domain entities are the SSOT for CLI daemon types. They must not import from
+`@workspace/backend`, `infrastructure/`, `entry/`, or `convex`. Legacy
+`domain/**/entities/` paths are thin re-exports — update new code to import from
+`v2/domain/entities/` directly.
+
+Placeholder stubs (`command-event`, `enhancer-job`, `file-*`, `git-request`,
+`machine-command`) remain minimal until their legacy sources exist.
