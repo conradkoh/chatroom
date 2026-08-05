@@ -1,6 +1,3 @@
-import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
-import { isAgentDesiredRunning } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
-
 import { isAgentReadyForNativeDelivery } from './native-ready-invariant.js';
 import { isNativeHarness } from './native-task-injector-logic.js';
 import {
@@ -14,6 +11,8 @@ import {
 } from '../../../domain/native-integration/predicates.js';
 import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import { STOPPING_TIMEOUT_MS } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
+import { isAgentDesiredRunning } from '../../../v2/domain/entities/assigned-task.js';
+import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
 
 const PENDING_IDLE_NUDGE_MS = 15_000;
 const NUDGE_COOLDOWN_MS = 60_000;

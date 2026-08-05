@@ -1,5 +1,5 @@
 import { classifyResumeStormReason } from './classify-resume-storm-reason.js';
-import type { TurnEndInput, TurnEndSlot } from '../entities/turn-end.js';
+import type { TurnEndInput, TurnEndSlot } from '../../../v2/domain/entities/native-turn.js';
 import type { ResumeStormTracker } from '../ports/resume-storm-tracker.js';
 import type { TurnCompletedBackend } from '../ports/turn-completed-backend.js';
 

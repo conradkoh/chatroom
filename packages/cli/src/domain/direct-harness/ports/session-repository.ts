@@ -1,4 +1,4 @@
-import type { OpenCodeSessionId } from '../entities/harness-session.js';
+import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
 
 export interface SessionRepository {
   /** Associate the OpenCode-issued session ID with an existing backend row. */

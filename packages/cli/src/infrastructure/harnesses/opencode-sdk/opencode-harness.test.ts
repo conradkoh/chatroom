@@ -6,8 +6,8 @@ import type { OpencodeClient } from '@opencode-ai/sdk';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { OpencodeSdkHarness, startOpencodeSdkHarness } from './opencode-harness.js';
-import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
 import { waitForListeningUrl } from '../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
+import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 

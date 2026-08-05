@@ -1,15 +1,15 @@
 import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/types.js';
-import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
-import {
-  isAgentDesiredRunning,
-  isDeliverableTaskStatus,
-} from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import {
   isSlotRunning,
   isTurnPhaseIdle,
 } from '../../../domain/agent-lifecycle/predicates/agent-slot.js';
 import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
+import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
+import {
+  isAgentDesiredRunning,
+  isDeliverableTaskStatus,
+} from '../../../v2/domain/entities/assigned-task.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 export function isAgentReadyForNativeDelivery(
@@ -56,5 +56,5 @@ export function explainAgentReadyForNativeDeliveryBlock(
 
 /** Pending or acknowledged tasks eligible for (re)delivery when agent is ready. */
 export function isDeliverableNativeTaskStatus(status: AssignedTaskSnapshotView['status']): boolean {
-  return isDeliverableTaskStatus(status as Parameters<typeof isDeliverableTaskStatus>[0]);
+  return isDeliverableTaskStatus(status);
 }

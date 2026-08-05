@@ -1,12 +1,13 @@
-import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
-import type { AgentHarness } from '../../machine/types.js';
-import type { BackendOps } from '../../deps/index.js';
-import { api } from '../../../api.js';
+import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+
 import type { SpawnResult } from './remote-agent-service.js';
-import { isTeamAgentRole } from '../../../domain/execution-kind.js';
+import { api } from '../../../api.js';
 import { TOKEN_ACTIVITY_KINDS } from '../../../domain/harness-activity-emitter.js';
 import type { HarnessActivityEmitter } from '../../../domain/harness-activity-emitter.js';
+import { isTeamAgentRole } from '../../../v2/domain/entities/execution-kind.js';
+import type { BackendOps } from '../../deps/index.js';
+import type { AgentHarness } from '../../machine/types.js';
 
 export const NATIVE_TOKEN_ACTIVITY_THROTTLE_MS = 30_000;
 
@@ -89,7 +90,7 @@ export function wireThrottledTokenActivityOnOutput(opts: WireThrottledTokenActiv
   const lastReportedTokenAt = { value: 0 };
 
   if (opts.activityEmitter) {
-    for (const kind of TOKEN_ACTIVITY_KINDS) {
+    for (const _kind of TOKEN_ACTIVITY_KINDS) {
       opts.activityEmitter.onActivity(() => {
         fireTokenActivity(
           opts.backend,

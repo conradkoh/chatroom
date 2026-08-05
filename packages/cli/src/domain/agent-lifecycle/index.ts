@@ -1,10 +1,10 @@
 // fallow-ignore-file unused-export
 
-export type { ResumePath } from './entities/resume-path.js';
-export type { HarnessSessionSnapshot } from './entities/session-snapshot.js';
-export { resolveResumableHarnessSessionId } from './resolve-resumable-harness-session-id.js';
-export type { StopReason } from './entities/stop-reason.js';
-export { resolveStopReason } from './entities/stop-reason.js';
+export type { ResumePath } from '../../v2/domain/entities/resume-path.js';
+export type { HarnessSessionSnapshot } from '../../v2/domain/entities/session-snapshot.js';
+export { resolveResumableHarnessSessionId } from '../../v2/domain/entities/harness-session-id-pair.js';
+export type { StopReason } from '../../v2/domain/entities/stop-reason.js';
+export { resolveStopReason } from '../../v2/domain/entities/stop-reason.js';
 export {
   shouldRetainHarnessSessionForReconnect,
   shouldPreserveHarnessTeardown,
@@ -15,8 +15,8 @@ export {
 } from './policies/decide-resume-path.js';
 
 // Phase 1: Pure domain state machine + invariants
-export type { AgentSlotState, AgentSlotSnapshot } from './entities/agent-slot.js';
-export { idleSlot, agentKey } from './entities/agent-slot.js';
+export type { AgentSlotState, AgentSlotSnapshot } from '../../v2/domain/entities/agent-slot.js';
+export { idleSlot, agentKey } from '../../v2/domain/entities/agent-slot.js';
 export type {
   SlotTransitionEvent,
   SlotTransitionResult,

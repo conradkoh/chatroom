@@ -9,7 +9,6 @@ import type { DirectHarnessSession } from './command-subscriber.js';
 import { handleSessionIdle } from './idle-handler.js';
 import type { ActiveSession } from './session-subscriber.js';
 import { api } from '../../../../api.js';
-import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
 import { resumeSession } from '../../../../domain/direct-harness/usecases/resume-session.js';
@@ -20,6 +19,7 @@ import {
   type NativeDirectHarnessName,
 } from '../../../../infrastructure/harnesses/registry.js';
 import { OPENCODE_SESSION_EVENT_TYPES } from '../../../../infrastructure/services/remote-agents/opencode-sdk/opencode-session-events.js';
+import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
 import { bindTurnMessageOnEvent } from '../shared-harness/bind-turn-message-on-event.js';
 
 interface PendingMessage {

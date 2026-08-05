@@ -1,8 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { createOpencodeSdkChunkExtractor } from './event-extractor.js';
-import type { DirectHarnessSessionEvent } from '../../../domain/direct-harness/entities/direct-harness-session.js';
 
-function makePartUpdatedEvent(partId: string, messageID: string, type: string, delta: string): DirectHarnessSessionEvent {
+import { createOpencodeSdkChunkExtractor } from './event-extractor.js';
+import type { DirectHarnessSessionEvent } from '../../../v2/domain/entities/direct-harness-session.js';
+
+function makePartUpdatedEvent(
+  partId: string,
+  messageID: string,
+  type: string,
+  delta: string
+): DirectHarnessSessionEvent {
   return {
     type: 'message.part.updated',
     payload: {
@@ -13,7 +19,11 @@ function makePartUpdatedEvent(partId: string, messageID: string, type: string, d
   };
 }
 
-function makePartDeltaEvent(partID: string, messageID: string, delta: string): DirectHarnessSessionEvent {
+function makePartDeltaEvent(
+  partID: string,
+  messageID: string,
+  delta: string
+): DirectHarnessSessionEvent {
   return {
     type: 'message.part.delta',
     payload: { partID, messageID, delta },

@@ -28,20 +28,20 @@ import type { OpencodeClient, Event as SdkEvent, GlobalEvent } from '@opencode-a
 import { Effect, Fiber } from 'effect';
 
 import { OpencodeSdkSession } from './opencode-session.js';
+import { waitForListeningUrl } from '../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
 import type {
   BoundHarness,
   ModelInfo,
   NewSessionConfig,
   ResumeHarnessSessionOptions,
   BoundHarnessFactory,
-} from '../../../domain/direct-harness/entities/bound-harness.js';
-import type { DirectHarnessSession } from '../../../domain/direct-harness/entities/direct-harness-session.js';
-import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
+} from '../../../v2/domain/entities/bound-harness.js';
+import type { DirectHarnessSession } from '../../../v2/domain/entities/direct-harness-session.js';
+import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
 import type {
   PublishedAgent,
   PublishedProvider,
-} from '../../../domain/direct-harness/entities/machine-capabilities.js';
-import { waitForListeningUrl } from '../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
+} from '../../../v2/domain/entities/machine-capabilities.js';
 import { buildAgentSpawnEnv } from '../../convex/spawn-env.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

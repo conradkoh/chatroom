@@ -8,16 +8,16 @@
 
 import { Effect } from 'effect';
 
-import type {
-  BoundHarness,
-  NativeDirectHarnessName,
-} from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../../domain/direct-harness/usecases/open-session.js';
 import {
   makeHarnessKey,
   parseHarnessKey,
 } from '../../../../infrastructure/harnesses/harness-key.js';
 import { startBoundHarness } from '../../../../infrastructure/harnesses/registry.js';
+import type {
+  BoundHarness,
+  NativeDirectHarnessName,
+} from '../../../../v2/domain/entities/bound-harness.js';
 import { formatTimestamp } from '../utils.js';
 
 const INACTIVITY_TTL_MS = 15 * 60 * 1000;

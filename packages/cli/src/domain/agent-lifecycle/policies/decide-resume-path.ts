@@ -1,5 +1,5 @@
-import type { ResumePath } from '../entities/resume-path.js';
-import type { StopReason } from '../entities/stop-reason.js';
+import type { ResumePath } from '../../../v2/domain/entities/resume-path.js';
+import type { StopReason } from '../../../v2/domain/entities/stop-reason.js';
 
 /**
  * Resume strategy when starting or restarting an agent (ensureRunning).

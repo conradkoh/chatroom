@@ -10,11 +10,11 @@ import type {
   BoundHarness,
   NativeDirectHarnessName,
   StartBoundHarnessConfig,
-} from '../../domain/direct-harness/entities/bound-harness.js';
-import type { DirectHarnessSessionEvent } from '../../domain/direct-harness/entities/direct-harness-session.js';
-import type { ExtractedChunk } from '../../domain/direct-harness/usecases/open-session.js';
+} from '../../v2/domain/entities/bound-harness.js';
+import type { DirectHarnessSessionEvent } from '../../v2/domain/entities/direct-harness-session.js';
+import type { ExtractedChunk } from '../../v2/domain/entities/turn-chunk.js';
 
-export type { NativeDirectHarnessName } from '../../domain/direct-harness/entities/bound-harness.js';
+export type { NativeDirectHarnessName } from '../../v2/domain/entities/bound-harness.js';
 
 export const NATIVE_DIRECT_HARNESS_NAMES = [
   'opencode-sdk',

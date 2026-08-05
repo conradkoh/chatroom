@@ -1,18 +1,18 @@
 // fallow-ignore-next-line complexity
 
-import { handleSessionIdle } from '../direct-harness/idle-handler.js';
-import { api } from '../../../../api.js';
-import type { DirectHarnessSessionEvent } from '../../../../domain/direct-harness/entities/direct-harness-session.js';
-import type { HarnessSessionId } from '../../../../domain/direct-harness/entities/harness-session.js';
-import type { SessionHandle } from '../../../../domain/direct-harness/usecases/open-session.js';
-import { createChunkExtractor } from '../../../../infrastructure/harnesses/registry.js';
-import { isOpenCodeSessionEventType } from '../../../../infrastructure/services/remote-agents/opencode-sdk/opencode-session-events.js';
 import { getOrCreateBoundHarness } from './get-or-create-bound-harness.js';
 import type {
   HarnessWorkerSession,
   OpenPendingHarnessSessionInput,
   SharedHarnessMaps,
 } from './types.js';
+import { api } from '../../../../api.js';
+import type { SessionHandle } from '../../../../domain/direct-harness/usecases/open-session.js';
+import { createChunkExtractor } from '../../../../infrastructure/harnesses/registry.js';
+import { isOpenCodeSessionEventType } from '../../../../infrastructure/services/remote-agents/opencode-sdk/opencode-session-events.js';
+import type { DirectHarnessSessionEvent } from '../../../../v2/domain/entities/direct-harness-session.js';
+import type { HarnessSessionId } from '../../../../v2/domain/entities/harness-session.js';
+import { handleSessionIdle } from '../direct-harness/idle-handler.js';
 
 export async function openPendingHarnessSession(
   daemonSession: HarnessWorkerSession,

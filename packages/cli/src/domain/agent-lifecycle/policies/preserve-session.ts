@@ -1,4 +1,4 @@
-import type { StopReason } from '../entities/stop-reason.js';
+import type { StopReason } from '../../../v2/domain/entities/stop-reason.js';
 
 /**
  * Whether daemon-memory harness session metadata should be kept for reconnect

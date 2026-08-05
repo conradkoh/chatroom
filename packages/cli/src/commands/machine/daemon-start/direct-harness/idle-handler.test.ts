@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { handleSessionIdle } from './idle-handler.js';
-import type { DirectHarnessSession } from '../../../../domain/direct-harness/entities/direct-harness-session.js';
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type {
   SessionHandle,
   SessionJournal,
 } from '../../../../domain/direct-harness/usecases/open-session.js';
+import type { DirectHarnessSession } from '../../../../v2/domain/entities/direct-harness-session.js';
 
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
 

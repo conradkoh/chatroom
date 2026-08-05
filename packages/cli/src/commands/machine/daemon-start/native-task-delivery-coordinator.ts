@@ -1,7 +1,4 @@
-import type {
-  AssignedTaskSnapshotView,
-  AssignedTaskView,
-} from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { isDeliverableTaskStatus } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect, Runtime, type Context } from 'effect';
 
@@ -24,14 +21,15 @@ import {
   explainNativeDeliveryBlock,
 } from './native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-task-injector.js';
-import { getRoleDeliveryState } from './role-delivery-state.js';
-import { api } from '../../../api.js';
-import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
 import {
   filterSnapshotsExcludingRestartInFlight,
   isRestartOrchestratorInFlight,
 } from './restart-orchestrator-in-flight.js';
+import { getRoleDeliveryState } from './role-delivery-state.js';
+import { api } from '../../../api.js';
+import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
+import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;

@@ -2,10 +2,10 @@ import type { ConvexClient } from 'convex/browser';
 
 import { startPromptSubscriber } from './prompt-subscriber.js';
 import { startSessionSubscriber } from './session-subscriber.js';
-import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import { ConvexAgenticQueryOutputRepository } from '../../../../infrastructure/repos/convex-agentic-query-output-repository.js';
 import { ConvexAgenticQueryRunRepository } from '../../../../infrastructure/repos/convex-agentic-query-run-repository.js';
 import { BufferedJournalFactory } from '../../../../infrastructure/repos/journal-factory.js';
+import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
 import type { ActiveSession } from '../direct-harness/session-subscriber.js';
 import type { HarnessWorkerSession } from '../shared-harness/types.js';
 

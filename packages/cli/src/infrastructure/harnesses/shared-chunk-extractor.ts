@@ -1,5 +1,5 @@
-import type { DirectHarnessSessionEvent } from '../../domain/direct-harness/entities/direct-harness-session.js';
-import type { ExtractedChunk } from '../../domain/direct-harness/usecases/open-session.js';
+import type { DirectHarnessSessionEvent } from '../../v2/domain/entities/direct-harness-session.js';
+import type { ExtractedChunk } from '../../v2/domain/entities/turn-chunk.js';
 
 /**
  * Chunk extractor for harness sessions that emit normalized `message.part.delta`

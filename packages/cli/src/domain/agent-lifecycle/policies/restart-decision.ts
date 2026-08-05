@@ -1,5 +1,5 @@
 import { shouldAutoRestartAfterProcessExit } from './decide-resume-path.js';
-import type { StopReason } from '../entities/stop-reason.js';
+import type { StopReason } from '../../../v2/domain/entities/stop-reason.js';
 
 export type RestartOutcome =
   | { readonly _tag: 'NoRestart'; readonly reason: string }

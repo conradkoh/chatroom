@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { startPiSdkHarness } from './index.js';
-import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
+import type { BoundHarness } from '../../../v2/domain/entities/bound-harness.js';
 import { createStandardSdkChunkExtractor } from '../shared-chunk-extractor.js';
 
 const HARNESS_CWD =

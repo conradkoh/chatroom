@@ -24,8 +24,8 @@ import {
 } from './restart-orchestrator-in-flight.js';
 import type { AgentHarness } from './types.js';
 import { api } from '../../../api.js';
-import { isTeamAgentRole } from '../../../domain/execution-kind.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { isTeamAgentRole } from '../../../v2/domain/entities/execution-kind.js';
 
 interface RestartOrchestratorEvent {
   chatroomId: string;

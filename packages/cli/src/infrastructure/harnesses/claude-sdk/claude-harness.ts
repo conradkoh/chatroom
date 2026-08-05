@@ -11,13 +11,13 @@ import type {
   ModelInfo,
   NewSessionConfig,
   ResumeHarnessSessionOptions,
-} from '../../../domain/direct-harness/entities/bound-harness.js';
-import type { DirectHarnessSession } from '../../../domain/direct-harness/entities/direct-harness-session.js';
-import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
+} from '../../../v2/domain/entities/bound-harness.js';
+import type { DirectHarnessSession } from '../../../v2/domain/entities/direct-harness-session.js';
+import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
 import type {
   PublishedAgent,
   PublishedProvider,
-} from '../../../domain/direct-harness/entities/machine-capabilities.js';
+} from '../../../v2/domain/entities/machine-capabilities.js';
 import {
   CLAUDE_FALLBACK_MODELS,
   fetchClaudeModels,
