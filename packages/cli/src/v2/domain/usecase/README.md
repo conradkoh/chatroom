@@ -24,7 +24,7 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | ---------------------------------- | ----------------------------------------------------------- |
 | `deliver-assigned-task.ts`         | `daemon-start/task-monitor.ts`                              |
 | `handle-command-event.ts`          | `daemon-start/command-loop.ts`                              |
-| `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` |
+| `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` | **done** |
 | `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            | **done** |
 | `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          | **done** |
 | `close-harness-session.ts`         | `domain/direct-harness/usecases/close-session.ts`           | **done** |
@@ -60,7 +60,22 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 
 Entity: `resume-storm.ts` (`ResumeStormReason`) — was backend import in classify-resume-storm-reason.
 
-**Not migrated (later slices):** `abort-resume-storm.ts` (#5), `predicates/agent-slot.ts` (#6).
+**Not migrated (later slices):** `predicates/agent-slot.ts` (#6).
+
+## Turn-completion slice (done)
+
+| v2 file                    | Legacy source                                               |
+| -------------------------- | ----------------------------------------------------------- |
+| `handle-turn-completed.ts` | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` |
+| `abort-resume-storm.ts`    | `domain/agent-lifecycle/policies/abort-resume-storm.ts`     |
+
+### Port co-location (turn-completion slice)
+
+| Port                   | v2 home                    |
+| ---------------------- | -------------------------- |
+| `ResumeStormTracker`   | `handle-turn-completed.ts` |
+| `ResumeStormCheck`     | `handle-turn-completed.ts` |
+| `TurnCompletedBackend` | `handle-turn-completed.ts` |
 
 ## Port co-location (direct-harness slice)
 

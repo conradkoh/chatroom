@@ -1,5 +1,5 @@
 import { api } from '../../../api.js';
-import type { TurnCompletedBackend } from '../../../domain/agent-lifecycle/ports/turn-completed-backend.js';
+import type { TurnCompletedBackend } from '../../../v2/domain/usecase/handle-turn-completed.js';
 
 export function createTurnCompletedBackend(deps: {
   sessionId: string;
