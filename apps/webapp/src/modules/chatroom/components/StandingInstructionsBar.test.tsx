@@ -58,6 +58,7 @@ vi.mock('@/hooks/useIsDesktop', () => ({
 
 vi.mock('@/hooks/useMobileKeyboard', () => ({
   useVisualViewportKeyboardInset: () => mockUseKeyboardInset(),
+  useVisualViewportOffsetTop: () => 0,
 }));
 
 const ROOM_ID = 'room1' as Id<'chatroom_rooms'>;

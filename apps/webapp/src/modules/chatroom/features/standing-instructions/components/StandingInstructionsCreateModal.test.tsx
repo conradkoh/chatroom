@@ -13,6 +13,7 @@ vi.mock('@/hooks/useIsDesktop', () => ({
 
 vi.mock('@/hooks/useMobileKeyboard', () => ({
   useVisualViewportKeyboardInset: () => mockKeyboardInset(),
+  useVisualViewportOffsetTop: () => 0,
 }));
 
 describe('StandingInstructionsCreateModal', () => {
