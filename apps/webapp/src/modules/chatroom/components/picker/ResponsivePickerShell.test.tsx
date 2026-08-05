@@ -9,6 +9,7 @@ import { OverlayPortalContainerProvider } from '../shared/overlayPortalContainer
 
 const mockUseIsDesktop = vi.fn();
 const mockUseKeyboardInset = vi.fn();
+const mockUseOffsetTop = vi.fn();
 
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => mockUseIsDesktop(),
@@ -19,6 +20,7 @@ vi.mock('@/hooks/useMobileKeyboard', async (importOriginal) => {
   return {
     ...(actual as Record<string, unknown>),
     useVisualViewportKeyboardInset: () => mockUseKeyboardInset(),
+    useVisualViewportOffsetTop: () => mockUseOffsetTop(),
   };
 });
 
@@ -39,6 +41,10 @@ function renderShell(overrides: Record<string, unknown> = {}) {
 describe('ResponsivePickerShell', () => {
   beforeEach(() => {
     mockUseIsDesktop.mockReset();
+    mockUseKeyboardInset.mockReset();
+    mockUseOffsetTop.mockReset();
+    mockUseKeyboardInset.mockReturnValue(0);
+    mockUseOffsetTop.mockReturnValue(0);
   });
 
   it('renders popover content when isDesktop is true', () => {
@@ -183,6 +189,18 @@ describe('ResponsivePickerShell', () => {
 
     const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
     expect(drawerContent?.getAttribute('style')).toContain('120px');
+  });
+
+  it('top-anchors mobile drawer when keyboard inset and viewport offsetTop are non-zero', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    mockUseKeyboardInset.mockReturnValue(120);
+    mockUseOffsetTop.mockReturnValue(80);
+    renderShell();
+
+    const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
+    const style = drawerContent?.getAttribute('style') ?? '';
+    expect(style).toContain('top');
+    expect(style).toMatch(/margin-top:\s*0|marginTop:\s*0/);
   });
 
   it('includes safe-area horizontal padding on mobile drawer', () => {

@@ -5,7 +5,10 @@ import { useState } from 'react';
 
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+import {
+  useVisualViewportKeyboardInset,
+  useVisualViewportOffsetTop,
+} from '@/hooks/useMobileKeyboard';
 import {
   PickerOptionRow,
   PickerPanelHeader,
@@ -33,6 +36,7 @@ export function StandingInstructionsBarSection() {
   const iconSize = isDesktop ? 12 : 14;
 
   const keyboardInsetPx = useVisualViewportKeyboardInset(editOpen && !isDesktop);
+  const viewportOffsetTopPx = useVisualViewportOffsetTop(editOpen && !isDesktop);
   const portalContainer = useOverlayPortalContainer();
 
   return (
@@ -112,7 +116,7 @@ export function StandingInstructionsBarSection() {
         >
           <DrawerContent
             className={MOBILE_DRAWER_CONTENT_CLASSNAME}
-            style={getMobileDrawerContentStyle(keyboardInsetPx)}
+            style={getMobileDrawerContentStyle(keyboardInsetPx, viewportOffsetTopPx)}
           >
             <DrawerHeader className="p-0 shrink-0">
               <DrawerTitle className="sr-only">Edit standing instructions</DrawerTitle>

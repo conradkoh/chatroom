@@ -5,7 +5,10 @@ import { useState, type KeyboardEvent } from 'react';
 
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+import {
+  useVisualViewportKeyboardInset,
+  useVisualViewportOffsetTop,
+} from '@/hooks/useMobileKeyboard';
 import {
   PickerOptionRow,
   PickerPanelHeader,
@@ -282,6 +285,7 @@ function MobileEditingDrawer(props: {
 }) {
   const { open, draft, onDraftChange, onConfirm, onCancel } = props;
   const keyboardInsetPx = useVisualViewportKeyboardInset(open);
+  const viewportOffsetTopPx = useVisualViewportOffsetTop(open);
   const portalContainer = useOverlayPortalContainer();
 
   return (
@@ -297,7 +301,7 @@ function MobileEditingDrawer(props: {
     >
       <DrawerContent
         className={MOBILE_DRAWER_CONTENT_CLASSNAME}
-        style={getMobileDrawerContentStyle(keyboardInsetPx)}
+        style={getMobileDrawerContentStyle(keyboardInsetPx, viewportOffsetTopPx)}
       >
         <DrawerHeader className="p-0 shrink-0">
           <DrawerTitle className="sr-only">Edit standing instructions</DrawerTitle>
@@ -362,6 +366,7 @@ function MobileAddingDrawer(props: {
     confirmDisabled,
   } = props;
   const keyboardInsetPx = useVisualViewportKeyboardInset(open);
+  const viewportOffsetTopPx = useVisualViewportOffsetTop(open);
   const portalContainer = useOverlayPortalContainer();
 
   return (
@@ -377,7 +382,7 @@ function MobileAddingDrawer(props: {
     >
       <DrawerContent
         className={MOBILE_DRAWER_CONTENT_CLASSNAME}
-        style={getMobileDrawerContentStyle(keyboardInsetPx)}
+        style={getMobileDrawerContentStyle(keyboardInsetPx, viewportOffsetTopPx)}
       >
         <DrawerHeader className="p-0 shrink-0">
           <DrawerTitle className="sr-only">Add standing instructions</DrawerTitle>

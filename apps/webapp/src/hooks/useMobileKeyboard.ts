@@ -6,6 +6,8 @@ declare global {
   interface Window {
     /** Dev/e2e only — overrides keyboard inset when set (see /dev/mobile-picker-harness). */
     __MOBILE_KEYBOARD_TEST_INSET__?: number;
+    /** Dev/e2e only — overrides visualViewport.offsetTop when set (see /dev/mobile-picker-harness). */
+    __MOBILE_KEYBOARD_TEST_OFFSET_TOP__?: number;
   }
 }
 
@@ -83,6 +85,9 @@ export function computeKeyboardInsetPx(): number {
 // fallow-ignore-next-line unused-export
 export function computeVisualViewportOffsetTopPx(): number {
   if (typeof window === 'undefined') return 0;
+  if (typeof window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__ === 'number') {
+    return Math.max(0, window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__);
+  }
   const vv = window.visualViewport;
   if (!vv) return 0;
   return Math.max(0, Math.round(vv.offsetTop));

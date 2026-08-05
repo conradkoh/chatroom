@@ -8,6 +8,7 @@ export function useHarnessDrawerMetrics(
   flatOpen: boolean,
   filterOpen: boolean,
   keyboardInset: number,
+  viewportOffsetTop: number,
   flatSearch: string,
   filterSearch: string
 ) {
@@ -19,9 +20,17 @@ export function useHarnessDrawerMetrics(
 
   useEffect(() => {
     window.__MOBILE_KEYBOARD_TEST_INSET__ = keyboardInset;
+    window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__ = viewportOffsetTop;
     window.dispatchEvent(new Event('resize'));
     refreshMetrics();
-  }, [keyboardInset, refreshMetrics]);
+  }, [keyboardInset, viewportOffsetTop, refreshMetrics]);
+
+  useEffect(() => {
+    return () => {
+      delete window.__MOBILE_KEYBOARD_TEST_INSET__;
+      delete window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__;
+    };
+  }, []);
 
   useEffect(() => {
     if (!flatOpen && !filterOpen) {
@@ -30,7 +39,15 @@ export function useHarnessDrawerMetrics(
     }
     const id = window.requestAnimationFrame(refreshMetrics);
     return () => window.cancelAnimationFrame(id);
-  }, [flatOpen, filterOpen, flatSearch, filterSearch, keyboardInset, refreshMetrics]);
+  }, [
+    flatOpen,
+    filterOpen,
+    flatSearch,
+    filterSearch,
+    keyboardInset,
+    viewportOffsetTop,
+    refreshMetrics,
+  ]);
 
   return metrics;
 }

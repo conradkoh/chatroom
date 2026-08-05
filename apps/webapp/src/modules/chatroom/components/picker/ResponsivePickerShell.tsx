@@ -19,7 +19,10 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+import {
+  useVisualViewportKeyboardInset,
+  useVisualViewportOffsetTop,
+} from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
 
 export interface ResponsivePickerShellProps {
@@ -56,7 +59,9 @@ export function ResponsivePickerShell({
   useEffect(() => setIsClient(true), []);
 
   const isDesktop = useIsDesktop(desktopBreakpoint);
-  const keyboardInsetPx = useVisualViewportKeyboardInset(isClient && !isDesktop);
+  const mobileActive = isClient && !isDesktop && open;
+  const keyboardInsetPx = useVisualViewportKeyboardInset(mobileActive);
+  const viewportOffsetTopPx = useVisualViewportOffsetTop(mobileActive);
   const portalContainer = useOverlayPortalContainer();
   const [pointerAnchor, setPointerAnchor] = useState<{ x: number; y: number } | null>(null);
   const [triggerEl, setTriggerEl] = useState<HTMLElement | null>(null);
@@ -177,7 +182,7 @@ export function ResponsivePickerShell({
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
       <DrawerContent
         className={cn(MOBILE_DRAWER_CONTENT_CLASSNAME, drawerContentClassName)}
-        style={getMobileDrawerContentStyle(keyboardInsetPx)}
+        style={getMobileDrawerContentStyle(keyboardInsetPx, viewportOffsetTopPx)}
       >
         <DrawerHeader className="p-0 shrink-0">
           <DrawerTitle className="sr-only">{title}</DrawerTitle>
