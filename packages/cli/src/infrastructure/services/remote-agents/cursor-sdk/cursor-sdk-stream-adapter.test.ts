@@ -54,6 +54,19 @@ function textDelta(text: string): InteractionUpdate {
   return { type: 'text-delta', text };
 }
 
+function thinkingDelta(text: string): InteractionUpdate {
+  return { type: 'thinking-delta', text };
+}
+
+function thinkingMessage(text: string): SDKMessage {
+  return {
+    type: 'thinking',
+    agent_id: 'agent-1',
+    run_id: 'run-1',
+    text,
+  } as SDKMessage;
+}
+
 function shellToolCallStarted(command: string): InteractionUpdate {
   return {
     type: 'tool-call-started',
@@ -256,6 +269,29 @@ describe('CursorSdkStreamAdapter', () => {
     });
 
     expect(onLogLine).not.toHaveBeenCalled();
+  });
+
+  it('logs thinking-delta interaction updates', () => {
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    adapter.handleInteractionDelta(thinkingDelta('planning step'));
+
+    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} thinking] planning step\n`);
+  });
+
+  it('does not duplicate thinking when both thinking-delta and thinking SDKMessage fire', () => {
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    adapter.handleInteractionDelta(thinkingDelta('working directory is'));
+    adapter.handleMessage(thinkingMessage('working directory is'));
+
+    expect(stdoutWriteSpy).toHaveBeenCalledTimes(1);
+    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} thinking] working directory is\n`);
+  });
+
+  it('silently ignores thinking SDKMessage alone (delta path is canonical)', () => {
+    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    adapter.handleMessage(thinkingMessage('orphan thinking'));
+
+    expect(stdoutWriteSpy).not.toHaveBeenCalled();
   });
 
   it('handles text-delta interaction updates as buffered stdout text', () => {
