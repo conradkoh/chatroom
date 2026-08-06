@@ -1,12 +1,22 @@
 # Persistence (v2 daemon)
 
-Future **SQLite default write sink** and outbox for Convex projection.
+**SQLite default write sink** and outbox for Convex projection (`node:sqlite` / `DatabaseSync`).
 
-## Belongs here (future)
+## Implemented
 
-- Append-only event log for `OutboundEvent` (especially `harness.stream`)
-- Outbox table for reliable Convex publisher retries
-- Read APIs for `local-web/server/` historical queries
+| Module                 | Role                                                                     |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `schema.ts`            | `SCHEMA_VERSION` + migrations                                            |
+| `open-database.ts`     | Open DB, run migrations                                                  |
+| `event-store.ts`       | Append-only `OutboundEvent` log                                          |
+| `outbox.ts`            | Enqueue pending Convex projection rows (`status: 'pending'`)             |
+| `read-model.ts`        | Query `harness.stream` lines for local-web                               |
+| `persistence-store.ts` | Facade: `append`, `listHarnessStreamLines`, `listPendingOutbox`, `close` |
+
+## Deferred
+
+- Outbox drain worker (enqueue only this slice)
+- Default DB path wiring in `start-daemon.ts` (`~/.chatroom/daemon/events.sqlite`)
 
 ## Does not belong here
 
@@ -16,12 +26,18 @@ Future **SQLite default write sink** and outbox for Convex projection.
 | Domain types        | `domain/entities/`       |
 | UI                  | `local-web/`             |
 
-## Scaffold status
+## Usage
 
-**No implementation in this slice.** README + folder only. Local-web may read from persistence once built; until then, harness stream events are console-only in v1.
+```typescript
+import { createPersistenceStore } from './index.js';
 
-## Naming (planned)
-
-- `event-store.ts` — append `OutboundEvent`
-- `outbox.ts` — pending Convex projections
-- `read-model.ts` — queries for local-web
+const store = createPersistenceStore('/path/to/events.sqlite');
+store.append({
+  type: 'harness.stream',
+  harness: 'h1',
+  stream: 'stdout',
+  line: '...',
+  timestamp: Date.now(),
+});
+store.close();
+```
