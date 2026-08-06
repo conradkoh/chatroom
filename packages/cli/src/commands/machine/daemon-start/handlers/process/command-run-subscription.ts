@@ -17,6 +17,7 @@ import { Effect, Runtime } from 'effect';
 import { api } from '../../../../../api.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../../daemon-services.js';
 import type { SessionId } from '../../types.js';
+import { formatTimestamp } from '../../utils.js';
 import { onCommandRunEffect, onCommandStopEffect } from '../command-runner.js';
 
 type ActionableCommandRuns = FunctionReturnType<
