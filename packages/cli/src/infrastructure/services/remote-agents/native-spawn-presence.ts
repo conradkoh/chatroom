@@ -3,9 +3,9 @@ import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/pa
 
 import type { SpawnResult } from './remote-agent-service.js';
 import { api } from '../../../api.js';
+import { isTeamAgentRole } from '../../../daemon/domain/entities/execution-kind.js';
 import { TOKEN_ACTIVITY_KINDS } from '../../../domain/harness-activity-emitter.js';
 import type { HarnessActivityEmitter } from '../../../domain/harness-activity-emitter.js';
-import { isTeamAgentRole } from '../../../v2/domain/entities/execution-kind.js';
 import type { BackendOps } from '../../deps/index.js';
 import type { AgentHarness } from '../../machine/types.js';
 

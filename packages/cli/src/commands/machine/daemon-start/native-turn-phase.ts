@@ -1,8 +1,8 @@
-/** @deprecated U14 — use v2/entry/native-delivery/native-turn-phase.ts */
+/** @deprecated U14 — use daemon/entry/native-delivery/native-turn-phase.ts */
 export {
   NATIVE_TURN_PHASES,
   defaultNativeTurnPhase,
   isNativeSlotIdleForDelivery,
   setNativeTurnPhase,
   type NativeTurnPhase,
-} from '../../../v2/entry/native-delivery/native-turn-phase.js';
+} from '../../../daemon/entry/native-delivery/native-turn-phase.js';

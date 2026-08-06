@@ -5,12 +5,12 @@
 
 import type { DirectHarnessSession } from './command-processor.js';
 import { api } from '../../../../api.js';
-import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
+import type { BoundHarness } from '../../../../daemon/domain/entities/bound-harness.js';
 import type {
   SessionRepository,
   JournalFactory,
   SessionHandle,
-} from '../../../../v2/domain/usecase/open-harness-session.js';
+} from '../../../../daemon/domain/usecase/open-harness-session.js';
 import { openPendingHarnessSession } from '../shared-harness/open-pending-session.js';
 
 export type ActiveSession = SessionHandle;

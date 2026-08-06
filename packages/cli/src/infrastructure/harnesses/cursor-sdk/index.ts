@@ -1,1 +1,1 @@
-export * from '../../../v2/infrastructure/local/harness/adapters/cursor-sdk/index.js';
+export * from '../../../daemon/infrastructure/local/harness/adapters/cursor-sdk/index.js';

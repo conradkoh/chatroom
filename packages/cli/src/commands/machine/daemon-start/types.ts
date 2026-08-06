@@ -26,7 +26,7 @@ export type SessionId = any;
 
 export type { MachineConfig, AgentHarness };
 
-// Re-export from canonical source (services/backend/src/v2/domain/entities/agent.ts)
+// Re-export from canonical source (services/backend/src/daemon/domain/entities/agent.ts)
 export type StartAgentReason = AgentStartReason;
 export type StopAgentReason = AgentStopReason;
 

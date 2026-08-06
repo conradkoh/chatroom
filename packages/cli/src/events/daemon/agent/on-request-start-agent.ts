@@ -11,8 +11,8 @@ import {
   DaemonSessionService,
 } from '../../../commands/machine/daemon-start/daemon-services.js';
 import type { AgentHarness } from '../../../commands/machine/daemon-start/types.js';
-import { startAgent } from '../../../v2/domain/usecase/start-agent.js';
-import { createStartAgentDeps } from '../../../v2/entry/bridge/agent-control-bridge.js';
+import { startAgent } from '../../../daemon/domain/usecase/start-agent.js';
+import { createStartAgentDeps } from '../../../daemon/entry/bridge/agent-control-bridge.js';
 
 export interface AgentRequestStartEventPayload {
   _id: Id<'chatroom_eventStream'>;

@@ -1,6 +1,6 @@
-/** @deprecated U14 — use v2/entry/native-delivery/native-harness-session-exit.ts */
+/** @deprecated U14 — use daemon/entry/native-delivery/native-harness-session-exit.ts */
 export {
   notifyNativeHarnessSessionLostOnExit,
   isNativeHarnessSessionDiscardedOnExit,
   type NativeHarnessSessionExitContext,
-} from '../../../v2/entry/native-delivery/native-harness-session-exit.js';
+} from '../../../daemon/entry/native-delivery/native-harness-session-exit.js';

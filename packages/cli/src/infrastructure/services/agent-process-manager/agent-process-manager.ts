@@ -37,39 +37,39 @@ import {
   setNativeTurnPhase,
   type NativeTurnPhase,
 } from '../../../commands/machine/daemon-start/native-turn-phase.js';
-import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
-import { resolveResumableHarnessSessionId } from '../../../v2/domain/entities/harness-session-id-pair.js';
-import type { HarnessSessionSnapshot } from '../../../v2/domain/entities/session-snapshot.js';
-import { resolveStopReason } from '../../../v2/domain/entities/stop-reason.js';
-import type { StopReason } from '../../../v2/domain/entities/stop-reason.js';
-import { tryAbortResumeStorm } from '../../../v2/domain/usecase/abort-resume-storm.js';
-import { appendRecentLogLine } from '../../../v2/domain/usecase/append-recent-log-line.js';
+import { resolveResumableHarnessSessionId } from '../../../daemon/domain/entities/harness-session-id-pair.js';
+import type { HarnessSessionSnapshot } from '../../../daemon/domain/entities/session-snapshot.js';
+import { resolveStopReason } from '../../../daemon/domain/entities/stop-reason.js';
+import type { StopReason } from '../../../daemon/domain/entities/stop-reason.js';
+import { tryAbortResumeStorm } from '../../../daemon/domain/usecase/abort-resume-storm.js';
+import { appendRecentLogLine } from '../../../daemon/domain/usecase/append-recent-log-line.js';
 import {
   classifyResumeStormReason,
   formatPermanentHarnessFailureMessage,
-} from '../../../v2/domain/usecase/classify-resume-storm-reason.js';
+} from '../../../daemon/domain/usecase/classify-resume-storm-reason.js';
 import {
   CURSOR_SDK_SESSION_REOPEN_INTERVAL_MS,
   CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
   CURSOR_SDK_SESSION_REOPEN_REASON,
   CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
-} from '../../../v2/domain/usecase/cursor-sdk-session-reopen-retry.js';
+} from '../../../daemon/domain/usecase/cursor-sdk-session-reopen-retry.js';
 import {
   decideResumePathOnRestart,
   shouldAutoRestartAfterProcessExit,
-} from '../../../v2/domain/usecase/decide-resume-path.js';
+} from '../../../daemon/domain/usecase/decide-resume-path.js';
 import {
   formatCursorSdkRunErrorMessage,
   isCursorSdkRunErrorInLogs,
-} from '../../../v2/domain/usecase/detect-cursor-sdk-run-error.js';
+} from '../../../daemon/domain/usecase/detect-cursor-sdk-run-error.js';
 import {
   handleTurnCompleted,
   type ResumeStormTracker,
-} from '../../../v2/domain/usecase/handle-turn-completed.js';
+} from '../../../daemon/domain/usecase/handle-turn-completed.js';
 import {
   shouldPreserveHarnessTeardown,
   shouldRetainHarnessSessionForReconnect,
-} from '../../../v2/domain/usecase/preserve-harness-session.js';
+} from '../../../daemon/domain/usecase/preserve-harness-session.js';
+import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
 import { isProcessAlive } from '../../deps/process.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';

@@ -10,8 +10,8 @@ import {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from '../../../commands/machine/daemon-start/daemon-services.js';
-import { restartAgent } from '../../../v2/domain/usecase/restart-agent.js';
-import { createRestartAgentDeps } from '../../../v2/entry/bridge/agent-control-bridge.js';
+import { restartAgent } from '../../../daemon/domain/usecase/restart-agent.js';
+import { createRestartAgentDeps } from '../../../daemon/entry/bridge/agent-control-bridge.js';
 
 export interface AgentRestartEventPayload {
   _id: Id<'chatroom_eventStream'>;

@@ -1,2 +1,2 @@
-/** @deprecated U14 — use v2/entry/task-monitor-runtime.ts */
-export { startTaskMonitorEffect } from '../../../v2/entry/task-monitor-runtime.js';
+/** @deprecated U14 — use daemon/entry/task-monitor-runtime.ts */
+export { startTaskMonitorEffect } from '../../../daemon/entry/task-monitor-runtime.js';

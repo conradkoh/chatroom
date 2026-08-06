@@ -1,4 +1,4 @@
-/** @deprecated U14 — use v2/entry/workspace-git/git-subscription.ts */
+/** @deprecated U14 — use daemon/entry/workspace-git/git-subscription.ts */
 export {
   startGitRequestSubscriptionEffect,
   drainPendingGitRequests,
@@ -6,4 +6,4 @@ export {
   type GitSubscriptionHandle,
   type GitSubscriptionDeps,
   type PendingRequest,
-} from '../../../v2/entry/workspace-git/git-subscription.js';
+} from '../../../daemon/entry/workspace-git/git-subscription.js';

@@ -3,7 +3,7 @@ import { api } from '../../api.js';
 import type {
   OutputRepository,
   OutputChunk,
-} from '../../v2/domain/usecase/open-harness-session.js';
+} from '../../daemon/domain/usecase/open-harness-session.js';
 
 export type ConvexAgenticQueryOutputRepositoryOptions = ConvexMutationRepositoryOptions;
 

@@ -9,4 +9,4 @@ export {
   type CommandDispatchDeps,
   createDedupTracker,
   evictStaleDedupEntries,
-} from '../../../v2/entry/command-dispatch.js';
+} from '../../../daemon/entry/command-dispatch.js';

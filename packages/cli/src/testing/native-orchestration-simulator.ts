@@ -11,8 +11,8 @@ import { Effect } from 'effect';
 
 import { RecordingHarness } from './recording-harness.js';
 import { api } from '../api.js';
-import { buildNativeInjectionPrompt } from '../v2/entry/native-delivery/native-task-injector-logic.js';
-import { runNativeInjectionEffect } from '../v2/entry/native-delivery/native-task-injector.js';
+import { buildNativeInjectionPrompt } from '../daemon/entry/native-delivery/native-task-injector-logic.js';
+import { runNativeInjectionEffect } from '../daemon/entry/native-delivery/native-task-injector.js';
 
 export interface SimulateInjectionOptions {
   task: AssignedTaskView;

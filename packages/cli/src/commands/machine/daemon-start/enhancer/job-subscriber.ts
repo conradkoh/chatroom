@@ -1,1 +1,1 @@
-export * from '../../../../v2/entry/enhancer-legacy/job-subscriber.js';
+export * from '../../../../daemon/entry/enhancer-legacy/job-subscriber.js';

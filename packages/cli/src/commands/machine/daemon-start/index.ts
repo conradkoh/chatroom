@@ -6,7 +6,7 @@
  * - Handler functions and types for testing
  */
 
-import { startDaemonV2 } from '../../../v2/entry/start-daemon.js';
+import { startDaemon } from '../../../daemon/entry/start-daemon.js';
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
 
@@ -14,7 +14,7 @@ import { startDaemonV2 } from '../../../v2/entry/start-daemon.js';
  * Start the daemon: initialize, then enter the command processing loop.
  */
 export async function daemonStart(): Promise<void> {
-  await startDaemonV2();
+  await startDaemon();
 }
 
 // ─── Re-exports for Testing ─────────────────────────────────────────────────

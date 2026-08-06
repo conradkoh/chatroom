@@ -6,7 +6,7 @@ import type {
 import type {
   AssignedTaskSnapshotView,
   AssignedTaskWithContent,
-} from '../../v2/domain/entities/assigned-task.js';
+} from '../../daemon/domain/entities/assigned-task.js';
 
 export function mapAssignedTaskSnapshot(
   row: BackendAssignedTaskSnapshotView

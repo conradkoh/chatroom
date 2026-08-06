@@ -18,13 +18,13 @@ import type {
   OperationResult,
 } from './agent-lifecycle-types.js';
 import { AgentLifecycleService, AgentLifecyclePorts } from './agent-lifecycle-types.js';
-import { agentKey, idleSlot } from '../../../v2/domain/entities/agent-slot.js';
-import { resolveStopReason } from '../../../v2/domain/entities/stop-reason.js';
-import { decideRestartAfterExit } from '../../../v2/domain/usecase/decide-restart-after-exit.js';
+import { agentKey, idleSlot } from '../../../daemon/domain/entities/agent-slot.js';
+import { resolveStopReason } from '../../../daemon/domain/entities/stop-reason.js';
+import { decideRestartAfterExit } from '../../../daemon/domain/usecase/decide-restart-after-exit.js';
 import {
   transitionSlot,
   shouldIgnoreProcessExit,
-} from '../../../v2/domain/usecase/transition-agent-slot.js';
+} from '../../../daemon/domain/usecase/transition-agent-slot.js';
 import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Service Live Layer ────────────────────────────────────────────────────────
