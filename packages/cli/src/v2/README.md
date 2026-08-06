@@ -8,9 +8,7 @@ Guide for migrating the machine daemon from `commands/machine/daemon-start/` to 
 
 ## Purpose
 
-v2 is a **strangler migration**: new code lands here while `daemon-start/index.ts` remains the active entry until the final cutover slice. Subscribers normalize Convex transport into `InboundEvent`; use cases emit `OutboundEvent`; publishers project facts back to Convex (and eventually persistence + local-web).
-
-**v1 stays active:** `packages/cli/src/commands/machine/daemon-start/index.ts` must not delegate to v2 until subscribers, use cases, and publishers are migrated.
+v2 is a **strangler migration**: `daemon-start/index.ts` delegates to `startDaemonV2`, which runs v2 infrastructure (persistence, local-web, subscribers) alongside the legacy command loop until shim removal (slice #17).
 
 ---
 
@@ -51,7 +49,8 @@ domain/entities/    ← pure types + event registries
 4. **Subscribers / publishers** — per-context Convex wiring via incremental-sync
 5. **Persistence** — SQLite default write sink + outbox
 6. **Local-web** — server + client for full-granularity harness streams
-7. **Entry cutover LAST** — `start-daemon.ts` replaces `daemon-start/index.ts`
+7. **Entry cutover** — `startDaemonV2` active via `daemon-start/index.ts` ✅
+8. **Shim removal** — delete legacy daemon-start dead code (slice #17)
 
 ---
 
