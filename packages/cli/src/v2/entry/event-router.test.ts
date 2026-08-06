@@ -1,9 +1,12 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import { routeInboundEvent } from './event-router.js';
+import type { InboundEvent } from '../domain/entities/inbound-event.js';
+import type { AgenticQueryInboundEvent } from '../domain/usecase/handle-agentic-query-inbound.js';
 import type { AssignedTaskInboundEvent } from '../domain/usecase/handle-assigned-task-inbound.js';
 import type { CommandInboundEvent } from '../domain/usecase/handle-command-inbound.js';
 import type { DirectHarnessInboundEvent } from '../domain/usecase/handle-direct-harness-inbound.js';
+import type { EnhancerInboundEvent } from '../domain/usecase/handle-enhancer-inbound.js';
 import type { FileInboundEvent } from '../domain/usecase/handle-file-inbound.js';
 import type { WorkspaceGitInboundEvent } from '../domain/usecase/handle-workspace-git-inbound.js';
 
@@ -17,6 +20,10 @@ const routerDeps = {
     onWorkspaceGitEvent?: (event: WorkspaceGitInboundEvent) => Promise<void>;
   },
   file: {} as { onFileEvent?: (event: FileInboundEvent) => Promise<void> },
+  agenticQuery: {} as {
+    onAgenticQueryEvent?: (event: AgenticQueryInboundEvent) => Promise<void>;
+  },
+  enhancer: {} as { onEnhancerEvent?: (event: EnhancerInboundEvent) => Promise<void> },
 };
 
 describe('routeInboundEvent', () => {
@@ -166,12 +173,50 @@ describe('routeInboundEvent', () => {
     expect(onFileEvent).toHaveBeenCalledWith(event);
   });
 
+  test('dispatches agentic-query.session-opened to handler', async () => {
+    const onAgenticQueryEvent = vi.fn().mockResolvedValue(undefined);
+    const event: AgenticQueryInboundEvent = {
+      type: 'agentic-query.session-opened',
+      sessionId: 'run_1',
+    };
+
+    await routeInboundEvent({ ...routerDeps, agenticQuery: { onAgenticQueryEvent } }, event);
+
+    expect(onAgenticQueryEvent).toHaveBeenCalledWith(event);
+  });
+
+  test('dispatches agentic-query.prompt to handler', async () => {
+    const onAgenticQueryEvent = vi.fn().mockResolvedValue(undefined);
+    const event: AgenticQueryInboundEvent = {
+      type: 'agentic-query.prompt',
+      sessionId: 'run_1',
+    };
+
+    await routeInboundEvent({ ...routerDeps, agenticQuery: { onAgenticQueryEvent } }, event);
+
+    expect(onAgenticQueryEvent).toHaveBeenCalledWith(event);
+  });
+
+  test('dispatches enhancer.job-assigned to handler', async () => {
+    const onEnhancerEvent = vi.fn().mockResolvedValue(undefined);
+    const event: EnhancerInboundEvent = {
+      type: 'enhancer.job-assigned',
+      jobId: 'job_1',
+    };
+
+    await routeInboundEvent({ ...routerDeps, enhancer: { onEnhancerEvent } }, event);
+
+    expect(onEnhancerEvent).toHaveBeenCalledWith(event);
+  });
+
   test('ignores unhandled event types', async () => {
     const onTaskMonitorEvent = vi.fn().mockResolvedValue(undefined);
     const onDirectHarnessEvent = vi.fn().mockResolvedValue(undefined);
     const onCommandEvent = vi.fn().mockResolvedValue(undefined);
     const onWorkspaceGitEvent = vi.fn().mockResolvedValue(undefined);
     const onFileEvent = vi.fn().mockResolvedValue(undefined);
+    const onAgenticQueryEvent = vi.fn().mockResolvedValue(undefined);
+    const onEnhancerEvent = vi.fn().mockResolvedValue(undefined);
 
     await routeInboundEvent(
       {
@@ -180,8 +225,10 @@ describe('routeInboundEvent', () => {
         command: { onCommandEvent },
         workspaceGit: { onWorkspaceGitEvent },
         file: { onFileEvent },
+        agenticQuery: { onAgenticQueryEvent },
+        enhancer: { onEnhancerEvent },
       },
-      { type: 'enhancer.job-assigned', jobId: 'job_1' }
+      { type: 'not-a-real-type' } as unknown as InboundEvent
     );
 
     expect(onTaskMonitorEvent).not.toHaveBeenCalled();
@@ -189,5 +236,7 @@ describe('routeInboundEvent', () => {
     expect(onCommandEvent).not.toHaveBeenCalled();
     expect(onWorkspaceGitEvent).not.toHaveBeenCalled();
     expect(onFileEvent).not.toHaveBeenCalled();
+    expect(onAgenticQueryEvent).not.toHaveBeenCalled();
+    expect(onEnhancerEvent).not.toHaveBeenCalled();
   });
 });

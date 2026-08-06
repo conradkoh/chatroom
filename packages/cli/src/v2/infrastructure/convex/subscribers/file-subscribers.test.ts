@@ -110,6 +110,8 @@ describe('file v2 subscribers', () => {
             handled.push(event);
           },
         },
+        agenticQuery: {},
+        enhancer: {},
       },
     });
 
@@ -136,6 +138,8 @@ describe('file v2 subscribers', () => {
             handled.push(event);
           },
         },
+        agenticQuery: {},
+        enhancer: {},
       },
       { type: 'file-write.request', requestId: FILE_WRITE_REQUEST_ID }
     );

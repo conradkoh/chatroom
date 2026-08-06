@@ -134,6 +134,8 @@ describe('direct-harness v2 subscribers', () => {
         command: {},
         workspaceGit: {},
         file: {},
+        agenticQuery: {},
+        enhancer: {},
       },
     });
 
@@ -161,6 +163,8 @@ describe('direct-harness v2 subscribers', () => {
         command: {},
         workspaceGit: {},
         file: {},
+        agenticQuery: {},
+        enhancer: {},
       },
       { type: 'direct-harness.command', commandId: COMMAND_ID }
     );
