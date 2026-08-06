@@ -1,4 +1,8 @@
-import type { TurnEndInput, TurnEndResult, TurnEndSlot } from '../entities/turn-end.js';
+import type {
+  TurnEndInput,
+  TurnEndResult,
+  TurnEndSlot,
+} from '../../../v2/domain/entities/native-turn.js';
 import { tryAbortResumeStorm } from '../policies/abort-resume-storm.js';
 import type { ResumeStormTracker } from '../ports/resume-storm-tracker.js';
 import type { TurnCompletedBackend } from '../ports/turn-completed-backend.js';

@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import { handleTurnCompleted, type HandleTurnCompletedDeps } from './handle-turn-completed.js';
-import type { TurnEndSlot } from '../entities/turn-end.js';
+import type { TurnEndSlot } from '../../../v2/domain/entities/native-turn.js';
 import type { ResumeStormTracker } from '../ports/resume-storm-tracker.js';
 
 function createTracker(threshold = 5, windowMs = 30_000): ResumeStormTracker {

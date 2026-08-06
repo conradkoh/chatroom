@@ -1,7 +1,12 @@
 import type { OpencodeClient, Event as SdkEvent } from '@opencode-ai/sdk';
-import type { DirectHarnessSession, DirectHarnessSessionEvent, PromptInput } from '../../../domain/direct-harness/entities/direct-harness-session.js';
-import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
+
 import { SseEventBuffer } from './sse-event-buffer.js';
+import type {
+  DirectHarnessSession,
+  DirectHarnessSessionEvent,
+  PromptInput,
+} from '../../../v2/domain/entities/direct-harness-session.js';
+import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
 
 function toSessionEvent(event: SdkEvent): DirectHarnessSessionEvent {
   return { type: event.type, payload: event.properties ?? {}, timestamp: Date.now() };
@@ -25,7 +30,9 @@ export class OpencodeSdkSession implements DirectHarnessSession {
   readonly opencodeSessionId: OpenCodeSessionId;
   /** Backing field for sessionTitle to allow mutation via setTitle(). */
   private _sessionTitle: string;
-  get sessionTitle(): string { return this._sessionTitle; }
+  get sessionTitle(): string {
+    return this._sessionTitle;
+  }
 
   private readonly client: OpencodeClient;
   private readonly options: OpencodeSdkSessionOptions;
@@ -78,14 +85,20 @@ export class OpencodeSdkSession implements DirectHarnessSession {
       },
     });
 
-    console.log(`[opencode-session] promptAsync submitted for session ${this.opencodeSessionId}, waiting for session.idle via SSE`);
+    console.log(
+      `[opencode-session] promptAsync submitted for session ${this.opencodeSessionId}, waiting for session.idle via SSE`
+    );
 
     // Wait for session.idle (delivered by the harness SSE fan-out) or timeout.
     try {
       await Promise.race([idlePromise, timeoutPromise]);
-      console.log(`[opencode-session] session.idle received via SSE for session ${this.opencodeSessionId}`);
+      console.log(
+        `[opencode-session] session.idle received via SSE for session ${this.opencodeSessionId}`
+      );
     } catch (err) {
-      console.warn(`[opencode-session] ${err instanceof Error ? err.message : String(err)} — session ${this.opencodeSessionId}`);
+      console.warn(
+        `[opencode-session] ${err instanceof Error ? err.message : String(err)} — session ${this.opencodeSessionId}`
+      );
       // On timeout, emit session.idle manually as fallback so the pipeline can finalize.
       this._emit({ type: 'session.idle', payload: {}, timestamp: Date.now() });
     } finally {
@@ -105,7 +118,9 @@ export class OpencodeSdkSession implements DirectHarnessSession {
         if (!this.closed) console.warn('[opencode-session] consumer error:', err);
       });
     }
-    return () => { this.onEventListeners.delete(listener); };
+    return () => {
+      this.onEventListeners.delete(listener);
+    };
   }
 
   async close(): Promise<void> {
@@ -164,5 +179,10 @@ export class OpencodeSdkSession implements DirectHarnessSession {
 }
 
 function isHttpError(err: unknown, statusCode: number): boolean {
-  return !!(err && typeof err === 'object' && 'status' in err && (err as { status: number }).status === statusCode);
+  return !!(
+    err &&
+    typeof err === 'object' &&
+    'status' in err &&
+    (err as { status: number }).status === statusCode
+  );
 }

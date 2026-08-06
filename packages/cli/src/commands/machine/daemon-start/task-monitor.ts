@@ -20,7 +20,6 @@ import {
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import type {
-  AssignedTaskSnapshotView,
   AssignedTaskView,
   ListMachineAssignedTaskSnapshotsResult,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
@@ -56,7 +55,6 @@ import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
 import type { AgentHarness } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
-import { isTeamAgentRole } from '../../../domain/execution-kind.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import {
   runDualChannelFeedLive,
@@ -81,6 +79,8 @@ import {
   replaceAssignedTaskSnapshots,
 } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
+import { isTeamAgentRole } from '../../../v2/domain/entities/execution-kind.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;

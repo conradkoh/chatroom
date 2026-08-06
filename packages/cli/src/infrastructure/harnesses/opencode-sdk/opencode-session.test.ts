@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { OpencodeSdkSession } from './opencode-session.js';
-import type { DirectHarnessSessionEvent } from '../../../domain/direct-harness/entities/direct-harness-session.js';
+import type { DirectHarnessSessionEvent } from '../../../v2/domain/entities/direct-harness-session.js';
 
 // ─── Mock client ─────────────────────────────────────────────────────────────
 
@@ -95,10 +95,12 @@ describe('OpencodeSdkSession', () => {
   it('throws when prompting a closed session', async () => {
     const session = createSession();
     await session.close();
-    await expect(session.prompt({
-      agent: 'builder',
-      parts: [{ type: 'text', text: 'nope' }],
-    })).rejects.toThrow('Session is closed');
+    await expect(
+      session.prompt({
+        agent: 'builder',
+        parts: [{ type: 'text', text: 'nope' }],
+      })
+    ).rejects.toThrow('Session is closed');
   });
 
   it('prompt() resolves when session.idle arrives via _receiveEvent (harness fan-out)', async () => {
@@ -115,7 +117,10 @@ describe('OpencodeSdkSession', () => {
     await new Promise<void>((r) => setTimeout(r, 5));
 
     // Deliver content then idle via harness fan-out
-    session._receiveEvent({ type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'hello' } as never });
+    session._receiveEvent({
+      type: 'message.part.updated',
+      properties: { sessionID: 'sess-123', delta: 'hello' } as never,
+    });
     session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
 
     await promptDone;
@@ -188,10 +193,12 @@ describe('OpencodeSdkSession', () => {
     session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
     await new Promise<void>((r) => setTimeout(r, 10));
 
-    expect(listener).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'session.idle',
-      payload: expect.objectContaining({ sessionID: 'sess-123' }),
-    }));
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'session.idle',
+        payload: expect.objectContaining({ sessionID: 'sess-123' }),
+      })
+    );
   });
 
   // ── close() ─────────────────────────────────────────────────────────────────
@@ -355,7 +362,10 @@ describe('OpencodeSdkSession', () => {
     await new Promise<void>((r) => setTimeout(r, 5));
 
     // Deliver content then idle via harness fan-out
-    session._receiveEvent({ type: 'message.part.updated', properties: { sessionID: 'sess-123', delta: 'chunk1' } as never });
+    session._receiveEvent({
+      type: 'message.part.updated',
+      properties: { sessionID: 'sess-123', delta: 'chunk1' } as never,
+    });
     session._receiveEvent({ type: 'session.idle', properties: { sessionID: 'sess-123' } });
 
     await promptDone;

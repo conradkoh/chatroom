@@ -3,12 +3,12 @@ import type { ConvexClient } from 'convex/browser';
 import type { AgenticQuerySubscriptionSession } from './start-subscriptions.js';
 import type { AgenticPendingOpenSession } from './types.js';
 import { api } from '../../../../api.js';
-import type { BoundHarness } from '../../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type {
   JournalFactory,
   SessionHandle,
 } from '../../../../domain/direct-harness/usecases/open-session.js';
+import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
 import { openPendingHarnessSession } from '../shared-harness/open-pending-session.js';
 
 type SubscriberDeps = {

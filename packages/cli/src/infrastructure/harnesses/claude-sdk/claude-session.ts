@@ -6,8 +6,8 @@ import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
   PromptInput,
-} from '../../../domain/direct-harness/entities/direct-harness-session.js';
-import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
+} from '../../../v2/domain/entities/direct-harness-session.js';
+import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
 import { withTimeout } from '../../services/remote-agents/with-timeout.js';
 
 const DEFAULT_MAX_TURNS = 200;

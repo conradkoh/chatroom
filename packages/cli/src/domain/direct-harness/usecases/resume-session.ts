@@ -5,10 +5,14 @@
  */
 
 import { closeSession } from './close-session.js';
-import type { SessionHandle, JournalFactory, ExtractedChunk } from './open-session.js';
-import type { BoundHarness } from '../entities/bound-harness.js';
-import type { DirectHarnessSessionEvent } from '../entities/direct-harness-session.js';
-import type { OpenCodeSessionId, HarnessSessionId } from '../entities/harness-session.js';
+import type { SessionHandle, JournalFactory } from './open-session.js';
+import type { BoundHarness } from '../../../v2/domain/entities/bound-harness.js';
+import type { DirectHarnessSessionEvent } from '../../../v2/domain/entities/direct-harness-session.js';
+import type {
+  OpenCodeSessionId,
+  HarnessSessionId,
+} from '../../../v2/domain/entities/harness-session.js';
+import type { ExtractedChunk } from '../../../v2/domain/entities/turn-chunk.js';
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
 

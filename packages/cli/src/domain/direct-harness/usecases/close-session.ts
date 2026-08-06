@@ -12,9 +12,9 @@
  * but weren't created through openSession (e.g. manual or testing paths).
  */
 
-import type { DirectHarnessSession } from '../entities/direct-harness-session.js';
-import type { SessionRepository } from '../ports/session-repository.js';
 import type { SessionJournal } from './open-session.js';
+import type { DirectHarnessSession } from '../../../v2/domain/entities/direct-harness-session.js';
+import type { SessionRepository } from '../ports/session-repository.js';
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
 

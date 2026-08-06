@@ -6,8 +6,8 @@ import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
   PromptInput,
-} from '../../../domain/direct-harness/entities/direct-harness-session.js';
-import type { OpenCodeSessionId } from '../../../domain/direct-harness/entities/harness-session.js';
+} from '../../../v2/domain/entities/direct-harness-session.js';
+import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
 import { resolveCursorSdkModel } from '../../services/remote-agents/cursor-sdk/cursor-models.js';
 import {
   logUnhandledInteractionDelta,

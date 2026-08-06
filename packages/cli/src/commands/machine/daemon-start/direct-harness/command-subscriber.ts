@@ -16,16 +16,16 @@ import type { ConvexClient } from 'convex/browser';
 import type { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
 import type { ActiveSession } from './session-subscriber.js';
 import { api } from '../../../../api.js';
-import type { NativeDirectHarnessName } from '../../../../domain/direct-harness/entities/bound-harness.js';
-import type {
-  HarnessSessionId,
-  OpenCodeSessionId,
-} from '../../../../domain/direct-harness/entities/harness-session.js';
-import type { WorkspaceCapabilities } from '../../../../domain/direct-harness/entities/machine-capabilities.js';
 import type { CapabilitiesPublisher } from '../../../../domain/direct-harness/ports/capabilities-publisher.js';
 import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import { listInstalledNativeDirectHarnesses } from '../../../../infrastructure/harnesses/registry.js';
+import type { NativeDirectHarnessName } from '../../../../v2/domain/entities/bound-harness.js';
+import type {
+  HarnessSessionId,
+  OpenCodeSessionId,
+} from '../../../../v2/domain/entities/harness-session.js';
+import type { WorkspaceCapabilities } from '../../../../v2/domain/entities/machine-capabilities.js';
 import type { SessionId } from '../types.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────

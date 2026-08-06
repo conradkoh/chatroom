@@ -1,7 +1,4 @@
-import type {
-  AssignedTaskSnapshotView,
-  SessionAugmentationMode,
-} from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import type { SessionAugmentationMode } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import type { NativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
@@ -9,6 +6,7 @@ import {
   isDeliverableNativeTaskStatus,
 } from './native-ready-invariant.js';
 import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
+import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
 
 export { isNativeHarness } from '../../../domain/native-integration/index.js';
 

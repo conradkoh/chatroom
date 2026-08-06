@@ -38,6 +38,7 @@ import {
   startGitRequestSubscriptionEffect,
   type GitSubscriptionHandle,
 } from './git-subscription.js';
+import { releaseLock } from '../pid.js';
 import { forceKillAllCommands } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { handlePing } from './handlers/ping.js';
@@ -50,7 +51,6 @@ import { startTaskMonitorEffect } from './task-monitor.js';
 import { formatTimestamp } from './utils.js';
 import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
 import { api } from '../../../api.js';
-import type { BoundHarness } from '../../../domain/direct-harness/entities/bound-harness.js';
 import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
 import { onRequestRestartAgentEffect } from '../../../events/daemon/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from '../../../events/daemon/agent/on-request-start-agent.js';
@@ -61,7 +61,7 @@ import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../../infrastructure/local-actions/index.js';
 import { pickFolderDialog } from '../../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import { releaseLock } from '../pid.js';
+import type { BoundHarness } from '../../../v2/domain/entities/bound-harness.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 

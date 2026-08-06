@@ -1,4 +1,4 @@
-import type { AgentSlotSnapshot, AgentSlotState } from '../entities/agent-slot.js';
+import type { AgentSlotSnapshot, AgentSlotState } from '../../../v2/domain/entities/agent-slot.js';
 
 export type SlotTransitionError =
   | { readonly _tag: 'InvalidTransition'; readonly from: AgentSlotState; readonly event: string }

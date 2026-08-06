@@ -1,4 +1,4 @@
-import type { TurnEndSlot } from '../entities/turn-end.js';
+import type { TurnEndSlot } from '../../../v2/domain/entities/native-turn.js';
 
 const RECENT_LOG_LINE_CAP = 100;
 

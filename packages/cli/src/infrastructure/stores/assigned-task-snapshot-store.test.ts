@@ -1,4 +1,3 @@
-import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, test, beforeEach } from 'vitest';
 
 import {
@@ -8,6 +7,7 @@ import {
   listAssignedTaskSnapshotsForRole,
   replaceAssignedTaskSnapshots,
 } from './assigned-task-snapshot-store.js';
+import type { AssignedTaskSnapshotView } from '../../v2/domain/entities/assigned-task.js';
 
 function makeRow(overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSnapshotView {
   return {

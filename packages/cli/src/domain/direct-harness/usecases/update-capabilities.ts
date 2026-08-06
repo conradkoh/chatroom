@@ -7,7 +7,7 @@
  * This is called by the daemon when it receives a refreshCapabilities command.
  */
 
-import type { BoundHarness } from '../entities/bound-harness.js';
+import type { BoundHarness } from '../../../v2/domain/entities/bound-harness.js';
 import type { CapabilitiesPublisher } from '../ports/capabilities-publisher.js';
 
 // ─── Deps ─────────────────────────────────────────────────────────────────────
@@ -45,10 +45,7 @@ export async function updateCapabilities(
   const { publisher, machineId } = deps;
   const { harness, workspace } = input;
 
-  const [agents, providers] = await Promise.all([
-    harness.listAgents(),
-    harness.listProviders(),
-  ]);
+  const [agents, providers] = await Promise.all([harness.listAgents(), harness.listProviders()]);
 
   await publisher.publish({
     machineId,
