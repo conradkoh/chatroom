@@ -1,0 +1,157 @@
+import type { ConvexClient } from 'convex/browser';
+import type { SessionId } from 'convex-helpers/server/sessions';
+import { describe, expect, it, vi } from 'vitest';
+
+import { startGitRequestSubscriber } from './git-request.js';
+import { startWorkspaceListSubscriber } from './workspace-list.js';
+import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
+import type { WorkspaceGitInboundEvent } from '../../../domain/usecase/handle-workspace-git-inbound.js';
+import { routeInboundEvent } from '../../../entry/event-router.js';
+import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
+
+const GIT_REQUEST_ID = 'git_req_1';
+const SESSION_ID = 'session-test' as SessionId;
+const MACHINE_ID = 'machine-test';
+
+function createMockWsClient() {
+  const callbacks: ((result: unknown) => void)[] = [];
+
+  const wsClient = {
+    onUpdate: vi.fn((_query, _args, onUpdate) => {
+      callbacks.push(onUpdate);
+      return vi.fn();
+    }),
+    query: vi.fn().mockResolvedValue(null),
+  } as unknown as ConvexClient;
+
+  return {
+    wsClient,
+    emitUpdate: (result: unknown) => {
+      for (const callback of callbacks) {
+        callback(result);
+      }
+    },
+  };
+}
+
+describe('workspace-git v2 subscribers', () => {
+  it('workspace-list subscriber emits workspace.list-changed when list changes', async () => {
+    const events: InboundEvent[] = [];
+    const { wsClient, emitUpdate } = createMockWsClient();
+
+    const handle = startWorkspaceListSubscriber(
+      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      (event) => events.push(event)
+    );
+
+    emitUpdate(['ws-a', 'ws-b']);
+    await handle.stop();
+
+    expect(events).toContainEqual({
+      type: 'workspace.list-changed',
+      machineId: MACHINE_ID,
+    });
+  });
+
+  it('workspace-list subscriber does not re-emit on identical list snapshot', async () => {
+    const events: InboundEvent[] = [];
+    const { wsClient, emitUpdate } = createMockWsClient();
+
+    const handle = startWorkspaceListSubscriber(
+      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      (event) => events.push(event)
+    );
+
+    emitUpdate(['ws-a', 'ws-b']);
+    emitUpdate(['ws-a', 'ws-b']);
+    await handle.stop();
+
+    expect(events).toEqual([{ type: 'workspace.list-changed', machineId: MACHINE_ID }]);
+  });
+
+  it('workspace-list subscriber emits again when list content changes', async () => {
+    const events: InboundEvent[] = [];
+    const { wsClient, emitUpdate } = createMockWsClient();
+
+    const handle = startWorkspaceListSubscriber(
+      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      (event) => events.push(event)
+    );
+
+    emitUpdate(['ws-a']);
+    emitUpdate(['ws-a', 'ws-b']);
+    await handle.stop();
+
+    expect(events).toEqual([
+      { type: 'workspace.list-changed', machineId: MACHINE_ID },
+      { type: 'workspace.list-changed', machineId: MACHINE_ID },
+    ]);
+  });
+
+  it('git-request subscriber emits git.request with requestId', async () => {
+    const events: InboundEvent[] = [];
+    const { wsClient, emitUpdate } = createMockWsClient();
+
+    const handle = startGitRequestSubscriber(
+      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      (event) => events.push(event)
+    );
+
+    emitUpdate([{ _id: GIT_REQUEST_ID }]);
+    await handle.stop();
+
+    expect(events).toContainEqual({
+      type: 'git.request',
+      requestId: GIT_REQUEST_ID,
+    });
+  });
+
+  it('registry routes workspace-git event to handler', async () => {
+    const handled: WorkspaceGitInboundEvent[] = [];
+    const { wsClient, emitUpdate } = createMockWsClient();
+
+    const registry = startAllSubscribers({
+      wsClient,
+      sessionId: SESSION_ID,
+      machineId: MACHINE_ID,
+      router: {
+        assignedTask: {},
+        directHarness: {},
+        command: {},
+        workspaceGit: {
+          onWorkspaceGitEvent: async (event) => {
+            handled.push(event);
+          },
+        },
+      },
+    });
+
+    emitUpdate(['ws-a']);
+    await registry.stopAll();
+
+    expect(handled).toContainEqual({
+      type: 'workspace.list-changed',
+      machineId: MACHINE_ID,
+    });
+  });
+
+  it('event router dispatches workspace-git events to handler', async () => {
+    const handled: WorkspaceGitInboundEvent[] = [];
+
+    await routeInboundEvent(
+      {
+        assignedTask: {},
+        directHarness: {},
+        command: {},
+        workspaceGit: {
+          onWorkspaceGitEvent: async (event) => {
+            handled.push(event);
+          },
+        },
+      },
+      { type: 'git.request', requestId: GIT_REQUEST_ID }
+    );
+
+    expect(handled).toEqual([{ type: 'git.request', requestId: GIT_REQUEST_ID }]);
+  });
+});

@@ -1,10 +1,43 @@
-import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
+import { WORKSPACE_RECENCY_WINDOW_MS } from '@workspace/backend/config/reliability.js';
 
-export type SubscriberHandle = { stop(): void };
+import { api } from '../../../../api.js';
+import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
+import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
+
+export type SubscriberHandle = { stop(): Promise<void> };
 
 export function startWorkspaceListSubscriber(
-  _deps: unknown,
-  _onEvent: (event: InboundEvent) => void
+  deps: ConvexSubscriberDeps,
+  onEvent: (event: InboundEvent) => void
 ): SubscriberHandle {
-  return { stop() {} };
+  let lastSnapshotKey = '';
+
+  const queryArgs = {
+    sessionId: deps.sessionId,
+    machineId: deps.machineId,
+    recencyWindowMs: WORKSPACE_RECENCY_WINDOW_MS,
+  };
+
+  const unsub = deps.wsClient.onUpdate(
+    api.workspaces.listRecentlyObservedWorkspacesForMachine,
+    queryArgs,
+    (workspaces: string[] | null) => {
+      if (workspaces == null) return;
+      const snapshotKey = JSON.stringify(workspaces);
+      if (snapshotKey === lastSnapshotKey) return;
+      lastSnapshotKey = snapshotKey;
+      onEvent({ type: 'workspace.list-changed', machineId: deps.machineId });
+    },
+    (err: unknown) => {
+      console.warn(
+        `[v2] workspace-list subscriber error: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  );
+
+  return {
+    async stop() {
+      unsub();
+    },
+  };
 }
