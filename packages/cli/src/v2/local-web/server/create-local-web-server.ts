@@ -21,6 +21,7 @@ export type LocalWebServerHandle = {
   stop(): Promise<void>;
 };
 
+// fallow-ignore-next-line complexity
 export async function startLocalWebServer(
   config: LocalWebServerConfig,
   deps: LocalWebServerDeps = {}

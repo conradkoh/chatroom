@@ -1,8 +1,10 @@
 import type { OutboundEvent } from '../domain/entities/outbound-event.js';
 import type { PersistenceStore } from '../infrastructure/persistence/index.js';
+import type { StreamHub } from '../local-web/server/stream-hub.js';
 
 export type PublisherRegistryDeps = {
   persistence?: PersistenceStore;
+  streamHub?: StreamHub;
 };
 
 export type PublisherRegistry = {
@@ -13,7 +15,9 @@ export function createPublisherRegistry(deps: PublisherRegistryDeps = {}): Publi
   return {
     async publish(event) {
       deps.persistence?.append(event);
-      // Convex publisher routing remains stub — future slice
+      if (event.type === 'harness.stream') {
+        deps.streamHub?.publish(event);
+      }
     },
   };
 }
