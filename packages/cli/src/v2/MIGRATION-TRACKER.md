@@ -255,20 +255,24 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U9 — Enhancer job processing
+## U9 — Enhancer job processing ✅
 
-**Outcome:** Enhancer jobs processed via v2.
+**Outcome:** Enhancer jobs processed via v2 inbound → registry → legacy full pending drain.
 
 **Files:**
 
-- `domain/usecase/process-enhancer-job.ts` ← `daemon-start/enhancer/job-subscriber.ts`
-- `domain/usecase/handle-enhancer-inbound.ts` — wire to processor
+- `entry/enhancer-inbound-registry.ts` — register/dispatch handler from job subscriber
+- `domain/usecase/process-enhancer-job.ts` — thin dispatch to registry
+- `domain/usecase/handle-enhancer-inbound.ts` — `deliverInbound` hook
+- `entry/bridge/enhancer-bridge.ts` — router deps wiring
+- `daemon-start/enhancer/job-subscriber.ts` — export `drainPendingEnhancerJobs`, register/unregister inbound handler
 
 **Validation criteria:**
 
-- [ ] Enhancer jobs dispatched via v2 subscriber → router → use case
-- [ ] Tests cover job-assigned event
-- [ ] G1 passes for `process-enhancer-job.ts`
+- [x] Enhancer jobs dispatched via v2 subscriber → router → full pending drain
+- [x] Tests cover job-assigned event
+- [x] G1 passes for `process-enhancer-job.ts`
+- [x] `createDefaultEventRouterDeps().enhancer.deliverInbound` defined
 
 ---
 

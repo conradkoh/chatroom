@@ -23,7 +23,7 @@ const routerDeps = {
   agenticQuery: {} as {
     deliverInbound?: (event: AgenticQueryInboundEvent) => Promise<void>;
   },
-  enhancer: {} as { onEnhancerEvent?: (event: EnhancerInboundEvent) => Promise<void> },
+  enhancer: {} as { deliverInbound?: (event: EnhancerInboundEvent) => Promise<void> },
 };
 
 describe('routeInboundEvent', () => {
@@ -198,15 +198,15 @@ describe('routeInboundEvent', () => {
   });
 
   test('dispatches enhancer.job-assigned to handler', async () => {
-    const onEnhancerEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: EnhancerInboundEvent = {
       type: 'enhancer.job-assigned',
       jobId: 'job_1',
     };
 
-    await routeInboundEvent({ ...routerDeps, enhancer: { onEnhancerEvent } }, event);
+    await routeInboundEvent({ ...routerDeps, enhancer: { deliverInbound } }, event);
 
-    expect(onEnhancerEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('ignores unhandled event types', async () => {
@@ -216,7 +216,7 @@ describe('routeInboundEvent', () => {
     const deliverWorkspaceGitInbound = vi.fn().mockResolvedValue(undefined);
     const deliverFileInbound = vi.fn().mockResolvedValue(undefined);
     const deliverAgenticQueryInbound = vi.fn().mockResolvedValue(undefined);
-    const onEnhancerEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverEnhancerInbound = vi.fn().mockResolvedValue(undefined);
 
     await routeInboundEvent(
       {
@@ -226,7 +226,7 @@ describe('routeInboundEvent', () => {
         workspaceGit: { deliverInbound: deliverWorkspaceGitInbound },
         file: { deliverInbound: deliverFileInbound },
         agenticQuery: { deliverInbound: deliverAgenticQueryInbound },
-        enhancer: { onEnhancerEvent },
+        enhancer: { deliverInbound: deliverEnhancerInbound },
       },
       { type: 'not-a-real-type' } as unknown as InboundEvent
     );
@@ -237,6 +237,6 @@ describe('routeInboundEvent', () => {
     expect(deliverWorkspaceGitInbound).not.toHaveBeenCalled();
     expect(deliverFileInbound).not.toHaveBeenCalled();
     expect(deliverAgenticQueryInbound).not.toHaveBeenCalled();
-    expect(onEnhancerEvent).not.toHaveBeenCalled();
+    expect(deliverEnhancerInbound).not.toHaveBeenCalled();
   });
 });

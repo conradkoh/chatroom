@@ -114,7 +114,7 @@ describe('agentic-query and enhancer v2 subscribers', () => {
           },
         },
         enhancer: {
-          onEnhancerEvent: async (event) => {
+          deliverInbound: async (event) => {
             enhancerHandled.push(event);
           },
         },
@@ -152,7 +152,7 @@ describe('agentic-query and enhancer v2 subscribers', () => {
           },
         },
         enhancer: {
-          onEnhancerEvent: async (event) => {
+          deliverInbound: async (event) => {
             enhancerHandled.push(event);
           },
         },
@@ -167,5 +167,10 @@ describe('agentic-query and enhancer v2 subscribers', () => {
   it('default router deps provide deliverInbound hook for agentic query', () => {
     const deps = createDefaultEventRouterDeps();
     expect(deps.agenticQuery.deliverInbound).toBeTypeOf('function');
+  });
+
+  it('default router deps provide deliverInbound hook for enhancer', () => {
+    const deps = createDefaultEventRouterDeps();
+    expect(deps.enhancer.deliverInbound).toBeTypeOf('function');
   });
 });

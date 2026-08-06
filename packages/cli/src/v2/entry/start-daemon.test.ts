@@ -133,7 +133,9 @@ describe('startDaemonV2', () => {
           agenticQuery: expect.objectContaining({
             deliverInbound: expect.any(Function),
           }),
-          enhancer: {},
+          enhancer: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
         }),
       })
     );
