@@ -3,14 +3,6 @@
  */
 
 import { CursorSdkSession } from './cursor-session.js';
-import {
-  normalizeCursorSdkListedModels,
-  resolveCursorSdkModel,
-} from '../../../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-models.js';
-import {
-  formatCursorSdkLoadError,
-  importBundledCursorSdk,
-} from '../../../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-package.js';
 import type {
   BoundHarness,
   BoundHarnessFactory,
@@ -24,6 +16,14 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
+import {
+  normalizeCursorSdkListedModels,
+  resolveCursorSdkModel,
+} from '../../services/cursor-sdk/cursor-models.js';
+import {
+  formatCursorSdkLoadError,
+  importBundledCursorSdk,
+} from '../../services/cursor-sdk/cursor-sdk-package.js';
 import { withTimeout } from '../../services/with-timeout.js';
 
 const DEFAULT_MODEL = 'composer-2.5';

@@ -98,7 +98,7 @@ vi.mock('./handlers/orphan-tracker.js', async () => {
   };
 });
 
-vi.mock('../../infrastructure/services/remote-agents/opencode/index.js', () => {
+vi.mock('../infrastructure/local/harness/services/opencode/index.js', () => {
   return {
     OpenCodeAgentService: class MockOpenCodeAgentService {
       isInstalled = vi.fn().mockResolvedValue(true);
@@ -113,7 +113,7 @@ vi.mock('../../infrastructure/services/remote-agents/opencode/index.js', () => {
   };
 });
 
-vi.mock('../../infrastructure/services/remote-agents/opencode-sdk/index.js', () => {
+vi.mock('../infrastructure/local/harness/services/opencode-sdk/index.js', () => {
   return {
     OpenCodeSdkAgentService: class MockOpenCodeSdkAgentService {
       isInstalled = vi.fn().mockResolvedValue(false);

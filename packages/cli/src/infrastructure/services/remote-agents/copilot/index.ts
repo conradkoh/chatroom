@@ -1,2 +1,1 @@
-export { CopilotAgentService } from './copilot-agent-service.js';
-export { CopilotStreamReader } from './copilot-stream-reader.js';
+export * from '../../../../daemon/infrastructure/local/harness/services/copilot/index.js';

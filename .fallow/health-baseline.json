@@ -1876,27 +1876,27 @@
         "count": 3
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/claude/claude-models.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/claude/claude-models.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/commandcode/command-code-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/commandcode/command-code-agent-service.ts": {
       "crap_high": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/copilot/copilot-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/copilot/copilot-agent-service.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/copilot/copilot-stream-reader.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/copilot/copilot-stream-reader.ts": {
       "crap_high": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/cursor-sdk-agent-service.ts": {
       "complexity_critical": {
         "count": 2
       },
@@ -1907,12 +1907,12 @@
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/cursor/cursor-agent-service.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-stream-reader.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/cursor/cursor-stream-reader.ts": {
       "crap_moderate": {
         "count": 3
       }
@@ -1922,12 +1922,12 @@
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/compose-system-prompt.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/compose-system-prompt.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/opencode-sdk-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/opencode-sdk-agent-service.ts": {
       "crap_high": {
         "count": 3
       },
@@ -1935,12 +1935,12 @@
         "count": 3
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/pure.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/pure.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/session-event-forwarder.ts": {
       "crap_critical": {
         "count": 1
       },
@@ -1948,12 +1948,12 @@
         "count": 10
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/opencode/opencode-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode/opencode-agent-service.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/pi-sdk/pi-sdk-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/pi-sdk/pi-sdk-agent-service.ts": {
       "complexity_critical": {
         "count": 1
       },
@@ -1964,12 +1964,12 @@
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/pi-sdk/pi-sdk-package.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/pi-sdk/pi-sdk-package.ts": {
       "crap_moderate": {
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/pi-sdk/pi-sdk-stream-adapter.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/pi-sdk/pi-sdk-stream-adapter.ts": {
       "crap_critical": {
         "count": 1
       },
@@ -1977,12 +1977,12 @@
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/pi/pi-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/pi/pi-agent-service.ts": {
       "crap_critical": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/pi/pi-rpc-reader.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/pi/pi-rpc-reader.ts": {
       "crap_moderate": {
         "count": 3
       }
@@ -2892,7 +2892,7 @@
     "services/backend/convex/machines.ts:complexity",
     "packages/cli/src/daemon/domain/usecase/detect-terminal-provider-error.ts:untested risk",
     "services/backend/convex/lib/backlogStateMachine.ts:complexity",
-    "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts:complexity",
+    "packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/cursor-sdk-agent-service.ts:complexity",
     "apps/webapp/src/modules/chatroom/triggers/fileReferenceQuery.ts:untested risk",
     "apps/webapp/src/modules/chatroom/components/MachineCapabilitiesRefreshButton.tsx:complexity",
     "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx:complexity",

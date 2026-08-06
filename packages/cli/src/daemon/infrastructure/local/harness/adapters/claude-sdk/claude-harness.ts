@@ -5,15 +5,6 @@
 import { randomUUID } from 'node:crypto';
 
 import { ClaudeSdkSession } from './claude-session.js';
-import {
-  CLAUDE_FALLBACK_MODELS,
-  fetchClaudeModels,
-} from '../../../../../../infrastructure/services/remote-agents/claude/claude-models.js';
-import {
-  formatClaudeSdkLoadError,
-  importBundledClaudeSdk,
-  resolvePathToClaudeCodeExecutable,
-} from '../../../../../../infrastructure/services/remote-agents/claude-sdk/claude-sdk-package.js';
 import type {
   BoundHarness,
   BoundHarnessFactory,
@@ -27,6 +18,12 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
+import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from '../../services/claude/claude-models.js';
+import {
+  formatClaudeSdkLoadError,
+  importBundledClaudeSdk,
+  resolvePathToClaudeCodeExecutable,
+} from '../../services/claude-sdk/claude-sdk-package.js';
 
 const DEFAULT_MODEL = 'anthropic/sonnet';
 

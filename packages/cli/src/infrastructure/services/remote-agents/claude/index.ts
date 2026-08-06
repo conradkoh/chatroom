@@ -1,1 +1,1 @@
-export { ClaudeCodeAgentService } from './claude-code-agent-service.js';
+export * from '../../../../daemon/infrastructure/local/harness/services/claude/index.js';

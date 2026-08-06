@@ -1,2 +1,1 @@
-export { OpenCodeAgentService } from './opencode-agent-service.js';
-export type { OpenCodeAgentServiceDeps } from './opencode-agent-service.js';
+export * from '../../../../daemon/infrastructure/local/harness/services/opencode/index.js';

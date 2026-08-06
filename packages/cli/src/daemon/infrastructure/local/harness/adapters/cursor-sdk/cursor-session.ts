@@ -2,17 +2,17 @@ import { randomUUID } from 'node:crypto';
 
 import type { InteractionUpdate, SDKAgent, SDKMessage } from '@cursor/sdk';
 
-import { resolveCursorSdkModel } from '../../../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-models.js';
-import {
-  logUnhandledInteractionDelta,
-  logUnhandledSdkMessage,
-} from '../../../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-stream-fallback.js';
 import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
   PromptInput,
 } from '../../../../../domain/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
+import { resolveCursorSdkModel } from '../../services/cursor-sdk/cursor-models.js';
+import {
+  logUnhandledInteractionDelta,
+  logUnhandledSdkMessage,
+} from '../../services/cursor-sdk/cursor-sdk-stream-fallback.js';
 import { withTimeout } from '../../services/with-timeout.js';
 
 const SEND_TIMEOUT_MS = 60_000;

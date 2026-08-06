@@ -1,2 +1,1 @@
-export { PiAgentService } from './pi-agent-service.js';
-export type { PiAgentServiceDeps } from './pi-agent-service.js';
+export * from '../../../../daemon/infrastructure/local/harness/services/pi/index.js';

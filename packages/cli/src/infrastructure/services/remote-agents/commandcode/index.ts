@@ -1,2 +1,1 @@
-export { CommandCodeAgentService } from './command-code-agent-service.js';
-export type { CommandCodeAgentServiceDeps } from './command-code-agent-service.js';
+export * from '../../../../daemon/infrastructure/local/harness/services/commandcode/index.js';
