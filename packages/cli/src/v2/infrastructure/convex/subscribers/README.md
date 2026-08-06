@@ -22,7 +22,7 @@
 | --------------------------- | -------------------------------------------------- | -------- |
 | `assigned-task-signals.ts`  | `daemon-start/task-monitor.ts`                     | **done** |
 | `assigned-task-presence.ts` | `daemon-start/task-monitor.ts`                     | **done** |
-| `command-events.ts`         | `daemon-start/command-loop.ts`                     |
+| `command-events.ts`         | `daemon-start/command-loop.ts`                     | **done** |
 | `direct-harness-session.ts` | `daemon-start/direct-harness/`                     | **done** |
 | `direct-harness-prompt.ts`  | `daemon-start/direct-harness/prompt-subscriber.ts` | **done** |
 | `direct-harness-command.ts` | `daemon-start/direct-harness/`                     | **done** |
@@ -34,4 +34,4 @@
 | `file-content-request.ts`   | `daemon-start/file-content-subscription.ts`        |
 | `file-write-request.ts`     | `daemon-start/file-write-subscription.ts`          |
 | `workspace-list.ts`         | `daemon-start/workspace-list-subscription.ts`      |
-| `command-run.ts`            | `daemon-start/` command run feeds                  |
+| `command-run.ts`            | `daemon-start/` command run feeds                  | **done** |

@@ -129,6 +129,7 @@ describe('assigned-task v2 subscribers', () => {
           },
         },
         directHarness: {},
+        command: {},
       },
     });
 
@@ -159,6 +160,7 @@ describe('assigned-task v2 subscribers', () => {
           },
         },
         directHarness: {},
+        command: {},
       },
       { type: 'assigned-task.presence', taskId: TASK_ID, role: 'builder' }
     );

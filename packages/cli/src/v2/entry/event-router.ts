@@ -5,6 +5,11 @@ import {
   type HandleAssignedTaskInboundDeps,
 } from '../domain/usecase/handle-assigned-task-inbound.js';
 import {
+  handleCommandInbound,
+  type CommandInboundEvent,
+  type HandleCommandInboundDeps,
+} from '../domain/usecase/handle-command-inbound.js';
+import {
   handleDirectHarnessInbound,
   type DirectHarnessInboundEvent,
   type HandleDirectHarnessInboundDeps,
@@ -13,6 +18,7 @@ import {
 export type EventRouterDeps = {
   assignedTask: HandleAssignedTaskInboundDeps;
   directHarness: HandleDirectHarnessInboundDeps;
+  command: HandleCommandInboundDeps;
 };
 
 // fallow-ignore-next-line complexity
@@ -26,6 +32,10 @@ export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEve
     case 'direct-harness.prompt':
     case 'direct-harness.command':
       await handleDirectHarnessInbound(deps.directHarness, event as DirectHarnessInboundEvent);
+      break;
+    case 'command.received':
+    case 'command-run.updated':
+      await handleCommandInbound(deps.command, event as CommandInboundEvent);
       break;
     default:
       void event;

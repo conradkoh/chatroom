@@ -131,6 +131,7 @@ describe('direct-harness v2 subscribers', () => {
             handled.push(event);
           },
         },
+        command: {},
       },
     });
 
@@ -155,6 +156,7 @@ describe('direct-harness v2 subscribers', () => {
             handled.push(event);
           },
         },
+        command: {},
       },
       { type: 'direct-harness.command', commandId: COMMAND_ID }
     );
