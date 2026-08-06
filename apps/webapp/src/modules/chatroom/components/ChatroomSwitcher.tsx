@@ -128,7 +128,11 @@ export function ChatroomSwitcher() {
   return (
     <Dialog open={open} onOpenChange={setOpen} modal={false}>
       {/* No overlay — cmd+k is a quick-picker, not a blocking modal. Avoids backdrop fade lag. */}
-      <CommandDialogContent open={open} onEscapeKeyDown={onEscapeKeyDown}>
+      <CommandDialogContent
+        open={open}
+        onEscapeKeyDown={onEscapeKeyDown}
+        onBackdropDismiss={() => setOpen(false)}
+      >
         {/* Accessible title and description (sr-only) */}
         <DialogTitle className="sr-only">Switch Chatroom</DialogTitle>
         <DialogDescription className="sr-only">Search and navigate to a chatroom</DialogDescription>

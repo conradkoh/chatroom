@@ -73,6 +73,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
       <CommandDialogContent
         open={open}
         onEscapeKeyDown={onEscapeKeyDown}
+        onBackdropDismiss={() => onOpenChange(false)}
         style={{ maxHeight: '60vh' }}
       >
         {/* Accessible title and description (sr-only) */}

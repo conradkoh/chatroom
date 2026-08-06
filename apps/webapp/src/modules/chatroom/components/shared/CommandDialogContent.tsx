@@ -31,6 +31,7 @@ type CommandDialogContentProps = Omit<
   onEscapeKeyDown?: (event: KeyboardEvent) => void;
   onPointerDownOutside?: (event: Event) => void;
   onFocusOutside?: (event: Event) => void;
+  onBackdropDismiss?: () => void;
 };
 
 // fallow-ignore-next-line complexity
@@ -39,6 +40,19 @@ function readCommandDialogAriaIds(node: HTMLDivElement) {
     titleElementId: node.querySelector(COMMAND_DIALOG_TITLE_SELECTOR)?.id || undefined,
     descriptionElementId: node.querySelector(COMMAND_DIALOG_DESCRIPTION_SELECTOR)?.id || undefined,
   };
+}
+
+function handleBackdropPointerDown(
+  event: React.PointerEvent<HTMLDivElement>,
+  onPointerDownOutside: CommandDialogContentProps['onPointerDownOutside'],
+  onBackdropDismiss: CommandDialogContentProps['onBackdropDismiss']
+): void {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  onPointerDownOutside?.(event.nativeEvent);
+  if (!event.nativeEvent.defaultPrevented) {
+    onBackdropDismiss?.();
+  }
 }
 
 /**
@@ -52,8 +66,9 @@ export function CommandDialogContent({
   className,
   style,
   onEscapeKeyDown,
-  onPointerDownOutside: _onPointerDownOutside,
+  onPointerDownOutside,
   onFocusOutside: _onFocusOutside,
+  onBackdropDismiss,
   children,
   ...props
 }: CommandDialogContentProps) {
@@ -119,14 +134,12 @@ export function CommandDialogContent({
   return (
     <DialogPrimitive.Portal keepMounted>
       {open ? (
-        <DialogPrimitive.Close
-          nativeButton={false}
-          render={
-            <div
-              data-slot="command-dialog-dismiss-backdrop"
-              aria-hidden="true"
-              className={COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES}
-            />
+        <div
+          data-slot="command-dialog-dismiss-backdrop"
+          aria-hidden="true"
+          className={COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES}
+          onPointerDown={(event) =>
+            handleBackdropPointerDown(event, onPointerDownOutside, onBackdropDismiss)
           }
         />
       ) : null}
