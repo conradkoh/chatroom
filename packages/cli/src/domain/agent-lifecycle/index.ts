@@ -34,4 +34,4 @@ export {
   isSlotSpawning,
   isSlotStopping,
   isTurnPhaseIdle,
-} from './predicates/agent-slot.js';
+} from '../../v2/domain/usecase/check-agent-slot.js';
