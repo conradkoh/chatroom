@@ -1,4 +1,4 @@
-# Domain use cases (v2 daemon)
+# Domain use cases (daemon module)
 
 One orchestration per file. Ports co-located as `export interface XxxPort`.
 
@@ -20,17 +20,17 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 
 ## Legacy migration map
 
-| v2 file                            | Legacy source                                               |
+| daemon file                        | Legacy source                                               |
 | ---------------------------------- | ----------------------------------------------------------- |
 | `deliver-assigned-task.ts`         | `daemon-start/task-monitor.ts`                              | **done** — registry dispatch to task monitor          |
-| `handle-assigned-task-inbound.ts`  | `v2/infrastructure/convex/subscribers/assigned-task-*`      | **done** — wired via assigned-task-bridge             |
-| `handle-direct-harness-inbound.ts` | `v2/infrastructure/convex/subscribers/direct-harness-*`     | **done** — wired via direct-harness-bridge            |
+| `handle-assigned-task-inbound.ts`  | `daemon/infrastructure/convex/subscribers/assigned-task-*`  | **done** — wired via assigned-task-bridge             |
+| `handle-direct-harness-inbound.ts` | `daemon/infrastructure/convex/subscribers/direct-harness-*` | **done** — wired via direct-harness-bridge            |
 | `handle-command-event.ts`          | `daemon-start/command-loop.ts`                              | **done** — registry dispatch to command loop          |
-| `handle-command-inbound.ts`        | `v2/infrastructure/convex/subscribers/command-*`            | **done** — wired via command-bridge                   |
-| `handle-workspace-git-inbound.ts`  | `v2/infrastructure/convex/subscribers/workspace-git-*`      | **done** — wired via workspace-git-bridge             |
-| `handle-file-inbound.ts`           | `v2/infrastructure/convex/subscribers/file-*`               | **done** — wired via file-bridge                      |
-| `handle-agentic-query-inbound.ts`  | `v2/infrastructure/convex/subscribers/agentic-query-*`      | **done** — router hook; process later                 |
-| `handle-enhancer-inbound.ts`       | `v2/infrastructure/convex/subscribers/enhancer-job.ts`      | **done** — router hook; process later                 |
+| `handle-command-inbound.ts`        | `daemon/infrastructure/convex/subscribers/command-*`        | **done** — wired via command-bridge                   |
+| `handle-workspace-git-inbound.ts`  | `daemon/infrastructure/convex/subscribers/workspace-git-*`  | **done** — wired via workspace-git-bridge             |
+| `handle-file-inbound.ts`           | `daemon/infrastructure/convex/subscribers/file-*`           | **done** — wired via file-bridge                      |
+| `handle-agentic-query-inbound.ts`  | `daemon/infrastructure/convex/subscribers/agentic-query-*`  | **done** — router hook; process later                 |
+| `handle-enhancer-inbound.ts`       | `daemon/infrastructure/convex/subscribers/enhancer-job.ts`  | **done** — router hook; process later                 |
 | `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` | **done**                                              |
 | `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            | **done**                                              |
 | `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          | **done**                                              |
@@ -53,13 +53,13 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 
 ## Assigned-task boundary (done)
 
-| File                                          | Role                                        |
-| --------------------------------------------- | ------------------------------------------- |
-| `infrastructure/mappers/map-assigned-task.ts` | Backend → v2 AssignedTask at infra boundary |
+| File                                          | Role                                            |
+| --------------------------------------------- | ----------------------------------------------- |
+| `infrastructure/mappers/map-assigned-task.ts` | Backend → daemon AssignedTask at infra boundary |
 
 ## Agent-lifecycle policies (done)
 
-| v2 file                              | Legacy source                                                        |
+| daemon file                          | Legacy source                                                        |
 | ------------------------------------ | -------------------------------------------------------------------- |
 | `transition-agent-slot.ts`           | `domain/agent-lifecycle/policies/slot-transitions.ts`                |
 | `decide-restart-after-exit.ts`       | `domain/agent-lifecycle/policies/restart-decision.ts`                |
@@ -73,24 +73,24 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 
 Entity: `resume-storm.ts` (`ResumeStormReason`) — was backend import in classify-resume-storm-reason.
 
-Entity: `native-turn-phase.ts` (`NativeTurnPhase`) — SSOT for turn phase type; `v2/entry/native-delivery/native-turn-phase.ts` is canonical (legacy shim at `daemon-start/native-turn-phase.ts`).
+Entity: `native-turn-phase.ts` (`NativeTurnPhase`) — SSOT for turn phase type; `daemon/entry/native-delivery/native-turn-phase.ts` is canonical (legacy shim at `daemon-start/native-turn-phase.ts`).
 
 ## Predicates slice (done)
 
-| v2 file               | Legacy source                                     |
+| daemon file           | Legacy source                                     |
 | --------------------- | ------------------------------------------------- |
 | `check-agent-slot.ts` | `domain/agent-lifecycle/predicates/agent-slot.ts` |
 
 ## Turn-completion slice (done)
 
-| v2 file                    | Legacy source                                               |
+| daemon file                | Legacy source                                               |
 | -------------------------- | ----------------------------------------------------------- |
 | `handle-turn-completed.ts` | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` |
 | `abort-resume-storm.ts`    | `domain/agent-lifecycle/policies/abort-resume-storm.ts`     |
 
 ### Port co-location (turn-completion slice)
 
-| Port                   | v2 home                    |
+| Port                   | daemon home                |
 | ---------------------- | -------------------------- |
 | `ResumeStormTracker`   | `handle-turn-completed.ts` |
 | `ResumeStormCheck`     | `handle-turn-completed.ts` |
@@ -98,7 +98,7 @@ Entity: `native-turn-phase.ts` (`NativeTurnPhase`) — SSOT for turn phase type;
 
 ## Port co-location (direct-harness slice)
 
-| Port                    | v2 home                          |
+| Port                    | daemon home                      |
 | ----------------------- | -------------------------------- |
 | `SessionRepository`     | `open-harness-session.ts`        |
 | `OutputRepository`      | `open-harness-session.ts`        |

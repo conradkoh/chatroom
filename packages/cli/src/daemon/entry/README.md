@@ -1,4 +1,4 @@
-# Entry layer (v2 daemon)
+# Entry layer (daemon module)
 
 Composition root — wiring only. **No business logic.**
 
@@ -6,7 +6,7 @@ Composition root — wiring only. **No business logic.**
 
 | File                     | Role                                                                                             |
 | ------------------------ | ------------------------------------------------------------------------------------------------ |
-| `start-daemon.ts`        | **`startDaemonV2`** — composition root (persistence, local-web, subscribers, daemon runtime)     |
+| `start-daemon.ts`        | **`startDaemon`** — composition root (persistence, local-web, subscribers, daemon runtime)       |
 | `daemon-runtime.ts`      | Heartbeat, worker init, inbound registry handlers, shutdown/signals (replaces command loop)      |
 | `command-dispatch.ts`    | Command event dispatch + dedup tracker                                                           |
 | `init-daemon.ts`         | Auth, Convex client, machine registration, harness registry init                                 |
@@ -19,10 +19,10 @@ Composition root — wiring only. **No business logic.**
 
 ## Entry cutover (done)
 
-`daemon-start/index.ts` delegates to `startDaemonV2()`:
+`daemon-start/index.ts` delegates to `startDaemon()`:
 
 1. `initDaemon()` — auth, Convex client, machine registration
-2. v2 persistence + local-web + 15 subscribers (sole Convex listeners)
+2. daemon persistence + local-web + 15 subscribers (sole Convex listeners)
 3. `createDaemonRuntime().run()` — heartbeat, registry handlers, workers, task monitor
 4. `finally` — stop runtime, subscribers, local-web, close persistence
 

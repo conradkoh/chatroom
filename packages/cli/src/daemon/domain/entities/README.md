@@ -38,7 +38,7 @@ Include `harness.stream` on the outbound side for full-granularity stdout/stderr
 v2 domain entities are the SSOT for CLI daemon types. They must not import from
 `@workspace/backend`, `infrastructure/`, `entry/`, or `convex`. Legacy
 `domain/**/entities/` paths are thin re-exports — update new code to import from
-`v2/domain/entities/` directly.
+`daemon/domain/entities/` directly.
 
 U1 entity types (`command-event`, `enhancer-job`, `file-*`, `git-request`,
 `machine-command`) are complete — modeled from legacy daemon-start sources.

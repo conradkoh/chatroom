@@ -20,10 +20,10 @@ Machine-local configuration and process management — not Convex, not domain lo
 
 ## Legacy sources (thin re-exports until U14)
 
-| v2                                  | Legacy shim                                              |
+| daemon                              | Legacy shim                                              |
 | ----------------------------------- | -------------------------------------------------------- |
-| `machine-config.ts`                 | (no shim — import v2 directly)                           |
-| `process-spawn.ts`                  | (no shim — import v2 directly)                           |
+| `machine-config.ts`                 | (no shim — import daemon directly)                       |
+| `process-spawn.ts`                  | (no shim — import daemon directly)                       |
 | `harness/registry.ts`               | `infrastructure/services/remote-agents/init-registry.ts` |
 | `harness/bound-harness-registry.ts` | `infrastructure/harnesses/registry.ts`                   |
 | `harness/adapters/*`                | `infrastructure/harnesses/{provider}-sdk/` shims         |

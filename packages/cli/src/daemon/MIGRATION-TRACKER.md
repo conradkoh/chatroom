@@ -1,6 +1,8 @@
-# Daemon v2 migration — progress tracker
+# Daemon migration — progress tracker
 
-Single-branch migration: `feat/v2-daemon-migration` → `release/v1.88.2` (one PR, no stack).
+> **Post-migration rename:** Module path changed from `packages/cli/src/v2/` to `packages/cli/src/daemon/` after U0–U15 landed on `release/v1.88.2`.
+
+Single-branch migration: `feat/v2-daemon-migration` → `release/v1.88.2` (merged PR #1310).
 
 **Baseline:** v1.88.2 (scaffold + entities + policies + parallel subscribers shipped)
 
@@ -12,18 +14,18 @@ Single-branch migration: `feat/v2-daemon-migration` → `release/v1.88.2` (one P
 
 Migration is **complete** when all of the following are true:
 
-| #   | Criterion                         | Validation command / check                                                                                                          |
-| --- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| G1  | Zero stub use cases               | `grep -r "Not implemented — migrate from legacy" packages/cli/src/v2/domain/usecase` returns empty                                  |
-| G2  | Zero placeholder entities         | `grep -r "_placeholder: true" packages/cli/src/v2/domain/entities` returns empty                                                    |
-| G3  | Zero publisher TODOs              | `grep -r "TODO: migrate from legacy" packages/cli/src/v2/infrastructure/convex/publishers` returns empty                            |
-| G4  | No duplicate Convex subscriptions | Legacy `start*Subscription*` calls removed from `command-loop.ts` for every migrated context; v2 subscribers are the sole listeners |
-| G5  | v2 router fully wired             | `createDefaultEventRouterDeps()` provides real hooks (not empty `{}`) for all bounded contexts                                      |
-| G6  | Legacy command loop retired       | `startCommandLoopEffect` replaced by v2-orchestrated loop OR `daemon-start/` deleted with entry at `v2/entry/start-daemon.ts`       |
-| G7  | Net daemon LOC reduced            | `wc -l packages/cli/src/commands/machine/daemon-start/**/*.ts` significantly below ~20k baseline                                    |
-| G8  | Tests green                       | `pnpm turbo run typecheck test --filter=chatroom-cli` passes                                                                        |
-| G9  | Integration tests pass            | Existing daemon integration tests pass unchanged behavior                                                                           |
-| G10 | Tracker complete                  | Every unit below marked ✅ with evidence linked in PR description                                                                   |
+| #   | Criterion                         | Validation command / check                                                                                                              |
+| --- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | Zero stub use cases               | `grep -r "Not implemented — migrate from legacy" packages/cli/src/daemon/domain/usecase` returns empty                                  |
+| G2  | Zero placeholder entities         | `grep -r "_placeholder: true" packages/cli/src/daemon/domain/entities` returns empty                                                    |
+| G3  | Zero publisher TODOs              | `grep -r "TODO: migrate from legacy" packages/cli/src/daemon/infrastructure/convex/publishers` returns empty                            |
+| G4  | No duplicate Convex subscriptions | Legacy `start*Subscription*` calls removed from `command-loop.ts` for every migrated context; daemon subscribers are the sole listeners |
+| G5  | daemon router fully wired         | `createDefaultEventRouterDeps()` provides real hooks (not empty `{}`) for all bounded contexts                                          |
+| G6  | Legacy command loop retired       | `startCommandLoopEffect` replaced by v2-orchestrated loop OR `daemon-start/` deleted with entry at `daemon/entry/start-daemon.ts`       |
+| G7  | Net daemon LOC reduced            | `wc -l packages/cli/src/commands/machine/daemon-start/**/*.ts` significantly below ~20k baseline                                        |
+| G8  | Tests green                       | `pnpm turbo run typecheck test --filter=chatroom-cli` passes                                                                            |
+| G9  | Integration tests pass            | Existing daemon integration tests pass unchanged behavior                                                                               |
+| G10 | Tracker complete                  | Every unit below marked ✅ with evidence linked in PR description                                                                       |
 
 ---
 
@@ -54,12 +56,12 @@ Migration is **complete** when all of the following are true:
 
 ## U0 — Baseline (v1.88.2) ✅
 
-**Outcome:** v2 folder scaffold, entity SSOT, policies, harness session use cases, persistence, local-web, 15 subscribers, event router, entry cutover.
+**Outcome:** daemon folder scaffold, entity SSOT, policies, harness session use cases, persistence, local-web, 15 subscribers, event router, entry cutover.
 
 **Validation:**
 
-- [x] `v2/domain/entities/` has real types for agent-slot, bound-harness, assigned-task, etc.
-- [x] `startDaemonV2()` active via `daemon-start/index.ts`
+- [x] `daemon/domain/entities/` has real types for agent-slot, bound-harness, assigned-task, etc.
+- [x] `startDaemon()` active via `daemon-start/index.ts`
 - [x] Legacy domain shims removed (#1307)
 - [x] 23+ implemented use case files with tests
 
@@ -67,7 +69,7 @@ Migration is **complete** when all of the following are true:
 
 ## U1 — Placeholder entity types ✅
 
-**Outcome:** Replace 5 `_placeholder: true` entity stubs with real v2 types modeled from legacy sources.
+**Outcome:** Replace 5 `_placeholder: true` entity stubs with real daemon types modeled from legacy sources.
 
 **Files:**
 
@@ -90,7 +92,7 @@ Migration is **complete** when all of the following are true:
 
 ## U2 — Agent control use cases ✅
 
-**Outcome:** Migrate start/stop/restart/recover agent orchestration from legacy event handlers to v2 use cases.
+**Outcome:** Migrate start/stop/restart/recover agent orchestration from legacy event handlers to daemon use cases.
 
 **Files:**
 
@@ -98,14 +100,14 @@ Migration is **complete** when all of the following are true:
 - `domain/usecase/stop-agent.ts` ← `events/daemon/agent/on-request-stop-agent.ts`
 - `domain/usecase/restart-agent.ts` ← `events/daemon/agent/on-request-restart-agent.ts`
 - `domain/usecase/recover-agent-state.ts` ← `daemon-start/handlers/state-recovery.ts`
-- `entry/bridge/agent-control-bridge.ts` — adapts legacy Effect services to v2 ports
+- `entry/bridge/agent-control-bridge.ts` — adapts legacy Effect services to daemon ports
 
 **Validation criteria:**
 
 - [x] All 4 files implement real logic (no `Not implemented` throw)
 - [x] Co-located tests cover happy path + key error paths
 - [x] Ports co-located per use case README convention
-- [x] Legacy event handler files deleted or reduced to thin v2 delegates
+- [x] Legacy event handler files deleted or reduced to thin daemon delegates
 - [x] G1 passes for these 4 files
 
 ---
@@ -125,7 +127,7 @@ Migration is **complete** when all of the following are true:
 
 **Validation criteria:**
 
-- [x] Assigned tasks delivered end-to-end via v2 path
+- [x] Assigned tasks delivered end-to-end via daemon path
 - [x] Integration test or existing `task-monitor` test adapted for v2
 - [x] `startTaskMonitorEffect` removed from `command-loop.ts` (deferred to U13 if partial)
 - [x] G1 passes for `deliver-assigned-task.ts`
@@ -147,7 +149,7 @@ Migration is **complete** when all of the following are true:
 
 **Validation criteria:**
 
-- [x] Direct harness prompt delivery works via v2 subscriber → router → use case
+- [x] Direct harness prompt delivery works via daemon subscriber → router → use case
 - [x] Session open/resume/close use cases (already done) called from inbound handler
 - [x] Tests for inbound routing + prompt processing
 - [x] G1 passes for `process-direct-harness-prompt.ts`
@@ -156,7 +158,7 @@ Migration is **complete** when all of the following are true:
 
 ## U5 — Command loop migration ✅
 
-**Outcome:** Command inbound events wired via v2 router to legacy `dispatchCommandEventEffect` and command-run drain.
+**Outcome:** Command inbound events wired via daemon router to legacy `dispatchCommandEventEffect` and command-run drain.
 
 **Files:**
 
@@ -169,7 +171,7 @@ Migration is **complete** when all of the following are true:
 
 **Validation criteria:**
 
-- [x] Machine commands processed via v2 inbound → registry → legacy dispatch
+- [x] Machine commands processed via daemon inbound → registry → legacy dispatch
 - [x] Dedup/heartbeat logic preserved in command loop closure
 - [x] Existing `daemon-command-loop-d5.test.ts` passes
 - [x] G1 passes for `handle-command-event.ts`
@@ -179,7 +181,7 @@ Migration is **complete** when all of the following are true:
 
 ## U6 — File fulfillment ✅
 
-**Outcome:** File tree/content/write inbound events wired via v2 router to legacy fulfillment drains.
+**Outcome:** File tree/content/write inbound events wired via daemon router to legacy fulfillment drains.
 
 **Files:**
 
@@ -197,7 +199,7 @@ Migration is **complete** when all of the following are true:
 **Validation criteria:**
 
 - [x] All 3 fulfill use cases implemented with tests
-- [x] File requests fulfilled via v2 inbound → registry → legacy drain
+- [x] File requests fulfilled via daemon inbound → registry → legacy drain
 - [x] G1 passes for all 3 fulfill files
 - [x] `createDefaultEventRouterDeps().file.deliverInbound` defined
 
@@ -205,7 +207,7 @@ Migration is **complete** when all of the following are true:
 
 ## U7 — Workspace & git ✅
 
-**Outcome:** Workspace list and git inbound events wired via v2 router to legacy reconcile, git state sync, and git request drains.
+**Outcome:** Workspace list and git inbound events wired via daemon router to legacy reconcile, git state sync, and git request drains.
 
 **Files:**
 
@@ -222,8 +224,8 @@ Migration is **complete** when all of the following are true:
 
 **Validation criteria:**
 
-- [x] Workspace list changes propagated via v2 inbound → reconcile + git push
-- [x] Git requests fulfilled via v2 inbound → full pending drain
+- [x] Workspace list changes propagated via daemon inbound → reconcile + git push
+- [x] Git requests fulfilled via daemon inbound → full pending drain
 - [x] Existing git heartbeat tests pass
 - [x] G1 passes for all 3 use case files
 - [x] `createDefaultEventRouterDeps().workspaceGit.deliverInbound` defined
@@ -232,7 +234,7 @@ Migration is **complete** when all of the following are true:
 
 ## U8 — Agentic query processing ✅
 
-**Outcome:** Agentic query session/prompt handling via v2 inbound → registry → legacy drains.
+**Outcome:** Agentic query session/prompt handling via daemon inbound → registry → legacy drains.
 
 **Files:**
 
@@ -247,7 +249,7 @@ Migration is **complete** when all of the following are true:
 
 **Validation criteria:**
 
-- [x] Agentic query prompts processed via v2 inbound → full pending drain
+- [x] Agentic query prompts processed via daemon inbound → full pending drain
 - [x] Tests cover session-opened + prompt events
 - [x] G1 passes for `process-agentic-query-prompt.ts`
 - [x] `createDefaultEventRouterDeps().agenticQuery.deliverInbound` defined
@@ -257,7 +259,7 @@ Migration is **complete** when all of the following are true:
 
 ## U9 — Enhancer job processing ✅
 
-**Outcome:** Enhancer jobs processed via v2 inbound → registry → legacy full pending drain.
+**Outcome:** Enhancer jobs processed via daemon inbound → registry → legacy full pending drain.
 
 **Files:**
 
@@ -269,7 +271,7 @@ Migration is **complete** when all of the following are true:
 
 **Validation criteria:**
 
-- [x] Enhancer jobs dispatched via v2 subscriber → router → full pending drain
+- [x] Enhancer jobs dispatched via daemon subscriber → router → full pending drain
 - [x] Tests cover job-assigned event
 - [x] G1 passes for `process-enhancer-job.ts`
 - [x] `createDefaultEventRouterDeps().enhancer.deliverInbound` defined
@@ -278,23 +280,23 @@ Migration is **complete** when all of the following are true:
 
 ## U10 — Machine capabilities refresh ✅
 
-**Outcome:** Model/capability refresh orchestrated via v2 port use case; legacy Effect twins delegated through capabilities bridge.
+**Outcome:** Model/capability refresh orchestrated via daemon port use case; legacy Effect twins delegated through capabilities bridge.
 
 **Files:**
 
 - `domain/usecase/refresh-machine-capabilities.ts` — port-based refresh + background discovery
 - `entry/bridge/capabilities-bridge.ts` — delegates to `refreshModelsEffect` / `startBackgroundModelDiscoveryEffect`
-- `commands/machine/daemon-start/command-loop.ts` — manual refresh via v2 use case
-- `entry/start-daemon.ts` — boot-time background discovery via v2 use case
-- `commands/machine/daemon-start/refresh-models-outcome.ts` — accepts v2 outcome union
+- `commands/machine/daemon-start/command-loop.ts` — manual refresh via daemon use case
+- `entry/start-daemon.ts` — boot-time background discovery via daemon use case
+- `commands/machine/daemon-start/refresh-models-outcome.ts` — accepts daemon outcome union
 
 **Validation criteria:**
 
-- [x] Capabilities refresh runs on schedule/trigger via v2 ports
+- [x] Capabilities refresh runs on schedule/trigger via daemon ports
 - [x] `capabilitiesOutcomeToStatus` behavior preserved for all outcome kinds
 - [x] G1 passes for `refresh-machine-capabilities.ts`
-- [x] `daemon.refreshCapabilities` command uses v2 `refreshMachineCapabilities`
-- [x] `startDaemonV2` uses v2 `startBackgroundMachineCapabilitiesDiscovery`
+- [x] `daemon.refreshCapabilities` command uses daemon `refreshMachineCapabilities`
+- [x] `startDaemon` uses daemon `startBackgroundMachineCapabilitiesDiscovery`
 
 ---
 
@@ -337,7 +339,7 @@ Migration is **complete** when all of the following are true:
 
 - [x] Harness registry resolves all providers (claude, cursor, opencode, pi)
 - [x] Integration tests for each harness still pass
-- [x] Daemon init imports `initHarnessRegistry` from v2 local harness registry
+- [x] Daemon init imports `initHarnessRegistry` from daemon local harness registry
 - [x] Adapter folders contain real code (not README-only)
 
 ---
@@ -352,13 +354,13 @@ Migration is **complete** when all of the following are true:
 - `commands/machine/daemon-start/direct-harness/start-subscriptions.ts` — worker init only (no WS)
 - `commands/machine/daemon-start/agentic-query/start-subscriptions.ts` — registry only (no WS)
 - `commands/machine/daemon-start/enhancer/job-subscriber.ts` — registry + drain (no WS)
-- File/git/workspace subscription files — WS gutted; drains on v2 inbound nudges
-- `v2/entry/subscriber-registry.duplicate-guard.test.ts` — G4 invariant test
+- File/git/workspace subscription files — WS gutted; drains on daemon inbound nudges
+- `daemon/entry/subscriber-registry.duplicate-guard.test.ts` — G4 invariant test
 
 **Validation criteria:**
 
 - [x] G4 passes — no duplicate WS subscriptions for same Convex query
-- [x] v2 subscribers are sole listeners per context
+- [x] daemon subscribers are sole listeners per context
 - [x] Registry handlers still registered; inbound nudges drain legacy logic
 - [x] Task-monitor snapshot subscription retained; signal/presence dual feeds removed
 
@@ -366,17 +368,17 @@ Migration is **complete** when all of the following are true:
 
 ## U14 — daemon-start teardown
 
-**Outcome:** Delete or minimize `daemon-start/` — v2 is the sole runtime.
+**Outcome:** Delete or minimize `daemon-start/` — daemon is the sole runtime.
 
 **Files:**
 
 - `commands/machine/daemon-start/` — delete migrated files
-- `v2/entry/start-daemon.ts` — absorb any remaining init/lifecycle wiring
+- `daemon/entry/start-daemon.ts` — absorb any remaining init/lifecycle wiring
 - `commands/machine/daemon-start/index.ts` — thin re-export or delete
 
 **Validation criteria:**
 
-- [x] G6 passes — no parallel legacy command loop (`createDaemonRuntime` in v2 entry)
+- [x] G6 passes — no parallel legacy command loop (`createDaemonRuntime` in daemon entry)
 - [x] G7 passes — `daemon-start/` LOC reduced by >50% from ~20k baseline (`daemon-start-loc.test.ts`)
 - [x] `daemonStart()` entry still works for CLI `chatroom machine daemon start`
 - [x] All chatroom-cli tests pass
@@ -389,15 +391,15 @@ Migration is **complete** when all of the following are true:
 
 **Files:**
 
-- `packages/cli/src/v2/MIGRATION-TRACKER.md` — mark all units ✅
-- `packages/cli/src/v2/README.md` — update migration order (all phases done)
-- `packages/cli/src/v2/entry/README.md` — reflect v2 runtime SSOT
-- `packages/cli/src/v2/domain/usecase/README.md` — native-delivery path update
+- `packages/cli/src/daemon/MIGRATION-TRACKER.md` — mark all units ✅
+- `packages/cli/src/daemon/README.md` — update migration order (all phases done)
+- `packages/cli/src/daemon/entry/README.md` — reflect daemon runtime SSOT
+- `packages/cli/src/daemon/domain/usecase/README.md` — native-delivery path update
 
 **Validation criteria:**
 
 - [x] G1–G10 all pass
-- [x] No `TODO: migrate` or `Not implemented` strings in `v2/`
+- [x] No `TODO: migrate` or `Not implemented` strings in `daemon/`
 - [x] Fallow baseline updated for U14 shims
 - [x] `pnpm turbo run typecheck test --filter=chatroom-cli` — 2175 tests pass
 
