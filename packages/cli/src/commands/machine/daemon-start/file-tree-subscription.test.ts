@@ -41,10 +41,6 @@ vi.mock('../../../infrastructure/services/workspace/workspace-file-tree-coordina
     startCoordinator(options),
 }));
 
-function makeMockWsClient() {
-  return { onUpdate: vi.fn().mockReturnValue(vi.fn()) };
-}
-
 function makeSessionLayer(
   overrides?: Partial<DaemonSessionInit>
 ): Layer.Layer<DaemonSessionService> {
@@ -79,25 +75,29 @@ describe('startFileTreeSubscriptionEffect', () => {
   it('starts one coordinator per normalized workspace and fulfills cached requests', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.query).mockResolvedValue({
-      revision: 0,
-      snapshotKind: 'v2',
-      snapshotId: 'hash',
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'pending') {
+        return Promise.resolve([
+          { _id: 'one', workingDir: '/workspace/' },
+          { _id: 'two', workingDir: '/workspace' },
+        ]);
+      }
+      if (endpoint === 'checkpoint') {
+        return Promise.resolve({
+          revision: 0,
+          snapshotKind: 'v2',
+          snapshotId: 'hash',
+        });
+      }
+      return Promise.resolve(null);
     });
-    const wsClient = makeMockWsClient();
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as never), {
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
       machineId: 'machine-1',
       sessionId: 'session-1',
       backend: deps.backend,
     });
 
-    const callback = wsClient.onUpdate.mock.calls[0]![2] as (
-      requests: { _id: string; workingDir: string; force?: boolean }[]
-    ) => void;
-    callback([
-      { _id: 'one', workingDir: '/workspace/' },
-      { _id: 'two', workingDir: '/workspace' },
-    ]);
+    await handle.drainPendingFileTreeRequests();
 
     await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalledTimes(1));
     await vi.waitFor(() =>
@@ -111,16 +111,20 @@ describe('startFileTreeSubscriptionEffect', () => {
   it('runs reconciliation only for explicit recovery requests', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.query).mockResolvedValue({ revision: 0 });
-    const wsClient = makeMockWsClient();
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as never), {
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'pending') {
+        return Promise.resolve([{ _id: 'force', workingDir: '/workspace', force: true }]);
+      }
+      if (endpoint === 'checkpoint') {
+        return Promise.resolve({ revision: 0 });
+      }
+      return Promise.resolve(null);
+    });
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
       backend: deps.backend,
     });
-    const callback = wsClient.onUpdate.mock.calls[0]![2] as (
-      requests: { _id: string; workingDir: string; force?: boolean }[]
-    ) => void;
 
-    callback([{ _id: 'force', workingDir: '/workspace', force: true }]);
+    await handle.drainPendingFileTreeRequests();
 
     await vi.waitFor(() => expect(coordinatorHandle.reconcile).toHaveBeenCalledTimes(1));
   });
@@ -128,16 +132,21 @@ describe('startFileTreeSubscriptionEffect', () => {
   it('maps cached path changes to revisioned backend operations', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.query).mockResolvedValue({ revision: 0 });
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'pending') {
+        return Promise.resolve([{ _id: 'one', workingDir: '/workspace' }]);
+      }
+      if (endpoint === 'checkpoint') {
+        return Promise.resolve({ revision: 0 });
+      }
+      return Promise.resolve(null);
+    });
     vi.mocked(deps.backend.mutation).mockResolvedValue({ status: 'applied', revision: 4 });
-    const wsClient = makeMockWsClient();
-    await runWithSession(startFileTreeSubscriptionEffect(wsClient as never), {
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
       backend: deps.backend,
     });
-    const callback = wsClient.onUpdate.mock.calls[0]![2] as (
-      requests: { _id: string; workingDir: string }[]
-    ) => void;
-    callback([{ _id: 'one', workingDir: '/workspace' }]);
+
+    await handle.drainPendingFileTreeRequests();
     await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalled());
     const options = startCoordinator.mock.calls[0]![0];
 
@@ -170,15 +179,20 @@ describe('startFileTreeSubscriptionEffect', () => {
   it('stops all workspace coordinators with the subscription', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();
-    vi.mocked(deps.backend.query).mockResolvedValue({ revision: 0 });
-    const wsClient = makeMockWsClient();
-    const handle = await runWithSession(startFileTreeSubscriptionEffect(wsClient as never), {
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'pending') {
+        return Promise.resolve([{ _id: 'one', workingDir: '/workspace' }]);
+      }
+      if (endpoint === 'checkpoint') {
+        return Promise.resolve({ revision: 0 });
+      }
+      return Promise.resolve(null);
+    });
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
       backend: deps.backend,
     });
-    const callback = wsClient.onUpdate.mock.calls[0]![2] as (
-      requests: { _id: string; workingDir: string }[]
-    ) => void;
-    callback([{ _id: 'one', workingDir: '/workspace' }]);
+
+    await handle.drainPendingFileTreeRequests();
     await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalled());
 
     handle.stop();

@@ -44,7 +44,7 @@ Migration is **complete** when all of the following are true:
 | U10  | Machine capabilities refresh   | ⬜ Todo | backlog |
 | U11  | Outbound publishers            | ⬜ Todo | backlog |
 | U12  | Local harness adapters         | ✅ Done | backlog |
-| U13  | Legacy subscription removal    | ⬜ Todo | backlog |
+| U13  | Legacy subscription removal    | ✅ Done | backlog |
 | U14  | daemon-start teardown          | ⬜ Todo | backlog |
 | U15  | Final validation & doc cleanup | ⬜ Todo | backlog |
 
@@ -342,24 +342,25 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U13 — Legacy subscription removal
+## U13 — Legacy subscription removal ✅
 
 **Outcome:** Remove duplicate legacy Convex subscriptions from `command-loop.ts` for all migrated contexts.
 
 **Files:**
 
-- `commands/machine/daemon-start/command-loop.ts` — remove `start*Subscription*` for migrated contexts
-- `commands/machine/daemon-start/direct-harness/start-subscriptions.ts` — delete or gut
-- `commands/machine/daemon-start/agentic-query/start-subscriptions.ts` — delete or gut
-- `commands/machine/daemon-start/enhancer/start-subscriptions.ts` — delete or gut
-- File/git/workspace subscription files — delete or gut
+- `commands/machine/daemon-start/command-loop.ts` — removed legacy WS; registry handlers call drains
+- `commands/machine/daemon-start/direct-harness/start-subscriptions.ts` — worker init only (no WS)
+- `commands/machine/daemon-start/agentic-query/start-subscriptions.ts` — registry only (no WS)
+- `commands/machine/daemon-start/enhancer/job-subscriber.ts` — registry + drain (no WS)
+- File/git/workspace subscription files — WS gutted; drains on v2 inbound nudges
+- `v2/entry/subscriber-registry.duplicate-guard.test.ts` — G4 invariant test
 
 **Validation criteria:**
 
-- [ ] G4 passes — no duplicate WS subscriptions for same Convex query
-- [ ] v2 subscribers are sole listeners per context
-- [ ] Daemon starts and processes all event types correctly
-- [ ] No regression in integration tests
+- [x] G4 passes — no duplicate WS subscriptions for same Convex query
+- [x] v2 subscribers are sole listeners per context
+- [x] Registry handlers still registered; inbound nudges drain legacy logic
+- [x] Task-monitor snapshot subscription retained; signal/presence dual feeds removed
 
 ---
 

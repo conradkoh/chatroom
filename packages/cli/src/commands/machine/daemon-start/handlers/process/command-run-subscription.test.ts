@@ -1,9 +1,8 @@
 /**
  * Command-run subscription unit tests.
  *
- * Verifies that startCommandRunSubscription dispatches onCommandRunEffect for
- * new pending runs (and onCommandStopEffect for stop-requested runs) while
- * deduplicating runs already dispatched on subsequent subscription updates.
+ * Verifies processActionableCommandRuns / drainActionableCommandRuns dispatch
+ * while deduplicating runs already dispatched.
  */
 
 import type { ConvexClient } from 'convex/browser';
@@ -14,6 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   _resetCommandRunSubscriptionStateForTest,
+  drainActionableCommandRuns,
+  processActionableCommandRuns,
   startCommandRunSubscription,
 } from './command-run-subscription.js';
 import type { api, Id } from '../../../../../api.js';
@@ -41,7 +42,6 @@ vi.mock('../command-runner.js', async () => {
 type ActionableCommandRuns = FunctionReturnType<
   typeof api.daemon.commands.listActionableCommandRuns
 >;
-type UpdateCallback = (result: ActionableCommandRuns | null | undefined) => void;
 
 const mockedOnCommandRunEffect = vi.mocked(onCommandRunEffect);
 const mockedOnCommandStopEffect = vi.mocked(onCommandStopEffect);
@@ -57,7 +57,10 @@ function makeSession(): DaemonSessionServiceShape {
     convexUrl: 'http://test-convex-url',
     client: {} as ConvexClient,
     config: null,
-    backend: {} as DaemonSessionServiceShape['backend'],
+    backend: {
+      query: vi.fn(),
+      mutation: vi.fn(),
+    } as DaemonSessionServiceShape['backend'],
     fs: {} as DaemonSessionServiceShape['fs'],
     agentServices: new Map(),
     events: {} as DaemonSessionServiceShape['events'],
@@ -75,18 +78,7 @@ function makeRuntime(session: DaemonSessionServiceShape): Runtime.Runtime<Daemon
   );
 }
 
-function startSubscription(onUpdate: ReturnType<typeof vi.fn>): {
-  callback: UpdateCallback;
-  stop: () => void;
-} {
-  onUpdate.mockReturnValue(vi.fn());
-  const wsClient = { onUpdate } as unknown as ConvexClient;
-  const handle = startCommandRunSubscription(makeSession(), wsClient, makeRuntime(makeSession()));
-  const callback = onUpdate.mock.calls[0]?.[2] as UpdateCallback;
-  return { callback, stop: handle.stop };
-}
-
-describe('startCommandRunSubscription', () => {
+describe('processActionableCommandRuns', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     _resetCommandRunSubscriptionStateForTest();
@@ -97,16 +89,10 @@ describe('startCommandRunSubscription', () => {
   });
 
   it('dispatches onCommandRunEffect for a new pending run', async () => {
-    const onUpdate = vi.fn();
-    const { callback } = startSubscription(onUpdate);
+    const session = makeSession();
+    const runtime = makeRuntime(session);
 
-    expect(onUpdate.mock.calls[0]?.[0]).toBe('mock-listActionableCommandRuns');
-    expect(onUpdate.mock.calls[0]?.[1]).toEqual({
-      sessionId: 'test-session-id',
-      machineId: 'test-machine-id',
-    });
-
-    callback({
+    processActionableCommandRuns(session, runtime, {
       pendingRuns: [
         { _id: rid('run-1'), workingDir: '/tmp/ws', commandName: 'dev', script: 'echo hi' },
       ],
@@ -125,10 +111,13 @@ describe('startCommandRunSubscription', () => {
   });
 
   it('dispatches onCommandStopEffect for a stop-requested running run', async () => {
-    const onUpdate = vi.fn();
-    const { callback } = startSubscription(onUpdate);
+    const session = makeSession();
+    const runtime = makeRuntime(session);
 
-    callback({ pendingRuns: [], stopRequestedRuns: [{ _id: rid('run-9') }] });
+    processActionableCommandRuns(session, runtime, {
+      pendingRuns: [],
+      stopRequestedRuns: [{ _id: rid('run-9') }],
+    });
     await FLUSH();
 
     expect(mockedOnCommandStopEffect).toHaveBeenCalledTimes(1);
@@ -137,8 +126,8 @@ describe('startCommandRunSubscription', () => {
   });
 
   it('deduplicates the same pending run on subsequent updates', async () => {
-    const onUpdate = vi.fn();
-    const { callback } = startSubscription(onUpdate);
+    const session = makeSession();
+    const runtime = makeRuntime(session);
 
     const result: ActionableCommandRuns = {
       pendingRuns: [
@@ -147,15 +136,14 @@ describe('startCommandRunSubscription', () => {
       stopRequestedRuns: [],
     };
 
-    callback(result);
+    processActionableCommandRuns(session, runtime, result);
     await FLUSH();
-    callback(result);
+    processActionableCommandRuns(session, runtime, result);
     await FLUSH();
 
     expect(mockedOnCommandRunEffect).toHaveBeenCalledTimes(1);
 
-    // A new pending run is still dispatched
-    callback({
+    processActionableCommandRuns(session, runtime, {
       pendingRuns: [
         { _id: rid('run-2'), workingDir: '/tmp/ws', commandName: 'build', script: 'echo build' },
       ],
@@ -165,53 +153,39 @@ describe('startCommandRunSubscription', () => {
 
     expect(mockedOnCommandRunEffect).toHaveBeenCalledTimes(2);
   });
+});
 
-  it('deduplicates stop requests for the same run', async () => {
-    const onUpdate = vi.fn();
-    const { callback } = startSubscription(onUpdate);
-
-    const result: ActionableCommandRuns = {
-      pendingRuns: [],
-      stopRequestedRuns: [{ _id: rid('run-5') }],
-    };
-
-    callback(result);
-    await FLUSH();
-    callback(result);
-    await FLUSH();
-
-    expect(mockedOnCommandStopEffect).toHaveBeenCalledTimes(1);
+describe('drainActionableCommandRuns', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    _resetCommandRunSubscriptionStateForTest();
   });
 
-  it('ignores null/undefined results and empty payloads', async () => {
-    const onUpdate = vi.fn();
-    const { callback } = startSubscription(onUpdate);
-
-    callback(null);
-    callback(undefined);
-    callback({ pendingRuns: [], stopRequestedRuns: [] });
-    await FLUSH();
-
-    expect(mockedOnCommandRunEffect).not.toHaveBeenCalled();
-    expect(mockedOnCommandStopEffect).not.toHaveBeenCalled();
-  });
-
-  it('stops dispatching after stop() is called', async () => {
-    const onUpdate = vi.fn();
-    const { callback, stop } = startSubscription(onUpdate);
-
-    stop();
-    expect(onUpdate.mock.calls[0]?.[1]).toBeDefined();
-    expect(typeof onUpdate.mock.calls[0]?.[3]).toBe('function');
-
-    callback({
+  it('queries backend and dispatches actionable runs', async () => {
+    const session = makeSession();
+    vi.mocked(session.backend.query).mockResolvedValue({
       pendingRuns: [
         { _id: rid('run-1'), workingDir: '/tmp/ws', commandName: 'dev', script: 'echo hi' },
       ],
       stopRequestedRuns: [],
     });
+    const runtime = makeRuntime(session);
+
+    await drainActionableCommandRuns(session, runtime);
     await FLUSH();
 
-    expect(mockedOnCommandRunEffect).not.toHaveBeenCalled();
+    expect(session.backend.query).toHaveBeenCalledWith('mock-listActionableCommandRuns', {
+      sessionId: 'test-session-id',
+      machineId: 'test-machine-id',
+    });
+    expect(mockedOnCommandRunEffect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('startCommandRunSubscription', () => {
+  it('returns a noop stop handle (WS removed in U13)', () => {
+    const handle = startCommandRunSubscription();
+    expect(typeof handle.stop).toBe('function');
+    handle.stop();
   });
 });

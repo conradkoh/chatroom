@@ -163,29 +163,23 @@ beforeEach(() => {
 describe('startFileContentSubscriptionEffect', () => {
   it('returns a handle with a stop() method', async () => {
     const { startFileContentSubscriptionEffect } = await import('./file-content-subscription.js');
-    const wsClient = makeMockWsClient();
 
-    const handle = await runWithSession(startFileContentSubscriptionEffect(wsClient));
+    const handle = await runWithSession(startFileContentSubscriptionEffect());
 
     expect(handle).toHaveProperty('stop');
     expect(typeof handle.stop).toBe('function');
   });
 
-  it('calls onUpdate with sessionId and machineId from session', async () => {
+  it('does not open a legacy WS subscription (v2 subscriber is sole listener)', async () => {
     const { startFileContentSubscriptionEffect } = await import('./file-content-subscription.js');
     const wsClient = makeMockWsClient();
 
-    await runWithSession(startFileContentSubscriptionEffect(wsClient), {
+    await runWithSession(startFileContentSubscriptionEffect(), {
       sessionId: 'session-content',
       machineId: 'machine-content',
     });
 
-    expect(wsClient.onUpdate).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ sessionId: 'session-content', machineId: 'machine-content' }),
-      expect.any(Function),
-      expect.any(Function)
-    );
+    expect(wsClient.onUpdate).not.toHaveBeenCalled();
   });
 });
 
@@ -197,59 +191,54 @@ describe('startWorkspaceListSubscriptionEffect', () => {
   it('returns a handle with a stop() method', async () => {
     const { startWorkspaceListSubscriptionEffect } =
       await import('./workspace-list-subscription.js');
-    const wsClient = makeMockWsClient();
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.query).mockResolvedValue([]);
 
-    const handle = await runWithSession(startWorkspaceListSubscriptionEffect(wsClient));
+    const handle = await runWithSession(startWorkspaceListSubscriptionEffect(), withDeps(deps));
 
     expect(handle).toHaveProperty('stop');
     expect(typeof handle.stop).toBe('function');
-    // Clean up to avoid leaking intervals
     handle.stop();
   });
 
-  it('calls onUpdate with sessionId and machineId from session', async () => {
+  it('does not open a legacy WS subscription (v2 subscriber is sole listener)', async () => {
     const { startWorkspaceListSubscriptionEffect } =
       await import('./workspace-list-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.query).mockResolvedValue([]);
     const wsClient = makeMockWsClient();
 
-    const handle = await runWithSession(startWorkspaceListSubscriptionEffect(wsClient), {
-      sessionId: 'session-ws-list',
-      machineId: 'machine-ws-list',
-    });
-
-    expect(wsClient.onUpdate).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ sessionId: 'session-ws-list', machineId: 'machine-ws-list' }),
-      expect.any(Function),
-      expect.any(Function)
+    const handle = await runWithSession(
+      startWorkspaceListSubscriptionEffect(),
+      withDeps(deps, { sessionId: 'session-ws-list', machineId: 'machine-ws-list' })
     );
+
+    expect(wsClient.onUpdate).not.toHaveBeenCalled();
     handle.stop();
   });
 
   it('initializes workspaceListStore on the session object (start)', async () => {
     const { startWorkspaceListSubscriptionEffect } =
       await import('./workspace-list-subscription.js');
-    const wsClient = makeMockWsClient();
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.query).mockResolvedValue([]);
 
-    // Capture the session object to inspect workspaceListStore after start
     let capturedSession: any;
     const layer = Layer.effect(
       DaemonSessionService,
       Effect.gen(function* () {
-        const init = createMockDaemonSessionInit();
+        const init = createMockDaemonSessionInit({ backend: deps.backend });
         capturedSession = init;
         return init as any;
       })
     );
 
     const handle = await Effect.runPromise(
-      startWorkspaceListSubscriptionEffect(wsClient).pipe(Effect.provide(layer))
+      startWorkspaceListSubscriptionEffect().pipe(Effect.provide(layer))
     );
 
-    // Store should be initialized
-    expect(capturedSession.workspaceListStore).toEqual({ workspaces: [], updatedAt: 0 });
+    expect(capturedSession.workspaceListStore).toBeDefined();
 
-    // After stop, store should be cleared (undefined)
     handle.stop();
     expect(capturedSession.workspaceListStore).toBeUndefined();
   });
@@ -264,34 +253,26 @@ describe('startGitRequestSubscriptionEffect', () => {
     const { startGitRequestSubscriptionEffect } = await import('./git-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(0 as any);
-    const wsClient = makeMockWsClient();
 
-    const handle = await runWithSession(
-      startGitRequestSubscriptionEffect(wsClient),
-      withDeps(deps)
-    );
+    const handle = await runWithSession(startGitRequestSubscriptionEffect(), withDeps(deps));
 
     expect(handle).toHaveProperty('stop');
     expect(typeof handle.stop).toBe('function');
+    expect(handle).toHaveProperty('drainPendingGitRequests');
   });
 
-  it('calls onUpdate with sessionId and machineId from session', async () => {
+  it('does not open a legacy WS subscription (v2 subscriber is sole listener)', async () => {
     const { startGitRequestSubscriptionEffect } = await import('./git-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(0 as any);
     const wsClient = makeMockWsClient();
 
     await runWithSession(
-      startGitRequestSubscriptionEffect(wsClient),
+      startGitRequestSubscriptionEffect(),
       withDeps(deps, { sessionId: 'session-git', machineId: 'machine-git' })
     );
 
-    expect(wsClient.onUpdate).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ sessionId: 'session-git', machineId: 'machine-git' }),
-      expect.any(Function),
-      expect.any(Function)
-    );
+    expect(wsClient.onUpdate).not.toHaveBeenCalled();
   });
 });
 

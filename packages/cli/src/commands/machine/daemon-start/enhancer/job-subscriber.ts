@@ -1,5 +1,3 @@
-import type { ConvexClient } from 'convex/browser';
-
 import { ENHANCER_AGENT_ROLE } from './constants.js';
 import { writeEnhancerLog } from './enhancer-log.js';
 import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
@@ -192,7 +190,6 @@ export function startEnhancerJobSubscriber(
   machineId: string,
   convexUrl: string,
   backend: BackendOps,
-  wsClient: ConvexClient,
   agentServices: Map<string, RemoteAgentService>
 ): EnhancerJobSubscriberHandles {
   const inFlight = new Set<string>();
@@ -208,30 +205,10 @@ export function startEnhancerJobSubscriber(
     );
   });
 
-  const unsub = wsClient.onUpdate(
-    api.daemon.enhancer.index.pendingForMachine,
-    { sessionId: sessionId as never, machineId },
-    (jobs) => {
-      processEnhancerJobs(
-        sessionId,
-        machineId,
-        convexUrl,
-        backend,
-        agentServices,
-        jobs as PendingEnhancerJob[] | null,
-        inFlight
-      );
-    },
-    (err) => console.warn('[enhancer] subscription error:', err)
-  );
-
-  const stop = () => {
-    unregisterEnhancerInboundHandler();
-    unsub();
-  };
-
   return {
-    stop,
+    stop: () => {
+      unregisterEnhancerInboundHandler();
+    },
     drainPendingEnhancerJobs: () =>
       drainPendingEnhancerJobs(sessionId, machineId, convexUrl, backend, agentServices, inFlight),
   };

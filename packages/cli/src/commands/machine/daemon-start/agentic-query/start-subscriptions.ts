@@ -1,10 +1,5 @@
-import type { ConvexClient } from 'convex/browser';
-
-import { drainPendingAgenticQueryMessages, startPromptSubscriber } from './prompt-subscriber.js';
-import {
-  processPendingAgenticQuerySessions,
-  startSessionSubscriber,
-} from './session-subscriber.js';
+import { drainPendingAgenticQueryMessages } from './prompt-subscriber.js';
+import { processPendingAgenticQuerySessions } from './session-subscriber.js';
 import { ConvexAgenticQueryOutputRepository } from '../../../../infrastructure/repos/convex-agentic-query-output-repository.js';
 import { ConvexAgenticQueryRunRepository } from '../../../../infrastructure/repos/convex-agentic-query-run-repository.js';
 import { BufferedJournalFactory } from '../../../../infrastructure/repos/journal-factory.js';
@@ -21,13 +16,12 @@ export interface AgenticQuerySubscriptionSession extends HarnessWorkerSession {
 }
 
 export interface AgenticQuerySubscriptionHandles {
-  pendingPromptSubscriptionHandle: { stop: () => void };
-  pendingHarnessSessionSubscriptionHandle: { stop: () => void };
+  stop: () => void;
 }
 
+/** Init agentic-query inbound registry (no WS — v2 subscribers nudge drains). */
 export function startAgenticQuerySubscriptions(
   session: AgenticQuerySubscriptionSession,
-  wsClient: ConvexClient,
   activeSessions: Map<string, ActiveSession>,
   harnesses: Map<string, BoundHarness>
 ): AgenticQuerySubscriptionHandles {
@@ -54,18 +48,9 @@ export function startAgenticQuerySubscriptions(
     }
   });
 
-  const wrapStop = (stop: () => void) => () => {
-    unregisterAgenticQueryInboundHandler();
-    stop();
-  };
-
-  const pendingPromptSubscriptionHandle = startPromptSubscriber(session, wsClient, deps);
-  const pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(session, wsClient, deps);
-
   return {
-    pendingPromptSubscriptionHandle: { stop: wrapStop(pendingPromptSubscriptionHandle.stop) },
-    pendingHarnessSessionSubscriptionHandle: {
-      stop: wrapStop(pendingHarnessSessionSubscriptionHandle.stop),
+    stop: () => {
+      unregisterAgenticQueryInboundHandler();
     },
   };
 }

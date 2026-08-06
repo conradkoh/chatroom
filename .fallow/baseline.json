@@ -611,7 +611,10 @@
     "services/backend/src/domain/usecase/machine/assigned-tasks-types.ts:SESSION_AUGMENTATION_MODES",
     "services/backend/src/domain/usecase/task/complete-active-tasks.ts:completeActiveTasksForRole",
     "services/backend/src/domain/usecase/task/task-counts.ts:activeTaskCountsDrifted",
-    "services/backend/src/output-encoding.ts:decodeOutput"
+    "services/backend/src/output-encoding.ts:decodeOutput",
+    "packages/cli/src/commands/machine/daemon-start/file-content-subscription.ts:startFileContentSubscriptionEffect",
+    "packages/cli/src/commands/machine/daemon-start/file-write-subscription.ts:startFileWriteSubscriptionEffect",
+    "packages/cli/src/commands/machine/daemon-start/handlers/process/command-run-subscription.ts:startCommandRunSubscription"
   ],
   "unused_types": [
     "apps/webapp/src/application/auth/index.ts:Permission",

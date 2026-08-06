@@ -35,6 +35,9 @@ describe('startEnhancerJobSubscriber', () => {
       return undefined;
     });
     const queryFn = vi.fn().mockImplementation((endpoint: string) => {
+      if (endpoint === 'pendingForMachine') {
+        return [{ jobId: 'job1', chatroomId: 'room1' }];
+      }
       if (endpoint === 'getSpawnPayload') {
         return {
           chatroomId: 'room1',
@@ -54,14 +57,6 @@ describe('startEnhancerJobSubscriber', () => {
       query: queryFn,
     };
 
-    let onUpdateCb: (jobs: unknown[]) => void = () => {};
-    const wsClient = {
-      onUpdate: vi.fn((_api: unknown, _args: unknown, cb: (jobs: unknown[]) => void) => {
-        onUpdateCb = cb;
-        return vi.fn();
-      }),
-    };
-
     let exitCallback: (() => void) | undefined;
     const spawn = vi.fn().mockReturnValue({
       onExit: (fn: () => void) => {
@@ -73,17 +68,15 @@ describe('startEnhancerJobSubscriber', () => {
     });
     const agentServices = new Map([['opencode', { spawn, stop: vi.fn() }]]);
 
-    startEnhancerJobSubscriber(
+    const handles = startEnhancerJobSubscriber(
       'session',
       'machine',
       'http://localhost',
       backend as any,
-      wsClient as any,
       agentServices as any
     );
 
-    // Trigger the onUpdate callback with a job
-    onUpdateCb([{ jobId: 'job1', chatroomId: 'room1' }]);
+    await handles.drainPendingEnhancerJobs();
 
     // Let the async handler claim the job and spawn
     await vi.advanceTimersByTimeAsync(10);
@@ -111,6 +104,9 @@ describe('startEnhancerJobSubscriber', () => {
       return undefined;
     });
     const queryFn = vi.fn().mockImplementation((endpoint: string) => {
+      if (endpoint === 'pendingForMachine') {
+        return [{ jobId: 'job1', chatroomId: 'room1' }];
+      }
       if (endpoint === 'getSpawnPayload') {
         return {
           chatroomId: 'room1',
@@ -130,14 +126,6 @@ describe('startEnhancerJobSubscriber', () => {
       query: queryFn,
     };
 
-    let onUpdateCb: (jobs: unknown[]) => void = () => {};
-    const wsClient = {
-      onUpdate: vi.fn((_api: unknown, _args: unknown, cb: (jobs: unknown[]) => void) => {
-        onUpdateCb = cb;
-        return vi.fn();
-      }),
-    };
-
     let agentEndCallback: (() => void) | undefined;
     const spawn = vi.fn().mockReturnValue({
       onExit: vi.fn(),
@@ -150,16 +138,15 @@ describe('startEnhancerJobSubscriber', () => {
     });
     const agentServices = new Map([['opencode', { spawn, stop: vi.fn() }]]);
 
-    startEnhancerJobSubscriber(
+    const handles = startEnhancerJobSubscriber(
       'session',
       'machine',
       'http://localhost',
       backend as any,
-      wsClient as any,
       agentServices as any
     );
 
-    onUpdateCb([{ jobId: 'job1', chatroomId: 'room1' }]);
+    await handles.drainPendingEnhancerJobs();
 
     await vi.advanceTimersByTimeAsync(10);
 
@@ -191,6 +178,9 @@ describe('startEnhancerJobSubscriber', () => {
       return undefined;
     });
     const queryFn = vi.fn().mockImplementation((endpoint: string) => {
+      if (endpoint === 'pendingForMachine') {
+        return [{ jobId: 'job1', chatroomId: 'room1' }];
+      }
       if (endpoint === 'getSpawnPayload') {
         return Promise.resolve({
           chatroomId: 'room1',
@@ -210,14 +200,6 @@ describe('startEnhancerJobSubscriber', () => {
       query: queryFn,
     };
 
-    let onUpdateCb: (jobs: unknown[]) => void = () => {};
-    const wsClient = {
-      onUpdate: vi.fn((_api: unknown, _args: unknown, cb: (jobs: unknown[]) => void) => {
-        onUpdateCb = cb;
-        return vi.fn();
-      }),
-    };
-
     let agentEndCallback: (() => void) | undefined;
     let assistantTextCallback: ((text: string) => void) | undefined;
     const spawn = vi.fn().mockReturnValue({
@@ -233,16 +215,15 @@ describe('startEnhancerJobSubscriber', () => {
     });
     const agentServices = new Map([['opencode', { spawn, stop: vi.fn() }]]);
 
-    startEnhancerJobSubscriber(
+    const handles = startEnhancerJobSubscriber(
       'session',
       'machine',
       'http://localhost',
       backend as any,
-      wsClient as any,
       agentServices as any
     );
 
-    onUpdateCb([{ jobId: 'job1', chatroomId: 'room1' }]);
+    await handles.drainPendingEnhancerJobs();
     await vi.advanceTimersByTimeAsync(10);
 
     // Simulate assistant text deltas
@@ -275,6 +256,9 @@ describe('startEnhancerJobSubscriber', () => {
       return undefined;
     });
     const queryFn = vi.fn().mockImplementation((endpoint: string) => {
+      if (endpoint === 'pendingForMachine') {
+        return [{ jobId: 'job1', chatroomId: 'room1' }];
+      }
       if (endpoint === 'getSpawnPayload') {
         return {
           chatroomId: 'room1',
@@ -291,14 +275,6 @@ describe('startEnhancerJobSubscriber', () => {
 
     const backend = { mutation: mutationFn, query: queryFn };
 
-    let onUpdateCb: (jobs: unknown[]) => void = () => {};
-    const wsClient = {
-      onUpdate: vi.fn((_api: unknown, _args: unknown, cb: (jobs: unknown[]) => void) => {
-        onUpdateCb = cb;
-        return vi.fn();
-      }),
-    };
-
     const spawn = vi.fn().mockReturnValue({
       onExit: vi.fn(),
       onOutput: (fn: () => void) => {
@@ -310,16 +286,15 @@ describe('startEnhancerJobSubscriber', () => {
     });
     const agentServices = new Map([['opencode-sdk', { spawn, stop: vi.fn() }]]);
 
-    startEnhancerJobSubscriber(
+    const handles = startEnhancerJobSubscriber(
       'session',
       'machine',
       'http://localhost',
       backend as any,
-      wsClient as any,
       agentServices as any
     );
 
-    onUpdateCb([{ jobId: 'job1', chatroomId: 'room1' }]);
+    await handles.drainPendingEnhancerJobs();
     await vi.advanceTimersByTimeAsync(10);
 
     expect(participantsJoin).not.toHaveBeenCalled();

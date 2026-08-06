@@ -47,27 +47,10 @@ import {
   NudgeCooldown,
   shouldEscalateNativeNudgeToRestart,
 } from './task-monitor-logic.js';
-import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
 import type { AgentHarness } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
-import {
-  runDualChannelFeedLive,
-  runIncrementalSubscribeLive,
-} from '../../../infrastructure/incremental-sync/feed-runtime.js';
-import {
-  ASSIGNED_TASK_PRESENCE_FEED_BUFFER,
-  ASSIGNED_TASK_PRESENCE_FEED_LIMIT,
-  assignedTaskPresenceFeedDef,
-  assignedTaskPresenceSubscribeTarget,
-} from '../../../infrastructure/incremental-sync/feeds/assigned-task-presence.js';
-import {
-  ASSIGNED_TASK_SIGNAL_FEED_BUFFER,
-  ASSIGNED_TASK_SIGNAL_FEED_LIMIT,
-  assignedTaskSignalsFeedDef,
-  assignedTaskSignalsSubscribeTarget,
-} from '../../../infrastructure/incremental-sync/feeds/assigned-task-signals.js';
 import {
   mapAssignedTaskSnapshotList,
   mapAssignedTaskView,
@@ -94,32 +77,6 @@ type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProc
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
 
 type TaskMonitorPass = 'signal' | 'presence';
-
-async function seedSignalCursor(session: {
-  sessionId: string;
-  machineId: string;
-  backend: { query: (fn: unknown, args: unknown) => Promise<unknown> };
-}): Promise<string | null> {
-  const seedPage = (await session.backend.query(api.machines.subscribeAssignedTaskSignalsSince, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-    limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT,
-  })) as { highKey: string | null } | null;
-  return seedPage?.highKey ?? null;
-}
-
-async function seedPresenceCursor(session: {
-  sessionId: string;
-  machineId: string;
-  backend: { query: (fn: unknown, args: unknown) => Promise<unknown> };
-}): Promise<string | null> {
-  const seedPage = (await session.backend.query(api.machines.subscribeAssignedTaskPresenceSince, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-    limit: ASSIGNED_TASK_PRESENCE_FEED_LIMIT,
-  })) as { highPresenceKey: string | null } | null;
-  return seedPage?.highPresenceKey ?? null;
-}
 
 function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
@@ -247,18 +204,6 @@ function runNativeReviveEffect(
       )
     )
   );
-}
-
-async function fetchHydrateRows(session: {
-  sessionId: string;
-  machineId: string;
-  backend: { query: (fn: unknown, args: unknown) => Promise<unknown> };
-}): Promise<AssignedTaskSnapshotView[]> {
-  const hydrate = (await session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-  })) as { tasks?: unknown };
-  return mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(hydrate.tasks ?? []));
 }
 
 async function fetchTaskForAction(
@@ -546,7 +491,6 @@ export const startTaskMonitorEffect = (
     console.log(`[${formatTimestamp()}] 📋 Starting task-monitor (incremental subscribe)`);
 
     const cooldown = new NudgeCooldown();
-    const snapshot = createTaskMonitorSnapshot();
     let stopped = false;
     let monitorPassInFlight = false;
 
@@ -615,76 +559,6 @@ export const startTaskMonitorEffect = (
       })
     ).pipe(Effect.catchAll(() => Effect.void));
 
-    const presenceSeedKey = yield* Effect.tryPromise(() => seedPresenceCursor(session)).pipe(
-      Effect.orElseSucceed(() => null)
-    );
-
-    const signalHandle = yield* runDualChannelFeedLive({
-      name: 'assigned-task-signals',
-      wsClient,
-      def: assignedTaskSignalsFeedDef,
-      target: assignedTaskSignalsSubscribeTarget,
-      args: {
-        sessionId: session.sessionId,
-        machineId: session.machineId,
-      },
-      buffer: ASSIGNED_TASK_SIGNAL_FEED_BUFFER,
-      subscribe: { limit: ASSIGNED_TASK_SIGNAL_FEED_LIMIT },
-      snapshot,
-      seedCursor: () => seedSignalCursor(session),
-      fetchReconcile: () => fetchHydrateRows(session).then((tasks) => ({ tasks })),
-      extractReconcileRows: (result) => result.tasks,
-      isStopped: () => stopped,
-      onSignalRow: (row) =>
-        Effect.sync(() => {
-          runMonitorPass([row], 'signal');
-        }),
-      onReconcileRows: (tasks) =>
-        Effect.tryPromise(() =>
-          processTasksUpdate(
-            [...tasks],
-            runtime,
-            effectContext,
-            cooldown,
-            agentMgr,
-            sessionDeps,
-            session.machineId,
-            'presence'
-          )
-        ).pipe(Effect.catchAll(() => Effect.void)),
-      onSubscribeError: (err) =>
-        console.warn(
-          `[${formatTimestamp()}] ⚠️  Task signal subscription error: ${getErrorMessage(err)}`
-        ),
-    });
-
-    const presenceHandle = yield* runIncrementalSubscribeLive({
-      wsClient,
-      def: assignedTaskPresenceFeedDef,
-      target: assignedTaskPresenceSubscribeTarget,
-      args: {
-        sessionId: session.sessionId,
-        machineId: session.machineId,
-      },
-      buffer: ASSIGNED_TASK_PRESENCE_FEED_BUFFER,
-      subscribe: { limit: ASSIGNED_TASK_PRESENCE_FEED_LIMIT },
-      initialAfterKey: presenceSeedKey,
-      onError: (err) =>
-        console.warn(
-          `[${formatTimestamp()}] ⚠️  Task presence subscription error: ${getErrorMessage(err)}`
-        ),
-      onItem: ({ item: presence, ack }) =>
-        Effect.gen(function* () {
-          ack();
-          if (stopped) return;
-          const row = snapshot.mergePresence(presence);
-          if (!row) return;
-          yield* Effect.sync(() => {
-            runMonitorPass([row], 'presence');
-          });
-        }),
-    });
-
     return {
       stop() {
         stopped = true;
@@ -693,8 +567,6 @@ export const startTaskMonitorEffect = (
         clearAssignedTaskSnapshots();
         unregisterNativeDeliverySession();
         clearInterval(reconcileTimer);
-        void Effect.runPromise(signalHandle.stop());
-        void Effect.runPromise(presenceHandle.stop());
         console.log(`[${formatTimestamp()}] 📋 Task-monitor stopped`);
       },
     };

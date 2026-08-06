@@ -19,23 +19,14 @@ import {
   type DaemonAgentProcessManagerService,
   type DaemonSessionServiceShape,
 } from './daemon-services.js';
-import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
 import { startEnhancerSubscriptions } from './enhancer/start-subscriptions.js';
-import {
-  drainPendingFileContentRequests,
-  startFileContentSubscriptionEffect,
-  type FileContentSubscriptionHandle,
-} from './file-content-subscription.js';
+import { drainPendingFileContentRequests } from './file-content-subscription.js';
 import {
   startFileTreeSubscriptionEffect,
   type FileTreeSubscriptionHandle,
 } from './file-tree-subscription.js';
-import {
-  drainPendingFileWriteRequests,
-  startFileWriteSubscriptionEffect,
-  type FileWriteSubscriptionHandle,
-} from './file-write-subscription.js';
+import { drainPendingFileWriteRequests } from './file-write-subscription.js';
 import { drainGitStateSync, pushSingleWorkspaceGitStateEffect } from './git-heartbeat.js';
 import {
   startGitRequestSubscriptionEffect,
@@ -45,10 +36,7 @@ import { releaseLock } from '../pid.js';
 import { forceKillAllCommands } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { handlePing } from './handlers/ping.js';
-import {
-  drainActionableCommandRuns,
-  startCommandRunSubscription,
-} from './handlers/process/command-run-subscription.js';
+import { drainActionableCommandRuns } from './handlers/process/command-run-subscription.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
@@ -405,19 +393,13 @@ export const startCommandLoopEffect: Effect.Effect<
 
   // ── Subscription handles ──────────────────────────────────────────────
   let gitSubscriptionHandle: GitSubscriptionHandle | null = null;
-  let fileContentSubscriptionHandle: FileContentSubscriptionHandle | null = null;
-  let fileWriteSubscriptionHandle: FileWriteSubscriptionHandle | null = null;
   let fileTreeSubscriptionHandle: FileTreeSubscriptionHandle | null = null;
   let workspaceListSubscriptionHandle: { stop: () => void } | null = null;
   let logObserverSubscriptionHandle: ReturnType<typeof startLogObserverSubscription> | null = null;
-  let commandRunSubscriptionHandle: { stop: () => void } | null = null;
-  let pendingPromptSubscriptionHandle: { stop: () => void } | null = null;
-  let pendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
-  let commandSubscriptionHandle: { stop: () => void } | null = null;
-  let aqPendingPromptSubscriptionHandle: { stop: () => void } | null = null;
-  let aqPendingHarnessSessionSubscriptionHandle: { stop: () => void } | null = null;
-  let lifecycleManager: HarnessLifecycleManager | null = null;
-  let closeDirectHarnessSessionsOnShutdown: (() => Promise<void>) | null = null;
+  let directHarnessWorkerHandle: ReturnType<typeof startDirectHarnessSubscriptions> | null = null;
+  let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
+  let enhancerWorkerHandle: { stop: () => void } | null = null;
+  let taskMonitorHandle: { stop: () => void } | null = null;
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 
@@ -490,19 +472,13 @@ export const startCommandLoopEffect: Effect.Effect<
     unregisterFileInboundHandler();
     unregisterWorkspaceGitInboundHandler();
     gitSubscriptionHandle?.stop();
-    fileContentSubscriptionHandle?.stop();
-    fileWriteSubscriptionHandle?.stop();
     fileTreeSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
     taskMonitorHandle?.stop();
     logObserverSubscriptionHandle?.stop();
-    commandRunSubscriptionHandle?.stop();
-    pendingPromptSubscriptionHandle?.stop();
-    pendingHarnessSessionSubscriptionHandle?.stop();
-    commandSubscriptionHandle?.stop();
-    lifecycleManager?.stopMonitoring();
-    aqPendingPromptSubscriptionHandle?.stop();
-    aqPendingHarnessSessionSubscriptionHandle?.stop();
+    directHarnessWorkerHandle?.stop();
+    agenticQueryWorkerHandle?.stop();
+    enhancerWorkerHandle?.stop();
   };
 
   const runDaemonShutdownEffect = async (): Promise<void> => {
@@ -513,8 +489,11 @@ export const startCommandLoopEffect: Effect.Effect<
   };
 
   const closeAllSessionsAndHarnesses = async (): Promise<void> => {
-    if (closeDirectHarnessSessionsOnShutdown) {
-      await withTimeout(closeDirectHarnessSessionsOnShutdown(), PROCESS_KILL_TIMEOUT_MS);
+    if (directHarnessWorkerHandle) {
+      await withTimeout(
+        directHarnessWorkerHandle.closeSessionsOnShutdown(),
+        PROCESS_KILL_TIMEOUT_MS
+      );
     } else {
       for (const handle of activeSessions.values()) {
         await withTimeout(handle.close(), CLOSE_TIMEOUT_MS);
@@ -546,10 +525,8 @@ export const startCommandLoopEffect: Effect.Effect<
 
   const wsClient = yield* Effect.promise(() => getConvexWsClient());
 
-  gitSubscriptionHandle = yield* startGitRequestSubscriptionEffect(wsClient);
-  fileContentSubscriptionHandle = yield* startFileContentSubscriptionEffect(wsClient);
-  fileWriteSubscriptionHandle = yield* startFileWriteSubscriptionEffect(wsClient);
-  fileTreeSubscriptionHandle = yield* startFileTreeSubscriptionEffect(wsClient);
+  gitSubscriptionHandle = yield* startGitRequestSubscriptionEffect();
+  fileTreeSubscriptionHandle = yield* startFileTreeSubscriptionEffect();
 
   registerFileInboundHandler(async (event) => {
     switch (event.type) {
@@ -565,7 +542,7 @@ export const startCommandLoopEffect: Effect.Effect<
     }
   });
 
-  workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
+  workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect();
 
   registerWorkspaceGitInboundHandler(async (event) => {
     switch (event.type) {
@@ -579,57 +556,43 @@ export const startCommandLoopEffect: Effect.Effect<
     }
   });
 
-  const taskMonitorHandle = yield* startTaskMonitorEffect(wsClient);
+  taskMonitorHandle = yield* startTaskMonitorEffect(wsClient);
 
   logObserverSubscriptionHandle = startLogObserverSubscription(
     { sessionId: session.sessionId, machineId: session.machineId },
     wsClient
   );
 
-  // Dedicated imperative channel for process-host commands (run/stop).
-  // Isolated from the multiplexed getCommandEvents stream so UI-initiated
-  // runs are not delayed by agent lifecycle or git events in flight.
   const commandRunRuntime = yield* Effect.runtime<DaemonSessionService>();
-  commandRunSubscriptionHandle = startCommandRunSubscription(session, wsClient, commandRunRuntime);
 
   if (featureFlags.directHarnessWorkers) {
-    const handles = startDirectHarnessSubscriptions(
+    directHarnessWorkerHandle = startDirectHarnessSubscriptions(
       {
         sessionId: session.sessionId,
         machineId: session.machineId,
         backend: session.backend,
         convexUrl: session.convexUrl,
       },
-      wsClient,
       activeSessions,
       harnesses
     );
-    pendingPromptSubscriptionHandle = handles.pendingPromptSubscriptionHandle;
-    pendingHarnessSessionSubscriptionHandle = handles.pendingHarnessSessionSubscriptionHandle;
-    commandSubscriptionHandle = handles.commandSubscriptionHandle;
-    lifecycleManager = handles.lifecycleManager;
-    closeDirectHarnessSessionsOnShutdown = handles.closeSessionsOnShutdown;
 
-    const aqHandles = startAgenticQuerySubscriptions(
+    agenticQueryWorkerHandle = startAgenticQuerySubscriptions(
       {
         sessionId: session.sessionId,
         machineId: session.machineId,
         backend: session.backend,
         convexUrl: session.convexUrl,
       },
-      wsClient,
       activeSessions,
       harnesses
     );
-    aqPendingPromptSubscriptionHandle = aqHandles.pendingPromptSubscriptionHandle;
-    aqPendingHarnessSessionSubscriptionHandle = aqHandles.pendingHarnessSessionSubscriptionHandle;
 
-    const _enhancerSub = startEnhancerSubscriptions(
+    enhancerWorkerHandle = startEnhancerSubscriptions(
       session.sessionId,
       session.machineId,
       session.convexUrl,
       session.backend,
-      wsClient,
       session.agentServices
     );
   }
@@ -654,34 +617,6 @@ export const startCommandLoopEffect: Effect.Effect<
       await drainActionableCommandRuns(session, commandRunRuntime);
     }
   });
-
-  wsClient.onUpdate(
-    api.machines.getCommandEvents,
-    {
-      sessionId: session.sessionId,
-      machineId: session.machineId,
-    },
-    async (result) => {
-      if (!result.events || result.events.length === 0) return;
-
-      evictStaleDedupEntries(dedupTracker);
-
-      for (const event of result.events) {
-        try {
-          console.log(
-            `[${formatTimestamp()}] 📡 Stream command event: ${event.type} (id: ${event._id})`
-          );
-          await Effect.runPromise(
-            dispatchCommandEventEffect(event, dedupTracker).pipe(Effect.provide(effectContext))
-          );
-        } catch (err) {
-          console.error(
-            `[${formatTimestamp()}] ❌ Stream command event failed: ${getErrorMessage(err)}`
-          );
-        }
-      }
-    }
-  );
 
   return yield* Effect.promise<never>(() => new Promise(() => {}));
 });

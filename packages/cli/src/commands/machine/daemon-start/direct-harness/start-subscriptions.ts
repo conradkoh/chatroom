@@ -1,15 +1,12 @@
 /**
- * Boots direct-harness WS subscribers and lifecycle manager.
- * Called from startCommandLoopEffect when featureFlags.directHarnessWorkers is true.
+ * Boots direct-harness workers (lifecycle manager + inbound registry).
+ * WS subscribers removed in U13 — v2 direct-harness subscribers are sole listeners.
  */
 
-import type { ConvexClient } from 'convex/browser';
-
 import { drainPendingHarnessCommands, type CommandSubscriberDeps } from './command-subscriber.js';
-import { startCommandSubscriber } from './command-subscriber.js';
 import { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
-import { drainPendingHarnessMessages, startMessageSubscriber } from './prompt-subscriber.js';
-import { processPendingHarnessSessions, startSessionSubscriber } from './session-subscriber.js';
+import { drainPendingHarnessMessages } from './prompt-subscriber.js';
+import { processPendingHarnessSessions } from './session-subscriber.js';
 import type { ActiveSession } from './session-subscriber.js';
 import { closeAllMachineHarnessSessionsOnShutdown } from './shutdown-sessions.js';
 import { api } from '../../../../api.js';
@@ -33,16 +30,13 @@ export interface DirectHarnessSubscriptionSession {
 }
 
 export interface DirectHarnessSubscriptionHandles {
-  pendingPromptSubscriptionHandle: { stop: () => void };
-  pendingHarnessSessionSubscriptionHandle: { stop: () => void };
-  commandSubscriptionHandle: { stop: () => void };
   lifecycleManager: HarnessLifecycleManager;
   closeSessionsOnShutdown: () => Promise<void>;
+  stop: () => void;
 }
 
 export function startDirectHarnessSubscriptions(
   session: DirectHarnessSubscriptionSession,
-  wsClient: ConvexClient,
   activeSessions: Map<string, ActiveSession>,
   harnesses: Map<string, BoundHarness>
 ): DirectHarnessSubscriptionHandles {
@@ -99,26 +93,7 @@ export function startDirectHarnessSubscriptions(
     }
   });
 
-  const wrapStop = (stop: () => void) => () => {
-    unregisterDirectHarnessInboundHandler();
-    stop();
-  };
-
-  const pendingPromptSubscriptionHandle = startMessageSubscriber(session, wsClient, sharedDeps);
-  const pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(
-    session,
-    wsClient,
-    sharedDeps
-  );
-
-  const commandSubscriptionHandle = startCommandSubscriber(session, wsClient, commandDeps);
-
   return {
-    pendingPromptSubscriptionHandle: { stop: wrapStop(pendingPromptSubscriptionHandle.stop) },
-    pendingHarnessSessionSubscriptionHandle: {
-      stop: wrapStop(pendingHarnessSessionSubscriptionHandle.stop),
-    },
-    commandSubscriptionHandle: { stop: wrapStop(commandSubscriptionHandle.stop) },
     lifecycleManager,
     closeSessionsOnShutdown: async () => {
       unregisterDirectHarnessInboundHandler();
@@ -127,6 +102,10 @@ export function startDirectHarnessSubscriptions(
         activeSessions,
         sessionRepository,
       });
+    },
+    stop: () => {
+      unregisterDirectHarnessInboundHandler();
+      lifecycleManager.stopMonitoring();
     },
   };
 }

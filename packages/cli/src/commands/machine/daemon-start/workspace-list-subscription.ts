@@ -1,23 +1,16 @@
 /**
- * Reactive subscription to recently observed workspaces for this machine.
+ * Workspace list store — populated by v2 `workspace-list` subscriber inbound nudges.
  *
- * Populates `ctx.workspaceListStore` so git/command/commit-detail sync can read
- * locally without polling `listWorkspacesForMachine` on every heartbeat.
+ * Legacy WS `onUpdate` and reconcile timer removed in U13.
  */
 
-import {
-  WORKSPACE_LIST_RECONCILE_MS,
-  WORKSPACE_RECENCY_WINDOW_MS,
-} from '@workspace/backend/config/reliability.js';
-import type { ConvexClient } from 'convex/browser';
+import { WORKSPACE_RECENCY_WINDOW_MS } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
 
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import type { WorkspaceForSync } from './types.js';
-import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
 
 type RecentlyObservedWorkspaces = NonNullable<
   FunctionReturnType<typeof api.workspaces.listRecentlyObservedWorkspacesForMachine>
@@ -44,66 +37,20 @@ export async function reconcileWorkspaceList(session: DaemonSessionServiceShape)
   session.workspaceListStore.updatedAt = Date.now();
 }
 
-export const startWorkspaceListSubscriptionEffect = (
-  wsClient: ConvexClient
-): Effect.Effect<{ stop: () => void }, never, DaemonSessionService> =>
+/** Initialize workspace list store (no WS). Call `reconcileWorkspaceList` on inbound nudges. */
+export const startWorkspaceListSubscriptionEffect = (): Effect.Effect<
+  { stop: () => void },
+  never,
+  DaemonSessionService
+> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
-
     session.workspaceListStore = { workspaces: [], updatedAt: 0 };
-
-    const queryArgs = {
-      sessionId: session.sessionId,
-      machineId: session.machineId,
-      recencyWindowMs: WORKSPACE_RECENCY_WINDOW_MS,
-    };
-
-    let stopped = false;
-    let reconcileInFlight = false;
-
-    const applyList = (workingDirs: RecentlyObservedWorkspaces): void => {
-      if (!session.workspaceListStore) return;
-      session.workspaceListStore.workspaces = toSyncWorkspaces(workingDirs);
-      session.workspaceListStore.updatedAt = Date.now();
-    };
-
-    const unsubscribe = wsClient.onUpdate(
-      api.workspaces.listRecentlyObservedWorkspacesForMachine,
-      queryArgs,
-      (workspaces) => {
-        if (stopped || workspaces == null) return;
-        applyList(workspaces);
-      },
-      (err: unknown) => {
-        console.warn(
-          `[${formatTimestamp()}] ⚠️ Workspace-list subscription error: ${getErrorMessage(err)}`
-        );
-      }
-    );
-
-    const reconcileTimer = setInterval(() => {
-      if (stopped || reconcileInFlight) return;
-      reconcileInFlight = true;
-      reconcileWorkspaceList(session)
-        .catch((err: unknown) => {
-          console.warn(
-            `[${formatTimestamp()}] ⚠️ Workspace-list reconcile failed: ${getErrorMessage(err)}`
-          );
-        })
-        .finally(() => {
-          reconcileInFlight = false;
-        });
-    }, WORKSPACE_LIST_RECONCILE_MS);
-
-    console.log(`[${formatTimestamp()}] 📂 Workspace-list subscription started`);
+    yield* Effect.promise(() => reconcileWorkspaceList(session));
 
     return {
       stop: () => {
-        stopped = true;
-        unsubscribe();
-        clearInterval(reconcileTimer);
         session.workspaceListStore = undefined;
-        console.log(`[${formatTimestamp()}] 📂 Workspace-list subscription stopped`);
       },
     };
   });

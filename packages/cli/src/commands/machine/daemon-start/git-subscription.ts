@@ -19,7 +19,6 @@
 
 import { gzipSync } from 'node:zlib';
 
-import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect, Layer, Runtime } from 'effect';
 
@@ -424,43 +423,6 @@ function dispatchGitRequest(
   }
 }
 
-function scheduleGitRequestProcessing(
-  session: DaemonSessionServiceShape,
-  runtime: Runtime.Runtime<DaemonSessionService>,
-  processedRequestIds: Map<string, number>,
-  dedupTtlMs: number,
-  processingState: { isProcessing: boolean },
-  requests: PendingRequest[]
-): void {
-  if (!requests?.length) return;
-
-  const logger = session.logger ?? console;
-  logger.log(
-    `[${formatTimestamp()}] 📬 Git subscription: received ${requests.length} pending request(s)`
-  );
-
-  if (processingState.isProcessing) return;
-  processingState.isProcessing = true;
-  const sessionWithRuntime = { ...session, runtime } as unknown as DaemonSessionServiceShape;
-  Runtime.runFork(runtime)(
-    processRequestsEffect(requests, processedRequestIds, dedupTtlMs, runtime).pipe(
-      Effect.provideService(DaemonSessionService, sessionWithRuntime),
-      Effect.catchAll((err) =>
-        Effect.sync(() =>
-          console.warn(
-            `[${formatTimestamp()}] ⚠️  Git request processing failed: ${getErrorMessage(err)}`
-          )
-        )
-      ),
-      Effect.ensuring(
-        Effect.sync(() => {
-          processingState.isProcessing = false;
-        })
-      )
-    )
-  );
-}
-
 // fallow-ignore-next-line unused-export
 export async function drainPendingGitRequests(
   session: DaemonSessionServiceShape,
@@ -489,10 +451,12 @@ export async function drainPendingGitRequests(
   }
 }
 
-/** Starts the git request subscription — yields DaemonSessionService. */
-export const startGitRequestSubscriptionEffect = (
-  wsClient: ConvexClient
-): Effect.Effect<GitSubscriptionHandle, never, DaemonSessionService> =>
+/** Starts git request drain state — yields DaemonSessionService. WS removed in U13. */
+export const startGitRequestSubscriptionEffect = (): Effect.Effect<
+  GitSubscriptionHandle,
+  never,
+  DaemonSessionService
+> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const runtime = yield* Effect.runtime<DaemonSessionService>();
@@ -524,31 +488,6 @@ export const startGitRequestSubscriptionEffect = (
         );
       });
 
-    const unsubscribe = wsClient.onUpdate(
-      api.workspaces.getPendingRequests,
-      {
-        sessionId: session.sessionId,
-        machineId: session.machineId,
-      },
-      (requests) => {
-        scheduleGitRequestProcessing(
-          sessionWithRuntime,
-          runtime,
-          processedRequestIds,
-          DEDUP_TTL_MS,
-          processingState,
-          requests ?? []
-        );
-      },
-      (err: unknown) => {
-        console.warn(
-          `[${formatTimestamp()}] ⚠️  Git request subscription error: ${getErrorMessage(err)}`
-        );
-      }
-    );
-
-    console.log(`[${formatTimestamp()}] 🔀 Git request subscription started (reactive)`);
-
     return {
       drainPendingGitRequests: () =>
         drainPendingGitRequests(
@@ -558,10 +497,7 @@ export const startGitRequestSubscriptionEffect = (
           DEDUP_TTL_MS,
           processingState
         ),
-      stop: () => {
-        unsubscribe();
-        console.log(`[${formatTimestamp()}] 🔀 Git request subscription stopped`);
-      },
+      stop: () => {},
     };
   });
 

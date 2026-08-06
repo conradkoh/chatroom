@@ -11,15 +11,12 @@
  * mirrors the git and log-observer subscription modules.
  */
 
-import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect, Runtime } from 'effect';
 
 import { api } from '../../../../../api.js';
-import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../../daemon-services.js';
 import type { SessionId } from '../../types.js';
-import { formatTimestamp } from '../../utils.js';
 import { onCommandRunEffect, onCommandStopEffect } from '../command-runner.js';
 
 type ActionableCommandRuns = FunctionReturnType<
@@ -93,39 +90,11 @@ export async function drainActionableCommandRuns(
 }
 
 /**
- * Subscribe to runs the daemon must act on (pending spawns + user-requested
- * stops). Handlers are forked via the supplied Effect runtime so a slow agent
- * or git handler in the main stream can never block command dispatch.
+ * Subscribe to runs the daemon must act on (pending spawns + user-requested stops).
+ * WS removed in U13 — v2 `command-run` subscriber nudges `drainActionableCommandRuns`.
  */
-export function startCommandRunSubscription(
-  session: DaemonSessionServiceShape,
-  wsClient: ConvexClient,
-  effectContext: Runtime.Runtime<DaemonSessionService>
-): { stop: () => void } {
-  let stopped = false;
-
-  const unsubscribe = wsClient.onUpdate(
-    api.daemon.commands.listActionableCommandRuns,
-    { sessionId: session.sessionId as SessionId, machineId: session.machineId },
-    (result: ActionableCommandRuns | null | undefined) => {
-      if (stopped) return;
-      processActionableCommandRuns(session, effectContext, result);
-    },
-    (err: unknown) =>
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Command-run subscription error: ${getErrorMessage(err)}`
-      )
-  );
-
-  console.log(`[${formatTimestamp()}] ⚡ Command-run subscription started`);
-
-  return {
-    stop: () => {
-      stopped = true;
-      unsubscribe();
-      console.log(`[${formatTimestamp()}] ⚡ Command-run subscription stopped`);
-    },
-  };
+export function startCommandRunSubscription(): { stop: () => void } {
+  return { stop: () => {} };
 }
 
 /** Test helper — reset in-memory dedup state between test cases. */

@@ -8,7 +8,6 @@
 import { randomUUID } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 
-import type { ConvexClient } from 'convex/browser';
 import { Effect } from 'effect';
 
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
@@ -172,9 +171,11 @@ async function publishCheckpoint(
   return { revision: checkpointRevision };
 }
 
-export const startFileTreeSubscriptionEffect = (
-  wsClient: ConvexClient
-): Effect.Effect<FileTreeSubscriptionHandle, never, DaemonSessionService> =>
+export const startFileTreeSubscriptionEffect = (): Effect.Effect<
+  FileTreeSubscriptionHandle,
+  never,
+  DaemonSessionService
+> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const coordinators = new Map<string, Promise<WorkspaceFileTreeCoordinator>>();
@@ -237,32 +238,16 @@ export const startFileTreeSubscriptionEffect = (
       });
     };
 
-    const unsubscribe = wsClient.onUpdate(
-      api.workspaceFiles.getPendingFileTreeRequests,
-      { sessionId: session.sessionId, machineId: session.machineId },
-      (requests) => {
-        if (!requests?.length) return;
-        void processPendingFileTreeRequests(session, coordinators, ensureCoordinator, requests);
-      },
-      (err: unknown) => {
-        logSubscriptionWarn('File tree subscription error', err);
-      }
-    );
-
-    console.log(`[${formatTimestamp()}] 🌳 File tree subscription started (reactive)`);
-
     return {
       drainPendingFileTreeRequests: () =>
         drainPendingFileTreeRequests(session, coordinators, ensureCoordinator),
       stop: () => {
-        unsubscribe();
         void Promise.all(
           [...coordinators.values()].map((coordinator) =>
             coordinator.then((handle) => handle.stop()).catch(() => undefined)
           )
         );
         coordinators.clear();
-        console.log(`[${formatTimestamp()}] 🌳 File tree subscription stopped`);
       },
     };
   });
