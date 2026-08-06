@@ -115,7 +115,9 @@ describe('startDaemonV2', () => {
         sessionId: 'session-1',
         machineId: 'machine-1',
         router: expect.objectContaining({
-          assignedTask: {},
+          assignedTask: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
           directHarness: {},
           command: {},
           workspaceGit: {},

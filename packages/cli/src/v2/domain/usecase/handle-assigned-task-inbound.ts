@@ -6,15 +6,14 @@ export type AssignedTaskInboundEvent = Extract<
 >;
 
 export type HandleAssignedTaskInboundDeps = {
-  /** Hook for future deliver-assigned-task orchestration */
-  onTaskMonitorEvent?: (event: AssignedTaskInboundEvent) => Promise<void>;
+  deliverInbound?: (event: AssignedTaskInboundEvent) => Promise<void>;
 };
 
 export async function handleAssignedTaskInbound(
   deps: HandleAssignedTaskInboundDeps,
   event: AssignedTaskInboundEvent
 ): Promise<void> {
-  if (deps.onTaskMonitorEvent) {
-    await deps.onTaskMonitorEvent(event);
+  if (deps.deliverInbound) {
+    await deps.deliverInbound(event);
   }
 }

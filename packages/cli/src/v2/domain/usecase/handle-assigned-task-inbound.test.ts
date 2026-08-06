@@ -6,17 +6,17 @@ import {
 } from './handle-assigned-task-inbound.js';
 
 describe('handleAssignedTaskInbound', () => {
-  test('invokes onTaskMonitorEvent when provided', async () => {
-    const onTaskMonitorEvent = vi.fn().mockResolvedValue(undefined);
+  test('invokes deliverInbound when provided', async () => {
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: AssignedTaskInboundEvent = {
       type: 'assigned-task.signal',
       taskId: 'task_1',
       role: 'builder',
     };
 
-    await handleAssignedTaskInbound({ onTaskMonitorEvent }, event);
+    await handleAssignedTaskInbound({ deliverInbound }, event);
 
-    expect(onTaskMonitorEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('no-ops when hook is absent', async () => {

@@ -7,6 +7,7 @@ import { startAssignedTaskPresenceSubscriber } from './assigned-task-presence.js
 import { startAssignedTaskSignalsSubscriber } from './assigned-task-signals.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
 import type { AssignedTaskInboundEvent } from '../../../domain/usecase/handle-assigned-task-inbound.js';
+import { createDefaultEventRouterDeps } from '../../../entry/default-router-deps.js';
 import { routeInboundEvent } from '../../../entry/event-router.js';
 import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
 
@@ -124,7 +125,7 @@ describe('assigned-task v2 subscribers', () => {
       machineId: MACHINE_ID,
       router: {
         assignedTask: {
-          onTaskMonitorEvent: async (event) => {
+          deliverInbound: async (event) => {
             handled.push(event);
           },
         },
@@ -159,7 +160,7 @@ describe('assigned-task v2 subscribers', () => {
     await routeInboundEvent(
       {
         assignedTask: {
-          onTaskMonitorEvent: async (event) => {
+          deliverInbound: async (event) => {
             handled.push(event);
           },
         },
@@ -174,5 +175,10 @@ describe('assigned-task v2 subscribers', () => {
     );
 
     expect(handled).toEqual([{ type: 'assigned-task.presence', taskId: TASK_ID, role: 'builder' }]);
+  });
+
+  it('default router deps provide deliverInbound hook', () => {
+    const deps = createDefaultEventRouterDeps();
+    expect(deps.assignedTask.deliverInbound).toBeTypeOf('function');
   });
 });

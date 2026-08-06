@@ -11,7 +11,7 @@ import type { FileInboundEvent } from '../domain/usecase/handle-file-inbound.js'
 import type { WorkspaceGitInboundEvent } from '../domain/usecase/handle-workspace-git-inbound.js';
 
 const routerDeps = {
-  assignedTask: {} as { onTaskMonitorEvent?: (event: AssignedTaskInboundEvent) => Promise<void> },
+  assignedTask: {} as { deliverInbound?: (event: AssignedTaskInboundEvent) => Promise<void> },
   directHarness: {} as {
     onDirectHarnessEvent?: (event: DirectHarnessInboundEvent) => Promise<void>;
   },
@@ -28,29 +28,29 @@ const routerDeps = {
 
 describe('routeInboundEvent', () => {
   test('dispatches assigned-task.signal to handler', async () => {
-    const onTaskMonitorEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: AssignedTaskInboundEvent = {
       type: 'assigned-task.signal',
       taskId: 'task_1',
       role: 'builder',
     };
 
-    await routeInboundEvent({ ...routerDeps, assignedTask: { onTaskMonitorEvent } }, event);
+    await routeInboundEvent({ ...routerDeps, assignedTask: { deliverInbound } }, event);
 
-    expect(onTaskMonitorEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('dispatches assigned-task.presence to handler', async () => {
-    const onTaskMonitorEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: AssignedTaskInboundEvent = {
       type: 'assigned-task.presence',
       taskId: 'task_1',
       role: 'planner',
     };
 
-    await routeInboundEvent({ ...routerDeps, assignedTask: { onTaskMonitorEvent } }, event);
+    await routeInboundEvent({ ...routerDeps, assignedTask: { deliverInbound } }, event);
 
-    expect(onTaskMonitorEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('dispatches direct-harness.session-opened to handler', async () => {
@@ -210,7 +210,7 @@ describe('routeInboundEvent', () => {
   });
 
   test('ignores unhandled event types', async () => {
-    const onTaskMonitorEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const onDirectHarnessEvent = vi.fn().mockResolvedValue(undefined);
     const onCommandEvent = vi.fn().mockResolvedValue(undefined);
     const onWorkspaceGitEvent = vi.fn().mockResolvedValue(undefined);
@@ -220,7 +220,7 @@ describe('routeInboundEvent', () => {
 
     await routeInboundEvent(
       {
-        assignedTask: { onTaskMonitorEvent },
+        assignedTask: { deliverInbound },
         directHarness: { onDirectHarnessEvent },
         command: { onCommandEvent },
         workspaceGit: { onWorkspaceGitEvent },
@@ -231,7 +231,7 @@ describe('routeInboundEvent', () => {
       { type: 'not-a-real-type' } as unknown as InboundEvent
     );
 
-    expect(onTaskMonitorEvent).not.toHaveBeenCalled();
+    expect(deliverInbound).not.toHaveBeenCalled();
     expect(onDirectHarnessEvent).not.toHaveBeenCalled();
     expect(onCommandEvent).not.toHaveBeenCalled();
     expect(onWorkspaceGitEvent).not.toHaveBeenCalled();

@@ -34,7 +34,7 @@ Migration is **complete** when all of the following are true:
 | U0   | Baseline (v1.88.2 scaffold)    | ✅ Done | —       |
 | U1   | Placeholder entity types       | ✅ Done | backlog |
 | U2   | Agent control use cases        | ✅ Done | backlog |
-| U3   | Assigned task delivery         | ⬜ Todo | backlog |
+| U3   | Assigned task delivery         | ✅ Done | backlog |
 | U4   | Direct harness processing      | ⬜ Todo | backlog |
 | U5   | Command loop migration         | ⬜ Todo | backlog |
 | U6   | File fulfillment               | ⬜ Todo | backlog |
@@ -110,22 +110,25 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U3 — Assigned task delivery
+## U3 — Assigned task delivery ✅
 
-**Outcome:** `deliver-assigned-task` implements task-monitor logic; `handle-assigned-task-inbound` wired with real hook.
+**Outcome:** `deliver-assigned-task` implements inbound reaction logic; `handle-assigned-task-inbound` wired with real hook.
 
 **Files:**
 
-- `domain/usecase/deliver-assigned-task.ts` ← `daemon-start/task-monitor.ts`
-- `domain/usecase/handle-assigned-task-inbound.ts` — wire to `deliverAssignedTask`
-- `entry/default-router-deps.ts` — provide `onTaskMonitorEvent` hook
+- `domain/usecase/deliver-assigned-task.ts` ← registry dispatch to task monitor
+- `domain/usecase/handle-assigned-task-inbound.ts` — wire to `deliverAssignedTaskInbound`
+- `entry/bridge/assigned-task-bridge.ts` — router + registry bridge
+- `entry/assigned-task-monitor-registry.ts` — task monitor handler registry
+- `entry/default-router-deps.ts` — provide `deliverInbound` hook
+- `daemon-start/task-monitor.ts` — register/unregister inbound handler
 
 **Validation criteria:**
 
-- [ ] Assigned tasks delivered end-to-end via v2 path
-- [ ] Integration test or existing `task-monitor` test adapted for v2
-- [ ] `startTaskMonitorEffect` removed from `command-loop.ts` (deferred to U13 if partial)
-- [ ] G1 passes for `deliver-assigned-task.ts`
+- [x] Assigned tasks delivered end-to-end via v2 path
+- [x] Integration test or existing `task-monitor` test adapted for v2
+- [x] `startTaskMonitorEffect` removed from `command-loop.ts` (deferred to U13 if partial)
+- [x] G1 passes for `deliver-assigned-task.ts`
 
 ---
 

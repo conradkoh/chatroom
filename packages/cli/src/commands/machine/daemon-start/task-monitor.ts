@@ -84,6 +84,11 @@ import type {
   AssignedTaskWithContent,
 } from '../../../v2/domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../../../v2/domain/entities/execution-kind.js';
+import type { AssignedTaskInboundEvent } from '../../../v2/domain/usecase/handle-assigned-task-inbound.js';
+import {
+  registerAssignedTaskMonitorHandler,
+  unregisterAssignedTaskMonitorHandler,
+} from '../../../v2/entry/assigned-task-monitor-registry.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -506,6 +511,18 @@ function subscribeAssignedTaskSnapshotStore(
   );
 }
 
+export function handleInboundAssignedTaskEvent(
+  event: AssignedTaskInboundEvent,
+  runMonitorPass: (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass) => void
+): void {
+  const row = listAssignedTaskSnapshots().find(
+    (snapshot) => snapshot.taskId === event.taskId && snapshot.agentConfig.role === event.role
+  );
+  if (!row) return;
+  const pass: TaskMonitorPass = event.type === 'assigned-task.signal' ? 'signal' : 'presence';
+  runMonitorPass([row], pass);
+}
+
 // fallow-ignore-next-line complexity
 export const startTaskMonitorEffect = (
   wsClient: ConvexClient
@@ -573,6 +590,10 @@ export const startTaskMonitorEffect = (
         monitorPassInFlight = false;
       });
     };
+
+    registerAssignedTaskMonitorHandler(async (event) => {
+      handleInboundAssignedTaskEvent(event, runMonitorPass);
+    });
 
     const reconcileTimer = setInterval(() => {
       runLocalStoreReconcilePass({
@@ -666,6 +687,7 @@ export const startTaskMonitorEffect = (
     return {
       stop() {
         stopped = true;
+        unregisterAssignedTaskMonitorHandler();
         unsubscribeSnapshotStore();
         clearAssignedTaskSnapshots();
         unregisterNativeDeliverySession();
