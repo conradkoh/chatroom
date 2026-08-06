@@ -1,6 +1,6 @@
 # Daemon module consolidation index
 
-> Phases 0–4 ✅ complete on `feat/daemon-module-rename`. Phases 5–8 pending.
+> Phases 0–4 ✅ complete (merged #1311). Phases 5–8 planned — see [`plan.md`](./plan.md).
 
 ## Verdict legend
 
@@ -328,7 +328,9 @@
 
 ## Open decisions
 
-- [ ] **`remote-agents/` registry:** Move entire tree to `daemon/infrastructure/local/harness/services/` with re-exports at `infrastructure/services/remote-agents/` for `harness-status` / `detection`, or keep registry at infrastructure and only move native SDK subsets? (Phase 8 — **defer** until import strategy chosen)
-- [ ] **`daemon-start/index.ts` path:** Keep `commands/machine/daemon-start/` vs rename to `commands/machine/daemon/` after consolidation phases complete? (**defer**)
-- [ ] **`enhancer-legacy/` naming:** Rename `daemon/entry/enhancer-legacy/` → `daemon/entry/enhancer/` after deleting `daemon-start/enhancer/` shims, or merge folders? (**defer**)
-- [ ] **`agent-lifecycle/` coupling:** `infrastructure/services/agent-lifecycle/` is consumed by agent-process-manager and remote-agents — consolidate into daemon with shims or leave as shared infrastructure? (**defer**)
+> **Resolved** — see [`plan.md`](./plan.md) §Resolved decisions. Summary:
+>
+> - `remote-agents/`: move to `daemon/infrastructure/local/harness/services/` with thin re-exports for harness-status/detection
+> - `daemon-start/index.ts`: keep at `commands/machine/daemon-start/` (CLI entry)
+> - `enhancer-legacy/`: rename to `enhancer/` in Phase 7b
+> - `agent-lifecycle/`: defer — keep shared infrastructure
