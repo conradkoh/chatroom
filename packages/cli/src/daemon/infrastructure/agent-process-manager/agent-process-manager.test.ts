@@ -7,7 +7,6 @@ import {
   type EnsureRunningOpts,
   STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
-import { NATIVE_DIRECT_HARNESS_NAMES } from '../../../infrastructure/harnesses/registry.js';
 import {
   CRASH_LOOP_MAX_RESTARTS,
   CrashLoopTracker,
@@ -21,6 +20,7 @@ import {
 } from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import type * as NativeTaskDeliveryCoordinatorModule from '../../entry/native-delivery/native-task-delivery-coordinator.js';
+import { NATIVE_DIRECT_HARNESS_NAMES } from '../local/harness/bound-harness-registry.js';
 import type {
   RemoteAgentService,
   SpawnResult,

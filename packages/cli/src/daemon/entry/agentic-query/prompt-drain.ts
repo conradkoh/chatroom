@@ -7,18 +7,18 @@ import type {
   AgenticPendingPromptSession,
 } from './types.js';
 import { api } from '../../../api.js';
-import { makeHarnessKey } from '../../../infrastructure/harnesses/harness-key.js';
-import {
-  createChunkExtractor,
-  startBoundHarness,
-  type NativeDirectHarnessName,
-} from '../../../infrastructure/harnesses/registry.js';
 import type { BoundHarness } from '../../domain/entities/bound-harness.js';
 import type {
   SessionRepository,
   JournalFactory,
 } from '../../domain/usecase/open-harness-session.js';
 import { resumeSession } from '../../domain/usecase/resume-harness-session.js';
+import {
+  createChunkExtractor,
+  startBoundHarness,
+  type NativeDirectHarnessName,
+} from '../../infrastructure/local/harness/bound-harness-registry.js';
+import { makeHarnessKey } from '../../infrastructure/local/harness/harness-key.js';
 import { handleSessionIdle } from '../direct-harness/idle-handler.js';
 import type { ActiveSession } from '../direct-harness/session-processor.js';
 import { bindTurnMessageOnEvent } from '../shared-harness/bind-turn-message-on-event.js';

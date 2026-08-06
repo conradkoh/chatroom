@@ -7,10 +7,10 @@ import type {
   SharedHarnessMaps,
 } from './types.js';
 import { api } from '../../../api.js';
-import { createChunkExtractor } from '../../../infrastructure/harnesses/registry.js';
 import type { DirectHarnessSessionEvent } from '../../domain/entities/direct-harness-session.js';
 import type { HarnessSessionId } from '../../domain/entities/harness-session.js';
 import type { SessionHandle } from '../../domain/usecase/open-harness-session.js';
+import { createChunkExtractor } from '../../infrastructure/local/harness/bound-harness-registry.js';
 import { isOpenCodeSessionEventType } from '../../infrastructure/local/harness/services/opencode-sdk/opencode-session-events.js';
 import { handleSessionIdle } from '../direct-harness/idle-handler.js';
 

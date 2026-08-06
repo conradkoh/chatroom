@@ -8,10 +8,10 @@
 
 import { Effect } from 'effect';
 
-import { makeHarnessKey, parseHarnessKey } from '../../../infrastructure/harnesses/harness-key.js';
-import { startBoundHarness } from '../../../infrastructure/harnesses/registry.js';
 import type { BoundHarness, NativeDirectHarnessName } from '../../domain/entities/bound-harness.js';
 import type { SessionHandle } from '../../domain/usecase/open-harness-session.js';
+import { startBoundHarness } from '../../infrastructure/local/harness/bound-harness-registry.js';
+import { makeHarnessKey, parseHarnessKey } from '../../infrastructure/local/harness/harness-key.js';
 import { formatTimestamp } from '../daemon-utils.js';
 
 const INACTIVITY_TTL_MS = 15 * 60 * 1000;

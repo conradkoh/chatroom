@@ -6,18 +6,18 @@ import type { DirectHarnessSession } from './command-processor.js';
 import { handleSessionIdle } from './idle-handler.js';
 import type { ActiveSession } from './session-processor.js';
 import { api } from '../../../api.js';
-import { makeHarnessKey } from '../../../infrastructure/harnesses/harness-key.js';
-import {
-  createChunkExtractor,
-  startBoundHarness,
-  type NativeDirectHarnessName,
-} from '../../../infrastructure/harnesses/registry.js';
 import type { BoundHarness } from '../../domain/entities/bound-harness.js';
 import type {
   JournalFactory,
   SessionRepository,
 } from '../../domain/usecase/open-harness-session.js';
 import { resumeSession } from '../../domain/usecase/resume-harness-session.js';
+import {
+  createChunkExtractor,
+  startBoundHarness,
+  type NativeDirectHarnessName,
+} from '../../infrastructure/local/harness/bound-harness-registry.js';
+import { makeHarnessKey } from '../../infrastructure/local/harness/harness-key.js';
 import { OPENCODE_SESSION_EVENT_TYPES } from '../../infrastructure/local/harness/services/opencode-sdk/opencode-session-events.js';
 import { bindTurnMessageOnEvent } from '../shared-harness/bind-turn-message-on-event.js';
 

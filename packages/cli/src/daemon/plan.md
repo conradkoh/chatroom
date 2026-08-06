@@ -1,6 +1,6 @@
 # Daemon consolidation plan — Phases 5–8
 
-> **Status:** Planning complete. Phases 0–4 merged via PR #1311 (`f28a5d57a`).
+> **Status:** Phases 0–8 ✅ complete on `feat/daemon-consolidation-plan`.
 > **Inventory SSOT:** [`consolidate.md`](./consolidate.md)
 > **Branch for execution:** Continue on `feat/daemon-consolidation-plan` or a fresh `feat/daemon-consolidation-5-8` branch cut from `release/v1.88.2` after this plan merges.
 

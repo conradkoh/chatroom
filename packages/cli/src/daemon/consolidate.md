@@ -1,6 +1,6 @@
 # Daemon module consolidation index
 
-> Phases 0–4 ✅ complete (merged #1311). Phases 5–8 planned — see [`plan.md`](./plan.md).
+> Phases 0–8 ✅ complete. See [`plan.md`](./plan.md) for execution record.
 
 ## Verdict legend
 

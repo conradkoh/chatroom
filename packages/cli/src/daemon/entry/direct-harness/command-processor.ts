@@ -6,12 +6,12 @@ import type { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
 import type { ActiveSession } from './session-processor.js';
 import { api } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
-import { listInstalledNativeDirectHarnesses } from '../../../infrastructure/harnesses/registry.js';
 import type { NativeDirectHarnessName } from '../../domain/entities/bound-harness.js';
 import type { HarnessSessionId, OpenCodeSessionId } from '../../domain/entities/harness-session.js';
 import type { WorkspaceCapabilities } from '../../domain/entities/machine-capabilities.js';
 import type { SessionRepository } from '../../domain/usecase/open-harness-session.js';
 import type { CapabilitiesPublisher } from '../../domain/usecase/update-harness-capabilities.js';
+import { listInstalledNativeDirectHarnesses } from '../../infrastructure/local/harness/bound-harness-registry.js';
 import type { SessionId } from '../daemon-types.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
