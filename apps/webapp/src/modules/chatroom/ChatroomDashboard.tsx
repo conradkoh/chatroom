@@ -15,7 +15,15 @@ import {
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import type React from 'react';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -52,7 +60,12 @@ import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
 import { WorkQueue } from './components/WorkQueue';
 import { useChatroomChatStatus } from './context/ChatroomListingContext';
-import { useCommandDialog } from './context/CommandDialogContext';
+import { useCommandDialogActions } from './context/CommandDialogContext';
+import {
+  getCommandPaletteRunsActive,
+  subscribeCommandDialogAnyClose,
+  subscribeCommandPaletteRunsActive,
+} from './context/commandPaletteController';
 import { PendingFileHighlightProvider } from './context/PendingFileHighlightContext';
 import { WorkspaceFileLinkProvider } from './context/WorkspaceFileLinkContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
@@ -780,7 +793,13 @@ export function ChatroomDashboard({
     onCloseTab: fileTabs.closeTab,
   });
 
-  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
+  const { openDialog, closeDialog } = useCommandDialogActions();
+
+  const paletteRunsActive = useSyncExternalStore(
+    subscribeCommandPaletteRunsActive,
+    getCommandPaletteRunsActive,
+    () => false
+  );
 
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
@@ -790,22 +809,17 @@ export function ChatroomDashboard({
     focusSendFormRef.current = fn;
   }, []);
 
-  const prevActiveDialogRef = useRef(activeDialog);
   useEffect(() => {
-    const wasOpen = prevActiveDialogRef.current !== null;
-    const isOpen = activeDialog !== null;
-    prevActiveDialogRef.current = activeDialog;
-
-    if (!wasOpen || isOpen) return;
-
-    const messageInputVisible =
-      activeView === 'messages' ||
-      ((activeView === 'explorer' || activeView === 'source-control') && explorerSplitViewEnabled);
-
-    if (messageInputVisible) {
-      setTimeout(() => focusSendFormRef.current?.(), 0);
-    }
-  }, [activeDialog, activeView, explorerSplitViewEnabled]);
+    return subscribeCommandDialogAnyClose(() => {
+      const messageInputVisible =
+        activeView === 'messages' ||
+        ((activeView === 'explorer' || activeView === 'source-control') &&
+          explorerSplitViewEnabled);
+      if (messageInputVisible) {
+        setTimeout(() => focusSendFormRef.current?.(), 0);
+      }
+    });
+  }, [activeView, explorerSplitViewEnabled]);
 
   const handleRegisterAllTabNavigation = useCallback(
     (actions: { goToLatestAnchor: () => void }) => {
@@ -1229,8 +1243,7 @@ export function ChatroomDashboard({
   const commandRunner = useCommandRunner({
     machineId: activeWorkspace?.machineId ?? null,
     workingDir: activeWorkspace?.workingDir ?? null,
-    runsListEnabled:
-      activeView === 'processes' || terminalOpen || activeDialog === 'command-palette',
+    runsListEnabled: activeView === 'processes' || terminalOpen || paletteRunsActive,
   });
 
   // Single demand-driven output subscription for processes panel, terminal, and palette.

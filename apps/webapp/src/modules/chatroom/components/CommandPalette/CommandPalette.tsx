@@ -1,7 +1,7 @@
 'use client';
 
 import { EyeOff } from 'lucide-react';
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
 
 import { CommandOutputModal } from './CommandOutputModal';
 import { buildCommandPaletteRows } from './commandPaletteRows';
@@ -11,7 +11,13 @@ import { CommandDialogContent } from '../shared/CommandDialogContent';
 
 import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
+import {
+  getCommandPaletteOpen,
+  notifyCommandDialogClosed,
+  setCommandPaletteOpen,
+  subscribeCommandPaletteOpen,
+} from '@/modules/chatroom/context/commandPaletteController';
 import { useCommandBlacklist } from '@/modules/chatroom/hooks/useCommandBlacklist';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
@@ -32,12 +38,20 @@ interface CommandPaletteProps {
  * - **Search mode** (typing): flat list ranked by frécency
  */
 export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps) {
-  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
-  const open = activeDialog === 'command-palette';
+  const { closeDialog } = useCommandDialogActions();
+  const open = useSyncExternalStore(
+    subscribeCommandPaletteOpen,
+    getCommandPaletteOpen,
+    () => false
+  );
   const listContentReady = useDeferUntilPainted(open);
   const setOpen = useCallback(
-    (val: boolean) => (val ? openDialog('command-palette') : closeDialog()),
-    [openDialog, closeDialog]
+    (val: boolean) => {
+      if (val) closeDialog();
+      setCommandPaletteOpen(val);
+      if (!val) notifyCommandDialogClosed();
+    },
+    [closeDialog]
   );
 
   const [searchValue, setSearchValue] = useState('');
