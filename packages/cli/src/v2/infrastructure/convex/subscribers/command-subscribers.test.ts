@@ -123,6 +123,7 @@ describe('command v2 subscribers', () => {
             handled.push(event);
           },
         },
+        workspaceGit: {},
       },
     });
 
@@ -147,6 +148,7 @@ describe('command v2 subscribers', () => {
             handled.push(event);
           },
         },
+        workspaceGit: {},
       },
       { type: 'command-run.updated', runId: PENDING_RUN_ID }
     );

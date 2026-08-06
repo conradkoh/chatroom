@@ -132,6 +132,7 @@ describe('direct-harness v2 subscribers', () => {
           },
         },
         command: {},
+        workspaceGit: {},
       },
     });
 
@@ -157,6 +158,7 @@ describe('direct-harness v2 subscribers', () => {
           },
         },
         command: {},
+        workspaceGit: {},
       },
       { type: 'direct-harness.command', commandId: COMMAND_ID }
     );
