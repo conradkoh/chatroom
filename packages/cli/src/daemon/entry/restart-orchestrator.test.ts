@@ -3,7 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import { runRestartOrchestrator } from './restart-orchestrator.js';
 
-vi.mock('../../../api.js', () => ({
+vi.mock('../../api.js', () => ({
   api: {
     machines: {
       emitRestartPhase: 'emitRestartPhase',

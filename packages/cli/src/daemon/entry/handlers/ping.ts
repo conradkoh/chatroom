@@ -4,7 +4,7 @@
 
 import { Effect } from 'effect';
 
-import type { CommandResult } from '../../../commands/machine/daemon-start/types.js';
+import type { CommandResult } from '../daemon-types.js';
 
 export function handlePing(): CommandResult {
   console.log(`   ↪ Responding: pong`);

@@ -1632,7 +1632,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/commit-detail-sync.ts": {
+    "packages/cli/src/daemon/entry/workspace-git/commit-detail-sync.ts": {
       "crap_high": {
         "count": 1
       },
@@ -1712,12 +1712,12 @@
         "count": 4
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/refresh-models-outcome.ts": {
+    "packages/cli/src/daemon/entry/refresh-models-outcome.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/restart-orchestrator.ts": {
+    "packages/cli/src/daemon/entry/restart-orchestrator.ts": {
       "crap_high": {
         "count": 2
       },
@@ -1733,7 +1733,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/workspace-cache.ts": {
+    "packages/cli/src/daemon/entry/workspace-git/workspace-cache.ts": {
       "crap_moderate": {
         "count": 1
       }

@@ -13,15 +13,9 @@ import { handlePingEffect } from './ping.js';
 import { recoverAgentStateEffect } from './state-recovery.js';
 import { handleStatusEffect } from './status.js';
 import { executeStopAgentEffect, handleStopAgentEffect } from './stop-agent.js';
-import { daemonSessionToLayers } from '../../../commands/machine/daemon-start/daemon-layers.js';
-import {
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
-import type {
-  DaemonSessionInit,
-  MachineConfig,
-} from '../../../commands/machine/daemon-start/types.js';
+import { daemonSessionToLayers } from '../daemon-layers.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
+import type { DaemonSessionInit, MachineConfig } from '../daemon-types.js';
 import { DaemonEventBus } from '../events/event-bus.js';
 import { createMockDaemonSessionInit } from '../testing/index.js';
 import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';

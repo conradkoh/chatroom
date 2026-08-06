@@ -7,10 +7,7 @@
 import { Effect } from 'effect';
 
 import { fulfillFileContentRequestsEffect } from './file-content-fulfillment.js';
-import {
-  DaemonSessionService,
-  type DaemonSessionServiceShape,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
 
 export async function drainPendingFileContentRequests(
   session: DaemonSessionServiceShape

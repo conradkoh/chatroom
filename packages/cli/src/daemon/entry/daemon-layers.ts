@@ -13,11 +13,11 @@ import {
   DaemonSessionService,
   DaemonSpawningServiceLive,
 } from './daemon-services.js';
-import type { DaemonSessionInit } from './types.js';
-import { BackendServiceLive } from '../../../infrastructure/services/backend.js';
-import { ClockServiceLive } from '../../../infrastructure/services/clock.js';
-import { FsServiceLive } from '../../../infrastructure/services/fs.js';
-import { ProcessServiceLive } from '../../../infrastructure/services/process.js';
+import type { DaemonSessionInit } from './daemon-types.js';
+import { BackendServiceLive } from '../../infrastructure/services/backend.js';
+import { ClockServiceLive } from '../../infrastructure/services/clock.js';
+import { FsServiceLive } from '../../infrastructure/services/fs.js';
+import { ProcessServiceLive } from '../../infrastructure/services/process.js';
 
 /**
  * Build all daemon Effect service layers from flat bootstrap data.

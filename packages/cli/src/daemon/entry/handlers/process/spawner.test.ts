@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createOutputStore, ensureTempDir } from './output-store.js';
 import type { SpawnDeps } from './spawner.js';
-import type { SessionId } from '../../../../commands/machine/daemon-start/types.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
+import type { SessionId } from '../../daemon-types.js';
 
 vi.mock('../../../../api.js', () => ({
   api: {

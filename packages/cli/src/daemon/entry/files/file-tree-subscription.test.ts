@@ -2,13 +2,10 @@ import type { Layer } from 'effect';
 import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { daemonSessionToLayers } from '../../../commands/machine/daemon-start/daemon-layers.js';
-import {
-  DaemonSessionService,
-  type DaemonSessionServiceShape,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
-import type { DaemonSessionInit } from '../../../commands/machine/daemon-start/types.js';
 import type { WorkspaceFileTreeCoordinatorOptions } from '../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
+import { daemonSessionToLayers } from '../daemon-layers.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
+import type { DaemonSessionInit } from '../daemon-types.js';
 import { createMockDaemonSessionInit } from '../testing/index.js';
 import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
 

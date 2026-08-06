@@ -15,12 +15,9 @@ import type { FunctionReturnType } from 'convex/server';
 import { Effect, Runtime } from 'effect';
 
 import { api } from '../../../../api.js';
-import {
-  DaemonSessionService,
-  type DaemonSessionServiceShape,
-} from '../../../../commands/machine/daemon-start/daemon-services.js';
-import type { SessionId } from '../../../../commands/machine/daemon-start/types.js';
-import { formatTimestamp } from '../../../../commands/machine/daemon-start/utils.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from '../../daemon-services.js';
+import type { SessionId } from '../../daemon-types.js';
+import { formatTimestamp } from '../../daemon-utils.js';
 import { onCommandRunEffect, onCommandStopEffect } from '../command-runner.js';
 
 type ActionableCommandRuns = FunctionReturnType<

@@ -49,12 +49,12 @@ import {
   DaemonSessionService,
   type DaemonAgentProcessManagerService,
   type DaemonMutableStateService,
-} from '../../commands/machine/daemon-start/daemon-services.js';
-import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
+} from './daemon-services.js';
+import { formatTimestamp } from './daemon-utils.js';
 import {
   startWorkspaceListSubscriptionEffect,
   reconcileWorkspaceList,
-} from '../../commands/machine/daemon-start/workspace-list-subscription.js';
+} from './workspace-git/workspace-list-subscription.js';
 import { releaseLock } from '../../commands/machine/pid.js';
 import { onDaemonShutdownEffect } from '../../events/lifecycle/on-daemon-shutdown.js';
 import { getErrorMessage } from '../../utils/convex-error.js';

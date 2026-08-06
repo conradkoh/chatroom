@@ -24,10 +24,10 @@ import {
   forceKillAllTrackedProcessGroupsEffect,
   reapOrphanedProcessGroupsEffect,
 } from './orphan-tracker.js';
+import { daemonSessionToLayers } from '../daemon-layers.js';
+import type { DaemonSessionService } from '../daemon-services.js';
+import type { DaemonSessionInit } from '../daemon-types.js';
 import { processManager } from './process/manager.js';
-import { daemonSessionToLayers } from '../../../commands/machine/daemon-start/daemon-layers.js';
-import type { DaemonSessionService } from '../../../commands/machine/daemon-start/daemon-services.js';
-import type { DaemonSessionInit } from '../../../commands/machine/daemon-start/types.js';
 import { createMockDaemonSessionInit } from '../testing/index.js';
 import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
 

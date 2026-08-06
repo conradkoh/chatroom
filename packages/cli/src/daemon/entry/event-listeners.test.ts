@@ -1,14 +1,11 @@
 import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
+import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
+import type { DaemonSessionInit } from './daemon-types.js';
 import type { Id } from '../../api.js';
 import { registerEventListenersEffect } from './events/register-listeners.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
-import {
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-} from '../../commands/machine/daemon-start/daemon-services.js';
-import type { DaemonSessionInit } from '../../commands/machine/daemon-start/types.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
 
 const CHATROOM_ID = 'test-chatroom' as Id<'chatroom_rooms'>;

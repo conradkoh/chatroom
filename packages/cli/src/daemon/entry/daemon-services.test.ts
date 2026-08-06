@@ -24,8 +24,8 @@ import {
   DaemonSpawningService,
   DaemonSpawningServiceLive,
 } from './daemon-services.js';
-import { createMockDaemonSessionInit } from '../../../daemon/entry/testing/index.js';
-import { createMockDaemonDeps } from '../../../daemon/entry/testing/mock-daemon-deps.js';
+import { createMockDaemonSessionInit } from './testing/index.js';
+import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 
 // ---------------------------------------------------------------------------
 // A. DaemonMachineService

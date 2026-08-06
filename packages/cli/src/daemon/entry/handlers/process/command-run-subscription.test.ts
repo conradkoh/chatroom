@@ -18,10 +18,7 @@ import {
   startCommandRunSubscription,
 } from './command-run-subscription.js';
 import type { api, Id } from '../../../../api.js';
-import {
-  DaemonSessionService,
-  type DaemonSessionServiceShape,
-} from '../../../../commands/machine/daemon-start/daemon-services.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from '../../daemon-services.js';
 import { onCommandRunEffect, onCommandStopEffect } from '../command-runner.js';
 
 vi.mock('../../../../api.js', () => ({

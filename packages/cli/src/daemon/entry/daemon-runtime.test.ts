@@ -34,7 +34,7 @@ vi.mock('./files/file-tree-subscription.js', async () => {
       Effect.succeed({ stop: vi.fn(), drainPendingFileTreeRequests: vi.fn() }),
   };
 });
-vi.mock('../../commands/machine/daemon-start/workspace-list-subscription.js', async () => {
+vi.mock('./workspace-git/workspace-list-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
     startWorkspaceListSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
@@ -66,7 +66,7 @@ describe('createDaemonRuntime', () => {
   it('registers inbound handlers on run and unregisters on shutdown', async () => {
     const { Layer } = await import('effect');
     const { DaemonSessionService, DaemonMutableStateService, DaemonAgentProcessManagerService } =
-      await import('../../commands/machine/daemon-start/daemon-services.js');
+      await import('./daemon-services.js');
     const { createDaemonRuntime } = await import('./daemon-runtime.js');
 
     const session = {

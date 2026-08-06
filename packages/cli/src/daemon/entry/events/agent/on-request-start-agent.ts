@@ -6,13 +6,10 @@
 import { Effect } from 'effect';
 
 import type { Id } from '../../../../api.js';
-import {
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-} from '../../../../commands/machine/daemon-start/daemon-services.js';
-import type { AgentHarness } from '../../../../commands/machine/daemon-start/types.js';
 import { startAgent } from '../../../../daemon/domain/usecase/start-agent.js';
 import { createStartAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
+import type { AgentHarness } from '../../daemon-types.js';
 
 export interface AgentRequestStartEventPayload {
   _id: Id<'chatroom_eventStream'>;

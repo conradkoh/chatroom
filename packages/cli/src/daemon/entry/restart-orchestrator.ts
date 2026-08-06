@@ -9,25 +9,25 @@ import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usec
 import { Effect } from 'effect';
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
+import type { AgentHarness } from './daemon-types.js';
+import { api } from '../../api.js';
+import { getNativeDeliveryLedger } from './native-delivery/native-delivery-ledger.js';
+import { isAgentReadyForNativeDelivery } from './native-delivery/native-ready-invariant.js';
+import { resetRoleDeliveryState } from './native-delivery/native-task-delivery-coordinator.js';
+import { explainLedgerDeliveryBlock } from './native-delivery/native-task-injector-logic.js';
+import { runNativeInjectionEffect } from './native-delivery/native-task-injector.js';
 import {
   markRestartOrchestratorInFlight,
   clearRestartOrchestratorInFlight,
 } from './restart-orchestrator-in-flight.js';
-import type { AgentHarness } from './types.js';
-import { api } from '../../../api.js';
-import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
-import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
-import { isTeamAgentRole } from '../../../daemon/domain/entities/execution-kind.js';
-import { getNativeDeliveryLedger } from '../../../daemon/entry/native-delivery/native-delivery-ledger.js';
-import { isAgentReadyForNativeDelivery } from '../../../daemon/entry/native-delivery/native-ready-invariant.js';
-import { resetRoleDeliveryState } from '../../../daemon/entry/native-delivery/native-task-delivery-coordinator.js';
-import { explainLedgerDeliveryBlock } from '../../../daemon/entry/native-delivery/native-task-injector-logic.js';
-import { runNativeInjectionEffect } from '../../../daemon/entry/native-delivery/native-task-injector.js';
 import {
   mapAssignedTaskSnapshotList,
   mapAssignedTaskView,
-} from '../../../infrastructure/mappers/map-assigned-task.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
+} from '../../infrastructure/mappers/map-assigned-task.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
+import { isDeliverableTaskStatus } from '../domain/entities/assigned-task.js';
+import type { AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
+import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
 
 interface RestartOrchestratorEvent {
   chatroomId: string;

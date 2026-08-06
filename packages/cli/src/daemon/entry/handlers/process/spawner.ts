@@ -15,11 +15,11 @@ import {
   type RunningProcess,
 } from './state.js';
 import { api } from '../../../../api.js';
-import type { SessionId } from '../../../../commands/machine/daemon-start/types.js';
-import { formatTimestamp } from '../../../../commands/machine/daemon-start/utils.js';
 import { buildChatroomSpawnEnv } from '../../../../infrastructure/convex/spawn-env.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
+import type { SessionId } from '../../daemon-types.js';
+import { formatTimestamp } from '../../daemon-utils.js';
 import { trackChildPid, untrackChildPid } from '../orphan-tracker.js';
 
 let tempDirReady = false;

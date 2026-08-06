@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { daemonSessionToLayers } from '../../../commands/machine/daemon-start/daemon-layers.js';
+import { daemonSessionToLayers } from '../daemon-layers.js';
 import { createMockDaemonSessionInit } from '../testing/index.js';
 import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
 

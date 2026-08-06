@@ -1,4 +1,3 @@
-import type { SessionId } from '../../../commands/machine/daemon-start/types.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import type { BoundHarness } from '../../domain/entities/bound-harness.js';
 import type {
@@ -6,6 +5,7 @@ import type {
   JournalFactory,
   SessionHandle,
 } from '../../domain/usecase/open-harness-session.js';
+import type { SessionId } from '../daemon-types.js';
 
 export type HarnessWorkerSession = {
   readonly sessionId: SessionId;

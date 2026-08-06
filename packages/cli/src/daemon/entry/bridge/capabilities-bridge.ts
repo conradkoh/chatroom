@@ -2,19 +2,16 @@ import type { Layer } from 'effect';
 import { Effect } from 'effect';
 
 import type {
-  DaemonMutableStateService,
-  DaemonSessionService,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
-import {
-  refreshModelsEffect,
-  startBackgroundModelDiscoveryEffect,
-  type RefreshModelsOutcome,
-} from '../../../commands/machine/daemon-start/models-refresh.js';
-import type {
   RefreshMachineCapabilitiesOutcome,
   RefreshMachineCapabilitiesDeps,
   StartBackgroundCapabilitiesDiscoveryDeps,
 } from '../../domain/usecase/refresh-machine-capabilities.js';
+import type { DaemonMutableStateService, DaemonSessionService } from '../daemon-services.js';
+import {
+  refreshModelsEffect,
+  startBackgroundModelDiscoveryEffect,
+  type RefreshModelsOutcome,
+} from '../models-refresh.js';
 
 type CapabilitiesEffectLayer = Layer.Layer<
   DaemonSessionService | DaemonMutableStateService,

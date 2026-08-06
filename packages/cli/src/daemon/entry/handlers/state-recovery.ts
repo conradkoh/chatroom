@@ -5,12 +5,9 @@
 
 import { Effect } from 'effect';
 
-import {
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
 import { recoverAgentState } from '../../domain/usecase/recover-agent-state.js';
 import { createRecoverAgentStateDeps } from '../bridge/agent-control-bridge.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
 
 export const recoverAgentStateEffect: Effect.Effect<
   void,

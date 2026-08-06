@@ -4,9 +4,9 @@
 
 import { Effect } from 'effect';
 
-import { DaemonSessionService } from '../../../commands/machine/daemon-start/daemon-services.js';
-import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
 import { getVersion } from '../../../version.js';
+import { DaemonSessionService } from '../daemon-services.js';
+import { formatTimestamp } from '../daemon-utils.js';
 
 export const logStartupEffect = (
   cachedModels: Record<string, string[]>

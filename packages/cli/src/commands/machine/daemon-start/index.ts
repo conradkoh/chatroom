@@ -32,4 +32,4 @@ export type {
   StopAgentDeps,
   StateRecoveryDeps,
   MachineStateOps,
-} from './deps.js';
+} from '../../../daemon/entry/daemon-deps.js';

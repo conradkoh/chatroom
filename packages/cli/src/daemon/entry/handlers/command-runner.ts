@@ -15,14 +15,11 @@ import { processManager } from './process/manager.js';
 import { spawnCommandProcess } from './process/spawner.js';
 import { TERMINAL_STATES } from './process/state.js';
 import { api } from '../../../api.js';
-import {
-  DaemonSessionService,
-  type DaemonSessionServiceShape,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
-import type { SessionId } from '../../../commands/machine/daemon-start/types.js';
-import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
+import type { SessionId } from '../daemon-types.js';
+import { formatTimestamp } from '../daemon-utils.js';
 
 // ─── Flat deps type ──────────────────────────────────────────────────────────
 

@@ -10,13 +10,13 @@ import { createHash } from 'node:crypto';
 import { Effect, Ref } from 'effect';
 
 import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
-import type { SessionId, WorkspaceForSync } from './types.js';
-import { formatTimestamp } from './utils.js';
-import { getWorkspacesForMachine } from './workspace-cache.js';
-import { api } from '../../../api.js';
-import type { BackendOps } from '../../../infrastructure/deps/index.js';
-import { discoverCommands } from '../../../infrastructure/services/workspace/command-discovery.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
+import type { SessionId, WorkspaceForSync } from './daemon-types.js';
+import { formatTimestamp } from './daemon-utils.js';
+import { getWorkspacesForMachine } from './workspace-git/workspace-cache.js';
+import { api } from '../../api.js';
+import type { BackendOps } from '../../infrastructure/deps/index.js';
+import { discoverCommands } from '../../infrastructure/services/workspace/command-discovery.js';
+import { getErrorMessage } from '../../utils/convex-error.js';
 
 // ── Minimal dep type used by Effect twins ────────────────────
 

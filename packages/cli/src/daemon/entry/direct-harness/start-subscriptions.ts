@@ -10,13 +10,13 @@ import { processPendingHarnessSessions } from './session-processor.js';
 import type { ActiveSession } from './session-processor.js';
 import { closeAllMachineHarnessSessionsOnShutdown } from './shutdown-sessions.js';
 import { api } from '../../../api.js';
-import type { SessionId } from '../../../commands/machine/daemon-start/types.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
 import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-output-repository.js';
 import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
 import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
 import type { BoundHarness } from '../../domain/entities/bound-harness.js';
+import type { SessionId } from '../daemon-types.js';
 import {
   registerDirectHarnessInboundHandler,
   unregisterDirectHarnessInboundHandler,

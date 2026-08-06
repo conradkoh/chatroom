@@ -12,14 +12,11 @@ import { Effect } from 'effect';
 
 import { classifyFileContent, hasKnownBinaryExtension } from './file-content-classifier.js';
 import { api } from '../../../api.js';
-import {
-  DaemonSessionService,
-  type DaemonSessionServiceShape,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
-import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
 import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
 import { resolvePathWithinWorkspace } from '../../../infrastructure/services/workspace/workspace-path-security.js';
 import { isPathContentReadable } from '../../../infrastructure/services/workspace/workspace-visibility-policy.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
+import { formatTimestamp } from '../daemon-utils.js';
 
 /** Max file content size (500KB). */
 const MAX_CONTENT_BYTES = 500 * 1024;

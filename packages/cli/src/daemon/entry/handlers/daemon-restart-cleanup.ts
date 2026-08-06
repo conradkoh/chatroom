@@ -6,8 +6,8 @@
 import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
-import { DaemonSessionService } from '../../../commands/machine/daemon-start/daemon-services.js';
 import { BackendService } from '../../../infrastructure/services/backend.js';
+import { DaemonSessionService } from '../daemon-services.js';
 
 /** Clear all stale spawnedAgentPid values for this machine. */
 export const clearStaleSpawnedPidsEffect = (): Effect.Effect<

@@ -49,7 +49,7 @@ vi.mock('./daemon-runtime.js', () => ({
   })),
 }));
 
-vi.mock('../../commands/machine/daemon-start/daemon-layers.js', async () => {
+vi.mock('./daemon-layers.js', async () => {
   const { Layer } = await import('effect');
   return {
     daemonSessionToLayers: vi.fn(() => Layer.empty),

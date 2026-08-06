@@ -6,15 +6,15 @@ import {
   _resetGitHeartbeatBranchTrackingForTests,
   pushSingleWorkspaceGitSummaryForObservedEffect,
 } from './git-heartbeat.js';
-import { daemonSessionToLayers } from '../../../commands/machine/daemon-start/daemon-layers.js';
+import * as gitReader from '../../infrastructure/git/git-reader.js';
+import { makeGitStateKey } from '../../infrastructure/git/types.js';
+import { daemonSessionToLayers } from '../daemon-layers.js';
 import {
   DaemonSessionService,
   type DaemonMutableStateService,
   type DaemonSessionServiceShape,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
-import type { DaemonSessionInit } from '../../../commands/machine/daemon-start/types.js';
-import * as gitReader from '../../infrastructure/git/git-reader.js';
-import { makeGitStateKey } from '../../infrastructure/git/types.js';
+} from '../daemon-services.js';
+import type { DaemonSessionInit } from '../daemon-types.js';
 import { createMockDaemonSessionInit } from '../testing/index.js';
 import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
 

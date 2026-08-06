@@ -26,7 +26,7 @@ const LEGACY_INIT_FILES_TO_GUARD = [
   'src/daemon/entry/files/file-tree-subscription.ts',
   'src/daemon/entry/files/file-content-subscription.ts',
   'src/daemon/entry/files/file-write-subscription.ts',
-  'src/commands/machine/daemon-start/workspace-list-subscription.ts',
+  'src/daemon/entry/workspace-git/workspace-list-subscription.ts',
   'src/daemon/entry/handlers/process/command-run-subscription.ts',
   'src/daemon/entry/direct-harness/start-subscriptions.ts',
   'src/daemon/entry/agentic-query/start-subscriptions.ts',

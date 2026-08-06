@@ -5,7 +5,7 @@ import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,
   DaemonSessionService,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
+} from '../daemon-services.js';
 
 export type NativeDeliverySessionContext = {
   runtime: Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;

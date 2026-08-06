@@ -3,10 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import type { AgentRequestStartEventPayload } from './on-request-start-agent.js';
 import { onRequestStartAgentEffect } from './on-request-start-agent.js';
-import {
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-} from '../../../../commands/machine/daemon-start/daemon-services.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
 import { DaemonEventBus } from '../event-bus.js';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────

@@ -12,16 +12,13 @@ import { Effect } from 'effect';
 
 import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
 import { api } from '../../../api.js';
-import {
-  DaemonSessionService,
-  type DaemonSessionServiceShape,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
-import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
 import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
 import {
   gunzipBase64Payload,
   resolvePathWithinWorkspace,
 } from '../../../infrastructure/services/workspace/workspace-path-security.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
+import { formatTimestamp } from '../daemon-utils.js';
 
 /** Max file content size (512KB) — matches backend MAX_CONTENT_BYTES. */
 const MAX_CONTENT_BYTES = 512 * 1024;

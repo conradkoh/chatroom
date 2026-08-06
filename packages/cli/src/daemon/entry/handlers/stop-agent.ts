@@ -5,14 +5,10 @@
 
 import { Effect } from 'effect';
 
-import { DaemonAgentProcessManagerService } from '../../../commands/machine/daemon-start/daemon-services.js';
-import type {
-  CommandResult,
-  StopAgentCommand,
-  StopAgentReason,
-} from '../../../commands/machine/daemon-start/types.js';
 import { stopAgent } from '../../domain/usecase/stop-agent.js';
 import { createStopAgentDeps } from '../bridge/agent-control-bridge.js';
+import { DaemonAgentProcessManagerService } from '../daemon-services.js';
+import type { CommandResult, StopAgentCommand, StopAgentReason } from '../daemon-types.js';
 
 export const executeStopAgentEffect = (args: {
   chatroomId: string;

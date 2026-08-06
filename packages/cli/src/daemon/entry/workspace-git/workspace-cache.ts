@@ -5,11 +5,11 @@
  * falls back to a one-shot query before the subscription delivers its first value.
  */
 
-import type { SessionId, WorkspaceForSync } from './types.js';
-import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import type { SessionId, WorkspaceForSync } from '../daemon-types.js';
+import { formatTimestamp } from '../daemon-utils.js';
 
 export type { WorkspaceForSync };
 

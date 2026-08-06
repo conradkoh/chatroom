@@ -8,10 +8,7 @@
 import { Effect } from 'effect';
 
 import { fulfillFileWriteRequestsEffect } from './file-write-fulfillment.js';
-import {
-  DaemonSessionService,
-  type DaemonSessionServiceShape,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
 
 export async function drainPendingFileWriteRequests(
   session: DaemonSessionServiceShape

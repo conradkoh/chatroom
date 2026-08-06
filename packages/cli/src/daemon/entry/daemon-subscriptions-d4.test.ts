@@ -13,15 +13,15 @@ import type { Runtime } from 'effect';
 import { Effect, Layer } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMockDaemonSessionInit } from './testing/index.js';
-import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
-import { daemonSessionToLayers } from '../../commands/machine/daemon-start/daemon-layers.js';
+import { daemonSessionToLayers } from './daemon-layers.js';
 import {
   DaemonSessionService,
   type DaemonMutableStateService,
   type DaemonSessionServiceShape,
-} from '../../commands/machine/daemon-start/daemon-services.js';
-import type { DaemonSessionInit } from '../../commands/machine/daemon-start/types.js';
+} from './daemon-services.js';
+import type { DaemonSessionInit } from './daemon-types.js';
+import { createMockDaemonSessionInit } from './testing/index.js';
+import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks — avoid real WebSocket connections
@@ -78,7 +78,7 @@ vi.mock('../infrastructure/git/git-reader.js', () => ({
   getCommitStatusChecks: vi.fn().mockResolvedValue(null),
 }));
 
-vi.mock('../../commands/machine/daemon-start/workspace-cache.js', () => ({
+vi.mock('./workspace-git/workspace-cache.js', () => ({
   getWorkspacesForMachine: vi.fn().mockResolvedValue([]),
 }));
 
@@ -193,7 +193,7 @@ describe('startFileContentSubscriptionEffect', () => {
 describe('startWorkspaceListSubscriptionEffect', () => {
   it('returns a handle with a stop() method', async () => {
     const { startWorkspaceListSubscriptionEffect } =
-      await import('../../commands/machine/daemon-start/workspace-list-subscription.js');
+      await import('./workspace-git/workspace-list-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockResolvedValue([]);
 
@@ -206,7 +206,7 @@ describe('startWorkspaceListSubscriptionEffect', () => {
 
   it('does not open a legacy WS subscription (v2 subscriber is sole listener)', async () => {
     const { startWorkspaceListSubscriptionEffect } =
-      await import('../../commands/machine/daemon-start/workspace-list-subscription.js');
+      await import('./workspace-git/workspace-list-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockResolvedValue([]);
     const wsClient = makeMockWsClient();
@@ -222,7 +222,7 @@ describe('startWorkspaceListSubscriptionEffect', () => {
 
   it('initializes workspaceListStore on the session object (start)', async () => {
     const { startWorkspaceListSubscriptionEffect } =
-      await import('../../commands/machine/daemon-start/workspace-list-subscription.js');
+      await import('./workspace-git/workspace-list-subscription.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockResolvedValue([]);
 

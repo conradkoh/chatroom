@@ -9,9 +9,9 @@ import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
 
 import { api } from '../../../../api.js';
-import type { SessionId } from '../../../../commands/machine/daemon-start/types.js';
-import { formatTimestamp } from '../../../../commands/machine/daemon-start/utils.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
+import type { SessionId } from '../../daemon-types.js';
+import { formatTimestamp } from '../../daemon-utils.js';
 
 type ObservedRuns = FunctionReturnType<typeof api.daemon.commands.listRunsWithLogObservers>;
 

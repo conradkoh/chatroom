@@ -8,9 +8,9 @@ import { WORKSPACE_RECENCY_WINDOW_MS } from '@workspace/backend/config/reliabili
 import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
 
-import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
-import type { WorkspaceForSync } from './types.js';
 import { api } from '../../../api.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
+import type { WorkspaceForSync } from '../daemon-types.js';
 
 type RecentlyObservedWorkspaces = NonNullable<
   FunctionReturnType<typeof api.workspaces.listRecentlyObservedWorkspacesForMachine>

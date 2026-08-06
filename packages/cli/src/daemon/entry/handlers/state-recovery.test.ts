@@ -9,10 +9,7 @@ import { Effect, Layer } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { recoverAgentStateEffect } from './state-recovery.js';
-import {
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
+import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
 import { DaemonEventBus } from '../events/event-bus.js';
 
 // ---------------------------------------------------------------------------
