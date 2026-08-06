@@ -2,14 +2,17 @@ import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, it, vi } from 'vitest';
 
-import { startGitRequestSubscriber } from './git-request.js';
-import { startWorkspaceListSubscriber } from './workspace-list.js';
+import { startFileContentRequestSubscriber } from './file-content-request.js';
+import { startFileTreeRequestSubscriber } from './file-tree-request.js';
+import { startFileWriteRequestSubscriber } from './file-write-request.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
-import type { WorkspaceGitInboundEvent } from '../../../domain/usecase/handle-workspace-git-inbound.js';
+import type { FileInboundEvent } from '../../../domain/usecase/handle-file-inbound.js';
 import { routeInboundEvent } from '../../../entry/event-router.js';
 import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
 
-const GIT_REQUEST_ID = 'git_req_1';
+const FILE_TREE_REQUEST_ID = 'file_tree_req_1';
+const FILE_CONTENT_REQUEST_ID = 'file_content_req_1';
+const FILE_WRITE_REQUEST_ID = 'file_write_req_1';
 const SESSION_ID = 'session-test' as SessionId;
 const MACHINE_ID = 'machine-test';
 
@@ -34,80 +37,63 @@ function createMockWsClient() {
   };
 }
 
-describe('workspace-git v2 subscribers', () => {
-  it('workspace-list subscriber emits workspace.list-changed when list changes', async () => {
+describe('file v2 subscribers', () => {
+  it('file-tree subscriber emits file-tree.request with requestId', async () => {
     const events: InboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
 
-    const handle = startWorkspaceListSubscriber(
+    const handle = startFileTreeRequestSubscriber(
       { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       (event) => events.push(event)
     );
 
-    emitUpdate(['ws-a', 'ws-b']);
+    emitUpdate([{ _id: FILE_TREE_REQUEST_ID }]);
     await handle.stop();
 
     expect(events).toContainEqual({
-      type: 'workspace.list-changed',
-      machineId: MACHINE_ID,
+      type: 'file-tree.request',
+      requestId: FILE_TREE_REQUEST_ID,
     });
   });
 
-  it('workspace-list subscriber does not re-emit on identical list snapshot', async () => {
+  it('file-content subscriber emits file-content.request with requestId', async () => {
     const events: InboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
 
-    const handle = startWorkspaceListSubscriber(
+    const handle = startFileContentRequestSubscriber(
       { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       (event) => events.push(event)
     );
 
-    emitUpdate(['ws-a', 'ws-b']);
-    emitUpdate(['ws-a', 'ws-b']);
-    await handle.stop();
-
-    expect(events).toEqual([{ type: 'workspace.list-changed', machineId: MACHINE_ID }]);
-  });
-
-  it('workspace-list subscriber emits again when list content changes', async () => {
-    const events: InboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
-
-    const handle = startWorkspaceListSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
-      (event) => events.push(event)
-    );
-
-    emitUpdate(['ws-a']);
-    emitUpdate(['ws-a', 'ws-b']);
-    await handle.stop();
-
-    expect(events).toEqual([
-      { type: 'workspace.list-changed', machineId: MACHINE_ID },
-      { type: 'workspace.list-changed', machineId: MACHINE_ID },
-    ]);
-  });
-
-  it('git-request subscriber emits git.request with requestId', async () => {
-    const events: InboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
-
-    const handle = startGitRequestSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
-      (event) => events.push(event)
-    );
-
-    emitUpdate([{ _id: GIT_REQUEST_ID }]);
+    emitUpdate([{ _id: FILE_CONTENT_REQUEST_ID }]);
     await handle.stop();
 
     expect(events).toContainEqual({
-      type: 'git.request',
-      requestId: GIT_REQUEST_ID,
+      type: 'file-content.request',
+      requestId: FILE_CONTENT_REQUEST_ID,
     });
   });
 
-  it('registry routes workspace-git event to handler', async () => {
-    const handled: WorkspaceGitInboundEvent[] = [];
+  it('file-write subscriber emits file-write.request with requestId', async () => {
+    const events: InboundEvent[] = [];
+    const { wsClient, emitUpdate } = createMockWsClient();
+
+    const handle = startFileWriteRequestSubscriber(
+      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      (event) => events.push(event)
+    );
+
+    emitUpdate([{ _id: FILE_WRITE_REQUEST_ID }]);
+    await handle.stop();
+
+    expect(events).toContainEqual({
+      type: 'file-write.request',
+      requestId: FILE_WRITE_REQUEST_ID,
+    });
+  });
+
+  it('registry routes file event to handler', async () => {
+    const handled: FileInboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
 
     const registry = startAllSubscribers({
@@ -118,42 +104,42 @@ describe('workspace-git v2 subscribers', () => {
         assignedTask: {},
         directHarness: {},
         command: {},
-        workspaceGit: {
-          onWorkspaceGitEvent: async (event) => {
+        workspaceGit: {},
+        file: {
+          onFileEvent: async (event) => {
             handled.push(event);
           },
         },
-        file: {},
       },
     });
 
-    emitUpdate(['ws-a']);
+    emitUpdate([{ _id: FILE_TREE_REQUEST_ID }]);
     await registry.stopAll();
 
     expect(handled).toContainEqual({
-      type: 'workspace.list-changed',
-      machineId: MACHINE_ID,
+      type: 'file-tree.request',
+      requestId: FILE_TREE_REQUEST_ID,
     });
   });
 
-  it('event router dispatches workspace-git events to handler', async () => {
-    const handled: WorkspaceGitInboundEvent[] = [];
+  it('event router dispatches file events to handler', async () => {
+    const handled: FileInboundEvent[] = [];
 
     await routeInboundEvent(
       {
         assignedTask: {},
         directHarness: {},
         command: {},
-        workspaceGit: {
-          onWorkspaceGitEvent: async (event) => {
+        workspaceGit: {},
+        file: {
+          onFileEvent: async (event) => {
             handled.push(event);
           },
         },
-        file: {},
       },
-      { type: 'git.request', requestId: GIT_REQUEST_ID }
+      { type: 'file-write.request', requestId: FILE_WRITE_REQUEST_ID }
     );
 
-    expect(handled).toEqual([{ type: 'git.request', requestId: GIT_REQUEST_ID }]);
+    expect(handled).toEqual([{ type: 'file-write.request', requestId: FILE_WRITE_REQUEST_ID }]);
   });
 });

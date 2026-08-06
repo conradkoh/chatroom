@@ -4,6 +4,7 @@ import { routeInboundEvent } from './event-router.js';
 import type { AssignedTaskInboundEvent } from '../domain/usecase/handle-assigned-task-inbound.js';
 import type { CommandInboundEvent } from '../domain/usecase/handle-command-inbound.js';
 import type { DirectHarnessInboundEvent } from '../domain/usecase/handle-direct-harness-inbound.js';
+import type { FileInboundEvent } from '../domain/usecase/handle-file-inbound.js';
 import type { WorkspaceGitInboundEvent } from '../domain/usecase/handle-workspace-git-inbound.js';
 
 const routerDeps = {
@@ -15,6 +16,7 @@ const routerDeps = {
   workspaceGit: {} as {
     onWorkspaceGitEvent?: (event: WorkspaceGitInboundEvent) => Promise<void>;
   },
+  file: {} as { onFileEvent?: (event: FileInboundEvent) => Promise<void> },
 };
 
 describe('routeInboundEvent', () => {
@@ -128,11 +130,48 @@ describe('routeInboundEvent', () => {
     expect(onWorkspaceGitEvent).toHaveBeenCalledWith(event);
   });
 
+  test('dispatches file-tree.request to handler', async () => {
+    const onFileEvent = vi.fn().mockResolvedValue(undefined);
+    const event: FileInboundEvent = {
+      type: 'file-tree.request',
+      requestId: 'req_1',
+    };
+
+    await routeInboundEvent({ ...routerDeps, file: { onFileEvent } }, event);
+
+    expect(onFileEvent).toHaveBeenCalledWith(event);
+  });
+
+  test('dispatches file-content.request to handler', async () => {
+    const onFileEvent = vi.fn().mockResolvedValue(undefined);
+    const event: FileInboundEvent = {
+      type: 'file-content.request',
+      requestId: 'req_2',
+    };
+
+    await routeInboundEvent({ ...routerDeps, file: { onFileEvent } }, event);
+
+    expect(onFileEvent).toHaveBeenCalledWith(event);
+  });
+
+  test('dispatches file-write.request to handler', async () => {
+    const onFileEvent = vi.fn().mockResolvedValue(undefined);
+    const event: FileInboundEvent = {
+      type: 'file-write.request',
+      requestId: 'req_3',
+    };
+
+    await routeInboundEvent({ ...routerDeps, file: { onFileEvent } }, event);
+
+    expect(onFileEvent).toHaveBeenCalledWith(event);
+  });
+
   test('ignores unhandled event types', async () => {
     const onTaskMonitorEvent = vi.fn().mockResolvedValue(undefined);
     const onDirectHarnessEvent = vi.fn().mockResolvedValue(undefined);
     const onCommandEvent = vi.fn().mockResolvedValue(undefined);
     const onWorkspaceGitEvent = vi.fn().mockResolvedValue(undefined);
+    const onFileEvent = vi.fn().mockResolvedValue(undefined);
 
     await routeInboundEvent(
       {
@@ -140,13 +179,15 @@ describe('routeInboundEvent', () => {
         directHarness: { onDirectHarnessEvent },
         command: { onCommandEvent },
         workspaceGit: { onWorkspaceGitEvent },
+        file: { onFileEvent },
       },
-      { type: 'file-tree.request', requestId: 'req_1' }
+      { type: 'enhancer.job-assigned', jobId: 'job_1' }
     );
 
     expect(onTaskMonitorEvent).not.toHaveBeenCalled();
     expect(onDirectHarnessEvent).not.toHaveBeenCalled();
     expect(onCommandEvent).not.toHaveBeenCalled();
     expect(onWorkspaceGitEvent).not.toHaveBeenCalled();
+    expect(onFileEvent).not.toHaveBeenCalled();
   });
 });

@@ -124,6 +124,7 @@ describe('command v2 subscribers', () => {
           },
         },
         workspaceGit: {},
+        file: {},
       },
     });
 
@@ -149,6 +150,7 @@ describe('command v2 subscribers', () => {
           },
         },
         workspaceGit: {},
+        file: {},
       },
       { type: 'command-run.updated', runId: PENDING_RUN_ID }
     );
