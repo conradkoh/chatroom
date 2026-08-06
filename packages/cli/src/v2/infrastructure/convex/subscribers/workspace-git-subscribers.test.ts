@@ -123,6 +123,7 @@ describe('workspace-git v2 subscribers', () => {
             handled.push(event);
           },
         },
+        file: {},
       },
     });
 
@@ -148,6 +149,7 @@ describe('workspace-git v2 subscribers', () => {
             handled.push(event);
           },
         },
+        file: {},
       },
       { type: 'git.request', requestId: GIT_REQUEST_ID }
     );
