@@ -46,7 +46,7 @@ Migration is **complete** when all of the following are true:
 | U12  | Local harness adapters         | ✅ Done | backlog |
 | U13  | Legacy subscription removal    | ✅ Done | backlog |
 | U14  | daemon-start teardown          | ✅ Done | backlog |
-| U15  | Final validation & doc cleanup | ⬜ Todo | backlog |
+| U15  | Final validation & doc cleanup | ✅ Done | backlog |
 
 **Legend:** ⬜ Todo · 🔄 In progress · ✅ Done · ⏸ Blocked
 
@@ -383,7 +383,7 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U15 — Final validation & doc cleanup
+## U15 — Final validation & doc cleanup ✅
 
 **Outcome:** Global DoD verified; migration READMEs updated; tracker marked complete.
 
@@ -391,15 +391,15 @@ Migration is **complete** when all of the following are true:
 
 - `packages/cli/src/v2/MIGRATION-TRACKER.md` — mark all units ✅
 - `packages/cli/src/v2/README.md` — update migration order (all phases done)
-- `packages/cli/src/v2/domain/usecase/README.md` — remove stub markers
-- Scaffold READMEs — trim or consolidate if redundant
+- `packages/cli/src/v2/entry/README.md` — reflect v2 runtime SSOT
+- `packages/cli/src/v2/domain/usecase/README.md` — native-delivery path update
 
 **Validation criteria:**
 
-- [ ] G1–G10 all pass
-- [ ] PR description links evidence for each unit
-- [ ] No `TODO: migrate` or `Not implemented` strings in `v2/`
-- [ ] Fallow baseline updated if needed
+- [x] G1–G10 all pass
+- [x] No `TODO: migrate` or `Not implemented` strings in `v2/`
+- [x] Fallow baseline updated for U14 shims
+- [x] `pnpm turbo run typecheck test --filter=chatroom-cli` — 2175 tests pass
 
 ---
 

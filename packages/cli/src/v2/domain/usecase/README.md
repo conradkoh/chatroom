@@ -73,7 +73,7 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 
 Entity: `resume-storm.ts` (`ResumeStormReason`) — was backend import in classify-resume-storm-reason.
 
-Entity: `native-turn-phase.ts` (`NativeTurnPhase`) — SSOT for turn phase type; `daemon-start/native-turn-phase.ts` re-exports.
+Entity: `native-turn-phase.ts` (`NativeTurnPhase`) — SSOT for turn phase type; `v2/entry/native-delivery/native-turn-phase.ts` is canonical (legacy shim at `daemon-start/native-turn-phase.ts`).
 
 ## Predicates slice (done)
 

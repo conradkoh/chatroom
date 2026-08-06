@@ -10,7 +10,7 @@ Guide for migrating the machine daemon from `commands/machine/daemon-start/` to 
 
 ## Purpose
 
-v2 is a **strangler migration**: `daemon-start/index.ts` delegates to `startDaemonV2`, which runs v2 infrastructure (persistence, local-web, subscribers) alongside the legacy command loop until shim removal (slice #17).
+v2 is the **sole daemon runtime** after U14: `daemon-start/index.ts` delegates to `startDaemonV2`, which runs v2 infrastructure (persistence, local-web, subscribers, `createDaemonRuntime`) with legacy `daemon-start/` reduced to handlers, drains, and thin shims.
 
 ---
 
@@ -43,16 +43,18 @@ domain/entities/    ← pure types + event registries
 
 ---
 
-## Migration order
+## Migration order (complete)
 
-1. **Scaffold** (this slice) — folders, READMEs, compiling stubs
-2. **Entities** — migrate types from legacy `domain/` and `daemon-start/`
-3. **Use cases** — one orchestration per file from legacy handlers
-4. **Subscribers / publishers** — per-context Convex wiring via incremental-sync
-5. **Persistence** — SQLite default write sink + outbox
-6. **Local-web** — server + client for full-granularity harness streams
+1. **Scaffold** — folders, READMEs, compiling stubs ✅
+2. **Entities** — migrate types from legacy `domain/` and `daemon-start/` ✅
+3. **Use cases** — one orchestration per file from legacy handlers ✅
+4. **Subscribers / publishers** — per-context Convex wiring via incremental-sync ✅
+5. **Persistence** — SQLite default write sink + outbox ✅
+6. **Local-web** — server + client for full-granularity harness streams ✅
 7. **Entry cutover** — `startDaemonV2` active via `daemon-start/index.ts` ✅
 8. **Shim removal** — legacy `domain/agent-lifecycle` and `domain/direct-harness` re-exports removed ✅
+9. **Legacy subscription removal** — v2 subscribers sole Convex listeners (U13) ✅
+10. **daemon-start teardown** — runtime SSOT in `v2/entry/` (U14) ✅
 
 Consumers import `v2/domain/*` directly. Preserved: `domain/native-integration/`, `domain/harness-activity-emitter.ts`.
 
