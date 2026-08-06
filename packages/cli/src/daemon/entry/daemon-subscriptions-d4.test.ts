@@ -63,7 +63,7 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
   HARNESS_SESSION_READY_TIMEOUT_MS: 5_000,
 }));
 
-vi.mock('../../infrastructure/git/git-reader.js', () => ({
+vi.mock('../infrastructure/git/git-reader.js', () => ({
   isGitRepo: vi.fn().mockResolvedValue(false),
   getBranch: vi.fn().mockResolvedValue({ status: 'not_found' }),
   isDirty: vi.fn().mockResolvedValue(false),
@@ -304,7 +304,7 @@ describe('processRequestsEffect', () => {
     };
 
     // full_diff will call gitReader.getFullDiff — mock it to throw so we test error path
-    const gitReader = await import('../../infrastructure/git/git-reader.js');
+    const gitReader = await import('../infrastructure/git/git-reader.js');
     vi.mocked(gitReader.getFullDiff).mockResolvedValue({ status: 'not_found' } as never);
 
     await runWithSession(

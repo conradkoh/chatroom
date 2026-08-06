@@ -27,11 +27,11 @@ import { handlePing } from '../../commands/machine/daemon-start/handlers/ping.js
 import { processManager } from '../../commands/machine/daemon-start/handlers/process/manager.js';
 import { capabilitiesOutcomeToStatus } from '../../commands/machine/daemon-start/refresh-models-outcome.js';
 import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
-import { makeGitStateKey } from '../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
 import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
+import { makeGitStateKey } from '../infrastructure/git/types.js';
 
 /** The inferred return type of the getCommandEvents Convex query. */
 type CommandEventsResult = FunctionReturnType<typeof api.machines.getCommandEvents>;

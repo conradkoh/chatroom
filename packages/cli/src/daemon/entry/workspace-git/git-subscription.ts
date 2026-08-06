@@ -30,12 +30,12 @@ import {
   type DaemonSessionServiceShape,
 } from '../../../commands/machine/daemon-start/daemon-services.js';
 import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
-import * as gitReader from '../../../infrastructure/git/git-reader.js';
-import type { GitPrAction } from '../../../infrastructure/git/request-types.js';
-import { isGitContentAvailable } from '../../../infrastructure/git/result-predicates.js';
-import { runGh } from '../../../infrastructure/git/run-command.js';
-import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import * as gitReader from '../../infrastructure/git/git-reader.js';
+import type { GitPrAction } from '../../infrastructure/git/request-types.js';
+import { isGitContentAvailable } from '../../infrastructure/git/result-predicates.js';
+import { runGh } from '../../infrastructure/git/run-command.js';
+import { COMMITS_PER_PAGE } from '../../infrastructure/git/types.js';
 
 /** Timeout for PR action execAsync calls (60s) — prevents indefinite hangs. */
 const EXEC_TIMEOUT_MS = 60_000;

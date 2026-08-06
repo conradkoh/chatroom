@@ -87,8 +87,7 @@ export type GitDiscardResult = { status: 'available' } | { status: 'error'; mess
  * - `error`: pull failed with message
  */
 export type GitPullResult =
-  | { status: 'available'; message?: string }
-  | { status: 'error'; message: string };
+  { status: 'available'; message?: string } | { status: 'error'; message: string };
 
 /** Result of `gitPush` — same shape as pull. */
 export type GitPushResult = GitPullResult;

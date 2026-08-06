@@ -46,7 +46,7 @@ vi.mock('../../api.js', () => ({
   },
 }));
 
-vi.mock('../../infrastructure/git/git-reader.js', () => ({
+vi.mock('../infrastructure/git/git-reader.js', () => ({
   isGitRepo: vi.fn().mockResolvedValue(false),
   getBranch: vi.fn().mockResolvedValue({ status: 'not_found' }),
   isDirty: vi.fn().mockResolvedValue(false),
@@ -199,7 +199,7 @@ describe('pushSingleWorkspaceGitSummaryForObservedEffect', () => {
   });
 
   it('forwards the reason argument when provided', async () => {
-    const gitReader = await import('../../infrastructure/git/git-reader.js');
+    const gitReader = await import('../infrastructure/git/git-reader.js');
     const { pushSingleWorkspaceGitSummaryForObservedEffect } =
       await import('../../daemon/entry/workspace-git/git-heartbeat.js');
 

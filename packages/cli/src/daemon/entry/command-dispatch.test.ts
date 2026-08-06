@@ -89,7 +89,7 @@ vi.mock('../../infrastructure/local-actions/pick-folder.js', () => ({
   pickFolderDialog: vi.fn(() => ({ success: true, path: '/tmp/picked-folder' })),
 }));
 
-vi.mock('../../infrastructure/git/git-reader.js', () => ({
+vi.mock('../infrastructure/git/git-reader.js', () => ({
   isGitRepo: vi.fn().mockResolvedValue(false),
   getBranch: vi.fn().mockResolvedValue({ status: 'not_found' }),
   getRecentCommits: vi.fn().mockResolvedValue([]),

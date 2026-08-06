@@ -11,22 +11,22 @@ import type { SessionId, WorkspaceForSync } from '../../../commands/machine/daem
 import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
 import { getWorkspacesForMachine } from '../../../commands/machine/daemon-start/workspace-cache.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
-import * as gitReader from '../../../infrastructure/git/git-reader.js';
-import type { GitRemoteEntry, CommitStatusCheck } from '../../../infrastructure/git/git-reader.js';
-import type { GitStateFieldDef } from '../../../infrastructure/git/git-state-pipeline.js';
-import { GitStatePipeline } from '../../../infrastructure/git/git-state-pipeline.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
+import * as gitReader from '../../infrastructure/git/git-reader.js';
+import type { GitRemoteEntry, CommitStatusCheck } from '../../infrastructure/git/git-reader.js';
+import type { GitStateFieldDef } from '../../infrastructure/git/git-state-pipeline.js';
+import { GitStatePipeline } from '../../infrastructure/git/git-state-pipeline.js';
 import {
   isGitBranchAvailable,
   isGitBranchError,
   isGitBranchNotFound,
-} from '../../../infrastructure/git/result-predicates.js';
-import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
+} from '../../infrastructure/git/result-predicates.js';
+import { makeGitStateKey, COMMITS_PER_PAGE } from '../../infrastructure/git/types.js';
 import type {
   GitBranchResult,
   GitDiffStatResult,
   GitPullRequest,
-} from '../../../infrastructure/git/types.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
+} from '../../infrastructure/git/types.js';
 
 /** Tracks the last time a full (non-slim) git state push was performed per workspace.
  *  Key: makeGitStateKey(machineId, workingDir). Value: Date.now() of last full push. */

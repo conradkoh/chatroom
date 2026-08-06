@@ -8,8 +8,7 @@ const DEFAULT_GIT_ENV = {
 };
 
 export type CommandResult =
-  | { stdout: string; stderr: string }
-  | { error: Error & { code?: number } };
+  { stdout: string; stderr: string } | { error: Error & { code?: number } };
 
 function runCommandSpawn(
   command: string,

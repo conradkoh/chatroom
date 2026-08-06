@@ -15,8 +15,8 @@ import {
 import { createMockDaemonSessionInit } from '../../../commands/machine/daemon-start/testing/index.js';
 import { createMockDaemonDeps } from '../../../commands/machine/daemon-start/testing/mock-daemon-deps.js';
 import type { DaemonSessionInit } from '../../../commands/machine/daemon-start/types.js';
-import * as gitReader from '../../../infrastructure/git/git-reader.js';
-import { makeGitStateKey } from '../../../infrastructure/git/types.js';
+import * as gitReader from '../../infrastructure/git/git-reader.js';
+import { makeGitStateKey } from '../../infrastructure/git/types.js';
 
 vi.mock('@workspace/backend/config/reliability.js', () => ({
   OBSERVED_FULL_PUSH_INTERVAL_MS: 300_000,
@@ -35,7 +35,7 @@ vi.mock('../../../api.js', () => ({
   },
 }));
 
-vi.mock('../../../infrastructure/git/git-reader.js', () => ({
+vi.mock('../../infrastructure/git/git-reader.js', () => ({
   isGitRepo: vi.fn().mockResolvedValue(true),
   getBranch: (...args: unknown[]) => mockGetBranch(...args),
   isDirty: vi.fn().mockResolvedValue(false),

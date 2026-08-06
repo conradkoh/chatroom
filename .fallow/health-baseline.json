@@ -1819,7 +1819,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/git/git-reader.ts": {
+    "packages/cli/src/daemon/infrastructure/git/git-reader.ts": {
       "crap_critical": {
         "count": 1
       },
@@ -1830,17 +1830,17 @@
         "count": 8
       }
     },
-    "packages/cli/src/infrastructure/git/git-state-pipeline.ts": {
+    "packages/cli/src/daemon/infrastructure/git/git-state-pipeline.ts": {
       "crap_moderate": {
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/git/git-writer.ts": {
+    "packages/cli/src/daemon/infrastructure/git/git-writer.ts": {
       "crap_high": {
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/git/run-command.ts": {
+    "packages/cli/src/daemon/infrastructure/git/run-command.ts": {
       "crap_high": {
         "count": 1
       }
@@ -2870,7 +2870,7 @@
     "apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx:complexity",
     "apps/webapp/src/modules/chatroom/viewModels/eventStreamViewModel.ts:dead code",
     "apps/webapp/src/modules/chatroom/workspace/hooks/useAgenticQueryHarnessSelection.ts:untested risk",
-    "packages/cli/src/infrastructure/git/run-command.ts:high impact",
+    "packages/cli/src/daemon/infrastructure/git/run-command.ts:high impact",
     "packages/cli/src/infrastructure/services/workspace/workspace-fs-watcher.ts:high impact",
     "apps/webapp/src/modules/chatroom/workspace/components/explorerDialogInputUtils.ts:untested risk",
     "apps/webapp/src/domain/entities/event-type.ts:dead code",
