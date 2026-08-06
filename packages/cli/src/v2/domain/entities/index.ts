@@ -16,6 +16,7 @@ export * from './inbound-event.js';
 export * from './machine-capabilities.js';
 export * from './machine-command.js';
 export * from './native-turn.js';
+export * from './native-turn-phase.js';
 export * from './outbound-event.js';
 export * from './resume-path.js';
 export * from './resume-storm.js';
