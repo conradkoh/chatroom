@@ -1,7 +1,7 @@
 import { Effect } from 'effect';
 
-import type { Id } from '../../../api.js';
-import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
+import type { Id } from '../../../../api.js';
+import { formatTimestamp } from '../../../../commands/machine/daemon-start/utils.js';
 
 export interface AgentStartedPayload {
   chatroomId: Id<'chatroom_rooms'>;

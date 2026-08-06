@@ -9,7 +9,7 @@
 import { Effect, Layer } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
+import { DaemonEventBus } from '../../../../daemon/entry/events/event-bus.js';
 import { daemonSessionToLayers } from '../daemon-layers.js';
 import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
 import { handlePingEffect } from './ping.js';

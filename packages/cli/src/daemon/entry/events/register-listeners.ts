@@ -10,10 +10,8 @@ import { Effect, Runtime } from 'effect';
 import { onAgentExitedEffect } from './agent/on-agent-exited.js';
 import { logAgentStarted } from './agent/on-agent-started.js';
 import { logAgentStopped } from './agent/on-agent-stopped.js';
-import {
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-} from '../../commands/machine/daemon-start/daemon-services.js';
+import type { DaemonAgentProcessManagerService } from '../../../commands/machine/daemon-start/daemon-services.js';
+import { DaemonSessionService } from '../../../commands/machine/daemon-start/daemon-services.js';
 
 export const registerEventListenersEffect = (): Effect.Effect<
   () => void,

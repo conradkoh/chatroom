@@ -8,7 +8,7 @@ import type {
 } from '@workspace/backend/src/domain/entities/agent';
 
 import type { MachineStateOps, SpawningOps } from './deps.js';
-import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import type { DaemonEventBus } from '../../../daemon/entry/events/event-bus.js';
 import type { BackendOps, FsOps } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
 import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';

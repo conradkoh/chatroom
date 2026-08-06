@@ -6,8 +6,8 @@ import { onRequestStartAgentEffect } from './on-request-start-agent.js';
 import {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
-import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+} from '../../../../commands/machine/daemon-start/daemon-services.js';
+import { DaemonEventBus } from '../event-bus.js';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 

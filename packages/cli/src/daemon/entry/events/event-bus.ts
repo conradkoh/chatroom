@@ -10,8 +10,8 @@
  * - No external dependencies — uses a simple Map<string, Set<Function>> internally.
  */
 
-import type { Id } from '../../api.js';
-import type { StopReason } from '../../infrastructure/machine/stop-reason.js';
+import type { Id } from '../../../api.js';
+import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
 
 // ─── Event Definitions ──────────────────────────────────────────────────────
 
@@ -88,13 +88,15 @@ export class DaemonEventBus {
    * Returns an unsubscribe function.
    */
   on<E extends DaemonEventName>(event: E, listener: DaemonEventListener<E>): () => void {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, new Set());
+    let eventListeners = this.listeners.get(event);
+    if (!eventListeners) {
+      eventListeners = new Set();
+      this.listeners.set(event, eventListeners);
     }
-    this.listeners.get(event)!.add(listener);
+    eventListeners.add(listener);
 
     return () => {
-      this.listeners.get(event)?.delete(listener);
+      eventListeners?.delete(listener);
     };
   }
 

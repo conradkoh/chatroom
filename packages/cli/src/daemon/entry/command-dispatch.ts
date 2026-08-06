@@ -9,6 +9,9 @@ import { Effect, Layer, Ref, type Context } from 'effect';
 import { pushSingleWorkspaceGitStateEffect } from './workspace-git/git-heartbeat.js';
 import { api } from '../../api.js';
 import { createRefreshMachineCapabilitiesDeps } from './bridge/capabilities-bridge.js';
+import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
+import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
+import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
 import {
   isDaemonCommandEventType,
   type DaemonCommandEventType,
@@ -24,9 +27,6 @@ import { handlePing } from '../../commands/machine/daemon-start/handlers/ping.js
 import { processManager } from '../../commands/machine/daemon-start/handlers/process/manager.js';
 import { capabilitiesOutcomeToStatus } from '../../commands/machine/daemon-start/refresh-models-outcome.js';
 import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
-import { onRequestRestartAgentEffect } from '../../events/daemon/agent/on-request-restart-agent.js';
-import { onRequestStartAgentEffect } from '../../events/daemon/agent/on-request-start-agent.js';
-import { onRequestStopAgentEffect } from '../../events/daemon/agent/on-request-stop-agent.js';
 import { makeGitStateKey } from '../../infrastructure/git/types.js';
 import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
 import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';

@@ -1,8 +1,8 @@
 import { Effect } from 'effect';
 
-import type { Id } from '../../../api.js';
-import { DaemonAgentProcessManagerService } from '../../../commands/machine/daemon-start/daemon-services.js';
-import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
+import type { Id } from '../../../../api.js';
+import { DaemonAgentProcessManagerService } from '../../../../commands/machine/daemon-start/daemon-services.js';
+import type { StopReason } from '../../../../infrastructure/machine/stop-reason.js';
 
 export interface AgentExitedPayload {
   chatroomId: Id<'chatroom_rooms'>;

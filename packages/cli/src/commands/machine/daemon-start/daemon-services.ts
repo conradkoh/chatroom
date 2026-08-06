@@ -12,7 +12,7 @@ import { Context, Effect, Layer, Ref } from 'effect';
 
 import type { MachineStateOps, SpawningOps } from './deps.js';
 import type { ConvexClient, SessionId, WorkspaceForSync } from './types.js';
-import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import type { DaemonEventBus } from '../../../daemon/entry/events/event-bus.js';
 import type { BackendOps, FsOps } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
 import type {

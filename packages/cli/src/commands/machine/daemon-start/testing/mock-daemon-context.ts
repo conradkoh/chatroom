@@ -8,7 +8,7 @@
  */
 
 import { createMockDaemonDeps } from './mock-daemon-deps.js';
-import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
+import { DaemonEventBus } from '../../../../daemon/entry/events/event-bus.js';
 import type { DaemonSessionInit } from '../types.js';
 
 /**

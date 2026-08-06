@@ -8,6 +8,8 @@ import type { ConvexHttpClient } from 'convex/browser';
 import { Cause, Effect, Ref, Schedule, Duration } from 'effect';
 
 import { api } from '../../api.js';
+import { DaemonEventBus } from './events/event-bus.js';
+import { registerEventListenersEffect } from './events/register-listeners.js';
 import { harnessCapabilitiesFingerprint } from '../../commands/machine/daemon-start/capabilities-snapshot.js';
 import { daemonSessionToLayers } from '../../commands/machine/daemon-start/daemon-layers.js';
 import type { DaemonDeps } from '../../commands/machine/daemon-start/deps.js';
@@ -22,8 +24,6 @@ import { recoverAgentStateEffect } from '../../commands/machine/daemon-start/han
 import type { DaemonSessionInit, SessionId } from '../../commands/machine/daemon-start/types.js';
 import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
 import { acquireLockWithRetry, releaseLock } from '../../commands/machine/pid.js';
-import { DaemonEventBus } from '../../events/daemon/event-bus.js';
-import { registerEventListenersEffect } from '../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../infrastructure/convex/client.js';
 import { formatConvexUrlMismatchWarning } from '../../infrastructure/convex/spawn-env.js';

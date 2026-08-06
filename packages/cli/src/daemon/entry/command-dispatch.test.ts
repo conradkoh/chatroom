@@ -186,7 +186,7 @@ vi.mock('../../commands/machine/daemon-start/handlers/ping.js', () => ({
   handlePing: vi.fn().mockReturnValue({ result: 'pong', failed: false }),
 }));
 
-vi.mock('../../events/daemon/agent/on-request-start-agent.js', async () => {
+vi.mock('./events/agent/on-request-start-agent.js', async () => {
   const { Effect } = await import('effect');
   return {
     onRequestStartAgent: vi.fn().mockResolvedValue(undefined),
@@ -194,7 +194,7 @@ vi.mock('../../events/daemon/agent/on-request-start-agent.js', async () => {
   };
 });
 
-vi.mock('../../events/daemon/agent/on-request-stop-agent.js', async () => {
+vi.mock('./events/agent/on-request-stop-agent.js', async () => {
   const { Effect } = await import('effect');
   return {
     onRequestStopAgent: vi.fn().mockResolvedValue(undefined),
