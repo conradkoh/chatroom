@@ -8,11 +8,11 @@ export { resolveStopReason } from '../../v2/domain/entities/stop-reason.js';
 export {
   shouldRetainHarnessSessionForReconnect,
   shouldPreserveHarnessTeardown,
-} from './policies/preserve-session.js';
+} from '../../v2/domain/usecase/preserve-harness-session.js';
 export {
   decideResumePathOnRestart,
   shouldAutoRestartAfterProcessExit,
-} from './policies/decide-resume-path.js';
+} from '../../v2/domain/usecase/decide-resume-path.js';
 
 // Phase 1: Pure domain state machine + invariants
 export type { AgentSlotState, AgentSlotSnapshot } from '../../v2/domain/entities/agent-slot.js';
@@ -21,10 +21,13 @@ export type {
   SlotTransitionEvent,
   SlotTransitionResult,
   SlotTransitionError,
-} from './policies/slot-transitions.js';
-export { transitionSlot, shouldIgnoreProcessExit } from './policies/slot-transitions.js';
-export type { RestartOutcome } from './policies/restart-decision.js';
-export { decideRestartAfterExit } from './policies/restart-decision.js';
+} from '../../v2/domain/usecase/transition-agent-slot.js';
+export {
+  transitionSlot,
+  shouldIgnoreProcessExit,
+} from '../../v2/domain/usecase/transition-agent-slot.js';
+export type { RestartOutcome } from '../../v2/domain/usecase/decide-restart-after-exit.js';
+export { decideRestartAfterExit } from '../../v2/domain/usecase/decide-restart-after-exit.js';
 export {
   isSlotIdle,
   isSlotRunning,

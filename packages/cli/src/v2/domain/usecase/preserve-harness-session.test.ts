@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   shouldPreserveHarnessTeardown,
   shouldRetainHarnessSessionForReconnect,
-} from './preserve-session.js';
+} from './preserve-harness-session.js';
 
 describe('shouldRetainHarnessSessionForReconnect', () => {
   it('retains for user.stop and automated process outcomes', () => {

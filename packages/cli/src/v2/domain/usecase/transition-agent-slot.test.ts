@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { transitionSlot, shouldIgnoreProcessExit } from './slot-transitions.js';
-import type { AgentSlotSnapshot } from '../../../v2/domain/entities/agent-slot.js';
-import { idleSlot } from '../../../v2/domain/entities/agent-slot.js';
+import { transitionSlot, shouldIgnoreProcessExit } from './transition-agent-slot.js';
+import type { AgentSlotSnapshot } from '../entities/agent-slot.js';
+import { idleSlot } from '../entities/agent-slot.js';
 
 function unwrapOk(result: ReturnType<typeof transitionSlot>): AgentSlotSnapshot {
   if (!result.ok) {

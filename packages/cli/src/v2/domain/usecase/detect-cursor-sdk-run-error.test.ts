@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   formatCursorSdkRunErrorMessage,
   isCursorSdkRunErrorInLogs,
-} from '../../../domain/agent-lifecycle/policies/cursor-sdk-run-error.js';
+} from './detect-cursor-sdk-run-error.js';
 
 describe('cursor-sdk-run-error', () => {
   test('detects run-error log lines', () => {

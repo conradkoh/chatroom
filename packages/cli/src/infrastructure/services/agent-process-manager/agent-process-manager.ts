@@ -20,14 +20,7 @@
  */
 
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
-import {
-  NATIVE_HANDOFF_REMINDER,
-  NATIVE_WAITING_ACTION,
-} from '@workspace/backend/src/domain/entities/participant.js';
-import {
-  emitNativeWaitingAfterSpawn,
-  wireThrottledTokenActivityOnOutput,
-} from '../remote-agents/native-spawn-presence.js';
+import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
@@ -54,24 +47,24 @@ import {
   shouldRetainHarnessSessionForReconnect,
 } from '../../../domain/agent-lifecycle/index.js';
 import { tryAbortResumeStorm } from '../../../domain/agent-lifecycle/policies/abort-resume-storm.js';
-import { appendRecentLogLine } from '../../../domain/agent-lifecycle/policies/append-recent-log-line.js';
+import type { ResumeStormTracker } from '../../../domain/agent-lifecycle/ports/resume-storm-tracker.js';
+import { handleTurnCompleted } from '../../../domain/agent-lifecycle/use-cases/handle-turn-completed.js';
+import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
+import { appendRecentLogLine } from '../../../v2/domain/usecase/append-recent-log-line.js';
 import {
   classifyResumeStormReason,
   formatPermanentHarnessFailureMessage,
-} from '../../../domain/agent-lifecycle/policies/classify-resume-storm-reason.js';
-import {
-  formatCursorSdkRunErrorMessage,
-  isCursorSdkRunErrorInLogs,
-} from '../../../domain/agent-lifecycle/policies/cursor-sdk-run-error.js';
+} from '../../../v2/domain/usecase/classify-resume-storm-reason.js';
 import {
   CURSOR_SDK_SESSION_REOPEN_INTERVAL_MS,
   CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
   CURSOR_SDK_SESSION_REOPEN_REASON,
   CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
-} from '../../../domain/agent-lifecycle/policies/cursor-sdk-session-reopen-retry.js';
-import type { ResumeStormTracker } from '../../../domain/agent-lifecycle/ports/resume-storm-tracker.js';
-import { handleTurnCompleted } from '../../../domain/agent-lifecycle/use-cases/handle-turn-completed.js';
-import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
+} from '../../../v2/domain/usecase/cursor-sdk-session-reopen-retry.js';
+import {
+  formatCursorSdkRunErrorMessage,
+  isCursorSdkRunErrorInLogs,
+} from '../../../v2/domain/usecase/detect-cursor-sdk-run-error.js';
 import { isProcessAlive } from '../../deps/process.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
@@ -88,6 +81,10 @@ import {
   type OperationResult,
   type StopOpts,
 } from '../agent-lifecycle/agent-lifecycle-types.js';
+import {
+  emitNativeWaitingAfterSpawn,
+  wireThrottledTokenActivityOnOutput,
+} from '../remote-agents/native-spawn-presence.js';
 import type {
   HarnessReconnectMetadata,
   HarnessSessionIdUpdatedInfo,

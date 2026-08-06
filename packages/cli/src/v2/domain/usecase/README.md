@@ -44,6 +44,24 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | `sync-git-state.ts`                | `daemon-start/git-heartbeat.ts`                             |
 | `update-workspace-list.ts`         | `daemon-start/workspace-list-subscription.ts`               |
 
+## Agent-lifecycle policies (done)
+
+| v2 file                              | Legacy source                                                        |
+| ------------------------------------ | -------------------------------------------------------------------- |
+| `transition-agent-slot.ts`           | `domain/agent-lifecycle/policies/slot-transitions.ts`                |
+| `decide-restart-after-exit.ts`       | `domain/agent-lifecycle/policies/restart-decision.ts`                |
+| `decide-resume-path.ts`              | `domain/agent-lifecycle/policies/decide-resume-path.ts`              |
+| `preserve-harness-session.ts`        | `domain/agent-lifecycle/policies/preserve-session.ts`                |
+| `append-recent-log-line.ts`          | `domain/agent-lifecycle/policies/append-recent-log-line.ts`          |
+| `detect-terminal-provider-error.ts`  | `domain/agent-lifecycle/policies/terminal-provider-error.ts`         |
+| `detect-cursor-sdk-run-error.ts`     | `domain/agent-lifecycle/policies/cursor-sdk-run-error.ts`            |
+| `cursor-sdk-session-reopen-retry.ts` | `domain/agent-lifecycle/policies/cursor-sdk-session-reopen-retry.ts` |
+| `classify-resume-storm-reason.ts`    | `domain/agent-lifecycle/policies/classify-resume-storm-reason.ts`    |
+
+Entity: `resume-storm.ts` (`ResumeStormReason`) — was backend import in classify-resume-storm-reason.
+
+**Not migrated (later slices):** `abort-resume-storm.ts` (#5), `predicates/agent-slot.ts` (#6).
+
 ## Port co-location (direct-harness slice)
 
 | Port                    | v2 home                          |
