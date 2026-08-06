@@ -132,6 +132,8 @@ describe('assigned-task v2 subscribers', () => {
         command: {},
         workspaceGit: {},
         file: {},
+        agenticQuery: {},
+        enhancer: {},
       },
     });
 
@@ -165,6 +167,8 @@ describe('assigned-task v2 subscribers', () => {
         command: {},
         workspaceGit: {},
         file: {},
+        agenticQuery: {},
+        enhancer: {},
       },
       { type: 'assigned-task.presence', taskId: TASK_ID, role: 'builder' }
     );

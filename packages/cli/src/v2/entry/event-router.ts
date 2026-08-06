@@ -1,5 +1,10 @@
 import type { InboundEvent } from '../domain/entities/inbound-event.js';
 import {
+  handleAgenticQueryInbound,
+  type AgenticQueryInboundEvent,
+  type HandleAgenticQueryInboundDeps,
+} from '../domain/usecase/handle-agentic-query-inbound.js';
+import {
   handleAssignedTaskInbound,
   type AssignedTaskInboundEvent,
   type HandleAssignedTaskInboundDeps,
@@ -14,6 +19,11 @@ import {
   type DirectHarnessInboundEvent,
   type HandleDirectHarnessInboundDeps,
 } from '../domain/usecase/handle-direct-harness-inbound.js';
+import {
+  handleEnhancerInbound,
+  type EnhancerInboundEvent,
+  type HandleEnhancerInboundDeps,
+} from '../domain/usecase/handle-enhancer-inbound.js';
 import {
   handleFileInbound,
   type FileInboundEvent,
@@ -31,6 +41,8 @@ export type EventRouterDeps = {
   command: HandleCommandInboundDeps;
   workspaceGit: HandleWorkspaceGitInboundDeps;
   file: HandleFileInboundDeps;
+  agenticQuery: HandleAgenticQueryInboundDeps;
+  enhancer: HandleEnhancerInboundDeps;
 };
 
 // fallow-ignore-next-line complexity
@@ -57,6 +69,13 @@ export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEve
     case 'file-content.request':
     case 'file-write.request':
       await handleFileInbound(deps.file, event as FileInboundEvent);
+      break;
+    case 'agentic-query.session-opened':
+    case 'agentic-query.prompt':
+      await handleAgenticQueryInbound(deps.agenticQuery, event as AgenticQueryInboundEvent);
+      break;
+    case 'enhancer.job-assigned':
+      await handleEnhancerInbound(deps.enhancer, event as EnhancerInboundEvent);
       break;
     default:
       void event;
