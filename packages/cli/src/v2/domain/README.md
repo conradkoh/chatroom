@@ -24,6 +24,7 @@ Pure business logic — no I/O, no Convex, no filesystem.
 - `entities/` imports only other `entities/`
 - `usecase/` imports only `entities/`
 - No imports from `infrastructure/`, `entry/`, or `local-web/`
+- **No legacy `domain/` shims** — runtime code imports `v2/domain/*` directly (`domain/native-integration/` remains separate)
 
 ## Naming
 
