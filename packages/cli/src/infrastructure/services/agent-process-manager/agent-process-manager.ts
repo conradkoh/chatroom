@@ -31,6 +31,7 @@ import { resolveResumableHarnessSessionId } from '../../../daemon/domain/entitie
 import type { HarnessSessionSnapshot } from '../../../daemon/domain/entities/session-snapshot.js';
 import { resolveStopReason } from '../../../daemon/domain/entities/stop-reason.js';
 import type { StopReason } from '../../../daemon/domain/entities/stop-reason.js';
+import { resolveNativeSpawnPolicy } from '../../../daemon/domain/native-integration/spawn-policy.js';
 import { tryAbortResumeStorm } from '../../../daemon/domain/usecase/abort-resume-storm.js';
 import { appendRecentLogLine } from '../../../daemon/domain/usecase/append-recent-log-line.js';
 import {
@@ -69,7 +70,6 @@ import {
   setNativeTurnPhase,
   type NativeTurnPhase,
 } from '../../../daemon/entry/native-delivery/native-turn-phase.js';
-import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
 import { isProcessAlive } from '../../deps/process.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';

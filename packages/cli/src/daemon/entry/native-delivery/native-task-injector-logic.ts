@@ -8,7 +8,7 @@ import {
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 
-export { isNativeHarness } from '../../../domain/native-integration/index.js';
+export { isNativeHarness } from '../../domain/native-integration/index.js';
 
 /** True when daemon should deliver a task into a live native harness session. */
 // fallow-ignore-next-line unused-export

@@ -1,6 +1,6 @@
 import { GET_NEXT_TASK_STARTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 
-import type { AssignedTask } from '../../daemon/domain/entities/assigned-task.js';
+import type { AssignedTask } from '../entities/assigned-task.js';
 
 /**
  * CLI nudge helpers for get-next-task harnesses.
