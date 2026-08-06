@@ -130,6 +130,7 @@ describe('assigned-task v2 subscribers', () => {
         },
         directHarness: {},
         command: {},
+        workspaceGit: {},
       },
     });
 
@@ -161,6 +162,7 @@ describe('assigned-task v2 subscribers', () => {
         },
         directHarness: {},
         command: {},
+        workspaceGit: {},
       },
       { type: 'assigned-task.presence', taskId: TASK_ID, role: 'builder' }
     );

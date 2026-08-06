@@ -14,11 +14,17 @@ import {
   type DirectHarnessInboundEvent,
   type HandleDirectHarnessInboundDeps,
 } from '../domain/usecase/handle-direct-harness-inbound.js';
+import {
+  handleWorkspaceGitInbound,
+  type HandleWorkspaceGitInboundDeps,
+  type WorkspaceGitInboundEvent,
+} from '../domain/usecase/handle-workspace-git-inbound.js';
 
 export type EventRouterDeps = {
   assignedTask: HandleAssignedTaskInboundDeps;
   directHarness: HandleDirectHarnessInboundDeps;
   command: HandleCommandInboundDeps;
+  workspaceGit: HandleWorkspaceGitInboundDeps;
 };
 
 // fallow-ignore-next-line complexity
@@ -36,6 +42,10 @@ export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEve
     case 'command.received':
     case 'command-run.updated':
       await handleCommandInbound(deps.command, event as CommandInboundEvent);
+      break;
+    case 'workspace.list-changed':
+    case 'git.request':
+      await handleWorkspaceGitInbound(deps.workspaceGit, event as WorkspaceGitInboundEvent);
       break;
     default:
       void event;
