@@ -4,6 +4,7 @@ import {
   acquireCommandPalettePartition,
   commitCommandPalettePreload,
   beginCommandPalettePreload,
+  getCommandPaletteBrowseRows,
   getCommandPalettePartitionForTests,
   getCommandPalettePartitionRefCountForTests,
   releaseCommandPalettePartition,
@@ -39,7 +40,7 @@ describe('commandPalettePartitionStore', () => {
     beginCommandPalettePreload(state$);
     commitCommandPalettePreload(state$, gen1, sampleRows);
 
-    expect(state$.browseRows.get()).toEqual([]);
+    expect(getCommandPaletteBrowseRows(state$.partitionKey.get())).toEqual([]);
     expect(state$.status.get()).toBe('loading');
   });
 
@@ -48,7 +49,7 @@ describe('commandPalettePartitionStore', () => {
     const generation = beginCommandPalettePreload(state$);
     commitCommandPalettePreload(state$, generation, sampleRows);
 
-    expect(state$.browseRows.get()).toEqual(sampleRows);
+    expect(getCommandPaletteBrowseRows(state$.partitionKey.get())).toEqual(sampleRows);
     expect(state$.status.get()).toBe('ready');
   });
 
@@ -61,8 +62,8 @@ describe('commandPalettePartitionStore', () => {
     commitCommandPalettePreload(stateA$, genA, sampleRows);
     commitCommandPalettePreload(stateB$, genB, []);
 
-    expect(stateA$.browseRows.get()).toEqual(sampleRows);
-    expect(stateB$.browseRows.get()).toEqual([]);
+    expect(getCommandPaletteBrowseRows(stateA$.partitionKey.get())).toEqual(sampleRows);
+    expect(getCommandPaletteBrowseRows(stateB$.partitionKey.get())).toEqual([]);
     expect(stateA$.partitionKey.get()).not.toBe(stateB$.partitionKey.get());
   });
 });

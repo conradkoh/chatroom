@@ -11,10 +11,11 @@ import {
   acquireCommandPalettePartition,
   beginCommandPalettePreload,
   commitCommandPalettePreload,
+  getCommandPaletteBrowseRows,
   releaseCommandPalettePartition,
   type CommandPalettePartitionState,
 } from './commandPalettePartitionStore';
-import { buildCommandPaletteRows } from './commandPaletteRows';
+import { buildCommandPaletteRows, type CommandPaletteRow } from './commandPaletteRows';
 import { CommandPaletteVirtualizedList } from './CommandPaletteVirtualizedList';
 import type { CommandItem } from './types';
 import { CommandDialogContent } from '../shared/CommandDialogContent';
@@ -168,8 +169,17 @@ export function CommandPaletteLegend({
     blacklistedKeys,
   ]);
 
-  const browseRowsFromStore = useSelector(() => partitionState$?.browseRows.get() ?? []);
-  const partitionStatus = useSelector(() => partitionState$?.status.get() ?? 'idle');
+  const { browseRowsFromStore, partitionStatus } = useSelector(() => {
+    if (!partitionState$) {
+      return { browseRowsFromStore: [] as CommandPaletteRow[], partitionStatus: 'idle' as const };
+    }
+    const status = partitionState$.status.get();
+    const partitionKey = partitionState$.partitionKey.get();
+    return {
+      partitionStatus: status,
+      browseRowsFromStore: status === 'ready' ? getCommandPaletteBrowseRows(partitionKey) : [],
+    };
+  });
 
   const rows = useMemo(() => {
     if (!isSearching && partitionStatus === 'ready' && browseRowsFromStore.length > 0) {

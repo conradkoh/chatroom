@@ -15,8 +15,10 @@ export type CommandPalettePartitionState = {
   status: CommandPalettePartitionStatus;
   /** Incremented on each preload start — guards against stale async writes. */
   generation: number;
-  browseRows: CommandPaletteRow[];
 };
+
+/** Non-reactive cache — CommandItem rows must not live in Legend observables. */
+const browseRowsByPartitionKey = new Map<string, CommandPaletteRow[]>();
 
 type PartitionEntry = {
   state$: Observable<CommandPalettePartitionState>;
@@ -36,8 +38,11 @@ function createInitialState(
     workspaceId,
     status: 'idle',
     generation: 0,
-    browseRows: [],
   };
+}
+
+export function getCommandPaletteBrowseRows(partitionKey: string): CommandPaletteRow[] {
+  return browseRowsByPartitionKey.get(partitionKey) ?? [];
 }
 
 export function acquireCommandPalettePartition(
@@ -68,6 +73,7 @@ export function releaseCommandPalettePartition(
   entry.refCount -= 1;
   if (entry.refCount <= 0) {
     registry.delete(partitionKey);
+    browseRowsByPartitionKey.delete(partitionKey);
   }
 }
 
@@ -75,10 +81,11 @@ export function releaseCommandPalettePartition(
 export function beginCommandPalettePreload(
   state$: Observable<CommandPalettePartitionState>
 ): number {
+  const partitionKey = state$.partitionKey.get();
   const next = state$.generation.get() + 1;
   state$.generation.set(next);
   state$.status.set('loading');
-  state$.browseRows.set([]);
+  browseRowsByPartitionKey.set(partitionKey, []);
   return next;
 }
 
@@ -88,7 +95,7 @@ export function commitCommandPalettePreload(
   browseRows: CommandPaletteRow[]
 ): void {
   if (state$.generation.get() !== generation) return;
-  state$.browseRows.set(browseRows);
+  browseRowsByPartitionKey.set(state$.partitionKey.get(), browseRows);
   state$.status.set('ready');
 }
 
@@ -98,12 +105,14 @@ export function abortCommandPalettePreload(
   generation: number
 ): void {
   if (state$.generation.get() !== generation) return;
+  browseRowsByPartitionKey.set(state$.partitionKey.get(), []);
   state$.status.set('idle');
 }
 
 // fallow-ignore-next-line unused-export — consumed by unit tests
 export function resetCommandPalettePartitionRegistryForTests(): void {
   registry.clear();
+  browseRowsByPartitionKey.clear();
 }
 
 // fallow-ignore-next-line unused-export — consumed by unit tests
