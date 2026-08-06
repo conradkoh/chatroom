@@ -1,5 +1,9 @@
-/** Legacy: packages/cli/src/commands/machine/daemon-start/file-tree-subscription.ts */
-export type FileTreeRequest = {
-  // TODO: migrate from legacy
-  readonly _placeholder: true;
-};
+export type FileTreeRequestStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface FileTreeRequest {
+  requestId: string;
+  machineId: string;
+  workingDir: string;
+  force: boolean;
+  status: FileTreeRequestStatus;
+}

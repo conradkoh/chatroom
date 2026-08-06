@@ -328,10 +328,10 @@
         "count": 1
       },
       "crap_high": {
-        "count": 2
+        "count": 1
       },
       "crap_moderate": {
-        "count": 6
+        "count": 7
       }
     },
     "apps/webapp/src/modules/chatroom/components/AgentControls.tsx": {
@@ -2771,6 +2771,8 @@
   "target_keys": [
     "services/backend/prompts/cli/roles/index.ts:dead code",
     "services/backend/prompts/base/webapp/utils/config.ts:dead code",
+    "packages/cli/src/v2/domain/entities/command-event.ts:dead code",
+    "packages/cli/src/v2/domain/entities/git-request.ts:dead code",
     "services/backend/application/auth/requirePermission.ts:dead code",
     "services/backend/prompts/config.ts:dead code",
     "services/backend/src/domain/entities/backlog-item.ts:dead code",
@@ -2785,8 +2787,10 @@
     "apps/webapp/src/modules/chatroom/workspace/files/useWorkspaceFileTree.ts:high impact",
     "packages/cli/src/infrastructure/services/workspace/workspace-fs-watch-paths.ts:dead code",
     "apps/webapp/src/modules/chatroom/eventTypes/index.ts:dead code",
+    "packages/cli/src/v2/domain/entities/execution-kind.ts:dead code",
     "services/backend/prompts/teams/duo/prompts/fromContext.ts:dead code",
     "services/backend/prompts/cli/backlog/command.ts:untested risk",
+    "packages/cli/src/v2/local-web/server/routes.ts:dead code",
     "services/backend/src/domain/entities/team-kind.ts:dead code",
     "apps/webapp/src/lib/contentEditableSerializer.ts:dead code",
     "apps/webapp/src/modules/chatroom/components/timeline/timelineVirtualizerConfig.ts:dead code",
@@ -2803,9 +2807,9 @@
     "apps/webapp/src/modules/chatroom/workspace/files/explorer-tree.ts:dead code",
     "services/backend/prompts/base/webapp/utils/env.ts:dead code",
     "services/backend/prompts/utils/handoff-quality-principles.ts:dead code",
-    "services/backend/convex/messages.ts:complexity",
     "apps/webapp/src/modules/chatroom/utils/handoffSectionContent.ts:dead code",
     "apps/webapp/src/modules/chatroom/workspace/utils/diff-parser.ts:complexity",
+    "services/backend/convex/messages.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/AgentControls.tsx:dead code",
     "services/backend/prompts/sections/session-vs-chatroom-task.ts:dead code",
     "apps/local/src/server/repo-update.ts:dead code",
@@ -2818,7 +2822,6 @@
     "packages/cli/src/infrastructure/services/workspace/workspace-fs-watcher.ts:high impact",
     "apps/webapp/src/modules/chatroom/workspace/components/explorerDialogInputUtils.ts:untested risk",
     "apps/webapp/src/domain/entities/event-type.ts:dead code",
-    "packages/cli/src/v2/domain/entities/execution-kind.ts:dead code",
     "apps/webapp/src/modules/chatroom/workspace/hooks/useFileTabs.ts:high impact",
     "services/backend/src/domain/types/skills.ts:dead code",
     "packages/cli/src/infrastructure/convex/client.ts:dead code",
@@ -2834,10 +2837,10 @@
     "packages/cli/src/infrastructure/services/remote-agents/agent-log-format.ts:high impact",
     "apps/webapp/src/lib/pathUtils.ts:high impact",
     "services/backend/convex/lib/taskStateMachine.ts:complexity",
-    "packages/cli/src/v2/domain/usecase/detect-terminal-provider-error.ts:untested risk",
     "packages/cli/src/commands/machine/daemon-start/file-write-fulfillment.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/BacklogItemDetailModal.tsx:complexity",
     "services/backend/convex/machines.ts:complexity",
+    "packages/cli/src/v2/domain/usecase/detect-terminal-provider-error.ts:untested risk",
     "services/backend/convex/lib/backlogStateMachine.ts:complexity",
     "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts:complexity",
     "apps/webapp/src/modules/chatroom/triggers/fileReferenceQuery.ts:untested risk",

@@ -40,5 +40,5 @@ v2 domain entities are the SSOT for CLI daemon types. They must not import from
 `domain/**/entities/` paths are thin re-exports — update new code to import from
 `v2/domain/entities/` directly.
 
-Placeholder stubs (`command-event`, `enhancer-job`, `file-*`, `git-request`,
-`machine-command`) remain minimal until their legacy sources exist.
+U1 entity types (`command-event`, `enhancer-job`, `file-*`, `git-request`,
+`machine-command`) are complete — modeled from legacy daemon-start sources.

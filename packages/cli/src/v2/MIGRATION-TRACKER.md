@@ -32,7 +32,7 @@ Migration is **complete** when all of the following are true:
 | Unit | Title                          | Status  | Backlog |
 | ---- | ------------------------------ | ------- | ------- |
 | U0   | Baseline (v1.88.2 scaffold)    | ✅ Done | —       |
-| U1   | Placeholder entity types       | ⬜ Todo | backlog |
+| U1   | Placeholder entity types       | ✅ Done | backlog |
 | U2   | Agent control use cases        | ⬜ Todo | backlog |
 | U3   | Assigned task delivery         | ⬜ Todo | backlog |
 | U4   | Direct harness processing      | ⬜ Todo | backlog |
@@ -65,7 +65,7 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U1 — Placeholder entity types
+## U1 — Placeholder entity types ✅
 
 **Outcome:** Replace 5 `_placeholder: true` entity stubs with real v2 types modeled from legacy sources.
 
@@ -76,13 +76,15 @@ Migration is **complete** when all of the following are true:
 - `domain/entities/file-tree-request.ts` ← `daemon-start/file-tree-subscription.ts`
 - `domain/entities/git-request.ts` ← `daemon-start/git-subscription.ts`
 - `domain/entities/machine-command.ts` ← `daemon-start/types.ts`
+- `domain/entities/file-content-request.ts` ← workspace file content schema
+- `domain/entities/file-write-request.ts` ← file-write subscription schema
 
 **Validation criteria:**
 
-- [ ] Each entity file has real fields (no `_placeholder`)
-- [ ] Co-located `*.test.ts` for narrowing/validation helpers where applicable
-- [ ] `inbound-event.ts` / `outbound-event.ts` updated if event payloads reference these types
-- [ ] G2 passes
+- [x] Each entity file has real fields (no `_placeholder`)
+- [x] Co-located `*.test.ts` for narrowing/validation helpers where applicable
+- [x] `inbound-event.ts` / `outbound-event.ts` updated if event payloads reference these types
+- [x] G2 passes
 
 ---
 
