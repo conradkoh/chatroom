@@ -1,12 +1,10 @@
 /** Non-blocking warmup state for command dialogs. */
 
-import type { CommandPaletteRow } from '../components/CommandPalette/commandPaletteRows';
-
-export type CommandDialogWarmTarget = 'switcher' | 'command-palette' | 'file-selector';
+export type CommandDialogWarmTarget = 'switcher' | 'file-selector';
 
 export type CommandDialogWarmState = 'cold' | 'warming' | 'warm';
 
-type ScopeKey = string; // 'global' for switcher, chatroomId for palette/file-selector
+type ScopeKey = string; // 'global' for switcher, chatroomId for file-selector
 
 const warmStates = new Map<string, CommandDialogWarmState>();
 
@@ -14,6 +12,7 @@ function cacheKey(target: CommandDialogWarmTarget, scope: ScopeKey): string {
   return `${target}:${scope}`;
 }
 
+// fallow-ignore-next-line unused-export
 export function getCommandDialogWarmState(
   target: CommandDialogWarmTarget,
   scope: ScopeKey
@@ -76,21 +75,8 @@ export function scheduleCommandDialogWarmup(
   };
 }
 
-// Browse-row cache for palette warmup
-let paletteBrowseRowsCache: { scope: ScopeKey; rows: CommandPaletteRow[] } | null = null;
-
-export function getWarmedPaletteBrowseRows(scope: ScopeKey): CommandPaletteRow[] | null {
-  if (paletteBrowseRowsCache?.scope === scope) return paletteBrowseRowsCache.rows;
-  return null;
-}
-
-export function setWarmedPaletteBrowseRows(scope: ScopeKey, rows: CommandPaletteRow[]): void {
-  paletteBrowseRowsCache = { scope, rows };
-}
-
 /** Reset module state between tests. */
 // fallow-ignore-next-line unused-export
 export function resetCommandDialogWarmupForTests(): void {
   warmStates.clear();
-  paletteBrowseRowsCache = null;
 }
