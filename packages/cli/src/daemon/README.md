@@ -4,8 +4,6 @@ Canonical home for all machine daemon code within the CLI.
 
 **Root:** `packages/cli/src/daemon/`
 
-**Progress tracker:** [MIGRATION-TRACKER.md](./MIGRATION-TRACKER.md) — migration history (U0–U15 completed on `release/v1.88.2`)
-
 ---
 
 ## Purpose
@@ -52,4 +50,3 @@ domain/entities/    ← pure types + event registries
 
 - [entry/README.md](./entry/README.md) — composition root files
 - [domain/usecase/README.md](./domain/usecase/README.md) — use case map
-- [MIGRATION-TRACKER.md](./MIGRATION-TRACKER.md) — migration units and validation gates
