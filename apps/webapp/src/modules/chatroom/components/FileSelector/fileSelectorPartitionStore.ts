@@ -103,16 +103,6 @@ export function commitFileSelectorPreload(
 }
 
 // fallow-ignore-next-line unused-export
-export function abortFileSelectorPreload(
-  state$: Observable<FileSelectorPartitionState>,
-  generation: number
-): void {
-  if (state$.generation.get() !== generation) return;
-  preloadFilesByPartitionKey.set(state$.partitionKey.get(), []);
-  state$.status.set('idle');
-}
-
-// fallow-ignore-next-line unused-export
 export function resetFileSelectorPartitionRegistryForTests(): void {
   registry.clear();
   preloadFilesByPartitionKey.clear();

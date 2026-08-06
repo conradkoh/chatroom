@@ -99,16 +99,6 @@ export function commitCommandPalettePreload(
   state$.status.set('ready');
 }
 
-// fallow-ignore-next-line unused-export
-export function abortCommandPalettePreload(
-  state$: Observable<CommandPalettePartitionState>,
-  generation: number
-): void {
-  if (state$.generation.get() !== generation) return;
-  browseRowsByPartitionKey.set(state$.partitionKey.get(), []);
-  state$.status.set('idle');
-}
-
 // fallow-ignore-next-line unused-export — consumed by unit tests
 export function resetCommandPalettePartitionRegistryForTests(): void {
   registry.clear();
