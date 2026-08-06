@@ -130,7 +130,9 @@ describe('startDaemonV2', () => {
           file: expect.objectContaining({
             deliverInbound: expect.any(Function),
           }),
-          agenticQuery: {},
+          agenticQuery: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
           enhancer: {},
         }),
       })

@@ -41,7 +41,7 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | `fulfill-file-write-request.ts`    | `daemon-start/file-write-fulfillment.ts`                    | **done** — registry dispatch to legacy drain     |
 | `fulfill-git-request.ts`           | `daemon-start/git-subscription.ts`                          | **done** — registry dispatch to legacy drain     |
 | `process-enhancer-job.ts`          | `daemon-start/enhancer/job-subscriber.ts`                   |
-| `process-agentic-query-prompt.ts`  | `daemon-start/agentic-query/prompt-subscriber.ts`           |
+| `process-agentic-query-prompt.ts`  | `daemon-start/agentic-query/prompt-subscriber.ts`           | **done** — registry dispatch to legacy drains    |
 | `process-direct-harness-prompt.ts` | `daemon-start/direct-harness/prompt-subscriber.ts`          | **done** — registry dispatch to legacy drains    |
 | `recover-agent-state.ts`           | `daemon-start/handlers/state-recovery.ts`                   | **done**                                         |
 | `refresh-machine-capabilities.ts`  | `daemon-start/models-refresh.ts`                            |

@@ -21,7 +21,7 @@ const routerDeps = {
   },
   file: {} as { deliverInbound?: (event: FileInboundEvent) => Promise<void> },
   agenticQuery: {} as {
-    onAgenticQueryEvent?: (event: AgenticQueryInboundEvent) => Promise<void>;
+    deliverInbound?: (event: AgenticQueryInboundEvent) => Promise<void>;
   },
   enhancer: {} as { onEnhancerEvent?: (event: EnhancerInboundEvent) => Promise<void> },
 };
@@ -174,27 +174,27 @@ describe('routeInboundEvent', () => {
   });
 
   test('dispatches agentic-query.session-opened to handler', async () => {
-    const onAgenticQueryEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: AgenticQueryInboundEvent = {
       type: 'agentic-query.session-opened',
       sessionId: 'run_1',
     };
 
-    await routeInboundEvent({ ...routerDeps, agenticQuery: { onAgenticQueryEvent } }, event);
+    await routeInboundEvent({ ...routerDeps, agenticQuery: { deliverInbound } }, event);
 
-    expect(onAgenticQueryEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('dispatches agentic-query.prompt to handler', async () => {
-    const onAgenticQueryEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: AgenticQueryInboundEvent = {
       type: 'agentic-query.prompt',
       sessionId: 'run_1',
     };
 
-    await routeInboundEvent({ ...routerDeps, agenticQuery: { onAgenticQueryEvent } }, event);
+    await routeInboundEvent({ ...routerDeps, agenticQuery: { deliverInbound } }, event);
 
-    expect(onAgenticQueryEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('dispatches enhancer.job-assigned to handler', async () => {
@@ -215,7 +215,7 @@ describe('routeInboundEvent', () => {
     const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const deliverWorkspaceGitInbound = vi.fn().mockResolvedValue(undefined);
     const deliverFileInbound = vi.fn().mockResolvedValue(undefined);
-    const onAgenticQueryEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverAgenticQueryInbound = vi.fn().mockResolvedValue(undefined);
     const onEnhancerEvent = vi.fn().mockResolvedValue(undefined);
 
     await routeInboundEvent(
@@ -225,7 +225,7 @@ describe('routeInboundEvent', () => {
         command: { deliverInbound },
         workspaceGit: { deliverInbound: deliverWorkspaceGitInbound },
         file: { deliverInbound: deliverFileInbound },
-        agenticQuery: { onAgenticQueryEvent },
+        agenticQuery: { deliverInbound: deliverAgenticQueryInbound },
         enhancer: { onEnhancerEvent },
       },
       { type: 'not-a-real-type' } as unknown as InboundEvent
@@ -236,7 +236,7 @@ describe('routeInboundEvent', () => {
     expect(deliverInbound).not.toHaveBeenCalled();
     expect(deliverWorkspaceGitInbound).not.toHaveBeenCalled();
     expect(deliverFileInbound).not.toHaveBeenCalled();
-    expect(onAgenticQueryEvent).not.toHaveBeenCalled();
+    expect(deliverAgenticQueryInbound).not.toHaveBeenCalled();
     expect(onEnhancerEvent).not.toHaveBeenCalled();
   });
 });

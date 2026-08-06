@@ -6,16 +6,16 @@ import {
 } from './handle-agentic-query-inbound.js';
 
 describe('handleAgenticQueryInbound', () => {
-  test('invokes onAgenticQueryEvent when provided', async () => {
-    const onAgenticQueryEvent = vi.fn().mockResolvedValue(undefined);
+  test('invokes deliverInbound when provided', async () => {
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: AgenticQueryInboundEvent = {
       type: 'agentic-query.session-opened',
       sessionId: 'run_1',
     };
 
-    await handleAgenticQueryInbound({ onAgenticQueryEvent }, event);
+    await handleAgenticQueryInbound({ deliverInbound }, event);
 
-    expect(onAgenticQueryEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('no-ops when hook is absent', async () => {

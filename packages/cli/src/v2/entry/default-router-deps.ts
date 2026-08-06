@@ -1,3 +1,4 @@
+import { createAgenticQueryRouterDeps } from './bridge/agentic-query-bridge.js';
 import { createAssignedTaskRouterDeps } from './bridge/assigned-task-bridge.js';
 import { createCommandRouterDeps } from './bridge/command-bridge.js';
 import { createDirectHarnessRouterDeps } from './bridge/direct-harness-bridge.js';
@@ -12,7 +13,7 @@ export function createDefaultEventRouterDeps(): EventRouterDeps {
     command: createCommandRouterDeps(),
     workspaceGit: createWorkspaceGitRouterDeps(),
     file: createFileRouterDeps(),
-    agenticQuery: {},
+    agenticQuery: createAgenticQueryRouterDeps(),
     enhancer: {},
   };
 }

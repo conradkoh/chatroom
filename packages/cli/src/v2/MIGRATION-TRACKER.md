@@ -230,20 +230,28 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U8 — Agentic query processing
+## U8 — Agentic query processing ✅
 
-**Outcome:** Agentic query session/prompt handling via v2.
+**Outcome:** Agentic query session/prompt handling via v2 inbound → registry → legacy drains.
 
 **Files:**
 
-- `domain/usecase/process-agentic-query-prompt.ts` ← `daemon-start/agentic-query/prompt-subscriber.ts`
-- `domain/usecase/handle-agentic-query-inbound.ts` — wire to processor
+- `entry/agentic-query-inbound-registry.ts` — register/dispatch handler from command loop
+- `domain/usecase/process-agentic-query-prompt.ts` — thin dispatch to registry
+- `domain/usecase/handle-agentic-query-inbound.ts` — `deliverInbound` hook
+- `entry/bridge/agentic-query-bridge.ts` — router deps wiring
+- `entry/bridge/workspace-git-bridge.ts` — U7 fix: single dispatch on workspace.list-changed
+- `daemon-start/agentic-query/prompt-subscriber.ts` — export `drainPendingAgenticQueryMessages`
+- `daemon-start/agentic-query/session-subscriber.ts` — export `processPendingAgenticQuerySessions`
+- `daemon-start/agentic-query/start-subscriptions.ts` — register/unregister inbound handler
 
 **Validation criteria:**
 
-- [ ] Agentic query prompts processed via v2 path
-- [ ] Tests cover session-opened + prompt events
-- [ ] G1 passes for `process-agentic-query-prompt.ts`
+- [x] Agentic query prompts processed via v2 inbound → full pending drain
+- [x] Tests cover session-opened + prompt events
+- [x] G1 passes for `process-agentic-query-prompt.ts`
+- [x] `createDefaultEventRouterDeps().agenticQuery.deliverInbound` defined
+- [x] U7 fix: workspace.list-changed triggers reconcile+git-sync only once per inbound event
 
 ---
 

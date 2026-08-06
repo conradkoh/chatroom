@@ -31,6 +31,21 @@ interface SubscriberDeps {
   journalFactory: JournalFactory;
 }
 
+export type AgenticQueryPromptSubscriberDeps = SubscriberDeps;
+
+export async function drainPendingAgenticQueryMessages(
+  daemonSession: AgenticQuerySubscriptionSession,
+  deps: SubscriberDeps
+): Promise<void> {
+  const batch = (await daemonSession.backend.query(
+    api.daemon.agenticQuery.messages.pendingForMachine,
+    { sessionId: daemonSession.sessionId, machineId: daemonSession.machineId }
+  )) as AgenticPendingBatch | null;
+
+  if (!batch) return;
+  await drainPendingBatch(daemonSession, deps, batch);
+}
+
 interface WorkspaceInfo {
   workingDir: string;
 }
@@ -187,12 +202,17 @@ export function startPromptSubscriber(
   wsClient: ConvexClient,
   deps: SubscriberDeps
 ): { stop: () => void } {
+  let processing = false;
+
   const handle = wsClient.onUpdate(
     api.daemon.agenticQuery.messages.pendingForMachine,
     { sessionId: daemonSession.sessionId, machineId: daemonSession.machineId },
-    async (batch) => {
-      if (!batch) return;
-      await drainPendingBatch(daemonSession, deps, batch as unknown as AgenticPendingBatch);
+    () => {
+      if (processing) return;
+      processing = true;
+      void drainPendingAgenticQueryMessages(daemonSession, deps).finally(() => {
+        processing = false;
+      });
     }
   );
 

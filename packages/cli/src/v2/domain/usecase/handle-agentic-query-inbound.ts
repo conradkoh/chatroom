@@ -6,14 +6,14 @@ export type AgenticQueryInboundEvent = Extract<
 >;
 
 export type HandleAgenticQueryInboundDeps = {
-  onAgenticQueryEvent?: (event: AgenticQueryInboundEvent) => Promise<void>;
+  deliverInbound?: (event: AgenticQueryInboundEvent) => Promise<void>;
 };
 
 export async function handleAgenticQueryInbound(
   deps: HandleAgenticQueryInboundDeps,
   event: AgenticQueryInboundEvent
 ): Promise<void> {
-  if (deps.onAgenticQueryEvent) {
-    await deps.onAgenticQueryEvent(event);
+  if (deps.deliverInbound) {
+    await deps.deliverInbound(event);
   }
 }
