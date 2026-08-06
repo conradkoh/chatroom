@@ -31,8 +31,6 @@ interface SubscriberDeps {
   journalFactory: JournalFactory;
 }
 
-export type AgenticQueryPromptSubscriberDeps = SubscriberDeps;
-
 export async function drainPendingAgenticQueryMessages(
   daemonSession: AgenticQuerySubscriptionSession,
   deps: SubscriberDeps
