@@ -1,10 +1,20 @@
 'use client';
 
+import type { Observable } from '@legendapp/state';
+import { useSelector } from '@legendapp/state/react';
 import { EyeOff } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
 
 import { CommandOutputModal } from './CommandOutputModal';
-import { buildCommandPaletteRows } from './commandPaletteRows';
+import {
+  acquireCommandPalettePartition,
+  beginCommandPalettePreload,
+  commitCommandPalettePreload,
+  getCommandPaletteBrowseRows,
+  releaseCommandPalettePartition,
+  type CommandPalettePartitionState,
+} from './commandPalettePartitionStore';
+import { buildCommandPaletteRows, type CommandPaletteRow } from './commandPaletteRows';
 import { CommandPaletteVirtualizedList } from './CommandPaletteVirtualizedList';
 import type { CommandItem } from './types';
 import { CommandDialogContent } from '../shared/CommandDialogContent';
@@ -12,12 +22,6 @@ import { CommandDialogContent } from '../shared/CommandDialogContent';
 import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
-import {
-  getCommandDialogWarmState,
-  getWarmedPaletteBrowseRows,
-  scheduleCommandDialogWarmup,
-  setWarmedPaletteBrowseRows,
-} from '@/modules/chatroom/context/commandDialogWarmup';
 import {
   getCommandPaletteOpen,
   notifyCommandDialogClosed,
@@ -32,18 +36,24 @@ import { sortCommandsByFrecency } from '@/modules/chatroom/lib/sortCommandsByFre
 
 interface CommandPaletteProps {
   chatroomId: string;
+  workspaceId: string | null | undefined;
   commands: CommandItem[];
   /** Command palette output state (lifted from parent via useCommandRunOutputV2) */
   inlineCommand: CommandPaletteOutputState;
 }
 
 /**
- * Global Cmd+Shift+P command palette.
+ * Cmd+Shift+P command palette with partition-scoped Legend State preload.
  *
- * - **Browse mode** (no search text): commands grouped by category
- * - **Search mode** (typing): flat list ranked by frécency
+ * Browse rows are precomputed on mount (per chatroomId:workspaceId) and read from
+ * the partition store on first open for instant list display.
  */
-export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandPaletteProps) {
+export function CommandPalette({
+  chatroomId,
+  workspaceId,
+  commands,
+  inlineCommand,
+}: CommandPaletteProps) {
   const { closeDialog } = useCommandDialogActions();
   const open = useSyncExternalStore(
     subscribeCommandPaletteOpen,
@@ -59,6 +69,9 @@ export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandP
     [closeDialog]
   );
 
+  const [partitionState$, setPartitionState$] =
+    useState<Observable<CommandPalettePartitionState> | null>(null);
+
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);
   searchValueRef.current = searchValue;
@@ -66,9 +79,6 @@ export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandP
   const inlineCommandRef = useRef(inlineCommand);
   inlineCommandRef.current = inlineCommand;
 
-  // Custom escape handler:
-  //   1st press — clear search
-  //   2nd press — close dialog
   const handleEscapeKeyDown = useCallback(
     (event: React.KeyboardEvent | KeyboardEvent) => {
       if (searchValueRef.current) {
@@ -81,11 +91,9 @@ export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandP
     [setOpen]
   );
 
-  // Frécency-boosted ranking with command-aware keys and refresh
   const { rankedFilter, trackUsage, frecencyScores, getScore } = useCommandRanking(commands);
   const { blacklistedKeys, blacklist, unblacklist, isBlacklisted } = useCommandBlacklist();
 
-  // Reset search when closing
   useEffect(() => {
     if (!open) setSearchValue('');
   }, [open]);
@@ -96,7 +104,6 @@ export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandP
     shiftKey: 'required',
   });
 
-  // Group commands by category (for browse mode)
   const groupedCommands = useMemo(() => {
     const groups = new Map<string, CommandItem[]>();
     for (const command of commands) {
@@ -109,7 +116,6 @@ export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandP
 
   const isSearching = searchValue.trim().length > 0;
 
-  // Get recently used commands (frecency > 0) sorted by frecency desc for browse mode
   const recentCommands = useMemo(() => {
     const withUsage = commands.filter((cmd) => getScore(cmd) > 0);
     return sortCommandsByFrecency(withUsage, frecencyScores);
@@ -117,7 +123,12 @@ export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandP
 
   useEffect(() => {
     if (!chatroomId) return;
-    return scheduleCommandDialogWarmup('command-palette', chatroomId, () => {
+
+    const state$ = acquireCommandPalettePartition(chatroomId, workspaceId);
+    setPartitionState$(state$);
+    const generation = beginCommandPalettePreload(state$);
+
+    const runPreload = () => {
       const rows = buildCommandPaletteRows({
         commands,
         search: '',
@@ -128,10 +139,26 @@ export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandP
         frecencyScores,
         blacklistedKeys,
       });
-      setWarmedPaletteBrowseRows(chatroomId, rows);
-    });
+      commitCommandPalettePreload(state$, generation, rows);
+    };
+
+    const idleId =
+      typeof requestIdleCallback !== 'undefined'
+        ? requestIdleCallback(runPreload, { timeout: 2000 })
+        : setTimeout(runPreload, 0);
+
+    return () => {
+      if (typeof cancelIdleCallback !== 'undefined' && typeof idleId === 'number') {
+        cancelIdleCallback(idleId);
+      } else {
+        clearTimeout(idleId as ReturnType<typeof setTimeout>);
+      }
+      releaseCommandPalettePartition(chatroomId, workspaceId);
+      setPartitionState$(null);
+    };
   }, [
     chatroomId,
+    workspaceId,
     commands,
     rankedFilter,
     recentCommands,
@@ -141,10 +168,21 @@ export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandP
     blacklistedKeys,
   ]);
 
+  const { browseRowsFromStore, partitionStatus } = useSelector(() => {
+    if (!partitionState$) {
+      return { browseRowsFromStore: [] as CommandPaletteRow[], partitionStatus: 'idle' as const };
+    }
+    const status = partitionState$.status.get();
+    const partitionKey = partitionState$.partitionKey.get();
+    return {
+      partitionStatus: status,
+      browseRowsFromStore: status === 'ready' ? getCommandPaletteBrowseRows(partitionKey) : [],
+    };
+  });
+
   const rows = useMemo(() => {
-    if (!isSearching && getCommandDialogWarmState('command-palette', chatroomId) === 'warm') {
-      const warmed = getWarmedPaletteBrowseRows(chatroomId);
-      if (warmed) return warmed;
+    if (!isSearching && partitionStatus === 'ready' && browseRowsFromStore.length > 0) {
+      return browseRowsFromStore;
     }
     return buildCommandPaletteRows({
       commands,
@@ -157,8 +195,9 @@ export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandP
       blacklistedKeys,
     });
   }, [
-    chatroomId,
     isSearching,
+    partitionStatus,
+    browseRowsFromStore,
     commands,
     searchValue,
     rankedFilter,
@@ -179,20 +218,15 @@ export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandP
         return;
       }
 
-      // Normal command: close dialog and execute action synchronously so it runs
-      // within the iOS user-gesture context. Deferring via setTimeout breaks iOS's
-      // gesture chain and causes external URLs to open in an in-app WKWebView
-      // instead of the system browser.
       setOpen(false);
       command.action();
     },
     [trackUsage, setOpen]
   );
 
+  // fallow-ignore-next-line complexity
   const renderCommandItemContent = useCallback(
     (command: CommandItem) => {
-      // Returns the content nodes (without the CommandItemUI wrapper) for the virtual list.
-      // The virtual list renders its own item wrapper for keyboard nav compatibility.
       return (
         <>
           {command.icon && (
@@ -259,7 +293,6 @@ export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandP
           <DialogTitle className="sr-only">Command Palette</DialogTitle>
           <DialogDescription className="sr-only">Search and execute a command</DialogDescription>
 
-          {/* Command list section */}
           <div className="flex flex-col w-full">
             <Command
               shouldFilter={false}
