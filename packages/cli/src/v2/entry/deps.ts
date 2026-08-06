@@ -1,13 +1,14 @@
-import type { PublisherRegistry } from './publisher-registry.js';
+import { createPublisherRegistry, type PublisherRegistry } from './publisher-registry.js';
+import type { PersistenceStore } from '../infrastructure/persistence/index.js';
 
-/** Dependency bag injected into use cases — replaces daemon-layers Effect services. */
 export type DaemonDeps = {
   publishers: PublisherRegistry;
-  // TODO: machine config, harness ports, persistence
+  persistence?: PersistenceStore;
 };
 
-export function createDaemonDeps(): DaemonDeps {
+export function createDaemonDeps(opts: { persistence?: PersistenceStore } = {}): DaemonDeps {
   return {
-    publishers: { publish: async () => {} },
+    persistence: opts.persistence,
+    publishers: createPublisherRegistry({ persistence: opts.persistence }),
   };
 }
