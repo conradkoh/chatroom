@@ -121,7 +121,9 @@ describe('startDaemonV2', () => {
           directHarness: expect.objectContaining({
             deliverInbound: expect.any(Function),
           }),
-          command: {},
+          command: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
           workspaceGit: {},
           file: {},
           agenticQuery: {},

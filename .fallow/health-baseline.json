@@ -1724,6 +1724,11 @@
         "count": 1
       }
     },
+    "packages/cli/src/commands/machine/daemon-start/handlers/process/command-run-subscription.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
     "packages/cli/src/commands/machine/daemon-start/handlers/orphan-tracker.ts": {
       "complexity_high": {
         "count": 1

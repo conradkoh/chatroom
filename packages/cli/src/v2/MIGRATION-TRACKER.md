@@ -36,7 +36,7 @@ Migration is **complete** when all of the following are true:
 | U2   | Agent control use cases        | ✅ Done | backlog |
 | U3   | Assigned task delivery         | ✅ Done | backlog |
 | U4   | Direct harness processing      | ✅ Done | backlog |
-| U5   | Command loop migration         | ⬜ Todo | backlog |
+| U5   | Command loop migration         | ✅ Done | backlog |
 | U6   | File fulfillment               | ⬜ Todo | backlog |
 | U7   | Workspace & git                | ⬜ Todo | backlog |
 | U8   | Agentic query processing       | ⬜ Todo | backlog |
@@ -154,22 +154,26 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U5 — Command loop migration
+## U5 — Command loop migration ✅
 
-**Outcome:** Command event processing migrated to `handle-command-event`; command inbound wired.
+**Outcome:** Command inbound events wired via v2 router to legacy `dispatchCommandEventEffect` and command-run drain.
 
 **Files:**
 
-- `domain/usecase/handle-command-event.ts` ← `daemon-start/command-loop.ts` (event dispatch logic)
-- `domain/usecase/handle-command-inbound.ts` — wire to `handleCommandEvent`
-- `entry/default-router-deps.ts` — provide command hook
+- `entry/command-inbound-registry.ts` — register/dispatch handler from command loop
+- `domain/usecase/handle-command-event.ts` — thin dispatch to registry
+- `domain/usecase/handle-command-inbound.ts` — `deliverInbound` hook
+- `entry/bridge/command-bridge.ts` — router deps wiring
+- `daemon-start/command-loop.ts` — register handler; export `handleInboundCommandEvent`
+- `handlers/process/command-run-subscription.ts` — export `processActionableCommandRuns`, `drainActionableCommandRuns`
 
 **Validation criteria:**
 
-- [ ] Machine commands (start/stop agent, ping, etc.) processed via v2 path
-- [ ] Dedup/heartbeat logic preserved
-- [ ] Existing `daemon-command-loop-d5.test.ts` passes
-- [ ] G1 passes for `handle-command-event.ts`
+- [x] Machine commands processed via v2 inbound → registry → legacy dispatch
+- [x] Dedup/heartbeat logic preserved in command loop closure
+- [x] Existing `daemon-command-loop-d5.test.ts` passes
+- [x] G1 passes for `handle-command-event.ts`
+- [x] `createDefaultEventRouterDeps().command.deliverInbound` defined
 
 ---
 

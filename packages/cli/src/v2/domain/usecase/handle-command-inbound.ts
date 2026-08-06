@@ -6,14 +6,14 @@ export type CommandInboundEvent = Extract<
 >;
 
 export type HandleCommandInboundDeps = {
-  onCommandEvent?: (event: CommandInboundEvent) => Promise<void>;
+  deliverInbound?: (event: CommandInboundEvent) => Promise<void>;
 };
 
 export async function handleCommandInbound(
   deps: HandleCommandInboundDeps,
   event: CommandInboundEvent
 ): Promise<void> {
-  if (deps.onCommandEvent) {
-    await deps.onCommandEvent(event);
+  if (deps.deliverInbound) {
+    await deps.deliverInbound(event);
   }
 }

@@ -3,16 +3,16 @@ import { describe, expect, test, vi } from 'vitest';
 import { handleCommandInbound, type CommandInboundEvent } from './handle-command-inbound.js';
 
 describe('handleCommandInbound', () => {
-  test('invokes onCommandEvent when provided', async () => {
-    const onCommandEvent = vi.fn().mockResolvedValue(undefined);
+  test('invokes deliverInbound when provided', async () => {
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: CommandInboundEvent = {
       type: 'command.received',
       commandId: 'cmd_1',
     };
 
-    await handleCommandInbound({ onCommandEvent }, event);
+    await handleCommandInbound({ deliverInbound }, event);
 
-    expect(onCommandEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('no-ops when hook is absent', async () => {

@@ -8,7 +8,7 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Ref } from 'effect';
+import { Effect, Ref, type Context } from 'effect';
 
 import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
 import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
@@ -17,6 +17,7 @@ import {
   DaemonMutableStateService,
   DaemonSessionService,
   type DaemonAgentProcessManagerService,
+  type DaemonSessionServiceShape,
 } from './daemon-services.js';
 import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle-manager.js';
 import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
@@ -42,7 +43,10 @@ import { releaseLock } from '../pid.js';
 import { forceKillAllCommands } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { handlePing } from './handlers/ping.js';
-import { startCommandRunSubscription } from './handlers/process/command-run-subscription.js';
+import {
+  drainActionableCommandRuns,
+  startCommandRunSubscription,
+} from './handlers/process/command-run-subscription.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
 import { refreshModelsEffect } from './models-refresh.js';
@@ -62,6 +66,10 @@ import { pickFolderDialog } from '../../../infrastructure/local-actions/pick-fol
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type { BoundHarness } from '../../../v2/domain/entities/bound-harness.js';
 import type { SessionHandle } from '../../../v2/domain/usecase/open-harness-session.js';
+import {
+  registerCommandInboundHandler,
+  unregisterCommandInboundHandler,
+} from '../../../v2/entry/command-inbound-registry.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -326,6 +334,24 @@ export const dispatchCommandEventEffect = (
   return factory != null ? factory(event, tracker) : Effect.void;
 };
 
+// fallow-ignore-next-line unused-export
+export async function handleInboundCommandEvent(
+  commandId: string,
+  tracker: DedupTracker,
+  effectContext: Context.Context<CommandDispatchDeps>,
+  session: DaemonSessionServiceShape
+): Promise<void> {
+  const result = await session.backend.query(api.machines.getCommandEvents, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+  });
+  const event = result?.events?.find((e: CommandEvent) => e._id.toString() === commandId);
+  if (!event) return;
+  await Effect.runPromise(
+    dispatchCommandEventEffect(event, tracker).pipe(Effect.provide(effectContext))
+  );
+}
+
 /** Effect twin for startCommandLoop — uses granular services. */
 export const startCommandLoopEffect: Effect.Effect<
   never,
@@ -439,6 +465,7 @@ export const startCommandLoopEffect: Effect.Effect<
   };
 
   const stopSubscriptions = (): void => {
+    unregisterCommandInboundHandler();
     gitSubscriptionHandle?.stop();
     fileContentSubscriptionHandle?.stop();
     fileWriteSubscriptionHandle?.stop();
@@ -568,6 +595,15 @@ export const startCommandLoopEffect: Effect.Effect<
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
   };
+
+  registerCommandInboundHandler(async (event) => {
+    evictStaleDedupEntries(dedupTracker);
+    if (event.type === 'command.received') {
+      await handleInboundCommandEvent(event.commandId, dedupTracker, effectContext, session);
+    } else {
+      await drainActionableCommandRuns(session, commandRunRuntime);
+    }
+  });
 
   wsClient.onUpdate(
     api.machines.getCommandEvents,

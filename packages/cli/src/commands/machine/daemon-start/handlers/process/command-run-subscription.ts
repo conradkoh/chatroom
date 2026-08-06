@@ -64,6 +64,34 @@ function dispatchStopRequest(
   );
 }
 
+/** Process actionable command runs from subscription or inbound nudge. */
+// fallow-ignore-next-line unused-export
+export function processActionableCommandRuns(
+  session: DaemonSessionServiceShape,
+  effectContext: Runtime.Runtime<DaemonSessionService>,
+  result: ActionableCommandRuns | null | undefined
+): void {
+  if (!result) return;
+  for (const run of result.pendingRuns ?? []) {
+    dispatchPendingRun(run, session, effectContext);
+  }
+  for (const run of result.stopRequestedRuns ?? []) {
+    dispatchStopRequest(run, session, effectContext);
+  }
+}
+
+/** Query backend and process all actionable runs (for v2 inbound nudge). */
+export async function drainActionableCommandRuns(
+  session: DaemonSessionServiceShape,
+  effectContext: Runtime.Runtime<DaemonSessionService>
+): Promise<void> {
+  const result = await session.backend.query(api.daemon.commands.listActionableCommandRuns, {
+    sessionId: session.sessionId as SessionId,
+    machineId: session.machineId,
+  });
+  processActionableCommandRuns(session, effectContext, result as ActionableCommandRuns);
+}
+
 /**
  * Subscribe to runs the daemon must act on (pending spawns + user-requested
  * stops). Handlers are forked via the supplied Effect runtime so a slow agent
@@ -79,15 +107,9 @@ export function startCommandRunSubscription(
   const unsubscribe = wsClient.onUpdate(
     api.daemon.commands.listActionableCommandRuns,
     { sessionId: session.sessionId as SessionId, machineId: session.machineId },
-    // fallow-ignore-next-line complexity
     (result: ActionableCommandRuns | null | undefined) => {
-      if (stopped || !result) return;
-      for (const run of result.pendingRuns ?? []) {
-        dispatchPendingRun(run, session, effectContext);
-      }
-      for (const run of result.stopRequestedRuns ?? []) {
-        dispatchStopRequest(run, session, effectContext);
-      }
+      if (stopped) return;
+      processActionableCommandRuns(session, effectContext, result);
     },
     (err: unknown) =>
       console.warn(

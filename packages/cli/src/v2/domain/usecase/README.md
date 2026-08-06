@@ -25,8 +25,8 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | `deliver-assigned-task.ts`         | `daemon-start/task-monitor.ts`                              | **done** — registry dispatch to task monitor  |
 | `handle-assigned-task-inbound.ts`  | `v2/infrastructure/convex/subscribers/assigned-task-*`      | **done** — wired via assigned-task-bridge     |
 | `handle-direct-harness-inbound.ts` | `v2/infrastructure/convex/subscribers/direct-harness-*`     | **done** — wired via direct-harness-bridge    |
-| `handle-command-event.ts`          | `daemon-start/command-loop.ts`                              |
-| `handle-command-inbound.ts`        | `v2/infrastructure/convex/subscribers/command-*`            | **done** — router hook; dispatch later        |
+| `handle-command-event.ts`          | `daemon-start/command-loop.ts`                              | **done** — registry dispatch to command loop  |
+| `handle-command-inbound.ts`        | `v2/infrastructure/convex/subscribers/command-*`            | **done** — wired via command-bridge           |
 | `handle-workspace-git-inbound.ts`  | `v2/infrastructure/convex/subscribers/workspace-git-*`      | **done** — router hook; process later         |
 | `handle-file-inbound.ts`           | `v2/infrastructure/convex/subscribers/file-*`               | **done** — router hook; fulfill later         |
 | `handle-agentic-query-inbound.ts`  | `v2/infrastructure/convex/subscribers/agentic-query-*`      | **done** — router hook; process later         |

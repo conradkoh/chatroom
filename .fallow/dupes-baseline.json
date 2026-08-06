@@ -83,7 +83,7 @@
     "packages/cli/src/commands/guidelines/index.ts:40-57|packages/cli/src/commands/register-agent/index.ts:58-76",
     "packages/cli/src/commands/handoff/index.ts:97-108|packages/cli/src/commands/register-agent/index.ts:105-116|packages/cli/src/commands/task/read/index.ts:125-135|packages/cli/src/commands/telegram/index.ts:92-103",
     "packages/cli/src/commands/init/index.ts:220-233|packages/cli/src/commands/init/index.ts:236-249",
-    "packages/cli/src/commands/machine/daemon-start/command-loop.ts:236-253|packages/cli/src/commands/machine/daemon-start/command-loop.ts:278-294",
+    "packages/cli/src/commands/machine/daemon-start/command-loop.ts:244-261|packages/cli/src/commands/machine/daemon-start/command-loop.ts:286-302",
     "packages/cli/src/commands/machine/daemon-start/command-sync-heartbeat.ts:37-52|packages/cli/src/commands/machine/daemon-start/commit-detail-sync.ts:111-125",
     "packages/cli/src/commands/machine/daemon-start/command-sync-heartbeat.ts:39-64|packages/cli/src/commands/machine/daemon-start/git-heartbeat.ts:473-501",
     "packages/cli/src/commands/machine/daemon-start/file-content-subscription.ts:59-76|packages/cli/src/commands/machine/daemon-start/git-subscription.ts:492-510",
