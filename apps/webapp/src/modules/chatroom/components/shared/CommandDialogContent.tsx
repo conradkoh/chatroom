@@ -1,7 +1,7 @@
 'use client';
 
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useReducer, useRef, useState } from 'react';
 
 import {
   COMMAND_DIALOG_CONTENT_CLASSES,
@@ -77,16 +77,20 @@ export function CommandDialogContent({
   const viewportOffsetTopPx = useVisualViewportOffsetTop(open && !isDesktop);
   const viewportStyle = getCommandDialogContentStyle(viewportOffsetTopPx);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const [attachGeneration, bumpAttachGeneration] = useReducer((n: number) => n + 1, 0);
 
   const [mounted, setMounted] = useState(open);
-  const [titleElementId, setTitleElementId] = useState<string | undefined>();
-  const [descriptionElementId, setDescriptionElementId] = useState<string | undefined>();
-  const [surfaceAttached, setSurfaceAttached] = useState(false);
+  const isSurfaceVisible = open || mounted;
 
   const assignSurfaceRef = useCallback((node: HTMLDivElement | null) => {
     surfaceRef.current = node;
-    setSurfaceAttached(!!node);
+    if (node) bumpAttachGeneration();
   }, []);
+
+  const ariaIds =
+    open && surfaceRef.current
+      ? readCommandDialogAriaIds(surfaceRef.current)
+      : { titleElementId: undefined, descriptionElementId: undefined };
 
   useLayoutEffect(() => {
     if (open) {
@@ -99,19 +103,7 @@ export function CommandDialogContent({
   useLayoutEffect(() => {
     if (!open) return;
     focusCommandDialogInput(surfaceRef.current);
-  }, [open, surfaceAttached]);
-
-  useLayoutEffect(() => {
-    const node = surfaceRef.current;
-    if (!node || !open) {
-      setTitleElementId(undefined);
-      setDescriptionElementId(undefined);
-      return;
-    }
-    const ids = readCommandDialogAriaIds(node);
-    setTitleElementId(ids.titleElementId);
-    setDescriptionElementId(ids.descriptionElementId);
-  }, [open, children, surfaceAttached]);
+  }, [open, attachGeneration]);
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key !== 'Escape' || !onEscapeKeyDown) return;
@@ -121,7 +113,6 @@ export function CommandDialogContent({
     }
   };
 
-  const isSurfaceVisible = open || mounted;
   const dataState = open ? { 'data-open': '' as const } : {};
 
   return (
@@ -140,8 +131,8 @@ export function CommandDialogContent({
         ref={assignSurfaceRef}
         role="dialog"
         aria-modal={false}
-        aria-labelledby={titleElementId ?? undefined}
-        aria-describedby={descriptionElementId ?? undefined}
+        aria-labelledby={ariaIds.titleElementId ?? undefined}
+        aria-describedby={ariaIds.descriptionElementId ?? undefined}
         data-slot="command-dialog-content"
         hidden={!isSurfaceVisible}
         className={cn(...COMMAND_DIALOG_CONTENT_CLASSES, className)}
