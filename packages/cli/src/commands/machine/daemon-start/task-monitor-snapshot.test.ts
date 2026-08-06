@@ -2,18 +2,16 @@ import {
   GET_NEXT_TASK_STARTED_ACTION,
   NATIVE_WAITING_ACTION,
 } from '@workspace/backend/src/domain/entities/participant.js';
-import type {
-  AssignedTaskSignal,
-  AssignedTaskSnapshotView,
-} from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import type { AssignedTaskSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { describe, expect, it } from 'vitest';
 
 import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
+import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
 
 function makeSnapshot(overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSnapshotView {
   return {
-    taskId: 'task_1' as AssignedTaskSnapshotView['taskId'],
-    chatroomId: 'room_1' as AssignedTaskSnapshotView['chatroomId'],
+    taskId: 'task_1',
+    chatroomId: 'room_1',
     status: 'pending',
     assignedTo: 'builder',
     updatedAt: 1_000,
@@ -121,8 +119,8 @@ describe('createTaskMonitorSnapshot', () => {
     expect(row).toBeDefined();
 
     snapshot.mergePresence({
-      taskId: row!.taskId,
-      chatroomId: row!.chatroomId,
+      taskId: row!.taskId as AssignedTaskSignal['taskId'],
+      chatroomId: row!.chatroomId as AssignedTaskSignal['chatroomId'],
       role: row!.agentConfig.role,
       lastSeenAt: 1_100,
       lastSeenAction: GET_NEXT_TASK_STARTED_ACTION,

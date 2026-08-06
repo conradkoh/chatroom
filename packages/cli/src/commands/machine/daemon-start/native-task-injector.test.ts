@@ -1,15 +1,15 @@
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { runNativeInjectionEffect, type NativeInjectorDeps } from './native-task-injector.js';
+import type { AssignedTaskWithContent } from '../../../v2/domain/entities/assigned-task.js';
 
 const HARNESS_SESSION_ID = 'sess_1';
 
-function makeTask(overrides: Partial<AssignedTaskView> = {}): AssignedTaskView {
+function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTaskWithContent {
   return {
-    taskId: 'task_1' as AssignedTaskView['taskId'],
-    chatroomId: 'room_1' as AssignedTaskView['chatroomId'],
+    taskId: 'task_1',
+    chatroomId: 'room_1',
     status: 'pending',
     assignedTo: 'builder',
     taskContent: '## Goal\nDo work',

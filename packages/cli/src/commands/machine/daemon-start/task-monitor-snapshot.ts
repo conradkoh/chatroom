@@ -9,13 +9,15 @@ import {
 import type {
   AssignedTaskPresenceSignal,
   AssignedTaskSignal,
-  AssignedTaskSnapshotView,
+  AssignedTaskSnapshotView as BackendAssignedTaskSnapshotView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import {
   WorkingSnapshot,
   type WorkingSnapshotOptions,
 } from '../../../infrastructure/incremental-sync/working-snapshot.js';
+import { mapAssignedTaskSnapshot } from '../../../infrastructure/mappers/map-assigned-task.js';
+import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
 
 function taskSnapshotKey(taskId: string, role: string): string {
   return `${taskId}:${role}`;
@@ -27,7 +29,13 @@ const taskMonitorSnapshotOptions: WorkingSnapshotOptions<
 > = {
   rowKey: (row) => taskSnapshotKey(row.taskId, row.agentConfig.role),
   signalKey: (signal) => taskSnapshotKey(signal.taskId, signal.role),
-  mergeSignal: applyAssignedTaskSignal,
+  mergeSignal: (row, signal) => {
+    const merged = applyAssignedTaskSignal(
+      row as BackendAssignedTaskSnapshotView | undefined,
+      signal
+    );
+    return mapAssignedTaskSnapshot(merged);
+  },
 };
 
 export function createTaskMonitorSnapshot(): WorkingSnapshot<
@@ -41,11 +49,16 @@ export function createTaskMonitorSnapshot(): WorkingSnapshot<
     mergePresence(presence: AssignedTaskPresenceSignal) {
       const key = taskSnapshotKey(presence.taskId, presence.role);
       const existing = base.getByKey(key);
-      const merged = applyAssignedTaskPresence(existing, presence);
+      const merged = applyAssignedTaskPresence(
+        existing as BackendAssignedTaskSnapshotView | undefined,
+        presence
+      );
       if (merged) {
-        base.upsertRow(merged);
+        const mapped = mapAssignedTaskSnapshot(merged);
+        base.upsertRow(mapped);
+        return mapped;
       }
-      return merged;
+      return undefined;
     },
   });
 }

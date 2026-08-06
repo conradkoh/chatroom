@@ -1,5 +1,3 @@
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
-import { isDeliverableTaskStatus } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect, Runtime, type Context } from 'effect';
 
 import type {
@@ -27,9 +25,11 @@ import {
 } from './restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
 import { api } from '../../../api.js';
+import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
+import { isDeliverableTaskStatus } from '../../../v2/domain/entities/assigned-task.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -110,7 +110,7 @@ export class NativeTaskDeliveryCoordinator {
       const slot = agentMgr.getSlot(row.chatroomId, role);
       const blockReason = explainNativeDeliveryBlock(row, { slot });
       if (blockReason) {
-        if (isDeliverableTaskStatus(row.status as Parameters<typeof isDeliverableTaskStatus>[0])) {
+        if (isDeliverableTaskStatus(row.status)) {
           logNativeDeliverySkip(role, row.chatroomId, row.taskId, blockReason);
         }
         continue;
@@ -155,21 +155,23 @@ export class NativeTaskDeliveryCoordinator {
 
       Runtime.runFork(runtime)(
         Effect.gen(function* () {
-          const full = (yield* Effect.tryPromise(() =>
+          const backend = (yield* Effect.tryPromise(() =>
             sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
               sessionId: sessionDeps.sessionId,
               machineId,
               taskId: row.taskId,
               role: row.agentConfig.role,
             })
-          )) as AssignedTaskView | null;
+          )) as Parameters<typeof mapAssignedTaskView>[0] | null;
 
-          if (!full) {
+          if (!backend) {
             console.warn(
               `[NativeDelivery:skip] ${role}@${row.chatroomId} task ${row.taskId} — task_hydrate_missing (deleted or not assigned)`
             );
             return;
           }
+
+          const full = mapAssignedTaskView(backend);
 
           yield* runNativeInjectionEffect(full, harnessSessionId, {
             sessionId: sessionDeps.sessionId,

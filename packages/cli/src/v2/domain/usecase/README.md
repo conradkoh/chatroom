@@ -22,13 +22,13 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 
 | v2 file                            | Legacy source                                               |
 | ---------------------------------- | ----------------------------------------------------------- |
-| `deliver-assigned-task.ts`         | `daemon-start/task-monitor.ts`                              |
+| `deliver-assigned-task.ts`         | `daemon-start/task-monitor.ts`                              | stub — boundary mapper in slice #7 |
 | `handle-command-event.ts`          | `daemon-start/command-loop.ts`                              |
-| `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` | **done** |
-| `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            | **done** |
-| `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          | **done** |
-| `close-harness-session.ts`         | `domain/direct-harness/usecases/close-session.ts`           | **done** |
-| `update-harness-capabilities.ts`   | `domain/direct-harness/usecases/update-capabilities.ts`     | **done** |
+| `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` | **done**                           |
+| `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            | **done**                           |
+| `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          | **done**                           |
+| `close-harness-session.ts`         | `domain/direct-harness/usecases/close-session.ts`           | **done**                           |
+| `update-harness-capabilities.ts`   | `domain/direct-harness/usecases/update-capabilities.ts`     | **done**                           |
 | `fulfill-file-content-request.ts`  | `daemon-start/file-content-fulfillment.ts`                  |
 | `fulfill-file-tree-request.ts`     | `daemon-start/file-tree-subscription.ts`                    |
 | `fulfill-file-write-request.ts`    | `daemon-start/file-write-fulfillment.ts`                    |
@@ -43,6 +43,12 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | `stop-agent.ts`                    | `events/daemon/agent/on-request-stop-agent.ts`              |
 | `sync-git-state.ts`                | `daemon-start/git-heartbeat.ts`                             |
 | `update-workspace-list.ts`         | `daemon-start/workspace-list-subscription.ts`               |
+
+## Assigned-task boundary (done)
+
+| File                                          | Role                                        |
+| --------------------------------------------- | ------------------------------------------- |
+| `infrastructure/mappers/map-assigned-task.ts` | Backend → v2 AssignedTask at infra boundary |
 
 ## Agent-lifecycle policies (done)
 

@@ -17,7 +17,6 @@
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel.js';
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { resolveSessionAugmentationForRole } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { Context, Effect, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
@@ -33,6 +32,7 @@ import {
 } from './native-task-injector-logic.js';
 import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
 import { api } from '../../../api.js';
+import type { AssignedTaskWithContent } from '../../../v2/domain/entities/assigned-task.js';
 
 const HARNESS_SESSION_ID = 'harness-user-message';
 const MACHINE_ID = 'machine-user-message-pending';
@@ -80,7 +80,7 @@ function makeIdleNativeSlot(overrides: Record<string, unknown> = {}) {
 
 function makeFullTaskFromRow(
   row: NonNullable<ReturnType<ReturnType<typeof createTaskMonitorSnapshot>['mergeSignal']>>
-): AssignedTaskView {
+): AssignedTaskWithContent {
   return {
     ...row,
     taskContent: MESSAGE_CONTENT,

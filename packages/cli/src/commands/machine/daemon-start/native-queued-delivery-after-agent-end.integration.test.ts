@@ -9,7 +9,6 @@
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel.js';
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { resolveSessionAugmentationForRole } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { Context, Effect, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
@@ -34,6 +33,7 @@ import {
   clearAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
 } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
+import type { AssignedTaskWithContent } from '../../../v2/domain/entities/assigned-task.js';
 
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';
@@ -72,7 +72,7 @@ function makePostAgentEndSnapshotDoc(
 
 function makeFullTaskFromSnapshot(
   row: NonNullable<ReturnType<ReturnType<typeof createTaskMonitorSnapshot>['mergeSignal']>>
-): AssignedTaskView {
+): AssignedTaskWithContent {
   return {
     ...row,
     taskContent: '## Goal\nQueued follow-up after agent_end',
