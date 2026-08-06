@@ -1,9 +1,19 @@
 'use client';
 
+import type { Observable } from '@legendapp/state';
+import { useSelector } from '@legendapp/state/react';
 import { Star } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 
+import {
+  acquireChatroomSwitcherPartition,
+  beginChatroomSwitcherPreload,
+  commitChatroomSwitcherPreload,
+  getChatroomSwitcherPreloadChatrooms,
+  releaseChatroomSwitcherPartition,
+  type ChatroomSwitcherPartitionState,
+} from './chatroomSwitcherPartitionStore';
 import { CommandDialogContent } from './shared/CommandDialogContent';
 
 import {
@@ -105,11 +115,67 @@ export function ChatroomSwitcher() {
     return sortChatroomsWithCurrentFirst(activeChatrooms, activeChatroomId);
   }, [chatrooms, activeChatroomId]);
 
+  const [partitionState$, setPartitionState$] =
+    useState<Observable<ChatroomSwitcherPartitionState> | null>(null);
+
+  useEffect(() => {
+    if (!switcherChatrooms || switcherChatrooms.length === 0) return;
+
+    const state$ = acquireChatroomSwitcherPartition();
+    setPartitionState$(state$);
+    const generation = beginChatroomSwitcherPreload(state$);
+
+    const runPreload = () => {
+      for (const c of switcherChatrooms) {
+        getChatroomSwitcherKeywords(c);
+      }
+      commitChatroomSwitcherPreload(state$, generation, switcherChatrooms);
+    };
+
+    // fallow-ignore-next-line code-duplication
+    const idleId =
+      typeof requestIdleCallback !== 'undefined'
+        ? requestIdleCallback(runPreload, { timeout: 2000 })
+        : setTimeout(runPreload, 0);
+
+    return () => {
+      if (typeof cancelIdleCallback !== 'undefined' && typeof idleId === 'number') {
+        cancelIdleCallback(idleId);
+      } else {
+        clearTimeout(idleId as ReturnType<typeof setTimeout>);
+      }
+      releaseChatroomSwitcherPartition();
+      setPartitionState$(null);
+    };
+  }, [switcherChatrooms]);
+
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);
   searchValueRef.current = searchValue;
   const listRef = useCommandListScrollReset(searchValue);
   const onEscapeKeyDown = useEscapeToClear(searchValueRef, () => setSearchValue(''));
+
+  const isSearching = searchValue.trim().length > 0;
+
+  const { preloadedChatrooms, partitionStatus } = useSelector(() => {
+    if (!partitionState$) {
+      return { preloadedChatrooms: [] as ChatroomWithStatus[], partitionStatus: 'idle' as const };
+    }
+    const status = partitionState$.status.get();
+    const partitionKey = partitionState$.partitionKey.get();
+    return {
+      partitionStatus: status,
+      preloadedChatrooms:
+        status === 'ready' ? getChatroomSwitcherPreloadChatrooms(partitionKey) : [],
+    };
+  });
+
+  const displayChatrooms = useMemo(() => {
+    if (!isSearching && partitionStatus === 'ready' && preloadedChatrooms.length > 0) {
+      return preloadedChatrooms;
+    }
+    return switcherChatrooms;
+  }, [isSearching, partitionStatus, preloadedChatrooms, switcherChatrooms]);
 
   // Reset search when closing
   useEffect(() => {
@@ -128,7 +194,11 @@ export function ChatroomSwitcher() {
   return (
     <Dialog open={open} onOpenChange={setOpen} modal={false}>
       {/* No overlay — cmd+k is a quick-picker, not a blocking modal. Avoids backdrop fade lag. */}
-      <CommandDialogContent open={open} onEscapeKeyDown={onEscapeKeyDown}>
+      <CommandDialogContent
+        open={open}
+        onEscapeKeyDown={onEscapeKeyDown}
+        onBackdropDismiss={() => setOpen(false)}
+      >
         {/* Accessible title and description (sr-only) */}
         <DialogTitle className="sr-only">Switch Chatroom</DialogTitle>
         <DialogDescription className="sr-only">Search and navigate to a chatroom</DialogDescription>
@@ -145,12 +215,12 @@ export function ChatroomSwitcher() {
               <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                 No chatrooms found.
               </CommandEmpty>
-              {switcherChatrooms && switcherChatrooms.length > 0 && (
+              {displayChatrooms && displayChatrooms.length > 0 && (
                 <CommandGroup
                   heading="Chatrooms"
                   className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:text-chatroom-text-muted"
                 >
-                  {switcherChatrooms.map((chatroom) => (
+                  {displayChatrooms.map((chatroom) => (
                     <ChatroomSwitcherItem
                       key={chatroom._id}
                       chatroom={chatroom}

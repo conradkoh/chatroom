@@ -25,7 +25,7 @@ interface CommandOutputModalProps {
  * ignores outside-interaction dismissals during the brief open window.
  */
 const OPEN_GRACE_MS = 300;
-// fallow-ignore-next-line unused-export — consumed by CommandOutputModal.test.tsx
+// fallow-ignore-next-line unused-export
 export { OPEN_GRACE_MS };
 
 type DialogChangeEventDetails = {
@@ -153,6 +153,7 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
         onEscapeKeyDown={handleEscapeKeyDown}
         onPointerDownOutside={handlePointerDownOutside}
         onFocusOutside={handleFocusOutside}
+        onBackdropDismiss={inlineCommand.detach}
         className="h-[320px]"
       >
         <DialogTitle className="sr-only">Command Output</DialogTitle>
