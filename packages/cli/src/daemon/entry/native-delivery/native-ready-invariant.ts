@@ -6,7 +6,7 @@ import {
   isDeliverableTaskStatus,
 } from '../../../daemon/domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../daemon/domain/usecase/check-agent-slot.js';
-import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
+import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 export function isAgentReadyForNativeDelivery(

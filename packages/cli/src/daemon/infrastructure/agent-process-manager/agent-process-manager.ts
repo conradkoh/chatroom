@@ -27,57 +27,13 @@ import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
-import { resolveResumableHarnessSessionId } from '../../../daemon/domain/entities/harness-session-id-pair.js';
-import type { HarnessSessionSnapshot } from '../../../daemon/domain/entities/session-snapshot.js';
-import { resolveStopReason } from '../../../daemon/domain/entities/stop-reason.js';
-import type { StopReason } from '../../../daemon/domain/entities/stop-reason.js';
-import { resolveNativeSpawnPolicy } from '../../../daemon/domain/native-integration/spawn-policy.js';
-import { tryAbortResumeStorm } from '../../../daemon/domain/usecase/abort-resume-storm.js';
-import { appendRecentLogLine } from '../../../daemon/domain/usecase/append-recent-log-line.js';
-import {
-  classifyResumeStormReason,
-  formatPermanentHarnessFailureMessage,
-} from '../../../daemon/domain/usecase/classify-resume-storm-reason.js';
-import {
-  CURSOR_SDK_SESSION_REOPEN_INTERVAL_MS,
-  CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
-  CURSOR_SDK_SESSION_REOPEN_REASON,
-  CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
-} from '../../../daemon/domain/usecase/cursor-sdk-session-reopen-retry.js';
-import {
-  decideResumePathOnRestart,
-  shouldAutoRestartAfterProcessExit,
-} from '../../../daemon/domain/usecase/decide-resume-path.js';
-import {
-  formatCursorSdkRunErrorMessage,
-  isCursorSdkRunErrorInLogs,
-} from '../../../daemon/domain/usecase/detect-cursor-sdk-run-error.js';
-import {
-  handleTurnCompleted,
-  type ResumeStormTracker,
-} from '../../../daemon/domain/usecase/handle-turn-completed.js';
-import {
-  shouldPreserveHarnessTeardown,
-  shouldRetainHarnessSessionForReconnect,
-} from '../../../daemon/domain/usecase/preserve-harness-session.js';
-import { notifyNativeHarnessSessionLostOnExit } from '../../../daemon/entry/native-delivery/native-harness-session-exit.js';
-import {
-  notifyNativeSessionLost,
-  notifyNativeTurnIdle,
-} from '../../../daemon/entry/native-delivery/native-task-delivery-coordinator.js';
-import {
-  defaultNativeTurnPhase,
-  setNativeTurnPhase,
-  type NativeTurnPhase,
-} from '../../../daemon/entry/native-delivery/native-turn-phase.js';
-import { isProcessAlive } from '../../deps/process.js';
-import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
-import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
-import type { AgentHarness } from '../../machine/types.js';
-import type { Signals } from '../../types/signals.js';
-import { type AgentLifecyclePortAdapterDeps } from '../agent-lifecycle/agent-lifecycle-port-adapters.js';
-import type { AgentLifecycleRuntime } from '../agent-lifecycle/agent-lifecycle-runtime.js';
-import { createAgentLifecycleRuntime } from '../agent-lifecycle/agent-lifecycle-runtime.js';
+import { isProcessAlive } from '../../../infrastructure/deps/process.js';
+import type { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
+import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
+import type { AgentHarness } from '../../../infrastructure/machine/types.js';
+import { type AgentLifecyclePortAdapterDeps } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-port-adapters.js';
+import type { AgentLifecycleRuntime } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-runtime.js';
+import { createAgentLifecycleRuntime } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-runtime.js';
 import {
   AgentLifecycleService,
   type AgentLifecycleSlot,
@@ -85,18 +41,62 @@ import {
   type HandleExitOpts,
   type OperationResult,
   type StopOpts,
-} from '../agent-lifecycle/agent-lifecycle-types.js';
+} from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import {
   emitNativeWaitingAfterSpawn,
   wireThrottledTokenActivityOnOutput,
-} from '../remote-agents/native-spawn-presence.js';
+} from '../../../infrastructure/services/remote-agents/native-spawn-presence.js';
 import type {
   HarnessReconnectMetadata,
   HarnessSessionIdUpdatedInfo,
   RemoteAgentService,
   SpawnResult,
-} from '../remote-agents/remote-agent-service.js';
-import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
+} from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
+import { createSpawnPrompt } from '../../../infrastructure/services/remote-agents/spawn-prompt.js';
+import type { Signals } from '../../../infrastructure/types/signals.js';
+import { resolveResumableHarnessSessionId } from '../../domain/entities/harness-session-id-pair.js';
+import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
+import { resolveStopReason } from '../../domain/entities/stop-reason.js';
+import type { StopReason } from '../../domain/entities/stop-reason.js';
+import { resolveNativeSpawnPolicy } from '../../domain/native-integration/spawn-policy.js';
+import { tryAbortResumeStorm } from '../../domain/usecase/abort-resume-storm.js';
+import { appendRecentLogLine } from '../../domain/usecase/append-recent-log-line.js';
+import {
+  classifyResumeStormReason,
+  formatPermanentHarnessFailureMessage,
+} from '../../domain/usecase/classify-resume-storm-reason.js';
+import {
+  CURSOR_SDK_SESSION_REOPEN_INTERVAL_MS,
+  CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
+  CURSOR_SDK_SESSION_REOPEN_REASON,
+  CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
+} from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
+import {
+  decideResumePathOnRestart,
+  shouldAutoRestartAfterProcessExit,
+} from '../../domain/usecase/decide-resume-path.js';
+import {
+  formatCursorSdkRunErrorMessage,
+  isCursorSdkRunErrorInLogs,
+} from '../../domain/usecase/detect-cursor-sdk-run-error.js';
+import {
+  handleTurnCompleted,
+  type ResumeStormTracker,
+} from '../../domain/usecase/handle-turn-completed.js';
+import {
+  shouldPreserveHarnessTeardown,
+  shouldRetainHarnessSessionForReconnect,
+} from '../../domain/usecase/preserve-harness-session.js';
+import { notifyNativeHarnessSessionLostOnExit } from '../../entry/native-delivery/native-harness-session-exit.js';
+import {
+  notifyNativeSessionLost,
+  notifyNativeTurnIdle,
+} from '../../entry/native-delivery/native-task-delivery-coordinator.js';
+import {
+  defaultNativeTurnPhase,
+  setNativeTurnPhase,
+  type NativeTurnPhase,
+} from '../../entry/native-delivery/native-turn-phase.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -107,8 +107,8 @@ export type {
   EnsureRunningOpts,
   StopOpts,
   HandleExitOpts,
-} from '../agent-lifecycle/agent-lifecycle-types.js';
-export type { NativeTurnPhase } from '../../../daemon/entry/native-delivery/native-turn-phase.js';
+} from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
+export type { NativeTurnPhase } from '../../entry/native-delivery/native-turn-phase.js';
 
 export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 

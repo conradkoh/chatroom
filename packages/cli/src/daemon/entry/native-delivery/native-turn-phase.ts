@@ -1,5 +1,5 @@
 import type { NativeTurnPhase } from '../../../daemon/domain/entities/native-turn-phase.js';
-import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
+import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 
 export {
   NATIVE_TURN_PHASES,

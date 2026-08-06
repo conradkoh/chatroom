@@ -1858,7 +1858,7 @@
         "count": 3
       }
     },
-    "packages/cli/src/infrastructure/services/agent-process-manager/agent-process-manager.ts": {
+    "packages/cli/src/daemon/infrastructure/agent-process-manager/agent-process-manager.ts": {
       "crap_high": {
         "count": 13
       },

@@ -6,7 +6,7 @@ import {
   isDeliverableNativeTaskStatus,
 } from './native-ready-invariant.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
-import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
+import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 
 export { isNativeHarness } from '../../domain/native-integration/index.js';
 

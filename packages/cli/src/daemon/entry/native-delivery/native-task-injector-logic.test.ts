@@ -11,7 +11,7 @@ import {
   isNativeHarness,
   shouldDeliverNativeTask,
 } from './native-task-injector-logic.js';
-import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
+import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 
 const runningSlot: AgentSlot = {
   state: 'running',

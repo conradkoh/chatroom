@@ -38,7 +38,6 @@ import {
   loadEventCursor,
 } from '../../infrastructure/machine/index.js';
 import type { MachineConfig } from '../../infrastructure/machine/types.js';
-import { AgentProcessManager } from '../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import {
   SpawnRateLimiter,
   HarnessSpawningService,
@@ -48,6 +47,7 @@ import type { RemoteAgentService } from '../../infrastructure/services/remote-ag
 import { formatAuthLoginCommand } from '../../utils/cli-command-formatting.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
+import { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 import { initHarnessRegistry } from '../infrastructure/local/harness/registry.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────

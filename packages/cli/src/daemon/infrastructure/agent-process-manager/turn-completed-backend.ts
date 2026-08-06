@@ -1,5 +1,5 @@
 import { api } from '../../../api.js';
-import type { TurnCompletedBackend } from '../../../daemon/domain/usecase/handle-turn-completed.js';
+import type { TurnCompletedBackend } from '../../domain/usecase/handle-turn-completed.js';
 
 export function createTurnCompletedBackend(deps: {
   sessionId: string;

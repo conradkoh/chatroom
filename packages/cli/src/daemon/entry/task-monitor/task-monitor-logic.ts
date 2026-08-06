@@ -5,12 +5,12 @@ import {
   isSlotSpawning,
   isSlotStopping,
 } from '../../../daemon/domain/usecase/check-agent-slot.js';
-import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
-import { STOPPING_TIMEOUT_MS } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import {
   isCliIdleNotListening,
   isStaleCliGetNextTaskWaiting,
 } from '../../domain/native-integration/predicates.js';
+import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
+import { STOPPING_TIMEOUT_MS } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import { isAgentReadyForNativeDelivery } from '../native-delivery/native-ready-invariant.js';
 import { isNativeHarness } from '../native-delivery/native-task-injector-logic.js';
 

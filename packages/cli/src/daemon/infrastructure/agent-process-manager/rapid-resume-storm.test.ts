@@ -5,8 +5,8 @@ import {
   type AgentProcessManagerDeps,
   type EnsureRunningOpts,
 } from './agent-process-manager.js';
-import { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
-import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
+import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
+import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
 
 const CHATROOM_ID = 'test-chatroom';
 const ROLE = 'builder';

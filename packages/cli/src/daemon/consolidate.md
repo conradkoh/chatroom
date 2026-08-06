@@ -1,6 +1,6 @@
 # Daemon module consolidation index
 
-> Planning doc only — no moves executed yet. Branch: `feat/daemon-module-rename` (PR #1311).
+> Phases 0–4 ✅ complete on `feat/daemon-module-rename`. Phases 5–8 pending.
 
 ## Verdict legend
 

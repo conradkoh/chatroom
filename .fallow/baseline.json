@@ -308,6 +308,7 @@
     "apps/webapp/src/modules/chatroom/workspace/utils/editorExpandLayout.ts:editorPaneFlexClass",
     "apps/webapp/src/modules/chatroom/workspace/utils/editorExpandLayout.ts:previewPaneFlexClass",
     "apps/webapp/src/modules/chatroom/workspace/utils/intra-line-diff.ts:tokenize",
+    "packages/cli/src/daemon/infrastructure/agent-process-manager/harness-activity-emitter.ts:createHarnessActivityEmitter",
     "packages/cli/src/daemon/infrastructure/convex/subscribers/assigned-task-presence.ts:startAssignedTaskPresenceSubscriber",
     "packages/cli/src/daemon/infrastructure/convex/subscribers/assigned-task-signals.ts:startAssignedTaskSignalsSubscriber",
     "packages/cli/src/daemon/infrastructure/convex/subscribers/direct-harness-command.ts:startDirectHarnessCommandSubscriber",
