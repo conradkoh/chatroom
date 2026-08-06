@@ -6,12 +6,7 @@
  * - Handler functions and types for testing
  */
 
-import { Effect } from 'effect';
-
-import { startCommandLoopEffect } from './command-loop.js';
-import { daemonSessionToLayers } from './daemon-layers.js';
-import { initDaemon } from './init.js';
-import { startBackgroundModelDiscoveryEffect } from './models-refresh.js';
+import { startDaemonV2 } from '../../../v2/entry/start-daemon.js';
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
 
@@ -19,10 +14,7 @@ import { startBackgroundModelDiscoveryEffect } from './models-refresh.js';
  * Start the daemon: initialize, then enter the command processing loop.
  */
 export async function daemonStart(): Promise<void> {
-  const init = await initDaemon();
-  const layers = daemonSessionToLayers(init);
-  Effect.runFork(startBackgroundModelDiscoveryEffect.pipe(Effect.provide(layers)));
-  await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(layers)));
+  await startDaemonV2();
 }
 
 // ─── Re-exports for Testing ─────────────────────────────────────────────────
