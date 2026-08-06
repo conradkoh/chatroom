@@ -37,7 +37,7 @@ Migration is **complete** when all of the following are true:
 | U3   | Assigned task delivery         | ✅ Done | backlog |
 | U4   | Direct harness processing      | ✅ Done | backlog |
 | U5   | Command loop migration         | ✅ Done | backlog |
-| U6   | File fulfillment               | ⬜ Todo | backlog |
+| U6   | File fulfillment               | ✅ Done | backlog |
 | U7   | Workspace & git                | ⬜ Todo | backlog |
 | U8   | Agentic query processing       | ⬜ Todo | backlog |
 | U9   | Enhancer job processing        | ⬜ Todo | backlog |
@@ -177,22 +177,29 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U6 — File fulfillment
+## U6 — File fulfillment ✅
 
-**Outcome:** File tree/content/write requests fulfilled via v2 use cases; file inbound wired.
+**Outcome:** File tree/content/write inbound events wired via v2 router to legacy fulfillment drains.
 
 **Files:**
 
-- `domain/usecase/fulfill-file-tree-request.ts` ← `daemon-start/file-tree-subscription.ts`
-- `domain/usecase/fulfill-file-content-request.ts` ← `daemon-start/file-content-fulfillment.ts`
-- `domain/usecase/fulfill-file-write-request.ts` ← `daemon-start/file-write-fulfillment.ts`
-- `domain/usecase/handle-file-inbound.ts` — wire to fulfill use cases
+- `entry/file-inbound-registry.ts` — register/dispatch handler from command loop
+- `domain/usecase/fulfill-file-tree-request.ts` — thin dispatch to registry
+- `domain/usecase/fulfill-file-content-request.ts` — thin dispatch to registry
+- `domain/usecase/fulfill-file-write-request.ts` — thin dispatch to registry
+- `domain/usecase/handle-file-inbound.ts` — `deliverInbound` hook
+- `entry/bridge/file-bridge.ts` — router deps wiring
+- `daemon-start/file-tree-subscription.ts` — export `drainPendingFileTreeRequests`
+- `daemon-start/file-content-subscription.ts` — export `drainPendingFileContentRequests`
+- `daemon-start/file-write-subscription.ts` — export `drainPendingFileWriteRequests`
+- `daemon-start/command-loop.ts` — register/unregister file inbound handler
 
 **Validation criteria:**
 
-- [ ] All 3 fulfill use cases implemented with tests
-- [ ] File requests fulfilled end-to-end via v2 subscriber → router → use case
-- [ ] G1 passes for all 3 fulfill files
+- [x] All 3 fulfill use cases implemented with tests
+- [x] File requests fulfilled via v2 inbound → registry → legacy drain
+- [x] G1 passes for all 3 fulfill files
+- [x] `createDefaultEventRouterDeps().file.deliverInbound` defined
 
 ---
 

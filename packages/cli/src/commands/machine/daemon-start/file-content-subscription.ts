@@ -13,11 +13,19 @@
 import type { ConvexClient } from 'convex/browser';
 import { Effect } from 'effect';
 
-import { DaemonSessionService } from './daemon-services.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import { fulfillFileContentRequestsEffect } from './file-content-fulfillment.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+
+export async function drainPendingFileContentRequests(
+  session: DaemonSessionServiceShape
+): Promise<void> {
+  await Effect.runPromise(
+    fulfillFileContentRequestsEffect.pipe(Effect.provideService(DaemonSessionService, session))
+  );
+}
 
 /** Handle returned by `startFileContentSubscription` to stop the subscription. */
 export interface FileContentSubscriptionHandle {
@@ -44,11 +52,7 @@ export const startFileContentSubscriptionEffect = (
         if (processing) return;
 
         processing = true;
-        Effect.runPromise(
-          fulfillFileContentRequestsEffect.pipe(
-            Effect.provideService(DaemonSessionService, session)
-          )
-        )
+        drainPendingFileContentRequests(session)
           .catch((err: unknown) => {
             console.warn(
               `[${formatTimestamp()}] ⚠️  File content subscription processing failed: ${getErrorMessage(err)}`

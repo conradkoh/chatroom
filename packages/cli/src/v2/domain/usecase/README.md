@@ -28,7 +28,7 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | `handle-command-event.ts`          | `daemon-start/command-loop.ts`                              | **done** — registry dispatch to command loop  |
 | `handle-command-inbound.ts`        | `v2/infrastructure/convex/subscribers/command-*`            | **done** — wired via command-bridge           |
 | `handle-workspace-git-inbound.ts`  | `v2/infrastructure/convex/subscribers/workspace-git-*`      | **done** — router hook; process later         |
-| `handle-file-inbound.ts`           | `v2/infrastructure/convex/subscribers/file-*`               | **done** — router hook; fulfill later         |
+| `handle-file-inbound.ts`           | `v2/infrastructure/convex/subscribers/file-*`               | **done** — wired via file-bridge              |
 | `handle-agentic-query-inbound.ts`  | `v2/infrastructure/convex/subscribers/agentic-query-*`      | **done** — router hook; process later         |
 | `handle-enhancer-inbound.ts`       | `v2/infrastructure/convex/subscribers/enhancer-job.ts`      | **done** — router hook; process later         |
 | `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` | **done**                                      |
@@ -36,9 +36,9 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          | **done**                                      |
 | `close-harness-session.ts`         | `domain/direct-harness/usecases/close-session.ts`           | **done**                                      |
 | `update-harness-capabilities.ts`   | `domain/direct-harness/usecases/update-capabilities.ts`     | **done**                                      |
-| `fulfill-file-content-request.ts`  | `daemon-start/file-content-fulfillment.ts`                  |
-| `fulfill-file-tree-request.ts`     | `daemon-start/file-tree-subscription.ts`                    |
-| `fulfill-file-write-request.ts`    | `daemon-start/file-write-fulfillment.ts`                    |
+| `fulfill-file-content-request.ts`  | `daemon-start/file-content-fulfillment.ts`                  | **done** — registry dispatch to legacy drain  |
+| `fulfill-file-tree-request.ts`     | `daemon-start/file-tree-subscription.ts`                    | **done** — registry dispatch to legacy drain  |
+| `fulfill-file-write-request.ts`    | `daemon-start/file-write-fulfillment.ts`                    | **done** — registry dispatch to legacy drain  |
 | `fulfill-git-request.ts`           | `daemon-start/git-subscription.ts`                          |
 | `process-enhancer-job.ts`          | `daemon-start/enhancer/job-subscriber.ts`                   |
 | `process-agentic-query-prompt.ts`  | `daemon-start/agentic-query/prompt-subscriber.ts`           |

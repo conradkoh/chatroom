@@ -7,6 +7,7 @@ import { startFileTreeRequestSubscriber } from './file-tree-request.js';
 import { startFileWriteRequestSubscriber } from './file-write-request.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
 import type { FileInboundEvent } from '../../../domain/usecase/handle-file-inbound.js';
+import { createDefaultEventRouterDeps } from '../../../entry/default-router-deps.js';
 import { routeInboundEvent } from '../../../entry/event-router.js';
 import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
 
@@ -106,7 +107,7 @@ describe('file v2 subscribers', () => {
         command: {},
         workspaceGit: {},
         file: {
-          onFileEvent: async (event) => {
+          deliverInbound: async (event) => {
             handled.push(event);
           },
         },
@@ -134,7 +135,7 @@ describe('file v2 subscribers', () => {
         command: {},
         workspaceGit: {},
         file: {
-          onFileEvent: async (event) => {
+          deliverInbound: async (event) => {
             handled.push(event);
           },
         },
@@ -145,5 +146,10 @@ describe('file v2 subscribers', () => {
     );
 
     expect(handled).toEqual([{ type: 'file-write.request', requestId: FILE_WRITE_REQUEST_ID }]);
+  });
+
+  it('default router deps provide deliverInbound hook', () => {
+    const deps = createDefaultEventRouterDeps();
+    expect(deps.file.deliverInbound).toBeTypeOf('function');
   });
 });

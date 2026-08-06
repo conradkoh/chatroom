@@ -23,6 +23,7 @@ import type { HarnessLifecycleManager } from './direct-harness/harness-lifecycle
 import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
 import { startEnhancerSubscriptions } from './enhancer/start-subscriptions.js';
 import {
+  drainPendingFileContentRequests,
   startFileContentSubscriptionEffect,
   type FileContentSubscriptionHandle,
 } from './file-content-subscription.js';
@@ -31,6 +32,7 @@ import {
   type FileTreeSubscriptionHandle,
 } from './file-tree-subscription.js';
 import {
+  drainPendingFileWriteRequests,
   startFileWriteSubscriptionEffect,
   type FileWriteSubscriptionHandle,
 } from './file-write-subscription.js';
@@ -70,6 +72,10 @@ import {
   registerCommandInboundHandler,
   unregisterCommandInboundHandler,
 } from '../../../v2/entry/command-inbound-registry.js';
+import {
+  registerFileInboundHandler,
+  unregisterFileInboundHandler,
+} from '../../../v2/entry/file-inbound-registry.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -466,6 +472,7 @@ export const startCommandLoopEffect: Effect.Effect<
 
   const stopSubscriptions = (): void => {
     unregisterCommandInboundHandler();
+    unregisterFileInboundHandler();
     gitSubscriptionHandle?.stop();
     fileContentSubscriptionHandle?.stop();
     fileWriteSubscriptionHandle?.stop();
@@ -527,6 +534,21 @@ export const startCommandLoopEffect: Effect.Effect<
   fileContentSubscriptionHandle = yield* startFileContentSubscriptionEffect(wsClient);
   fileWriteSubscriptionHandle = yield* startFileWriteSubscriptionEffect(wsClient);
   fileTreeSubscriptionHandle = yield* startFileTreeSubscriptionEffect(wsClient);
+
+  registerFileInboundHandler(async (event) => {
+    switch (event.type) {
+      case 'file-tree.request':
+        await fileTreeSubscriptionHandle.drainPendingFileTreeRequests();
+        break;
+      case 'file-content.request':
+        await drainPendingFileContentRequests(session);
+        break;
+      case 'file-write.request':
+        await drainPendingFileWriteRequests(session);
+        break;
+    }
+  });
+
   workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
 
   const taskMonitorHandle = yield* startTaskMonitorEffect(wsClient);

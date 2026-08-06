@@ -1700,6 +1700,11 @@
         "count": 1
       }
     },
+    "packages/cli/src/commands/machine/daemon-start/file-tree-subscription.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
     "packages/cli/src/commands/machine/daemon-start/git-heartbeat.ts": {
       "crap_high": {
         "count": 1

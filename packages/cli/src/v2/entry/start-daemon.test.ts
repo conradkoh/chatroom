@@ -125,7 +125,9 @@ describe('startDaemonV2', () => {
             deliverInbound: expect.any(Function),
           }),
           workspaceGit: {},
-          file: {},
+          file: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
           agenticQuery: {},
           enhancer: {},
         }),

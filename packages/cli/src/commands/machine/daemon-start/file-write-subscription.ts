@@ -9,11 +9,19 @@
 import type { ConvexClient } from 'convex/browser';
 import { Effect } from 'effect';
 
-import { DaemonSessionService } from './daemon-services.js';
+import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import { fulfillFileWriteRequestsEffect } from './file-write-fulfillment.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+
+export async function drainPendingFileWriteRequests(
+  session: DaemonSessionServiceShape
+): Promise<void> {
+  await Effect.runPromise(
+    fulfillFileWriteRequestsEffect.pipe(Effect.provideService(DaemonSessionService, session))
+  );
+}
 
 /** Handle returned by `startFileWriteSubscription` to stop the subscription. */
 export interface FileWriteSubscriptionHandle {
@@ -40,9 +48,7 @@ export const startFileWriteSubscriptionEffect = (
         if (processing) return;
 
         processing = true;
-        Effect.runPromise(
-          fulfillFileWriteRequestsEffect.pipe(Effect.provideService(DaemonSessionService, session))
-        )
+        drainPendingFileWriteRequests(session)
           .catch((err: unknown) => {
             console.warn(
               `[${formatTimestamp()}] ⚠️  File write subscription processing failed: ${getErrorMessage(err)}`

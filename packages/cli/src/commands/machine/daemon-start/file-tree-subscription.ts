@@ -31,6 +31,60 @@ function logSubscriptionWarn(label: string, err: unknown): void {
 
 export interface FileTreeSubscriptionHandle {
   stop: () => void;
+  drainPendingFileTreeRequests: () => Promise<void>;
+}
+
+type EnsureCoordinator = (
+  workingDir: string,
+  forceReconcile: boolean
+) => Promise<WorkspaceFileTreeCoordinator>;
+
+async function processPendingFileTreeRequests(
+  session: DaemonSessionServiceShape,
+  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
+  ensureCoordinator: EnsureCoordinator,
+  requests: { workingDir: string; force?: boolean }[] | null | undefined
+): Promise<void> {
+  if (!requests?.length) return;
+
+  const requestsByDir = new Map<string, boolean>();
+  for (const request of requests) {
+    const normalized = normalizeWorkingDirForLookup(request.workingDir);
+    requestsByDir.set(normalized, requestsByDir.get(normalized) === true || request.force === true);
+  }
+
+  for (const [normalized, force] of requestsByDir) {
+    const start = Date.now();
+    await ensureCoordinator(normalized, force)
+      .then(() =>
+        session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          workingDir: normalized,
+        })
+      )
+      .then(() => {
+        console.log(
+          `[${formatTimestamp()}] 🌳 File tree ready: ${normalized} (${Date.now() - start}ms${force ? ', reconciled' : ', cached'})`
+        );
+      })
+      .catch((err: unknown) => {
+        logSubscriptionWarn(`File tree failed for ${normalized}`, err);
+      });
+  }
+}
+
+// fallow-ignore-next-line unused-export
+export async function drainPendingFileTreeRequests(
+  session: DaemonSessionServiceShape,
+  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
+  ensureCoordinator: EnsureCoordinator
+): Promise<void> {
+  const requests = await session.backend.query(api.workspaceFiles.getPendingFileTreeRequests, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+  });
+  await processPendingFileTreeRequests(session, coordinators, ensureCoordinator, requests);
 }
 
 async function syncScannedFileTree(
@@ -186,38 +240,9 @@ export const startFileTreeSubscriptionEffect = (
     const unsubscribe = wsClient.onUpdate(
       api.workspaceFiles.getPendingFileTreeRequests,
       { sessionId: session.sessionId, machineId: session.machineId },
-      // fallow-ignore-next-line complexity
       (requests) => {
         if (!requests?.length) return;
-
-        const requestsByDir = new Map<string, boolean>();
-        for (const request of requests) {
-          const normalized = normalizeWorkingDirForLookup(request.workingDir);
-          requestsByDir.set(
-            normalized,
-            requestsByDir.get(normalized) === true || request.force === true
-          );
-        }
-
-        for (const [normalized, force] of requestsByDir) {
-          const start = Date.now();
-          void ensureCoordinator(normalized, force)
-            .then(() =>
-              session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
-                sessionId: session.sessionId,
-                machineId: session.machineId,
-                workingDir: normalized,
-              })
-            )
-            .then(() => {
-              console.log(
-                `[${formatTimestamp()}] 🌳 File tree ready: ${normalized} (${Date.now() - start}ms${force ? ', reconciled' : ', cached'})`
-              );
-            })
-            .catch((err: unknown) => {
-              logSubscriptionWarn(`File tree failed for ${normalized}`, err);
-            });
-        }
+        void processPendingFileTreeRequests(session, coordinators, ensureCoordinator, requests);
       },
       (err: unknown) => {
         logSubscriptionWarn('File tree subscription error', err);
@@ -227,6 +252,8 @@ export const startFileTreeSubscriptionEffect = (
     console.log(`[${formatTimestamp()}] 🌳 File tree subscription started (reactive)`);
 
     return {
+      drainPendingFileTreeRequests: () =>
+        drainPendingFileTreeRequests(session, coordinators, ensureCoordinator),
       stop: () => {
         unsubscribe();
         void Promise.all(
