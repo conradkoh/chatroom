@@ -1,7 +1,7 @@
 import type {
   ResumeStormCheck,
   ResumeStormTracker,
-} from '../../domain/agent-lifecycle/ports/resume-storm-tracker.js';
+} from '../../v2/domain/usecase/handle-turn-completed.js';
 
 /**
  * RapidResumeTracker — detects agent_end storms during in-process auto-resume.

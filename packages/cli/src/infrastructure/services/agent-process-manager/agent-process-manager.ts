@@ -46,10 +46,8 @@ import {
   shouldPreserveHarnessTeardown,
   shouldRetainHarnessSessionForReconnect,
 } from '../../../domain/agent-lifecycle/index.js';
-import { tryAbortResumeStorm } from '../../../domain/agent-lifecycle/policies/abort-resume-storm.js';
-import type { ResumeStormTracker } from '../../../domain/agent-lifecycle/ports/resume-storm-tracker.js';
-import { handleTurnCompleted } from '../../../domain/agent-lifecycle/use-cases/handle-turn-completed.js';
 import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
+import { tryAbortResumeStorm } from '../../../v2/domain/usecase/abort-resume-storm.js';
 import { appendRecentLogLine } from '../../../v2/domain/usecase/append-recent-log-line.js';
 import {
   classifyResumeStormReason,
@@ -65,6 +63,10 @@ import {
   formatCursorSdkRunErrorMessage,
   isCursorSdkRunErrorInLogs,
 } from '../../../v2/domain/usecase/detect-cursor-sdk-run-error.js';
+import {
+  handleTurnCompleted,
+  type ResumeStormTracker,
+} from '../../../v2/domain/usecase/handle-turn-completed.js';
 import { isProcessAlive } from '../../deps/process.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../machine/rapid-resume-tracker.js';
