@@ -22,7 +22,6 @@ import { useCommandBlacklist } from '@/modules/chatroom/hooks/useCommandBlacklis
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
-import { useDeferUntilPainted } from '@/modules/chatroom/hooks/useDeferUntilPainted';
 import { sortCommandsByFrecency } from '@/modules/chatroom/lib/sortCommandsByFrecency';
 
 interface CommandPaletteProps {
@@ -44,7 +43,6 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     getCommandPaletteOpen,
     () => false
   );
-  const listContentReady = useDeferUntilPainted(open);
   const setOpen = useCallback(
     (val: boolean) => {
       if (val) closeDialog();
@@ -111,7 +109,6 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
   }, [commands, getScore, frecencyScores]);
 
   const rows = useMemo(() => {
-    if (!listContentReady) return [];
     return buildCommandPaletteRows({
       commands,
       search: searchValue,
@@ -123,7 +120,6 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
       blacklistedKeys,
     });
   }, [
-    listContentReady,
     commands,
     searchValue,
     rankedFilter,
@@ -240,7 +236,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
                 <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                   No commands found.
                 </CommandEmpty>
-                {listContentReady && rows.length > 0 && (
+                {rows.length > 0 && (
                   <CommandPaletteVirtualizedList
                     rows={rows}
                     onSelect={handleSelect}
