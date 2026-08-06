@@ -2177,7 +2177,11 @@ export function ChatroomDashboard({
               />
 
               {/* Command Palette (Cmd+Shift+P) */}
-              <CommandPalette commands={commands} inlineCommand={inlineCommand} />
+              <CommandPalette
+                chatroomId={chatroomId}
+                commands={commands}
+                inlineCommand={inlineCommand}
+              />
               <WorkspaceCommandsAggregator
                 workspaces={chatroomWorkspaces}
                 callbacks={workspaceCommandCallbacks}

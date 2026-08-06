@@ -13,6 +13,12 @@ import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/u
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
 import {
+  getCommandDialogWarmState,
+  getWarmedPaletteBrowseRows,
+  scheduleCommandDialogWarmup,
+  setWarmedPaletteBrowseRows,
+} from '@/modules/chatroom/context/commandDialogWarmup';
+import {
   getCommandPaletteOpen,
   notifyCommandDialogClosed,
   setCommandPaletteOpen,
@@ -25,6 +31,7 @@ import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useComm
 import { sortCommandsByFrecency } from '@/modules/chatroom/lib/sortCommandsByFrecency';
 
 interface CommandPaletteProps {
+  chatroomId: string;
   commands: CommandItem[];
   /** Command palette output state (lifted from parent via useCommandRunOutputV2) */
   inlineCommand: CommandPaletteOutputState;
@@ -36,7 +43,7 @@ interface CommandPaletteProps {
  * - **Browse mode** (no search text): commands grouped by category
  * - **Search mode** (typing): flat list ranked by frécency
  */
-export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps) {
+export function CommandPalette({ chatroomId, commands, inlineCommand }: CommandPaletteProps) {
   const { closeDialog } = useCommandDialogActions();
   const open = useSyncExternalStore(
     subscribeCommandPaletteOpen,
@@ -108,7 +115,37 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     return sortCommandsByFrecency(withUsage, frecencyScores);
   }, [commands, getScore, frecencyScores]);
 
+  useEffect(() => {
+    if (!chatroomId) return;
+    return scheduleCommandDialogWarmup('command-palette', chatroomId, () => {
+      const rows = buildCommandPaletteRows({
+        commands,
+        search: '',
+        rankedFilter,
+        recentCommands,
+        groupedCommands,
+        getScore,
+        frecencyScores,
+        blacklistedKeys,
+      });
+      setWarmedPaletteBrowseRows(chatroomId, rows);
+    });
+  }, [
+    chatroomId,
+    commands,
+    rankedFilter,
+    recentCommands,
+    groupedCommands,
+    getScore,
+    frecencyScores,
+    blacklistedKeys,
+  ]);
+
   const rows = useMemo(() => {
+    if (!isSearching && getCommandDialogWarmState('command-palette', chatroomId) === 'warm') {
+      const warmed = getWarmedPaletteBrowseRows(chatroomId);
+      if (warmed) return warmed;
+    }
     return buildCommandPaletteRows({
       commands,
       search: searchValue,
@@ -120,6 +157,8 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
       blacklistedKeys,
     });
   }, [
+    chatroomId,
+    isSearching,
     commands,
     searchValue,
     rankedFilter,

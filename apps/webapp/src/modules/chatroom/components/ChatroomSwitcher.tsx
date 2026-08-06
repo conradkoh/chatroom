@@ -20,6 +20,7 @@ import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
 import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { scheduleCommandDialogWarmup } from '@/modules/chatroom/context/commandDialogWarmup';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useCommandListScrollReset } from '@/modules/chatroom/hooks/useCommandListScrollReset';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
@@ -36,6 +37,8 @@ function getChatroomSwitcherKeywords(
   }
   return [displayName];
 }
+
+const SWITCHER_WARM_SCOPE = 'global';
 
 // Status indicator uses shared chatStatusDisplay (mirrors ChatroomSidebar + listing page)
 
@@ -104,6 +107,13 @@ export function ChatroomSwitcher() {
     const activeChatrooms = chatrooms.filter((chatroom) => chatroom.chatStatus !== 'completed');
     return sortChatroomsWithCurrentFirst(activeChatrooms, activeChatroomId);
   }, [chatrooms, activeChatroomId]);
+
+  useEffect(() => {
+    if (!switcherChatrooms || switcherChatrooms.length === 0) return;
+    return scheduleCommandDialogWarmup('switcher', SWITCHER_WARM_SCOPE, () => {
+      void switcherChatrooms.map((c) => getChatroomSwitcherKeywords(c));
+    });
+  }, [switcherChatrooms]);
 
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);

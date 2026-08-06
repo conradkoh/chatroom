@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import {
+  scheduleCommandDialogWarmup,
+  setCommandDialogWarmState,
+} from '@/modules/chatroom/context/commandDialogWarmup';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useWorkspaceFileTreeEntries } from '@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries';
 
@@ -55,6 +59,14 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
   });
 
   const files = useMemo(() => entries.filter((entry) => entry.type === 'file'), [entries]);
+
+  useEffect(() => {
+    if (!chatroomId || !hasWorkspace) return;
+    return scheduleCommandDialogWarmup('file-selector', chatroomId, () => {
+      refresh();
+      setCommandDialogWarmState('file-selector', chatroomId, 'warm');
+    });
+  }, [chatroomId, hasWorkspace, refresh]);
 
   useEffect(() => {
     if (!open || !hasWorkspace) return;
