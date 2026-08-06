@@ -1,4 +1,4 @@
-# Domain layer (v2 daemon)
+# Domain layer (daemon module)
 
 Pure business logic — no I/O, no Convex, no filesystem.
 
@@ -24,7 +24,7 @@ Pure business logic — no I/O, no Convex, no filesystem.
 - `entities/` imports only other `entities/`
 - `usecase/` imports only `entities/`
 - No imports from `infrastructure/`, `entry/`, or `local-web/`
-- **No legacy `domain/` shims** — runtime code imports `daemon/domain/*` directly (`domain/native-integration/` remains separate)
+- Runtime code imports `daemon/domain/*` directly (`domain/native-integration/` remains separate)
 
 ## Naming
 

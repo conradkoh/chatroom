@@ -17,22 +17,9 @@ Composition root — wiring only. **No business logic.**
 | `publisher-registry.ts`  | Route `OutboundEvent` → publishers; appends to persistence; fans `harness.stream` to `streamHub` |
 | `deps.ts`                | Dependency bag for use cases (publishers, persistence, streamHub)                                |
 
-## Entry cutover (done)
-
-`daemon-start/index.ts` delegates to `startDaemon()`:
-
-1. `initDaemon()` — auth, Convex client, machine registration
-2. daemon persistence + local-web + 15 subscribers (sole Convex listeners)
-3. `createDaemonRuntime().run()` — heartbeat, registry handlers, workers, task monitor
-4. `finally` — stop runtime, subscribers, local-web, close persistence
-
 ## Does not belong here
 
 | Kind          | Home instead             |
 | ------------- | ------------------------ |
 | Orchestration | `domain/usecase/`        |
 | Convex I/O    | `infrastructure/convex/` |
-
-## Legacy
-
-`start-daemon.ts` ← `commands/machine/daemon-start/index.ts`

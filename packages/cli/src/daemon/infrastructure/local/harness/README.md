@@ -1,20 +1,19 @@
-# Harness SDK (v2 local infrastructure)
+# Harness SDK (daemon local infrastructure)
 
-**Future home** for harness provider code migrated from `packages/cli/src/infrastructure/services/remote-agents/`.
+Harness provider code for native direct harness adapters and process lifecycle.
 
-Structure exists now; implementation migrates in later slices.
-
-## Planned layout
+## Layout
 
 ```
 harness/
-  registry.ts      ← init-registry.ts (provider registration)
-  spawning/        ← harness-spawning/ (process lifecycle)
-  adapters/        ← cursor-sdk/, claude-sdk/, pi-sdk/, opencode-sdk/, …
+  registry.ts           ← init-registry.ts (provider registration)
+  bound-harness-registry.ts ← start/stop bound harness processes
+  spawning/             ← harness-spawning/ (process lifecycle)
+  adapters/             ← cursor-sdk/, claude-sdk/, pi-sdk/, opencode-sdk/, …
   README.md
 ```
 
-## Belongs here (after migration)
+## Belongs here
 
 - Provider-specific SDK adapters (cursor, claude, pi, opencode, …)
 - Stream normalization → `OutboundEvent` type `harness.stream`
@@ -30,8 +29,8 @@ harness/
 
 ## Adapters subfolder
 
-See [adapters/README.md](./adapters/README.md) — one subfolder per provider during migration. **No adapter stubs yet** (README only).
+See [adapters/README.md](./adapters/README.md) — one subfolder per provider.
 
-## Legacy root
+## Agent services
 
-`packages/cli/src/infrastructure/services/remote-agents/`
+`RemoteAgentService` implementations live in `packages/cli/src/infrastructure/services/remote-agents/`. The harness registry in this module binds those services to direct-harness names at startup.

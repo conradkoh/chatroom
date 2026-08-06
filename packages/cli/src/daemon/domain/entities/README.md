@@ -1,4 +1,4 @@
-# Domain entities (v2 daemon)
+# Domain entities (daemon module)
 
 Pure data types and event registries. No side effects.
 
@@ -35,10 +35,7 @@ Include `harness.stream` on the outbound side for full-granularity stdout/stderr
 
 ## Single source of truth
 
-v2 domain entities are the SSOT for CLI daemon types. They must not import from
+Daemon domain entities are the SSOT for CLI daemon types. They must not import from
 `@workspace/backend`, `infrastructure/`, `entry/`, or `convex`. Legacy
 `domain/**/entities/` paths are thin re-exports — update new code to import from
 `daemon/domain/entities/` directly.
-
-U1 entity types (`command-event`, `enhancer-job`, `file-*`, `git-request`,
-`machine-command`) are complete — modeled from legacy daemon-start sources.

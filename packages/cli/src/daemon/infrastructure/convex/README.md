@@ -1,4 +1,4 @@
-# Convex transport (v2 daemon)
+# Convex transport (daemon)
 
 Shared incremental-sync library for cursor-pinned subscriptions and reconcile snapshots.
 
@@ -9,11 +9,11 @@ Shared incremental-sync library for cursor-pinned subscriptions and reconcile sn
 
 ## Does not belong here
 
-| Kind                                            | Home instead                                                         |
-| ----------------------------------------------- | -------------------------------------------------------------------- |
-| `MessageBuffer`, `subscribe-loop`, feed runtime | `packages/cli/src/infrastructure/incremental-sync/` (reuse)          |
-| Domain merge rules                              | `domain/usecase/` or legacy consumer snapshots until migrated        |
-| Working snapshot maps                           | Co-locate with subscriber during migration, then fold into use cases |
+| Kind                                            | Home instead                                                |
+| ----------------------------------------------- | ----------------------------------------------------------- |
+| `MessageBuffer`, `subscribe-loop`, feed runtime | `packages/cli/src/infrastructure/incremental-sync/` (reuse) |
+| Domain merge rules                              | `domain/usecase/` or legacy consumer snapshots              |
+| Working snapshot maps                           | Co-locate with subscriber or fold into use cases            |
 
 ## Shared library
 

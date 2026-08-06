@@ -1,4 +1,4 @@
-# Persistence (v2 daemon)
+# Persistence (daemon module)
 
 **SQLite default write sink** and outbox for Convex projection (`node:sqlite` / `DatabaseSync`).
 
@@ -13,10 +13,9 @@
 | `read-model.ts`        | Query `harness.stream` lines for local-web                               |
 | `persistence-store.ts` | Facade: `append`, `listHarnessStreamLines`, `listPendingOutbox`, `close` |
 
-## Deferred
+## Outbox drain
 
-- Outbox drain worker (enqueue only this slice)
-- Default DB path wiring in `start-daemon.ts` (`~/.chatroom/daemon/events.sqlite`)
+Append enqueues outbox rows. Default DB path is `~/.chatroom/daemon/<machineId>/events.sqlite` via `entry/persistence-path.ts` and `entry/start-daemon.ts`. A background worker to drain pending rows to Convex is not yet wired.
 
 ## Does not belong here
 
