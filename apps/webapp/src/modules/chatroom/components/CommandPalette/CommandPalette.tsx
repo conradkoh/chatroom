@@ -16,6 +16,7 @@ import { useCommandBlacklist } from '@/modules/chatroom/hooks/useCommandBlacklis
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
+import { useDeferUntilPainted } from '@/modules/chatroom/hooks/useDeferUntilPainted';
 import { sortCommandsByFrecency } from '@/modules/chatroom/lib/sortCommandsByFrecency';
 
 interface CommandPaletteProps {
@@ -33,6 +34,7 @@ interface CommandPaletteProps {
 export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps) {
   const { activeDialog, openDialog, closeDialog } = useCommandDialog();
   const open = activeDialog === 'command-palette';
+  const listContentReady = useDeferUntilPainted(open);
   const setOpen = useCallback(
     (val: boolean) => (val ? openDialog('command-palette') : closeDialog()),
     [openDialog, closeDialog]
@@ -54,10 +56,10 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
         event.preventDefault();
         setSearchValue('');
       } else {
-        closeDialog();
+        setOpen(false);
       }
     },
-    [closeDialog]
+    [setOpen]
   );
 
   // Frécency-boosted ranking with command-aware keys and refresh
@@ -94,29 +96,29 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     return sortCommandsByFrecency(withUsage, frecencyScores);
   }, [commands, getScore, frecencyScores]);
 
-  const rows = useMemo(
-    () =>
-      buildCommandPaletteRows({
-        commands,
-        search: searchValue,
-        rankedFilter,
-        recentCommands,
-        groupedCommands,
-        getScore,
-        frecencyScores,
-        blacklistedKeys,
-      }),
-    [
+  const rows = useMemo(() => {
+    if (!listContentReady) return [];
+    return buildCommandPaletteRows({
       commands,
-      searchValue,
+      search: searchValue,
       rankedFilter,
       recentCommands,
       groupedCommands,
       getScore,
       frecencyScores,
       blacklistedKeys,
-    ]
-  );
+    });
+  }, [
+    listContentReady,
+    commands,
+    searchValue,
+    rankedFilter,
+    recentCommands,
+    groupedCommands,
+    getScore,
+    frecencyScores,
+    blacklistedKeys,
+  ]);
 
   const handleSelect = useCallback(
     (command: CommandItem) => {
@@ -124,7 +126,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
 
       if (command.showOutputInline && command.script) {
         inlineCommandRef.current.run(command.label, command.script);
-        closeDialog();
+        setOpen(false);
         return;
       }
 
@@ -132,10 +134,10 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
       // within the iOS user-gesture context. Deferring via setTimeout breaks iOS's
       // gesture chain and causes external URLs to open in an in-app WKWebView
       // instead of the system browser.
-      closeDialog();
+      setOpen(false);
       command.action();
     },
-    [trackUsage, closeDialog]
+    [trackUsage, setOpen]
   );
 
   const renderCommandItemContent = useCallback(
@@ -200,7 +202,11 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen} modal={false}>
-        <CommandDialogContent open={open} onEscapeKeyDown={handleEscapeKeyDown}>
+        <CommandDialogContent
+          open={open}
+          onEscapeKeyDown={handleEscapeKeyDown}
+          onBackdropDismiss={() => setOpen(false)}
+        >
           <DialogTitle className="sr-only">Command Palette</DialogTitle>
           <DialogDescription className="sr-only">Search and execute a command</DialogDescription>
 
@@ -220,7 +226,7 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
                 <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                   No commands found.
                 </CommandEmpty>
-                {rows.length > 0 && (
+                {listContentReady && rows.length > 0 && (
                   <CommandPaletteVirtualizedList
                     rows={rows}
                     onSelect={handleSelect}
