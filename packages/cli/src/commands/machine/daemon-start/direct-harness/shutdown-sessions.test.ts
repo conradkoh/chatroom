@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DirectHarnessSession } from './command-subscriber.js';
+import type { DirectHarnessSession } from './command-processor.js';
 import { closeAllMachineHarnessSessionsOnShutdown } from './shutdown-sessions.js';
 
 const closeHarnessSession = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
-vi.mock('./command-subscriber.js', async (importOriginal) => {
+vi.mock('./command-processor.js', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...(actual as Record<string, unknown>),

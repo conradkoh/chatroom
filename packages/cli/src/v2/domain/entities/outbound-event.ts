@@ -3,21 +3,67 @@
  * Use cases emit OutboundEvent; publisher-registry routes to convex/publishers/.
  */
 
+import type { MachineCapabilities } from './machine-capabilities.js';
+
 export type OutboundEvent =
-  | { type: 'turn.chunk'; harnessSessionId: string; content: string }
+  | {
+      type: 'turn.chunk';
+      harnessSessionId: string;
+      content: string;
+      timestamp: number;
+      messageId?: string;
+      partType?: string;
+    }
   | { type: 'turn.completed'; harnessSessionId: string; turnId: string }
   | {
       type: 'session.lifecycle';
       harnessSessionId: string;
       action: 'opened' | 'resumed' | 'closed' | 'idle' | 'failed';
+      opencodeSessionId?: string;
+      sessionTitle?: string;
     }
-  | { type: 'task.status'; taskId: string; role: string; status: string }
-  | { type: 'git.state'; workspaceId: string }
-  | { type: 'capabilities.updated'; machineId: string }
-  | { type: 'models.updated'; machineId: string }
-  | { type: 'command.result'; commandId: string; success: boolean }
+  | {
+      type: 'task.status';
+      taskId: string;
+      role: string;
+      chatroomId: string;
+      outcome: 'delivered' | 'delivery_failed';
+      error?: string;
+    }
+  | {
+      type: 'git.state';
+      workingDir: string;
+      payload: Record<string, unknown>;
+    }
+  | { type: 'capabilities.updated'; capabilities: MachineCapabilities }
+  | {
+      type: 'models.updated';
+      availableModels: Record<string, string[]>;
+      availableHarnesses: readonly string[];
+      harnessVersions: Record<string, unknown>;
+    }
+  | {
+      type: 'harness.fingerprint.updated';
+      fingerprint: string;
+      availableHarnesses: readonly string[];
+      harnessVersions: Record<string, unknown>;
+    }
+  | { type: 'command.result.ping'; pingEventId: string }
+  | {
+      type: 'command.result.folder-picker';
+      requestId: string;
+      status: 'completed' | 'cancelled' | 'failed';
+      selectedPath?: string;
+      errorMessage?: string;
+    }
+  | {
+      type: 'command.result.capabilities-refresh';
+      batchId: string;
+      status: 'completed' | 'skipped_no_changes' | 'failed';
+      errorMessage?: string;
+    }
   | { type: 'heartbeat'; machineId: string }
-  | { type: 'workspace.commands'; workspaceId: string }
+  | { type: 'workspace.commands'; workingDir: string; commands: unknown[] }
   | {
       type: 'harness.stream';
       harness: string;

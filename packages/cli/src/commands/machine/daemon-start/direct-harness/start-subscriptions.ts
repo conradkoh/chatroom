@@ -1,15 +1,13 @@
 /**
- * Boots direct-harness WS subscribers and lifecycle manager.
- * Called from startCommandLoopEffect when featureFlags.directHarnessWorkers is true.
+ * Boots direct-harness workers (lifecycle manager + inbound registry).
+ * WS subscribers removed in U13 — v2 direct-harness subscribers are sole listeners.
  */
 
-import type { ConvexClient } from 'convex/browser';
-
-import { startCommandSubscriber } from './command-subscriber.js';
+import { drainPendingHarnessCommands, type CommandSubscriberDeps } from './command-processor.js';
 import { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
-import { startMessageSubscriber } from './prompt-subscriber.js';
-import { startSessionSubscriber } from './session-subscriber.js';
-import type { ActiveSession } from './session-subscriber.js';
+import { drainPendingHarnessMessages } from './prompt-drain.js';
+import { processPendingHarnessSessions } from './session-processor.js';
+import type { ActiveSession } from './session-processor.js';
 import { closeAllMachineHarnessSessionsOnShutdown } from './shutdown-sessions.js';
 import { api } from '../../../../api.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';
@@ -18,6 +16,10 @@ import { ConvexOutputRepository } from '../../../../infrastructure/repos/convex-
 import { ConvexSessionRepository } from '../../../../infrastructure/repos/convex-session-repository.js';
 import { BufferedJournalFactory } from '../../../../infrastructure/repos/journal-factory.js';
 import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
+import {
+  registerDirectHarnessInboundHandler,
+  unregisterDirectHarnessInboundHandler,
+} from '../../../../v2/entry/direct-harness-inbound-registry.js';
 import type { SessionId } from '../types.js';
 
 export interface DirectHarnessSubscriptionSession {
@@ -28,16 +30,13 @@ export interface DirectHarnessSubscriptionSession {
 }
 
 export interface DirectHarnessSubscriptionHandles {
-  pendingPromptSubscriptionHandle: { stop: () => void };
-  pendingHarnessSessionSubscriptionHandle: { stop: () => void };
-  commandSubscriptionHandle: { stop: () => void };
   lifecycleManager: HarnessLifecycleManager;
   closeSessionsOnShutdown: () => Promise<void>;
+  stop: () => void;
 }
 
 export function startDirectHarnessSubscriptions(
   session: DirectHarnessSubscriptionSession,
-  wsClient: ConvexClient,
   activeSessions: Map<string, ActiveSession>,
   harnesses: Map<string, BoundHarness>
 ): DirectHarnessSubscriptionHandles {
@@ -58,13 +57,6 @@ export function startDirectHarnessSubscriptions(
     journalFactory,
   };
 
-  const pendingPromptSubscriptionHandle = startMessageSubscriber(session, wsClient, sharedDeps);
-  const pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(
-    session,
-    wsClient,
-    sharedDeps
-  );
-
   const lifecycleManager = new HarnessLifecycleManager(
     harnesses,
     activeSessions,
@@ -77,7 +69,7 @@ export function startDirectHarnessSubscriptions(
   );
   lifecycleManager.startMonitoring();
 
-  const commandSubscriptionHandle = startCommandSubscriber(session, wsClient, {
+  const commandDeps: CommandSubscriberDeps = {
     lifecycleManager,
     publisher: new ConvexCapabilitiesPublisher({
       backend: session.backend,
@@ -85,18 +77,35 @@ export function startDirectHarnessSubscriptions(
     }),
     activeSessions,
     sessionRepository,
+  };
+
+  registerDirectHarnessInboundHandler(async (event) => {
+    switch (event.type) {
+      case 'direct-harness.prompt':
+        await drainPendingHarnessMessages(session, sharedDeps);
+        break;
+      case 'direct-harness.session-opened':
+        await processPendingHarnessSessions(session, sharedDeps);
+        break;
+      case 'direct-harness.command':
+        await drainPendingHarnessCommands(session, commandDeps);
+        break;
+    }
   });
 
   return {
-    pendingPromptSubscriptionHandle,
-    pendingHarnessSessionSubscriptionHandle,
-    commandSubscriptionHandle,
     lifecycleManager,
-    closeSessionsOnShutdown: () =>
-      closeAllMachineHarnessSessionsOnShutdown(session, {
+    closeSessionsOnShutdown: async () => {
+      unregisterDirectHarnessInboundHandler();
+      await closeAllMachineHarnessSessionsOnShutdown(session, {
         lifecycleManager,
         activeSessions,
         sessionRepository,
-      }),
+      });
+    },
+    stop: () => {
+      unregisterDirectHarnessInboundHandler();
+      lifecycleManager.stopMonitoring();
+    },
   };
 }

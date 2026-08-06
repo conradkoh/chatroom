@@ -1,5 +1,34 @@
-/** Legacy: packages/cli/src/commands/machine/daemon-start/git-subscription.ts */
-export type GitRequest = {
-  // TODO: migrate from legacy
-  readonly _placeholder: true;
-};
+export const GIT_REQUEST_TYPES = [
+  'full_diff',
+  'commit_detail',
+  'more_commits',
+  'pr_diff',
+  'pr_action',
+  'pr_commits',
+  'all_pull_requests',
+  'recent_commits',
+] as const;
+
+export type GitRequestType = (typeof GIT_REQUEST_TYPES)[number];
+
+export const GIT_PR_ACTIONS = ['merge_squash', 'merge_no_squash', 'close'] as const;
+export type GitPrAction = (typeof GIT_PR_ACTIONS)[number];
+
+export type GitRequestStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface GitRequest {
+  requestId: string;
+  machineId: string;
+  workingDir: string;
+  requestType: GitRequestType;
+  status: GitRequestStatus;
+  sha?: string;
+  offset?: number;
+  baseBranch?: string;
+  prAction?: GitPrAction;
+  prNumber?: number;
+}
+
+export function isGitRequestType(value: string): value is GitRequestType {
+  return (GIT_REQUEST_TYPES as readonly string[]).includes(value);
+}

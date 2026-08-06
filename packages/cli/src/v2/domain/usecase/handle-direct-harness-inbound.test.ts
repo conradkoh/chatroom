@@ -6,16 +6,16 @@ import {
 } from './handle-direct-harness-inbound.js';
 
 describe('handleDirectHarnessInbound', () => {
-  test('invokes onDirectHarnessEvent when provided', async () => {
-    const onDirectHarnessEvent = vi.fn().mockResolvedValue(undefined);
+  test('invokes deliverInbound when provided', async () => {
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: DirectHarnessInboundEvent = {
       type: 'direct-harness.session-opened',
       harnessSessionId: 'session_1',
     };
 
-    await handleDirectHarnessInbound({ onDirectHarnessEvent }, event);
+    await handleDirectHarnessInbound({ deliverInbound }, event);
 
-    expect(onDirectHarnessEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('no-ops when hook is absent', async () => {

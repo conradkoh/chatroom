@@ -18,9 +18,8 @@ describe('outbox', () => {
     const db = openDatabase(tempDbPath());
     try {
       const eventId = appendOutboundEvent(db, {
-        type: 'command.result',
-        commandId: 'cmd-1',
-        success: true,
+        type: 'command.result.ping',
+        pingEventId: 'ping-1',
       });
       const outboxId = enqueueOutbox(db, eventId);
       expect(outboxId).toBeGreaterThan(0);

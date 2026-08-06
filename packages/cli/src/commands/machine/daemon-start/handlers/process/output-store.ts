@@ -11,7 +11,9 @@ export const MAX_TAIL_LINES_V2 = 50;
 export interface OutputStore {
   append(data: string): Promise<void>;
   getTail(): { content: string; totalBytes: number };
-  getLastNLines(maxLines: number): Promise<{ content: string; totalBytes: number; lineCount: number }>;
+  getLastNLines(
+    maxLines: number
+  ): Promise<{ content: string; totalBytes: number; lineCount: number }>;
   getFullOutput(): Promise<string>;
   destroy(): Promise<void>;
 }
@@ -44,7 +46,7 @@ class TempFileOutputStore implements OutputStore {
 
     try {
       await appendFile(filePath, data, 'utf-8');
-    } catch (err) {
+    } catch (_err) {
       // Temp file write failure is non-fatal — in-memory tail still works
     }
   }

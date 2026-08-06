@@ -1,12 +1,14 @@
-import type { ConvexClient } from 'convex/browser';
-
-import { startPromptSubscriber } from './prompt-subscriber.js';
-import { startSessionSubscriber } from './session-subscriber.js';
+import { drainPendingAgenticQueryMessages } from './prompt-drain.js';
+import { processPendingAgenticQuerySessions } from './session-processor.js';
 import { ConvexAgenticQueryOutputRepository } from '../../../../infrastructure/repos/convex-agentic-query-output-repository.js';
 import { ConvexAgenticQueryRunRepository } from '../../../../infrastructure/repos/convex-agentic-query-run-repository.js';
 import { BufferedJournalFactory } from '../../../../infrastructure/repos/journal-factory.js';
 import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
-import type { ActiveSession } from '../direct-harness/session-subscriber.js';
+import {
+  registerAgenticQueryInboundHandler,
+  unregisterAgenticQueryInboundHandler,
+} from '../../../../v2/entry/agentic-query-inbound-registry.js';
+import type { ActiveSession } from '../direct-harness/session-processor.js';
 import type { HarnessWorkerSession } from '../shared-harness/types.js';
 
 export interface AgenticQuerySubscriptionSession extends HarnessWorkerSession {
@@ -14,13 +16,12 @@ export interface AgenticQuerySubscriptionSession extends HarnessWorkerSession {
 }
 
 export interface AgenticQuerySubscriptionHandles {
-  pendingPromptSubscriptionHandle: { stop: () => void };
-  pendingHarnessSessionSubscriptionHandle: { stop: () => void };
+  stop: () => void;
 }
 
+/** Init agentic-query inbound registry (no WS — v2 subscribers nudge drains). */
 export function startAgenticQuerySubscriptions(
   session: AgenticQuerySubscriptionSession,
-  wsClient: ConvexClient,
   activeSessions: Map<string, ActiveSession>,
   harnesses: Map<string, BoundHarness>
 ): AgenticQuerySubscriptionHandles {
@@ -36,11 +37,20 @@ export function startAgenticQuerySubscriptions(
 
   const deps = { activeSessions, harnesses, sessionRepository, journalFactory };
 
-  const pendingPromptSubscriptionHandle = startPromptSubscriber(session, wsClient, deps);
-  const pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(session, wsClient, deps);
+  registerAgenticQueryInboundHandler(async (event) => {
+    switch (event.type) {
+      case 'agentic-query.prompt':
+        await drainPendingAgenticQueryMessages(session, deps);
+        break;
+      case 'agentic-query.session-opened':
+        await processPendingAgenticQuerySessions(session, deps);
+        break;
+    }
+  });
 
   return {
-    pendingPromptSubscriptionHandle,
-    pendingHarnessSessionSubscriptionHandle,
+    stop: () => {
+      unregisterAgenticQueryInboundHandler();
+    },
   };
 }

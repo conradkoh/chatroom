@@ -11,12 +11,10 @@
  * mirrors the git and log-observer subscription modules.
  */
 
-import type { ConvexClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect, Runtime } from 'effect';
 
 import { api } from '../../../../../api.js';
-import { getErrorMessage } from '../../../../../utils/convex-error.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../../daemon-services.js';
 import type { SessionId } from '../../types.js';
 import { formatTimestamp } from '../../utils.js';
@@ -64,46 +62,40 @@ function dispatchStopRequest(
   );
 }
 
-/**
- * Subscribe to runs the daemon must act on (pending spawns + user-requested
- * stops). Handlers are forked via the supplied Effect runtime so a slow agent
- * or git handler in the main stream can never block command dispatch.
- */
-export function startCommandRunSubscription(
+/** Process actionable command runs from subscription or inbound nudge. */
+// fallow-ignore-next-line unused-export
+export function processActionableCommandRuns(
   session: DaemonSessionServiceShape,
-  wsClient: ConvexClient,
+  effectContext: Runtime.Runtime<DaemonSessionService>,
+  result: ActionableCommandRuns | null | undefined
+): void {
+  if (!result) return;
+  for (const run of result.pendingRuns ?? []) {
+    dispatchPendingRun(run, session, effectContext);
+  }
+  for (const run of result.stopRequestedRuns ?? []) {
+    dispatchStopRequest(run, session, effectContext);
+  }
+}
+
+/** Query backend and process all actionable runs (for v2 inbound nudge). */
+export async function drainActionableCommandRuns(
+  session: DaemonSessionServiceShape,
   effectContext: Runtime.Runtime<DaemonSessionService>
-): { stop: () => void } {
-  let stopped = false;
+): Promise<void> {
+  const result = await session.backend.query(api.daemon.commands.listActionableCommandRuns, {
+    sessionId: session.sessionId as SessionId,
+    machineId: session.machineId,
+  });
+  processActionableCommandRuns(session, effectContext, result as ActionableCommandRuns);
+}
 
-  const unsubscribe = wsClient.onUpdate(
-    api.daemon.commands.listActionableCommandRuns,
-    { sessionId: session.sessionId as SessionId, machineId: session.machineId },
-    // fallow-ignore-next-line complexity
-    (result: ActionableCommandRuns | null | undefined) => {
-      if (stopped || !result) return;
-      for (const run of result.pendingRuns ?? []) {
-        dispatchPendingRun(run, session, effectContext);
-      }
-      for (const run of result.stopRequestedRuns ?? []) {
-        dispatchStopRequest(run, session, effectContext);
-      }
-    },
-    (err: unknown) =>
-      console.warn(
-        `[${formatTimestamp()}] ⚠️ Command-run subscription error: ${getErrorMessage(err)}`
-      )
-  );
-
-  console.log(`[${formatTimestamp()}] ⚡ Command-run subscription started`);
-
-  return {
-    stop: () => {
-      stopped = true;
-      unsubscribe();
-      console.log(`[${formatTimestamp()}] ⚡ Command-run subscription stopped`);
-    },
-  };
+/**
+ * Subscribe to runs the daemon must act on (pending spawns + user-requested stops).
+ * WS removed in U13 — v2 `command-run` subscriber nudges `drainActionableCommandRuns`.
+ */
+export function startCommandRunSubscription(): { stop: () => void } {
+  return { stop: () => {} };
 }
 
 /** Test helper — reset in-memory dedup state between test cases. */

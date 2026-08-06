@@ -6,6 +6,7 @@ import { startGitRequestSubscriber } from './git-request.js';
 import { startWorkspaceListSubscriber } from './workspace-list.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
 import type { WorkspaceGitInboundEvent } from '../../../domain/usecase/handle-workspace-git-inbound.js';
+import { createDefaultEventRouterDeps } from '../../../entry/default-router-deps.js';
 import { routeInboundEvent } from '../../../entry/event-router.js';
 import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
 
@@ -119,7 +120,7 @@ describe('workspace-git v2 subscribers', () => {
         directHarness: {},
         command: {},
         workspaceGit: {
-          onWorkspaceGitEvent: async (event) => {
+          deliverInbound: async (event) => {
             handled.push(event);
           },
         },
@@ -147,7 +148,7 @@ describe('workspace-git v2 subscribers', () => {
         directHarness: {},
         command: {},
         workspaceGit: {
-          onWorkspaceGitEvent: async (event) => {
+          deliverInbound: async (event) => {
             handled.push(event);
           },
         },
@@ -159,5 +160,10 @@ describe('workspace-git v2 subscribers', () => {
     );
 
     expect(handled).toEqual([{ type: 'git.request', requestId: GIT_REQUEST_ID }]);
+  });
+
+  it('default router deps provide deliverInbound hook', () => {
+    const deps = createDefaultEventRouterDeps();
+    expect(deps.workspaceGit.deliverInbound).toBeTypeOf('function');
   });
 });

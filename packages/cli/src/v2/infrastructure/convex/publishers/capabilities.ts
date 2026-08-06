@@ -1,13 +1,18 @@
+import type { ConvexPublisherDeps } from './publisher-deps.js';
+import type { Publisher } from './publisher.js';
+import { ConvexCapabilitiesPublisher } from '../../../../infrastructure/repos/convex-capabilities-publisher.js';
 import type { OutboundEvent } from '../../../domain/entities/outbound-event.js';
 
-export type Publisher = {
-  publish(event: OutboundEvent): Promise<void>;
-};
+export function createCapabilitiesPublisher(deps: ConvexPublisherDeps): Publisher {
+  const capabilitiesPublisher = new ConvexCapabilitiesPublisher({
+    backend: deps.backend,
+    sessionId: deps.sessionId,
+  });
 
-export function createCapabilitiesPublisher(_deps: unknown): Publisher {
   return {
-    async publish(_event: OutboundEvent): Promise<void> {
-      // TODO: migrate from legacy
+    async publish(event: OutboundEvent): Promise<void> {
+      if (event.type !== 'capabilities.updated') return;
+      await capabilitiesPublisher.publish(event.capabilities);
     },
   };
 }

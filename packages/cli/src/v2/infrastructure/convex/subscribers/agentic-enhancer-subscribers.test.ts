@@ -8,6 +8,7 @@ import { startEnhancerJobSubscriber } from './enhancer-job.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
 import type { AgenticQueryInboundEvent } from '../../../domain/usecase/handle-agentic-query-inbound.js';
 import type { EnhancerInboundEvent } from '../../../domain/usecase/handle-enhancer-inbound.js';
+import { createDefaultEventRouterDeps } from '../../../entry/default-router-deps.js';
 import { routeInboundEvent } from '../../../entry/event-router.js';
 import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
 
@@ -108,12 +109,12 @@ describe('agentic-query and enhancer v2 subscribers', () => {
         workspaceGit: {},
         file: {},
         agenticQuery: {
-          onAgenticQueryEvent: async (event) => {
+          deliverInbound: async (event) => {
             agenticHandled.push(event);
           },
         },
         enhancer: {
-          onEnhancerEvent: async (event) => {
+          deliverInbound: async (event) => {
             enhancerHandled.push(event);
           },
         },
@@ -146,12 +147,12 @@ describe('agentic-query and enhancer v2 subscribers', () => {
         workspaceGit: {},
         file: {},
         agenticQuery: {
-          onAgenticQueryEvent: async (event) => {
+          deliverInbound: async (event) => {
             agenticHandled.push(event);
           },
         },
         enhancer: {
-          onEnhancerEvent: async (event) => {
+          deliverInbound: async (event) => {
             enhancerHandled.push(event);
           },
         },
@@ -161,5 +162,15 @@ describe('agentic-query and enhancer v2 subscribers', () => {
 
     expect(agenticHandled).toEqual([]);
     expect(enhancerHandled).toEqual([{ type: 'enhancer.job-assigned', jobId: JOB_ID }]);
+  });
+
+  it('default router deps provide deliverInbound hook for agentic query', () => {
+    const deps = createDefaultEventRouterDeps();
+    expect(deps.agenticQuery.deliverInbound).toBeTypeOf('function');
+  });
+
+  it('default router deps provide deliverInbound hook for enhancer', () => {
+    const deps = createDefaultEventRouterDeps();
+    expect(deps.enhancer.deliverInbound).toBeTypeOf('function');
   });
 });

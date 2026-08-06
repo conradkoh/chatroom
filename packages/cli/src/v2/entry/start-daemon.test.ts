@@ -38,19 +38,16 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
   getConvexWsClient,
 }));
 
-vi.mock('../../commands/machine/daemon-start/init.js', () => ({
+vi.mock('./init-daemon.js', () => ({
   initDaemon,
 }));
 
-vi.mock('../../commands/machine/daemon-start/command-loop.js', async () => {
-  const { Effect } = await import('effect');
-  return { startCommandLoopEffect: Effect.succeed(undefined) };
-});
-
-vi.mock('../../commands/machine/daemon-start/models-refresh.js', async () => {
-  const { Effect } = await import('effect');
-  return { startBackgroundModelDiscoveryEffect: Effect.succeed(undefined) };
-});
+vi.mock('./daemon-runtime.js', () => ({
+  createDaemonRuntime: vi.fn(() => ({
+    run: vi.fn().mockResolvedValue(undefined),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
 
 vi.mock('../../commands/machine/daemon-start/daemon-layers.js', async () => {
   const { Layer } = await import('effect');
@@ -115,13 +112,27 @@ describe('startDaemonV2', () => {
         sessionId: 'session-1',
         machineId: 'machine-1',
         router: expect.objectContaining({
-          assignedTask: {},
-          directHarness: {},
-          command: {},
-          workspaceGit: {},
-          file: {},
-          agenticQuery: {},
-          enhancer: {},
+          assignedTask: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
+          directHarness: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
+          command: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
+          workspaceGit: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
+          file: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
+          agenticQuery: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
+          enhancer: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
         }),
       })
     );

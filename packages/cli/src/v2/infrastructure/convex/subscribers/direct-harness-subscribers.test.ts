@@ -8,6 +8,7 @@ import { startDirectHarnessPromptSubscriber } from './direct-harness-prompt.js';
 import { startDirectHarnessSessionSubscriber } from './direct-harness-session.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
 import type { DirectHarnessInboundEvent } from '../../../domain/usecase/handle-direct-harness-inbound.js';
+import { createDefaultEventRouterDeps } from '../../../entry/default-router-deps.js';
 import { routeInboundEvent } from '../../../entry/event-router.js';
 import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
 
@@ -127,7 +128,7 @@ describe('direct-harness v2 subscribers', () => {
       router: {
         assignedTask: {},
         directHarness: {
-          onDirectHarnessEvent: async (event) => {
+          deliverInbound: async (event) => {
             handled.push(event);
           },
         },
@@ -156,7 +157,7 @@ describe('direct-harness v2 subscribers', () => {
       {
         assignedTask: {},
         directHarness: {
-          onDirectHarnessEvent: async (event) => {
+          deliverInbound: async (event) => {
             handled.push(event);
           },
         },
@@ -170,5 +171,10 @@ describe('direct-harness v2 subscribers', () => {
     );
 
     expect(handled).toEqual([{ type: 'direct-harness.command', commandId: COMMAND_ID }]);
+  });
+
+  it('default router deps provide deliverInbound hook', () => {
+    const deps = createDefaultEventRouterDeps();
+    expect(deps.directHarness.deliverInbound).toBeTypeOf('function');
   });
 });

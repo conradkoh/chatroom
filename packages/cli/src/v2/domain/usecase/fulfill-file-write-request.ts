@@ -1,4 +1,14 @@
-/** Legacy: packages/cli/src/commands/machine/daemon-start/file-write-fulfillment.ts */
-export async function fulfillFileWriteRequest(): Promise<void> {
-  throw new Error('Not implemented — migrate from legacy');
+import type { FileInboundEvent } from './handle-file-inbound.js';
+
+export interface FulfillFileWriteRequestDeps {
+  dispatchInbound: (
+    event: Extract<FileInboundEvent, { type: 'file-write.request' }>
+  ) => Promise<void>;
+}
+
+export async function fulfillFileWriteRequest(
+  deps: FulfillFileWriteRequestDeps,
+  event: Extract<FileInboundEvent, { type: 'file-write.request' }>
+): Promise<void> {
+  await deps.dispatchInbound(event);
 }

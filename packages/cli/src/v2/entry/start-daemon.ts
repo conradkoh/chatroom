@@ -1,14 +1,13 @@
-import { Effect } from 'effect';
-
+import { createStartBackgroundCapabilitiesDiscoveryDeps } from './bridge/capabilities-bridge.js';
+import { createDaemonRuntime } from './daemon-runtime.js';
 import { createDefaultEventRouterDeps } from './default-router-deps.js';
 import { createDaemonDeps } from './deps.js';
+import { initDaemon } from './init-daemon.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 import { startAllSubscribers } from './subscriber-registry.js';
-import { startCommandLoopEffect } from '../../commands/machine/daemon-start/command-loop.js';
 import { daemonSessionToLayers } from '../../commands/machine/daemon-start/daemon-layers.js';
-import { initDaemon } from '../../commands/machine/daemon-start/init.js';
-import { startBackgroundModelDiscoveryEffect } from '../../commands/machine/daemon-start/models-refresh.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
+import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { startLocalWebServer } from '../local-web/server/create-local-web-server.js';
 
@@ -19,7 +18,12 @@ export async function startDaemonV2(): Promise<void> {
   const wsClient = await getConvexWsClient();
 
   const persistence = createPersistenceStore(resolvePersistenceDbPath(init.machineId));
-  const daemonDeps = createDaemonDeps({ persistence });
+  const daemonDeps = createDaemonDeps({
+    persistence,
+    backend: init.backend,
+    sessionId: init.sessionId,
+    machineId: init.machineId,
+  });
 
   const localWebPort = Number(
     process.env.CHATROOM_LOCAL_WEB_PORT ?? String(DEFAULT_LOCAL_WEB_PORT)
@@ -39,11 +43,16 @@ export async function startDaemonV2(): Promise<void> {
   console.log(`[v2] Local web UI: http://127.0.0.1:${localWeb.port}/health`);
 
   const layers = daemonSessionToLayers(init);
-  Effect.runFork(startBackgroundModelDiscoveryEffect.pipe(Effect.provide(layers)));
+  startBackgroundMachineCapabilitiesDiscovery(
+    createStartBackgroundCapabilitiesDiscoveryDeps(layers)
+  );
+
+  const runtime = createDaemonRuntime({ wsClient, layers });
 
   try {
-    await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(layers)));
+    await runtime.run();
   } finally {
+    await runtime.shutdown();
     await subscribers.stopAll();
     await localWeb.stop();
     persistence.close();

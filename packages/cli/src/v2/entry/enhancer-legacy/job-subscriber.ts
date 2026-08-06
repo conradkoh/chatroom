@@ -1,0 +1,215 @@
+import { ENHANCER_AGENT_ROLE } from './constants.js';
+import { writeEnhancerLog } from './enhancer-log.js';
+import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
+import { api, type Id } from '../../../api.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
+import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
+import { createSpawnPrompt } from '../../../infrastructure/services/remote-agents/spawn-prompt.js';
+import {
+  registerEnhancerInboundHandler,
+  unregisterEnhancerInboundHandler,
+} from '../enhancer-inbound-registry.js';
+
+type PendingEnhancerJob = {
+  jobId: string;
+  chatroomId: string;
+};
+
+export interface EnhancerJobSubscriberHandles {
+  stop: () => void;
+  drainPendingEnhancerJobs: () => Promise<void>;
+}
+
+async function processEnhancerJobForSpawn(
+  sessionId: string,
+  machineId: string,
+  convexUrl: string,
+  backend: BackendOps,
+  agentServices: Map<string, RemoteAgentService>,
+  job: PendingEnhancerJob,
+  inFlight: Set<string>
+): Promise<void> {
+  if (inFlight.has(job.jobId)) return;
+  inFlight.add(job.jobId);
+
+  let claimed = false;
+  let chatroomId = job.chatroomId;
+  let jobId = job.jobId;
+  let spawnResult: Awaited<ReturnType<RemoteAgentService['spawn']>> | null = null;
+  let service: RemoteAgentService | null = null;
+
+  try {
+    const claim = (await backend.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId: job.jobId,
+      machineId,
+    })) as { claimed: boolean };
+    if (!claim.claimed) return;
+    claimed = true;
+    writeEnhancerLog(`claimed job=${job.jobId} chatroom=${job.chatroomId}`);
+
+    const payload = (await backend.query(api.daemon.enhancer.index.getSpawnPayload, {
+      sessionId,
+      jobId: job.jobId,
+    })) as {
+      chatroomId: Id<'chatroom_rooms'>;
+      jobId: Id<'chatroom_enhancerJobs'>;
+      agentHarness: string;
+      model: string;
+      workingDir: string;
+      systemPrompt: string;
+      taskEnvelope: string;
+    };
+    chatroomId = payload.chatroomId;
+    jobId = payload.jobId;
+
+    writeEnhancerLog(
+      `spawning harness=${payload.agentHarness} model=${payload.model} job=${payload.jobId}`
+    );
+
+    service = agentServices.get(payload.agentHarness) ?? null;
+    if (!service) {
+      await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
+        sessionId,
+        chatroomId: payload.chatroomId,
+        jobId: payload.jobId,
+        error: `Harness ${payload.agentHarness} not available on machine`,
+      });
+      return;
+    }
+
+    const spawned = await service.spawn({
+      workingDir: payload.workingDir,
+      prompt: createSpawnPrompt(payload.taskEnvelope),
+      systemPrompt: payload.systemPrompt,
+      model: payload.model,
+      context: {
+        machineId,
+        chatroomId: payload.chatroomId,
+        role: ENHANCER_AGENT_ROLE,
+      },
+      resolvedConvexUrl: convexUrl,
+    });
+    spawnResult = spawned;
+
+    spawned.onLogLine?.((line) => {
+      writeEnhancerLog(line);
+    });
+
+    await waitForEnhancerJobResolution({
+      sessionId,
+      chatroomId: payload.chatroomId,
+      jobId: payload.jobId,
+      backend,
+      onAssistantText: spawned.onAssistantText ? (cb) => spawned.onAssistantText?.(cb) : undefined,
+      onAgentEnd: spawned.onAgentEnd ? (cb) => spawned.onAgentEnd?.(cb) : undefined,
+      onExit: (cb) => spawned.onExit(() => cb()),
+      onSalvageComplete: async (content) => {
+        await backend.mutation(api.web.enhancer.index.complete, {
+          sessionId,
+          chatroomId: payload.chatroomId,
+          jobId: payload.jobId,
+          enhancedContent: content,
+        });
+      },
+      onFailure: async (error, forceTerminal) => {
+        await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
+          sessionId,
+          chatroomId: payload.chatroomId,
+          jobId: payload.jobId,
+          error,
+          ...(forceTerminal ? { forceTerminal: true } : {}),
+        });
+      },
+    });
+
+    writeEnhancerLog(`completed job=${jobId}`);
+  } catch (err) {
+    writeEnhancerLog(`error: ${err instanceof Error ? err.message : String(err)}`);
+    if (claimed) {
+      await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
+        sessionId,
+        chatroomId,
+        jobId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  } finally {
+    inFlight.delete(job.jobId);
+    if (spawnResult && service) {
+      try {
+        await service.stop(spawnResult.pid);
+      } catch {
+        // Best-effort stop
+      }
+    }
+  }
+}
+
+function processEnhancerJobs(
+  sessionId: string,
+  machineId: string,
+  convexUrl: string,
+  backend: BackendOps,
+  agentServices: Map<string, RemoteAgentService>,
+  jobs: PendingEnhancerJob[] | null | undefined,
+  inFlight: Set<string>
+): void {
+  for (const job of jobs ?? []) {
+    void processEnhancerJobForSpawn(
+      sessionId,
+      machineId,
+      convexUrl,
+      backend,
+      agentServices,
+      job,
+      inFlight
+    );
+  }
+}
+
+async function drainPendingEnhancerJobs(
+  sessionId: string,
+  machineId: string,
+  convexUrl: string,
+  backend: BackendOps,
+  agentServices: Map<string, RemoteAgentService>,
+  inFlight: Set<string>
+): Promise<void> {
+  const jobs = (await backend.query(api.daemon.enhancer.index.pendingForMachine, {
+    sessionId: sessionId as never,
+    machineId,
+  })) as PendingEnhancerJob[] | null;
+
+  if (!jobs?.length) return;
+  processEnhancerJobs(sessionId, machineId, convexUrl, backend, agentServices, jobs, inFlight);
+}
+
+export function startEnhancerJobSubscriber(
+  sessionId: string,
+  machineId: string,
+  convexUrl: string,
+  backend: BackendOps,
+  agentServices: Map<string, RemoteAgentService>
+): EnhancerJobSubscriberHandles {
+  const inFlight = new Set<string>();
+
+  registerEnhancerInboundHandler(async () => {
+    await drainPendingEnhancerJobs(
+      sessionId,
+      machineId,
+      convexUrl,
+      backend,
+      agentServices,
+      inFlight
+    );
+  });
+
+  return {
+    stop: () => {
+      unregisterEnhancerInboundHandler();
+    },
+    drainPendingEnhancerJobs: () =>
+      drainPendingEnhancerJobs(sessionId, machineId, convexUrl, backend, agentServices, inFlight),
+  };
+}

@@ -1,13 +1,32 @@
+import type { ConvexPublisherDeps } from './publisher-deps.js';
+import type { Publisher } from './publisher.js';
+import { api, type Id } from '../../../../api.js';
 import type { OutboundEvent } from '../../../domain/entities/outbound-event.js';
 
-export type Publisher = {
-  publish(event: OutboundEvent): Promise<void>;
-};
-
-export function createAssignedTaskStatusPublisher(_deps: unknown): Publisher {
+export function createAssignedTaskStatusPublisher(deps: ConvexPublisherDeps): Publisher {
   return {
-    async publish(_event: OutboundEvent): Promise<void> {
-      // TODO: migrate from legacy
+    async publish(event: OutboundEvent): Promise<void> {
+      if (event.type !== 'task.status') return;
+
+      if (event.outcome === 'delivered') {
+        await deps.backend.mutation(api.machines.emitTaskDelivered, {
+          sessionId: deps.sessionId,
+          machineId: deps.machineId,
+          chatroomId: event.chatroomId as Id<'chatroom_rooms'>,
+          role: event.role,
+          taskId: event.taskId,
+        });
+        return;
+      }
+
+      await deps.backend.mutation(api.machines.emitTaskDeliveryFailed, {
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+        chatroomId: event.chatroomId as Id<'chatroom_rooms'>,
+        role: event.role,
+        taskId: event.taskId,
+        error: event.error ?? 'Task delivery failed',
+      });
     },
   };
 }

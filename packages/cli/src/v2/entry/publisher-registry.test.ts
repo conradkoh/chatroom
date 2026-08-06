@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createPublisherRegistry } from './publisher-registry.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
@@ -44,7 +44,23 @@ describe('createPublisherRegistry', () => {
     expect(received).toEqual(['hello']);
   });
 
-  it('no-ops when persistence is not provided', async () => {
+  it('routes heartbeat events to convex publisher when backend deps provided', async () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    const registry = createPublisherRegistry({
+      backend: { mutation, query: vi.fn() },
+      sessionId: 'sess-1',
+      machineId: 'machine-1',
+    });
+
+    await registry.publish({ type: 'heartbeat', machineId: 'machine-1' });
+
+    expect(mutation).toHaveBeenCalledWith(expect.anything(), {
+      sessionId: 'sess-1',
+      machineId: 'machine-1',
+    });
+  });
+
+  it('no-ops convex routing when backend deps are absent', async () => {
     const registry = createPublisherRegistry();
     await expect(
       registry.publish({ type: 'heartbeat', machineId: 'm-1' })

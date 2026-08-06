@@ -3,7 +3,6 @@ import { gzipSync } from 'node:zlib';
 import { Effect } from 'effect';
 
 import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
-import { extractDiffStatFromShowOutput } from './git-subscription.js';
 import { formatTimestamp } from './utils.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
 import { api } from '../../../api.js';
@@ -11,6 +10,7 @@ import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type { GitCommit } from '../../../infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { extractDiffStatFromShowOutput } from '../../../v2/entry/workspace-git/git-subscription.js';
 
 /**
  * Tracks which commit SHAs have already been fetched (or confirmed not-found / error)

@@ -1,22 +1,21 @@
-# Harness adapters (planned)
+# Harness adapters (v2 local)
 
-One subfolder per harness provider will be created during SDK migration.
+Direct-harness SDK adapters — bound harness implementations for native direct harness names (`claude-sdk`, `cursor-sdk`, `opencode-sdk`, `pi-sdk`).
 
-## Planned providers
+## Layout
 
-| Subfolder (future) | Legacy source                                       |
-| ------------------ | --------------------------------------------------- |
-| `cursor-sdk/`      | `infrastructure/services/remote-agents/cursor-sdk/` |
-| `claude-sdk/`      | `infrastructure/harnesses/claude-sdk/`              |
-| `pi-sdk/`          | `infrastructure/harnesses/pi-sdk/`                  |
-| `opencode-sdk/`    | `infrastructure/harnesses/opencode-sdk/`            |
+| Subfolder       | Provider   | Legacy shim (U14 deletes)                |
+| --------------- | ---------- | ---------------------------------------- |
+| `claude-sdk/`   | Claude SDK | `infrastructure/harnesses/claude-sdk/`   |
+| `cursor-sdk/`   | Cursor SDK | `infrastructure/harnesses/cursor-sdk/`   |
+| `opencode-sdk/` | OpenCode   | `infrastructure/harnesses/opencode-sdk/` |
+| `pi-sdk/`       | Pi SDK     | `infrastructure/harnesses/pi-sdk/`       |
 
-## Scaffold status
+`shared-chunk-extractor.ts` — default chunk extractor for normalized `message.part.delta` events.
 
-**README only** — no adapter implementation files in the scaffold slice.
+## Registry
 
-Each adapter should:
+- **Agent services** — `../registry.ts` (`initHarnessRegistry`) registers `RemoteAgentService` instances.
+- **Bound direct harness** — `../bound-harness-registry.ts` (`startBoundHarness`, `createChunkExtractor`, `listInstalledNativeDirectHarnesses`).
 
-1. Implement a narrow port interface defined in `domain/usecase/` (co-located)
-2. Emit `OutboundEvent` `harness.stream` for stdout/stderr lines
-3. Avoid importing Convex or entry-layer code
+Agent service implementations remain in `infrastructure/services/remote-agents/` until a future migration.

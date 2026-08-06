@@ -9,9 +9,9 @@ import {
   closeHarnessSession,
   type CommandSubscriberDeps,
   type DirectHarnessSession,
-} from './command-subscriber.js';
+} from './command-processor.js';
 import type { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
-import type { ActiveSession } from './session-subscriber.js';
+import type { ActiveSession } from './session-processor.js';
 import { api } from '../../../../api.js';
 import type { SessionRepository } from '../../../../v2/domain/usecase/open-harness-session.js';
 

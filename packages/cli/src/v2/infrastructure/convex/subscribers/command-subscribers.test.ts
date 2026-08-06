@@ -6,6 +6,7 @@ import { startCommandEventsSubscriber } from './command-events.js';
 import { startCommandRunSubscriber } from './command-run.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
 import type { CommandInboundEvent } from '../../../domain/usecase/handle-command-inbound.js';
+import { createDefaultEventRouterDeps } from '../../../entry/default-router-deps.js';
 import { routeInboundEvent } from '../../../entry/event-router.js';
 import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
 
@@ -119,7 +120,7 @@ describe('command v2 subscribers', () => {
         assignedTask: {},
         directHarness: {},
         command: {
-          onCommandEvent: async (event) => {
+          deliverInbound: async (event) => {
             handled.push(event);
           },
         },
@@ -147,7 +148,7 @@ describe('command v2 subscribers', () => {
         assignedTask: {},
         directHarness: {},
         command: {
-          onCommandEvent: async (event) => {
+          deliverInbound: async (event) => {
             handled.push(event);
           },
         },
@@ -160,5 +161,10 @@ describe('command v2 subscribers', () => {
     );
 
     expect(handled).toEqual([{ type: 'command-run.updated', runId: PENDING_RUN_ID }]);
+  });
+
+  it('default router deps provide deliverInbound hook', () => {
+    const deps = createDefaultEventRouterDeps();
+    expect(deps.command.deliverInbound).toBeTypeOf('function');
   });
 });

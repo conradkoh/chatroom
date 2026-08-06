@@ -6,14 +6,14 @@ export type FileInboundEvent = Extract<
 >;
 
 export type HandleFileInboundDeps = {
-  onFileEvent?: (event: FileInboundEvent) => Promise<void>;
+  deliverInbound?: (event: FileInboundEvent) => Promise<void>;
 };
 
 export async function handleFileInbound(
   deps: HandleFileInboundDeps,
   event: FileInboundEvent
 ): Promise<void> {
-  if (deps.onFileEvent) {
-    await deps.onFileEvent(event);
+  if (deps.deliverInbound) {
+    await deps.deliverInbound(event);
   }
 }
