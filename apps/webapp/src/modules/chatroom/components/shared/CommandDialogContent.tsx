@@ -111,7 +111,8 @@ export function CommandDialogContent({
     }
   };
 
-  const dataState = !mounted
+  const isSurfaceVisible = open || mounted;
+  const dataState = !isSurfaceVisible
     ? {}
     : open
       ? { 'data-open': '' as const }
@@ -138,7 +139,7 @@ export function CommandDialogContent({
         aria-labelledby={titleElementId ?? undefined}
         aria-describedby={descriptionElementId ?? undefined}
         data-slot="command-dialog-content"
-        hidden={!mounted}
+        hidden={!isSurfaceVisible}
         className={cn(...COMMAND_DIALOG_CONTENT_CLASSES, className)}
         style={{ ...viewportStyle, ...style }}
         onKeyDown={handleKeyDown}
