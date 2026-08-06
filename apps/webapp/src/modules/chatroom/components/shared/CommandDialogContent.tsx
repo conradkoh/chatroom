@@ -65,6 +65,12 @@ export function CommandDialogContent({
   const [mounted, setMounted] = useState(open);
   const [titleElementId, setTitleElementId] = useState<string | undefined>();
   const [descriptionElementId, setDescriptionElementId] = useState<string | undefined>();
+  const [surfaceAttached, setSurfaceAttached] = useState(false);
+
+  const assignSurfaceRef = useCallback((node: HTMLDivElement | null) => {
+    surfaceRef.current = node;
+    setSurfaceAttached(!!node);
+  }, []);
 
   useLayoutEffect(() => {
     if (open) setMounted(true);
@@ -73,27 +79,19 @@ export function CommandDialogContent({
   useLayoutEffect(() => {
     if (!open) return;
     focusCommandDialogInput(surfaceRef.current);
-    queueMicrotask(() => focusCommandDialogInput(surfaceRef.current));
-  }, [open]);
-
-  const syncAriaIds = useCallback(
-    (node: HTMLDivElement | null) => {
-      surfaceRef.current = node;
-      if (!node || !open) {
-        setTitleElementId(undefined);
-        setDescriptionElementId(undefined);
-        return;
-      }
-      const { titleElementId, descriptionElementId } = readCommandDialogAriaIds(node);
-      setTitleElementId(titleElementId);
-      setDescriptionElementId(descriptionElementId);
-    },
-    [open]
-  );
+  }, [open, surfaceAttached]);
 
   useLayoutEffect(() => {
-    syncAriaIds(surfaceRef.current);
-  }, [syncAriaIds, children]);
+    const node = surfaceRef.current;
+    if (!node || !open) {
+      setTitleElementId(undefined);
+      setDescriptionElementId(undefined);
+      return;
+    }
+    const ids = readCommandDialogAriaIds(node);
+    setTitleElementId(ids.titleElementId);
+    setDescriptionElementId(ids.descriptionElementId);
+  }, [open, children, surfaceAttached]);
 
   const handleTransitionEnd = useCallback(
     (event: React.TransitionEvent<HTMLDivElement>) => {
@@ -133,7 +131,7 @@ export function CommandDialogContent({
         />
       ) : null}
       <div
-        ref={syncAriaIds}
+        ref={assignSurfaceRef}
         role="dialog"
         aria-modal={false}
         aria-labelledby={titleElementId ?? undefined}
