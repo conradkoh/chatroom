@@ -27,16 +27,6 @@ import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
-import { notifyNativeHarnessSessionLostOnExit } from '../../../commands/machine/daemon-start/native-harness-session-exit.js';
-import {
-  notifyNativeSessionLost,
-  notifyNativeTurnIdle,
-} from '../../../commands/machine/daemon-start/native-task-delivery-coordinator.js';
-import {
-  defaultNativeTurnPhase,
-  setNativeTurnPhase,
-  type NativeTurnPhase,
-} from '../../../commands/machine/daemon-start/native-turn-phase.js';
 import { resolveResumableHarnessSessionId } from '../../../daemon/domain/entities/harness-session-id-pair.js';
 import type { HarnessSessionSnapshot } from '../../../daemon/domain/entities/session-snapshot.js';
 import { resolveStopReason } from '../../../daemon/domain/entities/stop-reason.js';
@@ -69,6 +59,16 @@ import {
   shouldPreserveHarnessTeardown,
   shouldRetainHarnessSessionForReconnect,
 } from '../../../daemon/domain/usecase/preserve-harness-session.js';
+import { notifyNativeHarnessSessionLostOnExit } from '../../../daemon/entry/native-delivery/native-harness-session-exit.js';
+import {
+  notifyNativeSessionLost,
+  notifyNativeTurnIdle,
+} from '../../../daemon/entry/native-delivery/native-task-delivery-coordinator.js';
+import {
+  defaultNativeTurnPhase,
+  setNativeTurnPhase,
+  type NativeTurnPhase,
+} from '../../../daemon/entry/native-delivery/native-turn-phase.js';
 import { resolveNativeSpawnPolicy } from '../../../domain/native-integration/spawn-policy.js';
 import { isProcessAlive } from '../../deps/process.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
@@ -108,7 +108,7 @@ export type {
   StopOpts,
   HandleExitOpts,
 } from '../agent-lifecycle/agent-lifecycle-types.js';
-export type { NativeTurnPhase } from '../../../commands/machine/daemon-start/native-turn-phase.js';
+export type { NativeTurnPhase } from '../../../daemon/entry/native-delivery/native-turn-phase.js';
 
 export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 

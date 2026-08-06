@@ -8,12 +8,12 @@ import {
   STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
-import type * as NativeTaskDeliveryCoordinatorModule from '../../../commands/machine/daemon-start/native-task-delivery-coordinator.js';
 import type { HarnessSessionSnapshot } from '../../../daemon/domain/entities/session-snapshot.js';
 import {
   CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
   CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
 } from '../../../daemon/domain/usecase/cursor-sdk-session-reopen-retry.js';
+import type * as NativeTaskDeliveryCoordinatorModule from '../../../daemon/entry/native-delivery/native-task-delivery-coordinator.js';
 import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../../harnesses/registry.js';
 import { CRASH_LOOP_MAX_RESTARTS, CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
@@ -29,9 +29,9 @@ vi.mock('../../../commands/machine/daemon-start/handlers/orphan-tracker.js', () 
 }));
 
 const mockNotifyNativeTurnIdle = vi.hoisted(() => vi.fn());
-vi.mock('../../../commands/machine/daemon-start/native-task-delivery-coordinator.js', async () => {
+vi.mock('../../../daemon/entry/native-delivery/native-task-delivery-coordinator.js', async () => {
   const actual = await vi.importActual<typeof NativeTaskDeliveryCoordinatorModule>(
-    '../../../commands/machine/daemon-start/native-task-delivery-coordinator.js'
+    '../../../daemon/entry/native-delivery/native-task-delivery-coordinator.js'
   );
   return { ...actual, notifyNativeTurnIdle: mockNotifyNativeTurnIdle };
 });

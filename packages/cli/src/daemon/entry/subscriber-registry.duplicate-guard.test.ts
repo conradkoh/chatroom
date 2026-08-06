@@ -23,7 +23,6 @@ const V2_SUBSCRIBED_QUERIES = [
 ] as const;
 
 const LEGACY_INIT_FILES_TO_GUARD = [
-  'src/commands/machine/daemon-start/command-loop.ts',
   'src/commands/machine/daemon-start/file-tree-subscription.ts',
   'src/commands/machine/daemon-start/file-content-subscription.ts',
   'src/commands/machine/daemon-start/file-write-subscription.ts',
