@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { startDaemonV2 } from './start-daemon.js';
 
 const {
+  getConvexWsClient,
   initDaemon,
   startAllSubscribers,
   startLocalWebServer,
@@ -11,6 +12,7 @@ const {
   runFork,
   runPromise,
 } = vi.hoisted(() => ({
+  getConvexWsClient: vi.fn(),
   initDaemon: vi.fn(),
   startAllSubscribers: vi.fn(),
   startLocalWebServer: vi.fn(),
@@ -31,6 +33,10 @@ vi.mock('effect', async (importOriginal) => {
     },
   };
 });
+
+vi.mock('../../infrastructure/convex/client.js', () => ({
+  getConvexWsClient,
+}));
 
 vi.mock('../../commands/machine/daemon-start/init.js', () => ({
   initDaemon,
@@ -78,8 +84,11 @@ describe('startDaemonV2', () => {
     vi.clearAllMocks();
     runPromise.mockResolvedValue(undefined);
 
+    const mockWsClient = { onUpdate: vi.fn() };
+    getConvexWsClient.mockResolvedValue(mockWsClient);
+
     initDaemon.mockResolvedValue({
-      client: { onUpdate: vi.fn() },
+      client: {},
       sessionId: 'session-1',
       machineId: 'machine-1',
     });
@@ -96,9 +105,10 @@ describe('startDaemonV2', () => {
     startAllSubscribers.mockReturnValue({ stopAll });
   });
 
-  it('starts subscribers with init client, session, and machine ids', async () => {
+  it('starts subscribers with ws client, session, and machine ids', async () => {
     await startDaemonV2();
 
+    expect(getConvexWsClient).toHaveBeenCalledOnce();
     expect(startAllSubscribers).toHaveBeenCalledWith(
       expect.objectContaining({
         wsClient: expect.objectContaining({ onUpdate: expect.any(Function) }),

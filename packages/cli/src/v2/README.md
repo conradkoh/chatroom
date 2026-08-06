@@ -50,7 +50,9 @@ domain/entities/    ← pure types + event registries
 5. **Persistence** — SQLite default write sink + outbox
 6. **Local-web** — server + client for full-granularity harness streams
 7. **Entry cutover** — `startDaemonV2` active via `daemon-start/index.ts` ✅
-8. **Shim removal** — delete legacy daemon-start dead code (slice #17)
+8. **Shim removal** — legacy `domain/agent-lifecycle` and `domain/direct-harness` re-exports removed ✅
+
+Consumers import `v2/domain/*` directly. Preserved: `domain/native-integration/`, `domain/harness-activity-emitter.ts`.
 
 ---
 

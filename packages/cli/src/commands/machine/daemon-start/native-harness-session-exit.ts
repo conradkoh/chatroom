@@ -2,8 +2,8 @@ import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/h
 
 import { notifyNativeSessionLost } from './native-task-delivery-coordinator.js';
 import type { AgentHarness } from './types.js';
-import type { StopReason } from '../../../domain/agent-lifecycle/index.js';
-import { shouldRetainHarnessSessionForReconnect } from '../../../domain/agent-lifecycle/index.js';
+import type { StopReason } from '../../../v2/domain/entities/stop-reason.js';
+import { shouldRetainHarnessSessionForReconnect } from '../../../v2/domain/usecase/preserve-harness-session.js';
 
 export interface NativeHarnessSessionExitContext {
   chatroomId: string;
