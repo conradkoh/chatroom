@@ -1819,7 +1819,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/git/git-reader.ts": {
+    "packages/cli/src/daemon/infrastructure/git/git-reader.ts": {
       "crap_critical": {
         "count": 1
       },
@@ -1830,17 +1830,17 @@
         "count": 8
       }
     },
-    "packages/cli/src/infrastructure/git/git-state-pipeline.ts": {
+    "packages/cli/src/daemon/infrastructure/git/git-state-pipeline.ts": {
       "crap_moderate": {
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/git/git-writer.ts": {
+    "packages/cli/src/daemon/infrastructure/git/git-writer.ts": {
       "crap_high": {
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/git/run-command.ts": {
+    "packages/cli/src/daemon/infrastructure/git/run-command.ts": {
       "crap_high": {
         "count": 1
       }
@@ -1858,7 +1858,7 @@
         "count": 3
       }
     },
-    "packages/cli/src/infrastructure/services/agent-process-manager/agent-process-manager.ts": {
+    "packages/cli/src/daemon/infrastructure/agent-process-manager/agent-process-manager.ts": {
       "crap_high": {
         "count": 13
       },
@@ -2082,17 +2082,17 @@
         "count": 2
       }
     },
-    "packages/cli/src/v2/domain/usecase/decide-restart-after-exit.ts": {
+    "packages/cli/src/daemon/domain/usecase/decide-restart-after-exit.ts": {
       "crap_high": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/domain/usecase/preserve-harness-session.ts": {
+    "packages/cli/src/daemon/domain/usecase/preserve-harness-session.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/domain/usecase/recover-agent-state.ts": {
+    "packages/cli/src/daemon/domain/usecase/recover-agent-state.ts": {
       "complexity_critical": {
         "count": 1
       },
@@ -2100,37 +2100,37 @@
         "count": 1
       }
     },
-    "packages/cli/src/v2/domain/usecase/restart-agent.ts": {
+    "packages/cli/src/daemon/domain/usecase/restart-agent.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/domain/usecase/start-agent.ts": {
+    "packages/cli/src/daemon/domain/usecase/start-agent.ts": {
       "crap_high": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/domain/usecase/stop-agent.ts": {
+    "packages/cli/src/daemon/domain/usecase/stop-agent.ts": {
       "crap_high": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/domain/usecase/transition-agent-slot.ts": {
+    "packages/cli/src/daemon/domain/usecase/transition-agent-slot.ts": {
       "crap_moderate": {
         "count": 3
       }
     },
-    "packages/cli/src/v2/entry/bridge/capabilities-bridge.ts": {
+    "packages/cli/src/daemon/entry/bridge/capabilities-bridge.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/entry/command-dispatch.ts": {
+    "packages/cli/src/daemon/entry/command-dispatch.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/entry/daemon-runtime.ts": {
+    "packages/cli/src/daemon/entry/daemon-runtime.ts": {
       "crap_high": {
         "count": 1
       },
@@ -2138,7 +2138,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/v2/entry/enhancer-legacy/job-subscriber.ts": {
+    "packages/cli/src/daemon/entry/enhancer-legacy/job-subscriber.ts": {
       "complexity_critical": {
         "count": 1
       },
@@ -2146,7 +2146,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/v2/entry/enhancer-legacy/wait-for-enhancer-job.ts": {
+    "packages/cli/src/daemon/entry/enhancer-legacy/wait-for-enhancer-job.ts": {
       "crap_high": {
         "count": 1
       },
@@ -2154,17 +2154,17 @@
         "count": 1
       }
     },
-    "packages/cli/src/v2/entry/native-delivery/native-task-delivery-coordinator.ts": {
+    "packages/cli/src/daemon/entry/native-delivery/native-task-delivery-coordinator.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/entry/native-delivery/native-task-injector.ts": {
+    "packages/cli/src/daemon/entry/native-delivery/native-task-injector.ts": {
       "crap_high": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/entry/publisher-registry.ts": {
+    "packages/cli/src/daemon/entry/publisher-registry.ts": {
       "crap_critical": {
         "count": 1
       },
@@ -2172,12 +2172,12 @@
         "count": 1
       }
     },
-    "packages/cli/src/v2/entry/task-monitor-runtime.ts": {
+    "packages/cli/src/daemon/entry/task-monitor-runtime.ts": {
       "crap_high": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/entry/task-monitor/task-monitor-logic.ts": {
+    "packages/cli/src/daemon/entry/task-monitor/task-monitor-logic.ts": {
       "crap_high": {
         "count": 1
       },
@@ -2185,7 +2185,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/v2/entry/workspace-git/git-heartbeat.ts": {
+    "packages/cli/src/daemon/entry/workspace-git/git-heartbeat.ts": {
       "crap_high": {
         "count": 1
       },
@@ -2193,7 +2193,7 @@
         "count": 3
       }
     },
-    "packages/cli/src/v2/entry/workspace-git/git-subscription.ts": {
+    "packages/cli/src/daemon/entry/workspace-git/git-subscription.ts": {
       "crap_high": {
         "count": 4
       },
@@ -2201,17 +2201,17 @@
         "count": 1
       }
     },
-    "packages/cli/src/v2/infrastructure/convex/publishers/session-lifecycle.ts": {
+    "packages/cli/src/daemon/infrastructure/convex/publishers/session-lifecycle.ts": {
       "crap_high": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/infrastructure/convex/publishers/turn-output.ts": {
+    "packages/cli/src/daemon/infrastructure/convex/publishers/turn-output.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/v2/infrastructure/local/harness/adapters/opencode-sdk/event-extractor.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/adapters/opencode-sdk/event-extractor.ts": {
       "complexity_critical": {
         "count": 1
       },
@@ -2219,7 +2219,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/v2/infrastructure/local/harness/adapters/opencode-sdk/opencode-harness.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/adapters/opencode-sdk/opencode-harness.ts": {
       "crap_high": {
         "count": 2
       },
@@ -2227,7 +2227,7 @@
         "count": 6
       }
     },
-    "packages/cli/src/v2/infrastructure/local/harness/adapters/opencode-sdk/opencode-session.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/adapters/opencode-sdk/opencode-session.ts": {
       "crap_high": {
         "count": 1
       },
@@ -2235,7 +2235,7 @@
         "count": 2
       }
     },
-    "packages/cli/src/v2/infrastructure/local/harness/adapters/opencode-sdk/sse-event-buffer.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/adapters/opencode-sdk/sse-event-buffer.ts": {
       "crap_moderate": {
         "count": 1
       }
@@ -2827,8 +2827,8 @@
   "target_keys": [
     "services/backend/prompts/cli/roles/index.ts:dead code",
     "services/backend/prompts/base/webapp/utils/config.ts:dead code",
-    "packages/cli/src/v2/domain/entities/command-event.ts:dead code",
-    "packages/cli/src/v2/domain/entities/git-request.ts:dead code",
+    "packages/cli/src/daemon/domain/entities/command-event.ts:dead code",
+    "packages/cli/src/daemon/domain/entities/git-request.ts:dead code",
     "services/backend/application/auth/requirePermission.ts:dead code",
     "services/backend/prompts/config.ts:dead code",
     "services/backend/src/domain/entities/backlog-item.ts:dead code",
@@ -2842,10 +2842,10 @@
     "apps/webapp/src/modules/chatroom/workspace/files/useWorkspaceFileTree.ts:high impact",
     "packages/cli/src/infrastructure/services/workspace/workspace-fs-watch-paths.ts:dead code",
     "apps/webapp/src/modules/chatroom/eventTypes/index.ts:dead code",
-    "packages/cli/src/v2/domain/entities/execution-kind.ts:dead code",
+    "packages/cli/src/daemon/domain/entities/execution-kind.ts:dead code",
     "services/backend/prompts/teams/duo/prompts/fromContext.ts:dead code",
     "services/backend/prompts/cli/backlog/command.ts:untested risk",
-    "packages/cli/src/v2/local-web/server/routes.ts:dead code",
+    "packages/cli/src/daemon/local-web/server/routes.ts:dead code",
     "services/backend/src/domain/entities/team-kind.ts:dead code",
     "apps/webapp/src/lib/contentEditableSerializer.ts:dead code",
     "apps/webapp/src/modules/chatroom/components/timeline/timelineVirtualizerConfig.ts:dead code",
@@ -2870,14 +2870,14 @@
     "apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx:complexity",
     "apps/webapp/src/modules/chatroom/viewModels/eventStreamViewModel.ts:dead code",
     "apps/webapp/src/modules/chatroom/workspace/hooks/useAgenticQueryHarnessSelection.ts:untested risk",
-    "packages/cli/src/infrastructure/git/run-command.ts:high impact",
+    "packages/cli/src/daemon/infrastructure/git/run-command.ts:high impact",
     "packages/cli/src/infrastructure/services/workspace/workspace-fs-watcher.ts:high impact",
     "apps/webapp/src/modules/chatroom/workspace/components/explorerDialogInputUtils.ts:untested risk",
     "apps/webapp/src/domain/entities/event-type.ts:dead code",
     "apps/webapp/src/modules/chatroom/workspace/hooks/useFileTabs.ts:high impact",
     "services/backend/src/domain/types/skills.ts:dead code",
     "apps/webapp/src/modules/chatroom/hooks/useAgentPanelData.ts:high impact",
-    "packages/cli/src/v2/domain/entities/assigned-task.ts:dead code",
+    "packages/cli/src/daemon/domain/entities/assigned-task.ts:dead code",
     "packages/cli/src/utils/serialization/decode/index.ts:dead code",
     "services/backend/convex/participants.ts:complexity",
     "apps/webapp/src/modules/chatroom/direct-harness/hooks/useHarnessConfig.ts:high impact",
@@ -2890,7 +2890,7 @@
     "packages/cli/src/commands/machine/daemon-start/file-write-fulfillment.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/BacklogItemDetailModal.tsx:complexity",
     "services/backend/convex/machines.ts:complexity",
-    "packages/cli/src/v2/domain/usecase/detect-terminal-provider-error.ts:untested risk",
+    "packages/cli/src/daemon/domain/usecase/detect-terminal-provider-error.ts:untested risk",
     "services/backend/convex/lib/backlogStateMachine.ts:complexity",
     "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts:complexity",
     "apps/webapp/src/modules/chatroom/triggers/fileReferenceQuery.ts:untested risk",

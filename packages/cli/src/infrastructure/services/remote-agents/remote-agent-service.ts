@@ -6,8 +6,8 @@
  * without coupling to a specific runtime.
  */
 
-import type { HarnessActivityEmitter } from '../../../domain/harness-activity-emitter.js';
 import type { SpawnPrompt } from './spawn-prompt.js';
+import type { HarnessActivityEmitter } from '../../../daemon/infrastructure/agent-process-manager/harness-activity-emitter.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

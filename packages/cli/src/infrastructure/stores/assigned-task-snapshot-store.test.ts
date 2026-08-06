@@ -7,7 +7,7 @@ import {
   listAssignedTaskSnapshotsForRole,
   replaceAssignedTaskSnapshots,
 } from './assigned-task-snapshot-store.js';
-import type { AssignedTaskSnapshotView } from '../../v2/domain/entities/assigned-task.js';
+import type { AssignedTaskSnapshotView } from '../../daemon/domain/entities/assigned-task.js';
 
 function makeRow(overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSnapshotView {
   return {

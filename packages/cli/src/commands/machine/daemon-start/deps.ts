@@ -11,6 +11,7 @@
  * live here because they are specific to the daemon command module.
  */
 
+import type { AgentProcessManager } from '../../../daemon/infrastructure/agent-process-manager/agent-process-manager.js';
 import type {
   BackendOps,
   ClockOps,
@@ -18,7 +19,6 @@ import type {
   ProcessOps,
 } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
-import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import type { TryConsumeResult } from '../../../infrastructure/services/harness-spawning/index.js';
 
 // ─── Domain-Specific Interfaces ─────────────────────────────────────────────

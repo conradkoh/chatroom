@@ -9,7 +9,7 @@ import { api } from '../../api.js';
 import type {
   OutputRepository,
   OutputChunk,
-} from '../../v2/domain/usecase/open-harness-session.js';
+} from '../../daemon/domain/usecase/open-harness-session.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type BackendCall = (endpoint: any, args: any) => Promise<any>;

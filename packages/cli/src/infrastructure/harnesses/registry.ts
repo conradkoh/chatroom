@@ -1,1 +1,1 @@
-export * from '../../v2/infrastructure/local/harness/bound-harness-registry.js';
+export * from '../../daemon/infrastructure/local/harness/bound-harness-registry.js';

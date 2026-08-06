@@ -1,5 +1,5 @@
 import type { RefreshModelsOutcome } from './models-refresh.js';
-import type { RefreshMachineCapabilitiesOutcome } from '../../../v2/domain/usecase/refresh-machine-capabilities.js';
+import type { RefreshMachineCapabilitiesOutcome } from '../../../daemon/domain/usecase/refresh-machine-capabilities.js';
 
 // fallow-ignore-next-line unused-export
 export const CAPABILITIES_REFRESH_STATUSES = ['completed', 'skipped_no_changes', 'failed'] as const;

@@ -8,10 +8,10 @@ import type {
 } from '@workspace/backend/src/domain/entities/agent';
 
 import type { MachineStateOps, SpawningOps } from './deps.js';
-import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import type { DaemonEventBus } from '../../../daemon/entry/events/event-bus.js';
+import type { AgentProcessManager } from '../../../daemon/infrastructure/agent-process-manager/agent-process-manager.js';
 import type { BackendOps, FsOps } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
-import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ export type SessionId = any;
 
 export type { MachineConfig, AgentHarness };
 
-// Re-export from canonical source (services/backend/src/v2/domain/entities/agent.ts)
+// Re-export from canonical source (services/backend/src/daemon/domain/entities/agent.ts)
 export type StartAgentReason = AgentStartReason;
 export type StopAgentReason = AgentStopReason;
 

@@ -6,6 +6,12 @@ import type { DirectHarnessSession } from './command-processor.js';
 import { handleSessionIdle } from './idle-handler.js';
 import type { ActiveSession } from './session-processor.js';
 import { api } from '../../../../api.js';
+import type { BoundHarness } from '../../../../daemon/domain/entities/bound-harness.js';
+import type {
+  JournalFactory,
+  SessionRepository,
+} from '../../../../daemon/domain/usecase/open-harness-session.js';
+import { resumeSession } from '../../../../daemon/domain/usecase/resume-harness-session.js';
 import { makeHarnessKey } from '../../../../infrastructure/harnesses/harness-key.js';
 import {
   createChunkExtractor,
@@ -13,12 +19,6 @@ import {
   type NativeDirectHarnessName,
 } from '../../../../infrastructure/harnesses/registry.js';
 import { OPENCODE_SESSION_EVENT_TYPES } from '../../../../infrastructure/services/remote-agents/opencode-sdk/opencode-session-events.js';
-import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
-import type {
-  JournalFactory,
-  SessionRepository,
-} from '../../../../v2/domain/usecase/open-harness-session.js';
-import { resumeSession } from '../../../../v2/domain/usecase/resume-harness-session.js';
 import { bindTurnMessageOnEvent } from '../shared-harness/bind-turn-message-on-event.js';
 
 interface PendingMessage {

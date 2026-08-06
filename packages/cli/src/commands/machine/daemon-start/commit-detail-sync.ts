@@ -6,11 +6,11 @@ import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-s
 import { formatTimestamp } from './utils.js';
 import { getWorkspacesForMachine } from './workspace-cache.js';
 import { api } from '../../../api.js';
-import * as gitReader from '../../../infrastructure/git/git-reader.js';
-import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
-import type { GitCommit } from '../../../infrastructure/git/types.js';
+import { extractDiffStatFromShowOutput } from '../../../daemon/entry/workspace-git/git-subscription.js';
+import * as gitReader from '../../../daemon/infrastructure/git/git-reader.js';
+import { COMMITS_PER_PAGE } from '../../../daemon/infrastructure/git/types.js';
+import type { GitCommit } from '../../../daemon/infrastructure/git/types.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import { extractDiffStatFromShowOutput } from '../../../v2/entry/workspace-git/git-subscription.js';
 
 /**
  * Tracks which commit SHAs have already been fetched (or confirmed not-found / error)

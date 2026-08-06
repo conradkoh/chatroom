@@ -9,7 +9,7 @@ import {
   startWorkspaceFileTreeCoordinator,
 } from './workspace-file-tree-coordinator.js';
 import { clearWorkspaceSyncStateForTests } from './workspace-sync-state.js';
-import { runGit } from '../../git/run-command.js';
+import { runGit } from '../../../daemon/infrastructure/git/run-command.js';
 
 async function waitFor(predicate: () => boolean, timeoutMs = 8_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -221,7 +221,7 @@ describe('workspace-file-tree-coordinator', () => {
     rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-degrade-'));
     await initGitRepo(rootDir, { 'seed.ts': 'seed' });
 
-    const runGitModule = await import('../../git/run-command.js');
+    const runGitModule = await import('../../../daemon/infrastructure/git/run-command.js');
     const runGitSpy = vi.spyOn(runGitModule, 'runGit').mockResolvedValue({
       error: Object.assign(new Error('git unavailable'), { code: 1 }),
     } as never);

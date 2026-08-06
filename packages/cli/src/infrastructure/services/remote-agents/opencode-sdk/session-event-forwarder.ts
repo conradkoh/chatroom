@@ -1,6 +1,6 @@
 import type { Writable } from 'node:stream';
 
-import { isTerminalProviderError } from '../../../../v2/domain/usecase/detect-terminal-provider-error.js';
+import { isTerminalProviderError } from '../../../../daemon/domain/usecase/detect-terminal-provider-error.js';
 import { appendToolInputToPayload, formatTimestampedLogLine } from '../agent-log-format.js';
 import {
   assertNeverOpenCodeSessionStatus,

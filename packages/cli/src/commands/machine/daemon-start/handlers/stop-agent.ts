@@ -5,8 +5,8 @@
 
 import { Effect } from 'effect';
 
-import { stopAgent } from '../../../../v2/domain/usecase/stop-agent.js';
-import { createStopAgentDeps } from '../../../../v2/entry/bridge/agent-control-bridge.js';
+import { stopAgent } from '../../../../daemon/domain/usecase/stop-agent.js';
+import { createStopAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
 import { DaemonAgentProcessManagerService } from '../daemon-services.js';
 import type { CommandResult, StopAgentCommand, StopAgentReason } from '../types.js';
 

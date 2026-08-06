@@ -19,7 +19,7 @@ import type {
   OutputChunk,
   SessionJournal,
   JournalFactory,
-} from '../../v2/domain/usecase/open-harness-session.js';
+} from '../../daemon/domain/usecase/open-harness-session.js';
 
 export interface BufferedJournalFactoryOptions {
   readonly outputRepository: OutputRepository;

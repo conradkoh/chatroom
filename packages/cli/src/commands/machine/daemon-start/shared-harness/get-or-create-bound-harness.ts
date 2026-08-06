@@ -1,9 +1,9 @@
+import type { BoundHarness } from '../../../../daemon/domain/entities/bound-harness.js';
 import { makeHarnessKey } from '../../../../infrastructure/harnesses/harness-key.js';
 import {
   startBoundHarness,
   type NativeDirectHarnessName,
 } from '../../../../infrastructure/harnesses/registry.js';
-import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
 
 export async function getOrCreateBoundHarness(params: {
   harnesses: Map<string, BoundHarness>;

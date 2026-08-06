@@ -15,19 +15,19 @@ import {
 } from './restart-orchestrator-in-flight.js';
 import type { AgentHarness } from './types.js';
 import { api } from '../../../api.js';
+import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
+import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
+import { isTeamAgentRole } from '../../../daemon/domain/entities/execution-kind.js';
+import { getNativeDeliveryLedger } from '../../../daemon/entry/native-delivery/native-delivery-ledger.js';
+import { isAgentReadyForNativeDelivery } from '../../../daemon/entry/native-delivery/native-ready-invariant.js';
+import { resetRoleDeliveryState } from '../../../daemon/entry/native-delivery/native-task-delivery-coordinator.js';
+import { explainLedgerDeliveryBlock } from '../../../daemon/entry/native-delivery/native-task-injector-logic.js';
+import { runNativeInjectionEffect } from '../../../daemon/entry/native-delivery/native-task-injector.js';
 import {
   mapAssignedTaskSnapshotList,
   mapAssignedTaskView,
 } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
-import { isDeliverableTaskStatus } from '../../../v2/domain/entities/assigned-task.js';
-import { isTeamAgentRole } from '../../../v2/domain/entities/execution-kind.js';
-import { getNativeDeliveryLedger } from '../../../v2/entry/native-delivery/native-delivery-ledger.js';
-import { isAgentReadyForNativeDelivery } from '../../../v2/entry/native-delivery/native-ready-invariant.js';
-import { resetRoleDeliveryState } from '../../../v2/entry/native-delivery/native-task-delivery-coordinator.js';
-import { explainLedgerDeliveryBlock } from '../../../v2/entry/native-delivery/native-task-injector-logic.js';
-import { runNativeInjectionEffect } from '../../../v2/entry/native-delivery/native-task-injector.js';
 
 interface RestartOrchestratorEvent {
   chatroomId: string;

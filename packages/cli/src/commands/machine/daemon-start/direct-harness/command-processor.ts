@@ -5,16 +5,16 @@
 import type { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
 import type { ActiveSession } from './session-processor.js';
 import { api } from '../../../../api.js';
-import type { BackendOps } from '../../../../infrastructure/deps/index.js';
-import { listInstalledNativeDirectHarnesses } from '../../../../infrastructure/harnesses/registry.js';
-import type { NativeDirectHarnessName } from '../../../../v2/domain/entities/bound-harness.js';
+import type { NativeDirectHarnessName } from '../../../../daemon/domain/entities/bound-harness.js';
 import type {
   HarnessSessionId,
   OpenCodeSessionId,
-} from '../../../../v2/domain/entities/harness-session.js';
-import type { WorkspaceCapabilities } from '../../../../v2/domain/entities/machine-capabilities.js';
-import type { SessionRepository } from '../../../../v2/domain/usecase/open-harness-session.js';
-import type { CapabilitiesPublisher } from '../../../../v2/domain/usecase/update-harness-capabilities.js';
+} from '../../../../daemon/domain/entities/harness-session.js';
+import type { WorkspaceCapabilities } from '../../../../daemon/domain/entities/machine-capabilities.js';
+import type { SessionRepository } from '../../../../daemon/domain/usecase/open-harness-session.js';
+import type { CapabilitiesPublisher } from '../../../../daemon/domain/usecase/update-harness-capabilities.js';
+import type { BackendOps } from '../../../../infrastructure/deps/index.js';
+import { listInstalledNativeDirectHarnesses } from '../../../../infrastructure/harnesses/registry.js';
 import type { SessionId } from '../types.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────

@@ -1,10 +1,10 @@
-import type { BackendOps } from '../../../../infrastructure/deps/index.js';
-import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
+import type { BoundHarness } from '../../../../daemon/domain/entities/bound-harness.js';
 import type {
   SessionRepository,
   JournalFactory,
   SessionHandle,
-} from '../../../../v2/domain/usecase/open-harness-session.js';
+} from '../../../../daemon/domain/usecase/open-harness-session.js';
+import type { BackendOps } from '../../../../infrastructure/deps/index.js';
 import type { SessionId } from '../types.js';
 
 export type HarnessWorkerSession = {

@@ -16,7 +16,7 @@ import {
   gitPull,
   gitPush,
   gitSync,
-} from '../git/index.js';
+} from '../../daemon/infrastructure/git/index.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,9 +25,7 @@ export type { LocalActionType };
 
 /** Result of executing a local action. */
 export type LocalActionResult =
-  | { success: true }
-  | { success: true; message: string }
-  | { success: false; error: string };
+  { success: true } | { success: true; message: string } | { success: false; error: string };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

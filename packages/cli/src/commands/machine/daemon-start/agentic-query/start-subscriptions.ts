@@ -1,13 +1,13 @@
 import { drainPendingAgenticQueryMessages } from './prompt-drain.js';
 import { processPendingAgenticQuerySessions } from './session-processor.js';
-import { ConvexAgenticQueryOutputRepository } from '../../../../infrastructure/repos/convex-agentic-query-output-repository.js';
-import { ConvexAgenticQueryRunRepository } from '../../../../infrastructure/repos/convex-agentic-query-run-repository.js';
-import { BufferedJournalFactory } from '../../../../infrastructure/repos/journal-factory.js';
-import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
+import type { BoundHarness } from '../../../../daemon/domain/entities/bound-harness.js';
 import {
   registerAgenticQueryInboundHandler,
   unregisterAgenticQueryInboundHandler,
-} from '../../../../v2/entry/agentic-query-inbound-registry.js';
+} from '../../../../daemon/entry/agentic-query-inbound-registry.js';
+import { ConvexAgenticQueryOutputRepository } from '../../../../infrastructure/repos/convex-agentic-query-output-repository.js';
+import { ConvexAgenticQueryRunRepository } from '../../../../infrastructure/repos/convex-agentic-query-run-repository.js';
+import { BufferedJournalFactory } from '../../../../infrastructure/repos/journal-factory.js';
 import type { ActiveSession } from '../direct-harness/session-processor.js';
 import type { HarnessWorkerSession } from '../shared-harness/types.js';
 
