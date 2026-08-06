@@ -33,6 +33,7 @@
     "packages/cli/build.config.ts",
     "packages/cli/src/commands/machine/daemon-start/commit-detail-sync.ts",
     "packages/cli/src/commands/machine/daemon-start/testing/mock-daemon-deps.ts",
+    "packages/cli/src/commands/machine/daemon-start/handlers/stop-agent.ts",
     "packages/cli/src/infrastructure/harnesses/opencode-sdk/index.ts",
     "packages/cli/src/infrastructure/services/workspace/workspace-fs-watch-paths.ts",
     "packages/cli/src/infrastructure/services/workspace/workspace-sync-queue.ts",

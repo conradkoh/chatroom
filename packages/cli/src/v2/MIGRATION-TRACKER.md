@@ -33,7 +33,7 @@ Migration is **complete** when all of the following are true:
 | ---- | ------------------------------ | ------- | ------- |
 | U0   | Baseline (v1.88.2 scaffold)    | ✅ Done | —       |
 | U1   | Placeholder entity types       | ✅ Done | backlog |
-| U2   | Agent control use cases        | ⬜ Todo | backlog |
+| U2   | Agent control use cases        | ✅ Done | backlog |
 | U3   | Assigned task delivery         | ⬜ Todo | backlog |
 | U4   | Direct harness processing      | ⬜ Todo | backlog |
 | U5   | Command loop migration         | ⬜ Todo | backlog |
@@ -88,7 +88,7 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U2 — Agent control use cases
+## U2 — Agent control use cases ✅
 
 **Outcome:** Migrate start/stop/restart/recover agent orchestration from legacy event handlers to v2 use cases.
 
@@ -98,14 +98,15 @@ Migration is **complete** when all of the following are true:
 - `domain/usecase/stop-agent.ts` ← `events/daemon/agent/on-request-stop-agent.ts`
 - `domain/usecase/restart-agent.ts` ← `events/daemon/agent/on-request-restart-agent.ts`
 - `domain/usecase/recover-agent-state.ts` ← `daemon-start/handlers/state-recovery.ts`
+- `entry/bridge/agent-control-bridge.ts` — adapts legacy Effect services to v2 ports
 
 **Validation criteria:**
 
-- [ ] All 4 files implement real logic (no `Not implemented` throw)
-- [ ] Co-located tests cover happy path + key error paths
-- [ ] Ports co-located per use case README convention
-- [ ] Legacy event handler files deleted or reduced to thin v2 delegates
-- [ ] G1 passes for these 4 files
+- [x] All 4 files implement real logic (no `Not implemented` throw)
+- [x] Co-located tests cover happy path + key error paths
+- [x] Ports co-located per use case README convention
+- [x] Legacy event handler files deleted or reduced to thin v2 delegates
+- [x] G1 passes for these 4 files
 
 ---
 

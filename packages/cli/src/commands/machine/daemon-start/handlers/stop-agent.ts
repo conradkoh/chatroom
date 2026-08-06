@@ -1,18 +1,15 @@
 /**
  * Stop Agent Command Handler — stops a running agent process.
- *
- * Delegates to AgentProcessManager.stop() for the actual kill + cleanup.
+ * Delegates to v2 stopAgent use case via agent-control bridge.
  */
 
 import { Effect } from 'effect';
 
-import type { StopReason } from '../../../../infrastructure/machine/stop-reason.js';
+import { stopAgent } from '../../../../v2/domain/usecase/stop-agent.js';
+import { createStopAgentDeps } from '../../../../v2/entry/bridge/agent-control-bridge.js';
 import { DaemonAgentProcessManagerService } from '../daemon-services.js';
 import type { CommandResult, StopAgentCommand, StopAgentReason } from '../types.js';
 
-// ── Effect twins ──────────────────────────────────────────────────────────────
-
-/** Effect twin for executeStopAgent — yields DaemonAgentProcessManagerService directly. */
 export const executeStopAgentEffect = (args: {
   chatroomId: string;
   role: string;
@@ -21,27 +18,21 @@ export const executeStopAgentEffect = (args: {
 }): Effect.Effect<CommandResult, never, DaemonAgentProcessManagerService> =>
   Effect.gen(function* () {
     const agentMgr = yield* DaemonAgentProcessManagerService;
-    const { chatroomId, role, reason, pid } = args;
-    console.log(`   ↪ stop-agent command received`);
-    console.log(`      Chatroom: ${chatroomId}`);
-    console.log(`      Role: ${role}`);
-    console.log(`      Reason: ${reason}`);
 
-    const result = yield* agentMgr.stop({
-      chatroomId,
-      role,
-      reason: reason as StopReason,
-      pid,
-    });
+    const result = yield* Effect.promise(() =>
+      stopAgent(createStopAgentDeps(agentMgr), {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        reason: args.reason,
+        deadline: Number.MAX_SAFE_INTEGER,
+        pid: args.pid,
+      })
+    );
 
-    const msg = result.success ? `Agent stopped (${role})` : `Failed to stop agent (${role})`;
-    console.log(`   ${result.success ? '✅' : '⚠️ '} ${msg}`);
-
-    return { result: msg, failed: !result.success };
+    return result;
   });
 
 /** Effect twin for handleStopAgent — extracts args from command and delegates. */
-// fallow-ignore-next-line unused-export
 export const handleStopAgentEffect = (
   command: StopAgentCommand
 ): Effect.Effect<CommandResult, never, DaemonAgentProcessManagerService> =>

@@ -1848,11 +1848,6 @@
         "count": 1
       }
     },
-    "packages/cli/src/events/daemon/agent/on-request-start-agent.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
     "packages/cli/src/index.ts": {
       "crap_high": {
         "count": 1
@@ -2176,6 +2171,29 @@
     },
     "packages/cli/src/v2/domain/usecase/preserve-harness-session.ts": {
       "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/v2/domain/usecase/recover-agent-state.ts": {
+      "complexity_critical": {
+        "count": 1
+      },
+      "crap_critical": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/v2/domain/usecase/restart-agent.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/v2/domain/usecase/start-agent.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/v2/domain/usecase/stop-agent.ts": {
+      "crap_high": {
         "count": 1
       }
     },

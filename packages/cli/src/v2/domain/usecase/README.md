@@ -43,11 +43,11 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | `process-enhancer-job.ts`          | `daemon-start/enhancer/job-subscriber.ts`                   |
 | `process-agentic-query-prompt.ts`  | `daemon-start/agentic-query/prompt-subscriber.ts`           |
 | `process-direct-harness-prompt.ts` | `daemon-start/direct-harness/prompt-subscriber.ts`          |
-| `recover-agent-state.ts`           | `daemon-start/handlers/state-recovery.ts`                   |
+| `recover-agent-state.ts`           | `daemon-start/handlers/state-recovery.ts`                   | **done**                               |
 | `refresh-machine-capabilities.ts`  | `daemon-start/models-refresh.ts`                            |
-| `restart-agent.ts`                 | `events/daemon/agent/on-request-restart-agent.ts`           |
-| `start-agent.ts`                   | `events/daemon/agent/on-request-start-agent.ts`             |
-| `stop-agent.ts`                    | `events/daemon/agent/on-request-stop-agent.ts`              |
+| `restart-agent.ts`                 | `events/daemon/agent/on-request-restart-agent.ts`           | **done**                               |
+| `start-agent.ts`                   | `events/daemon/agent/on-request-start-agent.ts`             | **done**                               |
+| `stop-agent.ts`                    | `events/daemon/agent/on-request-stop-agent.ts`              | **done**                               |
 | `sync-git-state.ts`                | `daemon-start/git-heartbeat.ts`                             |
 | `update-workspace-list.ts`         | `daemon-start/workspace-list-subscription.ts`               |
 
