@@ -1,4 +1,14 @@
-/** Legacy: packages/cli/src/commands/machine/daemon-start/workspace-list-subscription.ts */
-export async function updateWorkspaceList(): Promise<void> {
-  throw new Error('Not implemented — migrate from legacy');
+import type { WorkspaceGitInboundEvent } from './handle-workspace-git-inbound.js';
+
+export interface UpdateWorkspaceListDeps {
+  dispatchInbound: (
+    event: Extract<WorkspaceGitInboundEvent, { type: 'workspace.list-changed' }>
+  ) => Promise<void>;
+}
+
+export async function updateWorkspaceList(
+  deps: UpdateWorkspaceListDeps,
+  event: Extract<WorkspaceGitInboundEvent, { type: 'workspace.list-changed' }>
+): Promise<void> {
+  await deps.dispatchInbound(event);
 }

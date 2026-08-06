@@ -1,4 +1,14 @@
-/** Legacy: packages/cli/src/commands/machine/daemon-start/git-subscription.ts */
-export async function fulfillGitRequest(): Promise<void> {
-  throw new Error('Not implemented — migrate from legacy');
+import type { WorkspaceGitInboundEvent } from './handle-workspace-git-inbound.js';
+
+export interface FulfillGitRequestDeps {
+  dispatchInbound: (
+    event: Extract<WorkspaceGitInboundEvent, { type: 'git.request' }>
+  ) => Promise<void>;
+}
+
+export async function fulfillGitRequest(
+  deps: FulfillGitRequestDeps,
+  event: Extract<WorkspaceGitInboundEvent, { type: 'git.request' }>
+): Promise<void> {
+  await deps.dispatchInbound(event);
 }

@@ -38,7 +38,7 @@ Migration is **complete** when all of the following are true:
 | U4   | Direct harness processing      | ✅ Done | backlog |
 | U5   | Command loop migration         | ✅ Done | backlog |
 | U6   | File fulfillment               | ✅ Done | backlog |
-| U7   | Workspace & git                | ⬜ Todo | backlog |
+| U7   | Workspace & git                | ✅ Done | backlog |
 | U8   | Agentic query processing       | ⬜ Todo | backlog |
 | U9   | Enhancer job processing        | ⬜ Todo | backlog |
 | U10  | Machine capabilities refresh   | ⬜ Todo | backlog |
@@ -203,23 +203,30 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U7 — Workspace & git
+## U7 — Workspace & git ✅
 
-**Outcome:** Workspace list updates and git state sync/requests via v2.
+**Outcome:** Workspace list and git inbound events wired via v2 router to legacy reconcile, git state sync, and git request drains.
 
 **Files:**
 
-- `domain/usecase/update-workspace-list.ts` ← `daemon-start/workspace-list-subscription.ts`
-- `domain/usecase/sync-git-state.ts` ← `daemon-start/git-heartbeat.ts`
-- `domain/usecase/fulfill-git-request.ts` ← `daemon-start/git-subscription.ts`
-- `domain/usecase/handle-workspace-git-inbound.ts` — wire hooks
+- `entry/workspace-git-inbound-registry.ts` — register/dispatch handler from command loop
+- `domain/usecase/update-workspace-list.ts` — thin dispatch to registry
+- `domain/usecase/sync-git-state.ts` — thin dispatch to registry
+- `domain/usecase/fulfill-git-request.ts` — thin dispatch to registry
+- `domain/usecase/handle-workspace-git-inbound.ts` — `deliverInbound` hook
+- `entry/bridge/workspace-git-bridge.ts` — router deps wiring
+- `daemon-start/workspace-list-subscription.ts` — export `reconcileWorkspaceList`
+- `daemon-start/git-heartbeat.ts` — export `drainGitStateSync`
+- `daemon-start/git-subscription.ts` — export `drainPendingGitRequests` on handle
+- `daemon-start/command-loop.ts` — register/unregister workspace-git inbound handler
 
 **Validation criteria:**
 
-- [ ] Workspace list changes propagated via v2
-- [ ] Git heartbeat + request fulfillment work via v2
-- [ ] Existing `git-heartbeat.test.ts` behavior preserved
-- [ ] G1 passes for all 3 use case files
+- [x] Workspace list changes propagated via v2 inbound → reconcile + git push
+- [x] Git requests fulfilled via v2 inbound → full pending drain
+- [x] Existing git heartbeat tests pass
+- [x] G1 passes for all 3 use case files
+- [x] `createDefaultEventRouterDeps().workspaceGit.deliverInbound` defined
 
 ---
 

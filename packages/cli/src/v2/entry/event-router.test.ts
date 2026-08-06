@@ -17,7 +17,7 @@ const routerDeps = {
   },
   command: {} as { deliverInbound?: (event: CommandInboundEvent) => Promise<void> },
   workspaceGit: {} as {
-    onWorkspaceGitEvent?: (event: WorkspaceGitInboundEvent) => Promise<void>;
+    deliverInbound?: (event: WorkspaceGitInboundEvent) => Promise<void>;
   },
   file: {} as { deliverInbound?: (event: FileInboundEvent) => Promise<void> },
   agenticQuery: {} as {
@@ -114,27 +114,27 @@ describe('routeInboundEvent', () => {
   });
 
   test('dispatches workspace.list-changed to handler', async () => {
-    const onWorkspaceGitEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: WorkspaceGitInboundEvent = {
       type: 'workspace.list-changed',
       machineId: 'machine_1',
     };
 
-    await routeInboundEvent({ ...routerDeps, workspaceGit: { onWorkspaceGitEvent } }, event);
+    await routeInboundEvent({ ...routerDeps, workspaceGit: { deliverInbound } }, event);
 
-    expect(onWorkspaceGitEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('dispatches git.request to handler', async () => {
-    const onWorkspaceGitEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: WorkspaceGitInboundEvent = {
       type: 'git.request',
       requestId: 'req_1',
     };
 
-    await routeInboundEvent({ ...routerDeps, workspaceGit: { onWorkspaceGitEvent } }, event);
+    await routeInboundEvent({ ...routerDeps, workspaceGit: { deliverInbound } }, event);
 
-    expect(onWorkspaceGitEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('dispatches file-tree.request to handler', async () => {
@@ -213,7 +213,7 @@ describe('routeInboundEvent', () => {
     const deliverAssignedTaskInbound = vi.fn().mockResolvedValue(undefined);
     const deliverDirectHarnessInbound = vi.fn().mockResolvedValue(undefined);
     const deliverInbound = vi.fn().mockResolvedValue(undefined);
-    const onWorkspaceGitEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverWorkspaceGitInbound = vi.fn().mockResolvedValue(undefined);
     const deliverFileInbound = vi.fn().mockResolvedValue(undefined);
     const onAgenticQueryEvent = vi.fn().mockResolvedValue(undefined);
     const onEnhancerEvent = vi.fn().mockResolvedValue(undefined);
@@ -223,7 +223,7 @@ describe('routeInboundEvent', () => {
         assignedTask: { deliverInbound: deliverAssignedTaskInbound },
         directHarness: { deliverInbound: deliverDirectHarnessInbound },
         command: { deliverInbound },
-        workspaceGit: { onWorkspaceGitEvent },
+        workspaceGit: { deliverInbound: deliverWorkspaceGitInbound },
         file: { deliverInbound: deliverFileInbound },
         agenticQuery: { onAgenticQueryEvent },
         enhancer: { onEnhancerEvent },
@@ -234,7 +234,7 @@ describe('routeInboundEvent', () => {
     expect(deliverAssignedTaskInbound).not.toHaveBeenCalled();
     expect(deliverDirectHarnessInbound).not.toHaveBeenCalled();
     expect(deliverInbound).not.toHaveBeenCalled();
-    expect(onWorkspaceGitEvent).not.toHaveBeenCalled();
+    expect(deliverWorkspaceGitInbound).not.toHaveBeenCalled();
     expect(deliverFileInbound).not.toHaveBeenCalled();
     expect(onAgenticQueryEvent).not.toHaveBeenCalled();
     expect(onEnhancerEvent).not.toHaveBeenCalled();

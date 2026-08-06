@@ -45,6 +45,7 @@ const EXEC_TIMEOUT_MS = 60_000;
 export interface GitSubscriptionHandle {
   /** Stop the subscription and clean up. */
   stop: () => void;
+  drainPendingGitRequests: () => Promise<void>;
 }
 
 // ── Minimal dep type used by Core functions + Effect twins ────────────────────
@@ -423,6 +424,71 @@ function dispatchGitRequest(
   }
 }
 
+function scheduleGitRequestProcessing(
+  session: DaemonSessionServiceShape,
+  runtime: Runtime.Runtime<DaemonSessionService>,
+  processedRequestIds: Map<string, number>,
+  dedupTtlMs: number,
+  processingState: { isProcessing: boolean },
+  requests: PendingRequest[]
+): void {
+  if (!requests?.length) return;
+
+  const logger = session.logger ?? console;
+  logger.log(
+    `[${formatTimestamp()}] 📬 Git subscription: received ${requests.length} pending request(s)`
+  );
+
+  if (processingState.isProcessing) return;
+  processingState.isProcessing = true;
+  const sessionWithRuntime = { ...session, runtime } as unknown as DaemonSessionServiceShape;
+  Runtime.runFork(runtime)(
+    processRequestsEffect(requests, processedRequestIds, dedupTtlMs, runtime).pipe(
+      Effect.provideService(DaemonSessionService, sessionWithRuntime),
+      Effect.catchAll((err) =>
+        Effect.sync(() =>
+          console.warn(
+            `[${formatTimestamp()}] ⚠️  Git request processing failed: ${getErrorMessage(err)}`
+          )
+        )
+      ),
+      Effect.ensuring(
+        Effect.sync(() => {
+          processingState.isProcessing = false;
+        })
+      )
+    )
+  );
+}
+
+// fallow-ignore-next-line unused-export
+export async function drainPendingGitRequests(
+  session: DaemonSessionServiceShape,
+  runtime: Runtime.Runtime<DaemonSessionService>,
+  processedRequestIds: Map<string, number>,
+  dedupTtlMs: number,
+  processingState: { isProcessing: boolean }
+): Promise<void> {
+  const requests = await session.backend.query(api.workspaces.getPendingRequests, {
+    sessionId: session.sessionId,
+    machineId: session.machineId,
+  });
+  if (!requests?.length) return;
+  if (processingState.isProcessing) return;
+
+  processingState.isProcessing = true;
+  const sessionWithRuntime = { ...session, runtime } as unknown as DaemonSessionServiceShape;
+  try {
+    await Effect.runPromise(
+      processRequestsEffect(requests, processedRequestIds, dedupTtlMs, runtime).pipe(
+        Effect.provideService(DaemonSessionService, sessionWithRuntime)
+      )
+    );
+  } finally {
+    processingState.isProcessing = false;
+  }
+}
+
 /** Starts the git request subscription — yields DaemonSessionService. */
 export const startGitRequestSubscriptionEffect = (
   wsClient: ConvexClient
@@ -465,31 +531,13 @@ export const startGitRequestSubscriptionEffect = (
         machineId: session.machineId,
       },
       (requests) => {
-        if (!requests || requests.length === 0) return;
-
-        const logger = sessionWithRuntime.logger ?? console;
-        logger.log(
-          `[${formatTimestamp()}] 📬 Git subscription: received ${requests.length} pending request(s)`
-        );
-
-        if (processingState.isProcessing) return;
-        processingState.isProcessing = true;
-        Runtime.runFork(runtime)(
-          processRequestsEffect(requests, processedRequestIds, DEDUP_TTL_MS, runtime).pipe(
-            Effect.provideService(DaemonSessionService, sessionWithRuntime),
-            Effect.catchAll((err) =>
-              Effect.sync(() =>
-                console.warn(
-                  `[${formatTimestamp()}] ⚠️  Git request processing failed: ${getErrorMessage(err)}`
-                )
-              )
-            ),
-            Effect.ensuring(
-              Effect.sync(() => {
-                processingState.isProcessing = false;
-              })
-            )
-          )
+        scheduleGitRequestProcessing(
+          sessionWithRuntime,
+          runtime,
+          processedRequestIds,
+          DEDUP_TTL_MS,
+          processingState,
+          requests ?? []
         );
       },
       (err: unknown) => {
@@ -502,6 +550,14 @@ export const startGitRequestSubscriptionEffect = (
     console.log(`[${formatTimestamp()}] 🔀 Git request subscription started (reactive)`);
 
     return {
+      drainPendingGitRequests: () =>
+        drainPendingGitRequests(
+          sessionWithRuntime,
+          runtime,
+          processedRequestIds,
+          DEDUP_TTL_MS,
+          processingState
+        ),
       stop: () => {
         unsubscribe();
         console.log(`[${formatTimestamp()}] 🔀 Git request subscription stopped`);

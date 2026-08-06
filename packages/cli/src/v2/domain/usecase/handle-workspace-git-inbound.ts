@@ -6,14 +6,14 @@ export type WorkspaceGitInboundEvent = Extract<
 >;
 
 export type HandleWorkspaceGitInboundDeps = {
-  onWorkspaceGitEvent?: (event: WorkspaceGitInboundEvent) => Promise<void>;
+  deliverInbound?: (event: WorkspaceGitInboundEvent) => Promise<void>;
 };
 
 export async function handleWorkspaceGitInbound(
   deps: HandleWorkspaceGitInboundDeps,
   event: WorkspaceGitInboundEvent
 ): Promise<void> {
-  if (deps.onWorkspaceGitEvent) {
-    await deps.onWorkspaceGitEvent(event);
+  if (deps.deliverInbound) {
+    await deps.deliverInbound(event);
   }
 }

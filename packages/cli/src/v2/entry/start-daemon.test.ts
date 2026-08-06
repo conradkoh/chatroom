@@ -124,7 +124,9 @@ describe('startDaemonV2', () => {
           command: expect.objectContaining({
             deliverInbound: expect.any(Function),
           }),
-          workspaceGit: {},
+          workspaceGit: expect.objectContaining({
+            deliverInbound: expect.any(Function),
+          }),
           file: expect.objectContaining({
             deliverInbound: expect.any(Function),
           }),

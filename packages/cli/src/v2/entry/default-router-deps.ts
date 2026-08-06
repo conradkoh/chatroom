@@ -2,6 +2,7 @@ import { createAssignedTaskRouterDeps } from './bridge/assigned-task-bridge.js';
 import { createCommandRouterDeps } from './bridge/command-bridge.js';
 import { createDirectHarnessRouterDeps } from './bridge/direct-harness-bridge.js';
 import { createFileRouterDeps } from './bridge/file-bridge.js';
+import { createWorkspaceGitRouterDeps } from './bridge/workspace-git-bridge.js';
 import type { EventRouterDeps } from './event-router.js';
 
 export function createDefaultEventRouterDeps(): EventRouterDeps {
@@ -9,7 +10,7 @@ export function createDefaultEventRouterDeps(): EventRouterDeps {
     assignedTask: createAssignedTaskRouterDeps(),
     directHarness: createDirectHarnessRouterDeps(),
     command: createCommandRouterDeps(),
-    workspaceGit: {},
+    workspaceGit: createWorkspaceGitRouterDeps(),
     file: createFileRouterDeps(),
     agenticQuery: {},
     enhancer: {},

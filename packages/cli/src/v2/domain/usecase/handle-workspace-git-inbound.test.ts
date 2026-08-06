@@ -6,16 +6,16 @@ import {
 } from './handle-workspace-git-inbound.js';
 
 describe('handleWorkspaceGitInbound', () => {
-  test('invokes onWorkspaceGitEvent when provided', async () => {
-    const onWorkspaceGitEvent = vi.fn().mockResolvedValue(undefined);
+  test('invokes deliverInbound when provided', async () => {
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: WorkspaceGitInboundEvent = {
       type: 'workspace.list-changed',
       machineId: 'machine_1',
     };
 
-    await handleWorkspaceGitInbound({ onWorkspaceGitEvent }, event);
+    await handleWorkspaceGitInbound({ deliverInbound }, event);
 
-    expect(onWorkspaceGitEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('no-ops when hook is absent', async () => {

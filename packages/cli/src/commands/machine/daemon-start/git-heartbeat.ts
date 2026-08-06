@@ -1,5 +1,5 @@
 import { OBSERVED_FULL_PUSH_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
-import { Effect, Ref } from 'effect';
+import { Effect, Ref, type Context } from 'effect';
 
 import {
   DaemonMutableStateService,
@@ -501,6 +501,12 @@ export const pushGitStateEffect: Effect.Effect<void, never, GitHeartbeatRequirem
     }
   }
 );
+
+export async function drainGitStateSync(
+  effectContext: Context.Context<DaemonSessionService | DaemonMutableStateService>
+): Promise<void> {
+  await Effect.runPromise(pushGitStateEffect.pipe(Effect.provide(effectContext)));
+}
 
 /** Effect twin for pushSingleWorkspaceGitState — yields GitHeartbeatRequirements. */
 export const pushSingleWorkspaceGitStateEffect = (

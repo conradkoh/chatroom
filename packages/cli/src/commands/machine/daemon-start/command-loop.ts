@@ -36,7 +36,7 @@ import {
   startFileWriteSubscriptionEffect,
   type FileWriteSubscriptionHandle,
 } from './file-write-subscription.js';
-import { pushSingleWorkspaceGitStateEffect } from './git-heartbeat.js';
+import { drainGitStateSync, pushSingleWorkspaceGitStateEffect } from './git-heartbeat.js';
 import {
   startGitRequestSubscriptionEffect,
   type GitSubscriptionHandle,
@@ -55,7 +55,10 @@ import { refreshModelsEffect } from './models-refresh.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { startTaskMonitorEffect } from './task-monitor.js';
 import { formatTimestamp } from './utils.js';
-import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
+import {
+  startWorkspaceListSubscriptionEffect,
+  reconcileWorkspaceList,
+} from './workspace-list-subscription.js';
 import { api } from '../../../api.js';
 import { onRequestRestartAgentEffect } from '../../../events/daemon/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from '../../../events/daemon/agent/on-request-start-agent.js';
@@ -76,6 +79,10 @@ import {
   registerFileInboundHandler,
   unregisterFileInboundHandler,
 } from '../../../v2/entry/file-inbound-registry.js';
+import {
+  registerWorkspaceGitInboundHandler,
+  unregisterWorkspaceGitInboundHandler,
+} from '../../../v2/entry/workspace-git-inbound-registry.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -473,6 +480,7 @@ export const startCommandLoopEffect: Effect.Effect<
   const stopSubscriptions = (): void => {
     unregisterCommandInboundHandler();
     unregisterFileInboundHandler();
+    unregisterWorkspaceGitInboundHandler();
     gitSubscriptionHandle?.stop();
     fileContentSubscriptionHandle?.stop();
     fileWriteSubscriptionHandle?.stop();
@@ -550,6 +558,18 @@ export const startCommandLoopEffect: Effect.Effect<
   });
 
   workspaceListSubscriptionHandle = yield* startWorkspaceListSubscriptionEffect(wsClient);
+
+  registerWorkspaceGitInboundHandler(async (event) => {
+    switch (event.type) {
+      case 'workspace.list-changed':
+        await reconcileWorkspaceList(session);
+        await drainGitStateSync(effectContext);
+        break;
+      case 'git.request':
+        await gitSubscriptionHandle.drainPendingGitRequests();
+        break;
+    }
+  });
 
   const taskMonitorHandle = yield* startTaskMonitorEffect(wsClient);
 
