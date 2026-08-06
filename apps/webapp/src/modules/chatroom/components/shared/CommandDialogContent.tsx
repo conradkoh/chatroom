@@ -92,6 +92,7 @@ export function CommandDialogContent({
     <DialogPrimitive.Portal keepMounted>
       {open ? (
         <DialogPrimitive.Close
+          nativeButton={false}
           render={
             <div
               data-slot="command-dialog-dismiss-backdrop"
