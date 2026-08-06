@@ -30,7 +30,7 @@ const LEGACY_INIT_FILES_TO_GUARD = [
   'src/daemon/entry/handlers/process/command-run-subscription.ts',
   'src/daemon/entry/direct-harness/start-subscriptions.ts',
   'src/daemon/entry/agentic-query/start-subscriptions.ts',
-  'src/daemon/entry/enhancer-legacy/job-subscriber.ts',
+  'src/daemon/entry/enhancer/job-subscriber.ts',
   'src/daemon/entry/daemon-runtime.ts',
   'src/daemon/entry/task-monitor-runtime.ts',
 ] as const;

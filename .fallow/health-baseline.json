@@ -2138,7 +2138,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/daemon/entry/enhancer-legacy/job-subscriber.ts": {
+    "packages/cli/src/daemon/entry/enhancer/job-subscriber.ts": {
       "complexity_critical": {
         "count": 1
       },
@@ -2146,7 +2146,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/daemon/entry/enhancer-legacy/wait-for-enhancer-job.ts": {
+    "packages/cli/src/daemon/entry/enhancer/wait-for-enhancer-job.ts": {
       "crap_high": {
         "count": 1
       },

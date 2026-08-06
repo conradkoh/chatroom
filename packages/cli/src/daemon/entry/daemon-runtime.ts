@@ -18,7 +18,7 @@ import {
   unregisterCommandInboundHandler,
 } from './command-inbound-registry.js';
 import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
-import { startEnhancerSubscriptions } from './enhancer-legacy/start-subscriptions.js';
+import { startEnhancerSubscriptions } from './enhancer/start-subscriptions.js';
 import {
   registerFileInboundHandler,
   unregisterFileInboundHandler,
