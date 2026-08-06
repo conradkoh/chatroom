@@ -2,18 +2,18 @@ import { randomUUID } from 'node:crypto';
 
 import type { InteractionUpdate, SDKAgent, SDKMessage } from '@cursor/sdk';
 
+import { resolveCursorSdkModel } from '../../../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-models.js';
+import {
+  logUnhandledInteractionDelta,
+  logUnhandledSdkMessage,
+} from '../../../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-stream-fallback.js';
+import { withTimeout } from '../../../../../../infrastructure/services/remote-agents/with-timeout.js';
 import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
   PromptInput,
-} from '../../../v2/domain/entities/direct-harness-session.js';
-import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
-import { resolveCursorSdkModel } from '../../services/remote-agents/cursor-sdk/cursor-models.js';
-import {
-  logUnhandledInteractionDelta,
-  logUnhandledSdkMessage,
-} from '../../services/remote-agents/cursor-sdk/cursor-sdk-stream-fallback.js';
-import { withTimeout } from '../../services/remote-agents/with-timeout.js';
+} from '../../../../../domain/entities/direct-harness-session.js';
+import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
 
 const SEND_TIMEOUT_MS = 60_000;
 const RUN_WAIT_TIMEOUT_MS = 3_600_000;

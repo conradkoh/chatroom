@@ -27,7 +27,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createOpencodeSdkChunkExtractor } from './event-extractor.js';
 import { startOpencodeSdkHarness } from './index.js';
 import type { OpencodeSdkHarness } from './opencode-harness.js';
-import type { BoundHarness } from '../../../v2/domain/entities/bound-harness.js';
+import type { BoundHarness } from '../../../../../domain/entities/bound-harness.js';
 
 // ─── Skip guard ───────────────────────────────────────────────────────────────
 

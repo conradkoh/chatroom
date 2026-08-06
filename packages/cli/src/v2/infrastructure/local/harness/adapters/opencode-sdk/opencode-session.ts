@@ -5,8 +5,8 @@ import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
   PromptInput,
-} from '../../../v2/domain/entities/direct-harness-session.js';
-import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
+} from '../../../../../domain/entities/direct-harness-session.js';
+import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
 
 function toSessionEvent(event: SdkEvent): DirectHarnessSessionEvent {
   return { type: event.type, payload: event.properties ?? {}, timestamp: Date.now() };

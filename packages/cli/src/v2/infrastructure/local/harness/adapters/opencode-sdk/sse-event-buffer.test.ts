@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+
 import { SseEventBuffer } from './sse-event-buffer';
 
 describe('SseEventBuffer', () => {
@@ -98,9 +99,7 @@ describe('SseEventBuffer', () => {
   it('second [Symbol.asyncIterator]() call throws', () => {
     const buf = new SseEventBuffer<number>();
     buf[Symbol.asyncIterator](); // first call — ok
-    expect(() => buf[Symbol.asyncIterator]()).toThrow(
-      /single consumer/i
-    );
+    expect(() => buf[Symbol.asyncIterator]()).toThrow(/single consumer/i);
   });
 
   // 7. push after close is a no-op (silent, no throw)

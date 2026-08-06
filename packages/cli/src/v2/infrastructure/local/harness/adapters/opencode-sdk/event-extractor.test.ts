@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { createOpencodeSdkChunkExtractor } from './event-extractor.js';
-import type { DirectHarnessSessionEvent } from '../../../v2/domain/entities/direct-harness-session.js';
+import type { DirectHarnessSessionEvent } from '../../../../../domain/entities/direct-harness-session.js';
 
 function makePartUpdatedEvent(
   partId: string,

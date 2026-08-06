@@ -18,10 +18,13 @@ vi.mock('@cursor/sdk', () => ({
   },
 }));
 
-vi.mock('../../services/remote-agents/cursor-sdk/cursor-sdk-package.js', () => ({
-  importBundledCursorSdk: vi.fn(async () => import('@cursor/sdk')),
-  formatCursorSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
-}));
+vi.mock(
+  '../../../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-package.js',
+  () => ({
+    importBundledCursorSdk: vi.fn(async () => import('@cursor/sdk')),
+    formatCursorSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
+  })
+);
 
 function stubAgent(agentId = 'agent-1') {
   const run = {

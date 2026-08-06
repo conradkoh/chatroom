@@ -1908,7 +1908,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/harnesses/opencode-sdk/event-extractor.ts": {
+    "packages/cli/src/v2/infrastructure/local/harness/adapters/opencode-sdk/event-extractor.ts": {
       "complexity_critical": {
         "count": 1
       },
@@ -1916,7 +1916,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/harnesses/opencode-sdk/opencode-harness.ts": {
+    "packages/cli/src/v2/infrastructure/local/harness/adapters/opencode-sdk/opencode-harness.ts": {
       "crap_high": {
         "count": 2
       },
@@ -1924,7 +1924,7 @@
         "count": 6
       }
     },
-    "packages/cli/src/infrastructure/harnesses/opencode-sdk/opencode-session.ts": {
+    "packages/cli/src/v2/infrastructure/local/harness/adapters/opencode-sdk/opencode-session.ts": {
       "crap_high": {
         "count": 1
       },
@@ -1932,7 +1932,7 @@
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/harnesses/opencode-sdk/sse-event-buffer.ts": {
+    "packages/cli/src/v2/infrastructure/local/harness/adapters/opencode-sdk/sse-event-buffer.ts": {
       "crap_moderate": {
         "count": 1
       }

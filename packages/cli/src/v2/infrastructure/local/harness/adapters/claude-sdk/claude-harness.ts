@@ -5,28 +5,28 @@
 import { randomUUID } from 'node:crypto';
 
 import { ClaudeSdkSession } from './claude-session.js';
+import {
+  CLAUDE_FALLBACK_MODELS,
+  fetchClaudeModels,
+} from '../../../../../../infrastructure/services/remote-agents/claude/claude-models.js';
+import {
+  formatClaudeSdkLoadError,
+  importBundledClaudeSdk,
+  resolvePathToClaudeCodeExecutable,
+} from '../../../../../../infrastructure/services/remote-agents/claude-sdk/claude-sdk-package.js';
 import type {
   BoundHarness,
   BoundHarnessFactory,
   ModelInfo,
   NewSessionConfig,
   ResumeHarnessSessionOptions,
-} from '../../../v2/domain/entities/bound-harness.js';
-import type { DirectHarnessSession } from '../../../v2/domain/entities/direct-harness-session.js';
-import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
+} from '../../../../../domain/entities/bound-harness.js';
+import type { DirectHarnessSession } from '../../../../../domain/entities/direct-harness-session.js';
+import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
 import type {
   PublishedAgent,
   PublishedProvider,
-} from '../../../v2/domain/entities/machine-capabilities.js';
-import {
-  CLAUDE_FALLBACK_MODELS,
-  fetchClaudeModels,
-} from '../../services/remote-agents/claude/claude-models.js';
-import {
-  formatClaudeSdkLoadError,
-  importBundledClaudeSdk,
-  resolvePathToClaudeCodeExecutable,
-} from '../../services/remote-agents/claude-sdk/claude-sdk-package.js';
+} from '../../../../../domain/entities/machine-capabilities.js';
 
 const DEFAULT_MODEL = 'anthropic/sonnet';
 

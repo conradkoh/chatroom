@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { OpencodeSdkSession } from './opencode-session.js';
-import type { DirectHarnessSessionEvent } from '../../../v2/domain/entities/direct-harness-session.js';
+import type { DirectHarnessSessionEvent } from '../../../../../domain/entities/direct-harness-session.js';
 
 // ─── Mock client ─────────────────────────────────────────────────────────────
 

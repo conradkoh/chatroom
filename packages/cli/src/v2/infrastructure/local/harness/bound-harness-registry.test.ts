@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { makeHarnessKey, parseHarnessKey } from './harness-key.js';
-import { isNativeDirectHarnessName, NATIVE_DIRECT_HARNESS_NAMES } from './registry.js';
+import {
+  isNativeDirectHarnessName,
+  NATIVE_DIRECT_HARNESS_NAMES,
+} from './bound-harness-registry.js';
+import {
+  makeHarnessKey,
+  parseHarnessKey,
+} from '../../../../infrastructure/harnesses/harness-key.js';
 
 describe('harness registry', () => {
   it('lists all native direct harness names', () => {

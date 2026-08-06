@@ -14,6 +14,9 @@ import {
   clearStaleSpawnedPidsEffect,
   reapOrphanCommandRunsEffect,
 } from './handlers/daemon-restart-cleanup.js';
+import { logStartupEffect } from './handlers/daemon-startup-log.js';
+import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
+import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
 import { recoverAgentStateEffect } from './handlers/state-recovery.js';
 import type { DaemonSessionInit, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -22,6 +25,7 @@ import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import { registerEventListenersEffect } from '../../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
+import { formatConvexUrlMismatchWarning } from '../../../infrastructure/convex/spawn-env.js';
 import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import {
   clearAgentPid,
@@ -38,19 +42,13 @@ import {
   SpawnRateLimiter,
   HarnessSpawningService,
 } from '../../../infrastructure/services/harness-spawning/index.js';
-import {
-  initHarnessRegistry,
-  getAllHarnesses,
-} from '../../../infrastructure/services/remote-agents/index.js';
+import { getAllHarnesses } from '../../../infrastructure/services/remote-agents/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { formatAuthLoginCommand } from '../../../utils/cli-command-formatting.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
+import { initHarnessRegistry } from '../../../v2/infrastructure/local/harness/registry.js';
 import { acquireLockWithRetry, releaseLock } from '../pid.js';
-import { logStartupEffect } from './handlers/daemon-startup-log.js';
-import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
-import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
-import { formatConvexUrlMismatchWarning } from '../../../infrastructure/convex/spawn-env.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 

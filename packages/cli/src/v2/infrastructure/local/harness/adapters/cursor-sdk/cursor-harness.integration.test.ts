@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 import { startCursorSdkHarness } from './index.js';
-import type { BoundHarness } from '../../../v2/domain/entities/bound-harness.js';
+import type { BoundHarness } from '../../../../../domain/entities/bound-harness.js';
 import { createStandardSdkChunkExtractor } from '../shared-chunk-extractor.js';
 
 const SKIP = !process.env.CURSOR_API_KEY?.trim();

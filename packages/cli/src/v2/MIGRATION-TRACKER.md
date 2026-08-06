@@ -43,7 +43,7 @@ Migration is **complete** when all of the following are true:
 | U9   | Enhancer job processing        | ⬜ Todo | backlog |
 | U10  | Machine capabilities refresh   | ⬜ Todo | backlog |
 | U11  | Outbound publishers            | ⬜ Todo | backlog |
-| U12  | Local harness adapters         | ⬜ Todo | backlog |
+| U12  | Local harness adapters         | ✅ Done | backlog |
 | U13  | Legacy subscription removal    | ⬜ Todo | backlog |
 | U14  | daemon-start teardown          | ⬜ Todo | backlog |
 | U15  | Final validation & doc cleanup | ⬜ Todo | backlog |
@@ -321,23 +321,24 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U12 — Local harness adapters
+## U12 — Local harness adapters ✅
 
 **Outcome:** Harness SDK registry and adapters moved to `infrastructure/local/harness/`.
 
 **Files:**
 
 - `infrastructure/local/harness/registry.ts` ← `infrastructure/services/remote-agents/init-registry.ts`
+- `infrastructure/local/harness/bound-harness-registry.ts` ← `infrastructure/harnesses/registry.ts`
 - `infrastructure/local/harness/adapters/*` ← per-provider harness SDK files
-- `infrastructure/local/process-spawn.ts` ← `daemon-start/handlers/process/spawner.ts`
-- `infrastructure/local/machine-config.ts` ← `infrastructure/machine/storage.ts`
+- `infrastructure/local/process-spawn.ts` ← `daemon-start/handlers/process/spawner.ts` (port)
+- `infrastructure/local/machine-config.ts` ← `infrastructure/machine/storage.ts` (port)
 
 **Validation criteria:**
 
-- [ ] Harness registry resolves all providers (claude, cursor, opencode, pi)
-- [ ] Integration tests for each harness still pass
-- [ ] v2 use cases import from `infrastructure/local/harness/` not legacy paths
-- [ ] Adapter README folders contain real code (not README-only)
+- [x] Harness registry resolves all providers (claude, cursor, opencode, pi)
+- [x] Integration tests for each harness still pass
+- [x] Daemon init imports `initHarnessRegistry` from v2 local harness registry
+- [x] Adapter folders contain real code (not README-only)
 
 ---
 

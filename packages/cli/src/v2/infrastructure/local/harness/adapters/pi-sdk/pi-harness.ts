@@ -5,25 +5,25 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent';
 
 import { PiSdkSession } from './pi-session.js';
+import { getPiSessionDir } from '../../../../../../infrastructure/services/remote-agents/pi/pi-agent-service.js';
+import {
+  formatPiSdkLoadError,
+  importBundledPiSdk,
+} from '../../../../../../infrastructure/services/remote-agents/pi-sdk/pi-sdk-package.js';
+import { withTimeout } from '../../../../../../infrastructure/services/remote-agents/with-timeout.js';
 import type {
   BoundHarness,
   BoundHarnessFactory,
   ModelInfo,
   NewSessionConfig,
   ResumeHarnessSessionOptions,
-} from '../../../v2/domain/entities/bound-harness.js';
-import type { DirectHarnessSession } from '../../../v2/domain/entities/direct-harness-session.js';
-import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
+} from '../../../../../domain/entities/bound-harness.js';
+import type { DirectHarnessSession } from '../../../../../domain/entities/direct-harness-session.js';
+import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
 import type {
   PublishedAgent,
   PublishedProvider,
-} from '../../../v2/domain/entities/machine-capabilities.js';
-import { getPiSessionDir } from '../../services/remote-agents/pi/pi-agent-service.js';
-import {
-  formatPiSdkLoadError,
-  importBundledPiSdk,
-} from '../../services/remote-agents/pi-sdk/pi-sdk-package.js';
-import { withTimeout } from '../../services/remote-agents/with-timeout.js';
+} from '../../../../../domain/entities/machine-capabilities.js';
 
 const SESSION_CREATE_TIMEOUT_MS = 60_000;
 const DEFAULT_MODEL = 'opencode/big-pickle';

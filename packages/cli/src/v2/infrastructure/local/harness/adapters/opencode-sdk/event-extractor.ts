@@ -16,8 +16,8 @@
  * message.part.updated events, and uses it to tag each delta correctly.
  */
 
-import type { DirectHarnessSessionEvent } from '../../../v2/domain/entities/direct-harness-session.js';
-import type { ExtractedChunk } from '../../../v2/domain/entities/turn-chunk.js';
+import type { DirectHarnessSessionEvent } from '../../../../../domain/entities/direct-harness-session.js';
+import type { ExtractedChunk } from '../../../../../domain/entities/turn-chunk.js';
 
 export type { ExtractedChunk };
 

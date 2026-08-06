@@ -3,28 +3,28 @@
  */
 
 import { CursorSdkSession } from './cursor-session.js';
+import {
+  normalizeCursorSdkListedModels,
+  resolveCursorSdkModel,
+} from '../../../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-models.js';
+import {
+  formatCursorSdkLoadError,
+  importBundledCursorSdk,
+} from '../../../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-package.js';
+import { withTimeout } from '../../../../../../infrastructure/services/remote-agents/with-timeout.js';
 import type {
   BoundHarness,
   BoundHarnessFactory,
   ModelInfo,
   NewSessionConfig,
   ResumeHarnessSessionOptions,
-} from '../../../v2/domain/entities/bound-harness.js';
-import type { DirectHarnessSession } from '../../../v2/domain/entities/direct-harness-session.js';
-import type { OpenCodeSessionId } from '../../../v2/domain/entities/harness-session.js';
+} from '../../../../../domain/entities/bound-harness.js';
+import type { DirectHarnessSession } from '../../../../../domain/entities/direct-harness-session.js';
+import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
 import type {
   PublishedAgent,
   PublishedProvider,
-} from '../../../v2/domain/entities/machine-capabilities.js';
-import {
-  normalizeCursorSdkListedModels,
-  resolveCursorSdkModel,
-} from '../../services/remote-agents/cursor-sdk/cursor-models.js';
-import {
-  formatCursorSdkLoadError,
-  importBundledCursorSdk,
-} from '../../services/remote-agents/cursor-sdk/cursor-sdk-package.js';
-import { withTimeout } from '../../services/remote-agents/with-timeout.js';
+} from '../../../../../domain/entities/machine-capabilities.js';
 
 const DEFAULT_MODEL = 'composer-2.5';
 const MODELS_LIST_TIMEOUT_MS = 60_000;
