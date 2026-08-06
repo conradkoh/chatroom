@@ -8,6 +8,9 @@ import { startCommandRunSubscriber } from '../infrastructure/convex/subscribers/
 import { startDirectHarnessCommandSubscriber } from '../infrastructure/convex/subscribers/direct-harness-command.js';
 import { startDirectHarnessPromptSubscriber } from '../infrastructure/convex/subscribers/direct-harness-prompt.js';
 import { startDirectHarnessSessionSubscriber } from '../infrastructure/convex/subscribers/direct-harness-session.js';
+import { startFileContentRequestSubscriber } from '../infrastructure/convex/subscribers/file-content-request.js';
+import { startFileTreeRequestSubscriber } from '../infrastructure/convex/subscribers/file-tree-request.js';
+import { startFileWriteRequestSubscriber } from '../infrastructure/convex/subscribers/file-write-request.js';
 import { startGitRequestSubscriber } from '../infrastructure/convex/subscribers/git-request.js';
 import { startWorkspaceListSubscriber } from '../infrastructure/convex/subscribers/workspace-list.js';
 
@@ -31,6 +34,9 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const commandRun = startCommandRunSubscriber(deps, onEvent);
   const workspaceList = startWorkspaceListSubscriber(deps, onEvent);
   const gitRequest = startGitRequestSubscriber(deps, onEvent);
+  const fileTree = startFileTreeRequestSubscriber(deps, onEvent);
+  const fileContent = startFileContentRequestSubscriber(deps, onEvent);
+  const fileWrite = startFileWriteRequestSubscriber(deps, onEvent);
 
   return {
     async stopAll() {
@@ -44,6 +50,9 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
         commandRun.stop(),
         workspaceList.stop(),
         gitRequest.stop(),
+        fileTree.stop(),
+        fileContent.stop(),
+        fileWrite.stop(),
       ]);
     },
   };

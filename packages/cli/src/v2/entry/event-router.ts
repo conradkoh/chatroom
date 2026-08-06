@@ -15,6 +15,11 @@ import {
   type HandleDirectHarnessInboundDeps,
 } from '../domain/usecase/handle-direct-harness-inbound.js';
 import {
+  handleFileInbound,
+  type FileInboundEvent,
+  type HandleFileInboundDeps,
+} from '../domain/usecase/handle-file-inbound.js';
+import {
   handleWorkspaceGitInbound,
   type HandleWorkspaceGitInboundDeps,
   type WorkspaceGitInboundEvent,
@@ -25,6 +30,7 @@ export type EventRouterDeps = {
   directHarness: HandleDirectHarnessInboundDeps;
   command: HandleCommandInboundDeps;
   workspaceGit: HandleWorkspaceGitInboundDeps;
+  file: HandleFileInboundDeps;
 };
 
 // fallow-ignore-next-line complexity
@@ -46,6 +52,11 @@ export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEve
     case 'workspace.list-changed':
     case 'git.request':
       await handleWorkspaceGitInbound(deps.workspaceGit, event as WorkspaceGitInboundEvent);
+      break;
+    case 'file-tree.request':
+    case 'file-content.request':
+    case 'file-write.request':
+      await handleFileInbound(deps.file, event as FileInboundEvent);
       break;
     default:
       void event;

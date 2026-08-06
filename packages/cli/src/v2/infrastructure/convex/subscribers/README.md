@@ -30,8 +30,8 @@
 | `agentic-query-prompt.ts`   | `daemon-start/agentic-query/prompt-subscriber.ts`  |
 | `enhancer-job.ts`           | `daemon-start/enhancer/job-subscriber.ts`          |
 | `git-request.ts`            | `daemon-start/git-subscription.ts`                 | **done** |
-| `file-tree-request.ts`      | `daemon-start/file-tree-subscription.ts`           |
-| `file-content-request.ts`   | `daemon-start/file-content-subscription.ts`        |
-| `file-write-request.ts`     | `daemon-start/file-write-subscription.ts`          |
+| `file-tree-request.ts`      | `daemon-start/file-tree-subscription.ts`           | **done** |
+| `file-content-request.ts`   | `daemon-start/file-content-subscription.ts`        | **done** |
+| `file-write-request.ts`     | `daemon-start/file-write-subscription.ts`          | **done** |
 | `workspace-list.ts`         | `daemon-start/workspace-list-subscription.ts`      | **done** |
 | `command-run.ts`            | `daemon-start/` command run feeds                  | **done** |
