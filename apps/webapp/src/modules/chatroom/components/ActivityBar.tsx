@@ -1,25 +1,24 @@
 'use client';
 
 import { Command, Files, MessageCircle, MessagesSquare, Terminal } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useSyncExternalStore } from 'react';
 import { SiGithub } from 'react-icons/si';
 import { VscSourceControl } from 'react-icons/vsc';
 
+import { useCommandDialogActions } from '../context/CommandDialogContext';
+import {
+  getCommandPaletteOpen,
+  subscribeCommandPaletteOpen,
+} from '../context/commandPaletteController';
 import { EnhancerActivityBarItem } from '../features/enhancers/components/EnhancerActivityBarItem';
 import { ScheduledPromptsActivityBarItem } from '../features/scheduled-prompts/components/ScheduledPromptsActivityBarItem';
-import { useCommandDialog } from '../context/CommandDialogContext';
 
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ActivityView =
-  | 'explorer'
-  | 'messages'
-  | 'direct-harness'
-  | 'source-control'
-  | 'pull-requests'
-  | 'processes';
+  'explorer' | 'messages' | 'direct-harness' | 'source-control' | 'pull-requests' | 'processes';
 
 interface ActivityBarProps {
   /** Currently active view */
@@ -85,13 +84,19 @@ const ActivityBarItem = memo(function ActivityBarItem({
  * On mobile (hidden via CSS):
  * - Shows a command palette trigger at the bottom (Cmd+Shift+P equivalent)
  */
+// fallow-ignore-next-line complexity
 export const ActivityBar = memo(function ActivityBar({
   activeView,
   onViewChange,
   chatroomId,
   machineId,
 }: ActivityBarProps) {
-  const { openDialog, closeDialog, activeDialog } = useCommandDialog();
+  const { toggleCommandPalette } = useCommandDialogActions();
+  const paletteOpen = useSyncExternalStore(
+    subscribeCommandPaletteOpen,
+    getCommandPaletteOpen,
+    () => false
+  );
 
   return (
     <div className="shrink-0 w-12 bg-chatroom-bg-surface border-r-2 border-chatroom-border-strong flex flex-col items-center pt-1">
@@ -143,11 +148,11 @@ export const ActivityBar = memo(function ActivityBar({
       <button
         className={cn(
           'relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100',
-          'text-chatroom-text-muted hover:text-chatroom-text-primary'
+          paletteOpen
+            ? 'text-chatroom-text-primary'
+            : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
         )}
-        onClick={() =>
-          activeDialog === 'command-palette' ? closeDialog() : openDialog('command-palette')
-        }
+        onClick={() => toggleCommandPalette()}
         title="Command Palette"
       >
         <Command size={20} />

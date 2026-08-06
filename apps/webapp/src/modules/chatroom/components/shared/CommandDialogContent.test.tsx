@@ -83,14 +83,6 @@ describe('CommandDialogContent dismiss backdrop', () => {
 });
 
 describe('CommandDialogContent surface', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it('renders a plain dialog surface with aria-modal false', () => {
     render(
       <Dialog open onOpenChange={vi.fn()} modal={false}>
@@ -99,8 +91,6 @@ describe('CommandDialogContent surface', () => {
         </CommandDialogContent>
       </Dialog>
     );
-    vi.advanceTimersByTime(0);
-
     const surface = screen.getByTestId('content');
     expect(surface).toHaveAttribute('role', 'dialog');
     expect(surface).toHaveAttribute('aria-modal', 'false');
@@ -117,13 +107,51 @@ describe('CommandDialogContent surface', () => {
         </CommandDialogContent>
       </Dialog>
     );
-    vi.advanceTimersByTime(0);
 
     const surface = screen.getByTestId('content');
     const titleId = screen.getByText('Command Palette').id;
     const descriptionId = screen.getByText('Search and execute a command').id;
     expect(surface).toHaveAttribute('aria-labelledby', titleId);
     expect(surface).toHaveAttribute('aria-describedby', descriptionId);
+  });
+
+  it('is not hidden on the first render when reopening after close', () => {
+    const { rerender } = render(
+      <Dialog open onOpenChange={vi.fn()} modal={false}>
+        <CommandDialogContent open data-testid="content">
+          body
+        </CommandDialogContent>
+      </Dialog>
+    );
+    rerender(
+      <Dialog open={false} onOpenChange={vi.fn()} modal={false}>
+        <CommandDialogContent open={false} data-testid="content">
+          body
+        </CommandDialogContent>
+      </Dialog>
+    );
+    rerender(
+      <Dialog open onOpenChange={vi.fn()} modal={false}>
+        <CommandDialogContent open data-testid="content">
+          body
+        </CommandDialogContent>
+      </Dialog>
+    );
+    expect(screen.getByTestId('content')).not.toHaveAttribute('hidden');
+    expect(screen.getByTestId('content')).toHaveAttribute('data-open');
+  });
+
+  it('surface has no animation utility classes', () => {
+    render(
+      <Dialog open onOpenChange={vi.fn()} modal={false}>
+        <CommandDialogContent open data-testid="content">
+          body
+        </CommandDialogContent>
+      </Dialog>
+    );
+    const className = screen.getByTestId('content').className;
+    expect(className).not.toContain('animate-out');
+    expect(className).not.toContain('fade-out');
   });
 
   it('does not add data-base-ui-inert markers to body children when opening', () => {
@@ -142,8 +170,6 @@ describe('CommandDialogContent surface', () => {
         </CommandDialogContent>
       </Dialog>
     );
-    vi.advanceTimersByTime(0);
-
     const afterCount = document.body.querySelectorAll('[data-base-ui-inert]').length;
     expect(afterCount).toBe(beforeCount);
   });

@@ -3,8 +3,8 @@
 /**
  * Shared context for mutual exclusivity across command-style dialogs.
  *
- * Only one command dialog (Cmd+K switcher, Cmd+P file selector, Cmd+Shift+P
- * command palette) can be open at a time. Opening one auto-closes any other.
+ * Switcher and file selector share context state. Command palette uses a
+ * module-level controller so opening it does not rerender ChatroomDashboard.
  */
 
 import { usePathname } from 'next/navigation';
@@ -13,53 +13,125 @@ import {
   useCallback,
   useContext,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
 
-export type CommandDialogType = 'switcher' | 'file-selector' | 'command-palette' | null;
+import {
+  getCommandPaletteOpen,
+  notifyCommandDialogClosed,
+  resetCommandPalette,
+  setCommandPaletteOpen,
+  toggleCommandPaletteOpen,
+} from './commandPaletteController';
 
-interface CommandDialogContextValue {
-  activeDialog: CommandDialogType;
-  openDialog: (dialog: CommandDialogType) => void;
-  closeDialog: () => void;
+/** Dialogs managed by shared context state (mutually exclusive with each other + palette). */
+export type ContextManagedDialog = 'switcher' | 'file-selector';
+
+/** @deprecated Use ContextManagedDialog — kept for shortcut hook compatibility */
+export type CommandDialogType = ContextManagedDialog | 'command-palette' | null;
+
+interface CommandDialogState {
+  activeDialog: ContextManagedDialog | null;
 }
 
-const CommandDialogContext = createContext<CommandDialogContextValue | null>(null);
+interface CommandDialogActions {
+  openDialog: (dialog: ContextManagedDialog) => void;
+  closeDialog: () => void;
+  openCommandPalette: () => void;
+  closeCommandPalette: () => void;
+  toggleCommandPalette: () => void;
+}
+
+const CommandDialogStateContext = createContext<CommandDialogState | null>(null);
+const CommandDialogActionsContext = createContext<CommandDialogActions | null>(null);
 
 export function CommandDialogProvider({ children }: { children: ReactNode }) {
-  const [activeDialog, setActiveDialog] = useState<CommandDialogType>(null);
+  const [activeDialog, setActiveDialog] = useState<ContextManagedDialog | null>(null);
 
-  const openDialog = useCallback((dialog: CommandDialogType) => {
+  const closeDialog = useCallback(() => {
+    setActiveDialog((prev) => {
+      if (prev !== null) notifyCommandDialogClosed();
+      return null;
+    });
+  }, []);
+
+  const openDialog = useCallback((dialog: ContextManagedDialog) => {
+    if (getCommandPaletteOpen()) {
+      setCommandPaletteOpen(false);
+      notifyCommandDialogClosed();
+    }
     setActiveDialog(dialog);
   }, []);
 
-  const closeDialog = useCallback(() => {
+  const openCommandPalette = useCallback(() => {
     setActiveDialog(null);
+    setCommandPaletteOpen(true);
   }, []);
 
-  // Reset open dialog on route change so a stale `activeDialog` cannot leave a
-  // force-mounted dialog in `data-state=open` after back navigation or unmount
-  // without closeDialog() being called. `useLayoutEffect` closes before paint.
+  const closeCommandPalette = useCallback(() => {
+    setCommandPaletteOpen(false);
+    notifyCommandDialogClosed();
+  }, []);
+
+  const toggleCommandPalette = useCallback(() => {
+    setActiveDialog(null);
+    const wasOpen = getCommandPaletteOpen();
+    toggleCommandPaletteOpen();
+    if (wasOpen) notifyCommandDialogClosed();
+  }, []);
+
+  const actions = useMemo(
+    (): CommandDialogActions => ({
+      openDialog,
+      closeDialog,
+      openCommandPalette,
+      closeCommandPalette,
+      toggleCommandPalette,
+    }),
+    [openDialog, closeDialog, openCommandPalette, closeCommandPalette, toggleCommandPalette]
+  );
+
   const pathname = usePathname();
   const prevPathnameRef = useRef(pathname);
   useLayoutEffect(() => {
     if (prevPathnameRef.current !== pathname) {
       prevPathnameRef.current = pathname;
+      const paletteWasOpen = getCommandPaletteOpen();
       setActiveDialog(null);
+      resetCommandPalette();
+      if (paletteWasOpen) notifyCommandDialogClosed();
     }
   }, [pathname]);
 
+  const state = useMemo(() => ({ activeDialog }), [activeDialog]);
+
   return (
-    <CommandDialogContext.Provider value={{ activeDialog, openDialog, closeDialog }}>
-      {children}
-    </CommandDialogContext.Provider>
+    <CommandDialogActionsContext.Provider value={actions}>
+      <CommandDialogStateContext.Provider value={state}>
+        {children}
+      </CommandDialogStateContext.Provider>
+    </CommandDialogActionsContext.Provider>
   );
 }
 
-export function useCommandDialog() {
-  const ctx = useContext(CommandDialogContext);
-  if (!ctx) throw new Error('useCommandDialog must be used within CommandDialogProvider');
+export function useCommandDialogActions(): CommandDialogActions {
+  const ctx = useContext(CommandDialogActionsContext);
+  if (!ctx) throw new Error('useCommandDialogActions must be used within CommandDialogProvider');
   return ctx;
+}
+
+export function useCommandDialogState(): CommandDialogState {
+  const ctx = useContext(CommandDialogStateContext);
+  if (!ctx) throw new Error('useCommandDialogState must be used within CommandDialogProvider');
+  return ctx;
+}
+
+/** @deprecated Prefer useCommandDialogActions + useCommandDialogState. Kept for gradual migration. */
+export function useCommandDialog() {
+  const state = useCommandDialogState();
+  const actions = useCommandDialogActions();
+  return { ...state, ...actions };
 }
