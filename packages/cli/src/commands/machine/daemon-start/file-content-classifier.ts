@@ -43,7 +43,7 @@ const BINARY_EXTENSIONS = new Set([
 
 export const BINARY_FILE_EXTENSIONS: ReadonlySet<string> = BINARY_EXTENSIONS;
 
-export function extensionOf(path: string): string | null {
+function extensionOf(path: string): string | null {
   const lastDot = path.lastIndexOf('.');
   if (lastDot === -1) return null;
   return path.slice(lastDot).toLowerCase();

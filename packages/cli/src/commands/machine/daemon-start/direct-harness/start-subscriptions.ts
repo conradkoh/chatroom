@@ -3,11 +3,11 @@
  * WS subscribers removed in U13 — v2 direct-harness subscribers are sole listeners.
  */
 
-import { drainPendingHarnessCommands, type CommandSubscriberDeps } from './command-subscriber.js';
+import { drainPendingHarnessCommands, type CommandSubscriberDeps } from './command-processor.js';
 import { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
-import { drainPendingHarnessMessages } from './prompt-subscriber.js';
-import { processPendingHarnessSessions } from './session-subscriber.js';
-import type { ActiveSession } from './session-subscriber.js';
+import { drainPendingHarnessMessages } from './prompt-drain.js';
+import { processPendingHarnessSessions } from './session-processor.js';
+import type { ActiveSession } from './session-processor.js';
 import { closeAllMachineHarnessSessionsOnShutdown } from './shutdown-sessions.js';
 import { api } from '../../../../api.js';
 import type { BackendOps } from '../../../../infrastructure/deps/index.js';

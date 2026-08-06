@@ -39,13 +39,13 @@ Migration is **complete** when all of the following are true:
 | U5   | Command loop migration         | ✅ Done | backlog |
 | U6   | File fulfillment               | ✅ Done | backlog |
 | U7   | Workspace & git                | ✅ Done | backlog |
-| U8   | Agentic query processing       | ⬜ Todo | backlog |
-| U9   | Enhancer job processing        | ⬜ Todo | backlog |
-| U10  | Machine capabilities refresh   | ⬜ Todo | backlog |
-| U11  | Outbound publishers            | ⬜ Todo | backlog |
+| U8   | Agentic query processing       | ✅ Done | backlog |
+| U9   | Enhancer job processing        | ✅ Done | backlog |
+| U10  | Machine capabilities refresh   | ✅ Done | backlog |
+| U11  | Outbound publishers            | ✅ Done | backlog |
 | U12  | Local harness adapters         | ✅ Done | backlog |
 | U13  | Legacy subscription removal    | ✅ Done | backlog |
-| U14  | daemon-start teardown          | ⬜ Todo | backlog |
+| U14  | daemon-start teardown          | ✅ Done | backlog |
 | U15  | Final validation & doc cleanup | ⬜ Todo | backlog |
 
 **Legend:** ⬜ Todo · 🔄 In progress · ✅ Done · ⏸ Blocked
@@ -376,10 +376,10 @@ Migration is **complete** when all of the following are true:
 
 **Validation criteria:**
 
-- [ ] G6 passes — no parallel legacy command loop
-- [ ] G7 passes — `daemon-start/` LOC reduced by >50% from ~20k baseline
-- [ ] `daemonStart()` entry still works for CLI `chatroom machine daemon start`
-- [ ] All chatroom-cli tests pass
+- [x] G6 passes — no parallel legacy command loop (`createDaemonRuntime` in v2 entry)
+- [x] G7 passes — `daemon-start/` LOC reduced by >50% from ~20k baseline (`daemon-start-loc.test.ts`)
+- [x] `daemonStart()` entry still works for CLI `chatroom machine daemon start`
+- [x] All chatroom-cli tests pass
 
 ---
 

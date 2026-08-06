@@ -1,13 +1,11 @@
-import { Effect } from 'effect';
-
 import { createStartBackgroundCapabilitiesDiscoveryDeps } from './bridge/capabilities-bridge.js';
+import { createDaemonRuntime } from './daemon-runtime.js';
 import { createDefaultEventRouterDeps } from './default-router-deps.js';
 import { createDaemonDeps } from './deps.js';
+import { initDaemon } from './init-daemon.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 import { startAllSubscribers } from './subscriber-registry.js';
-import { startCommandLoopEffect } from '../../commands/machine/daemon-start/command-loop.js';
 import { daemonSessionToLayers } from '../../commands/machine/daemon-start/daemon-layers.js';
-import { initDaemon } from '../../commands/machine/daemon-start/init.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
@@ -49,9 +47,12 @@ export async function startDaemonV2(): Promise<void> {
     createStartBackgroundCapabilitiesDiscoveryDeps(layers)
   );
 
+  const runtime = createDaemonRuntime({ wsClient, layers });
+
   try {
-    await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(layers)));
+    await runtime.run();
   } finally {
+    await runtime.shutdown();
     await subscribers.stopAll();
     await localWeb.stop();
     persistence.close();

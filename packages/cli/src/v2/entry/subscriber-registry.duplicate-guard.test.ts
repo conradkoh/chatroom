@@ -24,7 +24,6 @@ const V2_SUBSCRIBED_QUERIES = [
 
 const LEGACY_INIT_FILES_TO_GUARD = [
   'src/commands/machine/daemon-start/command-loop.ts',
-  'src/commands/machine/daemon-start/git-subscription.ts',
   'src/commands/machine/daemon-start/file-tree-subscription.ts',
   'src/commands/machine/daemon-start/file-content-subscription.ts',
   'src/commands/machine/daemon-start/file-write-subscription.ts',
@@ -32,8 +31,9 @@ const LEGACY_INIT_FILES_TO_GUARD = [
   'src/commands/machine/daemon-start/handlers/process/command-run-subscription.ts',
   'src/commands/machine/daemon-start/direct-harness/start-subscriptions.ts',
   'src/commands/machine/daemon-start/agentic-query/start-subscriptions.ts',
-  'src/commands/machine/daemon-start/enhancer/job-subscriber.ts',
-  'src/commands/machine/daemon-start/task-monitor.ts',
+  'src/v2/entry/enhancer-legacy/job-subscriber.ts',
+  'src/v2/entry/daemon-runtime.ts',
+  'src/v2/entry/task-monitor-runtime.ts',
 ] as const;
 
 const ALLOWED_LEGACY_WS = [

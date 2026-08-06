@@ -1,5 +1,5 @@
-import { drainPendingAgenticQueryMessages } from './prompt-subscriber.js';
-import { processPendingAgenticQuerySessions } from './session-subscriber.js';
+import { drainPendingAgenticQueryMessages } from './prompt-drain.js';
+import { processPendingAgenticQuerySessions } from './session-processor.js';
 import { ConvexAgenticQueryOutputRepository } from '../../../../infrastructure/repos/convex-agentic-query-output-repository.js';
 import { ConvexAgenticQueryRunRepository } from '../../../../infrastructure/repos/convex-agentic-query-run-repository.js';
 import { BufferedJournalFactory } from '../../../../infrastructure/repos/journal-factory.js';
@@ -8,7 +8,7 @@ import {
   registerAgenticQueryInboundHandler,
   unregisterAgenticQueryInboundHandler,
 } from '../../../../v2/entry/agentic-query-inbound-registry.js';
-import type { ActiveSession } from '../direct-harness/session-subscriber.js';
+import type { ActiveSession } from '../direct-harness/session-processor.js';
 import type { HarnessWorkerSession } from '../shared-harness/types.js';
 
 export interface AgenticQuerySubscriptionSession extends HarnessWorkerSession {

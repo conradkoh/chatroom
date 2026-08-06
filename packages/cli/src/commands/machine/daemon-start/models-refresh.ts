@@ -7,13 +7,13 @@ import { Effect, Ref } from 'effect';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
-import { discoverModels, discoverModelsForHarness } from './init.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import type { MachineConfig } from '../../../infrastructure/machine/types.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import { discoverModels, discoverModelsForHarness } from '../../../v2/entry/init-daemon.js';
 
 /** Outcome of a single `refreshModels` invocation (periodic tick or manual refresh). */
 export type RefreshModelsOutcome =

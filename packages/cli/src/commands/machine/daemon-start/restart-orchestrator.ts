@@ -9,11 +9,6 @@ import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usec
 import { Effect } from 'effect';
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
-import { getNativeDeliveryLedger } from './native-delivery-ledger.js';
-import { isAgentReadyForNativeDelivery } from './native-ready-invariant.js';
-import { resetRoleDeliveryState } from './native-task-delivery-coordinator.js';
-import { explainLedgerDeliveryBlock } from './native-task-injector-logic.js';
-import { runNativeInjectionEffect } from './native-task-injector.js';
 import {
   markRestartOrchestratorInFlight,
   clearRestartOrchestratorInFlight,
@@ -28,6 +23,11 @@ import { getErrorMessage } from '../../../utils/convex-error.js';
 import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../v2/domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../../../v2/domain/entities/execution-kind.js';
+import { getNativeDeliveryLedger } from '../../../v2/entry/native-delivery/native-delivery-ledger.js';
+import { isAgentReadyForNativeDelivery } from '../../../v2/entry/native-delivery/native-ready-invariant.js';
+import { resetRoleDeliveryState } from '../../../v2/entry/native-delivery/native-task-delivery-coordinator.js';
+import { explainLedgerDeliveryBlock } from '../../../v2/entry/native-delivery/native-task-injector-logic.js';
+import { runNativeInjectionEffect } from '../../../v2/entry/native-delivery/native-task-injector.js';
 
 interface RestartOrchestratorEvent {
   chatroomId: string;

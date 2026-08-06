@@ -38,19 +38,16 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
   getConvexWsClient,
 }));
 
-vi.mock('../../commands/machine/daemon-start/init.js', () => ({
+vi.mock('./init-daemon.js', () => ({
   initDaemon,
 }));
 
-vi.mock('../../commands/machine/daemon-start/command-loop.js', async () => {
-  const { Effect } = await import('effect');
-  return { startCommandLoopEffect: Effect.succeed(undefined) };
-});
-
-vi.mock('../../commands/machine/daemon-start/models-refresh.js', async () => {
-  const { Effect } = await import('effect');
-  return { startBackgroundModelDiscoveryEffect: Effect.succeed(undefined) };
-});
+vi.mock('./daemon-runtime.js', () => ({
+  createDaemonRuntime: vi.fn(() => ({
+    run: vi.fn().mockResolvedValue(undefined),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
 
 vi.mock('../../commands/machine/daemon-start/daemon-layers.js', async () => {
   const { Layer } = await import('effect');
