@@ -1,20 +1,21 @@
 'use client';
 
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
-import { useLayoutEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import {
   COMMAND_DIALOG_CONTENT_CLASSES,
   COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES,
   getCommandDialogContentStyle,
 } from './commandDialogStyles';
-import { useCommandDialogStore } from './useCommandDialogStore';
 
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useVisualViewportOffsetTop } from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
 
 const COMMAND_DIALOG_INPUT_SELECTOR = '[data-slot="command-input"]';
+const COMMAND_DIALOG_TITLE_SELECTOR = '[data-slot="dialog-title"]';
+const COMMAND_DIALOG_DESCRIPTION_SELECTOR = '[data-slot="dialog-description"]';
 
 function focusCommandDialogInput(container: HTMLElement | null): void {
   const input = container?.querySelector<HTMLInputElement>(COMMAND_DIALOG_INPUT_SELECTOR);
@@ -31,6 +32,14 @@ type CommandDialogContentProps = Omit<
   onPointerDownOutside?: (event: Event) => void;
   onFocusOutside?: (event: Event) => void;
 };
+
+// fallow-ignore-next-line complexity
+function readCommandDialogAriaIds(node: HTMLDivElement) {
+  return {
+    titleElementId: node.querySelector(COMMAND_DIALOG_TITLE_SELECTOR)?.id || undefined,
+    descriptionElementId: node.querySelector(COMMAND_DIALOG_DESCRIPTION_SELECTOR)?.id || undefined,
+  };
+}
 
 /**
  * Lightweight portal surface for command-style dialogs (Cmd+K, Cmd+P, Cmd+Shift+P).
@@ -52,27 +61,47 @@ export function CommandDialogContent({
   const viewportOffsetTopPx = useVisualViewportOffsetTop(open && !isDesktop);
   const viewportStyle = getCommandDialogContentStyle(viewportOffsetTopPx);
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const {
-    mounted,
-    open: storeOpen,
-    transitionStatus,
-    titleElementId,
-    descriptionElementId,
-    setPopupElement,
-    popupRef,
-  } = useCommandDialogStore();
 
-  const setRefs = (node: HTMLDivElement | null) => {
-    surfaceRef.current = node;
-    popupRef.current = node;
-    setPopupElement(node);
-  };
+  const [mounted, setMounted] = useState(open);
+  const [titleElementId, setTitleElementId] = useState<string | undefined>();
+  const [descriptionElementId, setDescriptionElementId] = useState<string | undefined>();
 
   useLayoutEffect(() => {
-    if (!storeOpen) return;
+    if (open) setMounted(true);
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
     focusCommandDialogInput(surfaceRef.current);
     queueMicrotask(() => focusCommandDialogInput(surfaceRef.current));
-  }, [storeOpen]);
+  }, [open]);
+
+  const syncAriaIds = useCallback(
+    (node: HTMLDivElement | null) => {
+      surfaceRef.current = node;
+      if (!node || !open) {
+        setTitleElementId(undefined);
+        setDescriptionElementId(undefined);
+        return;
+      }
+      const { titleElementId, descriptionElementId } = readCommandDialogAriaIds(node);
+      setTitleElementId(titleElementId);
+      setDescriptionElementId(descriptionElementId);
+    },
+    [open]
+  );
+
+  useLayoutEffect(() => {
+    syncAriaIds(surfaceRef.current);
+  }, [syncAriaIds, children]);
+
+  const handleTransitionEnd = useCallback(
+    (event: React.TransitionEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) return;
+      if (!open) setMounted(false);
+    },
+    [open]
+  );
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key !== 'Escape' || !onEscapeKeyDown) return;
@@ -84,7 +113,7 @@ export function CommandDialogContent({
 
   const dataState = !mounted
     ? {}
-    : storeOpen
+    : open
       ? { 'data-open': '' as const }
       : { 'data-closed': '' as const };
 
@@ -103,17 +132,17 @@ export function CommandDialogContent({
         />
       ) : null}
       <div
-        ref={setRefs}
+        ref={syncAriaIds}
         role="dialog"
         aria-modal={false}
         aria-labelledby={titleElementId ?? undefined}
         aria-describedby={descriptionElementId ?? undefined}
         data-slot="command-dialog-content"
         hidden={!mounted}
-        data-transition-status={transitionStatus}
         className={cn(...COMMAND_DIALOG_CONTENT_CLASSES, className)}
         style={{ ...viewportStyle, ...style }}
         onKeyDown={handleKeyDown}
+        onTransitionEnd={handleTransitionEnd}
         tabIndex={-1}
         {...dataState}
         {...props}
