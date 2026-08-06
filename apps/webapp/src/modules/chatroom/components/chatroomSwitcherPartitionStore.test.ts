@@ -13,7 +13,7 @@ import {
 
 import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
 
-const sampleChatrooms: ChatroomWithStatus[] = [
+const sampleChatrooms = [
   {
     _id: 'room-1',
     name: 'Alpha',
@@ -22,7 +22,7 @@ const sampleChatrooms: ChatroomWithStatus[] = [
     isFavorite: false,
     hasUnread: false,
   },
-];
+] as ChatroomWithStatus[];
 
 describe('chatroomSwitcherPartitionStore', () => {
   beforeEach(() => {

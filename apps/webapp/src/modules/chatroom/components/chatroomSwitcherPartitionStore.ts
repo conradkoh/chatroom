@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import { observable, type Observable } from '@legendapp/state';
 
 import { CHATROOM_SWITCHER_PARTITION_KEY } from './chatroomSwitcherPartitionKey';
