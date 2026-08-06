@@ -1,10 +1,13 @@
 import type { RefreshModelsOutcome } from './models-refresh.js';
+import type { RefreshMachineCapabilitiesOutcome } from '../../../v2/domain/usecase/refresh-machine-capabilities.js';
 
 // fallow-ignore-next-line unused-export
 export const CAPABILITIES_REFRESH_STATUSES = ['completed', 'skipped_no_changes', 'failed'] as const;
 export type CapabilitiesRefreshStatus = (typeof CAPABILITIES_REFRESH_STATUSES)[number];
 
-export function capabilitiesOutcomeToStatus(outcome: RefreshModelsOutcome): {
+export function capabilitiesOutcomeToStatus(
+  outcome: RefreshModelsOutcome | RefreshMachineCapabilitiesOutcome
+): {
   status: CapabilitiesRefreshStatus;
   errorMessage?: string;
 } {

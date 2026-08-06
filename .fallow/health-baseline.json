@@ -2212,6 +2212,11 @@
         "count": 3
       }
     },
+    "packages/cli/src/v2/entry/bridge/capabilities-bridge.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
     "packages/cli/src/version.ts": {
       "crap_moderate": {
         "count": 1

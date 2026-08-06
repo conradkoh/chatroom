@@ -276,19 +276,25 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U10 — Machine capabilities refresh
+## U10 — Machine capabilities refresh ✅
 
-**Outcome:** Model/capability refresh migrated to v2.
+**Outcome:** Model/capability refresh orchestrated via v2 port use case; legacy Effect twins delegated through capabilities bridge.
 
 **Files:**
 
-- `domain/usecase/refresh-machine-capabilities.ts` ← `daemon-start/models-refresh.ts`
+- `domain/usecase/refresh-machine-capabilities.ts` — port-based refresh + background discovery
+- `entry/bridge/capabilities-bridge.ts` — delegates to `refreshModelsEffect` / `startBackgroundModelDiscoveryEffect`
+- `commands/machine/daemon-start/command-loop.ts` — manual refresh via v2 use case
+- `entry/start-daemon.ts` — boot-time background discovery via v2 use case
+- `commands/machine/daemon-start/refresh-models-outcome.ts` — accepts v2 outcome union
 
 **Validation criteria:**
 
-- [ ] Capabilities refresh runs on schedule/trigger via v2
-- [ ] `refresh-models-outcome.ts` logic preserved
-- [ ] G1 passes for `refresh-machine-capabilities.ts`
+- [x] Capabilities refresh runs on schedule/trigger via v2 ports
+- [x] `capabilitiesOutcomeToStatus` behavior preserved for all outcome kinds
+- [x] G1 passes for `refresh-machine-capabilities.ts`
+- [x] `daemon.refreshCapabilities` command uses v2 `refreshMachineCapabilities`
+- [x] `startDaemonV2` uses v2 `startBackgroundMachineCapabilitiesDiscovery`
 
 ---
 

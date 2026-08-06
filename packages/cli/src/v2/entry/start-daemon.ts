@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 
+import { createStartBackgroundCapabilitiesDiscoveryDeps } from './bridge/capabilities-bridge.js';
 import { createDefaultEventRouterDeps } from './default-router-deps.js';
 import { createDaemonDeps } from './deps.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
@@ -7,8 +8,8 @@ import { startAllSubscribers } from './subscriber-registry.js';
 import { startCommandLoopEffect } from '../../commands/machine/daemon-start/command-loop.js';
 import { daemonSessionToLayers } from '../../commands/machine/daemon-start/daemon-layers.js';
 import { initDaemon } from '../../commands/machine/daemon-start/init.js';
-import { startBackgroundModelDiscoveryEffect } from '../../commands/machine/daemon-start/models-refresh.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
+import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { startLocalWebServer } from '../local-web/server/create-local-web-server.js';
 
@@ -39,7 +40,9 @@ export async function startDaemonV2(): Promise<void> {
   console.log(`[v2] Local web UI: http://127.0.0.1:${localWeb.port}/health`);
 
   const layers = daemonSessionToLayers(init);
-  Effect.runFork(startBackgroundModelDiscoveryEffect.pipe(Effect.provide(layers)));
+  startBackgroundMachineCapabilitiesDiscovery(
+    createStartBackgroundCapabilitiesDiscoveryDeps(layers)
+  );
 
   try {
     await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(layers)));

@@ -8,7 +8,7 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
-import { Effect, Ref, type Context } from 'effect';
+import { Effect, Layer, Ref, type Context } from 'effect';
 
 import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
 import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
@@ -51,7 +51,6 @@ import {
 } from './handlers/process/command-run-subscription.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { processManager } from './handlers/process/manager.js';
-import { refreshModelsEffect } from './models-refresh.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { startTaskMonitorEffect } from './task-monitor.js';
 import { formatTimestamp } from './utils.js';
@@ -71,6 +70,8 @@ import { pickFolderDialog } from '../../../infrastructure/local-actions/pick-fol
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type { BoundHarness } from '../../../v2/domain/entities/bound-harness.js';
 import type { SessionHandle } from '../../../v2/domain/usecase/open-harness-session.js';
+import { refreshMachineCapabilities } from '../../../v2/domain/usecase/refresh-machine-capabilities.js';
+import { createRefreshMachineCapabilitiesDeps } from '../../../v2/entry/bridge/capabilities-bridge.js';
 import {
   registerCommandInboundHandler,
   unregisterCommandInboundHandler,
@@ -283,17 +284,24 @@ function handleRefreshCapabilitiesEffect(
   event: CommandEvent,
   tracker: DedupTracker
 ): Effect.Effect<void, never, DaemonSessionService | DaemonMutableStateService> {
+  // fallow-ignore-next-line code-duplication
   return Effect.gen(function* () {
     const eventId = event._id.toString();
     if (tracker.capabilitiesRefreshIds.has(eventId)) return;
     console.log(`[${formatTimestamp()}] 🔄 Manual capabilities refresh requested`);
-    const outcome = yield* refreshModelsEffect;
+    const effectContext = yield* Effect.context<DaemonSessionService | DaemonMutableStateService>();
+    const outcome = yield* Effect.promise(() =>
+      refreshMachineCapabilities(
+        createRefreshMachineCapabilitiesDeps(Layer.succeedContext(effectContext))
+      )
+    );
     tracker.capabilitiesRefreshIds.set(eventId, Date.now());
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const batchId = 'batchId' in event ? (event as any).batchId : undefined;
     if (!batchId) return;
     const session = yield* DaemonSessionService;
     const { status, errorMessage } = capabilitiesOutcomeToStatus(outcome);
+    // fallow-ignore-next-line code-duplication
     yield* Effect.tryPromise({
       try: () =>
         session.backend.mutation(api.machines.reportCapabilitiesRefreshResult, {
