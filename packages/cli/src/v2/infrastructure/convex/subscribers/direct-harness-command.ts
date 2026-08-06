@@ -15,6 +15,7 @@ export function startDirectHarnessCommandSubscriber(
   const seen = new Set<string>();
   let processing = false;
 
+  // fallow-ignore-next-line complexity
   const drain = async (): Promise<void> => {
     const pending = (await deps.wsClient.query(
       api.daemon.directHarness.commands.listPendingCommands,

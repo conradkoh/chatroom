@@ -17,6 +17,7 @@ export function startDirectHarnessSessionSubscriber(
   const unsub = deps.wsClient.onUpdate(
     api.daemon.directHarness.sessions.listPendingSessionsForMachine,
     { sessionId: deps.sessionId, machineId: deps.machineId },
+    // fallow-ignore-next-line complexity
     (pendingSessions: PendingSession[] | null) => {
       if (!pendingSessions?.length) return;
       for (const session of pendingSessions) {

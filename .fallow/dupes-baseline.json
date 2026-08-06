@@ -151,7 +151,7 @@
     "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts:642-652|packages/cli/src/infrastructure/services/remote-agents/pi-sdk/pi-sdk-agent-service.ts:487-497",
     "packages/cli/src/v2/domain/entities/harness-shared-types.ts:5-27|services/backend/src/domain/direct-harness/types.ts:91-118",
     "packages/cli/src/v2/infrastructure/convex/subscribers/assigned-task-presence.ts:33-52|packages/cli/src/v2/infrastructure/convex/subscribers/assigned-task-signals.ts:33-52",
-    "packages/cli/src/v2/infrastructure/convex/subscribers/direct-harness-command.ts:34-46|packages/cli/src/v2/infrastructure/convex/subscribers/direct-harness-prompt.ts:35-47",
+    "packages/cli/src/v2/infrastructure/convex/subscribers/direct-harness-command.ts:35-47|packages/cli/src/v2/infrastructure/convex/subscribers/direct-harness-prompt.ts:35-47",
     "services/backend/convex/allTabConversation.ts:40-45|services/backend/convex/allTabConversation.ts:75-83",
     "services/backend/convex/api/directHarnessHelpers.ts:125-139|services/backend/convex/api/directHarnessHelpers.ts:88-102",
     "services/backend/convex/artifacts.ts:116-124|services/backend/convex/artifacts.ts:190-198",
