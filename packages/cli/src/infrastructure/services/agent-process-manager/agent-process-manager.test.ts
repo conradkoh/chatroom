@@ -9,8 +9,8 @@ import {
 } from './agent-process-manager.js';
 import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import type * as NativeTaskDeliveryCoordinatorModule from '../../../commands/machine/daemon-start/native-task-delivery-coordinator.js';
-import type { HarnessSessionSnapshot } from '../../../domain/agent-lifecycle/index.js';
 import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
+import type { HarnessSessionSnapshot } from '../../../v2/domain/entities/session-snapshot.js';
 import {
   CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
   CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,

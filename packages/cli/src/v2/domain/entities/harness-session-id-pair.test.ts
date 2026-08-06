@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveResumableHarnessSessionId } from './resolve-resumable-harness-session-id.js';
+import { resolveResumableHarnessSessionId } from './harness-session-id-pair.js';
 
 describe('resolveResumableHarnessSessionId', () => {
   it('returns resumableHarnessSessionId when set', () => {
