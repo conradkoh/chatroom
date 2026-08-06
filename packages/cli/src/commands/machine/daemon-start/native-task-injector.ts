@@ -4,12 +4,12 @@ import {
   resolveSessionAugmentationForRole,
   sessionAugmentationNewSessionStarted,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
-import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 
 import { buildNativeInjectionPrompt } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import type { AssignedTaskWithContent } from '../../../v2/domain/entities/assigned-task.js';
 
 export interface NativeInjectorDeps {
   sessionId: string;
@@ -53,7 +53,7 @@ async function emitTaskDeliveryFailed(
 }
 
 export function runNativeInjectionEffect(
-  task: AssignedTaskView,
+  task: AssignedTaskWithContent,
   harnessSessionId: string,
   deps: NativeInjectorDeps
 ): Effect.Effect<void, unknown, never> {

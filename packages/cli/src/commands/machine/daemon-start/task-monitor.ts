@@ -19,10 +19,6 @@ import {
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
-import type {
-  AssignedTaskView,
-  ListMachineAssignedTaskSnapshotsResult,
-} from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import type { ConvexClient } from 'convex/browser';
 import { Effect, Runtime, type Context } from 'effect';
 
@@ -73,13 +69,20 @@ import {
   assignedTaskSignalsSubscribeTarget,
 } from '../../../infrastructure/incremental-sync/feeds/assigned-task-signals.js';
 import {
+  mapAssignedTaskSnapshotList,
+  mapAssignedTaskView,
+} from '../../../infrastructure/mappers/map-assigned-task.js';
+import {
   clearAssignedTaskSnapshots,
   hasAssignedTaskSnapshot,
   listAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
 } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
-import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
+import type {
+  AssignedTaskSnapshotView,
+  AssignedTaskWithContent,
+} from '../../../v2/domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../../../v2/domain/entities/execution-kind.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -113,13 +116,13 @@ async function seedPresenceCursor(session: {
   return seedPage?.highPresenceKey ?? null;
 }
 
-function resolveTaskWantResume(task: AssignedTaskView): boolean {
+function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
     resolveSessionAugmentationForRole(task.taskContent ?? '', task.agentConfig.role)
   );
 }
 
-function buildCliNudgeLogLine(task: AssignedTaskView): string {
+function buildCliNudgeLogLine(task: AssignedTaskWithContent): string {
   const { chatroomId, agentConfig } = task;
   const { role } = agentConfig;
   const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
@@ -128,10 +131,10 @@ function buildCliNudgeLogLine(task: AssignedTaskView): string {
   return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, session_augmentation=${augmentationMode}, wantResume=${wantResume}`;
 }
 
-function resolveTaskRunnerContextFromFull(task: AssignedTaskView):
+function resolveTaskRunnerContextFromFull(task: AssignedTaskWithContent):
   | {
       chatroomId: string;
-      agentConfig: AssignedTaskView['agentConfig'];
+      agentConfig: AssignedTaskWithContent['agentConfig'];
       role: string;
       workingDir: string;
       wantResume: boolean;
@@ -151,7 +154,7 @@ function resolveTaskRunnerContextFromFull(task: AssignedTaskView):
 }
 
 function executeCliNudge(
-  task: AssignedTaskView,
+  task: AssignedTaskWithContent,
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
   agentMgr: DaemonAgentProcessManagerServiceShape,
@@ -204,7 +207,7 @@ function executeCliNudge(
 }
 
 function runNativeReviveEffect(
-  task: AssignedTaskView,
+  task: AssignedTaskWithContent,
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
   agentMgr: DaemonAgentProcessManagerServiceShape
@@ -249,26 +252,26 @@ async function fetchHydrateRows(session: {
   const hydrate = (await session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
     sessionId: session.sessionId,
     machineId: session.machineId,
-  })) as ListMachineAssignedTaskSnapshotsResult;
-  return parseAssignedTaskMonitorRows(hydrate.tasks ?? []);
+  })) as { tasks?: unknown };
+  return mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(hydrate.tasks ?? []));
 }
 
 async function fetchTaskForAction(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
   snapshotRow: AssignedTaskSnapshotView
-): Promise<AssignedTaskView | null> {
-  const result = (await sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
+): Promise<AssignedTaskWithContent | null> {
+  const result = await sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
     sessionId: sessionDeps.sessionId,
     machineId,
     taskId: snapshotRow.taskId,
     role: snapshotRow.agentConfig.role,
-  })) as AssignedTaskView | null;
-  return result;
+  });
+  return result ? mapAssignedTaskView(result as Parameters<typeof mapAssignedTaskView>[0]) : null;
 }
 
 function runCliNudgeEffect(
-  task: AssignedTaskView,
+  task: AssignedTaskWithContent,
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,
   agentMgr: DaemonAgentProcessManagerServiceShape,
@@ -490,7 +493,9 @@ function subscribeAssignedTaskSnapshotStore(
     args as never,
     (result) => {
       if (isStopped()) return;
-      const tasks = parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? []);
+      const tasks = mapAssignedTaskSnapshotList(
+        parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? [])
+      );
       replaceAssignedTaskSnapshots(tasks);
     },
     (err: unknown) => {

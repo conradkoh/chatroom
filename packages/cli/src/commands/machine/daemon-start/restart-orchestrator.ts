@@ -5,11 +5,7 @@
 import { HARNESS_SESSION_READY_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import type { AgentRestartPhase } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
-import type {
-  AssignedTaskSnapshotView,
-  AssignedTaskView,
-} from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
-import { isDeliverableTaskStatus } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import { Effect } from 'effect';
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
@@ -24,7 +20,13 @@ import {
 } from './restart-orchestrator-in-flight.js';
 import type { AgentHarness } from './types.js';
 import { api } from '../../../api.js';
+import {
+  mapAssignedTaskSnapshotList,
+  mapAssignedTaskView,
+} from '../../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
+import { isDeliverableTaskStatus } from '../../../v2/domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../../../v2/domain/entities/execution-kind.js';
 
 interface RestartOrchestratorEvent {
@@ -127,15 +129,15 @@ async function listDeliverableSnapshots(
   const result = (await deps.session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
     sessionId: deps.session.sessionId,
     machineId: deps.session.machineId,
-  })) as { tasks: AssignedTaskSnapshotView[] };
+  })) as { tasks?: unknown };
 
   const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
-  return (result.tasks ?? [])
+  return mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(result.tasks ?? []))
     .filter(
       (t) =>
         t.chatroomId === event.chatroomId &&
         t.agentConfig.role.toLowerCase() === event.role.toLowerCase() &&
-        isDeliverableTaskStatus(t.status as Parameters<typeof isDeliverableTaskStatus>[0]) &&
+        isDeliverableTaskStatus(t.status) &&
         isAgentReadyForNativeDelivery(t, slot)
     )
     .sort((a, b) => a.createdAt - b.createdAt);
@@ -150,14 +152,16 @@ async function deliverOneTask(
   const harnessSessionId = slot?.harnessSessionId;
   if (!harnessSessionId) return false;
 
-  const full = (await deps.session.backend.query(api.machines.getAssignedTaskForAction, {
+  const backend = (await deps.session.backend.query(api.machines.getAssignedTaskForAction, {
     sessionId: deps.session.sessionId,
     machineId: deps.session.machineId,
     taskId: snapshot.taskId,
     role: event.role,
-  })) as AssignedTaskView | null;
+  })) as Parameters<typeof mapAssignedTaskView>[0] | null;
 
-  if (!full) return false;
+  if (!backend) return false;
+
+  const full = mapAssignedTaskView(backend);
 
   const ledger = getNativeDeliveryLedger();
   const ledgerBlock = explainLedgerDeliveryBlock(
