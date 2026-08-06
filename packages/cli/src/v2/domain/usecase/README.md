@@ -22,13 +22,14 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 
 | v2 file                            | Legacy source                                               |
 | ---------------------------------- | ----------------------------------------------------------- |
-| `deliver-assigned-task.ts`         | `daemon-start/task-monitor.ts`                              | stub — boundary mapper in slice #7 |
+| `deliver-assigned-task.ts`         | `daemon-start/task-monitor.ts`                              | stub — boundary mapper in slice #7    |
+| `handle-assigned-task-inbound.ts`  | `v2/infrastructure/convex/subscribers/assigned-task-*`      | **done** — router hook; deliver later |
 | `handle-command-event.ts`          | `daemon-start/command-loop.ts`                              |
-| `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` | **done**                           |
-| `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            | **done**                           |
-| `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          | **done**                           |
-| `close-harness-session.ts`         | `domain/direct-harness/usecases/close-session.ts`           | **done**                           |
-| `update-harness-capabilities.ts`   | `domain/direct-harness/usecases/update-capabilities.ts`     | **done**                           |
+| `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` | **done**                              |
+| `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            | **done**                              |
+| `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          | **done**                              |
+| `close-harness-session.ts`         | `domain/direct-harness/usecases/close-session.ts`           | **done**                              |
+| `update-harness-capabilities.ts`   | `domain/direct-harness/usecases/update-capabilities.ts`     | **done**                              |
 | `fulfill-file-content-request.ts`  | `daemon-start/file-content-fulfillment.ts`                  |
 | `fulfill-file-tree-request.ts`     | `daemon-start/file-tree-subscription.ts`                    |
 | `fulfill-file-write-request.ts`    | `daemon-start/file-write-fulfillment.ts`                    |
