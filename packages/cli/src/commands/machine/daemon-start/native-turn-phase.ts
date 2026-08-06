@@ -1,7 +1,6 @@
 import type { AgentSlot } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import type { NativeTurnPhase } from '../../../v2/domain/entities/native-turn-phase.js';
 
-// fallow-ignore-next-line unused-export
 export {
   NATIVE_TURN_PHASES,
   type NativeTurnPhase,

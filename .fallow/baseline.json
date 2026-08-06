@@ -677,6 +677,7 @@
     "packages/cli/src/domain/agent-lifecycle/index.ts:RestartOutcome",
     "packages/cli/src/v2/domain/entities/harness-session.ts:HarnessSession",
     "packages/cli/src/v2/domain/entities/workspace.ts:Workspace",
+    "packages/cli/src/v2/infrastructure/convex/subscriber-deps.ts:ConvexSubscriberDeps",
     "packages/cli/src/events/daemon/event-bus.ts:DaemonEventPayload",
     "packages/cli/src/infrastructure/git/index.ts:DiffStat",
     "packages/cli/src/infrastructure/git/index.ts:GitCommit",
