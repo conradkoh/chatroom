@@ -5,7 +5,7 @@ import {
   isNonRetryableHarnessFailureText,
   isTerminalProviderError,
   isTerminalProviderFailureInLogs,
-} from './terminal-provider-error.js';
+} from './detect-terminal-provider-error.js';
 
 describe('quota and provider error text detection', () => {
   test('matches quota phrases and structured provider errors', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { decideRestartAfterExit } from './restart-decision.js';
-import type { RestartOutcome } from './restart-decision.js';
+import { decideRestartAfterExit } from './decide-restart-after-exit.js';
+import type { RestartOutcome } from './decide-restart-after-exit.js';
 
 function getRestartNow(result: RestartOutcome): Extract<RestartOutcome, { _tag: 'RestartNow' }> {
   if (result._tag !== 'RestartNow') {
