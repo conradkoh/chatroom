@@ -124,6 +124,8 @@ describe('workspace-git v2 subscribers', () => {
           },
         },
         file: {},
+        agenticQuery: {},
+        enhancer: {},
       },
     });
 
@@ -150,6 +152,8 @@ describe('workspace-git v2 subscribers', () => {
           },
         },
         file: {},
+        agenticQuery: {},
+        enhancer: {},
       },
       { type: 'git.request', requestId: GIT_REQUEST_ID }
     );

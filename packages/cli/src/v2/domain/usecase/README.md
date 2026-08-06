@@ -29,6 +29,8 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | `handle-command-inbound.ts`        | `v2/infrastructure/convex/subscribers/command-*`            | **done** — router hook; dispatch later |
 | `handle-workspace-git-inbound.ts`  | `v2/infrastructure/convex/subscribers/workspace-git-*`      | **done** — router hook; process later  |
 | `handle-file-inbound.ts`           | `v2/infrastructure/convex/subscribers/file-*`               | **done** — router hook; fulfill later  |
+| `handle-agentic-query-inbound.ts`  | `v2/infrastructure/convex/subscribers/agentic-query-*`      | **done** — router hook; process later  |
+| `handle-enhancer-inbound.ts`       | `v2/infrastructure/convex/subscribers/enhancer-job.ts`      | **done** — router hook; process later  |
 | `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` | **done**                               |
 | `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            | **done**                               |
 | `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          | **done**                               |

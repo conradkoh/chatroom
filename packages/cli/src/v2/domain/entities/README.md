@@ -28,6 +28,7 @@ Pure data types and event registries. No side effects.
 
 - **`inbound-event.ts`** — facts from Convex subscribers (normalized before `event-router`)
   - `direct-harness.command` uses `commandId` (Convex command `_id`), not `harnessSessionId`
+  - `agentic-query.session-opened` and `agentic-query.prompt` use `sessionId` (Convex `runId`)
 - **`outbound-event.ts`** — facts use cases assert (routed by `publisher-registry`)
 
 Include `harness.stream` on the outbound side for full-granularity stdout/stderr lines (local-web sink).

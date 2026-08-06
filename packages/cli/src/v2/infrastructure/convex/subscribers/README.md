@@ -26,9 +26,9 @@
 | `direct-harness-session.ts` | `daemon-start/direct-harness/`                     | **done** |
 | `direct-harness-prompt.ts`  | `daemon-start/direct-harness/prompt-subscriber.ts` | **done** |
 | `direct-harness-command.ts` | `daemon-start/direct-harness/`                     | **done** |
-| `agentic-query-session.ts`  | `daemon-start/agentic-query/`                      |
-| `agentic-query-prompt.ts`   | `daemon-start/agentic-query/prompt-subscriber.ts`  |
-| `enhancer-job.ts`           | `daemon-start/enhancer/job-subscriber.ts`          |
+| `agentic-query-session.ts`  | `daemon-start/agentic-query/`                      | **done** |
+| `agentic-query-prompt.ts`   | `daemon-start/agentic-query/prompt-subscriber.ts`  | **done** |
+| `enhancer-job.ts`           | `daemon-start/enhancer/job-subscriber.ts`          | **done** |
 | `git-request.ts`            | `daemon-start/git-subscription.ts`                 | **done** |
 | `file-tree-request.ts`      | `daemon-start/file-tree-subscription.ts`           | **done** |
 | `file-content-request.ts`   | `daemon-start/file-content-subscription.ts`        | **done** |
