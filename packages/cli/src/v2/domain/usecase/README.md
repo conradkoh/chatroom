@@ -25,9 +25,10 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | `deliver-assigned-task.ts`         | `daemon-start/task-monitor.ts`                              |
 | `handle-command-event.ts`          | `daemon-start/command-loop.ts`                              |
 | `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` |
-| `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            |
-| `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          |
-| `close-harness-session.ts`         | `domain/direct-harness/usecases/close-session.ts`           |
+| `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            | **done** |
+| `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          | **done** |
+| `close-harness-session.ts`         | `domain/direct-harness/usecases/close-session.ts`           | **done** |
+| `update-harness-capabilities.ts`   | `domain/direct-harness/usecases/update-capabilities.ts`     | **done** |
 | `fulfill-file-content-request.ts`  | `daemon-start/file-content-fulfillment.ts`                  |
 | `fulfill-file-tree-request.ts`     | `daemon-start/file-tree-subscription.ts`                    |
 | `fulfill-file-write-request.ts`    | `daemon-start/file-write-fulfillment.ts`                    |
@@ -42,3 +43,14 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | `stop-agent.ts`                    | `events/daemon/agent/on-request-stop-agent.ts`              |
 | `sync-git-state.ts`                | `daemon-start/git-heartbeat.ts`                             |
 | `update-workspace-list.ts`         | `daemon-start/workspace-list-subscription.ts`               |
+
+## Port co-location (direct-harness slice)
+
+| Port                    | v2 home                          |
+| ----------------------- | -------------------------------- |
+| `SessionRepository`     | `open-harness-session.ts`        |
+| `OutputRepository`      | `open-harness-session.ts`        |
+| `OutputChunk`           | `open-harness-session.ts`        |
+| `JournalFactory`        | `open-harness-session.ts`        |
+| `SessionJournal`        | `open-harness-session.ts`        |
+| `CapabilitiesPublisher` | `update-harness-capabilities.ts` |
