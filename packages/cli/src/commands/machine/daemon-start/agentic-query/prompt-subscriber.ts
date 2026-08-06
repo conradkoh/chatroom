@@ -8,9 +8,6 @@ import type {
   AgenticPendingPromptSession,
 } from './types.js';
 import { api } from '../../../../api.js';
-import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
-import type { JournalFactory } from '../../../../domain/direct-harness/usecases/open-session.js';
-import { resumeSession } from '../../../../domain/direct-harness/usecases/resume-session.js';
 import { makeHarnessKey } from '../../../../infrastructure/harnesses/harness-key.js';
 import {
   createChunkExtractor,
@@ -18,6 +15,11 @@ import {
   type NativeDirectHarnessName,
 } from '../../../../infrastructure/harnesses/registry.js';
 import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
+import type {
+  SessionRepository,
+  JournalFactory,
+} from '../../../../v2/domain/usecase/open-harness-session.js';
+import { resumeSession } from '../../../../v2/domain/usecase/resume-harness-session.js';
 import { handleSessionIdle } from '../direct-harness/idle-handler.js';
 import type { ActiveSession } from '../direct-harness/session-subscriber.js';
 import { bindTurnMessageOnEvent } from '../shared-harness/bind-turn-message-on-event.js';

@@ -51,7 +51,6 @@ import { startTaskMonitorEffect } from './task-monitor.js';
 import { formatTimestamp } from './utils.js';
 import { startWorkspaceListSubscriptionEffect } from './workspace-list-subscription.js';
 import { api } from '../../../api.js';
-import type { SessionHandle } from '../../../domain/direct-harness/usecases/open-session.js';
 import { onRequestRestartAgentEffect } from '../../../events/daemon/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgentEffect } from '../../../events/daemon/agent/on-request-stop-agent.js';
@@ -62,6 +61,7 @@ import { executeLocalAction } from '../../../infrastructure/local-actions/index.
 import { pickFolderDialog } from '../../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type { BoundHarness } from '../../../v2/domain/entities/bound-harness.js';
+import type { SessionHandle } from '../../../v2/domain/usecase/open-harness-session.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 

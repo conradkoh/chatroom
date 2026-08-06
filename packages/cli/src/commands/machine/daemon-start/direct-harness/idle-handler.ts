@@ -11,11 +11,11 @@
 
 import { Effect } from 'effect';
 
-import type { SessionRepository } from '../../../../domain/direct-harness/ports/session-repository.js';
 import type {
+  SessionRepository,
   SessionHandle,
   SessionJournal,
-} from '../../../../domain/direct-harness/usecases/open-session.js';
+} from '../../../../v2/domain/usecase/open-harness-session.js';
 
 export interface IdleHandlerConfig {
   agent: string;
