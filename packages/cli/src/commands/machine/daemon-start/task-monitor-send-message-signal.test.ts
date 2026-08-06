@@ -8,6 +8,7 @@
 
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel.js';
 import { GET_NEXT_TASK_STARTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+import type { AssignedTaskSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { describe, expect, it } from 'vitest';
 
@@ -80,8 +81,8 @@ describe('task monitor — sendMessage incremental signal', () => {
     expect(row).toBeDefined();
 
     snapshot.mergePresence({
-      taskId: row!.taskId,
-      chatroomId: row!.chatroomId,
+      taskId: row!.taskId as AssignedTaskSignal['taskId'],
+      chatroomId: row!.chatroomId as AssignedTaskSignal['chatroomId'],
       role: row!.agentConfig.role,
       lastSeenAt: row!.createdAt - 100,
       lastSeenAction: GET_NEXT_TASK_STARTED_ACTION,

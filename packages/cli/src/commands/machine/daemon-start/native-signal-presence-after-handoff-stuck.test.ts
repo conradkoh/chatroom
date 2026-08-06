@@ -20,7 +20,7 @@ import {
   NATIVE_TASK_INJECTED_ACTION,
   NATIVE_WAITING_ACTION,
 } from '@workspace/backend/src/domain/entities/participant.js';
-import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import type { AssignedTaskSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { Context, Effect, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
@@ -41,6 +41,7 @@ import {
   clearAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
 } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
+import type { AssignedTaskSnapshotView } from '../../../v2/domain/entities/assigned-task.js';
 
 const CHATROOM_ID = 'n57ctdnfvd0avh0ghx6p4szk8x8aa69a' as Id<'chatroom_rooms'>;
 const TASK_ID = 'nh7dh7bj63fdns9zkyasjgnga58afx3s' as Id<'chatroom_tasks'>;
@@ -142,8 +143,8 @@ describe('native signal-presence stuck after planner handoff', () => {
     expect(row).toBeDefined();
 
     const presenceRow = snapshot.mergePresence({
-      taskId: row!.taskId,
-      chatroomId: row!.chatroomId,
+      taskId: row!.taskId as AssignedTaskSignal['taskId'],
+      chatroomId: row!.chatroomId as AssignedTaskSignal['chatroomId'],
       role: row!.agentConfig.role,
       lastSeenAt: row!.createdAt,
       lastSeenAction: NATIVE_WAITING_ACTION,

@@ -46,3 +46,8 @@ export function isAgentDesiredRunning(desiredState: AgentDesiredState | undefine
 
 /** Gradual migration alias — structurally identical to backend AssignedTaskSnapshotView. */
 export type AssignedTaskSnapshotView = AssignedTask;
+
+/** Full task view including content — for one-shot action fetches. */
+export interface AssignedTaskWithContent extends AssignedTask {
+  taskContent: string;
+}
