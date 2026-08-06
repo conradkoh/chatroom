@@ -27,7 +27,7 @@ const LEGACY_INIT_FILES_TO_GUARD = [
   'src/commands/machine/daemon-start/file-content-subscription.ts',
   'src/commands/machine/daemon-start/file-write-subscription.ts',
   'src/commands/machine/daemon-start/workspace-list-subscription.ts',
-  'src/commands/machine/daemon-start/handlers/process/command-run-subscription.ts',
+  'src/daemon/entry/handlers/process/command-run-subscription.ts',
   'src/commands/machine/daemon-start/direct-harness/start-subscriptions.ts',
   'src/commands/machine/daemon-start/agentic-query/start-subscriptions.ts',
   'src/daemon/entry/enhancer-legacy/job-subscriber.ts',
@@ -36,7 +36,7 @@ const LEGACY_INIT_FILES_TO_GUARD = [
 ] as const;
 
 const ALLOWED_LEGACY_WS = [
-  'src/commands/machine/daemon-start/handlers/process/log-observer-subscription.ts',
+  'src/daemon/entry/handlers/process/log-observer-subscription.ts',
 ] as const;
 
 function readRepoFile(relPath: string): string {

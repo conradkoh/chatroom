@@ -1,9 +1,9 @@
 import type { ChildProcess } from 'node:child_process';
 
-import { formatTimestamp } from '../../utils.js';
+import { processManager } from './manager.js';
 import type { RunningProcess } from './state.js';
 import { SIGTERM_GRACE_PERIOD_MS } from './state.js';
-import { processManager } from './manager.js';
+import { formatTimestamp } from '../../../../commands/machine/daemon-start/utils.js';
 
 export function killProcess(child: ChildProcess, signal: NodeJS.Signals): void {
   if (child.pid == null) return;

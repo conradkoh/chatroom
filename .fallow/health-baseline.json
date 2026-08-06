@@ -1681,7 +1681,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/handlers/command-runner.ts": {
+    "packages/cli/src/daemon/entry/handlers/command-runner.ts": {
       "crap_high": {
         "count": 1
       },
@@ -1689,7 +1689,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/handlers/orphan-tracker.ts": {
+    "packages/cli/src/daemon/entry/handlers/orphan-tracker.ts": {
       "complexity_high": {
         "count": 1
       },
@@ -1697,17 +1697,17 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/handlers/process/command-run-subscription.ts": {
+    "packages/cli/src/daemon/entry/handlers/process/command-run-subscription.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/handlers/process/log-observer-subscription.ts": {
+    "packages/cli/src/daemon/entry/handlers/process/log-observer-subscription.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/handlers/process/spawner.ts": {
+    "packages/cli/src/daemon/entry/handlers/process/spawner.ts": {
       "crap_moderate": {
         "count": 4
       }

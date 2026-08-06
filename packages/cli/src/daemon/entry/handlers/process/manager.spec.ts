@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { ProcessManager } from './manager.js';
 import type { RunningProcess } from './state.js';
 

@@ -31,7 +31,7 @@ import { join } from 'node:path';
 
 import { Effect } from 'effect';
 
-import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
+import { getConvexUrl } from '../../../infrastructure/convex/client.js';
 
 // ─── File Paths ──────────────────────────────────────────────────────────────
 

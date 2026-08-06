@@ -22,6 +22,10 @@ import {
   registerFileInboundHandler,
   unregisterFileInboundHandler,
 } from './file-inbound-registry.js';
+import { forceKillAllCommands } from './handlers/command-runner.js';
+import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
+import { drainActionableCommandRuns } from './handlers/process/command-run-subscription.js';
+import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { startTaskMonitorEffect } from './task-monitor-runtime.js';
 import { drainGitStateSync } from './workspace-git/git-heartbeat.js';
 import {
@@ -46,10 +50,6 @@ import {
   type FileTreeSubscriptionHandle,
 } from '../../commands/machine/daemon-start/file-tree-subscription.js';
 import { drainPendingFileWriteRequests } from '../../commands/machine/daemon-start/file-write-subscription.js';
-import { forceKillAllCommands } from '../../commands/machine/daemon-start/handlers/command-runner.js';
-import { forceKillAllTrackedProcessGroupsEffect } from '../../commands/machine/daemon-start/handlers/orphan-tracker.js';
-import { drainActionableCommandRuns } from '../../commands/machine/daemon-start/handlers/process/command-run-subscription.js';
-import { startLogObserverSubscription } from '../../commands/machine/daemon-start/handlers/process/log-observer-sync.js';
 import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
 import {
   startWorkspaceListSubscriptionEffect,

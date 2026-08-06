@@ -81,14 +81,14 @@ vi.mock('../../version.js', () => ({
 
 const { recoverEffectRun } = vi.hoisted(() => ({ recoverEffectRun: vi.fn() }));
 
-vi.mock('../../commands/machine/daemon-start/handlers/state-recovery.js', async () => {
+vi.mock('./handlers/state-recovery.js', async () => {
   const { Effect } = await import('effect');
   return {
     recoverAgentStateEffect: Effect.promise(() => recoverEffectRun()),
   };
 });
 
-vi.mock('../../commands/machine/daemon-start/handlers/orphan-tracker.js', async () => {
+vi.mock('./handlers/orphan-tracker.js', async () => {
   const { Effect } = await import('effect');
   return {
     reapOrphanedProcessGroups: vi.fn().mockResolvedValue({ reaped: 0, checked: 0 }), // keep — harmless
@@ -132,7 +132,7 @@ vi.mock('./utils.js', () => ({
   formatTimestamp: vi.fn().mockReturnValue('2026-01-01 00:00:00'),
 }));
 
-vi.mock('../../commands/machine/daemon-start/handlers/process/output-store.js', () => ({
+vi.mock('./handlers/process/output-store.js', () => ({
   cleanOrphanTempFiles: vi.fn().mockResolvedValue(0),
 }));
 

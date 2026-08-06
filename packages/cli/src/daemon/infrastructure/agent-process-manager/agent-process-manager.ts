@@ -26,7 +26,6 @@ import { Effect } from 'effect';
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
-import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import type { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
@@ -87,6 +86,7 @@ import {
   shouldPreserveHarnessTeardown,
   shouldRetainHarnessSessionForReconnect,
 } from '../../domain/usecase/preserve-harness-session.js';
+import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import { notifyNativeHarnessSessionLostOnExit } from '../../entry/native-delivery/native-harness-session-exit.js';
 import {
   notifyNativeSessionLost,

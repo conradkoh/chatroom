@@ -9,22 +9,28 @@
 import { Effect, Layer } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DaemonEventBus } from '../../../../daemon/entry/events/event-bus.js';
-import { daemonSessionToLayers } from '../daemon-layers.js';
-import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
 import { handlePingEffect } from './ping.js';
 import { recoverAgentStateEffect } from './state-recovery.js';
 import { handleStatusEffect } from './status.js';
 import { executeStopAgentEffect, handleStopAgentEffect } from './stop-agent.js';
-import { createMockDaemonSessionInit } from '../testing/index.js';
-import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
-import type { DaemonSessionInit, MachineConfig } from '../types.js';
+import { daemonSessionToLayers } from '../../../commands/machine/daemon-start/daemon-layers.js';
+import {
+  DaemonAgentProcessManagerService,
+  DaemonSessionService,
+} from '../../../commands/machine/daemon-start/daemon-services.js';
+import { createMockDaemonSessionInit } from '../../../commands/machine/daemon-start/testing/index.js';
+import { createMockDaemonDeps } from '../../../commands/machine/daemon-start/testing/mock-daemon-deps.js';
+import type {
+  DaemonSessionInit,
+  MachineConfig,
+} from '../../../commands/machine/daemon-start/types.js';
+import { DaemonEventBus } from '../events/event-bus.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks
 // ---------------------------------------------------------------------------
 
-vi.mock('../../../../api.js', () => ({
+vi.mock('../../../api.js', () => ({
   api: {
     machines: {
       getMachineAgentConfigs: 'machines.getMachineAgentConfigs',

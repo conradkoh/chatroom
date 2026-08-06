@@ -1,7 +1,4 @@
-import {
-  spawnCommandProcess,
-  type SpawnDeps,
-} from '../../../commands/machine/daemon-start/handlers/process/spawner.js';
+import { spawnCommandProcess, type SpawnDeps } from '../../entry/handlers/process/spawner.js';
 
 export type { SpawnDeps };
 

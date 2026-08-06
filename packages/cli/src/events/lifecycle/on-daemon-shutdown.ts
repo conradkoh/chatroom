@@ -5,8 +5,8 @@ import {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from '../../commands/machine/daemon-start/daemon-services.js';
-import { shutdownAllCommandsEffect } from '../../commands/machine/daemon-start/handlers/command-runner.js';
 import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
+import { shutdownAllCommandsEffect } from '../../daemon/entry/handlers/command-runner.js';
 
 export const onDaemonShutdownEffect: Effect.Effect<
   void,

@@ -12,6 +12,8 @@ import { createRefreshMachineCapabilitiesDeps } from './bridge/capabilities-brid
 import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
 import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
+import { handlePing } from './handlers/ping.js';
+import { processManager } from './handlers/process/manager.js';
 import {
   isDaemonCommandEventType,
   type DaemonCommandEventType,
@@ -23,8 +25,6 @@ import {
   type DaemonAgentProcessManagerService,
   type DaemonSessionServiceShape,
 } from '../../commands/machine/daemon-start/daemon-services.js';
-import { handlePing } from '../../commands/machine/daemon-start/handlers/ping.js';
-import { processManager } from '../../commands/machine/daemon-start/handlers/process/manager.js';
 import { capabilitiesOutcomeToStatus } from '../../commands/machine/daemon-start/refresh-models-outcome.js';
 import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
 import { executeLocalAction } from '../../infrastructure/local-actions/index.js';

@@ -174,15 +174,15 @@ vi.mock('../../commands/machine/daemon-start/workspace-list-subscription.js', as
   };
 });
 
-vi.mock('../../commands/machine/daemon-start/handlers/process/log-observer-sync.js', () => ({
+vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
 }));
 
-vi.mock('../../commands/machine/daemon-start/handlers/process/command-run-subscription.js', () => ({
+vi.mock('./handlers/process/command-run-subscription.js', () => ({
   startCommandRunSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
 }));
 
-vi.mock('../../commands/machine/daemon-start/handlers/ping.js', () => ({
+vi.mock('./handlers/ping.js', () => ({
   handlePing: vi.fn().mockReturnValue({ result: 'pong', failed: false }),
 }));
 

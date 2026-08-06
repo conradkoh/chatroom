@@ -47,7 +47,7 @@ vi.mock('./task-monitor-runtime.js', async () => {
     startTaskMonitorEffect: () => Effect.succeed({ stop: vi.fn() }),
   };
 });
-vi.mock('../../commands/machine/daemon-start/handlers/process/log-observer-sync.js', () => ({
+vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: () => ({ stop: vi.fn() }),
 }));
 vi.mock('../../commands/machine/pid.js', () => ({

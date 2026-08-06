@@ -1,5 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { appendFile, mkdir, readFile, rm } from 'node:fs/promises';
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  createOutputStore,
+  ensureTempDir,
+  cleanOrphanTempFiles,
+  TAIL_WINDOW_BYTES,
+} from './output-store';
 
 vi.mock('node:fs/promises', () => ({
   appendFile: vi.fn().mockResolvedValue(undefined),
@@ -7,8 +15,6 @@ vi.mock('node:fs/promises', () => ({
   readFile: vi.fn().mockResolvedValue(''),
   rm: vi.fn().mockResolvedValue(undefined),
 }));
-
-import { createOutputStore, ensureTempDir, cleanOrphanTempFiles, TAIL_WINDOW_BYTES } from './output-store';
 
 describe('createOutputStore', () => {
   beforeEach(() => {
@@ -106,7 +112,9 @@ describe('createOutputStore', () => {
 describe('ensureTempDir', () => {
   it('creates temp directory recursively', async () => {
     await ensureTempDir();
-    expect(mkdir).toHaveBeenCalledWith(expect.stringContaining('chatroom-cli'), { recursive: true });
+    expect(mkdir).toHaveBeenCalledWith(expect.stringContaining('chatroom-cli'), {
+      recursive: true,
+    });
   });
 });
 

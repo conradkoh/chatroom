@@ -7,7 +7,6 @@ import {
   type EnsureRunningOpts,
   STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
-import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../../../infrastructure/harnesses/registry.js';
 import {
   CRASH_LOOP_MAX_RESTARTS,
@@ -25,11 +24,12 @@ import {
   CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
   CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
 } from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
+import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import type * as NativeTaskDeliveryCoordinatorModule from '../../entry/native-delivery/native-task-delivery-coordinator.js';
 
 type NativeSdkHarness = (typeof NATIVE_DIRECT_HARNESS_NAMES)[number];
 
-vi.mock('../../../commands/machine/daemon-start/handlers/orphan-tracker.js', () => ({
+vi.mock('../../entry/handlers/orphan-tracker.js', () => ({
   trackChildPid: vi.fn(),
   untrackChildPid: vi.fn(),
 }));
