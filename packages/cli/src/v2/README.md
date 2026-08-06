@@ -4,6 +4,8 @@ Guide for migrating the machine daemon from `commands/machine/daemon-start/` to 
 
 **Root:** `packages/cli/src/v2/`
 
+**Progress tracker:** [MIGRATION-TRACKER.md](./MIGRATION-TRACKER.md) — definition of done, unit checklist, backlog mapping (branch: `feat/v2-daemon-migration`)
+
 ---
 
 ## Purpose
