@@ -10,10 +10,13 @@ import { dirname } from 'node:path';
 
 import { Effect } from 'effect';
 
-import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
-import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import {
+  DaemonSessionService,
+  type DaemonSessionServiceShape,
+} from '../../../commands/machine/daemon-start/daemon-services.js';
+import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
 import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
 import {
   gunzipBase64Payload,

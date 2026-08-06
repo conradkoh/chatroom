@@ -1,12 +1,12 @@
 import type { AgenticQuerySubscriptionSession } from './start-subscriptions.js';
 import type { AgenticPendingOpenSession } from './types.js';
-import { api } from '../../../../api.js';
-import type { BoundHarness } from '../../../../daemon/domain/entities/bound-harness.js';
+import { api } from '../../../api.js';
+import type { BoundHarness } from '../../domain/entities/bound-harness.js';
 import type {
   SessionRepository,
   JournalFactory,
   SessionHandle,
-} from '../../../../daemon/domain/usecase/open-harness-session.js';
+} from '../../domain/usecase/open-harness-session.js';
 import { openPendingHarnessSession } from '../shared-harness/open-pending-session.js';
 
 export type AgenticQuerySessionSubscriberDeps = {

@@ -8,8 +8,8 @@
  */
 
 import { createMockDaemonDeps } from './mock-daemon-deps.js';
-import { DaemonEventBus } from '../../../../daemon/entry/events/event-bus.js';
-import type { DaemonSessionInit } from '../types.js';
+import type { DaemonSessionInit } from '../../../commands/machine/daemon-start/types.js';
+import { DaemonEventBus } from '../events/event-bus.js';
 
 /**
  * Creates a minimal DaemonSessionInit for unit tests (flat deps shape).

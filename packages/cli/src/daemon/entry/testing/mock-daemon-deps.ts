@@ -16,7 +16,7 @@
 
 import { vi } from 'vitest';
 
-import type { DaemonDeps } from '../deps.js';
+import type { DaemonDeps } from '../../../commands/machine/daemon-start/deps.js';
 
 /**
  * Creates a fully-mocked DaemonDeps object suitable for unit tests.

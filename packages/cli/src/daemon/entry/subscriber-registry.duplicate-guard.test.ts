@@ -23,13 +23,13 @@ const V2_SUBSCRIBED_QUERIES = [
 ] as const;
 
 const LEGACY_INIT_FILES_TO_GUARD = [
-  'src/commands/machine/daemon-start/file-tree-subscription.ts',
-  'src/commands/machine/daemon-start/file-content-subscription.ts',
-  'src/commands/machine/daemon-start/file-write-subscription.ts',
+  'src/daemon/entry/files/file-tree-subscription.ts',
+  'src/daemon/entry/files/file-content-subscription.ts',
+  'src/daemon/entry/files/file-write-subscription.ts',
   'src/commands/machine/daemon-start/workspace-list-subscription.ts',
   'src/daemon/entry/handlers/process/command-run-subscription.ts',
-  'src/commands/machine/daemon-start/direct-harness/start-subscriptions.ts',
-  'src/commands/machine/daemon-start/agentic-query/start-subscriptions.ts',
+  'src/daemon/entry/direct-harness/start-subscriptions.ts',
+  'src/daemon/entry/agentic-query/start-subscriptions.ts',
   'src/daemon/entry/enhancer-legacy/job-subscriber.ts',
   'src/daemon/entry/daemon-runtime.ts',
   'src/daemon/entry/task-monitor-runtime.ts',

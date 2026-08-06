@@ -17,11 +17,18 @@ import {
   registerCommandInboundHandler,
   unregisterCommandInboundHandler,
 } from './command-inbound-registry.js';
+import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
 import { startEnhancerSubscriptions } from './enhancer-legacy/start-subscriptions.js';
 import {
   registerFileInboundHandler,
   unregisterFileInboundHandler,
 } from './file-inbound-registry.js';
+import { drainPendingFileContentRequests } from './files/file-content-subscription.js';
+import {
+  startFileTreeSubscriptionEffect,
+  type FileTreeSubscriptionHandle,
+} from './files/file-tree-subscription.js';
+import { drainPendingFileWriteRequests } from './files/file-write-subscription.js';
 import { forceKillAllCommands } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { drainActionableCommandRuns } from './handlers/process/command-run-subscription.js';
@@ -37,19 +44,12 @@ import {
   unregisterWorkspaceGitInboundHandler,
 } from './workspace-git-inbound-registry.js';
 import { api } from '../../api.js';
-import { startAgenticQuerySubscriptions } from '../../commands/machine/daemon-start/agentic-query/start-subscriptions.js';
+import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
 import {
   DaemonSessionService,
   type DaemonAgentProcessManagerService,
   type DaemonMutableStateService,
 } from '../../commands/machine/daemon-start/daemon-services.js';
-import { startDirectHarnessSubscriptions } from '../../commands/machine/daemon-start/direct-harness/start-subscriptions.js';
-import { drainPendingFileContentRequests } from '../../commands/machine/daemon-start/file-content-subscription.js';
-import {
-  startFileTreeSubscriptionEffect,
-  type FileTreeSubscriptionHandle,
-} from '../../commands/machine/daemon-start/file-tree-subscription.js';
-import { drainPendingFileWriteRequests } from '../../commands/machine/daemon-start/file-write-subscription.js';
 import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
 import {
   startWorkspaceListSubscriptionEffect,

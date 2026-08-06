@@ -3,11 +3,11 @@ import { describe, expect, test, vi } from 'vitest';
 
 import type { Id } from '../../api.js';
 import { registerEventListenersEffect } from './events/register-listeners.js';
+import { createMockDaemonSessionInit } from './testing/index.js';
 import {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from '../../commands/machine/daemon-start/daemon-services.js';
-import { createMockDaemonSessionInit } from '../../commands/machine/daemon-start/testing/index.js';
 import type { DaemonSessionInit } from '../../commands/machine/daemon-start/types.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
 

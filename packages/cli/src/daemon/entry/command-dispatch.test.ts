@@ -17,14 +17,14 @@ import type { Layer } from 'effect';
 import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createMockDaemonSessionInit } from './testing/index.js';
+import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 import { daemonSessionToLayers } from '../../commands/machine/daemon-start/daemon-layers.js';
 import type {
   DaemonAgentProcessManagerService,
   DaemonMutableStateService,
   DaemonSessionService,
 } from '../../commands/machine/daemon-start/daemon-services.js';
-import { createMockDaemonSessionInit } from '../../commands/machine/daemon-start/testing/index.js';
-import { createMockDaemonDeps } from '../../commands/machine/daemon-start/testing/mock-daemon-deps.js';
 import type { DaemonSessionInit } from '../../commands/machine/daemon-start/types.js';
 
 // ---------------------------------------------------------------------------
@@ -153,14 +153,14 @@ vi.mock('./workspace-git/git-subscription.js', async () => {
   };
 });
 
-vi.mock('../../commands/machine/daemon-start/file-content-subscription.js', async () => {
+vi.mock('./files/file-content-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
     startFileContentSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
   };
 });
 
-vi.mock('../../commands/machine/daemon-start/file-tree-subscription.js', async () => {
+vi.mock('./files/file-tree-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
     startFileTreeSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),

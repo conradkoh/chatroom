@@ -1627,7 +1627,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/agentic-query/session-processor.ts": {
+    "packages/cli/src/daemon/entry/agentic-query/session-processor.ts": {
       "crap_moderate": {
         "count": 1
       }
@@ -1640,32 +1640,32 @@
         "count": 2
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/direct-harness/command-processor.ts": {
+    "packages/cli/src/daemon/entry/direct-harness/command-processor.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/direct-harness/harness-lifecycle-manager.ts": {
+    "packages/cli/src/daemon/entry/direct-harness/harness-lifecycle-manager.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/direct-harness/prompt-drain.ts": {
+    "packages/cli/src/daemon/entry/direct-harness/prompt-drain.ts": {
       "crap_high": {
         "count": 2
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/direct-harness/session-processor.ts": {
+    "packages/cli/src/daemon/entry/direct-harness/session-processor.ts": {
       "crap_critical": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/file-content-classifier.ts": {
+    "packages/cli/src/daemon/entry/files/file-content-classifier.ts": {
       "crap_high": {
         "count": 2
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/file-content-fulfillment.ts": {
+    "packages/cli/src/daemon/entry/files/file-content-fulfillment.ts": {
       "complexity_critical": {
         "count": 1
       },
@@ -1676,7 +1676,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/file-tree-subscription.ts": {
+    "packages/cli/src/daemon/entry/files/file-tree-subscription.ts": {
       "crap_moderate": {
         "count": 1
       }
@@ -1725,7 +1725,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/shared-harness/open-pending-session.ts": {
+    "packages/cli/src/daemon/entry/shared-harness/open-pending-session.ts": {
       "crap_critical": {
         "count": 1
       },
@@ -2887,7 +2887,7 @@
     "packages/cli/src/infrastructure/services/remote-agents/agent-log-format.ts:high impact",
     "apps/webapp/src/lib/pathUtils.ts:high impact",
     "services/backend/convex/lib/taskStateMachine.ts:complexity",
-    "packages/cli/src/commands/machine/daemon-start/file-write-fulfillment.ts:complexity",
+    "packages/cli/src/daemon/entry/files/file-write-fulfillment.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/BacklogItemDetailModal.tsx:complexity",
     "services/backend/convex/machines.ts:complexity",
     "packages/cli/src/daemon/domain/usecase/detect-terminal-provider-error.ts:untested risk",

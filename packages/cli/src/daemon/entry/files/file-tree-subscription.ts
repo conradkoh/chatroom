@@ -10,9 +10,12 @@ import { gzipSync } from 'node:zlib';
 
 import { Effect } from 'effect';
 
-import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
-import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import {
+  DaemonSessionService,
+  type DaemonSessionServiceShape,
+} from '../../../commands/machine/daemon-start/daemon-services.js';
+import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
 import { computeFileTreeDataHash } from '../../../infrastructure/services/workspace/file-tree-data-hash.js';
 import { shouldUseV3Upload } from '../../../infrastructure/services/workspace/file-tree-partition.js';
 import { uploadFileTreeV3 } from '../../../infrastructure/services/workspace/file-tree-v3-upload.js';

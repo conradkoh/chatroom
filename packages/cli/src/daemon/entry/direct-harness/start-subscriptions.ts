@@ -9,18 +9,18 @@ import { drainPendingHarnessMessages } from './prompt-drain.js';
 import { processPendingHarnessSessions } from './session-processor.js';
 import type { ActiveSession } from './session-processor.js';
 import { closeAllMachineHarnessSessionsOnShutdown } from './shutdown-sessions.js';
-import { api } from '../../../../api.js';
-import type { BoundHarness } from '../../../../daemon/domain/entities/bound-harness.js';
+import { api } from '../../../api.js';
+import type { SessionId } from '../../../commands/machine/daemon-start/types.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
+import { ConvexCapabilitiesPublisher } from '../../../infrastructure/repos/convex-capabilities-publisher.js';
+import { ConvexOutputRepository } from '../../../infrastructure/repos/convex-output-repository.js';
+import { ConvexSessionRepository } from '../../../infrastructure/repos/convex-session-repository.js';
+import { BufferedJournalFactory } from '../../../infrastructure/repos/journal-factory.js';
+import type { BoundHarness } from '../../domain/entities/bound-harness.js';
 import {
   registerDirectHarnessInboundHandler,
   unregisterDirectHarnessInboundHandler,
-} from '../../../../daemon/entry/direct-harness-inbound-registry.js';
-import type { BackendOps } from '../../../../infrastructure/deps/index.js';
-import { ConvexCapabilitiesPublisher } from '../../../../infrastructure/repos/convex-capabilities-publisher.js';
-import { ConvexOutputRepository } from '../../../../infrastructure/repos/convex-output-repository.js';
-import { ConvexSessionRepository } from '../../../../infrastructure/repos/convex-session-repository.js';
-import { BufferedJournalFactory } from '../../../../infrastructure/repos/journal-factory.js';
-import type { SessionId } from '../types.js';
+} from '../direct-harness-inbound-registry.js';
 
 export interface DirectHarnessSubscriptionSession {
   sessionId: SessionId;

@@ -15,7 +15,7 @@ import type {
   SessionRepository,
   SessionHandle,
   SessionJournal,
-} from '../../../../daemon/domain/usecase/open-harness-session.js';
+} from '../../domain/usecase/open-harness-session.js';
 
 export interface IdleHandlerConfig {
   agent: string;

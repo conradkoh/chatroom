@@ -8,17 +8,11 @@
 
 import { Effect } from 'effect';
 
-import type {
-  BoundHarness,
-  NativeDirectHarnessName,
-} from '../../../../daemon/domain/entities/bound-harness.js';
-import type { SessionHandle } from '../../../../daemon/domain/usecase/open-harness-session.js';
-import {
-  makeHarnessKey,
-  parseHarnessKey,
-} from '../../../../infrastructure/harnesses/harness-key.js';
-import { startBoundHarness } from '../../../../infrastructure/harnesses/registry.js';
-import { formatTimestamp } from '../utils.js';
+import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
+import { makeHarnessKey, parseHarnessKey } from '../../../infrastructure/harnesses/harness-key.js';
+import { startBoundHarness } from '../../../infrastructure/harnesses/registry.js';
+import type { BoundHarness, NativeDirectHarnessName } from '../../domain/entities/bound-harness.js';
+import type { SessionHandle } from '../../domain/usecase/open-harness-session.js';
 
 const INACTIVITY_TTL_MS = 15 * 60 * 1000;
 const CHECK_INTERVAL_MS = 60 * 1000;

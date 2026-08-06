@@ -10,10 +10,13 @@ import { gzipSync } from 'node:zlib';
 
 import { Effect } from 'effect';
 
-import { DaemonSessionService, type DaemonSessionServiceShape } from './daemon-services.js';
 import { classifyFileContent, hasKnownBinaryExtension } from './file-content-classifier.js';
-import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import {
+  DaemonSessionService,
+  type DaemonSessionServiceShape,
+} from '../../../commands/machine/daemon-start/daemon-services.js';
+import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
 import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
 import { resolvePathWithinWorkspace } from '../../../infrastructure/services/workspace/workspace-path-security.js';
 import { isPathContentReadable } from '../../../infrastructure/services/workspace/workspace-visibility-policy.js';

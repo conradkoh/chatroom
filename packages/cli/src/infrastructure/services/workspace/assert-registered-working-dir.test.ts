@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { assertRegisteredWorkingDir } from './assert-registered-working-dir.js';
 import type { DaemonSessionServiceShape } from '../../../commands/machine/daemon-start/daemon-services.js';
-import { createMockDaemonSessionInit } from '../../../commands/machine/daemon-start/testing/index.js';
-import { createMockDaemonDeps } from '../../../commands/machine/daemon-start/testing/mock-daemon-deps.js';
+import { createMockDaemonSessionInit } from '../../../daemon/entry/testing/index.js';
+import { createMockDaemonDeps } from '../../../daemon/entry/testing/mock-daemon-deps.js';
 
 describe('assertRegisteredWorkingDir', () => {
   it('matches workspace when request path differs only by trailing slash', async () => {

@@ -27,7 +27,7 @@ vi.mock('./workspace-git/git-subscription.js', async () => {
       Effect.succeed({ stop: vi.fn(), drainPendingGitRequests: vi.fn() }),
   };
 });
-vi.mock('../../commands/machine/daemon-start/file-tree-subscription.js', async () => {
+vi.mock('./files/file-tree-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
     startFileTreeSubscriptionEffect: () =>

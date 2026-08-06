@@ -1,4 +1,4 @@
-import type { SessionRepository } from '../../../../daemon/domain/usecase/open-harness-session.js';
+import type { SessionRepository } from '../../domain/usecase/open-harness-session.js';
 import type { ActiveSession } from '../direct-harness/session-processor.js';
 
 /** Bind harness turn messageId to Convex when the SDK assigns one mid-turn. */

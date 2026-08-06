@@ -10,10 +10,10 @@ import { gzipSync } from 'node:zlib';
 import { Effect } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { daemonSessionToLayers } from './daemon-layers.js';
 import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
 import { fulfillFileWriteRequestsEffect } from './file-write-fulfillment.js';
-import { createMockDaemonSessionInit } from './testing/index.js';
+import { daemonSessionToLayers } from '../../../commands/machine/daemon-start/daemon-layers.js';
+import { createMockDaemonSessionInit } from '../testing/index.js';
 
 vi.mock('../../../api.js', () => ({
   api: {
