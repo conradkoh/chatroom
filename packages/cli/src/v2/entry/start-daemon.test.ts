@@ -21,9 +21,9 @@ const {
 }));
 
 vi.mock('effect', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
+  const actual = (await importOriginal()) as { Effect: object };
   return {
-    ...actual,
+    ...(actual as object),
     Effect: {
       ...actual.Effect,
       runFork,
