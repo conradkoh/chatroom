@@ -19,35 +19,34 @@ describe('commandDialogWarmup', () => {
 
   it('schedule sets warming then warm on idle execute', () => {
     const run = vi.fn();
-    scheduleCommandDialogWarmup('file-selector', 'room-1', run);
+    scheduleCommandDialogWarmup('switcher', 'global', run);
 
-    expect(getCommandDialogWarmState('file-selector', 'room-1')).toBe('warming');
+    expect(getCommandDialogWarmState('switcher', 'global')).toBe('warming');
     expect(run).not.toHaveBeenCalled();
 
     vi.runAllTimers();
     expect(run).toHaveBeenCalledTimes(1);
-    expect(getCommandDialogWarmState('file-selector', 'room-1')).toBe('warm');
+    expect(getCommandDialogWarmState('switcher', 'global')).toBe('warm');
   });
 
   it('cancel resets warming state to cold', () => {
     const run = vi.fn();
-    const cancel = scheduleCommandDialogWarmup('file-selector', 'room-1', run);
+    const cancel = scheduleCommandDialogWarmup('switcher', 'global', run);
 
-    expect(getCommandDialogWarmState('file-selector', 'room-1')).toBe('warming');
+    expect(getCommandDialogWarmState('switcher', 'global')).toBe('warming');
     cancel();
-    expect(getCommandDialogWarmState('file-selector', 'room-1')).toBe('cold');
+    expect(getCommandDialogWarmState('switcher', 'global')).toBe('cold');
     vi.runAllTimers();
     expect(run).not.toHaveBeenCalled();
   });
 
   it('invalidateCommandDialogWarmScope clears scope entries', () => {
-    scheduleCommandDialogWarmup('file-selector', 'room-1', () => {});
     scheduleCommandDialogWarmup('switcher', 'global', () => {});
     vi.runAllTimers();
-
-    invalidateCommandDialogWarmScope('room-1');
-    expect(getCommandDialogWarmState('file-selector', 'room-1')).toBe('cold');
     expect(getCommandDialogWarmState('switcher', 'global')).toBe('warm');
+
+    invalidateCommandDialogWarmScope('global');
+    expect(getCommandDialogWarmState('switcher', 'global')).toBe('cold');
   });
 
   it('skips scheduling when already warm', () => {

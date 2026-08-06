@@ -1,10 +1,10 @@
 /** Non-blocking warmup state for command dialogs. */
 
-export type CommandDialogWarmTarget = 'switcher' | 'file-selector';
+export type CommandDialogWarmTarget = 'switcher';
 
 export type CommandDialogWarmState = 'cold' | 'warming' | 'warm';
 
-type ScopeKey = string; // 'global' for switcher, chatroomId for file-selector
+type ScopeKey = string; // 'global' for switcher
 
 const warmStates = new Map<string, CommandDialogWarmState>();
 
@@ -20,6 +20,7 @@ export function getCommandDialogWarmState(
   return warmStates.get(cacheKey(target, scope)) ?? 'cold';
 }
 
+// fallow-ignore-next-line unused-export
 export function setCommandDialogWarmState(
   target: CommandDialogWarmTarget,
   scope: ScopeKey,

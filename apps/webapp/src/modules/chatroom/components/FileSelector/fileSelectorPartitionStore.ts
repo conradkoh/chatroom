@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import { observable, type Observable } from '@legendapp/state';
 
 import { makeFileSelectorPartitionKey, NO_WORKSPACE_SENTINEL } from './fileSelectorPartitionKey';
