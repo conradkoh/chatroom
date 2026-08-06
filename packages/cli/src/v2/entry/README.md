@@ -4,13 +4,13 @@ Composition root — wiring only. **No business logic.**
 
 ## Belongs here
 
-| File                     | Role                                           |
-| ------------------------ | ---------------------------------------------- |
-| `start-daemon.ts`        | Future replacement for `daemon-start/index.ts` |
-| `event-router.ts`        | `InboundEvent` → use case dispatch             |
-| `subscriber-registry.ts` | Start/stop all Convex subscribers              |
-| `publisher-registry.ts`  | Route `OutboundEvent` → publishers             |
-| `deps.ts`                | Dependency bag for use cases                   |
+| File                     | Role                                                                       |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `start-daemon.ts`        | Future replacement for `daemon-start/index.ts`                             |
+| `event-router.ts`        | `InboundEvent` → use case dispatch                                         |
+| `subscriber-registry.ts` | Start/stop all Convex subscribers                                          |
+| `publisher-registry.ts`  | Route `OutboundEvent` → publishers; appends to persistence when configured |
+| `deps.ts`                | Dependency bag for use cases (publishers + optional persistence)           |
 
 ## Does not belong here
 

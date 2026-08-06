@@ -1,13 +1,19 @@
 import type { OutboundEvent } from '../domain/entities/outbound-event.js';
+import type { PersistenceStore } from '../infrastructure/persistence/index.js';
+
+export type PublisherRegistryDeps = {
+  persistence?: PersistenceStore;
+};
 
 export type PublisherRegistry = {
   publish(event: OutboundEvent): Promise<void>;
 };
 
-export function createPublisherRegistry(_deps: unknown): PublisherRegistry {
+export function createPublisherRegistry(deps: PublisherRegistryDeps = {}): PublisherRegistry {
   return {
-    async publish(_event: OutboundEvent): Promise<void> {
-      // TODO: route to convex/publishers/
+    async publish(event) {
+      deps.persistence?.append(event);
+      // Convex publisher routing remains stub — future slice
     },
   };
 }
