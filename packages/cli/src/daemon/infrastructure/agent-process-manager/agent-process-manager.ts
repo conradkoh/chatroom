@@ -41,17 +41,6 @@ import {
   type OperationResult,
   type StopOpts,
 } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
-import {
-  emitNativeWaitingAfterSpawn,
-  wireThrottledTokenActivityOnOutput,
-} from '../../../infrastructure/services/remote-agents/native-spawn-presence.js';
-import type {
-  HarnessReconnectMetadata,
-  HarnessSessionIdUpdatedInfo,
-  RemoteAgentService,
-  SpawnResult,
-} from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import { createSpawnPrompt } from '../../../infrastructure/services/remote-agents/spawn-prompt.js';
 import type { Signals } from '../../../infrastructure/types/signals.js';
 import { resolveResumableHarnessSessionId } from '../../domain/entities/harness-session-id-pair.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
@@ -97,6 +86,17 @@ import {
   setNativeTurnPhase,
   type NativeTurnPhase,
 } from '../../entry/native-delivery/native-turn-phase.js';
+import {
+  emitNativeWaitingAfterSpawn,
+  wireThrottledTokenActivityOnOutput,
+} from '../local/harness/services/native-spawn-presence.js';
+import type {
+  HarnessReconnectMetadata,
+  HarnessSessionIdUpdatedInfo,
+  RemoteAgentService,
+  SpawnResult,
+} from '../local/harness/services/remote-agent-service.js';
+import { createSpawnPrompt } from '../local/harness/services/spawn-prompt.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

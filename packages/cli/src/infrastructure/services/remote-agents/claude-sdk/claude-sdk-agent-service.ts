@@ -14,10 +14,17 @@ import { randomUUID } from 'node:crypto';
 import type { Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Effect } from 'effect';
 
-import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
-import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from '../claude/claude-models.js';
-import { DetectionResult } from '../detection-result.js';
+import {
+  formatClaudeSdkLoadError,
+  getBundledClaudeSdkVersion,
+  importBundledClaudeSdk,
+  resolvePathToClaudeCodeExecutable,
+} from './claude-sdk-package.js';
+import { ClaudeSdkStreamAdapter } from './claude-sdk-stream-adapter.js';
+import {
+  buildAgentLogPrefix,
+  formatAgentLogLine,
+} from '../../../../daemon/infrastructure/local/harness/services/agent-log-format.js';
 import type {
   AgentStopOptions,
   DaemonHarnessSessionContext,
@@ -26,16 +33,12 @@ import type {
   SpawnResult,
   VersionInfo,
   HarnessSessionIdUpdatedInfo,
-} from '../remote-agent-service.js';
-import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
-import { withTimeout } from '../with-timeout.js';
-import {
-  formatClaudeSdkLoadError,
-  getBundledClaudeSdkVersion,
-  importBundledClaudeSdk,
-  resolvePathToClaudeCodeExecutable,
-} from './claude-sdk-package.js';
-import { ClaudeSdkStreamAdapter } from './claude-sdk-stream-adapter.js';
+} from '../../../../daemon/infrastructure/local/harness/services/remote-agent-service.js';
+import { wireNativeStreamAdapter } from '../../../../daemon/infrastructure/local/harness/services/wire-native-stream-adapter.js';
+import { withTimeout } from '../../../../daemon/infrastructure/local/harness/services/with-timeout.js';
+import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from '../claude/claude-models.js';
+import { DetectionResult } from '../detection-result.js';
 
 type LoadedClaudeSdk = Awaited<ReturnType<typeof importBundledClaudeSdk>>;
 

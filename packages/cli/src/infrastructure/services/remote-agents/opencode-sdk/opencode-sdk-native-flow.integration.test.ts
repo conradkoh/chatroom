@@ -24,7 +24,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 import { OpenCodeSdkAgentService } from './opencode-sdk-agent-service.js';
 import { FileSessionMetadataStore } from './session-metadata-store.js';
-import { createSpawnPrompt } from '../spawn-prompt.js';
+import { createSpawnPrompt } from '../../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 
 const MODEL = 'opencode/big-pickle';
 const TEST_TIMEOUT_MS = 180_000;

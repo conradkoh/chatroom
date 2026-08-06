@@ -13,8 +13,11 @@
 
 import { type ChildProcess } from 'node:child_process';
 
+import type {
+  SpawnOptions,
+  SpawnResult,
+} from '../../../../daemon/infrastructure/local/harness/services/remote-agent-service.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 
 export type OpenCodeAgentServiceDeps = CLIAgentServiceDeps;
 

@@ -23,7 +23,7 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { PiAgentService } from './pi-agent-service.js';
-import { createSpawnPrompt } from '../spawn-prompt.js';
+import { createSpawnPrompt } from '../../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 
 const MODEL = 'opencode/big-pickle';
 const TEST_TIMEOUT_MS = 180_000;

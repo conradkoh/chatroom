@@ -16,19 +16,9 @@ import type { ChildProcess } from 'node:child_process';
 
 import { createOpencodeClient } from '@opencode-ai/sdk';
 
-import { buildAgentSpawnEnv } from '../../../convex/spawn-env.js';
+import { withTimeout } from '../../../../daemon/infrastructure/local/harness/services/with-timeout.js';
 import { type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from '../opencode/binary-agent-service.js';
-import { withTimeout } from '../with-timeout.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
-import type {
-  SpawnContext,
-  AgentStopOptions,
-  DaemonHarnessSessionContext,
-  HarnessReconnectMetadata,
-  SpawnOptions,
-  SpawnResult,
-} from '../remote-agent-service.js';
 import { forwardFiltered } from './node-streams.js';
 import { waitForListeningUrl } from './parse-listening-url.js';
 import { isInfoLine, parseModelId } from './pure.js';
@@ -44,6 +34,16 @@ import {
   type SessionMetadataStore,
 } from './session-metadata-store.js';
 import { StderrLineBuffer } from './stderr-line-buffer.js';
+import type {
+  SpawnContext,
+  AgentStopOptions,
+  DaemonHarnessSessionContext,
+  HarnessReconnectMetadata,
+  SpawnOptions,
+  SpawnResult,
+} from '../../../../daemon/infrastructure/local/harness/services/remote-agent-service.js';
+import { buildAgentSpawnEnv } from '../../../convex/spawn-env.js';
+import { OpenCodeBinaryAgentService, OPENCODE_COMMAND } from '../opencode/binary-agent-service.js';
 
 export type OpenCodeSdkAgentServiceDeps = CLIAgentServiceDeps & {
   sessionMetadataStore?: SessionMetadataStore;

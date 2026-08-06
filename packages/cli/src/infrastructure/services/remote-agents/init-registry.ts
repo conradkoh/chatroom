@@ -1,1 +1,1 @@
-export { initHarnessRegistry } from '../../../daemon/infrastructure/local/harness/registry.js';
+export * from '../../../daemon/infrastructure/local/harness/services/init-registry.js';

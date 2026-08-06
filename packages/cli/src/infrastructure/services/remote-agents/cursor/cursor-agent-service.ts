@@ -18,16 +18,19 @@
 
 import { type ChildProcess } from 'node:child_process';
 
+import { CursorStreamReader } from './cursor-stream-reader.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,
   extractBashCommandFromCursorToolCall,
   formatAgentLogLine,
   formatBashRunningPayload,
-} from '../agent-log-format.js';
+} from '../../../../daemon/infrastructure/local/harness/services/agent-log-format.js';
+import type {
+  SpawnOptions,
+  SpawnResult,
+} from '../../../../daemon/infrastructure/local/harness/services/remote-agent-service.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
-import { CursorStreamReader } from './cursor-stream-reader.js';
 
 export type CursorAgentServiceDeps = CLIAgentServiceDeps;
 

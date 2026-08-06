@@ -1871,7 +1871,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/base-cli-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/base-cli-agent-service.ts": {
       "crap_moderate": {
         "count": 3
       }
@@ -1917,7 +1917,7 @@
         "count": 3
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/native-spawn-presence.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/native-spawn-presence.ts": {
       "crap_high": {
         "count": 2
       }
@@ -1987,7 +1987,7 @@
         "count": 3
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/spawn-prompt.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/spawn-prompt.ts": {
       "crap_moderate": {
         "count": 1
       }
@@ -2884,7 +2884,7 @@
     "apps/webapp/src/modules/chatroom/direct-harness/utils/sessionStatus.ts:high impact",
     "services/backend/prompts/utils/env.ts:dead code",
     "services/backend/prompts/review-guidelines/review.ts:dead code",
-    "packages/cli/src/infrastructure/services/remote-agents/agent-log-format.ts:high impact",
+    "packages/cli/src/daemon/infrastructure/local/harness/services/agent-log-format.ts:high impact",
     "apps/webapp/src/lib/pathUtils.ts:high impact",
     "services/backend/convex/lib/taskStateMachine.ts:complexity",
     "packages/cli/src/daemon/entry/files/file-write-fulfillment.ts:complexity",

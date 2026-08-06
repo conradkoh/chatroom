@@ -2,8 +2,8 @@ import { EventEmitter, Readable } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { createSpawnPrompt } from '../spawn-prompt.js';
 import { getPiSessionDir, PiAgentService, type PiAgentServiceDeps } from './pi-agent-service.js';
+import { createSpawnPrompt } from '../../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 import { TEST_MODEL_PI } from '../../../../testing/test-models.js';
 
 const SAMPLE_SESSION_ID = '019e86d8-39ec-7ae8-8380-c5ee4c904c99';

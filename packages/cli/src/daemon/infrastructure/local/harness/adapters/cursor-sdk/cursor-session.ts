@@ -7,13 +7,13 @@ import {
   logUnhandledInteractionDelta,
   logUnhandledSdkMessage,
 } from '../../../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-stream-fallback.js';
-import { withTimeout } from '../../../../../../infrastructure/services/remote-agents/with-timeout.js';
 import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
   PromptInput,
 } from '../../../../../domain/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
+import { withTimeout } from '../../services/with-timeout.js';
 
 const SEND_TIMEOUT_MS = 60_000;
 const RUN_WAIT_TIMEOUT_MS = 3_600_000;

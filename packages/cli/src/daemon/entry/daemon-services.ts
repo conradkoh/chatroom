@@ -16,7 +16,6 @@ import type { DaemonEventBus } from './events/event-bus.js';
 import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/types.js';
 import type { TryConsumeResult } from '../../infrastructure/services/harness-spawning/index.js';
-import type { RemoteAgentService } from '../../infrastructure/services/remote-agents/remote-agent-service.js';
 import type {
   AgentProcessManager,
   AgentSlot,
@@ -25,6 +24,7 @@ import type {
   OperationResult,
   StopOpts,
 } from '../infrastructure/agent-process-manager/agent-process-manager.js';
+import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 
 // ─── DaemonMachineService ───────────────────────────────────────────────────
 

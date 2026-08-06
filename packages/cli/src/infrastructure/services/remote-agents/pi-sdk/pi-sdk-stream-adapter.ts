@@ -9,8 +9,8 @@ import {
   formatAgentLogLine,
   formatBashRunningPayload,
   resolveBashCommandForLog,
-} from '../agent-log-format.js';
-import { NativeStreamAdapterBase } from '../native-stream-adapter-base.js';
+} from '../../../../daemon/infrastructure/local/harness/services/agent-log-format.js';
+import { NativeStreamAdapterBase } from '../../../../daemon/infrastructure/local/harness/services/native-stream-adapter-base.js';
 
 export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
   private textBuffer = '';

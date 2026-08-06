@@ -1,3 +1,4 @@
+import { registerHarness } from './services/registry.js';
 import { ClaudeCodeAgentService } from '../../../../infrastructure/services/remote-agents/claude/index.js';
 import { ClaudeSdkAgentService } from '../../../../infrastructure/services/remote-agents/claude-sdk/index.js';
 import { CommandCodeAgentService } from '../../../../infrastructure/services/remote-agents/commandcode/index.js';
@@ -8,7 +9,6 @@ import { OpenCodeAgentService } from '../../../../infrastructure/services/remote
 import { OpenCodeSdkAgentService } from '../../../../infrastructure/services/remote-agents/opencode-sdk/index.js';
 import { PiAgentService } from '../../../../infrastructure/services/remote-agents/pi/index.js';
 import { PiSdkAgentService } from '../../../../infrastructure/services/remote-agents/pi-sdk/index.js';
-import { registerHarness } from '../../../../infrastructure/services/remote-agents/registry.js';
 import { installDaemonFatalErrorGuard } from '../fatal-error-guard.js';
 
 let initialized = false;

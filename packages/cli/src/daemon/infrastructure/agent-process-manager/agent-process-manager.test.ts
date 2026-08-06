@@ -13,11 +13,6 @@ import {
   CrashLoopTracker,
 } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
-import type {
-  RemoteAgentService,
-  SpawnResult,
-} from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import { DEFAULT_TRIGGER_PROMPT } from '../../../infrastructure/services/remote-agents/spawn-prompt.js';
 import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 import {
@@ -26,6 +21,11 @@ import {
 } from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import type * as NativeTaskDeliveryCoordinatorModule from '../../entry/native-delivery/native-task-delivery-coordinator.js';
+import type {
+  RemoteAgentService,
+  SpawnResult,
+} from '../local/harness/services/remote-agent-service.js';
+import { DEFAULT_TRIGGER_PROMPT } from '../local/harness/services/spawn-prompt.js';
 
 type NativeSdkHarness = (typeof NATIVE_DIRECT_HARNESS_NAMES)[number];
 

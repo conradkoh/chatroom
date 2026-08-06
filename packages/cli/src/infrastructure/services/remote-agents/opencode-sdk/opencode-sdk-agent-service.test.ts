@@ -8,10 +8,10 @@ import {
   OpenCodeSdkAgentService,
   type OpenCodeSdkAgentServiceDeps,
 } from './opencode-sdk-agent-service.js';
-import { InMemorySessionMetadataStore } from './session-metadata-store.js';
-import { TEST_MODEL_OPENCODE } from '../../../../testing/test-models.js';
-import { createSpawnPrompt } from '../spawn-prompt.js';
 import { startSessionEventForwarder as realStartForwarder } from './session-event-forwarder.js';
+import { InMemorySessionMetadataStore } from './session-metadata-store.js';
+import { createSpawnPrompt } from '../../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
+import { TEST_MODEL_OPENCODE } from '../../../../testing/test-models.js';
 
 // ---------------------------------------------------------------------------
 // Spawn lifecycle helpers

@@ -11,7 +11,6 @@ import {
   formatCursorSdkLoadError,
   importBundledCursorSdk,
 } from '../../../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-package.js';
-import { withTimeout } from '../../../../../../infrastructure/services/remote-agents/with-timeout.js';
 import type {
   BoundHarness,
   BoundHarnessFactory,
@@ -25,6 +24,7 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
+import { withTimeout } from '../../services/with-timeout.js';
 
 const DEFAULT_MODEL = 'composer-2.5';
 const MODELS_LIST_TIMEOUT_MS = 60_000;

@@ -2,13 +2,13 @@ import { randomUUID } from 'node:crypto';
 
 import type { Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
-import { withTimeout } from '../../../../../../infrastructure/services/remote-agents/with-timeout.js';
 import type {
   DirectHarnessSession,
   DirectHarnessSessionEvent,
   PromptInput,
 } from '../../../../../domain/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
+import { withTimeout } from '../../services/with-timeout.js';
 
 const DEFAULT_MAX_TURNS = 200;
 const DEFAULT_EFFORT = 'medium' as const;

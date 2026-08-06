@@ -2,11 +2,11 @@ import { EventEmitter, Readable } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { createSpawnPrompt } from '../spawn-prompt.js';
 import {
   CommandCodeAgentService,
   type CommandCodeAgentServiceDeps,
 } from './command-code-agent-service.js';
+import { createSpawnPrompt } from '../../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 
 function createMockDeps(
   overrides?: Partial<CommandCodeAgentServiceDeps>

@@ -2,8 +2,8 @@ import { EventEmitter, Readable } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { createSpawnPrompt } from '../spawn-prompt.js';
 import { OpenCodeAgentService, type OpenCodeAgentServiceDeps } from './opencode-agent-service.js';
+import { createSpawnPrompt } from '../../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 import { TEST_MODEL_OPENCODE } from '../../../../testing/test-models.js';
 
 function createMockDeps(overrides?: Partial<OpenCodeAgentServiceDeps>): OpenCodeAgentServiceDeps {

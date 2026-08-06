@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { AgentLifecycleServiceLive } from './agent-lifecycle-service.js';
 import { AgentLifecycleService, AgentLifecyclePorts } from './agent-lifecycle-types.js';
 import type { SpawnPort, HarnessSpawnPort, OperationResult } from './agent-lifecycle-types.js';
-import type { SpawnPrompt } from '../remote-agents/spawn-prompt.js';
+import type { SpawnPrompt } from '../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 
 interface MockSpawnPortState {
   allowSpawn: boolean;

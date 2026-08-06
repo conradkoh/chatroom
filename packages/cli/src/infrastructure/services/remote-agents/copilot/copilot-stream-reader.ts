@@ -22,7 +22,7 @@
 
 import type { Readable } from 'node:stream';
 
-import { attachLineReader } from '../line-stream-reader.js';
+import { attachLineReader } from '../../../../daemon/infrastructure/local/harness/services/line-stream-reader.js';
 
 // ─── Event types ─────────────────────────────────────────────────────────────
 

@@ -26,7 +26,7 @@ import path from 'node:path';
 import { describe, it, expect, afterAll } from 'vitest';
 
 import { CommandCodeAgentService } from './command-code-agent-service.js';
-import { createSpawnPrompt } from '../spawn-prompt.js';
+import { createSpawnPrompt } from '../../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 
 // ─── Skip guard ───────────────────────────────────────────────────────────────
 

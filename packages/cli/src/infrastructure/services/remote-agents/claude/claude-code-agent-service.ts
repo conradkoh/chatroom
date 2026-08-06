@@ -19,17 +19,20 @@
 
 import { type ChildProcess } from 'node:child_process';
 
+import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from './claude-models.js';
+import { ClaudeStreamReader } from './claude-stream-reader.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,
   extractBashCommandFromToolInput,
   formatAgentLogLine,
   formatBashRunningPayload,
-} from '../agent-log-format.js';
+} from '../../../../daemon/infrastructure/local/harness/services/agent-log-format.js';
+import type {
+  SpawnOptions,
+  SpawnResult,
+} from '../../../../daemon/infrastructure/local/harness/services/remote-agent-service.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
-import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from './claude-models.js';
-import { ClaudeStreamReader } from './claude-stream-reader.js';
 
 export type ClaudeCodeAgentServiceDeps = CLIAgentServiceDeps;
 

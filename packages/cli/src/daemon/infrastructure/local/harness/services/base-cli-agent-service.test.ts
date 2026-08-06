@@ -1,10 +1,8 @@
-import { EventEmitter, Readable } from 'node:stream';
-
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from './base-cli-agent-service.js';
-import type { SpawnOptions, SpawnResult } from './remote-agent-service.js';
 import { isInstalled, isNotInstalled, isDetectionError } from './detection-result.js';
+import type { SpawnOptions, SpawnResult } from './remote-agent-service.js';
 
 // ─── Test Concrete Subclass ────────────────────────────────────────────────────
 
@@ -575,7 +573,7 @@ describe('BaseCLIAgentService', () => {
       vi.useFakeTimers();
       const deps = createMockDeps({
         execSync: vi.fn(() => {
-          throw 'string error'; // eslint-disable-line no-throw-literal
+          throw 'string error';
         }),
       });
       const service = new TestAgentService('mytool', deps);
@@ -676,7 +674,8 @@ describe('BaseCLIAgentService', () => {
             if (i < 5) {
               // Installed
               return Buffer.from('/usr/bin/mytool');
-            } else if (i < 8) {
+            }
+            if (i < 8) {
               // NotInstalled
               const err = new Error('not found') as Error & { status?: number; stderr?: Buffer };
               err.status = 1;

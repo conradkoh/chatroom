@@ -2,12 +2,12 @@ import { EventEmitter, Readable } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { createSpawnPrompt } from '../spawn-prompt.js';
 import {
   CursorAgentService,
   resolveCursorCliModel,
   type CursorAgentServiceDeps,
 } from './cursor-agent-service.js';
+import { createSpawnPrompt } from '../../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 import { TEST_MODEL_CURSOR } from '../../../../testing/test-models.js';
 
 function createMockDeps(overrides?: Partial<CursorAgentServiceDeps>): CursorAgentServiceDeps {

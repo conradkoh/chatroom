@@ -3,8 +3,8 @@ import { writeEnhancerLog } from './enhancer-log.js';
 import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
 import { api, type Id } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
-import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import { createSpawnPrompt } from '../../../infrastructure/services/remote-agents/spawn-prompt.js';
+import type { RemoteAgentService } from '../../infrastructure/local/harness/services/remote-agent-service.js';
+import { createSpawnPrompt } from '../../infrastructure/local/harness/services/spawn-prompt.js';
 import {
   registerEnhancerInboundHandler,
   unregisterEnhancerInboundHandler,

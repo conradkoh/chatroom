@@ -21,20 +21,6 @@ import { randomUUID } from 'node:crypto';
 import type * as CursorSdkModule from '@cursor/sdk';
 import { Effect } from 'effect';
 
-import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
-import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import { DetectionResult } from '../detection-result.js';
-import type {
-  AgentStopOptions,
-  DaemonHarnessSessionContext,
-  HarnessReconnectMetadata,
-  SpawnContext,
-  SpawnOptions,
-  SpawnResult,
-  VersionInfo,
-} from '../remote-agent-service.js';
-import { tapProcessStreamWrites } from '../tap-process-stream-writes.js';
-import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
 import { normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
 import {
   formatCursorSdkError,
@@ -44,7 +30,24 @@ import {
 } from './cursor-sdk-package.js';
 import { closeCursorAgentOnFailure } from './cursor-sdk-session-cleanup.js';
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
-import { withTimeout } from '../with-timeout.js';
+import {
+  buildAgentLogPrefix,
+  formatAgentLogLine,
+} from '../../../../daemon/infrastructure/local/harness/services/agent-log-format.js';
+import type {
+  AgentStopOptions,
+  DaemonHarnessSessionContext,
+  HarnessReconnectMetadata,
+  SpawnContext,
+  SpawnOptions,
+  SpawnResult,
+  VersionInfo,
+} from '../../../../daemon/infrastructure/local/harness/services/remote-agent-service.js';
+import { tapProcessStreamWrites } from '../../../../daemon/infrastructure/local/harness/services/tap-process-stream-writes.js';
+import { wireNativeStreamAdapter } from '../../../../daemon/infrastructure/local/harness/services/wire-native-stream-adapter.js';
+import { withTimeout } from '../../../../daemon/infrastructure/local/harness/services/with-timeout.js';
+import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { DetectionResult } from '../detection-result.js';
 
 type Run = CursorSdkModule.Run;
 type SDKAgent = CursorSdkModule.SDKAgent;

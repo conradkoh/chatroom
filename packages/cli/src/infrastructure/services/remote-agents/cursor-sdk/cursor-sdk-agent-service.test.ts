@@ -7,7 +7,7 @@ import {
   CursorSdkAgentService,
   type CursorSdkAgentServiceDeps,
 } from './cursor-sdk-agent-service.js';
-import { createSpawnPrompt } from '../spawn-prompt.js';
+import { createSpawnPrompt } from '../../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 
 const sharedAgentCreateFn = vi.fn();
 const sharedAgentResumeFn = vi.fn();

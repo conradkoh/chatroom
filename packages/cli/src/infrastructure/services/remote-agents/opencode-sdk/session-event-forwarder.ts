@@ -1,11 +1,14 @@
 import type { Writable } from 'node:stream';
 
-import { isTerminalProviderError } from '../../../../daemon/domain/usecase/detect-terminal-provider-error.js';
-import { appendToolInputToPayload, formatTimestampedLogLine } from '../agent-log-format.js';
 import {
   assertNeverOpenCodeSessionStatus,
   parseOpenCodeSessionStatus,
 } from './opencode-session-status.js';
+import { isTerminalProviderError } from '../../../../daemon/domain/usecase/detect-terminal-provider-error.js';
+import {
+  appendToolInputToPayload,
+  formatTimestampedLogLine,
+} from '../../../../daemon/infrastructure/local/harness/services/agent-log-format.js';
 
 export interface SessionEventForwarderOptions {
   sessionId: string;

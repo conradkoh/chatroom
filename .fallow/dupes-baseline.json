@@ -117,7 +117,7 @@
     "packages/cli/src/daemon/infrastructure/local/harness/adapters/opencode-sdk/opencode-harness.ts:193-205|packages/cli/src/daemon/infrastructure/local/harness/adapters/opencode-sdk/opencode-harness.ts:222-234",
     "packages/cli/src/daemon/infrastructure/local/harness/adapters/pi-sdk/pi-harness.ts:55-61|packages/cli/src/infrastructure/services/remote-agents/pi-sdk/pi-sdk-agent-service.ts:117-123",
     "packages/cli/src/infrastructure/repos/convex-agentic-query-run-repository.ts:97-103|packages/cli/src/infrastructure/repos/convex-session-repository.ts:97-103",
-    "packages/cli/src/infrastructure/services/remote-agents/base-cli-agent-service.ts:368-374|packages/cli/src/infrastructure/services/remote-agents/pi/pi-agent-service.ts:160-168",
+    "packages/cli/src/daemon/infrastructure/local/harness/services/base-cli-agent-service.ts:368-374|packages/cli/src/infrastructure/services/remote-agents/pi/pi-agent-service.ts:160-168",
     "packages/cli/src/infrastructure/services/remote-agents/claude/claude-code-agent-service.ts:99-113|packages/cli/src/infrastructure/services/remote-agents/copilot/copilot-agent-service.ts:113-126",
     "packages/cli/src/infrastructure/services/remote-agents/claude/claude-code-agent-service.ts:118-207|packages/cli/src/infrastructure/services/remote-agents/copilot/copilot-agent-service.ts:133-172|packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-agent-service.ts:173-265|packages/cli/src/infrastructure/services/remote-agents/opencode/opencode-agent-service.ts:87-113",
     "packages/cli/src/infrastructure/services/remote-agents/claude/claude-code-agent-service.ts:184-207|packages/cli/src/infrastructure/services/remote-agents/opencode/opencode-agent-service.ts:90-113",

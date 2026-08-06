@@ -7,16 +7,16 @@
 import type { InteractionUpdate, SDKMessage } from '@cursor/sdk';
 
 import {
+  logUnhandledInteractionDelta,
+  logUnhandledSdkMessage,
+} from './cursor-sdk-stream-fallback.js';
+import {
   BASH_TOOL_KIND,
   extractBashCommandFromToolInput,
   formatAgentLogLine,
   formatBashRunningPayload,
-} from '../agent-log-format.js';
-import { NativeStreamAdapterBase } from '../native-stream-adapter-base.js';
-import {
-  logUnhandledInteractionDelta,
-  logUnhandledSdkMessage,
-} from './cursor-sdk-stream-fallback.js';
+} from '../../../../daemon/infrastructure/local/harness/services/agent-log-format.js';
+import { NativeStreamAdapterBase } from '../../../../daemon/infrastructure/local/harness/services/native-stream-adapter-base.js';
 
 type ToolCallStartedUpdate = Extract<InteractionUpdate, { type: 'tool-call-started' }>;
 

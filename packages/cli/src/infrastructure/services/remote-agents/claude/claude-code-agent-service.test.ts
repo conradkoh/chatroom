@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractBashCommandFromToolInput } from '../agent-log-format.js';
+import { extractBashCommandFromToolInput } from '../../../../daemon/infrastructure/local/harness/services/agent-log-format.js';
 
 describe('extractBashCommandFromToolInput (Claude)', () => {
   it('extracts command from Bash tool_use', () => {

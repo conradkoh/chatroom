@@ -12,8 +12,8 @@ import { discoverModels, discoverModelsForHarness } from './init-daemon.js';
 import { api } from '../../api.js';
 import { ensureMachineRegistered } from '../../infrastructure/machine/index.js';
 import type { MachineConfig } from '../../infrastructure/machine/types.js';
-import type { RemoteAgentService } from '../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
+import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 
 /** Outcome of a single `refreshModels` invocation (periodic tick or manual refresh). */
 export type RefreshModelsOutcome =

@@ -22,8 +22,12 @@
 
 import { type ChildProcess } from 'node:child_process';
 
+import type {
+  SpawnContext,
+  SpawnOptions,
+  SpawnResult,
+} from '../../../../daemon/infrastructure/local/harness/services/remote-agent-service.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import type { SpawnContext, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CommandCodeStreamReader } from './command-code-stream-reader.js';
 
 export type CommandCodeAgentServiceDeps = CLIAgentServiceDeps;

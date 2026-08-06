@@ -1,6 +1,6 @@
 import type { InteractionUpdate, SDKMessage } from '@cursor/sdk';
 
-import { formatAgentLogLine } from '../agent-log-format.js';
+import { formatAgentLogLine } from '../../../../daemon/infrastructure/local/harness/services/agent-log-format.js';
 
 const MAX_LOG_CHARS = 500;
 

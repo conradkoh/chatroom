@@ -1,21 +1,17 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { Effect, Duration } from 'effect';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { detectAvailableHarnesses } from './detection.js';
-import {
-  BaseCLIAgentService,
-  type CLIAgentServiceDeps,
-} from '../services/remote-agents/base-cli-agent-service.js';
-import {
-  DetectionResult,
-  isInstalled,
-  isDetectionError,
-} from '../services/remote-agents/detection-result.js';
 import type {
   SpawnOptions,
   SpawnResult,
   RemoteAgentService,
-} from '../services/remote-agents/remote-agent-service.js';
+} from '../../daemon/infrastructure/local/harness/services/remote-agent-service.js';
+import {
+  BaseCLIAgentService,
+  type CLIAgentServiceDeps,
+} from '../services/remote-agents/base-cli-agent-service.js';
+import { DetectionResult } from '../services/remote-agents/detection-result.js';
 
 // ─── Mock Harness Registry ────────────────────────────────────────────────────
 
