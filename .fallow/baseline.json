@@ -943,6 +943,7 @@
     "requireAccess|services/backend/modules/auth/accessCheck.ts|services/backend/src/domain/usecase/auth/extensions/check-access.ts",
     "requireAuthUserId|services/backend/modules/auth/cli-session.ts|services/backend/modules/auth/session.ts",
     "startSessionSubscriber|packages/cli/src/commands/machine/daemon-start/agentic-query/session-subscriber.ts|packages/cli/src/commands/machine/daemon-start/direct-harness/session-subscriber.ts",
+    "SubscriberHandle|packages/cli/src/v2/infrastructure/convex/subscribers/agentic-query-prompt.ts|packages/cli/src/v2/infrastructure/convex/subscribers/agentic-query-session.ts",
     "toSoloParams|services/backend/prompts/cli/roles/fromContext.ts|services/backend/prompts/teams/solo/prompts/fromContext.ts"
   ],
   "type_only_dependencies": [],
