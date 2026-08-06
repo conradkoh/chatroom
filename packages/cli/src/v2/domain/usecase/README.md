@@ -22,32 +22,32 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 
 | v2 file                            | Legacy source                                               |
 | ---------------------------------- | ----------------------------------------------------------- |
-| `deliver-assigned-task.ts`         | `daemon-start/task-monitor.ts`                              | **done** — registry dispatch to task monitor |
-| `handle-assigned-task-inbound.ts`  | `v2/infrastructure/convex/subscribers/assigned-task-*`      | **done** — wired via assigned-task-bridge    |
-| `handle-direct-harness-inbound.ts` | `v2/infrastructure/convex/subscribers/direct-harness-*`     | **done** — router hook; process later        |
+| `deliver-assigned-task.ts`         | `daemon-start/task-monitor.ts`                              | **done** — registry dispatch to task monitor  |
+| `handle-assigned-task-inbound.ts`  | `v2/infrastructure/convex/subscribers/assigned-task-*`      | **done** — wired via assigned-task-bridge     |
+| `handle-direct-harness-inbound.ts` | `v2/infrastructure/convex/subscribers/direct-harness-*`     | **done** — wired via direct-harness-bridge    |
 | `handle-command-event.ts`          | `daemon-start/command-loop.ts`                              |
-| `handle-command-inbound.ts`        | `v2/infrastructure/convex/subscribers/command-*`            | **done** — router hook; dispatch later       |
-| `handle-workspace-git-inbound.ts`  | `v2/infrastructure/convex/subscribers/workspace-git-*`      | **done** — router hook; process later        |
-| `handle-file-inbound.ts`           | `v2/infrastructure/convex/subscribers/file-*`               | **done** — router hook; fulfill later        |
-| `handle-agentic-query-inbound.ts`  | `v2/infrastructure/convex/subscribers/agentic-query-*`      | **done** — router hook; process later        |
-| `handle-enhancer-inbound.ts`       | `v2/infrastructure/convex/subscribers/enhancer-job.ts`      | **done** — router hook; process later        |
-| `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` | **done**                                     |
-| `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            | **done**                                     |
-| `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          | **done**                                     |
-| `close-harness-session.ts`         | `domain/direct-harness/usecases/close-session.ts`           | **done**                                     |
-| `update-harness-capabilities.ts`   | `domain/direct-harness/usecases/update-capabilities.ts`     | **done**                                     |
+| `handle-command-inbound.ts`        | `v2/infrastructure/convex/subscribers/command-*`            | **done** — router hook; dispatch later        |
+| `handle-workspace-git-inbound.ts`  | `v2/infrastructure/convex/subscribers/workspace-git-*`      | **done** — router hook; process later         |
+| `handle-file-inbound.ts`           | `v2/infrastructure/convex/subscribers/file-*`               | **done** — router hook; fulfill later         |
+| `handle-agentic-query-inbound.ts`  | `v2/infrastructure/convex/subscribers/agentic-query-*`      | **done** — router hook; process later         |
+| `handle-enhancer-inbound.ts`       | `v2/infrastructure/convex/subscribers/enhancer-job.ts`      | **done** — router hook; process later         |
+| `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` | **done**                                      |
+| `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            | **done**                                      |
+| `resume-harness-session.ts`        | `domain/direct-harness/usecases/resume-session.ts`          | **done**                                      |
+| `close-harness-session.ts`         | `domain/direct-harness/usecases/close-session.ts`           | **done**                                      |
+| `update-harness-capabilities.ts`   | `domain/direct-harness/usecases/update-capabilities.ts`     | **done**                                      |
 | `fulfill-file-content-request.ts`  | `daemon-start/file-content-fulfillment.ts`                  |
 | `fulfill-file-tree-request.ts`     | `daemon-start/file-tree-subscription.ts`                    |
 | `fulfill-file-write-request.ts`    | `daemon-start/file-write-fulfillment.ts`                    |
 | `fulfill-git-request.ts`           | `daemon-start/git-subscription.ts`                          |
 | `process-enhancer-job.ts`          | `daemon-start/enhancer/job-subscriber.ts`                   |
 | `process-agentic-query-prompt.ts`  | `daemon-start/agentic-query/prompt-subscriber.ts`           |
-| `process-direct-harness-prompt.ts` | `daemon-start/direct-harness/prompt-subscriber.ts`          |
-| `recover-agent-state.ts`           | `daemon-start/handlers/state-recovery.ts`                   | **done**                                     |
+| `process-direct-harness-prompt.ts` | `daemon-start/direct-harness/prompt-subscriber.ts`          | **done** — registry dispatch to legacy drains |
+| `recover-agent-state.ts`           | `daemon-start/handlers/state-recovery.ts`                   | **done**                                      |
 | `refresh-machine-capabilities.ts`  | `daemon-start/models-refresh.ts`                            |
-| `restart-agent.ts`                 | `events/daemon/agent/on-request-restart-agent.ts`           | **done**                                     |
-| `start-agent.ts`                   | `events/daemon/agent/on-request-start-agent.ts`             | **done**                                     |
-| `stop-agent.ts`                    | `events/daemon/agent/on-request-stop-agent.ts`              | **done**                                     |
+| `restart-agent.ts`                 | `events/daemon/agent/on-request-restart-agent.ts`           | **done**                                      |
+| `start-agent.ts`                   | `events/daemon/agent/on-request-start-agent.ts`             | **done**                                      |
+| `stop-agent.ts`                    | `events/daemon/agent/on-request-stop-agent.ts`              | **done**                                      |
 | `sync-git-state.ts`                | `daemon-start/git-heartbeat.ts`                             |
 | `update-workspace-list.ts`         | `daemon-start/workspace-list-subscription.ts`               |
 

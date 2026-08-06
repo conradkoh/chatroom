@@ -5,10 +5,11 @@
 
 import type { ConvexClient } from 'convex/browser';
 
+import { drainPendingHarnessCommands, type CommandSubscriberDeps } from './command-subscriber.js';
 import { startCommandSubscriber } from './command-subscriber.js';
 import { HarnessLifecycleManager } from './harness-lifecycle-manager.js';
-import { startMessageSubscriber } from './prompt-subscriber.js';
-import { startSessionSubscriber } from './session-subscriber.js';
+import { drainPendingHarnessMessages, startMessageSubscriber } from './prompt-subscriber.js';
+import { processPendingHarnessSessions, startSessionSubscriber } from './session-subscriber.js';
 import type { ActiveSession } from './session-subscriber.js';
 import { closeAllMachineHarnessSessionsOnShutdown } from './shutdown-sessions.js';
 import { api } from '../../../../api.js';
@@ -18,6 +19,10 @@ import { ConvexOutputRepository } from '../../../../infrastructure/repos/convex-
 import { ConvexSessionRepository } from '../../../../infrastructure/repos/convex-session-repository.js';
 import { BufferedJournalFactory } from '../../../../infrastructure/repos/journal-factory.js';
 import type { BoundHarness } from '../../../../v2/domain/entities/bound-harness.js';
+import {
+  registerDirectHarnessInboundHandler,
+  unregisterDirectHarnessInboundHandler,
+} from '../../../../v2/entry/direct-harness-inbound-registry.js';
 import type { SessionId } from '../types.js';
 
 export interface DirectHarnessSubscriptionSession {
@@ -58,13 +63,6 @@ export function startDirectHarnessSubscriptions(
     journalFactory,
   };
 
-  const pendingPromptSubscriptionHandle = startMessageSubscriber(session, wsClient, sharedDeps);
-  const pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(
-    session,
-    wsClient,
-    sharedDeps
-  );
-
   const lifecycleManager = new HarnessLifecycleManager(
     harnesses,
     activeSessions,
@@ -77,7 +75,7 @@ export function startDirectHarnessSubscriptions(
   );
   lifecycleManager.startMonitoring();
 
-  const commandSubscriptionHandle = startCommandSubscriber(session, wsClient, {
+  const commandDeps: CommandSubscriberDeps = {
     lifecycleManager,
     publisher: new ConvexCapabilitiesPublisher({
       backend: session.backend,
@@ -85,18 +83,50 @@ export function startDirectHarnessSubscriptions(
     }),
     activeSessions,
     sessionRepository,
+  };
+
+  registerDirectHarnessInboundHandler(async (event) => {
+    switch (event.type) {
+      case 'direct-harness.prompt':
+        await drainPendingHarnessMessages(session, sharedDeps);
+        break;
+      case 'direct-harness.session-opened':
+        await processPendingHarnessSessions(session, sharedDeps);
+        break;
+      case 'direct-harness.command':
+        await drainPendingHarnessCommands(session, commandDeps);
+        break;
+    }
   });
 
+  const wrapStop = (stop: () => void) => () => {
+    unregisterDirectHarnessInboundHandler();
+    stop();
+  };
+
+  const pendingPromptSubscriptionHandle = startMessageSubscriber(session, wsClient, sharedDeps);
+  const pendingHarnessSessionSubscriptionHandle = startSessionSubscriber(
+    session,
+    wsClient,
+    sharedDeps
+  );
+
+  const commandSubscriptionHandle = startCommandSubscriber(session, wsClient, commandDeps);
+
   return {
-    pendingPromptSubscriptionHandle,
-    pendingHarnessSessionSubscriptionHandle,
-    commandSubscriptionHandle,
+    pendingPromptSubscriptionHandle: { stop: wrapStop(pendingPromptSubscriptionHandle.stop) },
+    pendingHarnessSessionSubscriptionHandle: {
+      stop: wrapStop(pendingHarnessSessionSubscriptionHandle.stop),
+    },
+    commandSubscriptionHandle: { stop: wrapStop(commandSubscriptionHandle.stop) },
     lifecycleManager,
-    closeSessionsOnShutdown: () =>
-      closeAllMachineHarnessSessionsOnShutdown(session, {
+    closeSessionsOnShutdown: async () => {
+      unregisterDirectHarnessInboundHandler();
+      await closeAllMachineHarnessSessionsOnShutdown(session, {
         lifecycleManager,
         activeSessions,
         sessionRepository,
-      }),
+      });
+    },
   };
 }

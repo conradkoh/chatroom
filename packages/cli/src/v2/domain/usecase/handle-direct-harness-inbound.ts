@@ -8,14 +8,14 @@ export type DirectHarnessInboundEvent = Extract<
 >;
 
 export type HandleDirectHarnessInboundDeps = {
-  onDirectHarnessEvent?: (event: DirectHarnessInboundEvent) => Promise<void>;
+  deliverInbound?: (event: DirectHarnessInboundEvent) => Promise<void>;
 };
 
 export async function handleDirectHarnessInbound(
   deps: HandleDirectHarnessInboundDeps,
   event: DirectHarnessInboundEvent
 ): Promise<void> {
-  if (deps.onDirectHarnessEvent) {
-    await deps.onDirectHarnessEvent(event);
+  if (deps.deliverInbound) {
+    await deps.deliverInbound(event);
   }
 }

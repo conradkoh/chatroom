@@ -511,6 +511,7 @@ function subscribeAssignedTaskSnapshotStore(
   );
 }
 
+// fallow-ignore-next-line unused-export
 export function handleInboundAssignedTaskEvent(
   event: AssignedTaskInboundEvent,
   runMonitorPass: (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass) => void

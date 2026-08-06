@@ -13,7 +13,7 @@ import type { WorkspaceGitInboundEvent } from '../domain/usecase/handle-workspac
 const routerDeps = {
   assignedTask: {} as { deliverInbound?: (event: AssignedTaskInboundEvent) => Promise<void> },
   directHarness: {} as {
-    onDirectHarnessEvent?: (event: DirectHarnessInboundEvent) => Promise<void>;
+    deliverInbound?: (event: DirectHarnessInboundEvent) => Promise<void>;
   },
   command: {} as { onCommandEvent?: (event: CommandInboundEvent) => Promise<void> },
   workspaceGit: {} as {
@@ -54,39 +54,39 @@ describe('routeInboundEvent', () => {
   });
 
   test('dispatches direct-harness.session-opened to handler', async () => {
-    const onDirectHarnessEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: DirectHarnessInboundEvent = {
       type: 'direct-harness.session-opened',
       harnessSessionId: 'harness_1',
     };
 
-    await routeInboundEvent({ ...routerDeps, directHarness: { onDirectHarnessEvent } }, event);
+    await routeInboundEvent({ ...routerDeps, directHarness: { deliverInbound } }, event);
 
-    expect(onDirectHarnessEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('dispatches direct-harness.prompt to handler', async () => {
-    const onDirectHarnessEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: DirectHarnessInboundEvent = {
       type: 'direct-harness.prompt',
       harnessSessionId: 'harness_1',
     };
 
-    await routeInboundEvent({ ...routerDeps, directHarness: { onDirectHarnessEvent } }, event);
+    await routeInboundEvent({ ...routerDeps, directHarness: { deliverInbound } }, event);
 
-    expect(onDirectHarnessEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('dispatches direct-harness.command to handler', async () => {
-    const onDirectHarnessEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: DirectHarnessInboundEvent = {
       type: 'direct-harness.command',
       commandId: 'cmd_1',
     };
 
-    await routeInboundEvent({ ...routerDeps, directHarness: { onDirectHarnessEvent } }, event);
+    await routeInboundEvent({ ...routerDeps, directHarness: { deliverInbound } }, event);
 
-    expect(onDirectHarnessEvent).toHaveBeenCalledWith(event);
+    expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
   test('dispatches command.received to handler', async () => {
@@ -210,8 +210,8 @@ describe('routeInboundEvent', () => {
   });
 
   test('ignores unhandled event types', async () => {
-    const deliverInbound = vi.fn().mockResolvedValue(undefined);
-    const onDirectHarnessEvent = vi.fn().mockResolvedValue(undefined);
+    const deliverAssignedTaskInbound = vi.fn().mockResolvedValue(undefined);
+    const deliverDirectHarnessInbound = vi.fn().mockResolvedValue(undefined);
     const onCommandEvent = vi.fn().mockResolvedValue(undefined);
     const onWorkspaceGitEvent = vi.fn().mockResolvedValue(undefined);
     const onFileEvent = vi.fn().mockResolvedValue(undefined);
@@ -220,8 +220,8 @@ describe('routeInboundEvent', () => {
 
     await routeInboundEvent(
       {
-        assignedTask: { deliverInbound },
-        directHarness: { onDirectHarnessEvent },
+        assignedTask: { deliverInbound: deliverAssignedTaskInbound },
+        directHarness: { deliverInbound: deliverDirectHarnessInbound },
         command: { onCommandEvent },
         workspaceGit: { onWorkspaceGitEvent },
         file: { onFileEvent },
@@ -231,8 +231,8 @@ describe('routeInboundEvent', () => {
       { type: 'not-a-real-type' } as unknown as InboundEvent
     );
 
-    expect(deliverInbound).not.toHaveBeenCalled();
-    expect(onDirectHarnessEvent).not.toHaveBeenCalled();
+    expect(deliverAssignedTaskInbound).not.toHaveBeenCalled();
+    expect(deliverDirectHarnessInbound).not.toHaveBeenCalled();
     expect(onCommandEvent).not.toHaveBeenCalled();
     expect(onWorkspaceGitEvent).not.toHaveBeenCalled();
     expect(onFileEvent).not.toHaveBeenCalled();

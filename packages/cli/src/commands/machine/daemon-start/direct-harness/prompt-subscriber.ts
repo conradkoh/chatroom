@@ -62,7 +62,7 @@ export function startMessageSubscriber(
     () => {
       if (processing) return;
       processing = true;
-      void drain(session, deps).finally(() => {
+      void drainPendingHarnessMessages(session, deps).finally(() => {
         processing = false;
       });
     },
@@ -77,7 +77,10 @@ export function startMessageSubscriber(
   return { stop: unsub };
 }
 
-async function drain(session: DirectHarnessSession, deps: MessageSubscriberDeps): Promise<void> {
+export async function drainPendingHarnessMessages(
+  session: DirectHarnessSession,
+  deps: MessageSubscriberDeps
+): Promise<void> {
   const pending = (await session.backend.query(
     api.daemon.directHarness.messages.pendingForMachine,
     { sessionId: session.sessionId, machineId: session.machineId }

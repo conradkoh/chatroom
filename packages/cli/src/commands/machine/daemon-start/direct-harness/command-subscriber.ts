@@ -163,6 +163,14 @@ async function processPendingCommand(
   await dispatchPendingCommand(session, deps, cmd);
 }
 
+export async function drainPendingHarnessCommands(
+  session: DirectHarnessSession,
+  deps: CommandSubscriberDeps,
+  processed: Set<string> = new Set()
+): Promise<void> {
+  await drain(session, deps, processed);
+}
+
 // fallow-ignore-next-line complexity
 async function drain(
   session: DirectHarnessSession,

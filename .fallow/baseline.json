@@ -387,6 +387,7 @@
     "packages/cli/src/v2/entry/event-router.ts:routeInboundEvent",
     "packages/cli/src/v2/domain/usecase/handle-assigned-task-inbound.ts:handleAssignedTaskInbound",
     "packages/cli/src/v2/domain/usecase/handle-direct-harness-inbound.ts:handleDirectHarnessInbound",
+    "packages/cli/src/v2/domain/usecase/process-direct-harness-prompt.ts:processDirectHarnessPrompt",
     "packages/cli/src/v2/domain/usecase/handle-command-inbound.ts:handleCommandInbound",
     "packages/cli/src/v2/domain/usecase/handle-workspace-git-inbound.ts:handleWorkspaceGitInbound",
     "packages/cli/src/v2/domain/usecase/handle-file-inbound.ts:handleFileInbound",

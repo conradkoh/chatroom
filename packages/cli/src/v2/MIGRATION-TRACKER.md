@@ -35,7 +35,7 @@ Migration is **complete** when all of the following are true:
 | U1   | Placeholder entity types       | ✅ Done | backlog |
 | U2   | Agent control use cases        | ✅ Done | backlog |
 | U3   | Assigned task delivery         | ✅ Done | backlog |
-| U4   | Direct harness processing      | ⬜ Todo | backlog |
+| U4   | Direct harness processing      | ✅ Done | backlog |
 | U5   | Command loop migration         | ⬜ Todo | backlog |
 | U6   | File fulfillment               | ⬜ Todo | backlog |
 | U7   | Workspace & git                | ⬜ Todo | backlog |
@@ -132,22 +132,25 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U4 — Direct harness processing
+## U4 — Direct harness processing ✅
 
 **Outcome:** Process direct-harness prompts/commands/sessions via v2; wire inbound router.
 
 **Files:**
 
-- `domain/usecase/process-direct-harness-prompt.ts` ← `daemon-start/direct-harness/prompt-subscriber.ts`
-- `domain/usecase/handle-direct-harness-inbound.ts` — wire to processor
-- `entry/default-router-deps.ts` — provide `onDirectHarnessEvent` hook
+- `domain/usecase/process-direct-harness-prompt.ts` ← registry dispatch to legacy drains
+- `domain/usecase/handle-direct-harness-inbound.ts` — wire to `processDirectHarnessInbound`
+- `entry/bridge/direct-harness-bridge.ts` — router + registry bridge
+- `entry/direct-harness-inbound-registry.ts` — inbound handler registry
+- `entry/default-router-deps.ts` — provide `deliverInbound` hook
+- `daemon-start/direct-harness/start-subscriptions.ts` — register/unregister inbound handler
 
 **Validation criteria:**
 
-- [ ] Direct harness prompt delivery works via v2 subscriber → router → use case
-- [ ] Session open/resume/close use cases (already done) called from inbound handler
-- [ ] Tests for inbound routing + prompt processing
-- [ ] G1 passes for `process-direct-harness-prompt.ts`
+- [x] Direct harness prompt delivery works via v2 subscriber → router → use case
+- [x] Session open/resume/close use cases (already done) called from inbound handler
+- [x] Tests for inbound routing + prompt processing
+- [x] G1 passes for `process-direct-harness-prompt.ts`
 
 ---
 

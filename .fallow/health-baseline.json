@@ -1661,7 +1661,7 @@
       }
     },
     "packages/cli/src/commands/machine/daemon-start/direct-harness/session-subscriber.ts": {
-      "crap_high": {
+      "crap_critical": {
         "count": 1
       },
       "crap_moderate": {
