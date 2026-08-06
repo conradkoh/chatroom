@@ -298,30 +298,26 @@ Migration is **complete** when all of the following are true:
 
 ---
 
-## U11 — Outbound publishers
+## U11 — Outbound publishers ✅
 
 **Outcome:** All 10 Convex publisher stubs implement real mutations; `publisher-registry` routes outbound events.
 
 **Files:**
 
-- `infrastructure/convex/publishers/assigned-task-status.ts`
-- `infrastructure/convex/publishers/capabilities.ts`
-- `infrastructure/convex/publishers/command-result.ts`
-- `infrastructure/convex/publishers/daemon-heartbeat.ts`
-- `infrastructure/convex/publishers/git-state.ts`
-- `infrastructure/convex/publishers/harness-fingerprint.ts`
-- `infrastructure/convex/publishers/models.ts`
-- `infrastructure/convex/publishers/session-lifecycle.ts`
-- `infrastructure/convex/publishers/turn-output.ts`
-- `infrastructure/convex/publishers/workspace-commands.ts`
-- `entry/publisher-registry.ts` — wire all publishers
+- `infrastructure/convex/publishers/publisher-deps.ts` — shared Convex publisher deps
+- `infrastructure/convex/publishers/publisher.ts` — shared Publisher interface
+- `domain/entities/outbound-event.ts` — extended payloads for all publisher types
+- `infrastructure/convex/publishers/*.ts` — 10 publishers + co-located tests
+- `entry/publisher-registry.ts` — routes all non-stream outbound types
+- `entry/deps.ts` — passes backend/session/machine into registry
+- `entry/start-daemon.ts` — supplies convex deps to createDaemonDeps
 
 **Validation criteria:**
 
-- [ ] Each publisher calls correct Convex mutation(s)
-- [ ] Co-located tests per publisher
-- [ ] `harness.stream` fans to persistence + local-web streamHub
-- [ ] G3 passes
+- [x] Each publisher calls correct Convex mutation(s)
+- [x] Co-located tests per publisher
+- [x] `harness.stream` fans to persistence + local-web streamHub
+- [x] G3 passes (`grep TODO: migrate from legacy` empty in publishers)
 
 ---
 

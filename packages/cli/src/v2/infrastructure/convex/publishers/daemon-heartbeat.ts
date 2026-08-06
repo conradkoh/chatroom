@@ -1,13 +1,17 @@
+import type { ConvexPublisherDeps } from './publisher-deps.js';
+import type { Publisher } from './publisher.js';
+import { api } from '../../../../api.js';
 import type { OutboundEvent } from '../../../domain/entities/outbound-event.js';
 
-export type Publisher = {
-  publish(event: OutboundEvent): Promise<void>;
-};
-
-export function createDaemonHeartbeatPublisher(_deps: unknown): Publisher {
+export function createDaemonHeartbeatPublisher(deps: ConvexPublisherDeps): Publisher {
   return {
-    async publish(_event: OutboundEvent): Promise<void> {
-      // TODO: migrate from legacy
+    async publish(event: OutboundEvent): Promise<void> {
+      if (event.type !== 'heartbeat') return;
+
+      await deps.backend.mutation(api.machines.daemonHeartbeat, {
+        sessionId: deps.sessionId,
+        machineId: deps.machineId,
+      });
     },
   };
 }

@@ -2217,6 +2217,24 @@
         "count": 1
       }
     },
+    "packages/cli/src/v2/entry/publisher-registry.ts": {
+      "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/v2/infrastructure/convex/publishers/session-lifecycle.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/v2/infrastructure/convex/publishers/turn-output.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
     "packages/cli/src/version.ts": {
       "crap_moderate": {
         "count": 1

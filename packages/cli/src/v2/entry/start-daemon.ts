@@ -20,7 +20,12 @@ export async function startDaemonV2(): Promise<void> {
   const wsClient = await getConvexWsClient();
 
   const persistence = createPersistenceStore(resolvePersistenceDbPath(init.machineId));
-  const daemonDeps = createDaemonDeps({ persistence });
+  const daemonDeps = createDaemonDeps({
+    persistence,
+    backend: init.backend,
+    sessionId: init.sessionId,
+    machineId: init.machineId,
+  });
 
   const localWebPort = Number(
     process.env.CHATROOM_LOCAL_WEB_PORT ?? String(DEFAULT_LOCAL_WEB_PORT)
