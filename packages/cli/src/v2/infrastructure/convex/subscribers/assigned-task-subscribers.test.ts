@@ -128,6 +128,7 @@ describe('assigned-task v2 subscribers', () => {
             handled.push(event);
           },
         },
+        directHarness: {},
       },
     });
 
@@ -157,6 +158,7 @@ describe('assigned-task v2 subscribers', () => {
             handled.push(event);
           },
         },
+        directHarness: {},
       },
       { type: 'assigned-task.presence', taskId: TASK_ID, role: 'builder' }
     );

@@ -24,6 +24,7 @@ One orchestration per file. Ports co-located as `export interface XxxPort`.
 | ---------------------------------- | ----------------------------------------------------------- |
 | `deliver-assigned-task.ts`         | `daemon-start/task-monitor.ts`                              | stub — boundary mapper in slice #7    |
 | `handle-assigned-task-inbound.ts`  | `v2/infrastructure/convex/subscribers/assigned-task-*`      | **done** — router hook; deliver later |
+| `handle-direct-harness-inbound.ts` | `v2/infrastructure/convex/subscribers/direct-harness-*`     | **done** — router hook; process later |
 | `handle-command-event.ts`          | `daemon-start/command-loop.ts`                              |
 | `handle-turn-completed.ts`         | `domain/agent-lifecycle/use-cases/handle-turn-completed.ts` | **done**                              |
 | `open-harness-session.ts`          | `domain/direct-harness/usecases/open-session.ts`            | **done**                              |
