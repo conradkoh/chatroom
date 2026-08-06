@@ -8,6 +8,8 @@ import { startCommandRunSubscriber } from '../infrastructure/convex/subscribers/
 import { startDirectHarnessCommandSubscriber } from '../infrastructure/convex/subscribers/direct-harness-command.js';
 import { startDirectHarnessPromptSubscriber } from '../infrastructure/convex/subscribers/direct-harness-prompt.js';
 import { startDirectHarnessSessionSubscriber } from '../infrastructure/convex/subscribers/direct-harness-session.js';
+import { startGitRequestSubscriber } from '../infrastructure/convex/subscribers/git-request.js';
+import { startWorkspaceListSubscriber } from '../infrastructure/convex/subscribers/workspace-list.js';
 
 export type SubscriberRegistryDeps = ConvexSubscriberDeps & {
   router: EventRouterDeps;
@@ -27,6 +29,8 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const directHarnessCommand = startDirectHarnessCommandSubscriber(deps, onEvent);
   const commandEvents = startCommandEventsSubscriber(deps, onEvent);
   const commandRun = startCommandRunSubscriber(deps, onEvent);
+  const workspaceList = startWorkspaceListSubscriber(deps, onEvent);
+  const gitRequest = startGitRequestSubscriber(deps, onEvent);
 
   return {
     async stopAll() {
@@ -38,6 +42,8 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
         directHarnessCommand.stop(),
         commandEvents.stop(),
         commandRun.stop(),
+        workspaceList.stop(),
+        gitRequest.stop(),
       ]);
     },
   };

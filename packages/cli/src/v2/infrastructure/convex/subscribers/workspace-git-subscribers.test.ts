@@ -2,16 +2,14 @@ import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, it, vi } from 'vitest';
 
-import { startCommandEventsSubscriber } from './command-events.js';
-import { startCommandRunSubscriber } from './command-run.js';
+import { startGitRequestSubscriber } from './git-request.js';
+import { startWorkspaceListSubscriber } from './workspace-list.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
-import type { CommandInboundEvent } from '../../../domain/usecase/handle-command-inbound.js';
+import type { WorkspaceGitInboundEvent } from '../../../domain/usecase/handle-workspace-git-inbound.js';
 import { routeInboundEvent } from '../../../entry/event-router.js';
 import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
 
-const COMMAND_EVENT_ID = 'cmd_event_1';
-const PENDING_RUN_ID = 'run_pending_1';
-const STOP_RUN_ID = 'run_stop_1';
+const GIT_REQUEST_ID = 'git_req_1';
 const SESSION_ID = 'session-test' as SessionId;
 const MACHINE_ID = 'machine-test';
 
@@ -36,79 +34,80 @@ function createMockWsClient() {
   };
 }
 
-describe('command v2 subscribers', () => {
-  it('command-events subscriber emits command.received with commandId', async () => {
+describe('workspace-git v2 subscribers', () => {
+  it('workspace-list subscriber emits workspace.list-changed when list changes', async () => {
     const events: InboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
 
-    const handle = startCommandEventsSubscriber(
+    const handle = startWorkspaceListSubscriber(
       { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       (event) => events.push(event)
     );
 
-    emitUpdate({ events: [{ _id: COMMAND_EVENT_ID }] });
+    emitUpdate(['ws-a', 'ws-b']);
     await handle.stop();
 
     expect(events).toContainEqual({
-      type: 'command.received',
-      commandId: COMMAND_EVENT_ID,
+      type: 'workspace.list-changed',
+      machineId: MACHINE_ID,
     });
   });
 
-  it('command-events subscriber dedupes repeated event ids', async () => {
+  it('workspace-list subscriber does not re-emit on identical list snapshot', async () => {
     const events: InboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
 
-    const handle = startCommandEventsSubscriber(
+    const handle = startWorkspaceListSubscriber(
       { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       (event) => events.push(event)
     );
 
-    emitUpdate({ events: [{ _id: COMMAND_EVENT_ID }] });
-    emitUpdate({ events: [{ _id: COMMAND_EVENT_ID }] });
+    emitUpdate(['ws-a', 'ws-b']);
+    emitUpdate(['ws-a', 'ws-b']);
     await handle.stop();
 
-    expect(events).toEqual([{ type: 'command.received', commandId: COMMAND_EVENT_ID }]);
+    expect(events).toEqual([{ type: 'workspace.list-changed', machineId: MACHINE_ID }]);
   });
 
-  it('command-run subscriber emits command-run.updated for pendingRuns', async () => {
+  it('workspace-list subscriber emits again when list content changes', async () => {
     const events: InboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
 
-    const handle = startCommandRunSubscriber(
+    const handle = startWorkspaceListSubscriber(
       { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       (event) => events.push(event)
     );
 
-    emitUpdate({ pendingRuns: [{ _id: PENDING_RUN_ID }] });
+    emitUpdate(['ws-a']);
+    emitUpdate(['ws-a', 'ws-b']);
+    await handle.stop();
+
+    expect(events).toEqual([
+      { type: 'workspace.list-changed', machineId: MACHINE_ID },
+      { type: 'workspace.list-changed', machineId: MACHINE_ID },
+    ]);
+  });
+
+  it('git-request subscriber emits git.request with requestId', async () => {
+    const events: InboundEvent[] = [];
+    const { wsClient, emitUpdate } = createMockWsClient();
+
+    const handle = startGitRequestSubscriber(
+      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      (event) => events.push(event)
+    );
+
+    emitUpdate([{ _id: GIT_REQUEST_ID }]);
     await handle.stop();
 
     expect(events).toContainEqual({
-      type: 'command-run.updated',
-      runId: PENDING_RUN_ID,
+      type: 'git.request',
+      requestId: GIT_REQUEST_ID,
     });
   });
 
-  it('command-run subscriber emits command-run.updated for stopRequestedRuns', async () => {
-    const events: InboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
-
-    const handle = startCommandRunSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
-      (event) => events.push(event)
-    );
-
-    emitUpdate({ stopRequestedRuns: [{ _id: STOP_RUN_ID }] });
-    await handle.stop();
-
-    expect(events).toContainEqual({
-      type: 'command-run.updated',
-      runId: STOP_RUN_ID,
-    });
-  });
-
-  it('registry routes command event to handler', async () => {
-    const handled: CommandInboundEvent[] = [];
+  it('registry routes workspace-git event to handler', async () => {
+    const handled: WorkspaceGitInboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
 
     const registry = startAllSubscribers({
@@ -118,41 +117,41 @@ describe('command v2 subscribers', () => {
       router: {
         assignedTask: {},
         directHarness: {},
-        command: {
-          onCommandEvent: async (event) => {
+        command: {},
+        workspaceGit: {
+          onWorkspaceGitEvent: async (event) => {
             handled.push(event);
           },
         },
-        workspaceGit: {},
       },
     });
 
-    emitUpdate({ events: [{ _id: COMMAND_EVENT_ID }] });
+    emitUpdate(['ws-a']);
     await registry.stopAll();
 
     expect(handled).toContainEqual({
-      type: 'command.received',
-      commandId: COMMAND_EVENT_ID,
+      type: 'workspace.list-changed',
+      machineId: MACHINE_ID,
     });
   });
 
-  it('event router dispatches command events to handler', async () => {
-    const handled: CommandInboundEvent[] = [];
+  it('event router dispatches workspace-git events to handler', async () => {
+    const handled: WorkspaceGitInboundEvent[] = [];
 
     await routeInboundEvent(
       {
         assignedTask: {},
         directHarness: {},
-        command: {
-          onCommandEvent: async (event) => {
+        command: {},
+        workspaceGit: {
+          onWorkspaceGitEvent: async (event) => {
             handled.push(event);
           },
         },
-        workspaceGit: {},
       },
-      { type: 'command-run.updated', runId: PENDING_RUN_ID }
+      { type: 'git.request', requestId: GIT_REQUEST_ID }
     );
 
-    expect(handled).toEqual([{ type: 'command-run.updated', runId: PENDING_RUN_ID }]);
+    expect(handled).toEqual([{ type: 'git.request', requestId: GIT_REQUEST_ID }]);
   });
 });
