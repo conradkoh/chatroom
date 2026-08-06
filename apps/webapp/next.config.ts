@@ -5,10 +5,13 @@ import createMDX from '@next/mdx';
 import { withSentryConfig } from '@sentry/nextjs';
 
 const require = createRequire(import.meta.url);
+const turbopackRoot = path.resolve(__dirname, '../../');
 const dialogRootContextPath = path.join(
   path.dirname(require.resolve('@base-ui/react/package.json')),
   'dialog/root/DialogRootContext.mjs'
 );
+const dialogRootContextTurbopackAlias =
+  './' + path.relative(__dirname, dialogRootContextPath).split(path.sep).join('/');
 
 const nextConfig = {
   // Configure `pageExtensions` to include markdown and MDX files
@@ -17,9 +20,9 @@ const nextConfig = {
   typedRoutes: true,
   // Fix Turbopack workspace root detection in monorepo
   turbopack: {
-    root: path.resolve(__dirname, '../../'),
+    root: turbopackRoot,
     resolveAlias: {
-      '@base-ui/react/dialog/root/DialogRootContext': dialogRootContextPath,
+      '@base-ui/react/dialog/root/DialogRootContext': dialogRootContextTurbopackAlias,
     },
   },
   // Disable when `.next/dev/cache/turbopack` grows unbounded and compaction pegs CPU.
