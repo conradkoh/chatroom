@@ -42,6 +42,7 @@ function readCommandDialogAriaIds(node: HTMLDivElement) {
   };
 }
 
+// fallow-ignore-next-line complexity
 function handleBackdropPointerDown(
   event: React.PointerEvent<HTMLDivElement>,
   onPointerDownOutside: CommandDialogContentProps['onPointerDownOutside'],
@@ -88,7 +89,11 @@ export function CommandDialogContent({
   }, []);
 
   useLayoutEffect(() => {
-    if (open) setMounted(true);
+    if (open) {
+      setMounted(true);
+    } else {
+      setMounted(false);
+    }
   }, [open]);
 
   useLayoutEffect(() => {
@@ -108,14 +113,6 @@ export function CommandDialogContent({
     setDescriptionElementId(ids.descriptionElementId);
   }, [open, children, surfaceAttached]);
 
-  const handleTransitionEnd = useCallback(
-    (event: React.TransitionEvent<HTMLDivElement>) => {
-      if (event.target !== event.currentTarget) return;
-      if (!open) setMounted(false);
-    },
-    [open]
-  );
-
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key !== 'Escape' || !onEscapeKeyDown) return;
     onEscapeKeyDown(event.nativeEvent);
@@ -125,11 +122,7 @@ export function CommandDialogContent({
   };
 
   const isSurfaceVisible = open || mounted;
-  const dataState = !isSurfaceVisible
-    ? {}
-    : open
-      ? { 'data-open': '' as const }
-      : { 'data-closed': '' as const };
+  const dataState = open ? { 'data-open': '' as const } : {};
 
   return (
     <DialogPrimitive.Portal keepMounted>
@@ -154,7 +147,6 @@ export function CommandDialogContent({
         className={cn(...COMMAND_DIALOG_CONTENT_CLASSES, className)}
         style={{ ...viewportStyle, ...style }}
         onKeyDown={handleKeyDown}
-        onTransitionEnd={handleTransitionEnd}
         tabIndex={-1}
         {...dataState}
         {...props}

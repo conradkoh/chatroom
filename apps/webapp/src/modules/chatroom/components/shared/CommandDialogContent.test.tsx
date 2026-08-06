@@ -130,9 +130,6 @@ describe('CommandDialogContent surface', () => {
         </CommandDialogContent>
       </Dialog>
     );
-    const surface = screen.getByTestId('content');
-    surface.dispatchEvent(new TransitionEvent('transitionend', { bubbles: true }));
-
     rerender(
       <Dialog open onOpenChange={vi.fn()} modal={false}>
         <CommandDialogContent open data-testid="content">
@@ -142,6 +139,19 @@ describe('CommandDialogContent surface', () => {
     );
     expect(screen.getByTestId('content')).not.toHaveAttribute('hidden');
     expect(screen.getByTestId('content')).toHaveAttribute('data-open');
+  });
+
+  it('surface has no animation utility classes', () => {
+    render(
+      <Dialog open onOpenChange={vi.fn()} modal={false}>
+        <CommandDialogContent open data-testid="content">
+          body
+        </CommandDialogContent>
+      </Dialog>
+    );
+    const className = screen.getByTestId('content').className;
+    expect(className).not.toContain('animate-out');
+    expect(className).not.toContain('fade-out');
   });
 
   it('does not add data-base-ui-inert markers to body children when opening', () => {

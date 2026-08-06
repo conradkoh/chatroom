@@ -6,12 +6,16 @@ import {
   getCommandDialogContentStyle,
 } from './commandDialogStyles';
 
-describe('commandDialogStyles close animation', () => {
+describe('commandDialogStyles animation', () => {
   const classNames = COMMAND_DIALOG_CONTENT_CLASSES.join(' ');
 
-  it('persists exit animation end state to prevent forceMount close flash', () => {
-    expect(classNames).toContain('data-closed:fill-mode-forwards');
-    expect(classNames).toContain('data-closed:pointer-events-none');
+  it('has no enter or exit animation classes', () => {
+    expect(classNames).not.toContain('animate-in');
+    expect(classNames).not.toContain('animate-out');
+    expect(classNames).not.toContain('fade-in');
+    expect(classNames).not.toContain('fade-out');
+    expect(classNames).not.toContain('zoom-out');
+    expect(classNames).not.toContain('fill-mode-forwards');
   });
 });
 
