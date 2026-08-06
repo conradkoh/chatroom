@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 const NO_WORKSPACE_SENTINEL = '__no_workspace__';
 
 export function makeCommandPalettePartitionKey(

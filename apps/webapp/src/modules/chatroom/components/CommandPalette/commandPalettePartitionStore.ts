@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import { observable, type Observable } from '@legendapp/state';
 
 import {
@@ -93,6 +92,7 @@ export function commitCommandPalettePreload(
   state$.status.set('ready');
 }
 
+// fallow-ignore-next-line unused-export
 export function abortCommandPalettePreload(
   state$: Observable<CommandPalettePartitionState>,
   generation: number
@@ -101,10 +101,12 @@ export function abortCommandPalettePreload(
   state$.status.set('idle');
 }
 
+// fallow-ignore-next-line unused-export — consumed by unit tests
 export function resetCommandPalettePartitionRegistryForTests(): void {
   registry.clear();
 }
 
+// fallow-ignore-next-line unused-export — consumed by unit tests
 export function getCommandPalettePartitionForTests(
   chatroomId: string,
   workspaceId: string | null | undefined
@@ -112,6 +114,7 @@ export function getCommandPalettePartitionForTests(
   return registry.get(makeCommandPalettePartitionKey(chatroomId, workspaceId))?.state$;
 }
 
+// fallow-ignore-next-line unused-export — consumed by unit tests
 export function getCommandPalettePartitionRefCountForTests(
   chatroomId: string,
   workspaceId: string | null | undefined

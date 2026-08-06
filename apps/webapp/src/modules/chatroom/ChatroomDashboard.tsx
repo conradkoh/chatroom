@@ -42,7 +42,7 @@ import {
 } from './components/ChatroomTitleEditor';
 import { ThemeToggleButton } from '../theme/ThemeToggleButton';
 import {
-  CommandPalette,
+  CommandPaletteLegend,
   useCommandPaletteCommands,
   WorkspaceCommandsAggregator,
   type SettingsTab,
@@ -2177,8 +2177,9 @@ export function ChatroomDashboard({
               />
 
               {/* Command Palette (Cmd+Shift+P) */}
-              <CommandPalette
+              <CommandPaletteLegend
                 chatroomId={chatroomId}
+                workspaceId={activeWorkspace?.workspaceId ?? null}
                 commands={commands}
                 inlineCommand={inlineCommand}
               />
