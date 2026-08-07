@@ -33,6 +33,7 @@ import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
 import { CommitStatusIndicator } from './CommitStatusIndicator';
 import { GitDiffStatClickable, InlineDiffStat } from './shared';
+import { getChatroomMobileFooterSafeAreaStyle } from '../../components/shared/chatroomMobileSafeArea';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,13 +58,8 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
-import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import {
-  useMainChatComposerFocused,
-  useMainChatComposerKeyboardInset,
-} from '@/hooks/useMobileKeyboard';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { cn } from '@/lib/utils';
@@ -85,22 +81,6 @@ type WorkspaceWithMachine = Workspace & { machineId: string };
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ACTIVE_WS_KEY_PREFIX = 'chatroom-active-workspace-';
-
-/** Minimum visualViewport inset (px) before treating keyboard as open. Filters mobile browser chrome false positives. */
-export const WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX = 120;
-
-/** Ignore inset-based safe-area suppress until visualViewport has had time to settle after mount/navigation. */
-export const WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS = 300;
-
-export function shouldSuppressWorkspaceBottomBarSafeArea(
-  keyboardInsetPx: number,
-  composerFocused: boolean,
-  insetSettled = true
-): boolean {
-  if (composerFocused) return true;
-  if (!insetSettled) return false;
-  return keyboardInsetPx >= WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX;
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -996,45 +976,15 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
 
 // ─── WorkspaceBottomBar ───────────────────────────────────────────────────────
 
-// fallow-ignore-next-line unused-export
-export function getWorkspaceBottomBarPaddingBottom(suppressSafeArea: boolean): string | number {
-  return suppressSafeArea ? 0 : 'env(safe-area-inset-bottom, 0px)';
-}
-
 export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
   const isDesktop = useIsDesktop(640);
   const mobile = !isDesktop;
-  const keyboardInsetPx = useMainChatComposerKeyboardInset(mobile);
-  const composerFocused = useMainChatComposerFocused(mobile);
-  const [insetSettled, setInsetSettled] = useState(!mobile);
-
-  useEffect(() => {
-    if (!mobile) {
-      setInsetSettled(true);
-      return;
-    }
-    setInsetSettled(false);
-    const id = window.setTimeout(
-      () => setInsetSettled(true),
-      WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS
-    );
-    return () => window.clearTimeout(id);
-  }, [mobile]);
-
-  const suppressSafeArea = shouldSuppressWorkspaceBottomBarSafeArea(
-    keyboardInsetPx,
-    composerFocused,
-    insetSettled
-  );
 
   return (
     <div
       data-testid="workspace-bottom-bar"
       className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary select-none"
-      style={{
-        paddingBottom: getWorkspaceBottomBarPaddingBottom(suppressSafeArea),
-        ...getMobileStickyFooterOffsetStyle(keyboardInsetPx),
-      }}
+      style={getChatroomMobileFooterSafeAreaStyle(mobile)}
     >
       <div className="flex items-center h-8 min-h-[32px] px-2">{children}</div>
     </div>

@@ -30,11 +30,10 @@ import {
   MAX_TEXTAREA_HEIGHT_PX,
   measureTextareaContentHeightPx,
 } from './messageInputAutosize';
+import { getChatroomMobileFooterSafeAreaStyle } from './shared/chatroomMobileSafeArea';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
 
-import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useMainChatComposerKeyboardInset } from '@/hooks/useMobileKeyboard';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -157,7 +156,6 @@ export function MessageInput({
   const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
   const isDesktop = useIsDesktop(640);
   const mobile = !isDesktop;
-  const keyboardInsetPx = useMainChatComposerKeyboardInset(mobile);
 
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -434,7 +432,7 @@ export function MessageInput({
       ref={formContainerRef}
       data-main-chat-composer
       className="relative bg-chatroom-bg-surface backdrop-blur-xl"
-      style={getMobileStickyFooterOffsetStyle(keyboardInsetPx)}
+      style={getChatroomMobileFooterSafeAreaStyle(mobile)}
     >
       {/* @ file reference autocomplete dropdown */}
       <FileReferenceAutocomplete
