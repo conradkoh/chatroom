@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { getChatroomMobileFooterSafeAreaStyle } from './chatroomMobileSafeArea';
+import {
+  getChatroomMobileFooterHorizontalSafeAreaStyle,
+  getChatroomMobileFooterSafeAreaStyle,
+} from './chatroomMobileSafeArea';
 
 describe('getChatroomMobileFooterSafeAreaStyle', () => {
   it('returns no styles for desktop footers', () => {
@@ -13,5 +16,21 @@ describe('getChatroomMobileFooterSafeAreaStyle', () => {
       paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     });
+  });
+});
+
+describe('getChatroomMobileFooterHorizontalSafeAreaStyle', () => {
+  it('returns no styles for desktop footers', () => {
+    expect(getChatroomMobileFooterHorizontalSafeAreaStyle(false)).toEqual({});
+  });
+
+  it('includes horizontal safe-area styles only on mobile (no paddingBottom)', () => {
+    expect(getChatroomMobileFooterHorizontalSafeAreaStyle(true)).toEqual({
+      paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
+      paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
+    });
+    expect(getChatroomMobileFooterHorizontalSafeAreaStyle(true)).not.toHaveProperty(
+      'paddingBottom'
+    );
   });
 });

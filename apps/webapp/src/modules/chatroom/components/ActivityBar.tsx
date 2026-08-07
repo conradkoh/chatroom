@@ -141,10 +141,10 @@ export const ActivityBar = memo(function ActivityBar({
         onClick={() => onViewChange('processes')}
       />
 
-      {/* Spacer to push chatroom switch to bottom */}
+      {/* Spacer to push command palette to bottom */}
       <div className="flex-1" />
 
-      {/* Command palette button */}
+      {/* Command palette button (Cmd+Shift+P equivalent) */}
       <button
         className={cn(
           'relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100',

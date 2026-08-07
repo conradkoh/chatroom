@@ -37,6 +37,14 @@ describe('deriveChatStatus', () => {
     expect(deriveChatStatus('active', [agent({ lastStatus: 'task.inProgress' })])).toBe('working');
   });
 
+  it('derives working from isAlive + task.inProgress without any daemon notion', () => {
+    // isAlive (spawned PID) is the online gate — there is no daemon/connection
+    // dimension in this pure function, so a working agent must not show idle.
+    expect(
+      deriveChatStatus('active', [agent({ lastStatus: 'task.inProgress', lastSeenAction: null })])
+    ).toBe('working');
+  });
+
   it('returns active when an agent just completed a task (task.completed)', () => {
     expect(deriveChatStatus('active', [agent({ lastStatus: 'task.completed' })])).toBe('active');
   });
