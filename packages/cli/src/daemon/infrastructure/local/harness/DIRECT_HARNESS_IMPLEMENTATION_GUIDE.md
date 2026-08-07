@@ -2,7 +2,7 @@
 
 This guide walks through adding a **new native SDK direct harness** end to end — the pattern used by `opencode-sdk`, `cursor-sdk`, and `pi-sdk` on the `feat/direct-harness-native-sdks` branch.
 
-It is **not** about CLI remote-agent harnesses (`RemoteAgentService`, `get-next-task`, `init-registry.ts`). For that path, see [`../services/remote-agents/HARNESS_GUIDE.md`](../services/remote-agents/HARNESS_GUIDE.md).
+It is **not** about CLI remote-agent harnesses (`RemoteAgentService`, `get-next-task`, `init-registry.ts`). For that path, see [`./services/HARNESS_GUIDE.md`](./services/HARNESS_GUIDE.md).
 
 ---
 
@@ -176,7 +176,7 @@ async function loadSdk(): Promise<LoadedSdk> {
 }
 ```
 
-Place bundled import helpers under `packages/cli/src/infrastructure/services/remote-agents/<name>-sdk/` if you need optional dependency isolation (follow `cursor-sdk-package.ts` / `pi-sdk-package.ts`).
+Place bundled import helpers under `packages/cli/src/daemon/infrastructure/local/harness/services/<name>-sdk/` if you need optional dependency isolation (follow `cursor-sdk-package.ts` / `pi-sdk-package.ts`).
 
 ### Environment / install detection
 
@@ -371,12 +371,12 @@ apps/webapp/src/modules/chatroom/types/machine.ts
 apps/webapp/src/modules/chatroom/direct-harness/utils/harness-selection.ts
 ```
 
-Optional: SDK import shim under `packages/cli/src/infrastructure/services/remote-agents/my-sdk/`.
+Optional: SDK package helpers under `packages/cli/src/daemon/infrastructure/local/harness/services/my-sdk/`.
 
 ---
 
 ## Related docs
 
-- CLI remote agents (legacy chatroom roles): [`../services/remote-agents/HARNESS_GUIDE.md`](../services/remote-agents/HARNESS_GUIDE.md)
+- CLI remote agents (legacy chatroom roles): [`./services/HARNESS_GUIDE.md`](./services/HARNESS_GUIDE.md)
 - Domain `BoundHarness` API: `packages/cli/src/domain/direct-harness/entities/bound-harness.ts`
 - Daemon subscribers: `packages/cli/src/commands/machine/daemon-start/direct-harness/`

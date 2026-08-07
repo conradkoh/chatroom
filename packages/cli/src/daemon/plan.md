@@ -6,7 +6,7 @@
 
 ## Executive summary
 
-Phases 0–4 moved events, git, native-integration, fatal-error-guard, and agent-process-manager under `packages/cli/src/daemon/`. **~79 source files (~9.8k LOC)** remain in `commands/machine/daemon-start/` plus **99 files** in `infrastructure/services/remote-agents/` and **6 shim files** in `infrastructure/harnesses/`.
+Phases 0–4 moved events, git, native-integration, fatal-error-guard, and agent-process-manager under `packages/cli/src/daemon/`. **~79 source files (~9.8k LOC)** remain in `commands/machine/daemon-start/` (daemon-start shims deferred to post-consolidation slice 2).
 
 This plan completes consolidation in four phases (5–8), following the same discipline as Phases 0–4: one phase = one commit, move files, update imports, update fallow baselines, run `pnpm turbo run typecheck test --filter=chatroom-cli`.
 
@@ -20,7 +20,7 @@ All items from `consolidate.md` §Open decisions are resolved here. No further u
 
 ### 1. `remote-agents/` registry strategy → **Move with thin re-exports**
 
-**Decision:** Move the entire `infrastructure/services/remote-agents/` tree to `daemon/infrastructure/local/harness/services/` (paths per `consolidate.md` §9). Leave **thin re-export shims** at the old `infrastructure/services/remote-agents/` paths for files marked `consolidate+shim` (registry, index, base-cli-agent-service, detection-result, init-registry, and CLI-agent service index files used by `harness-status` / `machine/detection`).
+**Decision:** Move the entire `infrastructure/services/remote-agents/` tree to `daemon/infrastructure/local/harness/services/` (paths per `consolidate.md` §9). Thin re-export shims at old paths were removed in post-consolidation slice 1 after updating `harness-status` / `machine/detection` imports.
 
 **Rationale:** Daemon harness registry is the primary consumer. Re-exports preserve stable paths for two external CLI commands without duplicating implementation. Matches Phase 0–4 shim-deletion pattern inverted: delete shims only when all importers updated.
 
@@ -324,12 +324,12 @@ Update to: `Phases 0–8 ✅ complete` (after all phases executed — not in thi
 
 ### Optional follow-ups (out of scope for Phases 5–8)
 
-| Item                             | Recommendation                                                  |
-| -------------------------------- | --------------------------------------------------------------- |
-| Delete `remote-agents/` shims    | New slice after updating `harness-status` / `detection` imports |
-| `agent-lifecycle/` consolidation | Deferred — shared infrastructure                                |
-| `workspace/` consolidation       | Deferred — shared beyond daemon                                 |
-| Smoke test                       | `chatroom machine daemon start` after Phase 7                   |
+| Item                             | Recommendation                                |
+| -------------------------------- | --------------------------------------------- |
+| Delete `remote-agents/` shims    | ✅ Complete (post-consolidation slice 1)      |
+| `agent-lifecycle/` consolidation | Deferred — shared infrastructure              |
+| `workspace/` consolidation       | Deferred — shared beyond daemon               |
+| Smoke test                       | `chatroom machine daemon start` after Phase 7 |
 
 ---
 

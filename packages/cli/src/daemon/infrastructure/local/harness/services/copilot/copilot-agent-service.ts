@@ -88,7 +88,7 @@ export class CopilotAgentService extends BaseCLIAgentService {
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     // The non-empty `prompt` invariant is enforced upstream by `createSpawnPrompt`
     // at the use-case layer (`agent-process-manager`). See
-    // `infrastructure/services/remote-agents/spawn-prompt.ts`.
+    // `daemon/infrastructure/local/harness/services/spawn-prompt.ts`.
     const { prompt } = options;
 
     // Build command arguments for non-interactive prompt mode

@@ -236,7 +236,9 @@
 
 ---
 
-## 9. `infrastructure/services/remote-agents/
+## 9. `infrastructure/services/remote-agents/`
+
+> **Status:** ✅ Implementations consolidated under `daemon/infrastructure/local/harness/services/` (Phases 8a–8b). Thin re-export shims deleted in post-consolidation slice 1 — `harness-status`, `detection`, and `detection.test` import canonical daemon paths.
 
 > **Shared consumers:** `commands/machine/harness-status.ts`, `infrastructure/machine/detection.ts` (import `index`, `base-cli-agent-service`, `detection-result`)
 
@@ -330,7 +332,7 @@
 
 > **Resolved** — see [`plan.md`](./plan.md) §Resolved decisions. Summary:
 >
-> - `remote-agents/`: move to `daemon/infrastructure/local/harness/services/` with thin re-exports for harness-status/detection
+> - `remote-agents/`: moved to `daemon/infrastructure/local/harness/services/`; shim re-exports deleted (post-consolidation slice 1)
 > - `daemon-start/index.ts`: keep at `commands/machine/daemon-start/` (CLI entry)
 > - `enhancer-legacy/`: rename to `enhancer/` in Phase 7b
 > - `agent-lifecycle/`: defer — keep shared infrastructure

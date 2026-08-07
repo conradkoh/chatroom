@@ -15,5 +15,5 @@ Direct-harness SDK adapters — bound harness implementations for native direct 
 
 ## Registry
 
-- **Agent services** — `../registry.ts` (`initHarnessRegistry`) registers `RemoteAgentService` instances from `infrastructure/services/remote-agents/`.
+- **Agent services** — `../registry.ts` (`initHarnessRegistry`) registers `RemoteAgentService` instances from `daemon/infrastructure/local/harness/services/`.
 - **Bound direct harness** — `../bound-harness-registry.ts` (`startBoundHarness`, `createChunkExtractor`, `listInstalledNativeDirectHarnesses`).

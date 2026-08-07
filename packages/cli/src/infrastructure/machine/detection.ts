@@ -11,17 +11,17 @@
 import { Effect } from 'effect';
 
 import type { AgentHarness, HarnessVersionInfo } from './types.js';
-import {
-  initHarnessRegistry,
-  getAllHarnesses,
-  getHarness,
-} from '../services/remote-agents/index.js';
-import { BaseCLIAgentService } from '../services/remote-agents/base-cli-agent-service.js';
+import { BaseCLIAgentService } from '../../daemon/infrastructure/local/harness/services/base-cli-agent-service.js';
 import {
   DetectionResult,
   isInstalled,
   isDetectionError,
-} from '../services/remote-agents/detection-result.js';
+} from '../../daemon/infrastructure/local/harness/services/detection-result.js';
+import {
+  initHarnessRegistry,
+  getAllHarnesses,
+  getHarness,
+} from '../../daemon/infrastructure/local/harness/services/index.js';
 
 /**
  * Detect the version of a specific agent harness.

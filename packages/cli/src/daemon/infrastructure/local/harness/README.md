@@ -33,4 +33,4 @@ See [adapters/README.md](./adapters/README.md) — one subfolder per provider.
 
 ## Agent services
 
-`RemoteAgentService` implementations live in `packages/cli/src/infrastructure/services/remote-agents/`. The harness registry in this module binds those services to direct-harness names at startup.
+`RemoteAgentService` implementations live in `packages/cli/src/daemon/infrastructure/local/harness/services/`. The harness registry in this module binds those services to direct-harness names at startup.

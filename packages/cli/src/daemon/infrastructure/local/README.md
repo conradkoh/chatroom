@@ -12,18 +12,18 @@ Machine-local configuration and process management — not Convex, not domain lo
 
 ## Does not belong here
 
-| Kind                                 | Home instead                                                               |
-| ------------------------------------ | -------------------------------------------------------------------------- |
-| Remote agent HTTP/SDK service bodies | `infrastructure/services/remote-agents/` (agent services not moved in U12) |
-| Convex                               | `infrastructure/convex/`                                                   |
-| Business rules                       | `domain/usecase/`                                                          |
+| Kind                                 | Home instead                                    |
+| ------------------------------------ | ----------------------------------------------- |
+| Remote agent HTTP/SDK service bodies | `daemon/infrastructure/local/harness/services/` |
+| Convex                               | `infrastructure/convex/`                        |
+| Business rules                       | `domain/usecase/`                               |
 
 ## Legacy sources (thin re-exports until U14)
 
-| daemon                              | Legacy shim                                              |
-| ----------------------------------- | -------------------------------------------------------- |
-| `machine-config.ts`                 | (no shim — import daemon directly)                       |
-| `process-spawn.ts`                  | (no shim — import daemon directly)                       |
-| `harness/registry.ts`               | `infrastructure/services/remote-agents/init-registry.ts` |
-| `harness/bound-harness-registry.ts` | `infrastructure/harnesses/registry.ts`                   |
-| `harness/adapters/*`                | `infrastructure/harnesses/{provider}-sdk/` shims         |
+| daemon                              | Legacy shim                        |
+| ----------------------------------- | ---------------------------------- |
+| `machine-config.ts`                 | (no shim — import daemon directly) |
+| `process-spawn.ts`                  | (no shim — import daemon directly) |
+| `harness/registry.ts`               | (no shim — import daemon directly) |
+| `harness/bound-harness-registry.ts` | (no shim — import daemon directly) |
+| `harness/adapters/*`                | (no shim — import daemon directly) |

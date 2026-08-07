@@ -160,7 +160,7 @@ Use when the agent runtime is an external CLI binary.
 ### 3.1 File layout
 
 ```
-remote-agents/
+daemon/infrastructure/local/harness/services/
   my-agent/
     my-agent-service.ts       ← main harness class
     my-stream-reader.ts       ← optional: parse NDJSON/stream output
@@ -346,7 +346,7 @@ export function initHarnessRegistry(): void {
 }
 ```
 
-3. Export from `remote-agents/index.ts` if needed by tests or callers.
+3. Export from `services/index.ts` if needed by tests or callers.
 4. Update `init-registry.test.ts` — add your `id` to the expected sorted list.
 
 Registry API (`registry.ts`): `registerHarness`, `getHarness`, `getAllHarnesses`.
