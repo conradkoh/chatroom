@@ -2,7 +2,7 @@ import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-import { CommandDialogContent } from './CommandDialogContent';
+import { CommandDialogContent, CommandDialogRoot } from './CommandDialogContent';
 
 import { Command, CommandInput } from '@/components/ui/command';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -12,6 +12,27 @@ const Dialog = DialogPrimitive.Root;
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: vi.fn(() => true),
 }));
+
+describe('CommandDialogRoot', () => {
+  it('defaults to modal false and disables Base UI pointer dismissal', () => {
+    const onOpenChange = vi.fn();
+    render(
+      <CommandDialogRoot open onOpenChange={onOpenChange}>
+        <CommandDialogContent open data-testid="content">
+          <button type="button">inside</button>
+        </CommandDialogContent>
+      </CommandDialogRoot>
+    );
+
+    const inside = screen.getByRole('button', { name: 'inside' });
+    inside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+    inside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+    inside.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+    inside.click();
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});
 
 describe('CommandDialogContent dismiss backdrop', () => {
   beforeEach(() => {
