@@ -6,7 +6,7 @@
 
 ## Executive summary
 
-Phases 0–4 moved events, git, native-integration, fatal-error-guard, and agent-process-manager under `packages/cli/src/daemon/`. **~79 source files (~9.8k LOC)** remain in `commands/machine/daemon-start/` (daemon-start shims deferred to post-consolidation slice 2).
+Phases 0–4 moved events, git, native-integration, fatal-error-guard, and agent-process-manager under `packages/cli/src/daemon/`. `commands/machine/daemon-start/` is now CLI entry only (`index.ts`); post-consolidation cleanup complete.
 
 This plan completes consolidation in four phases (5–8), following the same discipline as Phases 0–4: one phase = one commit, move files, update imports, update fallow baselines, run `pnpm turbo run typecheck test --filter=chatroom-cli`.
 
@@ -28,7 +28,7 @@ All items from `consolidate.md` §Open decisions are resolved here. No further u
 
 ### 2. `daemon-start/index.ts` path → **Keep `commands/machine/daemon-start/`**
 
-**Decision:** Do **not** rename to `commands/machine/daemon/`. After Phase 7, `daemon-start/index.ts` remains the CLI command entry point (~20 lines: `daemonStart()` delegates to `daemon/entry/start-daemon.ts` + test re-exports). Only `types.ts` and `daemon-services.ts` may retain thin re-export shims temporarily if test imports lag.
+**Decision:** Do **not** rename to `commands/machine/daemon/`. `daemon-start/index.ts` remains the CLI command entry point (`daemonStart()` delegates to `daemon/entry/start-daemon.ts` + test type re-exports). Shims (`daemon-services.ts`, `types.ts`) deleted in post-consolidation slice 2.
 
 **Rationale:** Command path is CLI UX surface (`machine daemon start`). `daemon/` is runtime module. Mixing them breaks command discovery conventions.
 
@@ -52,14 +52,14 @@ All items from `consolidate.md` §Open decisions are resolved here. No further u
 
 ## Current tech debt (pre-Phases 5–8)
 
-| Item                                                              | Severity | Addressed in               |
-| ----------------------------------------------------------------- | -------- | -------------------------- |
-| ~9.8k LOC in `daemon-start/` handlers, subscriptions, drains      | medium   | Phases 5–7                 |
-| `daemon-runtime.ts` imports 12 `daemon-start/` modules directly   | medium   | Phase 7                    |
-| `enhancer-legacy/` misleading name                                | low      | Phase 7b                   |
-| `remote-agents/` (99 files) outside daemon module                 | medium   | Phase 8                    |
-| `infrastructure/harnesses/` re-export shims (6 files)             | low      | Phase 8c                   |
-| `daemon-services.ts` / `types.ts` imported via old paths in tests | low      | Phase 7 (shim then delete) |
+| Item                                                              | Severity                                | Addressed in |
+| ----------------------------------------------------------------- | --------------------------------------- | ------------ |
+| ~9.8k LOC in `daemon-start/` handlers, subscriptions, drains      | medium                                  | Phases 5–7   |
+| `daemon-runtime.ts` imports 12 `daemon-start/` modules directly   | medium                                  | Phase 7      |
+| `enhancer-legacy/` misleading name                                | low                                     | Phase 7b     |
+| `remote-agents/` (99 files) outside daemon module                 | medium                                  | Phase 8      |
+| `infrastructure/harnesses/` re-export shims (6 files)             | low                                     | Phase 8c     |
+| `daemon-services.ts` / `types.ts` imported via old paths in tests | ✅ Deleted (post-consolidation slice 2) |
 
 ---
 
@@ -172,40 +172,39 @@ rg -l 'daemon-start/(direct-harness|agentic-query|file-|shared-harness|testing)'
 
 ### Scope (consolidate.md §2f)
 
-| Source                              | Target                                                      | Shim?                |
-| ----------------------------------- | ----------------------------------------------------------- | -------------------- |
-| `capabilities-snapshot.ts`          | `daemon/entry/capabilities-snapshot.ts`                     | no                   |
-| `command-event-types.ts`            | `daemon/entry/command-event-types.ts`                       | no                   |
-| `command-sync-heartbeat.ts`         | `daemon/entry/command-sync-heartbeat.ts`                    | no                   |
-| `commit-detail-sync.ts`             | `daemon/entry/workspace-git/commit-detail-sync.ts`          | no                   |
-| `daemon-layers.ts`                  | `daemon/entry/daemon-layers.ts`                             | no                   |
-| `daemon-services.ts`                | `daemon/entry/daemon-services.ts`                           | **shim at old path** |
-| `deps.ts`                           | `daemon/entry/daemon-deps.ts`                               | no                   |
-| `models-refresh.ts`                 | `daemon/entry/models-refresh.ts`                            | no                   |
-| `refresh-models-outcome.ts`         | `daemon/entry/refresh-models-outcome.ts`                    | no                   |
-| `restart-orchestrator-in-flight.ts` | `daemon/entry/restart-orchestrator-in-flight.ts`            | no                   |
-| `restart-orchestrator.ts`           | `daemon/entry/restart-orchestrator.ts`                      | no                   |
-| `role-delivery-state.ts`            | `daemon/entry/role-delivery-state.ts`                       | no                   |
-| `types.ts`                          | `daemon/entry/daemon-types.ts`                              | **shim at old path** |
-| `utils.ts`                          | `daemon/entry/daemon-utils.ts`                              | no                   |
-| `workspace-cache.ts`                | `daemon/entry/workspace-git/workspace-cache.ts`             | no                   |
-| `workspace-list-subscription.ts`    | `daemon/entry/workspace-git/workspace-list-subscription.ts` | no                   |
+| Source                              | Target                                                      | Shim?                     |
+| ----------------------------------- | ----------------------------------------------------------- | ------------------------- |
+| `capabilities-snapshot.ts`          | `daemon/entry/capabilities-snapshot.ts`                     | no                        |
+| `command-event-types.ts`            | `daemon/entry/command-event-types.ts`                       | no                        |
+| `command-sync-heartbeat.ts`         | `daemon/entry/command-sync-heartbeat.ts`                    | no                        |
+| `commit-detail-sync.ts`             | `daemon/entry/workspace-git/commit-detail-sync.ts`          | no                        |
+| `daemon-layers.ts`                  | `daemon/entry/daemon-layers.ts`                             | no                        |
+| `daemon-services.ts`                | `daemon/entry/daemon-services.ts`                           | no (shim deleted slice 2) |
+| `deps.ts`                           | `daemon/entry/daemon-deps.ts`                               | no                        |
+| `models-refresh.ts`                 | `daemon/entry/models-refresh.ts`                            | no                        |
+| `refresh-models-outcome.ts`         | `daemon/entry/refresh-models-outcome.ts`                    | no                        |
+| `restart-orchestrator-in-flight.ts` | `daemon/entry/restart-orchestrator-in-flight.ts`            | no                        |
+| `restart-orchestrator.ts`           | `daemon/entry/restart-orchestrator.ts`                      | no                        |
+| `role-delivery-state.ts`            | `daemon/entry/role-delivery-state.ts`                       | no                        |
+| `types.ts`                          | `daemon/entry/daemon-types.ts`                              | no (shim deleted slice 2) |
+| `utils.ts`                          | `daemon/entry/daemon-utils.ts`                              | no                        |
+| `workspace-cache.ts`                | `daemon/entry/workspace-git/workspace-cache.ts`             | no                        |
+| `workspace-list-subscription.ts`    | `daemon/entry/workspace-git/workspace-list-subscription.ts` | no                        |
 
 ### Shim strategy for `daemon-services.ts` and `types.ts`
 
 1. Move implementation to `daemon/entry/`
 2. Replace `daemon-start/daemon-services.ts` and `daemon-start/types.ts` with thin re-exports
 3. Update all daemon-internal imports to new paths
-4. **Follow-up commit (optional Phase 7a.1):** Once test imports updated, delete shims
+4. **Done (post-consolidation slice 2):** Shims deleted; `index.ts` re-exports types from `daemon/entry/daemon-types.js`
 
 ### Post-phase state
 
-`daemon-start/` should contain only:
+`daemon-start/` contains only:
 
-- `index.ts` (CLI entry)
-- `daemon-services.ts` (shim, if not yet deleted)
-- `types.ts` (shim, if not yet deleted)
-- `event-bus.test.ts` and any tests that intentionally reference command path
+- `index.ts` (CLI entry + test type re-exports)
+
+`event-bus.test.ts` co-located at `daemon/entry/events/event-bus.test.ts`.
 
 ### Critical consumer: `daemon-runtime.ts`
 
@@ -213,7 +212,7 @@ All 12 `daemon-start/` imports must point to `daemon/entry/` after this phase.
 
 ### Verification
 
-- `daemon-runtime.ts` has zero `daemon-start/` imports (except shim types if retained)
+- `daemon-runtime.ts` has zero `daemon-start/` imports
 - `pnpm turbo run typecheck test --filter=chatroom-cli`
 
 ---
@@ -324,12 +323,13 @@ Update to: `Phases 0–8 ✅ complete` (after all phases executed — not in thi
 
 ### Optional follow-ups (out of scope for Phases 5–8)
 
-| Item                             | Recommendation                                |
-| -------------------------------- | --------------------------------------------- |
-| Delete `remote-agents/` shims    | ✅ Complete (post-consolidation slice 1)      |
-| `agent-lifecycle/` consolidation | Deferred — shared infrastructure              |
-| `workspace/` consolidation       | Deferred — shared beyond daemon               |
-| Smoke test                       | `chatroom machine daemon start` after Phase 7 |
+| Item                                                        | Recommendation                                |
+| ----------------------------------------------------------- | --------------------------------------------- |
+| Delete `remote-agents/` shims                               | ✅ Complete (post-consolidation slice 1)      |
+| Delete `daemon-start/` shims + relocate `event-bus.test.ts` | ✅ Complete (post-consolidation slice 2)      |
+| `agent-lifecycle/` consolidation                            | Deferred — shared infrastructure              |
+| `workspace/` consolidation                                  | Deferred — shared beyond daemon               |
+| Smoke test                                                  | `chatroom machine daemon start` after Phase 7 |
 
 ---
 
@@ -348,14 +348,14 @@ Update to: `Phases 0–8 ✅ complete` (after all phases executed — not in thi
 | Risk                                          | Mitigation                                                    |
 | --------------------------------------------- | ------------------------------------------------------------- |
 | `daemon-runtime.ts` import churn              | Complete Phase 7 before Phase 8; grep-verify after each phase |
-| Test files import via `daemon-start/types`    | Retain shims in 7a; delete in follow-up                       |
+| Test files import via `daemon-start/types`    | ✅ Shims deleted (post-consolidation slice 2)                 |
 | `harness-status` breaks on remote-agents move | consolidate+shim for all shared exports in 8a                 |
 | Fallow baseline drift                         | Update all three baseline files each phase                    |
 | Integration tests path-sensitive              | Run full test filter, not just typecheck                      |
 
 ## Success criteria
 
-- [ ] Zero production imports from `commands/machine/daemon-start/` except `index.ts` (+ optional shims)
+- [x] Zero production imports from `commands/machine/daemon-start/` except `index.ts`
 - [ ] `daemon/` is SSOT for daemon runtime, handlers, subscriptions, harness services
 - [ ] `consolidate.md` inventory fully executed (Phases 5–8)
 - [ ] `pnpm turbo run typecheck test --filter=chatroom-cli` green

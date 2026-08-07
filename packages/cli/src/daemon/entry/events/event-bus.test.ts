@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 
+import { DaemonEventBus } from './event-bus.js';
 import type { Id } from '../../../api.js';
-import { DaemonEventBus } from '../../../daemon/entry/events/event-bus.js';
 
 const CHATROOM_ID = 'test-chatroom' as Id<'chatroom_rooms'>;
 
