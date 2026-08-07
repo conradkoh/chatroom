@@ -3,61 +3,41 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ActivityBar } from './ActivityBar';
 
-const { openDialogMock, closeDialogMock, stateMock } = vi.hoisted(() => ({
-  openDialogMock: vi.fn(),
-  closeDialogMock: vi.fn(),
-  stateMock: vi.fn(),
-}));
+const toggleCommandPaletteMock = vi.fn();
 
 vi.mock('../context/CommandDialogContext', () => ({
-  // Note: no toggleCommandPalette here — if ActivityBar regresses to palette
-  // wiring, the render throws (undefined function call), failing this suite.
-  useCommandDialogState: () => stateMock(),
   useCommandDialogActions: () => ({
-    openDialog: openDialogMock,
-    closeDialog: closeDialogMock,
+    toggleCommandPalette: toggleCommandPaletteMock,
   }),
+}));
+
+vi.mock('../context/commandPaletteController', () => ({
+  subscribeCommandPaletteOpen: () => () => {},
+  getCommandPaletteOpen: () => false,
 }));
 
 function renderActivityBar() {
   return render(<ActivityBar activeView="explorer" onViewChange={() => {}} />);
 }
 
-describe('ActivityBar bottom button (Go to File)', () => {
+describe('ActivityBar bottom button (Command Palette)', () => {
   beforeEach(() => {
-    stateMock.mockReturnValue({ activeDialog: null });
-    openDialogMock.mockClear();
-    closeDialogMock.mockClear();
+    toggleCommandPaletteMock.mockClear();
   });
 
-  it('opens file-selector on click when no dialog is open', () => {
+  it('toggles command palette on click', () => {
     renderActivityBar();
 
-    fireEvent.click(screen.getByTitle('Go to File'));
+    fireEvent.click(screen.getByTitle('Command Palette'));
 
-    expect(openDialogMock).toHaveBeenCalledTimes(1);
-    expect(openDialogMock).toHaveBeenCalledWith('file-selector');
-    expect(closeDialogMock).not.toHaveBeenCalled();
+    expect(toggleCommandPaletteMock).toHaveBeenCalledTimes(1);
   });
 
-  it('closes file-selector when it is already open', () => {
-    stateMock.mockReturnValue({ activeDialog: 'file-selector' });
+  it('does not open the file selector', () => {
     renderActivityBar();
 
-    fireEvent.click(screen.getByTitle('Go to File'));
+    fireEvent.click(screen.getByTitle('Command Palette'));
 
-    expect(closeDialogMock).toHaveBeenCalledTimes(1);
-    expect(openDialogMock).not.toHaveBeenCalled();
-  });
-
-  it('does not open the command palette', () => {
-    renderActivityBar();
-
-    fireEvent.click(screen.getByTitle('Go to File'));
-
-    // The context mock provides no palette actions; the click must route to
-    // file-selector only.
-    expect(openDialogMock).toHaveBeenCalledWith('file-selector');
-    expect(openDialogMock.mock.calls[0]?.[0]).not.toBe('command-palette');
+    expect(toggleCommandPaletteMock).toHaveBeenCalled();
   });
 });

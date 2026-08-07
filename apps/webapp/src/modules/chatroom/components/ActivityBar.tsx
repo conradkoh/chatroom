@@ -1,11 +1,15 @@
 'use client';
 
-import { FileSearch, Files, MessageCircle, MessagesSquare, Terminal } from 'lucide-react';
-import { memo } from 'react';
+import { Command, Files, MessageCircle, MessagesSquare, Terminal } from 'lucide-react';
+import { memo, useSyncExternalStore } from 'react';
 import { SiGithub } from 'react-icons/si';
 import { VscSourceControl } from 'react-icons/vsc';
 
-import { useCommandDialogActions, useCommandDialogState } from '../context/CommandDialogContext';
+import { useCommandDialogActions } from '../context/CommandDialogContext';
+import {
+  getCommandPaletteOpen,
+  subscribeCommandPaletteOpen,
+} from '../context/commandPaletteController';
 import { EnhancerActivityBarItem } from '../features/enhancers/components/EnhancerActivityBarItem';
 import { ScheduledPromptsActivityBarItem } from '../features/scheduled-prompts/components/ScheduledPromptsActivityBarItem';
 
@@ -78,7 +82,7 @@ const ActivityBarItem = memo(function ActivityBarItem({
  * 8. Processes  — command launcher / process manager
  *
  * On mobile (hidden via CSS):
- * - Shows a file-selector trigger at the bottom (Cmd+P equivalent, Go to File)
+ * - Shows a command palette trigger at the bottom (Cmd+Shift+P equivalent)
  */
 // fallow-ignore-next-line complexity
 export const ActivityBar = memo(function ActivityBar({
@@ -87,9 +91,12 @@ export const ActivityBar = memo(function ActivityBar({
   chatroomId,
   machineId,
 }: ActivityBarProps) {
-  const { activeDialog } = useCommandDialogState();
-  const { openDialog, closeDialog } = useCommandDialogActions();
-  const fileSelectorOpen = activeDialog === 'file-selector';
+  const { toggleCommandPalette } = useCommandDialogActions();
+  const paletteOpen = useSyncExternalStore(
+    subscribeCommandPaletteOpen,
+    getCommandPaletteOpen,
+    () => false
+  );
 
   return (
     <div className="shrink-0 w-12 bg-chatroom-bg-surface border-r-2 border-chatroom-border-strong flex flex-col items-center pt-1">
@@ -134,21 +141,21 @@ export const ActivityBar = memo(function ActivityBar({
         onClick={() => onViewChange('processes')}
       />
 
-      {/* Spacer to push file selector to bottom */}
+      {/* Spacer to push command palette to bottom */}
       <div className="flex-1" />
 
-      {/* File selector button (Cmd+P / Go to File equivalent) */}
+      {/* Command palette button (Cmd+Shift+P equivalent) */}
       <button
         className={cn(
           'relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100',
-          fileSelectorOpen
+          paletteOpen
             ? 'text-chatroom-text-primary'
             : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
         )}
-        onClick={() => (fileSelectorOpen ? closeDialog() : openDialog('file-selector'))}
-        title="Go to File"
+        onClick={() => toggleCommandPalette()}
+        title="Command Palette"
       >
-        <FileSearch size={20} />
+        <Command size={20} />
       </button>
     </div>
   );
