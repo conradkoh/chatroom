@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { startDaemon } from './start-daemon.js';
 
 const {
   getConvexWsClient,
+  getConvexUrl,
   initDaemon,
   startAllSubscribers,
   startLocalWebServer,
@@ -13,6 +14,7 @@ const {
   runPromise,
 } = vi.hoisted(() => ({
   getConvexWsClient: vi.fn(),
+  getConvexUrl: vi.fn(),
   initDaemon: vi.fn(),
   startAllSubscribers: vi.fn(),
   startLocalWebServer: vi.fn(),
@@ -36,6 +38,7 @@ vi.mock('effect', async (importOriginal) => {
 
 vi.mock('../../infrastructure/convex/client.js', () => ({
   getConvexWsClient,
+  getConvexUrl,
 }));
 
 vi.mock('./init-daemon.js', () => ({
@@ -73,6 +76,8 @@ vi.mock('./deps.js', () => ({
 }));
 
 describe('startDaemon', () => {
+  const originalConvexUrl = process.env.CHATROOM_CONVEX_URL;
+  const originalLocalWebPort = process.env.CHATROOM_LOCAL_WEB_PORT;
   const stopAll = vi.fn().mockResolvedValue(undefined);
   const localWebStop = vi.fn().mockResolvedValue(undefined);
   const persistenceClose = vi.fn();
@@ -80,6 +85,9 @@ describe('startDaemon', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     runPromise.mockResolvedValue(undefined);
+    getConvexUrl.mockReturnValue('https://chatroom-cloud.duskfare.com');
+    delete process.env.CHATROOM_CONVEX_URL;
+    delete process.env.CHATROOM_LOCAL_WEB_PORT;
 
     const mockWsClient = { onUpdate: vi.fn() };
     getConvexWsClient.mockResolvedValue(mockWsClient);
@@ -100,6 +108,19 @@ describe('startDaemon', () => {
     });
 
     startAllSubscribers.mockReturnValue({ stopAll });
+  });
+
+  afterEach(() => {
+    if (originalConvexUrl === undefined) {
+      delete process.env.CHATROOM_CONVEX_URL;
+    } else {
+      process.env.CHATROOM_CONVEX_URL = originalConvexUrl;
+    }
+    if (originalLocalWebPort === undefined) {
+      delete process.env.CHATROOM_LOCAL_WEB_PORT;
+    } else {
+      process.env.CHATROOM_LOCAL_WEB_PORT = originalLocalWebPort;
+    }
   });
 
   it('starts subscribers with ws client, session, and machine ids', async () => {
@@ -151,6 +172,38 @@ describe('startDaemon', () => {
 
     expect(createPersistenceStore).toHaveBeenCalledWith(
       expect.stringContaining('machine-1/events.sqlite')
+    );
+  });
+
+  it('uses the production local-web port by default', async () => {
+    await startDaemon();
+
+    expect(startLocalWebServer).toHaveBeenCalledWith(
+      { host: '127.0.0.1', port: 18765 },
+      expect.any(Object)
+    );
+  });
+
+  it('uses the non-production local-web port for a non-production Convex URL', async () => {
+    getConvexUrl.mockReturnValue('http://127.0.0.1:3210');
+
+    await startDaemon();
+
+    expect(startLocalWebServer).toHaveBeenCalledWith(
+      { host: '127.0.0.1', port: 28765 },
+      expect.any(Object)
+    );
+  });
+
+  it('prefers the explicit local-web port override', async () => {
+    getConvexUrl.mockReturnValue('http://127.0.0.1:3210');
+    process.env.CHATROOM_LOCAL_WEB_PORT = '12345';
+
+    await startDaemon();
+
+    expect(startLocalWebServer).toHaveBeenCalledWith(
+      { host: '127.0.0.1', port: 12345 },
+      expect.any(Object)
     );
   });
 });
