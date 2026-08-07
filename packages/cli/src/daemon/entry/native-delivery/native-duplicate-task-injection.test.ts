@@ -16,7 +16,7 @@ import {
 } from './native-delivery-ledger.js';
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import { explainLedgerDeliveryBlock } from './native-task-injector-logic.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../../../commands/machine/daemon-start/daemon-services.js';
+import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
 const TASK_ID = 'task_dup_1';

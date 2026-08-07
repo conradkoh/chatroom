@@ -10,9 +10,9 @@ import { Context } from 'effect';
 
 import type { AgentSlotSnapshot } from '../../../daemon/domain/entities/agent-slot.js';
 import type { StopReason } from '../../../daemon/domain/entities/stop-reason.js';
+import type { SpawnPrompt } from '../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 import type { AgentHarness } from '../../machine/types.js';
 import type { TryConsumeResult } from '../harness-spawning/index.js';
-import type { SpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Runtime Slot ──────────────────────────────────────────────────────────────
 

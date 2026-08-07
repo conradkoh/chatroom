@@ -4,7 +4,7 @@ import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/
 import {
   createSpawnPrompt,
   type SpawnPrompt,
-} from '../../../infrastructure/services/remote-agents/spawn-prompt.js';
+} from '../../infrastructure/local/harness/services/spawn-prompt.js';
 
 export interface NativeSpawnPolicy {
   deferInitialTurn: boolean;

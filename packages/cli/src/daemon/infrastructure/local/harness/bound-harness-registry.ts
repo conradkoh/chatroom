@@ -81,8 +81,7 @@ function opencodeOnPath(): boolean {
 async function isCursorSdkInstalled(): Promise<boolean> {
   if (!process.env.CURSOR_API_KEY?.trim()) return false;
   try {
-    const { importBundledCursorSdk } =
-      await import('../../../../infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-package.js');
+    const { importBundledCursorSdk } = await import('./services/cursor-sdk/cursor-sdk-package.js');
     await importBundledCursorSdk();
     return true;
   } catch {
@@ -92,8 +91,7 @@ async function isCursorSdkInstalled(): Promise<boolean> {
 
 async function isPiSdkInstalled(): Promise<boolean> {
   try {
-    const { importBundledPiSdk } =
-      await import('../../../../infrastructure/services/remote-agents/pi-sdk/pi-sdk-package.js');
+    const { importBundledPiSdk } = await import('./services/pi-sdk/pi-sdk-package.js');
     const { ModelRegistry, AuthStorage } = await importBundledPiSdk();
     const authStorage = AuthStorage.create();
     const modelRegistry = ModelRegistry.create(authStorage);
@@ -106,7 +104,7 @@ async function isPiSdkInstalled(): Promise<boolean> {
 async function isClaudeSdkInstalled(): Promise<boolean> {
   try {
     const { importBundledClaudeSdk, resolvePathToClaudeCodeExecutable } =
-      await import('../../../../infrastructure/services/remote-agents/claude-sdk/claude-sdk-package.js');
+      await import('./services/claude-sdk/claude-sdk-package.js');
     await importBundledClaudeSdk();
     await resolvePathToClaudeCodeExecutable();
     return true;

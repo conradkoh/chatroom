@@ -2,20 +2,17 @@ import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
-import type {
-  DaemonAgentProcessManagerServiceShape,
-  DaemonSessionServiceShape,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
-import { runRestartOrchestrator } from '../../../commands/machine/daemon-start/restart-orchestrator.js';
-import type {
-  AgentHarness,
-  StartAgentReason,
-} from '../../../commands/machine/daemon-start/types.js';
 import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
 import type { RecoverAgentStateDeps } from '../../domain/usecase/recover-agent-state.js';
 import type { RestartAgentDeps } from '../../domain/usecase/restart-agent.js';
 import type { StartAgentDeps } from '../../domain/usecase/start-agent.js';
 import type { StopAgentDeps } from '../../domain/usecase/stop-agent.js';
+import type {
+  DaemonAgentProcessManagerServiceShape,
+  DaemonSessionServiceShape,
+} from '../daemon-services.js';
+import type { AgentHarness, StartAgentReason } from '../daemon-types.js';
+import { runRestartOrchestrator } from '../restart-orchestrator.js';
 
 export function createStartAgentDeps(
   agentMgr: DaemonAgentProcessManagerServiceShape,

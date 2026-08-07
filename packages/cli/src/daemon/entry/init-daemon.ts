@@ -7,22 +7,22 @@ import { stat } from 'node:fs/promises';
 import type { ConvexHttpClient } from 'convex/browser';
 import { Cause, Effect, Ref, Schedule, Duration } from 'effect';
 
+import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
+import type { DaemonDeps } from './daemon-deps.js';
+import { daemonSessionToLayers } from './daemon-layers.js';
+import type { DaemonSessionInit, SessionId } from './daemon-types.js';
+import { formatTimestamp } from './daemon-utils.js';
 import { api } from '../../api.js';
 import { DaemonEventBus } from './events/event-bus.js';
 import { registerEventListenersEffect } from './events/register-listeners.js';
-import { harnessCapabilitiesFingerprint } from '../../commands/machine/daemon-start/capabilities-snapshot.js';
-import { daemonSessionToLayers } from '../../commands/machine/daemon-start/daemon-layers.js';
-import type { DaemonDeps } from '../../commands/machine/daemon-start/deps.js';
 import {
   clearStaleSpawnedPidsEffect,
   reapOrphanCommandRunsEffect,
-} from '../../commands/machine/daemon-start/handlers/daemon-restart-cleanup.js';
-import { logStartupEffect } from '../../commands/machine/daemon-start/handlers/daemon-startup-log.js';
-import { reapOrphanedProcessGroupsEffect } from '../../commands/machine/daemon-start/handlers/orphan-tracker.js';
-import { cleanOrphanTempFiles } from '../../commands/machine/daemon-start/handlers/process/output-store.js';
-import { recoverAgentStateEffect } from '../../commands/machine/daemon-start/handlers/state-recovery.js';
-import type { DaemonSessionInit, SessionId } from '../../commands/machine/daemon-start/types.js';
-import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
+} from './handlers/daemon-restart-cleanup.js';
+import { logStartupEffect } from './handlers/daemon-startup-log.js';
+import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
+import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
+import { recoverAgentStateEffect } from './handlers/state-recovery.js';
 import { acquireLockWithRetry, releaseLock } from '../../commands/machine/pid.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../infrastructure/convex/client.js';
@@ -42,13 +42,13 @@ import {
   SpawnRateLimiter,
   HarnessSpawningService,
 } from '../../infrastructure/services/harness-spawning/index.js';
-import { getAllHarnesses } from '../../infrastructure/services/remote-agents/index.js';
-import type { RemoteAgentService } from '../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { formatAuthLoginCommand } from '../../utils/cli-command-formatting.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
 import { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 import { initHarnessRegistry } from '../infrastructure/local/harness/registry.js';
+import { getAllHarnesses } from '../infrastructure/local/harness/services/index.js';
+import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 
 // ─── Private Helpers ────────────────────────────────────────────────────────
 

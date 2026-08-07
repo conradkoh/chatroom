@@ -1,9 +1,9 @@
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 
 import { notifyNativeSessionLost } from './native-task-delivery-coordinator.js';
-import type { AgentHarness } from '../../../commands/machine/daemon-start/types.js';
 import type { StopReason } from '../../../daemon/domain/entities/stop-reason.js';
 import { shouldRetainHarnessSessionForReconnect } from '../../../daemon/domain/usecase/preserve-harness-session.js';
+import type { AgentHarness } from '../daemon-types.js';
 
 export interface NativeHarnessSessionExitContext {
   chatroomId: string;

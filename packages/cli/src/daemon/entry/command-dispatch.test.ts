@@ -17,15 +17,15 @@ import type { Layer } from 'effect';
 import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { daemonSessionToLayers } from '../../commands/machine/daemon-start/daemon-layers.js';
+import { daemonSessionToLayers } from './daemon-layers.js';
 import type {
   DaemonAgentProcessManagerService,
   DaemonMutableStateService,
   DaemonSessionService,
-} from '../../commands/machine/daemon-start/daemon-services.js';
-import { createMockDaemonSessionInit } from '../../commands/machine/daemon-start/testing/index.js';
-import { createMockDaemonDeps } from '../../commands/machine/daemon-start/testing/mock-daemon-deps.js';
-import type { DaemonSessionInit } from '../../commands/machine/daemon-start/types.js';
+} from './daemon-services.js';
+import type { DaemonSessionInit } from './daemon-types.js';
+import { createMockDaemonSessionInit } from './testing/index.js';
+import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -95,7 +95,7 @@ vi.mock('../infrastructure/git/git-reader.js', () => ({
   getRecentCommits: vi.fn().mockResolvedValue([]),
 }));
 
-vi.mock('../../commands/machine/daemon-start/workspace-cache.js', () => ({
+vi.mock('./workspace-git/workspace-cache.js', () => ({
   getWorkspacesForMachine: vi.fn().mockResolvedValue([]),
 }));
 
@@ -127,7 +127,7 @@ vi.mock('./workspace-git/git-heartbeat.js', async () => {
   };
 });
 
-vi.mock('../../commands/machine/daemon-start/command-sync-heartbeat.js', async () => {
+vi.mock('./command-sync-heartbeat.js', async () => {
   const { Effect } = await import('effect');
   return {
     pushCommands: vi.fn().mockResolvedValue(undefined),
@@ -136,7 +136,7 @@ vi.mock('../../commands/machine/daemon-start/command-sync-heartbeat.js', async (
   };
 });
 
-vi.mock('../../commands/machine/daemon-start/commit-detail-sync.js', async () => {
+vi.mock('./workspace-git/commit-detail-sync.js', async () => {
   const { Effect } = await import('effect');
   return {
     syncCommitDetails: vi.fn().mockResolvedValue(undefined),
@@ -153,36 +153,36 @@ vi.mock('./workspace-git/git-subscription.js', async () => {
   };
 });
 
-vi.mock('../../commands/machine/daemon-start/file-content-subscription.js', async () => {
+vi.mock('./files/file-content-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
     startFileContentSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
   };
 });
 
-vi.mock('../../commands/machine/daemon-start/file-tree-subscription.js', async () => {
+vi.mock('./files/file-tree-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
     startFileTreeSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
   };
 });
 
-vi.mock('../../commands/machine/daemon-start/workspace-list-subscription.js', async () => {
+vi.mock('./workspace-git/workspace-list-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
     startWorkspaceListSubscriptionEffect: () => Effect.succeed({ stop: vi.fn() }),
   };
 });
 
-vi.mock('../../commands/machine/daemon-start/handlers/process/log-observer-sync.js', () => ({
+vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
 }));
 
-vi.mock('../../commands/machine/daemon-start/handlers/process/command-run-subscription.js', () => ({
+vi.mock('./handlers/process/command-run-subscription.js', () => ({
   startCommandRunSubscription: vi.fn().mockReturnValue({ stop: vi.fn() }),
 }));
 
-vi.mock('../../commands/machine/daemon-start/handlers/ping.js', () => ({
+vi.mock('./handlers/ping.js', () => ({
   handlePing: vi.fn().mockReturnValue({ result: 'pong', failed: false }),
 }));
 
@@ -285,8 +285,7 @@ beforeEach(() => {
 
 describe('refreshModelsEffect', () => {
   it('returns noop when session.config is null (session injected from DaemonSessionService)', async () => {
-    const { refreshModelsEffect } =
-      await import('../../commands/machine/daemon-start/models-refresh.js');
+    const { refreshModelsEffect } = await import('./models-refresh.js');
     // Default mock context has config: null → refreshModelsEffect short-circuits immediately.
     // Verifies the Effect extracted session from DaemonSessionService and executed correctly.
     const result = await runWithSession(refreshModelsEffect);
@@ -295,8 +294,7 @@ describe('refreshModelsEffect', () => {
   });
 
   it('returns pushed when session has a valid config and there is no prior model snapshot', async () => {
-    const { refreshModelsEffect } =
-      await import('../../commands/machine/daemon-start/models-refresh.js');
+    const { refreshModelsEffect } = await import('./models-refresh.js');
     const deps = createMockDaemonDeps();
     // discoverModels mock returns { opencode: ['opencode/model-a'] }.
     // lastPushedModels: null → prev={}, next has models → hasChanges=true → pushed.
@@ -323,8 +321,7 @@ describe('refreshModelsEffect', () => {
   });
 
   it('returns skipped_no_changes when discovered models match the prior snapshot', async () => {
-    const { refreshModelsEffect } =
-      await import('../../commands/machine/daemon-start/models-refresh.js');
+    const { refreshModelsEffect } = await import('./models-refresh.js');
     const deps = createMockDaemonDeps();
     // discoverModels mock returns { opencode: ['opencode/model-a'] }.
     // lastPushedModels already has that exact set → diff is empty → skipped.

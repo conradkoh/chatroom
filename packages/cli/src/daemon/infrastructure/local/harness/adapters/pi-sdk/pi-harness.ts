@@ -5,12 +5,6 @@
 import type { AgentSession } from '@earendil-works/pi-coding-agent';
 
 import { PiSdkSession } from './pi-session.js';
-import { getPiSessionDir } from '../../../../../../infrastructure/services/remote-agents/pi/pi-agent-service.js';
-import {
-  formatPiSdkLoadError,
-  importBundledPiSdk,
-} from '../../../../../../infrastructure/services/remote-agents/pi-sdk/pi-sdk-package.js';
-import { withTimeout } from '../../../../../../infrastructure/services/remote-agents/with-timeout.js';
 import type {
   BoundHarness,
   BoundHarnessFactory,
@@ -24,6 +18,9 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
+import { getPiSessionDir } from '../../services/pi/pi-agent-service.js';
+import { formatPiSdkLoadError, importBundledPiSdk } from '../../services/pi-sdk/pi-sdk-package.js';
+import { withTimeout } from '../../services/with-timeout.js';
 
 const SESSION_CREATE_TIMEOUT_MS = 60_000;
 const DEFAULT_MODEL = 'opencode/big-pickle';

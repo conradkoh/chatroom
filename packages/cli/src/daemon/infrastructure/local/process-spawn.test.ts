@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createProcessSpawnPort } from './process-spawn.js';
-import { spawnCommandProcess } from '../../../commands/machine/daemon-start/handlers/process/spawner.js';
+import { spawnCommandProcess } from '../../entry/handlers/process/spawner.js';
 
 describe('createProcessSpawnPort', () => {
   it('exposes spawnCommandProcess from the legacy spawner', () => {

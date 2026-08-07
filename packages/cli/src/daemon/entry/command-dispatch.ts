@@ -9,24 +9,21 @@ import { Effect, Layer, Ref, type Context } from 'effect';
 import { pushSingleWorkspaceGitStateEffect } from './workspace-git/git-heartbeat.js';
 import { api } from '../../api.js';
 import { createRefreshMachineCapabilitiesDeps } from './bridge/capabilities-bridge.js';
-import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
-import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
-import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
-import {
-  isDaemonCommandEventType,
-  type DaemonCommandEventType,
-} from '../../commands/machine/daemon-start/command-event-types.js';
-import { pushSingleWorkspaceCommandsEffect } from '../../commands/machine/daemon-start/command-sync-heartbeat.js';
+import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
+import { pushSingleWorkspaceCommandsEffect } from './command-sync-heartbeat.js';
 import {
   DaemonMutableStateService,
   DaemonSessionService,
   type DaemonAgentProcessManagerService,
   type DaemonSessionServiceShape,
-} from '../../commands/machine/daemon-start/daemon-services.js';
-import { handlePing } from '../../commands/machine/daemon-start/handlers/ping.js';
-import { processManager } from '../../commands/machine/daemon-start/handlers/process/manager.js';
-import { capabilitiesOutcomeToStatus } from '../../commands/machine/daemon-start/refresh-models-outcome.js';
-import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
+} from './daemon-services.js';
+import { formatTimestamp } from './daemon-utils.js';
+import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
+import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
+import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
+import { handlePing } from './handlers/ping.js';
+import { processManager } from './handlers/process/manager.js';
+import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
 import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../utils/convex-error.js';

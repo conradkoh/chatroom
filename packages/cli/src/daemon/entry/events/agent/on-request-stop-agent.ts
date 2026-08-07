@@ -6,9 +6,9 @@
 import { Effect } from 'effect';
 
 import type { Id } from '../../../../api.js';
-import { DaemonAgentProcessManagerService } from '../../../../commands/machine/daemon-start/daemon-services.js';
 import { stopAgent } from '../../../../daemon/domain/usecase/stop-agent.js';
 import { createStopAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
+import { DaemonAgentProcessManagerService } from '../../daemon-services.js';
 
 export interface AgentRequestStopEventPayload {
   chatroomId: Id<'chatroom_rooms'>;

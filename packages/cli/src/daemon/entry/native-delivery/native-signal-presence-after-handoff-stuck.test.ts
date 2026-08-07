@@ -34,12 +34,12 @@ import {
   NativeTaskDeliveryCoordinator,
   notifyNativeTurnIdle,
 } from './native-task-delivery-coordinator.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../../../commands/machine/daemon-start/daemon-services.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import {
   clearAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
 } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
+import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { listTasksReadyForNudge, NudgeCooldown } from '../task-monitor/task-monitor-logic.js';
 import { createTaskMonitorSnapshot } from '../task-monitor/task-monitor-snapshot.js';
 

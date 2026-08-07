@@ -1627,12 +1627,12 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/agentic-query/session-processor.ts": {
+    "packages/cli/src/daemon/entry/agentic-query/session-processor.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/commit-detail-sync.ts": {
+    "packages/cli/src/daemon/entry/workspace-git/commit-detail-sync.ts": {
       "crap_high": {
         "count": 1
       },
@@ -1640,32 +1640,32 @@
         "count": 2
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/direct-harness/command-processor.ts": {
+    "packages/cli/src/daemon/entry/direct-harness/command-processor.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/direct-harness/harness-lifecycle-manager.ts": {
+    "packages/cli/src/daemon/entry/direct-harness/harness-lifecycle-manager.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/direct-harness/prompt-drain.ts": {
+    "packages/cli/src/daemon/entry/direct-harness/prompt-drain.ts": {
       "crap_high": {
         "count": 2
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/direct-harness/session-processor.ts": {
+    "packages/cli/src/daemon/entry/direct-harness/session-processor.ts": {
       "crap_critical": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/file-content-classifier.ts": {
+    "packages/cli/src/daemon/entry/files/file-content-classifier.ts": {
       "crap_high": {
         "count": 2
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/file-content-fulfillment.ts": {
+    "packages/cli/src/daemon/entry/files/file-content-fulfillment.ts": {
       "complexity_critical": {
         "count": 1
       },
@@ -1676,12 +1676,12 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/file-tree-subscription.ts": {
+    "packages/cli/src/daemon/entry/files/file-tree-subscription.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/handlers/command-runner.ts": {
+    "packages/cli/src/daemon/entry/handlers/command-runner.ts": {
       "crap_high": {
         "count": 1
       },
@@ -1689,7 +1689,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/handlers/orphan-tracker.ts": {
+    "packages/cli/src/daemon/entry/handlers/orphan-tracker.ts": {
       "complexity_high": {
         "count": 1
       },
@@ -1697,27 +1697,27 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/handlers/process/command-run-subscription.ts": {
+    "packages/cli/src/daemon/entry/handlers/process/command-run-subscription.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/handlers/process/log-observer-subscription.ts": {
+    "packages/cli/src/daemon/entry/handlers/process/log-observer-subscription.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/handlers/process/spawner.ts": {
+    "packages/cli/src/daemon/entry/handlers/process/spawner.ts": {
       "crap_moderate": {
         "count": 4
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/refresh-models-outcome.ts": {
+    "packages/cli/src/daemon/entry/refresh-models-outcome.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/restart-orchestrator.ts": {
+    "packages/cli/src/daemon/entry/restart-orchestrator.ts": {
       "crap_high": {
         "count": 2
       },
@@ -1725,7 +1725,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/shared-harness/open-pending-session.ts": {
+    "packages/cli/src/daemon/entry/shared-harness/open-pending-session.ts": {
       "crap_critical": {
         "count": 1
       },
@@ -1733,7 +1733,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/commands/machine/daemon-start/workspace-cache.ts": {
+    "packages/cli/src/daemon/entry/workspace-git/workspace-cache.ts": {
       "crap_moderate": {
         "count": 1
       }
@@ -1871,32 +1871,32 @@
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/base-cli-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/base-cli-agent-service.ts": {
       "crap_moderate": {
         "count": 3
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/claude/claude-models.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/claude/claude-models.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/commandcode/command-code-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/commandcode/command-code-agent-service.ts": {
       "crap_high": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/copilot/copilot-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/copilot/copilot-agent-service.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/copilot/copilot-stream-reader.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/copilot/copilot-stream-reader.ts": {
       "crap_high": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/cursor-sdk-agent-service.ts": {
       "complexity_critical": {
         "count": 2
       },
@@ -1907,27 +1907,27 @@
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/cursor/cursor-agent-service.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/cursor/cursor-stream-reader.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/cursor/cursor-stream-reader.ts": {
       "crap_moderate": {
         "count": 3
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/native-spawn-presence.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/native-spawn-presence.ts": {
       "crap_high": {
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/compose-system-prompt.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/compose-system-prompt.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/opencode-sdk-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/opencode-sdk-agent-service.ts": {
       "crap_high": {
         "count": 3
       },
@@ -1935,12 +1935,12 @@
         "count": 3
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/pure.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/pure.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/session-event-forwarder.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/session-event-forwarder.ts": {
       "crap_critical": {
         "count": 1
       },
@@ -1948,12 +1948,12 @@
         "count": 10
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/opencode/opencode-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/opencode/opencode-agent-service.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/pi-sdk/pi-sdk-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/pi-sdk/pi-sdk-agent-service.ts": {
       "complexity_critical": {
         "count": 1
       },
@@ -1964,12 +1964,12 @@
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/pi-sdk/pi-sdk-package.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/pi-sdk/pi-sdk-package.ts": {
       "crap_moderate": {
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/pi-sdk/pi-sdk-stream-adapter.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/pi-sdk/pi-sdk-stream-adapter.ts": {
       "crap_critical": {
         "count": 1
       },
@@ -1977,17 +1977,17 @@
         "count": 2
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/pi/pi-agent-service.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/pi/pi-agent-service.ts": {
       "crap_critical": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/pi/pi-rpc-reader.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/pi/pi-rpc-reader.ts": {
       "crap_moderate": {
         "count": 3
       }
     },
-    "packages/cli/src/infrastructure/services/remote-agents/spawn-prompt.ts": {
+    "packages/cli/src/daemon/infrastructure/local/harness/services/spawn-prompt.ts": {
       "crap_moderate": {
         "count": 1
       }
@@ -2138,7 +2138,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/daemon/entry/enhancer-legacy/job-subscriber.ts": {
+    "packages/cli/src/daemon/entry/enhancer/job-subscriber.ts": {
       "complexity_critical": {
         "count": 1
       },
@@ -2146,7 +2146,7 @@
         "count": 1
       }
     },
-    "packages/cli/src/daemon/entry/enhancer-legacy/wait-for-enhancer-job.ts": {
+    "packages/cli/src/daemon/entry/enhancer/wait-for-enhancer-job.ts": {
       "crap_high": {
         "count": 1
       },
@@ -2884,15 +2884,15 @@
     "apps/webapp/src/modules/chatroom/direct-harness/utils/sessionStatus.ts:high impact",
     "services/backend/prompts/utils/env.ts:dead code",
     "services/backend/prompts/review-guidelines/review.ts:dead code",
-    "packages/cli/src/infrastructure/services/remote-agents/agent-log-format.ts:high impact",
+    "packages/cli/src/daemon/infrastructure/local/harness/services/agent-log-format.ts:high impact",
     "apps/webapp/src/lib/pathUtils.ts:high impact",
     "services/backend/convex/lib/taskStateMachine.ts:complexity",
-    "packages/cli/src/commands/machine/daemon-start/file-write-fulfillment.ts:complexity",
+    "packages/cli/src/daemon/entry/files/file-write-fulfillment.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/BacklogItemDetailModal.tsx:complexity",
     "services/backend/convex/machines.ts:complexity",
     "packages/cli/src/daemon/domain/usecase/detect-terminal-provider-error.ts:untested risk",
     "services/backend/convex/lib/backlogStateMachine.ts:complexity",
-    "packages/cli/src/infrastructure/services/remote-agents/cursor-sdk/cursor-sdk-agent-service.ts:complexity",
+    "packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/cursor-sdk-agent-service.ts:complexity",
     "apps/webapp/src/modules/chatroom/triggers/fileReferenceQuery.ts:untested risk",
     "apps/webapp/src/modules/chatroom/components/MachineCapabilitiesRefreshButton.tsx:complexity",
     "apps/webapp/src/modules/attendance/components/AttendanceDialog.tsx:complexity",

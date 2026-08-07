@@ -4,16 +4,13 @@ import { ClaudeSdkHarness, startClaudeSdkHarness } from './index.js';
 
 const mockQuery = vi.fn();
 
-vi.mock(
-  '../../../../../../infrastructure/services/remote-agents/claude-sdk/claude-sdk-package.js',
-  () => ({
-    importBundledClaudeSdk: vi.fn(async () => ({
-      query: (...args: unknown[]) => mockQuery(...args),
-    })),
-    resolvePathToClaudeCodeExecutable: vi.fn(async () => '/tmp/claude'),
-    formatClaudeSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
-  })
-);
+vi.mock('../../services/claude-sdk/claude-sdk-package.js', () => ({
+  importBundledClaudeSdk: vi.fn(async () => ({
+    query: (...args: unknown[]) => mockQuery(...args),
+  })),
+  resolvePathToClaudeCodeExecutable: vi.fn(async () => '/tmp/claude'),
+  formatClaudeSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
+}));
 
 function stubQuery(messages: unknown[]) {
   const queryInstance = {
@@ -162,7 +159,7 @@ describe('ClaudeSdkHarness', () => {
 
   it('startClaudeSdkHarness fails when SDK unavailable', async () => {
     const { importBundledClaudeSdk } =
-      await import('../../../../../../infrastructure/services/remote-agents/claude-sdk/claude-sdk-package.js');
+      await import('../../services/claude-sdk/claude-sdk-package.js');
     vi.mocked(importBundledClaudeSdk).mockRejectedValueOnce(new Error('SDK missing'));
 
     await expect(

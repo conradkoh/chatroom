@@ -8,17 +8,18 @@
  */
 
 import { Effect } from 'effect';
-import {
-  initHarnessRegistry,
-  getAllHarnesses,
-} from '../../infrastructure/services/remote-agents/index.js';
-import { BaseCLIAgentService } from '../../infrastructure/services/remote-agents/base-cli-agent-service.js';
+
+import { BaseCLIAgentService } from '../../daemon/infrastructure/local/harness/services/base-cli-agent-service.js';
 import {
   DetectionResult,
   isInstalled,
   isNotInstalled,
   isDetectionError,
-} from '../../infrastructure/services/remote-agents/detection-result.js';
+} from '../../daemon/infrastructure/local/harness/services/detection-result.js';
+import {
+  initHarnessRegistry,
+  getAllHarnesses,
+} from '../../daemon/infrastructure/local/harness/services/index.js';
 
 interface HarnessStatusRow {
   id: string;
@@ -66,9 +67,11 @@ export async function harnessStatus(): Promise<void> {
   const rows: HarnessStatusRow[] = results.map(({ id, displayName, result }) => {
     if (isInstalled(result)) {
       return { id, displayName, status: 'installed' };
-    } else if (isNotInstalled(result)) {
+    }
+    if (isNotInstalled(result)) {
       return { id, displayName, status: 'not-installed' };
-    } else if (isDetectionError(result)) {
+    }
+    if (isDetectionError(result)) {
       return { id, displayName, status: 'error', reason: result.reason };
     }
     return { id, displayName, status: 'not-installed' };
@@ -78,8 +81,7 @@ export async function harnessStatus(): Promise<void> {
   const idWidth = Math.max(4, ...rows.map((r) => r.id.length));
   const nameWidth = Math.max(11, ...rows.map((r) => r.displayName.length));
 
-  const header =
-    `${'ID'.padEnd(idWidth)}  ${'DISPLAY NAME'.padEnd(nameWidth)}  STATUS`;
+  const header = `${'ID'.padEnd(idWidth)}  ${'DISPLAY NAME'.padEnd(nameWidth)}  STATUS`;
   const divider = `${'-'.repeat(idWidth)}  ${'-'.repeat(nameWidth)}  ------`;
 
   console.log(header);
@@ -87,7 +89,11 @@ export async function harnessStatus(): Promise<void> {
 
   for (const row of rows) {
     const statusIcon =
-      row.status === 'installed' ? '✅ installed' : row.status === 'error' ? '⚠️  error' : '❌ not installed';
+      row.status === 'installed'
+        ? '✅ installed'
+        : row.status === 'error'
+          ? '⚠️  error'
+          : '❌ not installed';
     const line = `${row.id.padEnd(idWidth)}  ${row.displayName.padEnd(nameWidth)}  ${statusIcon}`;
     console.log(line);
     if (row.reason) {

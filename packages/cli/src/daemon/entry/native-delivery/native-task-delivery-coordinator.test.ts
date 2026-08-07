@@ -14,11 +14,11 @@ import {
   notifyNativeTurnIdle,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import { getRoleDeliveryState } from '../../../commands/machine/daemon-start/role-delivery-state.js';
 import {
   clearAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
 } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
+import { getRoleDeliveryState } from '../role-delivery-state.js';
 
 function makeRow() {
   return {

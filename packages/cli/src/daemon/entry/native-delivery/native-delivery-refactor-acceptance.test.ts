@@ -8,7 +8,7 @@ import { logNativeDeliveryPrimary } from './native-delivery-log.js';
 import { notifyNativeTurnIdle } from './native-task-delivery-coordinator.js';
 import { shouldDeliverNativeTask } from './native-task-injector-logic.js';
 import { isNativeSlotIdleForDelivery } from './native-turn-phase.js';
-import { getRoleDeliveryState } from '../../../commands/machine/daemon-start/role-delivery-state.js';
+import { getRoleDeliveryState } from '../role-delivery-state.js';
 
 describe('native delivery refactor acceptance (G-criteria exports)', () => {
   test('G2/G5: shouldDeliverNativeTask and isNativeSlotIdleForDelivery are exported', () => {

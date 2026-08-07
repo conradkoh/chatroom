@@ -25,14 +25,14 @@ import {
   forceKillAllCommands,
   runOnCommandRun,
   runOnCommandStop,
-} from '../../commands/machine/daemon-start/handlers/command-runner.js';
-import type { CommandRunnerDeps } from '../../commands/machine/daemon-start/handlers/command-runner.js';
-import { processManager } from '../../commands/machine/daemon-start/handlers/process/manager.js';
+} from './handlers/command-runner.js';
+import type { CommandRunnerDeps } from './handlers/command-runner.js';
+import { processManager } from './handlers/process/manager.js';
 import {
   deriveTerminalStatus,
   SIGTERM_GRACE_PERIOD_MS,
   SOFT_TIMEOUT_MS,
-} from '../../commands/machine/daemon-start/handlers/process/state.js';
+} from './handlers/process/state.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks — must be declared before any imports that use them
@@ -61,7 +61,7 @@ vi.mock('../../api.js', () => ({
 }));
 
 // Mock the output-store module (needed by spawner.ts)
-vi.mock('../../commands/machine/daemon-start/handlers/process/output-store.js', () => ({
+vi.mock('./handlers/process/output-store.js', () => ({
   createOutputStore: vi.fn(() => ({
     append: vi.fn().mockResolvedValue(undefined),
     getTail: vi.fn().mockReturnValue({ content: '', totalBytes: 0 }),

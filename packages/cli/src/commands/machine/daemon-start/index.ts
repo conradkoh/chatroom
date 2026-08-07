@@ -24,7 +24,7 @@ export type {
   StartAgentCommand,
   StopAgentCommand,
   MachineCommand,
-} from './types.js';
+} from '../../../daemon/entry/daemon-types.js';
 
 export type {
   DaemonDeps,
@@ -32,4 +32,4 @@ export type {
   StopAgentDeps,
   StateRecoveryDeps,
   MachineStateOps,
-} from './deps.js';
+} from '../../../daemon/entry/daemon-deps.js';

@@ -29,7 +29,6 @@ import { Effect, Fiber } from 'effect';
 
 import { OpencodeSdkSession } from './opencode-session.js';
 import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
-import { waitForListeningUrl } from '../../../../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
 import type {
   BoundHarness,
   ModelInfo,
@@ -43,6 +42,7 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
+import { waitForListeningUrl } from '../../services/opencode-sdk/parse-listening-url.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

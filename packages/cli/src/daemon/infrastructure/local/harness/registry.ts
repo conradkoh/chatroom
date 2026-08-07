@@ -1,15 +1,15 @@
-import { ClaudeCodeAgentService } from '../../../../infrastructure/services/remote-agents/claude/index.js';
-import { ClaudeSdkAgentService } from '../../../../infrastructure/services/remote-agents/claude-sdk/index.js';
-import { CommandCodeAgentService } from '../../../../infrastructure/services/remote-agents/commandcode/index.js';
-import { CopilotAgentService } from '../../../../infrastructure/services/remote-agents/copilot/index.js';
-import { CursorAgentService } from '../../../../infrastructure/services/remote-agents/cursor/index.js';
-import { CursorSdkAgentService } from '../../../../infrastructure/services/remote-agents/cursor-sdk/index.js';
-import { OpenCodeAgentService } from '../../../../infrastructure/services/remote-agents/opencode/index.js';
-import { OpenCodeSdkAgentService } from '../../../../infrastructure/services/remote-agents/opencode-sdk/index.js';
-import { PiAgentService } from '../../../../infrastructure/services/remote-agents/pi/index.js';
-import { PiSdkAgentService } from '../../../../infrastructure/services/remote-agents/pi-sdk/index.js';
-import { registerHarness } from '../../../../infrastructure/services/remote-agents/registry.js';
 import { installDaemonFatalErrorGuard } from '../fatal-error-guard.js';
+import { ClaudeCodeAgentService } from './services/claude/index.js';
+import { ClaudeSdkAgentService } from './services/claude-sdk/index.js';
+import { CommandCodeAgentService } from './services/commandcode/index.js';
+import { CopilotAgentService } from './services/copilot/index.js';
+import { CursorAgentService } from './services/cursor/index.js';
+import { CursorSdkAgentService } from './services/cursor-sdk/index.js';
+import { OpenCodeAgentService } from './services/opencode/index.js';
+import { OpenCodeSdkAgentService } from './services/opencode-sdk/index.js';
+import { PiAgentService } from './services/pi/index.js';
+import { PiSdkAgentService } from './services/pi-sdk/index.js';
+import { registerHarness } from './services/registry.js';
 
 let initialized = false;
 

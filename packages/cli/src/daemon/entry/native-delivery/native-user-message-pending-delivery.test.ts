@@ -30,8 +30,8 @@ import {
   shouldDeliverNativeTask,
 } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
-import type { DaemonAgentProcessManagerServiceShape } from '../../../commands/machine/daemon-start/daemon-services.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
+import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { createTaskMonitorSnapshot } from '../task-monitor/task-monitor-snapshot.js';
 
 const HARNESS_SESSION_ID = 'harness-user-message';

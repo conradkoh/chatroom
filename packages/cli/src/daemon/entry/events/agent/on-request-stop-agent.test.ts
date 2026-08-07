@@ -3,7 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import type { AgentRequestStopEventPayload } from './on-request-stop-agent.js';
 import { onRequestStopAgentEffect } from './on-request-stop-agent.js';
-import { DaemonAgentProcessManagerService } from '../../../../commands/machine/daemon-start/daemon-services.js';
+import { DaemonAgentProcessManagerService } from '../../daemon-services.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

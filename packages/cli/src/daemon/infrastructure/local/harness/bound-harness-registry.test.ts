@@ -4,10 +4,7 @@ import {
   isNativeDirectHarnessName,
   NATIVE_DIRECT_HARNESS_NAMES,
 } from './bound-harness-registry.js';
-import {
-  makeHarnessKey,
-  parseHarnessKey,
-} from '../../../../infrastructure/harnesses/harness-key.js';
+import { makeHarnessKey, parseHarnessKey } from './harness-key.js';
 
 describe('harness registry', () => {
   it('lists all native direct harness names', () => {

@@ -1,0 +1,71 @@
+/**
+ * Shared test mock factory for DaemonDeps.
+ *
+ * Provides a single source of truth for DaemonDeps mocks across all
+ * daemon-related test files. When a new dep is added to DaemonDeps,
+ * only this file needs to be updated.
+ *
+ * Usage:
+ *   const deps = createMockDaemonDeps();
+ *
+ * Override specific fields:
+ *   const deps = createMockDaemonDeps({
+ *     backend: { mutation: myCustomMock, query: vi.fn().mockResolvedValue({ configs: [] }) },
+ *   });
+ */
+
+import { vi } from 'vitest';
+
+import type { DaemonDeps } from '../daemon-deps.js';
+
+/**
+ * Creates a fully-mocked DaemonDeps object suitable for unit tests.
+ * All methods are vi.fn() mocks with sensible defaults.
+ *
+ * @param overrides - Partial DaemonDeps to shallow-merge over the defaults.
+ *   Use this to override entire sub-objects (e.g., `backend`).
+ *   Individual method overrides should be done by mutating the returned object.
+ */
+export function createMockDaemonDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
+  const defaults: DaemonDeps = {
+    backend: {
+      mutation: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ configs: [] }),
+    },
+    processes: {
+      kill: vi.fn(),
+    },
+    fs: {
+      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+    },
+    machine: {
+      clearAgentPid: vi.fn(),
+      persistAgentPid: vi.fn(),
+      listAgentEntries: vi.fn().mockResolvedValue([]),
+      persistEventCursor: vi.fn(),
+      loadEventCursor: vi.fn().mockResolvedValue(null),
+    },
+    clock: {
+      now: vi.fn().mockReturnValue(Date.now()),
+      delay: vi.fn().mockResolvedValue(undefined),
+    },
+    spawning: {
+      shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
+    },
+    agentProcessManager: {
+      ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 12345 }),
+      stop: vi.fn().mockResolvedValue({ success: true }),
+      handleExit: vi.fn(),
+      recover: vi.fn().mockResolvedValue(undefined),
+      getSlot: vi.fn().mockReturnValue(undefined),
+      listActive: vi.fn().mockReturnValue([]),
+      whenTurnEndsIdle: vi.fn().mockResolvedValue(undefined),
+      resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
+    } as any,
+  };
+
+  return {
+    ...defaults,
+    ...overrides,
+  };
+}

@@ -1,6 +1,6 @@
 # Daemon module consolidation index
 
-> Phases 0–4 ✅ complete on `feat/daemon-module-rename`. Phases 5–8 pending.
+> Phases 0–8 ✅ complete. See [`plan.md`](./plan.md) for execution record.
 
 ## Verdict legend
 
@@ -39,6 +39,8 @@
 ---
 
 ## 1. `commands/machine/daemon-start/` shims (Phase 0)
+
+> **Status:** ✅ Phase 0 shims deleted. Post-consolidation slice 2 removed `daemon-services.ts` and `types.ts` shims; `daemon-start/` now contains only `index.ts` (CLI entry). `event-bus.test.ts` relocated to `daemon/entry/events/`.
 
 | Current                               | Target | Verdict     | Rationale                                                                     |
 | ------------------------------------- | ------ | ----------- | ----------------------------------------------------------------------------- |
@@ -125,24 +127,24 @@
 
 ### 2f. Root files
 
-| Current                             | Target                                                      | Verdict          | Rationale                                                                                           |
-| ----------------------------------- | ----------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------- |
-| `capabilities-snapshot.ts`          | `daemon/entry/capabilities-snapshot.ts`                     | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `command-event-types.ts`            | `daemon/entry/command-event-types.ts`                       | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `command-sync-heartbeat.ts`         | `daemon/entry/command-sync-heartbeat.ts`                    | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `commit-detail-sync.ts`             | `daemon/entry/workspace-git/commit-detail-sync.ts`          | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `daemon-layers.ts`                  | `daemon/entry/daemon-layers.ts`                             | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `daemon-services.ts`                | `daemon/entry/daemon-services.ts`                           | consolidate+shim | Imported via `daemon-start/` path from daemon + tests; thin re-export until paths updated           |
-| `deps.ts`                           | `daemon/entry/daemon-deps.ts`                               | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `models-refresh.ts`                 | `daemon/entry/models-refresh.ts`                            | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `refresh-models-outcome.ts`         | `daemon/entry/refresh-models-outcome.ts`                    | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `restart-orchestrator-in-flight.ts` | `daemon/entry/restart-orchestrator-in-flight.ts`            | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `restart-orchestrator.ts`           | `daemon/entry/restart-orchestrator.ts`                      | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `role-delivery-state.ts`            | `daemon/entry/role-delivery-state.ts`                       | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `types.ts`                          | `daemon/entry/daemon-types.ts`                              | consolidate+shim | Imported via `daemon-start/` path from daemon + tests; thin re-export until paths updated           |
-| `utils.ts`                          | `daemon/entry/daemon-utils.ts`                              | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `workspace-cache.ts`                | `daemon/entry/workspace-git/workspace-cache.ts`             | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
-| `workspace-list-subscription.ts`    | `daemon/entry/workspace-git/workspace-list-subscription.ts` | consolidate      | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
+| Current                             | Target                                                      | Verdict     | Rationale                                                                                            |
+| ----------------------------------- | ----------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
+| `capabilities-snapshot.ts`          | `daemon/entry/capabilities-snapshot.ts`                     | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `command-event-types.ts`            | `daemon/entry/command-event-types.ts`                       | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `command-sync-heartbeat.ts`         | `daemon/entry/command-sync-heartbeat.ts`                    | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `commit-detail-sync.ts`             | `daemon/entry/workspace-git/commit-detail-sync.ts`          | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `daemon-layers.ts`                  | `daemon/entry/daemon-layers.ts`                             | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `daemon-services.ts`                | `daemon/entry/daemon-services.ts`                           | consolidate | Shim deleted (post-consolidation slice 2); import `daemon/entry/daemon-services.js` directly         |
+| `deps.ts`                           | `daemon/entry/daemon-deps.ts`                               | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `models-refresh.ts`                 | `daemon/entry/models-refresh.ts`                            | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `refresh-models-outcome.ts`         | `daemon/entry/refresh-models-outcome.ts`                    | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `restart-orchestrator-in-flight.ts` | `daemon/entry/restart-orchestrator-in-flight.ts`            | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `restart-orchestrator.ts`           | `daemon/entry/restart-orchestrator.ts`                      | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `role-delivery-state.ts`            | `daemon/entry/role-delivery-state.ts`                       | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `types.ts`                          | `daemon/entry/daemon-types.ts`                              | consolidate | Shim deleted (post-consolidation slice 2); `index.ts` re-exports from `daemon/entry/daemon-types.js` |
+| `utils.ts`                          | `daemon/entry/daemon-utils.ts`                              | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `workspace-cache.ts`                | `daemon/entry/workspace-git/workspace-cache.ts`             | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
+| `workspace-list-subscription.ts`    | `daemon/entry/workspace-git/workspace-list-subscription.ts` | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports)  |
 
 ### 2g. `shared-harness/
 
@@ -236,7 +238,9 @@
 
 ---
 
-## 9. `infrastructure/services/remote-agents/
+## 9. `infrastructure/services/remote-agents/`
+
+> **Status:** ✅ Implementations consolidated under `daemon/infrastructure/local/harness/services/` (Phases 8a–8b). Thin re-export shims deleted in post-consolidation slice 1 — `harness-status`, `detection`, and `detection.test` import canonical daemon paths.
 
 > **Shared consumers:** `commands/machine/harness-status.ts`, `infrastructure/machine/detection.ts` (import `index`, `base-cli-agent-service`, `detection-result`)
 
@@ -308,13 +312,13 @@
 
 ## 10. Explicitly kept outside `daemon/`
 
-| Path                                     | Verdict | Rationale                                                         |
-| ---------------------------------------- | ------- | ----------------------------------------------------------------- |
-| `infrastructure/incremental-sync/`       | keep    | Shared transport library; daemon subscribers + other CLI features |
-| `infrastructure/convex/client.ts`        | keep    | Shared Convex WS client for CLI                                   |
-| `infrastructure/lifecycle-heartbeat.ts`  | keep    | Used by all CLI commands with `--chatroom-id`                     |
-| `infrastructure/retry-queue.ts`          | keep    | Shared retry primitive; not daemon-exclusive                      |
-| `commands/machine/daemon-start/index.ts` | keep    | CLI entry point (`startDaemon` delegate); may slim to 3-line shim |
+| Path                                     | Verdict | Rationale                                                            |
+| ---------------------------------------- | ------- | -------------------------------------------------------------------- |
+| `infrastructure/incremental-sync/`       | keep    | Shared transport library; daemon subscribers + other CLI features    |
+| `infrastructure/convex/client.ts`        | keep    | Shared Convex WS client for CLI                                      |
+| `infrastructure/lifecycle-heartbeat.ts`  | keep    | Used by all CLI commands with `--chatroom-id`                        |
+| `infrastructure/retry-queue.ts`          | keep    | Shared retry primitive; not daemon-exclusive                         |
+| `commands/machine/daemon-start/index.ts` | keep    | CLI entry point only (`daemonStart` delegate + test type re-exports) |
 
 ## 11. Deferred consolidation candidates
 
@@ -328,7 +332,9 @@
 
 ## Open decisions
 
-- [ ] **`remote-agents/` registry:** Move entire tree to `daemon/infrastructure/local/harness/services/` with re-exports at `infrastructure/services/remote-agents/` for `harness-status` / `detection`, or keep registry at infrastructure and only move native SDK subsets? (Phase 8 — **defer** until import strategy chosen)
-- [ ] **`daemon-start/index.ts` path:** Keep `commands/machine/daemon-start/` vs rename to `commands/machine/daemon/` after consolidation phases complete? (**defer**)
-- [ ] **`enhancer-legacy/` naming:** Rename `daemon/entry/enhancer-legacy/` → `daemon/entry/enhancer/` after deleting `daemon-start/enhancer/` shims, or merge folders? (**defer**)
-- [ ] **`agent-lifecycle/` coupling:** `infrastructure/services/agent-lifecycle/` is consumed by agent-process-manager and remote-agents — consolidate into daemon with shims or leave as shared infrastructure? (**defer**)
+> **Resolved** — see [`plan.md`](./plan.md) §Resolved decisions. Summary:
+>
+> - `remote-agents/`: moved to `daemon/infrastructure/local/harness/services/`; shim re-exports deleted (post-consolidation slice 1)
+> - `daemon-start/index.ts`: keep at `commands/machine/daemon-start/` (CLI entry)
+> - `enhancer-legacy/`: rename to `enhancer/` in Phase 7b
+> - `agent-lifecycle/`: defer — keep shared infrastructure

@@ -15,14 +15,11 @@ import type { Layer } from 'effect';
 import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { daemonSessionToLayers } from '../../commands/machine/daemon-start/daemon-layers.js';
-import type {
-  DaemonMutableStateService,
-  DaemonSessionService,
-} from '../../commands/machine/daemon-start/daemon-services.js';
-import { createMockDaemonSessionInit } from '../../commands/machine/daemon-start/testing/index.js';
-import { createMockDaemonDeps } from '../../commands/machine/daemon-start/testing/mock-daemon-deps.js';
-import type { DaemonSessionInit } from '../../commands/machine/daemon-start/types.js';
+import { daemonSessionToLayers } from './daemon-layers.js';
+import type { DaemonMutableStateService, DaemonSessionService } from './daemon-services.js';
+import type { DaemonSessionInit } from './daemon-types.js';
+import { createMockDaemonSessionInit } from './testing/index.js';
+import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -61,7 +58,7 @@ vi.mock('../infrastructure/git/git-reader.js', () => ({
   getCommitDetail: vi.fn().mockResolvedValue({ status: 'not_found' }),
 }));
 
-vi.mock('../../commands/machine/daemon-start/workspace-cache.js', () => ({
+vi.mock('./workspace-git/workspace-cache.js', () => ({
   getWorkspacesForMachine: vi.fn().mockResolvedValue([]),
 }));
 
@@ -136,8 +133,7 @@ describe('pushGitStateEffect', () => {
   });
 
   it('reads machineId from DaemonSessionService', async () => {
-    const { getWorkspacesForMachine } =
-      await import('../../commands/machine/daemon-start/workspace-cache.js');
+    const { getWorkspacesForMachine } = await import('./workspace-git/workspace-cache.js');
     const { pushGitStateEffect } =
       await import('../../daemon/entry/workspace-git/git-heartbeat.js');
 
@@ -223,16 +219,13 @@ describe('pushSingleWorkspaceGitSummaryForObservedEffect', () => {
 
 describe('syncCommitDetailsEffect', () => {
   it('completes without error when no workspaces are registered', async () => {
-    const { syncCommitDetailsEffect } =
-      await import('../../commands/machine/daemon-start/commit-detail-sync.js');
+    const { syncCommitDetailsEffect } = await import('./workspace-git/commit-detail-sync.js');
     await expect(runWithCtx(syncCommitDetailsEffect())).resolves.toBeUndefined();
   });
 
   it('passes machineId from session to getWorkspacesForMachine', async () => {
-    const { getWorkspacesForMachine } =
-      await import('../../commands/machine/daemon-start/workspace-cache.js');
-    const { syncCommitDetailsEffect } =
-      await import('../../commands/machine/daemon-start/commit-detail-sync.js');
+    const { getWorkspacesForMachine } = await import('./workspace-git/workspace-cache.js');
+    const { syncCommitDetailsEffect } = await import('./workspace-git/commit-detail-sync.js');
 
     await runWithCtx(syncCommitDetailsEffect(), { machineId: 'machine-commit-d3' });
 
@@ -242,8 +235,7 @@ describe('syncCommitDetailsEffect', () => {
   });
 
   it('accepts an optional seenShasMap injection', async () => {
-    const { syncCommitDetailsEffect } =
-      await import('../../commands/machine/daemon-start/commit-detail-sync.js');
+    const { syncCommitDetailsEffect } = await import('./workspace-git/commit-detail-sync.js');
     const injectedMap = new Map<string, Set<string>>();
 
     // Should resolve without error with custom map
@@ -257,16 +249,13 @@ describe('syncCommitDetailsEffect', () => {
 
 describe('pushCommandsEffect', () => {
   it('completes without error when no workspaces are registered', async () => {
-    const { pushCommandsEffect } =
-      await import('../../commands/machine/daemon-start/command-sync-heartbeat.js');
+    const { pushCommandsEffect } = await import('./command-sync-heartbeat.js');
     await expect(runWithCtx(pushCommandsEffect)).resolves.toBeUndefined();
   });
 
   it('passes machineId from session to getWorkspacesForMachine', async () => {
-    const { getWorkspacesForMachine } =
-      await import('../../commands/machine/daemon-start/workspace-cache.js');
-    const { pushCommandsEffect } =
-      await import('../../commands/machine/daemon-start/command-sync-heartbeat.js');
+    const { getWorkspacesForMachine } = await import('./workspace-git/workspace-cache.js');
+    const { pushCommandsEffect } = await import('./command-sync-heartbeat.js');
 
     await runWithCtx(pushCommandsEffect, { machineId: 'machine-cmds-d3' });
 
@@ -280,8 +269,7 @@ describe('pushSingleWorkspaceCommandsEffect', () => {
   it('calls discoverCommands for the given workingDir', async () => {
     const commandDiscovery =
       await import('../../infrastructure/services/workspace/command-discovery.js');
-    const { pushSingleWorkspaceCommandsEffect } =
-      await import('../../commands/machine/daemon-start/command-sync-heartbeat.js');
+    const { pushSingleWorkspaceCommandsEffect } = await import('./command-sync-heartbeat.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
 
@@ -291,8 +279,7 @@ describe('pushSingleWorkspaceCommandsEffect', () => {
   });
 
   it('calls syncCommands mutation with sessionId and machineId from session', async () => {
-    const { pushSingleWorkspaceCommandsEffect } =
-      await import('../../commands/machine/daemon-start/command-sync-heartbeat.js');
+    const { pushSingleWorkspaceCommandsEffect } = await import('./command-sync-heartbeat.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.mutation).mockResolvedValue(undefined);
 
@@ -315,7 +302,7 @@ describe('pushSingleWorkspaceCommandsEffect', () => {
 describe('fulfillFileContentRequestsEffect', () => {
   it('completes without error when no pending requests exist', async () => {
     const { fulfillFileContentRequestsEffect } =
-      await import('../../commands/machine/daemon-start/file-content-fulfillment.js');
+      await import('./files/file-content-fulfillment.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockResolvedValue([]);
 
@@ -326,7 +313,7 @@ describe('fulfillFileContentRequestsEffect', () => {
 
   it('passes sessionId and machineId from session when querying pending requests', async () => {
     const { fulfillFileContentRequestsEffect } =
-      await import('../../commands/machine/daemon-start/file-content-fulfillment.js');
+      await import('./files/file-content-fulfillment.js');
     const deps = createMockDaemonDeps();
     vi.mocked(deps.backend.query).mockResolvedValue([]);
 

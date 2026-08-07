@@ -26,6 +26,13 @@ import {
   registerAssignedTaskMonitorHandler,
   unregisterAssignedTaskMonitorHandler,
 } from './assigned-task-monitor-registry.js';
+import {
+  DaemonAgentProcessManagerService,
+  DaemonSessionService,
+  type DaemonAgentProcessManagerServiceShape,
+} from './daemon-services.js';
+import type { AgentHarness } from './daemon-types.js';
+import { formatTimestamp } from './daemon-utils.js';
 import { logNativeDeliveryFallback } from './native-delivery/native-delivery-log.js';
 import {
   registerNativeDeliverySession,
@@ -39,24 +46,17 @@ import {
 } from './native-delivery/native-task-delivery-coordinator.js';
 import { isNativeHarness } from './native-delivery/native-task-injector-logic.js';
 import {
+  filterSnapshotsExcludingRestartInFlight,
+  isRestartOrchestratorInFlight,
+} from './restart-orchestrator-in-flight.js';
+import { getRoleDeliveryState } from './role-delivery-state.js';
+import {
   listTasksReadyForNudge,
   listNativeTasksNeedingRevive,
   NudgeCooldown,
   shouldEscalateNativeNudgeToRestart,
 } from './task-monitor/task-monitor-logic.js';
 import { api } from '../../api.js';
-import {
-  DaemonAgentProcessManagerService,
-  DaemonSessionService,
-  type DaemonAgentProcessManagerServiceShape,
-} from '../../commands/machine/daemon-start/daemon-services.js';
-import {
-  filterSnapshotsExcludingRestartInFlight,
-  isRestartOrchestratorInFlight,
-} from '../../commands/machine/daemon-start/restart-orchestrator-in-flight.js';
-import { getRoleDeliveryState } from '../../commands/machine/daemon-start/role-delivery-state.js';
-import type { AgentHarness } from '../../commands/machine/daemon-start/types.js';
-import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
 import { isProcessAlive } from '../../infrastructure/deps/process.js';
 import {
   mapAssignedTaskSnapshotList,

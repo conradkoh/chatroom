@@ -6,8 +6,8 @@ import type { OpencodeClient } from '@opencode-ai/sdk';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { OpencodeSdkHarness, startOpencodeSdkHarness } from './opencode-harness.js';
-import { waitForListeningUrl } from '../../../../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js';
 import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
+import { waitForListeningUrl } from '../../services/opencode-sdk/parse-listening-url.js';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -61,12 +61,9 @@ vi.mock('node:child_process', () => ({
   }),
 }));
 
-vi.mock(
-  '../../../../../../infrastructure/services/remote-agents/opencode-sdk/parse-listening-url.js',
-  () => ({
-    waitForListeningUrl: vi.fn(() => Promise.resolve('http://127.0.0.1:15432')),
-  })
-);
+vi.mock('../../services/opencode-sdk/parse-listening-url.js', () => ({
+  waitForListeningUrl: vi.fn(() => Promise.resolve('http://127.0.0.1:15432')),
+}));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

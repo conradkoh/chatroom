@@ -6,10 +6,10 @@ import {
   DaemonMutableStateService,
   DaemonSessionService,
   type DaemonSessionServiceShape,
-} from '../../../commands/machine/daemon-start/daemon-services.js';
-import type { SessionId, WorkspaceForSync } from '../../../commands/machine/daemon-start/types.js';
-import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
-import { getWorkspacesForMachine } from '../../../commands/machine/daemon-start/workspace-cache.js';
+} from '../daemon-services.js';
+import type { SessionId, WorkspaceForSync } from '../daemon-types.js';
+import { formatTimestamp } from '../daemon-utils.js';
+import { getWorkspacesForMachine } from './workspace-cache.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import * as gitReader from '../../infrastructure/git/git-reader.js';

@@ -25,7 +25,7 @@ import {
   transitionSlot,
   shouldIgnoreProcessExit,
 } from '../../../daemon/domain/usecase/transition-agent-slot.js';
-import { createSpawnPrompt } from '../remote-agents/spawn-prompt.js';
+import { createSpawnPrompt } from '../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 
 // ─── Service Live Layer ────────────────────────────────────────────────────────
 

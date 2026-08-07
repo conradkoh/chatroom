@@ -7,29 +7,29 @@ import {
   type EnsureRunningOpts,
   STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
-import { untrackChildPid } from '../../../commands/machine/daemon-start/handlers/orphan-tracker.js';
-import { NATIVE_DIRECT_HARNESS_NAMES } from '../../../infrastructure/harnesses/registry.js';
 import {
   CRASH_LOOP_MAX_RESTARTS,
   CrashLoopTracker,
 } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
-import type {
-  RemoteAgentService,
-  SpawnResult,
-} from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import { DEFAULT_TRIGGER_PROMPT } from '../../../infrastructure/services/remote-agents/spawn-prompt.js';
 import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 import {
   CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
   CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS,
 } from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
+import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import type * as NativeTaskDeliveryCoordinatorModule from '../../entry/native-delivery/native-task-delivery-coordinator.js';
+import { NATIVE_DIRECT_HARNESS_NAMES } from '../local/harness/bound-harness-registry.js';
+import type {
+  RemoteAgentService,
+  SpawnResult,
+} from '../local/harness/services/remote-agent-service.js';
+import { DEFAULT_TRIGGER_PROMPT } from '../local/harness/services/spawn-prompt.js';
 
 type NativeSdkHarness = (typeof NATIVE_DIRECT_HARNESS_NAMES)[number];
 
-vi.mock('../../../commands/machine/daemon-start/handlers/orphan-tracker.js', () => ({
+vi.mock('../../entry/handlers/orphan-tracker.js', () => ({
   trackChildPid: vi.fn(),
   untrackChildPid: vi.fn(),
 }));

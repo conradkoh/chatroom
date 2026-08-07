@@ -7,7 +7,7 @@ const mockSessionManagerList = vi.fn();
 const mockSessionManagerCreate = vi.fn();
 const mockGetAvailable = vi.fn();
 
-vi.mock('../../../../../../infrastructure/services/remote-agents/pi-sdk/pi-sdk-package.js', () => ({
+vi.mock('../../services/pi-sdk/pi-sdk-package.js', () => ({
   importBundledPiSdk: vi.fn(async () => ({
     AuthStorage: { create: vi.fn() },
     ModelRegistry: {
@@ -57,9 +57,7 @@ describe('PiSdkHarness', () => {
 
   it('lists a single primary builder agent', async () => {
     const { AuthStorage, ModelRegistry } =
-      await import('../../../../../../infrastructure/services/remote-agents/pi-sdk/pi-sdk-package.js').then(
-        (m) => m.importBundledPiSdk()
-      );
+      await import('../../services/pi-sdk/pi-sdk-package.js').then((m) => m.importBundledPiSdk());
     const harness = new PiSdkHarness(
       '/tmp/work',
       ModelRegistry.create(AuthStorage.create()),
@@ -72,9 +70,7 @@ describe('PiSdkHarness', () => {
   it('creates a session via createAgentSession', async () => {
     stubPiSession();
     const { AuthStorage, ModelRegistry } =
-      await import('../../../../../../infrastructure/services/remote-agents/pi-sdk/pi-sdk-package.js').then(
-        (m) => m.importBundledPiSdk()
-      );
+      await import('../../services/pi-sdk/pi-sdk-package.js').then((m) => m.importBundledPiSdk());
     const harness = new PiSdkHarness(
       '/tmp/work',
       ModelRegistry.create(AuthStorage.create()),
