@@ -211,6 +211,12 @@ describe('machines.listAgentOverview', () => {
     const entry = results.find((r) => r.chatroomId === chatroomId);
     expect(entry).toBeDefined();
     const keys = Object.keys(entry!).sort();
-    expect(keys).toEqual(['agentStatus', 'chatroomId', 'runningAgents', 'runningRoles']);
+    expect(keys).toEqual([
+      'agentStatus',
+      'aliveRoles',
+      'chatroomId',
+      'runningAgents',
+      'runningRoles',
+    ]);
   });
 });

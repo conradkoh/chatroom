@@ -13,6 +13,7 @@
  * tuples to the frontend.
  */
 
+import { isAgentAlive } from './is-agent-alive';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 
@@ -27,6 +28,12 @@ export interface ChatroomAgentOverview {
   chatroomId: Id<'chatroom_rooms'>;
   agentStatus: 'running' | 'stopped' | 'none';
   runningRoles: string[];
+  /**
+   * Roles whose agent has a spawned PID regardless of daemon connectivity.
+   * Mirrors getTeamLifecycle `isAlive` (`isAgentAlive(spawnedAgentPid)`) so the
+   * listing dots align with the agent panel while agents are spawned and working.
+   */
+  aliveRoles: string[];
   /** Includes machineId for operational commands (start/stop). */
   runningAgents: RunningAgentInfo[];
 }
@@ -92,8 +99,8 @@ export async function listChatroomAgentOverview(
       // and prevents stale "running" status when a daemon disconnects without cleanup.
       const runningConfigs = configs.filter((c) => {
         if (c.spawnedAgentPid == null) return false;
-        const status = statusMap.get(c.machineId!);
-        return status?.daemonConnected === true;
+        if (c.machineId == null) return false;
+        return statusMap.get(c.machineId)?.daemonConnected === true;
       });
 
       let agentStatus: ChatroomAgentOverview['agentStatus'];
@@ -110,10 +117,16 @@ export async function listChatroomAgentOverview(
         machineId: c.machineId ?? '',
       }));
 
+      // Alive = spawned PID, regardless of daemon connectivity (matches
+      // getTeamLifecycle / agent panel isAlive). Unlike runningRoles, this is
+      // NOT gated on daemon-connected so working agents don't show grey idle.
+      const aliveRoles = configs.filter((c) => isAgentAlive(c.spawnedAgentPid)).map((c) => c.role);
+
       return {
         chatroomId: room._id,
         agentStatus,
         runningRoles,
+        aliveRoles,
         runningAgents,
       };
     })
