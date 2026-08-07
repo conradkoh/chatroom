@@ -313,11 +313,7 @@ export function ProcessesPanel({
       key={activeRunOutput.run._id}
       run={activeRunOutput.run}
       chunks={activeRunOutput.chunks}
-      canLoadMore={
-        activeRunOutput.canLoadMore ||
-        activeRunOutput.run.status === 'running' ||
-        activeRunOutput.run.status === 'pending'
-      }
+      canLoadMore={activeRunOutput.canLoadMore}
       onLoadMore={activeRunOutput.loadMore}
       fullOutputPending={activeRunOutput.fullOutputPending}
       onStop={() => {
