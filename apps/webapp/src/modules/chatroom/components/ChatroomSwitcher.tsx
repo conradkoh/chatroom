@@ -125,25 +125,12 @@ export function ChatroomSwitcher() {
     setPartitionState$(state$);
     const generation = beginChatroomSwitcherPreload(state$);
 
-    const runPreload = () => {
-      for (const c of switcherChatrooms) {
-        getChatroomSwitcherKeywords(c);
-      }
-      commitChatroomSwitcherPreload(state$, generation, switcherChatrooms);
-    };
-
-    // fallow-ignore-next-line code-duplication
-    const idleId =
-      typeof requestIdleCallback !== 'undefined'
-        ? requestIdleCallback(runPreload, { timeout: 2000 })
-        : setTimeout(runPreload, 0);
+    for (const c of switcherChatrooms) {
+      getChatroomSwitcherKeywords(c);
+    }
+    commitChatroomSwitcherPreload(state$, generation, switcherChatrooms);
 
     return () => {
-      if (typeof cancelIdleCallback !== 'undefined' && typeof idleId === 'number') {
-        cancelIdleCallback(idleId);
-      } else {
-        clearTimeout(idleId as ReturnType<typeof setTimeout>);
-      }
       releaseChatroomSwitcherPartition();
       setPartitionState$(null);
     };
