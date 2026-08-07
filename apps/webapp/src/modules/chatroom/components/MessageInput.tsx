@@ -30,7 +30,7 @@ import {
   MAX_TEXTAREA_HEIGHT_PX,
   measureTextareaContentHeightPx,
 } from './messageInputAutosize';
-import { getChatroomMobileFooterSafeAreaStyle } from './shared/chatroomMobileSafeArea';
+import { getChatroomMobileFooterHorizontalSafeAreaStyle } from './shared/chatroomMobileSafeArea';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
 
 import { useIsDesktop } from '@/hooks/useIsDesktop';
@@ -432,7 +432,7 @@ export function MessageInput({
       ref={formContainerRef}
       data-main-chat-composer
       className="relative bg-chatroom-bg-surface backdrop-blur-xl"
-      style={getChatroomMobileFooterSafeAreaStyle(mobile)}
+      style={getChatroomMobileFooterHorizontalSafeAreaStyle(mobile)}
     >
       {/* @ file reference autocomplete dropdown */}
       <FileReferenceAutocomplete
