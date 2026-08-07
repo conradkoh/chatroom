@@ -1,6 +1,6 @@
 import type { CommandItem } from './types';
-import { sortCommandsByFrecency } from '../../lib/sortCommandsByFrecency';
 import { partitionCommandsByBlacklist } from '../../lib/partitionCommandsByBlacklist';
+import { sortCommandsByFrecency } from '../../lib/sortCommandsByFrecency';
 
 type FrecencyScores = Map<string, number>;
 
@@ -8,9 +8,12 @@ export type CommandPaletteRow =
   | { type: 'heading'; id: string; label: string }
   | { type: 'item'; id: string; command: CommandItem };
 
-export const COMMAND_PALETTE_ITEM_ROW_HEIGHT = 32;
+export {
+  COMMAND_DIALOG_ITEM_ROW_HEIGHT as COMMAND_PALETTE_ITEM_ROW_HEIGHT,
+  COMMAND_DIALOG_HEADING_ROW_HEIGHT as COMMAND_PALETTE_HEADING_ROW_HEIGHT,
+} from '../shared/commandDialogListConstants';
+
 export const COMMAND_PALETTE_ITEM_WITH_DETAIL_ROW_HEIGHT = 46;
-export const COMMAND_PALETTE_HEADING_ROW_HEIGHT = 28;
 
 export function filterCommandsForSearch(
   commands: CommandItem[],

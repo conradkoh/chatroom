@@ -11,6 +11,7 @@ import {
   COMMAND_PALETTE_ITEM_WITH_DETAIL_ROW_HEIGHT,
 } from './commandPaletteRows';
 import type { CommandItem } from './types';
+import { COMMAND_DIALOG_LIST_HEIGHT } from '../shared/commandDialogListConstants';
 
 import { CommandItem as CommandItemUI } from '@/components/ui/command';
 import {
@@ -30,8 +31,6 @@ interface CommandPaletteVirtualizedListProps {
   onBlacklist?: (command: CommandItem) => void;
   onUnblacklist?: (command: CommandItem) => void;
 }
-
-const LIST_HEIGHT = 244;
 
 export function CommandPaletteVirtualizedList({
   rows,
@@ -112,7 +111,7 @@ export function CommandPaletteVirtualizedList({
   return (
     <VirtualizedScrollList
       items={rows}
-      height={LIST_HEIGHT}
+      height={COMMAND_DIALOG_LIST_HEIGHT}
       estimateSize={estimateSize}
       getItemKey={getItemKey}
       renderItem={renderItem}
