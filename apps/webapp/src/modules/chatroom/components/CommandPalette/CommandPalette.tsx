@@ -206,8 +206,10 @@ export function CommandPalette({
         return;
       }
 
-      setOpen(false);
+      // Run the action BEFORE closing so side effects (e.g. openExternalUrl's
+      // anchor .click()) stay in the user-gesture stack.
       command.action();
+      setOpen(false);
     },
     [trackUsage, setOpen]
   );
