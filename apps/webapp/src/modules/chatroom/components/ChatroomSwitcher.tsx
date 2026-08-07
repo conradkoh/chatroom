@@ -2,10 +2,14 @@
 
 import type { Observable } from '@legendapp/state';
 import { useSelector } from '@legendapp/state/react';
-import { Star } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 
+import {
+  buildChatroomSwitcherRows,
+  getChatroomSwitcherKeywords,
+} from './ChatroomSwitcher/chatroomSwitcherRows';
+import { ChatroomSwitcherVirtualizedList } from './ChatroomSwitcher/ChatroomSwitcherVirtualizedList';
 import {
   acquireChatroomSwitcherPartition,
   beginChatroomSwitcherPreload,
@@ -16,66 +20,15 @@ import {
 } from './chatroomSwitcherPartitionStore';
 import { CommandDialogContent } from './shared/CommandDialogContent';
 
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
+import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
-import { fuzzyFilter } from '@/lib/fuzzyMatch';
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
 import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
 import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
-import { useCommandListScrollReset } from '@/modules/chatroom/hooks/useCommandListScrollReset';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
-import { getChatStatusIndicatorClasses } from '@/modules/chatroom/utils/chatStatusDisplay';
 import { sortChatroomsWithCurrentFirst } from '@/modules/chatroom/utils/sortChatroomsWithCurrentFirst';
-import { getChatroomDisplayName } from '@/modules/chatroom/viewModels/chatroomViewModel';
-
-function getChatroomSwitcherKeywords(
-  chatroom: Pick<ChatroomWithStatus, 'name' | 'teamName'>
-): string[] {
-  const displayName = getChatroomDisplayName(chatroom);
-  if (chatroom.teamName && chatroom.teamName !== displayName) {
-    return [displayName, chatroom.teamName];
-  }
-  return [displayName];
-}
-
-// Status indicator uses shared chatStatusDisplay (mirrors ChatroomSidebar + listing page)
-
-function ChatroomSwitcherItem({
-  chatroom,
-  onSelect,
-}: {
-  chatroom: ChatroomWithStatus;
-  onSelect: (chatroomId: string) => void;
-}) {
-  const displayName = getChatroomDisplayName(chatroom);
-
-  return (
-    <CommandItem
-      value={chatroom._id}
-      keywords={getChatroomSwitcherKeywords(chatroom)}
-      onSelect={() => onSelect(chatroom._id)}
-      className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
-    >
-      <span className={getChatStatusIndicatorClasses(chatroom.chatStatus)} />
-      <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
-        {displayName}
-      </span>
-      {chatroom.isFavorite && (
-        <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
-      )}
-      {chatroom.hasUnread && <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />}
-    </CommandItem>
-  );
-}
 
 /**
  * Global Cmd+K chatroom switcher.
@@ -152,7 +105,6 @@ export function ChatroomSwitcher() {
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);
   searchValueRef.current = searchValue;
-  const listRef = useCommandListScrollReset(searchValue);
   const onEscapeKeyDown = useEscapeToClear(searchValueRef, () => setSearchValue(''));
 
   const isSearching = searchValue.trim().length > 0;
@@ -176,6 +128,11 @@ export function ChatroomSwitcher() {
     }
     return switcherChatrooms;
   }, [isSearching, partitionStatus, preloadedChatrooms, switcherChatrooms]);
+
+  const rows = useMemo(() => {
+    if (!displayChatrooms || displayChatrooms.length === 0) return [];
+    return buildChatroomSwitcherRows(displayChatrooms, searchValue);
+  }, [displayChatrooms, searchValue]);
 
   // Reset search when closing
   useEffect(() => {
@@ -203,34 +160,25 @@ export function ChatroomSwitcher() {
         <DialogTitle className="sr-only">Switch Chatroom</DialogTitle>
         <DialogDescription className="sr-only">Search and navigate to a chatroom</DialogDescription>
 
-        <Command filter={fuzzyFilter} className="bg-chatroom-bg-primary text-chatroom-text-primary">
+        <Command shouldFilter={false} className="bg-chatroom-bg-primary text-chatroom-text-primary">
           <CommandInput
             placeholder="Search chatrooms..."
             className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
             value={searchValue}
             onValueChange={setSearchValue}
           />
-          <div ref={listRef} className="overflow-y-auto min-h-[244px] h-[244px]">
-            <CommandList className="min-h-full max-h-none overflow-hidden p-0">
-              <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
-                No chatrooms found.
-              </CommandEmpty>
-              {displayChatrooms && displayChatrooms.length > 0 && (
-                <CommandGroup
-                  heading="Chatrooms"
-                  className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:text-chatroom-text-muted"
-                >
-                  {displayChatrooms.map((chatroom) => (
-                    <ChatroomSwitcherItem
-                      key={chatroom._id}
-                      chatroom={chatroom}
-                      onSelect={handleSelect}
-                    />
-                  ))}
-                </CommandGroup>
-              )}
-            </CommandList>
-          </div>
+          <CommandList className="min-h-[244px] h-[244px] p-0 overflow-hidden">
+            <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
+              No chatrooms found.
+            </CommandEmpty>
+            {rows.length > 0 && (
+              <ChatroomSwitcherVirtualizedList
+                rows={rows}
+                onSelect={handleSelect}
+                scrollResetKey={searchValue}
+              />
+            )}
+          </CommandList>
         </Command>
       </CommandDialogContent>
     </Dialog>
