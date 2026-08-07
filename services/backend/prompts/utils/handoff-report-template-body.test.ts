@@ -102,4 +102,33 @@ describe('getHandoffReportTemplateBody', () => {
     const proofs = body.match(/<handoff-proofs>[\s\S]*<\/handoff-proofs>/)?.[0] ?? '';
     expect(proofs).toContain('REQUIRED: Complete every principle below');
   });
+
+  test('does not include Proof of Verification by default (non-entry templates)', () => {
+    const body = getHandoffReportTemplateBody();
+    expect(body).not.toContain('## Proof of Verification');
+    expect(body).not.toContain('I confirm I ran proof of verification');
+    expect(body).not.toContain('messages anchor');
+  });
+
+  test('includes Proof of Verification section for entry-point handoffs', () => {
+    const body = getHandoffReportTemplateBody(undefined, { includeProofOfVerification: true });
+    const proofs = body.match(/<handoff-proofs>[\s\S]*<\/handoff-proofs>/)?.[0] ?? '';
+    expect(proofs).toContain('## Proof of Verification');
+    expect(proofs).toContain('I confirm I ran proof of verification');
+    expect(proofs).toContain('anchored on the user');
+    expect(proofs).toContain('validated commits/PRs against all user requirements');
+    expect(proofs).toContain('messages anchor');
+    expect(proofs).toContain('then messages download --since-message-id=<id> from anchor output');
+    expect(proofs).toContain('- <requirement from user message / context — met or not>');
+  });
+
+  test('Proof of Verification renders after Proof of Completion and before Backlog Tasks', () => {
+    const body = getHandoffReportTemplateBody(undefined, { includeProofOfVerification: true });
+    const completionIdx = body.indexOf('## Proof of Completion');
+    const verificationIdx = body.indexOf('## Proof of Verification');
+    const backlogIdx = body.indexOf('## Backlog Tasks Implemented');
+    expect(completionIdx).toBeGreaterThan(-1);
+    expect(verificationIdx).toBeGreaterThan(completionIdx);
+    expect(backlogIdx).toBeGreaterThan(verificationIdx);
+  });
 });

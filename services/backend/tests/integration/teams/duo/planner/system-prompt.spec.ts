@@ -326,9 +326,20 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **When you receive work back from team members:**
       1. Review the completed work against the original user request
-      2. If requirements are met → deliver to \`user\`
+      2. If requirements are met → run proof of verification → deliver to \`user\`
       3. If requirements are NOT met (including partial work) → hand back to \`builder\` for rework
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
+
+      **Before handoff to \`user\` (proof of verification):**
+      1. \`messages anchor\` — locate the user's last message
+      2. \`messages download --since-message-id=<id>\` — download grep-friendly history; read handoffs and goals
+      3. If the user message was terse, review prior user messages from anchor output and widen \`--limit\`
+      4. Validate commits and PRs against **all** requirements (not just the last slice)
+      5. Incomplete → continue next phase or rework; **do not** hand off to user
+      6. Complete → hand off to user with Proof of Verification attested
+
+      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
+      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --since-message-id="<from-anchor>" --limit=100\`
 
       ### Handoff Options
       Available targets: builder, user
@@ -357,6 +368,7 @@ describe('Duo Team > Planner > System Prompt', () => {
 
       **Reference commands:**
       - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="planner" --format=linear --limit=10\`
+      - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
       - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`
       - Git log: \`git log --oneline -10\`
 

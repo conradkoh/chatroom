@@ -175,6 +175,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you (or the builder) modified>
 
+      ## Proof of Verification
+      <!-- REQUIRED. Entry-point only — write Not Applicable for non-entry roles, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+      - [ ] I confirm I ran proof of verification: anchored on the user's last message, downloaded history since that anchor, reviewed handoffs/goals, and validated commits/PRs against all user requirements before this handoff
+      <!-- CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner" then messages download --since-message-id=<id> from anchor output -->
+      - <requirement from user message / context — met or not>
+      (list each key requirement and evidence: PR URL, commit, or file)
+
       ## Backlog Tasks Implemented
       <!-- REQUIRED. List backlog items addressed if none were in scope, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
@@ -765,6 +772,13 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
       <evidence the goal was met — list every file you (or the builder) modified>
+
+      ## Proof of Verification
+      <!-- REQUIRED. Entry-point only — write Not Applicable for non-entry roles, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+      - [ ] I confirm I ran proof of verification: anchored on the user's last message, downloaded history since that anchor, reviewed handoffs/goals, and validated commits/PRs against all user requirements before this handoff
+      <!-- CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo" then messages download --since-message-id=<id> from anchor output -->
+      - <requirement from user message / context — met or not>
+      (list each key requirement and evidence: PR URL, commit, or file)
 
       ## Backlog Tasks Implemented
       <!-- REQUIRED. List backlog items addressed if none were in scope, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->

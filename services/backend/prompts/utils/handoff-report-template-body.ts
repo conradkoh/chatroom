@@ -4,12 +4,19 @@ import { getFileReferenceProofOfCompletionExample } from './file-reference-guida
 import { getHandoffQualityPrinciplesSectionBlock } from './handoff-quality-principles';
 import { getHandoffNotApplicableSectionComment } from './handoff-section-guidance';
 import { getHandoffSeverityGuidanceBlock } from './handoff-severity-guidance';
+import { getProofOfVerificationDisclosureBlock } from './proof-of-verification';
 import { getRoleGuidanceDisclosureBlock } from './role-guidance-disclosure';
 import { getUnresolvedDecisionsSectionBlock } from './unresolved-decisions';
 import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
 
+export interface HandoffReportTemplateBodyOptions {
+  /** Entry-point handoffs (planner/solo → user) must verify the user's full request before delivery. */
+  includeProofOfVerification?: boolean;
+}
+
 export function getHandoffReportTemplateBody(
-  roleGuidanceContext?: RoleGuidanceCommandParams
+  roleGuidanceContext?: RoleGuidanceCommandParams,
+  options: HandoffReportTemplateBodyOptions = {}
 ): string {
   return `<handoff-overview>
 <!-- For informational tasks (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed — the user only sees this handoff. -->
@@ -39,6 +46,16 @@ ${getContextReadDisclosureBlock(roleGuidanceContext)}
 ${getFileReferenceProofOfCompletionExample()}
 <evidence the goal was met — list every file you (or the builder) modified>
 
+${
+  options.includeProofOfVerification
+    ? `## Proof of Verification
+${getHandoffNotApplicableSectionComment('Entry-point only — write Not Applicable for non-entry roles')}
+${getProofOfVerificationDisclosureBlock(roleGuidanceContext)}
+- <requirement from user message / context — met or not>
+(list each key requirement and evidence: PR URL, commit, or file)
+`
+    : ''
+}
 ## Backlog Tasks Implemented
 ${getHandoffNotApplicableSectionComment('List backlog items addressed if none were in scope')}
 - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
