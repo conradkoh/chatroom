@@ -128,31 +128,19 @@ export function CommandPalette({
     setPartitionState$(state$);
     const generation = beginCommandPalettePreload(state$);
 
-    const runPreload = () => {
-      const rows = buildCommandPaletteRows({
-        commands,
-        search: '',
-        rankedFilter,
-        recentCommands,
-        groupedCommands,
-        getScore,
-        frecencyScores,
-        blacklistedKeys,
-      });
-      commitCommandPalettePreload(state$, generation, rows);
-    };
-
-    const idleId =
-      typeof requestIdleCallback !== 'undefined'
-        ? requestIdleCallback(runPreload, { timeout: 2000 })
-        : setTimeout(runPreload, 0);
+    const rows = buildCommandPaletteRows({
+      commands,
+      search: '',
+      rankedFilter,
+      recentCommands,
+      groupedCommands,
+      getScore,
+      frecencyScores,
+      blacklistedKeys,
+    });
+    commitCommandPalettePreload(state$, generation, rows);
 
     return () => {
-      if (typeof cancelIdleCallback !== 'undefined' && typeof idleId === 'number') {
-        cancelIdleCallback(idleId);
-      } else {
-        clearTimeout(idleId as ReturnType<typeof setTimeout>);
-      }
       releaseCommandPalettePartition(chatroomId, workspaceId);
       setPartitionState$(null);
     };
