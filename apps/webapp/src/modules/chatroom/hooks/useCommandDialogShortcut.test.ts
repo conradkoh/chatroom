@@ -9,14 +9,16 @@ const toggleCommandPalette = vi.fn();
 
 let activeDialog: 'switcher' | 'file-selector' | null = null;
 
+vi.mock('@/modules/chatroom/context/contextManagedDialogsController', () => ({
+  getActiveContextManagedDialog: () => activeDialog,
+  subscribeActiveContextManagedDialog: () => () => {},
+}));
+
 vi.mock('@/modules/chatroom/context/CommandDialogContext', () => ({
   useCommandDialogActions: () => ({
     openDialog,
     closeDialog,
     toggleCommandPalette,
-  }),
-  useCommandDialogState: () => ({
-    activeDialog,
   }),
 }));
 

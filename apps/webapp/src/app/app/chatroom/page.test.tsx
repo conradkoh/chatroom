@@ -19,8 +19,7 @@ vi.mock('@/modules/chatroom/hooks/useObserveChatroom', () => ({
 }));
 
 vi.mock('@/modules/chatroom/context/CommandDialogContext', () => ({
-  useCommandDialog: () => ({
-    activeDialog: null,
+  useCommandDialogActions: () => ({
     openDialog: vi.fn(),
     closeDialog: vi.fn(),
   }),

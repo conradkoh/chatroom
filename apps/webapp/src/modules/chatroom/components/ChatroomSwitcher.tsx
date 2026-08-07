@@ -3,7 +3,7 @@
 import type { Observable } from '@legendapp/state';
 import { useSelector } from '@legendapp/state/react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
+import { useEffect, useCallback, useState, useRef, useMemo, useSyncExternalStore } from 'react';
 
 import {
   acquireChatroomSwitcherPartition,
@@ -22,7 +22,11 @@ import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
 import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
-import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
+import {
+  getChatroomSwitcherOpen,
+  subscribeActiveContextManagedDialog,
+} from '@/modules/chatroom/context/contextManagedDialogsController';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 import { sortChatroomsWithCurrentFirst } from '@/modules/chatroom/utils/sortChatroomsWithCurrentFirst';
@@ -40,8 +44,12 @@ import { sortChatroomsWithCurrentFirst } from '@/modules/chatroom/utils/sortChat
  * - Apply the industrial theme cleanly without fighting Tailwind specificity
  */
 export function ChatroomSwitcher() {
-  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
-  const open = activeDialog === 'switcher';
+  const { openDialog, closeDialog } = useCommandDialogActions();
+  const open = useSyncExternalStore(
+    subscribeActiveContextManagedDialog,
+    getChatroomSwitcherOpen,
+    () => false
+  );
   const setOpen = useCallback(
     (val: boolean) => (val ? openDialog('switcher') : closeDialog()),
     [openDialog, closeDialog]
