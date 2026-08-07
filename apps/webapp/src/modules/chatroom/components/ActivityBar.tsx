@@ -81,6 +81,11 @@ const ActivityBarItem = memo(function ActivityBarItem({
  * 7. Pull Requests  — GitHub PR list
  * 8. Processes  — command launcher / process manager
  *
+ * Layout: the icon list lives in a scrollable region (`overflow-y-auto`) that
+ * grows/shrinks with available height, while the command palette button is
+ * pinned at the bottom (`shrink-0`) and safe-area aware — so on short mobile
+ * viewports the palette trigger stays visible and tappable.
+ *
  * On mobile (hidden via CSS):
  * - Shows a command palette trigger at the bottom (Cmd+Shift+P equivalent)
  */
@@ -99,55 +104,60 @@ export const ActivityBar = memo(function ActivityBar({
   );
 
   return (
-    <div className="shrink-0 w-12 bg-chatroom-bg-surface border-r-2 border-chatroom-border-strong flex flex-col items-center pt-1">
-      <ActivityBarItem
-        icon={<Files size={20} />}
-        label="Explorer"
-        isActive={activeView === 'explorer'}
-        onClick={() => onViewChange('explorer')}
-      />
-      <ActivityBarItem
-        icon={<MessagesSquare size={20} />}
-        label="Messages"
-        isActive={activeView === 'messages'}
-        onClick={() => onViewChange('messages')}
-      />
-      {chatroomId && <ScheduledPromptsActivityBarItem chatroomId={chatroomId} />}
-      {chatroomId && (
-        <EnhancerActivityBarItem chatroomId={chatroomId} machineId={machineId ?? null} />
-      )}
-      <ActivityBarItem
-        icon={<MessageCircle size={20} />}
-        label="Direct Harness"
-        isActive={activeView === 'direct-harness'}
-        onClick={() => onViewChange('direct-harness')}
-      />
-      <ActivityBarItem
-        icon={<VscSourceControl size={20} />}
-        label="Source Control"
-        isActive={activeView === 'source-control'}
-        onClick={() => onViewChange('source-control')}
-      />
-      <ActivityBarItem
-        icon={<SiGithub size={20} />}
-        label="Pull Requests"
-        isActive={activeView === 'pull-requests'}
-        onClick={() => onViewChange('pull-requests')}
-      />
-      <ActivityBarItem
-        icon={<Terminal size={20} />}
-        label="Processes"
-        isActive={activeView === 'processes'}
-        onClick={() => onViewChange('processes')}
-      />
+    <div className="shrink-0 w-12 min-h-0 bg-chatroom-bg-surface border-r-2 border-chatroom-border-strong flex flex-col items-center pt-1">
+      {/* Scrollable icon region — grows, scrolls when icons overflow */}
+      <div
+        data-testid="activity-bar-icon-scroll"
+        className="flex flex-col items-center w-full min-h-0 flex-1 overflow-y-auto"
+      >
+        <ActivityBarItem
+          icon={<Files size={20} />}
+          label="Explorer"
+          isActive={activeView === 'explorer'}
+          onClick={() => onViewChange('explorer')}
+        />
+        <ActivityBarItem
+          icon={<MessagesSquare size={20} />}
+          label="Messages"
+          isActive={activeView === 'messages'}
+          onClick={() => onViewChange('messages')}
+        />
+        {chatroomId && <ScheduledPromptsActivityBarItem chatroomId={chatroomId} />}
+        {chatroomId && (
+          <EnhancerActivityBarItem chatroomId={chatroomId} machineId={machineId ?? null} />
+        )}
+        <ActivityBarItem
+          icon={<MessageCircle size={20} />}
+          label="Direct Harness"
+          isActive={activeView === 'direct-harness'}
+          onClick={() => onViewChange('direct-harness')}
+        />
+        <ActivityBarItem
+          icon={<VscSourceControl size={20} />}
+          label="Source Control"
+          isActive={activeView === 'source-control'}
+          onClick={() => onViewChange('source-control')}
+        />
+        <ActivityBarItem
+          icon={<SiGithub size={20} />}
+          label="Pull Requests"
+          isActive={activeView === 'pull-requests'}
+          onClick={() => onViewChange('pull-requests')}
+        />
+        <ActivityBarItem
+          icon={<Terminal size={20} />}
+          label="Processes"
+          isActive={activeView === 'processes'}
+          onClick={() => onViewChange('processes')}
+        />
+      </div>
 
-      {/* Spacer to push command palette to bottom */}
-      <div className="flex-1" />
-
-      {/* Command palette button (Cmd+Shift+P equivalent) */}
+      {/* Pinned command palette button — always visible, safe-area aware */}
       <button
+        data-testid="activity-bar-command-palette"
         className={cn(
-          'relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100',
+          'relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100 shrink-0 touch-manipulation',
+          'pb-[env(safe-area-inset-bottom,0px)]',
           paletteOpen
             ? 'text-chatroom-text-primary'
             : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
