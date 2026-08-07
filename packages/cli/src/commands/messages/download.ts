@@ -15,9 +15,11 @@ import {
   requireSessionIdEffect,
   validateChatroomIdEffect,
   commandServicesLayerFromDeps,
+  type BackendServiceShape,
 } from '../../infrastructure/services/index.js';
 
 const PAGE_SIZE = 50;
+const SINCE_PAGE_SIZE = 500;
 const ABSOLUTE_MAX = 5000;
 const DEFAULT_LIMIT = 10;
 
@@ -26,6 +28,8 @@ export interface DownloadMessagesOptions {
   format?: 'linear';
   outputDir?: string;
   limit?: number;
+  /** Anchor message id — download history from this message onward (ascending) instead of newest-N backward. */
+  sinceMessageId?: string;
 }
 
 type DownloadMessage = {
@@ -54,9 +58,116 @@ export function resolveDownloadOutputDir(format: string, cwd: string = process.c
   return nodePath.resolve(cwd, '.chatroom', 'downloads', 'messages', format, downloadId);
 }
 
+type FetchResult = {
+  messages: DownloadMessage[];
+  truncated: boolean;
+  hasMore: boolean;
+};
+
+/** Forward fetch: messages from the anchor onward (oldest first), reusing listSinceMessage. */
+const fetchForwardSince = (
+  args: {
+    sessionId: string;
+    chatroomId: string;
+    sinceMessageId: string;
+    maxDownload: number;
+  },
+  backend: BackendServiceShape
+): Effect.Effect<FetchResult, Error> =>
+  // fallow-ignore-next-line complexity
+  Effect.gen(function* () {
+    const messages: DownloadMessage[] = [];
+    let cursor: string = args.sinceMessageId;
+    let reachedEnd = false;
+    let truncated = false;
+    while (messages.length < args.maxDownload && !reachedEnd) {
+      const remaining = args.maxDownload - messages.length;
+      const pageSize = Math.min(SINCE_PAGE_SIZE, remaining);
+      const batch = yield* backend.query<DownloadMessage[]>(api.messages.listSinceMessage, {
+        sessionId: args.sessionId,
+        chatroomId: args.chatroomId,
+        sinceMessageId: cursor,
+        limit: pageSize,
+      });
+      if (batch.length === 0) {
+        reachedEnd = true;
+        break;
+      }
+      // listSinceMessage is inclusive of the reference message — drop the re-fetched anchor.
+      const toAppend = cursor === args.sinceMessageId ? batch : batch.slice(1);
+      if (toAppend.length === 0) {
+        reachedEnd = true;
+        break;
+      }
+      messages.push(...toAppend);
+      if (messages.length >= args.maxDownload) {
+        truncated = true;
+        break;
+      }
+      cursor = toAppend[toAppend.length - 1]._id;
+    }
+    return { messages, truncated, hasMore: !reachedEnd };
+  });
+
+/** Backward fetch: newest-N messages using getLatestMessages + listMessagesBefore. */
+const fetchLatestBackward = (
+  args: {
+    sessionId: string;
+    chatroomId: string;
+    maxDownload: number;
+  },
+  backend: BackendServiceShape
+): Effect.Effect<FetchResult, Error> =>
+  // fallow-ignore-next-line complexity
+  Effect.gen(function* () {
+    const messages: DownloadMessage[] = [];
+    let truncated = false;
+    let hasMore = true;
+
+    const firstPageSize = Math.min(PAGE_SIZE, args.maxDownload);
+    const latest = yield* backend.query<{ messages: DownloadMessage[]; hasMore: boolean }>(
+      api.messageList.getLatestMessages,
+      { sessionId: args.sessionId, chatroomId: args.chatroomId, limit: firstPageSize }
+    );
+    messages.push(...latest.messages);
+    hasMore = latest.hasMore;
+
+    while (hasMore && messages.length < args.maxDownload) {
+      const oldest = messages[0];
+      if (!oldest) {
+        hasMore = false;
+        break;
+      }
+      const remaining = args.maxDownload - messages.length;
+      const pageSize = Math.min(PAGE_SIZE, remaining);
+      const batch = yield* backend.query<DownloadMessage[]>(api.messageList.listMessagesBefore, {
+        sessionId: args.sessionId,
+        chatroomId: args.chatroomId,
+        before: oldest._creationTime,
+        limit: pageSize,
+      });
+      if (batch.length === 0) {
+        hasMore = false;
+        break;
+      }
+      const space = args.maxDownload - messages.length;
+      const toPrepend = batch.slice(Math.max(0, batch.length - space));
+      for (let i = toPrepend.length - 1; i >= 0; i--) messages.unshift(toPrepend[i]);
+      hasMore = batch.length >= pageSize && messages.length < args.maxDownload;
+      if (messages.length >= args.maxDownload && (batch.length >= pageSize || latest.hasMore))
+        truncated = true;
+      if (toPrepend.length < batch.length) truncated = true;
+    }
+
+    return { messages, truncated, hasMore };
+  });
+
 // fallow-ignore-next-line unused-export
 export const downloadMessagesEffect = (chatroomId: string, options: DownloadMessagesOptions) =>
+  // fallow-ignore-next-line complexity
   Effect.gen(function* () {
+    // Mirrors sibling messages commands: session + chatroom validation before the query.
+    // fallow-ignore-next-line code-duplication
     const backend = yield* BackendService;
     const fs = yield* MessagesFsService;
 
@@ -75,47 +186,17 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
     const outputDir = options.outputDir ?? resolveDownloadOutputDir(format);
     const absoluteOutputDir = nodePath.resolve(outputDir);
 
-    // Fetch messages
-    const messages: DownloadMessage[] = [];
-    let truncated = false;
-    let hasMore = true;
-
-    // First page
-    const firstPageSize = Math.min(PAGE_SIZE, maxDownload);
-    const latest = yield* backend.query<{ messages: DownloadMessage[]; hasMore: boolean }>(
-      api.messageList.getLatestMessages,
-      { sessionId, chatroomId, limit: firstPageSize }
-    );
-    messages.push(...latest.messages);
-    hasMore = latest.hasMore;
-
-    // Subsequent pages
-    while (hasMore && messages.length < maxDownload) {
-      const oldest = messages[0];
-      if (!oldest) {
-        hasMore = false;
-        break;
-      }
-      const remaining = maxDownload - messages.length;
-      const pageSize = Math.min(PAGE_SIZE, remaining);
-      const batch = yield* backend.query<DownloadMessage[]>(api.messageList.listMessagesBefore, {
-        sessionId,
-        chatroomId,
-        before: oldest._creationTime,
-        limit: pageSize,
-      });
-      if (batch.length === 0) {
-        hasMore = false;
-        break;
-      }
-      const space = maxDownload - messages.length;
-      const toPrepend = batch.slice(Math.max(0, batch.length - space));
-      for (let i = toPrepend.length - 1; i >= 0; i--) messages.unshift(toPrepend[i]);
-      hasMore = batch.length >= pageSize && messages.length < maxDownload;
-      if (messages.length >= maxDownload && (batch.length >= pageSize || latest.hasMore))
-        truncated = true;
-      if (toPrepend.length < batch.length) truncated = true;
-    }
+    const { messages, truncated, hasMore } = yield* options.sinceMessageId
+      ? fetchForwardSince(
+          {
+            sessionId,
+            chatroomId,
+            sinceMessageId: options.sinceMessageId,
+            maxDownload,
+          },
+          backend
+        )
+      : fetchLatestBackward({ sessionId, chatroomId, maxDownload }, backend);
 
     const complete = !truncated && !hasMore;
 
@@ -162,6 +243,8 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
       count: messages.length,
       complete,
       truncated,
+      sinceMessageId: options.sinceMessageId ?? null,
+      anchorMessageId: options.sinceMessageId ?? null,
       oldestDownloadedAt: messages[0] ? new Date(messages[0]._creationTime).toISOString() : null,
       newestDownloadedAt: messages[messages.length - 1]
         ? new Date(messages[messages.length - 1]._creationTime).toISOString()
@@ -189,12 +272,25 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
         const nextLimit = Math.min(messages.length * 2, ABSOLUTE_MAX);
         console.log(`\n💡 Truncated — fetch more history by increasing --limit:`);
         console.log(
-          `   chatroom messages download --chatroom-id=${chatroomId} --role=${options.role} --format=linear --limit=${nextLimit}`
+          `   chatroom messages download --chatroom-id=${chatroomId} --role=${options.role} --format=linear --limit=${nextLimit}${
+            options.sinceMessageId ? ` --since-message-id=${options.sinceMessageId}` : ''
+          }`
+        );
+      }
+      if (!options.sinceMessageId && !options.limit) {
+        console.log(`\n💡 Anchor on the user's last message for proof of verification:`);
+        console.log(
+          `   chatroom messages anchor --chatroom-id=${chatroomId} --role=${options.role}`
+        );
+        console.log(
+          `   Then download history since that anchor: messages download --since-message-id=<id> from anchor output`
         );
       }
     });
   });
 
+// Mirrors sibling messages command entry points (auth storage + convex client wiring).
+// fallow-ignore-next-line code-duplication
 export async function downloadMessages(
   chatroomId: string,
   options: DownloadMessagesOptions,
@@ -213,6 +309,8 @@ export async function downloadMessages(
   };
   const layer = commandServicesLayerFromDeps(actualDeps);
 
+  // Mirrors sibling messages command error handlers.
+  // fallow-ignore-next-line code-duplication
   const handler = (err: any): Effect.Effect<void> => {
     return Effect.sync(() => {
       if (err._tag === 'NotAuthenticated') {

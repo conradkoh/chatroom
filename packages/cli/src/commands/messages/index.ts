@@ -302,3 +302,7 @@ export async function listSinceMessage(
 }
 
 export { downloadMessages } from './download.js';
+// fallow-ignore-next-line unused-export
+export { anchorMessages, anchorMessagesEffect } from './anchor.js';
+// fallow-ignore-next-line unused-type
+export type { AnchorMessagesOptions } from './anchor.js';
