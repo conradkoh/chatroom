@@ -159,6 +159,43 @@ describe('workspace file write requests', () => {
     expect(second.status).toBe('pending');
   });
 
+  test('requestFileWrite supersedes pending create with delete on same path', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-supersede-inline',
+      'machine-wfw-supersede-inline'
+    );
+
+    const first = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath: 'docs/supersede.md',
+      operation: 'create',
+      data: gzipContent('# v1'),
+    });
+    expect(first.status).toBe('requested');
+
+    const second = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath: 'docs/supersede.md',
+      operation: 'delete',
+    });
+
+    expect(second.status).toBe('requested');
+    expect(second.requestId).toBe(first.requestId);
+
+    const pending = await t.query(api.workspaceFiles.getPendingFileWriteRequests, {
+      sessionId,
+      machineId,
+    });
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.filePath).toBe('docs/supersede.md');
+    expect(pending[0]?.operation).toBe('delete');
+    expect(pending[0]?.data).toBeUndefined();
+  });
+
   test('completeFileWriteRequest sets done and upserts v2 cache for create/update', async () => {
     const { sessionId, machineId } = await setupMachine(
       'test-wfw-complete',

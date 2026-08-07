@@ -48,6 +48,9 @@ const MAX_CONTENT_BYTES = 512 * 1024;
 /** Max pending requests returned per query (prevent unbounded reads). */
 const MAX_PENDING_REQUESTS = 50;
 
+/** Fast file write operations that supersede any pending request on the same path. */
+const FAST_FILE_WRITE_OPERATIONS = new Set(['delete', 'rename', 'mkdir']);
+
 const MAX_DIR_LISTING_BYTES = 200 * 1024;
 
 /** Max rows deleted per purgeFileTreeV2 invocation to stay under Convex read limits. */
@@ -1382,6 +1385,28 @@ export const generateWorkspaceFileUploadUrl = mutation({
 });
 
 /**
+ * Whether a new write request on the same path should supersede an existing
+ * pending request instead of silently returning it. Fast ops (delete/rename/
+ * mkdir) always supersede; storage-backed create/update retries replace their
+ * upload blob. Inline create/update dedups so a second write coalesces onto the
+ * pending request already in flight.
+ */
+function shouldSupersedePendingRequest(
+  _existingOperation: string,
+  args: { operation: string; storageId?: unknown }
+): boolean {
+  if (FAST_FILE_WRITE_OPERATIONS.has(args.operation)) return true;
+  // Preserve existing storageId replace behavior for create/update uploads
+  if (
+    args.storageId !== undefined &&
+    (args.operation === 'create' || args.operation === 'update')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Requests a file create, update, or delete on the daemon's local filesystem.
  * Returns an existing pending request for the same path, or creates a new one.
  */
@@ -1488,7 +1513,10 @@ export const requestFileWrite = mutation({
       .first();
 
     if (existingRequest && existingRequest.status === 'pending') {
-      return { status: 'pending' as const, requestId: existingRequest._id };
+      if (!shouldSupersedePendingRequest(existingRequest.operation, args)) {
+        return { status: 'pending' as const, requestId: existingRequest._id };
+      }
+      // Superseding — fall through to patch/replace logic below.
     }
 
     const now = Date.now();
@@ -1508,6 +1536,16 @@ export const requestFileWrite = mutation({
     };
 
     if (existingRequest) {
+      // Superseding away from a storageId-backed request — delete the orphaned
+      // blob unless the superseding request keeps the same storageId reference.
+      const keepsStorageBlob =
+        args.storageId !== undefined &&
+        (args.operation === 'create' || args.operation === 'update') &&
+        args.storageId === existingRequest.storageId;
+      if (existingRequest.storageId && !keepsStorageBlob) {
+        await ctx.storage.delete(existingRequest.storageId);
+      }
+
       if (args.storageId && (args.operation === 'create' || args.operation === 'update')) {
         await ctx.db.replace('chatroom_workspaceFileWriteRequests', existingRequest._id, {
           machineId: args.machineId,
