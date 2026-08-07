@@ -10,6 +10,7 @@ import { NewFolderDialog } from './NewFolderDialog';
 import { RenameDialog } from './RenameDialog';
 import { UploadFileDialog } from './UploadFileDialog';
 import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
+import { WorkspaceUploadProgressList } from './WorkspaceUploadProgressList';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +34,7 @@ import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import { useOpenFileOnRemote } from '../hooks/useOpenFileOnRemote';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
+import { useWorkspaceUploadJobs } from '../hooks/useWorkspaceUploadJobs';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -290,6 +292,16 @@ export const FileExplorerPanel = memo(
 
       useImperativeHandle(ref, () => ({ refresh: refreshExplorer }), [refreshExplorer]);
 
+      const { jobs, startUpload } = useWorkspaceUploadJobs({
+        machineId,
+        workingDir,
+        onUploadComplete: (filePath) => {
+          refreshExplorer();
+          explorerFileOps.onFileCreated(filePath);
+        },
+        onUploadFailed: (_filePath, error) => toast.error(error),
+      });
+
       // fallow-ignore-next-line complexity
       const handleConfirmDelete = useCallback(async () => {
         if (!deleteTarget) return;
@@ -399,15 +411,11 @@ export const FileExplorerPanel = memo(
           <UploadFileDialog
             open={uploadDialogOpen}
             onOpenChange={handleUploadDialogOpenChange}
-            machineId={machineId}
-            workingDir={workingDir}
             targetDir={pendingUpload?.targetDir ?? ''}
             file={pendingUpload?.file ?? null}
             remainingCount={remainingCount}
             onUploaded={() => refreshExplorer()}
-            onUploadFailed={(_filePath, error) => toast.error(error)}
-            onUploadConfirmed={() => refreshExplorer()}
-            onExplorerRefresh={refreshExplorer}
+            onStartUpload={startUpload}
             onContinue={handleUploadContinue}
           />
 
@@ -511,6 +519,8 @@ export const FileExplorerPanel = memo(
               }}
             />
           </div>
+
+          {jobs.length > 0 ? <WorkspaceUploadProgressList jobs={jobs} /> : null}
 
           {contextMenu}
         </div>

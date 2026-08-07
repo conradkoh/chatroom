@@ -18,20 +18,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../components/ui/dialog';
-import { useWorkspaceFileUpload } from '../hooks/useWorkspaceFileUpload';
 import { validateRelativeFilePath } from '../utils/gzipContent';
 
 interface UploadFileDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  machineId: string;
-  workingDir: string;
   targetDir: string;
   file: File | null;
   onUploaded: (filePath: string) => void;
-  onUploadFailed?: (filePath: string, error: string) => void;
-  onUploadConfirmed?: (filePath: string) => void;
-  onExplorerRefresh?: () => void;
+  onStartUpload: (filePath: string, file: File) => void;
   onContinue?: () => void;
   remainingCount?: number;
 }
@@ -46,18 +41,13 @@ function joinUploadPath(targetDir: string, fileName: string): string {
 export function UploadFileDialog({
   open,
   onOpenChange,
-  machineId,
-  workingDir,
   targetDir,
   file,
   onUploaded,
-  onUploadFailed,
-  onUploadConfirmed,
-  onExplorerRefresh,
+  onStartUpload,
   onContinue,
   remainingCount = 0,
 }: UploadFileDialogProps) {
-  const { uploadFile, uploading } = useWorkspaceFileUpload({ machineId, workingDir });
   const normalizedTargetDir = useMemo(() => targetDir.replace(/\/$/, ''), [targetDir]);
   const [fileNameInput, setFileNameInput] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -68,23 +58,6 @@ export function UploadFileDialog({
     setFileNameInput(file.name);
     setValidationError(null);
   }, [file, open, targetDir]);
-
-  // fallow-ignore-next-line complexity
-  const runBackgroundUpload = useCallback(
-    async (normalizedPath: string, uploadBlob: File) => {
-      try {
-        await uploadFile(normalizedPath, uploadBlob);
-        onExplorerRefresh?.();
-        onUploadConfirmed?.(normalizedPath);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to upload file';
-        onUploadFailed?.(normalizedPath, message);
-      } finally {
-        onContinue?.();
-      }
-    },
-    [onContinue, onExplorerRefresh, onUploadConfirmed, onUploadFailed, uploadFile]
-  );
 
   // fallow-ignore-next-line complexity
   const handleUpload = useCallback(() => {
@@ -103,8 +76,17 @@ export function UploadFileDialog({
     setValidationError(null);
     onUploaded(normalizedPath);
     onOpenChange(false);
-    void runBackgroundUpload(normalizedPath, file);
-  }, [file, fileNameInput, normalizedTargetDir, onOpenChange, onUploaded, runBackgroundUpload]);
+    onStartUpload(normalizedPath, file);
+    onContinue?.();
+  }, [
+    file,
+    fileNameInput,
+    normalizedTargetDir,
+    onContinue,
+    onOpenChange,
+    onStartUpload,
+    onUploaded,
+  ]);
 
   const kbdClassName = 'rounded-none border border-chatroom-border px-1';
 
@@ -164,7 +146,6 @@ export function UploadFileDialog({
             type="button"
             onClick={() => onOpenChange(false)}
             className={chatroomIndustrialButtonSecondaryClassName}
-            disabled={uploading}
           >
             Cancel
           </button>
@@ -172,9 +153,9 @@ export function UploadFileDialog({
             type="button"
             onClick={handleUpload}
             className={chatroomIndustrialButtonPrimaryClassName}
-            disabled={uploading || !file}
+            disabled={!file}
           >
-            {uploading ? 'Uploading…' : 'Upload'}
+            Upload
           </button>
         </DialogFooter>
       </DialogContent>

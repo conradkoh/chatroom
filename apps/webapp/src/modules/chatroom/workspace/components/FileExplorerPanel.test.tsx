@@ -49,6 +49,17 @@ vi.mock('./UploadFileDialog', () => ({
   UploadFileDialog: () => null,
 }));
 
+vi.mock('./WorkspaceUploadProgressList', () => ({
+  WorkspaceUploadProgressList: () => null,
+}));
+
+vi.mock('../hooks/useWorkspaceUploadJobs', () => ({
+  useWorkspaceUploadJobs: () => ({
+    jobs: [],
+    startUpload: vi.fn(),
+  }),
+}));
+
 vi.mock('../hooks/useExplorerFileDrop', () => ({
   useExplorerFileDrop: () => ({
     dropHighlightPath: null,
