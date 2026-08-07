@@ -52,6 +52,7 @@ describe('listChatroomAgentOverview — no agents', () => {
     expect(entry).toBeDefined();
     expect(entry!.agentStatus).toBe('none');
     expect(entry!.runningRoles).toEqual([]);
+    expect(entry!.aliveRoles).toEqual([]);
   });
 });
 
@@ -83,6 +84,7 @@ describe('listChatroomAgentOverview — running agent', () => {
     expect(entry).toBeDefined();
     expect(entry!.agentStatus).toBe('running');
     expect(entry!.runningRoles).toContain('builder');
+    expect(entry!.aliveRoles).toContain('builder');
   });
 });
 
@@ -106,6 +108,7 @@ describe('listChatroomAgentOverview — stopped agent', () => {
     expect(entry).toBeDefined();
     expect(entry!.agentStatus).toBe('stopped');
     expect(entry!.runningRoles).toEqual([]);
+    expect(entry!.aliveRoles).toEqual([]);
   });
 });
 
@@ -129,7 +132,13 @@ describe('listChatroomAgentOverview — no machine details leaked', () => {
     expect(entry).toBeDefined();
     // Verify the shape only has the expected keys
     const keys = Object.keys(entry!).sort();
-    expect(keys).toEqual(['agentStatus', 'chatroomId', 'runningAgents', 'runningRoles']);
+    expect(keys).toEqual([
+      'agentStatus',
+      'aliveRoles',
+      'chatroomId',
+      'runningAgents',
+      'runningRoles',
+    ]);
   });
 });
 
@@ -186,9 +195,11 @@ describe('listChatroomAgentOverview — daemon disconnected with PID', () => {
 
     const entry = results.find((r) => r.chatroomId === chatroomId);
     expect(entry).toBeDefined();
-    // Agent has PID but daemon is disconnected → should be "stopped", not "running"
+    // Agent has PID but daemon is disconnected → "stopped" for operational running state...
     expect(entry!.agentStatus).toBe('stopped');
     expect(entry!.runningRoles).toEqual([]);
     expect(entry!.runningAgents).toEqual([]);
+    // ...but the agent is still alive (spawned PID) so the listing dot is not grey idle.
+    expect(entry!.aliveRoles).toContain('builder');
   });
 });

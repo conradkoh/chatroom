@@ -54,6 +54,34 @@ interface ChatroomListingContextValue {
 
 const ChatroomListingContext = createContext<ChatroomListingContextValue | null>(null);
 
+// ─── Agent building ───────────────────────────────────────────────────────────
+
+/**
+ * Build the agent list for a chatroom from teamRoles (excluding the user),
+ * merging presence fields. `isAlive` mirrors getTeamLifecycle / the agent panel
+ * (`isAgentAlive(spawnedAgentPid)` via `aliveRoles`) — NOT the daemon-gated
+ * `runningRoles` — so spawned working agents don't show grey idle.
+ */
+function buildAgentsForChatroom(
+  chatroom: { _id: string; teamRoles?: string[] },
+  presenceByRoomRole: Map<string, ChatroomPresenceEntry>,
+  aliveRoles: string[]
+): Agent[] {
+  return (chatroom.teamRoles ?? [])
+    .filter((role) => role.toLowerCase() !== 'user')
+    .map((role) => {
+      const presence = presenceByRoomRole.get(`${chatroom._id}:${role.toLowerCase()}`);
+      return {
+        role,
+        lastSeenAt: presence?.lastSeenAt ?? null,
+        lastSeenAction: presence?.lastSeenAction ?? null,
+        lastStatus: presence?.lastStatus ?? null,
+        lastDesiredState: presence?.lastDesiredState ?? null,
+        isAlive: aliveRoles.some((r) => r.toLowerCase() === role.toLowerCase()),
+      };
+    });
+}
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 /**
@@ -119,24 +147,16 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
       enhancerWorkStatus.map((e) => [e.chatroomId, e.hasActiveEnhancerWork])
     );
 
-    // Group presence by chatroomId
-    const presenceByRoom = new Map<string, Agent[]>();
+    // Index presence by (chatroomId, role) so agents built from teamRoles can
+    // pick up their presence fields (lastSeenAt, lastStatus, ...) when present.
+    const presenceByRoomRole = new Map<string, ChatroomPresenceEntry>();
     for (const p of presenceData) {
-      const runningRoles = remoteAgentStatusMap.get(p.chatroomId)?.runningRoles ?? [];
-      const existing = presenceByRoom.get(p.chatroomId) ?? [];
-      existing.push({
-        role: p.role,
-        lastSeenAt: p.lastSeenAt,
-        lastSeenAction: p.lastSeenAction,
-        lastStatus: p.lastStatus,
-        lastDesiredState: p.lastDesiredState,
-        isAlive: runningRoles.some((r) => r.toLowerCase() === p.role.toLowerCase()),
-      });
-      presenceByRoom.set(p.chatroomId, existing);
+      presenceByRoomRole.set(`${p.chatroomId}:${p.role.toLowerCase()}`, p);
     }
 
     return baseChatrooms.map((chatroom) => {
-      const agents = presenceByRoom.get(chatroom._id) ?? [];
+      const aliveRoles = remoteAgentStatusMap.get(chatroom._id)?.aliveRoles ?? [];
+      const agents = buildAgentsForChatroom(chatroom, presenceByRoomRole, aliveRoles);
 
       const chatStatus = deriveChatStatus(chatroom.status, agents, {
         hasActiveEnhancerWork: enhancerWorkMap.get(chatroom._id) ?? false,
@@ -195,8 +215,8 @@ export function useChatroomListing() {
   return context;
 }
 
-/** Lookup pre-computed chatStatus from listing context (SSOT — includes enhancer work). */
-// fallow-ignore-next-line unused-export — consumed by unit tests
+/** Lookup pre-computed chatStatus from listing context (SSOT — includes enhancer work). Exported for unit tests. */
+// fallow-ignore-next-line unused-export
 export function selectChatroomChatStatus(
   chatrooms: ChatroomWithStatus[] | undefined,
   chatroomId: string
