@@ -20,8 +20,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 import { LoginCodeGenerator } from '@/modules/auth/LoginCodeGenerator';
 import { NameEditForm } from '@/modules/profile/NameEditForm';
@@ -163,7 +164,7 @@ function RecoveryCodeSection() {
   }, [isRegenerating]);
 
   return (
-    <div className="border-t pt-6">
+    <div className="mt-6 border-t pt-6">
       <h2 className="text-xl font-semibold mb-2">Account Recovery</h2>
       <p className="text-sm text-muted-foreground mb-4">
         Keep this recovery code in a safe place. It's the only way to regain access to your
@@ -196,15 +197,12 @@ function RecoveryCodeSection() {
           </div>
 
           <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                className="flex items-center gap-2"
-                disabled={isRegenerating}
-              >
-                <RefreshCw className="h-4 w-4" />
-                {regenerateButtonText}
-              </Button>
+            <AlertDialogTrigger
+              className={cn(buttonVariants({ variant: 'outline' }), 'flex items-center gap-2')}
+              disabled={isRegenerating}
+            >
+              <RefreshCw className="h-4 w-4" />
+              {regenerateButtonText}
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>

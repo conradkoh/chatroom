@@ -6,7 +6,7 @@ import { useCallback, useState } from 'react';
 
 import { usePasswordProtection } from './PasswordProtectContext';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DropdownMenu,
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 export interface PasswordProtectProps {
   children: React.ReactNode;
@@ -84,15 +85,14 @@ export function PasswordProtect({
         {showActionMenu && (
           <div className="absolute top-2 right-2 z-10">
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 bg-background/80 backdrop-blur-sm border border-border/50 hover:bg-background/90"
-                >
-                  <MoreVerticalIcon className="h-4 w-4" />
-                  <span className="sr-only">Open menu</span>
-                </Button>
+              <DropdownMenuTrigger
+                className={cn(
+                  buttonVariants({ variant: 'ghost', size: 'sm' }),
+                  'h-8 w-8 p-0 bg-background/80 backdrop-blur-sm border border-border/50 hover:bg-background/90'
+                )}
+              >
+                <MoreVerticalIcon className="h-4 w-4" />
+                <span className="sr-only">Open menu</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onClick={temporarilyHide} className="cursor-pointer">

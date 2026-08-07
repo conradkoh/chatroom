@@ -25,7 +25,7 @@ See `convex/system/auth/google.ts` for a reference. Full guide: `docs/features/r
 
 ### Add a role
 
-Append to `roleDefinitions` in both `roles.ts` files. **Assignment today:** only `accessLevel` → `user` \| `system_admin` in `getRolesForUser`. Do not enable placeholder roles until Phase 1b (`users.roleNames`).
+Append to `roleDefinitions` in both `roles.ts` files. **Assignment:** `users.roleNames` (array of role strings); legacy `accessLevel` is fallback when `roleNames` is absent.
 
 ### Naming
 

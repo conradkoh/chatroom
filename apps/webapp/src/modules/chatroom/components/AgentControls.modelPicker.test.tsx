@@ -113,10 +113,10 @@ describe('AgentControls model picker', () => {
     render(<ModelPickerHarness />);
     // Wait for initialization + isClient effects to settle
     await waitFor(() => {
-      expect(screen.getByTitle('Select Model')).toBeInTheDocument();
+      expect(screen.getByTitle('Select model')).toBeInTheDocument();
     });
     await act(async () => {});
-    fireEvent.click(screen.getByTitle('Select Model'));
+    fireEvent.click(screen.getByTitle('Select model'));
     await waitFor(() => {
       expect(document.querySelector('[data-slot="chatroom-popover-content"]')).not.toBeNull();
     });
@@ -127,10 +127,10 @@ describe('AgentControls model picker', () => {
     mockUseIsDesktop.mockReturnValue(false);
     render(<ModelPickerHarness />);
     await waitFor(() => {
-      expect(screen.getByTitle('Select Model')).toBeInTheDocument();
+      expect(screen.getByTitle('Select model')).toBeInTheDocument();
     });
     await act(async () => {});
-    fireEvent.click(screen.getByTitle('Select Model'));
+    fireEvent.click(screen.getByTitle('Select model'));
     await waitFor(() => {
       expect(document.querySelector('[data-slot="drawer-content"]')).not.toBeNull();
     });

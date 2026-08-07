@@ -3,6 +3,8 @@
  * See docs/application/design/theme.md — sharp corners, 2px borders, chatroom palette.
  */
 
+import { Z_CONFIRMATION, Z_FLOATING } from './overlayLayers';
+
 const chatroomIndustrialBorderClassName = 'border-2 border-chatroom-border-strong';
 
 export const chatroomIndustrialPanelBorderClassName = 'border-2 border-chatroom-border';
@@ -11,10 +13,10 @@ export const chatroomIndustrialSurfaceClassName =
   'bg-chatroom-bg-primary text-chatroom-text-primary';
 
 const chatroomIndustrialOverlayAnimationClassName =
-  'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0';
+  'data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 fixed inset-0';
 
 const chatroomIndustrialModalContentAnimationClassName = [
-  'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+  'data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95',
   'fixed top-[50%] left-[50%] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 p-6 shadow-lg duration-200 sm:max-w-lg',
 ] as const;
 
@@ -24,6 +26,18 @@ export const chatroomIndustrialOverlayClassName = `${chatroomIndustrialOverlayAn
 export const chatroomIndustrialModalContentClassName = [
   ...chatroomIndustrialModalContentAnimationClassName,
   'z-50',
+  'rounded-none',
+  chatroomIndustrialBorderClassName,
+  chatroomIndustrialSurfaceClassName,
+] as const;
+
+/** Floating overlay for nested dialogs opened above an existing modal. */
+export const chatroomIndustrialFloatingOverlayClassName = `${chatroomIndustrialOverlayAnimationClassName} ${Z_FLOATING} bg-black/60`;
+
+/** Floating content for nested dialogs — z-[100] above base modal z-50. */
+export const chatroomIndustrialFloatingModalContentClassName = [
+  ...chatroomIndustrialModalContentAnimationClassName,
+  Z_FLOATING,
   'rounded-none',
   chatroomIndustrialBorderClassName,
   chatroomIndustrialSurfaceClassName,
@@ -46,6 +60,21 @@ export const chatroomIndustrialButtonSecondaryClassName =
 export const chatroomIndustrialButtonDestructiveClassName =
   'inline-flex h-9 items-center justify-center px-4 text-sm font-bold rounded-none bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0 transition-opacity';
 
+/** Outlined destructive text button — colors shared by compact and industrial sizes. */
+// fallow-ignore-next-line unused-export
+export const chatroomDestructiveTextButtonColorsClassName =
+  'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-950/40';
+
+/** Compact layout — Archive Chat (10px uppercase). */
+// fallow-ignore-next-line unused-export
+export const chatroomDestructiveTextButtonCompactClassName =
+  'inline-flex items-center justify-center px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
+/** Industrial layout — dialog footer height match (h-9 text-sm). */
+// fallow-ignore-next-line unused-export
+export const chatroomDestructiveTextButtonIndustrialClassName =
+  'inline-flex h-9 items-center justify-center px-4 text-sm font-bold rounded-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
 export const chatroomIndustrialInputClassName =
   'bg-chatroom-bg-secondary border border-chatroom-border text-chatroom-text-primary placeholder:text-chatroom-text-muted rounded-none outline-none focus-visible:ring-0 focus-visible:border-chatroom-border-strong';
 
@@ -56,7 +85,18 @@ export const chatroomPortaledMenuSurfaceClassName =
   'bg-chatroom-bg-primary text-chatroom-text-primary border border-chatroom-border rounded-none shadow-md';
 
 /**
- * Base classes for portaled menu panels — z-50 band (stacking via portal DOM order).
+ * Base classes for portaled menu panels — z-50 (elevate via portal host z-[60] inside modals).
  */
 // fallow-ignore-next-line unused-export
 export const chatroomPortaledMenuFloatingClassName = `z-50 pointer-events-auto outline-none ${chatroomPortaledMenuSurfaceClassName}`;
+
+/** Confirmation overlay — above floating menus and nested modals. */
+export const chatroomIndustrialConfirmationOverlayClassName = `${chatroomIndustrialOverlayAnimationClassName} ${Z_CONFIRMATION} bg-black/60`;
+
+export const chatroomIndustrialConfirmationModalContentClassName = [
+  ...chatroomIndustrialModalContentAnimationClassName,
+  Z_CONFIRMATION,
+  'rounded-none',
+  chatroomIndustrialBorderClassName,
+  chatroomIndustrialSurfaceClassName,
+] as const;

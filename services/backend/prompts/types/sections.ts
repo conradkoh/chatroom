@@ -14,7 +14,6 @@ import type { TeamKind } from '../../src/domain/entities/team-kind';
  * Every prompt section is selected based on these dimensions:
  * - role: what the agent does (builder, planner)
  * - team: how the team is structured (duo, solo, or custom)
- * - workflow: what the team is doing (new_feature, question, follow_up)
  */
 export interface SelectorContext {
   /** Agent role (e.g., 'builder', 'planner') */
@@ -28,8 +27,6 @@ export interface SelectorContext {
    * without needing to read individual teamId/teamRoles/teamEntryPoint fields.
    */
   teamConfig?: Team;
-  /** Current workflow/classification (e.g., 'new_feature', 'question', 'follow_up') */
-  workflow?: 'new_feature' | 'question' | 'follow_up' | null;
   /** Team roles as configured */
   teamRoles: string[];
   /** Whether this role is the team's entry point */
@@ -42,6 +39,8 @@ export interface SelectorContext {
   agentType: 'remote' | 'custom' | 'unset';
   /** True when harness uses native task injection (no listen loop) */
   nativeIntegration?: boolean;
+  /** When true, static planner guidance includes enhancer workflow references. */
+  plannerEnhancerActive?: boolean;
 }
 
 /**
@@ -80,8 +79,6 @@ export type SectionId =
   | 'team-context'
   // Role Workflow
   | 'role-guidance'
-  // Task Context (dynamic)
-  | 'current-classification'
   // Handoff
   | 'handoff-options'
   | 'handoff-restriction'

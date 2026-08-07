@@ -33,7 +33,8 @@ import {
  * `../sections/` directly with their hardcoded team config.
  */
 export function getPlannerGuidance(params: PlannerGuidanceParams): string {
-  const { convexUrl, teamRoles, chatroomId, role, nativeIntegration } = params;
+  const { convexUrl, teamRoles, chatroomId, role, nativeIntegration, plannerEnhancerActive } =
+    params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   // teamRoles is configured composition — not live agent presence
@@ -55,9 +56,9 @@ ${getCoreResponsibilitiesSection(teamConfig)}
 
 ${getDelegationAndDecompositionSection(teamConfig)}
 
-${getDelegationGuidelinesSection(teamConfig, { cliEnvPrefix, chatroomId, role })}
+${getDelegationGuidelinesSection(teamConfig, { cliEnvPrefix, chatroomId, role, plannerEnhancerActive })}
 
-${getHandoffRulesSection(teamConfig, nativeIntegration)}
+${getHandoffRulesSection(teamConfig, nativeIntegration, plannerEnhancerActive)}
 
 ${getWhenWorkComesBackSection(teamConfig)}`;
 }

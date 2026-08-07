@@ -28,10 +28,6 @@ function baseParams() {
       senderRole: 'user',
       content: 'Can you work on this item',
     },
-    currentContext: null,
-    originMessage: null,
-    followUpCountSinceOrigin: 0,
-    originMessageCreatedAt: null,
     isEntryPoint: true,
     availableHandoffTargets: ['builder', 'user'],
   };
@@ -86,22 +82,6 @@ describe('generateFullCliOutput — backlog items in primary delivery', () => {
     const output = generateFullCliOutput(baseParams());
     expect(output).not.toContain('<attachments>');
     expect(output).not.toContain('type="backlog"');
-  });
-
-  test('does not render legacy attachedTasks from originMessage alone', () => {
-    const params = {
-      ...baseParams(),
-      originMessage: {
-        senderRole: 'user',
-        content: 'Fix things',
-        classification: null,
-        attachedTasks: [{ _id: 'legacy-task', status: 'backlog', content: 'Legacy task item' }],
-      },
-    };
-
-    const output = generateFullCliOutput(params);
-    expect(output).not.toContain('Legacy task item');
-    expect(output).not.toContain('type="task"');
   });
 
   test('renders message attachments in unified attachments block', () => {

@@ -47,9 +47,9 @@ export function buildSelectorContext(params: {
   teamEntryPoint?: string;
   convexUrl: string;
   chatroomId?: string;
-  workflow?: 'new_feature' | 'question' | 'follow_up' | null;
   agentType?: 'remote' | 'custom' | 'unset';
   nativeIntegration?: boolean;
+  plannerEnhancerActive?: boolean;
 }): SelectorContext {
   const entryPoint =
     getTeamEntryPoint({ teamEntryPoint: params.teamEntryPoint, teamRoles: params.teamRoles }) ??
@@ -65,13 +65,13 @@ export function buildSelectorContext(params: {
     role: params.role,
     team: detectTeamType(params.teamRoles, params.teamName),
     teamConfig,
-    workflow: params.workflow,
     teamRoles: params.teamRoles,
     isEntryPoint: params.role.toLowerCase() === entryPoint.toLowerCase(),
     convexUrl: params.convexUrl,
     chatroomId: params.chatroomId,
     agentType: params.agentType ?? 'unset',
     nativeIntegration: params.nativeIntegration,
+    plannerEnhancerActive: params.plannerEnhancerActive,
   };
 }
 

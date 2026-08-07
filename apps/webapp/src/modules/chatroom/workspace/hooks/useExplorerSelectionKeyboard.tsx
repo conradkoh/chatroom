@@ -73,19 +73,22 @@ export function useRemoteSelectionContextMenu(
   const selectionMenu =
     onOpenSelectionOnRemote != null ? (
       <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
-        <DropdownMenuTrigger asChild>
-          <span
-            aria-hidden
-            style={{
-              position: 'fixed',
-              left: point.x,
-              top: point.y,
-              width: 1,
-              height: 1,
-              pointerEvents: 'none',
-            }}
-          />
-        </DropdownMenuTrigger>
+        <DropdownMenuTrigger
+          nativeButton={false}
+          render={
+            <span
+              aria-hidden
+              style={{
+                position: 'fixed',
+                left: point.x,
+                top: point.y,
+                width: 1,
+                height: 1,
+                pointerEvents: 'none',
+              }}
+            />
+          }
+        />
         <DropdownMenuContent>
           <WorkspaceDropdownMenuItem
             icon={ExternalLink}

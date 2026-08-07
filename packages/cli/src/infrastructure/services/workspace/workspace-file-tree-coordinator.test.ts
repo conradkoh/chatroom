@@ -9,7 +9,7 @@ import {
   startWorkspaceFileTreeCoordinator,
 } from './workspace-file-tree-coordinator.js';
 import { clearWorkspaceSyncStateForTests } from './workspace-sync-state.js';
-import { runGit } from '../../git/run-command.js';
+import { runGit } from '../../../daemon/infrastructure/git/run-command.js';
 
 async function waitFor(predicate: () => boolean, timeoutMs = 8_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -221,7 +221,7 @@ describe('workspace-file-tree-coordinator', () => {
     rootDir = await mkdtemp(join(tmpdir(), 'file-tree-coordinator-degrade-'));
     await initGitRepo(rootDir, { 'seed.ts': 'seed' });
 
-    const runGitModule = await import('../../git/run-command.js');
+    const runGitModule = await import('../../../daemon/infrastructure/git/run-command.js');
     const runGitSpy = vi.spyOn(runGitModule, 'runGit').mockResolvedValue({
       error: Object.assign(new Error('git unavailable'), { code: 1 }),
     } as never);
@@ -259,10 +259,10 @@ describe('workspace-file-tree-coordinator', () => {
     await writeFile(join(rootDir, 'temp.md'), 'temp');
     await waitFor(() => coordinator.getTree().entries.some((e) => e.path === 'temp.md'), 5_000);
     await unlink(join(rootDir, 'temp.md'));
-    await waitFor(
-      () => coordinator.getTree().entries.find((e) => e.path === 'temp.md') === undefined,
-      5_000
-    );
+    await waitFor(() => {
+      const calls = deltas.mock.calls as [{ removed?: string[] }?][];
+      return calls.some((call) => call[0]?.removed?.includes('temp.md'));
+    }, 5_000);
     expect(deltas).toHaveBeenCalledWith(
       expect.objectContaining({
         removed: expect.arrayContaining(['temp.md']),

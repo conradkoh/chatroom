@@ -20,6 +20,7 @@ import {
   getWhenWorkComesBackSection,
   getTeamCompositionSection,
   getPlannerPlusBuilderOperatingModel,
+  getProofOfVerificationSection,
 } from '../../../cli/sections';
 import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
@@ -29,6 +30,7 @@ const DUO_TEAM_CONFIG = { hasBuilder: true } as const;
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
   const { nativeIntegration, members, cliEnvPrefix, chatroomId, role } =
     getPlannerGuidanceContext(ctx);
+  const plannerEnhancerActive = ctx.plannerEnhancerActive ?? false;
 
   const operatingModelGuidance = getPlannerPlusBuilderOperatingModel(nativeIntegration);
 
@@ -42,7 +44,6 @@ You are the team coordinator and the **single point of contact** for the user.
 - You are the entry point — you communicate directly with the user
 - You coordinate with the builder for implementation tasks
 - You are ultimately accountable for all work quality
-- Builder may go offline at any time — if unavailable, implement changes yourself
 - After reviewing builder output, deliver results to the user
 - **Only you can hand off to \`user\`**
 
@@ -58,9 +59,12 @@ ${getDelegationGuidelinesSection(DUO_TEAM_CONFIG, {
   cliEnvPrefix,
   chatroomId,
   role,
+  plannerEnhancerActive,
 })}
 
-${getHandoffRulesSection(DUO_TEAM_CONFIG, nativeIntegration)}
+${getHandoffRulesSection(DUO_TEAM_CONFIG, nativeIntegration, plannerEnhancerActive)}
 
-${getWhenWorkComesBackSection(DUO_TEAM_CONFIG)}`;
+${getWhenWorkComesBackSection(DUO_TEAM_CONFIG)}
+
+${getProofOfVerificationSection({ chatroomId, role, cliEnvPrefix })}`;
 }

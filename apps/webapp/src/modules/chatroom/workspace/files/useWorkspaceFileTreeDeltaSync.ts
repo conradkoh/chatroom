@@ -17,13 +17,12 @@ import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 type FileTreeDeltaQueryResult =
   | {
       status: 'ok';
-      checkpointRevision: number;
-      currentRevision: number;
       deltas: WorkspaceFileTreeDeltaBatch[];
-      hasMore: boolean;
+      hasMore?: true;
     }
   | { status: 'checkpoint-required'; checkpointRevision: number; currentRevision: number }
-  | { status: 'resync-required'; expectedRevision: number };
+  | { status: 'resync-required'; expectedRevision: number }
+  | null;
 
 export function useWorkspaceFileTreeDeltaSync({
   workspaceKey,

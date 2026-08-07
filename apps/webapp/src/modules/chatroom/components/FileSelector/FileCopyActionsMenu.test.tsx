@@ -24,8 +24,8 @@ const defaultProps = {
 
 function openDropdown() {
   const trigger = screen.getByRole('button', { name: /copy file/i });
-  fireEvent.pointerDown(trigger);
-  // Radix dropdown opens on pointerDown; menu items rendered in a portal
+  fireEvent.click(trigger);
+  // Base UI menu opens on click; menu items rendered in a portal
 }
 
 describe('FileCopyActionsMenu', () => {
@@ -125,7 +125,7 @@ describe('FileCopyActionsMenu', () => {
   it('uses MoreHorizontal trigger when triggerVariant is more', () => {
     render(<FileCopyActionsMenu {...defaultProps} triggerVariant="more" showFileContent={false} />);
     const trigger = screen.getByRole('button', { name: /more copy options/i });
-    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
     expect(screen.getByText('Copy Relative Path')).toBeInTheDocument();
     expect(screen.queryByText('Copy File Content')).not.toBeInTheDocument();
   });

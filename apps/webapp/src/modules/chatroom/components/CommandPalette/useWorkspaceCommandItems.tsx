@@ -1,13 +1,23 @@
 'use client';
 
-import { Code2, GitBranch, GitPullRequest, PanelBottomOpen } from 'lucide-react';
+import {
+  ClipboardCopy,
+  Code2,
+  FolderOpen,
+  GitBranch,
+  GitPullRequest,
+  PanelBottomOpen,
+  Terminal,
+} from 'lucide-react';
 import { useMemo } from 'react';
 import { SiGithub } from 'react-icons/si';
 
 import type { CommandItem } from './types';
+import { workspaceCommandBlacklistKey } from '../../lib/workspaceCommandBlacklistKey';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import type { Workspace } from '../../types/workspace';
 import { useWorkspaceGit } from '../../workspace/hooks/useWorkspaceGit';
+import { copyWorkspacePathToClipboard } from '../../workspace/utils/clipboard';
 
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import type { LocalActionType } from '@/hooks/useSendLocalAction';
@@ -76,6 +86,7 @@ export function useWorkspaceCommandItems(
     if (isConnected) {
       items.push({
         id: `ws-${wsKey}-open-vscode`,
+        blacklistKey: workspaceCommandBlacklistKey('open-vscode'),
         label: 'Machine: Open in VS Code',
         detail,
         icon: <Code2 size={14} />,
@@ -86,12 +97,46 @@ export function useWorkspaceCommandItems(
 
       items.push({
         id: `ws-${wsKey}-open-github-desktop`,
+        blacklistKey: workspaceCommandBlacklistKey('open-github-desktop'),
         label: 'Machine: Open in GitHub Desktop',
         detail,
         icon: <SiGithub size={14} />,
         category: 'Actions',
         keywords: ['github desktop', hostname, workingDirBasename],
         action: () => sendAction(machineId, 'open-github-desktop', workingDir),
+      });
+
+      items.push({
+        id: `ws-${wsKey}-copy-workspace-path`,
+        blacklistKey: workspaceCommandBlacklistKey('copy-workspace-path'),
+        label: 'Machine: Copy Workspace Path',
+        detail,
+        icon: <ClipboardCopy size={14} />,
+        category: 'Actions',
+        keywords: ['copy', 'path', 'clipboard', hostname, workingDirBasename],
+        action: () => void copyWorkspacePathToClipboard(workingDir),
+      });
+
+      items.push({
+        id: `ws-${wsKey}-open-finder`,
+        blacklistKey: workspaceCommandBlacklistKey('open-finder'),
+        label: 'Machine: Open in Finder',
+        detail,
+        icon: <FolderOpen size={14} />,
+        category: 'Actions',
+        keywords: ['finder', 'folder', hostname, workingDirBasename],
+        action: () => sendAction(machineId, 'open-finder', workingDir),
+      });
+
+      items.push({
+        id: `ws-${wsKey}-open-cursor`,
+        blacklistKey: workspaceCommandBlacklistKey('open-cursor'),
+        label: 'Machine: Open in Cursor',
+        detail,
+        icon: <Terminal size={14} />,
+        category: 'Actions',
+        keywords: ['cursor', 'editor', hostname, workingDirBasename],
+        action: () => sendAction(machineId, 'open-cursor', workingDir),
       });
     }
 
@@ -104,6 +149,7 @@ export function useWorkspaceCommandItems(
       if (repoUrl) {
         items.push({
           id: `ws-${wsKey}-view-github-prs`,
+          blacklistKey: workspaceCommandBlacklistKey('view-github-prs'),
           label: 'Github: View My Pull Requests',
           detail,
           icon: <SiGithub size={14} />,
@@ -114,6 +160,7 @@ export function useWorkspaceCommandItems(
 
         items.push({
           id: `ws-${wsKey}-view-repo`,
+          blacklistKey: workspaceCommandBlacklistKey('view-repo'),
           label: 'Github: View Repository',
           detail,
           icon: <SiGithub size={14} />,
@@ -126,6 +173,7 @@ export function useWorkspaceCommandItems(
       if (pr) {
         items.push({
           id: `ws-${wsKey}-view-current-pr`,
+          blacklistKey: workspaceCommandBlacklistKey('view-current-pr'),
           label: 'Github: View Current Pull Request',
           detail,
           icon: <GitPullRequest size={14} />,
@@ -136,6 +184,7 @@ export function useWorkspaceCommandItems(
 
         items.push({
           id: `ws-${wsKey}-review-prs`,
+          blacklistKey: workspaceCommandBlacklistKey('review-prs'),
           label: 'Chatroom: Review Pull Requests',
           detail,
           icon: <GitPullRequest size={14} />,
@@ -148,6 +197,7 @@ export function useWorkspaceCommandItems(
       // Git diff command - opens git panel with changes tab
       items.push({
         id: `ws-${wsKey}-git-diff`,
+        blacklistKey: workspaceCommandBlacklistKey('git-diff'),
         label: 'Git: Show Current Changes',
         detail,
         icon: <GitBranch size={14} />,
@@ -159,6 +209,7 @@ export function useWorkspaceCommandItems(
       // Git pull command - runs git pull on the working directory
       items.push({
         id: `ws-${wsKey}-git-pull`,
+        blacklistKey: workspaceCommandBlacklistKey('git-pull'),
         label: 'Git: Pull from Remote',
         detail: `${hostname}:${workspace.workingDir.split('/').pop()}`,
         icon: <GitPullRequest size={14} />,
@@ -174,6 +225,7 @@ export function useWorkspaceCommandItems(
     // Workspace details
     items.push({
       id: `ws-${wsKey}-workspace-details`,
+      blacklistKey: workspaceCommandBlacklistKey('workspace-details'),
       label: 'Machine: Workspace Details',
       detail,
       icon: <PanelBottomOpen size={14} />,

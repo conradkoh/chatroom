@@ -1,8 +1,16 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChatroomTitleEditor } from './ChatroomTitleEditor';
+
+import { getLocalManagerUrl } from '@/lib/environment';
+
+vi.mock('@/lib/environment', () => ({
+  getLocalManagerUrl: vi.fn(),
+}));
+
+const mockedGetLocalManagerUrl = vi.mocked(getLocalManagerUrl);
 
 vi.mock('./useChatroomTitleEditor', () => ({
   useChatroomTitleEditor: () => ({
@@ -19,6 +27,8 @@ vi.mock('./useChatroomTitleEditor', () => ({
 async function openMenu() {
   const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: /Chatroom:.*Open menu/i }));
+  // Base UI mounts the menu portal asynchronously after the trigger click.
+  await waitFor(() => expect(screen.getByText('Switch Chatrooms')).toBeInTheDocument());
   return user;
 }
 
@@ -34,6 +44,7 @@ describe('ChatroomTitleEditor menu', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedGetLocalManagerUrl.mockReturnValue(null);
   });
 
   it('shows shared items and calls switcher + profile', async () => {
@@ -155,5 +166,19 @@ describe('ChatroomTitleEditor menu', () => {
       />
     );
     expect(screen.queryByRole('button', { name: /focus mode/i })).not.toBeInTheDocument();
+  });
+
+  it('hides Chatroom Local Manager when getLocalManagerUrl returns null', async () => {
+    mockedGetLocalManagerUrl.mockReturnValue(null);
+    render(<ChatroomTitleEditor {...base} isDesktop />);
+    await openMenu();
+    expect(screen.queryByText('Chatroom Local Manager')).not.toBeInTheDocument();
+  });
+
+  it('shows Chatroom Local Manager when getLocalManagerUrl returns a URL', async () => {
+    mockedGetLocalManagerUrl.mockReturnValue('http://localhost:3847');
+    render(<ChatroomTitleEditor {...base} isDesktop />);
+    await openMenu();
+    expect(screen.getByText('Chatroom Local Manager')).toBeInTheDocument();
   });
 });

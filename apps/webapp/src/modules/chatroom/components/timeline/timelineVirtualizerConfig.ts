@@ -6,13 +6,6 @@ export const TIMELINE_ESTIMATE_SIZE = 100;
 export const TIMELINE_OVERSCAN = 5;
 
 /**
- * For feeds at or below this count, render with expanded overscan and eagerly
- * measure rows after initial tail settle so the first scroll-up does not shift
- * when estimates are replaced by measured heights.
- */
-export const TIMELINE_EAGER_MEASURE_MAX_COUNT = 40;
-
-/**
  * 0-based index of the oldest row that should enter view before prefetching history.
  * Index 2 = the 3rd message from the top (matches release/v1.51.0 threshold).
  */
@@ -69,6 +62,9 @@ export function getTimelineItemKey(index: number, events: TimelineEvent[]): stri
 
 /** Gap between the jump-to-new-messages chip and the timeline footer chrome. */
 export const JUMP_TO_NEW_MESSAGES_GAP_PX = 8;
+
+/** z-index for jump-to-new-messages chip — must exceed getTimelineVirtualRowZIndex for any row count */
+export const JUMP_TO_NEW_MESSAGES_Z_INDEX = 50;
 
 /** Bottom CSS px offset so the chip sits above the measured footer chrome. */
 export function jumpToNewMessagesBottomOffset(

@@ -12,6 +12,10 @@ import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getSession } from './auth/session';
 import {
+  compactFileTreeDeltaOperationValidator,
+  expandFileTreeDeltaOperations,
+} from './lib/fileTreeDeltaOps';
+import {
   normalizeWorkingDir,
   requireRegisteredWorkspaceForMachine,
   validateDirPath,
@@ -45,6 +49,9 @@ const MAX_CONTENT_BYTES = 512 * 1024;
 const MAX_PENDING_REQUESTS = 50;
 
 const MAX_DIR_LISTING_BYTES = 200 * 1024;
+
+/** Max rows deleted per purgeFileTreeV2 invocation to stay under Convex read limits. */
+const PURGE_FILE_TREE_BATCH_SIZE = 200;
 const MAX_SEARCH_BYTES = 200 * 1024;
 const DIR_LISTING_STALENESS_MS = 10 * 1000; // 10 seconds — align with @ / explorer freshness budget
 const FILE_SEARCH_STALENESS_MS = 10 * 1000; // 10 seconds — align with @ / explorer freshness budget
@@ -176,7 +183,7 @@ export const requestFileContent = mutation({
 
     // Check for cached content (fresh if < 5 minutes old)
     const cached = await ctx.db
-      .query('chatroom_workspaceFileContent')
+      .query('chatroom_workspaceFileContentV2')
       .withIndex('by_machine_workingDir_path', (q: any) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
       )
@@ -901,14 +908,6 @@ export const getFileTreeShardsV3 = query({
 // Incremental File Tree Sync — revisioned deltas over V2/V3 checkpoints
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const fileTreeDeltaOperationValidator = v.object({
-  operation: v.union(v.literal('add'), v.literal('remove'), v.literal('type-change')),
-  path: v.string(),
-  entryType: v.optional(v.union(v.literal('file'), v.literal('directory'))),
-  size: v.optional(v.number()),
-  modifiedAt: v.optional(v.number()),
-});
-
 async function getCurrentFileTreeRevision(
   ctx: QueryCtx | MutationCtx,
   machineId: string,
@@ -949,7 +948,7 @@ export const applyFileTreeDeltaBatch = mutation({
     workingDir: v.string(),
     operationId: v.string(),
     baseRevision: v.number(),
-    operations: v.array(fileTreeDeltaOperationValidator),
+    operations: v.array(compactFileTreeDeltaOperationValidator),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -972,17 +971,13 @@ export const applyFileTreeDeltaBatch = mutation({
       throw new Error('File tree delta batch too large');
     }
     for (const operation of args.operations) {
-      validateFilePath(operation.path);
-      if (operation.operation === 'remove') {
-        if (
-          operation.entryType !== undefined ||
-          operation.size !== undefined ||
-          operation.modifiedAt !== undefined
-        ) {
+      validateFilePath(operation.p);
+      if (operation.o === 'r') {
+        if ('e' in operation || 's' in operation || 'm' in operation) {
           throw new Error('Remove operations must contain only a path');
         }
-      } else if (!operation.entryType) {
-        throw new Error(`${operation.operation} operations require entryType`);
+      } else if (!operation.e) {
+        throw new Error(`${operation.o} operations require entry type`);
       }
     }
 
@@ -1009,11 +1004,9 @@ export const applyFileTreeDeltaBatch = mutation({
     await ctx.db.insert('chatroom_workspaceFileTreeDelta', {
       machineId: args.machineId,
       workingDir,
-      operationId: args.operationId,
       baseRevision: args.baseRevision,
       revision,
       operations: args.operations,
-      createdAt: now,
     });
     await ctx.db.insert('chatroom_workspaceFileTreeDeltaOperation', {
       machineId: args.machineId,
@@ -1113,19 +1106,20 @@ export const getFileTreeDeltas = query({
       )
       .take(MAX_FILE_TREE_DELTAS_PER_QUERY + 1);
     const hasMore = rows.length > MAX_FILE_TREE_DELTAS_PER_QUERY;
-    const deltas = rows.slice(0, MAX_FILE_TREE_DELTAS_PER_QUERY).map((row) => ({
-      operationId: row.operationId,
+    const deltaRows = rows.slice(0, MAX_FILE_TREE_DELTAS_PER_QUERY);
+    // Return null when caught up to suppress idle subscription bandwidth
+    if (deltaRows.length === 0) {
+      return null;
+    }
+    const deltas = deltaRows.map((row) => ({
       baseRevision: row.baseRevision,
       revision: row.revision,
-      operations: row.operations,
-      createdAt: row.createdAt,
+      operations: expandFileTreeDeltaOperations(row.operations),
     }));
     return {
       status: 'ok' as const,
-      checkpointRevision,
-      currentRevision,
       deltas,
-      hasMore,
+      ...(hasMore ? { hasMore: true as const } : {}),
     };
   },
 });
@@ -1340,13 +1334,11 @@ export const getFileContentV2 = query({
       return null;
     }
 
+    const workingDir = normalizeWorkingDir(args.workingDir);
     const content = await ctx.db
       .query('chatroom_workspaceFileContentV2')
       .withIndex('by_machine_workingDir_path', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('filePath', args.filePath)
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
       )
       .first();
 
@@ -1701,18 +1693,64 @@ export const completeFileWriteRequest = mutation({
     }
 
     if (args.status === 'done') {
-      const cached = await ctx.db
-        .query('chatroom_workspaceFileContentV2')
-        .withIndex('by_machine_workingDir_path', (q: any) =>
-          q
-            .eq('machineId', request.machineId)
-            .eq('workingDir', request.workingDir)
-            .eq('filePath', request.filePath)
-        )
-        .first();
+      const workingDir = normalizeWorkingDir(request.workingDir);
 
-      if (cached) {
-        await ctx.db.delete('chatroom_workspaceFileContentV2', cached._id);
+      if ((request.operation === 'create' || request.operation === 'update') && request.data) {
+        const now = Date.now();
+        const existing = await ctx.db
+          .query('chatroom_workspaceFileContentV2')
+          .withIndex('by_machine_workingDir_path', (q: any) =>
+            q
+              .eq('machineId', request.machineId)
+              .eq('workingDir', workingDir)
+              .eq('filePath', request.filePath)
+          )
+          .first();
+
+        const row = {
+          machineId: request.machineId,
+          workingDir,
+          filePath: request.filePath,
+          data: request.data,
+          encoding: 'utf8' as const,
+          truncated: false,
+          fetchedAt: now,
+        };
+
+        if (existing) {
+          await ctx.db.patch('chatroom_workspaceFileContentV2', existing._id, row);
+        } else {
+          await ctx.db.insert('chatroom_workspaceFileContentV2', row);
+        }
+
+        const contentRequest = await ctx.db
+          .query('chatroom_workspaceFileContentRequests')
+          .withIndex('by_machine_workingDir_path', (q: any) =>
+            q
+              .eq('machineId', request.machineId)
+              .eq('workingDir', workingDir)
+              .eq('filePath', request.filePath)
+          )
+          .first();
+        if (contentRequest) {
+          await ctx.db.patch('chatroom_workspaceFileContentRequests', contentRequest._id, {
+            status: 'done' as const,
+            updatedAt: now,
+          });
+        }
+      } else if (request.operation === 'delete') {
+        const cached = await ctx.db
+          .query('chatroom_workspaceFileContentV2')
+          .withIndex('by_machine_workingDir_path', (q: any) =>
+            q
+              .eq('machineId', request.machineId)
+              .eq('workingDir', workingDir)
+              .eq('filePath', request.filePath)
+          )
+          .first();
+        if (cached) {
+          await ctx.db.delete('chatroom_workspaceFileContentV2', cached._id);
+        }
       }
     }
   },
@@ -1722,6 +1760,7 @@ export const completeFileWriteRequest = mutation({
 
 /**
  * Purges all file tree data for a workspace (v1 + v2 + requests).
+ * Batched across invocations to stay under Convex read limits.
  */
 export const purgeFileTreeV2 = mutation({
   args: {
@@ -1729,6 +1768,7 @@ export const purgeFileTreeV2 = mutation({
     machineId: v.string(),
     workingDir: v.string(),
   },
+  returns: v.object({ complete: v.boolean() }),
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) {
@@ -1737,7 +1777,9 @@ export const purgeFileTreeV2 = mutation({
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     const workingDir = normalizeWorkingDir(args.workingDir);
 
-    // Delete v2 file tree
+    let hitBatchLimit = false;
+
+    // Delete v2 file tree (singleton)
     const treeV2 = await ctx.db
       .query('chatroom_workspaceFileTreeV2')
       .withIndex('by_machine_workingDir', (q: any) =>
@@ -1746,7 +1788,7 @@ export const purgeFileTreeV2 = mutation({
       .first();
     if (treeV2) await ctx.db.delete('chatroom_workspaceFileTreeV2', treeV2._id);
 
-    // Delete v3 manifest + shards
+    // Delete v3 manifest + shards (batch shards, delete manifest only after all done)
     const manifestV3 = await ctx.db
       .query('chatroom_workspaceFileTreeManifestV3')
       .withIndex('by_machine_workingDir', (q: any) =>
@@ -1762,13 +1804,18 @@ export const purgeFileTreeV2 = mutation({
             .eq('workingDir', workingDir)
             .eq('syncGeneration', manifestV3.syncGeneration)
         )
-        .collect();
-      for (const shard of shards)
+        .take(PURGE_FILE_TREE_BATCH_SIZE);
+      for (const shard of shards) {
         await ctx.db.delete('chatroom_workspaceFileTreeShardV3', shard._id);
-      await ctx.db.delete('chatroom_workspaceFileTreeManifestV3', manifestV3._id);
+      }
+      if (shards.length === PURGE_FILE_TREE_BATCH_SIZE) {
+        hitBatchLimit = true;
+      } else {
+        await ctx.db.delete('chatroom_workspaceFileTreeManifestV3', manifestV3._id);
+      }
     }
 
-    // Delete incremental checkpoint, delta payloads, and idempotency receipts
+    // Delete incremental checkpoint (singleton)
     const checkpoint = await ctx.db
       .query('chatroom_workspaceFileTreeCheckpoint')
       .withIndex('by_machine_workingDir', (q: any) =>
@@ -1779,27 +1826,31 @@ export const purgeFileTreeV2 = mutation({
       await ctx.db.delete('chatroom_workspaceFileTreeCheckpoint', checkpoint._id);
     }
 
+    // Delete deltas (batched)
     const deltas = await ctx.db
       .query('chatroom_workspaceFileTreeDelta')
       .withIndex('by_machine_workingDir_revision', (q: any) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
-      .collect();
+      .take(PURGE_FILE_TREE_BATCH_SIZE);
     for (const delta of deltas) {
       await ctx.db.delete('chatroom_workspaceFileTreeDelta', delta._id);
     }
+    if (deltas.length === PURGE_FILE_TREE_BATCH_SIZE) hitBatchLimit = true;
 
+    // Delete delta operations (batched)
     const deltaOperations = await ctx.db
       .query('chatroom_workspaceFileTreeDeltaOperation')
       .withIndex('by_machine_workingDir_operationId', (q: any) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
-      .collect();
+      .take(PURGE_FILE_TREE_BATCH_SIZE);
     for (const operation of deltaOperations) {
       await ctx.db.delete('chatroom_workspaceFileTreeDeltaOperation', operation._id);
     }
+    if (deltaOperations.length === PURGE_FILE_TREE_BATCH_SIZE) hitBatchLimit = true;
 
-    // Delete v1 file tree
+    // Delete v1 file tree (singleton)
     const treeV1 = await ctx.db
       .query('chatroom_workspaceFileTree')
       .withIndex('by_machine_workingDir', (q: any) =>
@@ -1808,14 +1859,17 @@ export const purgeFileTreeV2 = mutation({
       .first();
     if (treeV1) await ctx.db.delete('chatroom_workspaceFileTree', treeV1._id);
 
-    // Delete pending requests
+    // Delete pending requests (batched)
     const requests = await ctx.db
       .query('chatroom_workspaceFileTreeRequests')
       .withIndex('by_machine_workingDir', (q: any) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
-      .collect();
+      .take(PURGE_FILE_TREE_BATCH_SIZE);
     for (const req of requests) await ctx.db.delete('chatroom_workspaceFileTreeRequests', req._id);
+    if (requests.length === PURGE_FILE_TREE_BATCH_SIZE) hitBatchLimit = true;
+
+    return { complete: !hitBatchLimit };
   },
 });
 

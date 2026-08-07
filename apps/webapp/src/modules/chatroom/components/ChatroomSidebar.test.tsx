@@ -7,21 +7,44 @@ import { useChatroomListing } from '../context/ChatroomListingContext';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const mockUpdateStatus = vi.fn().mockResolvedValue(undefined);
+const mockArchiveChatroom = vi.fn().mockResolvedValue({ success: true, disabledPromptCount: 0 });
 const mockSendCommand = vi.fn().mockResolvedValue(undefined);
+const mockStopAllCommandRuns = vi.fn().mockResolvedValue({ stoppedCount: 0 });
 const mockRestartOfflineAgents = vi.fn().mockResolvedValue({ restartedRoles: ['builder'] });
+const mockMarkAsUnread = vi.fn().mockResolvedValue(undefined);
+const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
 const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 const mockPush = vi.fn();
 
 vi.mock('sonner', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
+    error: (...args: unknown[]) => mockToastError(...args),
   },
 }));
 
 vi.mock('./AgentPanel/UnifiedAgentListModal', () => ({
   UnifiedAgentListModal: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="start-agent-modal">Start Agent Modal</div> : null,
+}));
+
+vi.mock('./LifecycleConfirmDialog', () => ({
+  LifecycleConfirmDialog: ({ open, onOpenChange }: any) =>
+    open ? (
+      <div data-testid="archive-dialog">
+        <span>Archive this chat?</span>
+        <button onClick={() => onOpenChange(false)}>Cancel</button>
+        <button
+          onClick={() => {
+            // Simulate confirm
+            onOpenChange(false);
+          }}
+        >
+          Archive
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -33,11 +56,20 @@ vi.mock('convex-helpers/react/sessions', () => ({
     const ref = mutationRef as { name?: string };
     if (ref && typeof ref === 'object' && 'name' in ref) {
       const name = (ref as { name: string }).name;
-      if (name === 'updateStatus') {
-        return mockUpdateStatus;
+      if (name === 'markAsUnread') {
+        return mockMarkAsUnread;
+      }
+      if (name === 'markAsRead') {
+        return mockMarkAsRead;
+      }
+      if (name === 'archive') {
+        return mockArchiveChatroom;
       }
       if (name === 'sendCommand') {
         return mockSendCommand;
+      }
+      if (name === 'stopAllCommandRunsForChatroom') {
+        return mockStopAllCommandRuns;
       }
       if (name === 'restartOfflineAgentsFromConfig') {
         return mockRestartOfflineAgents;
@@ -50,11 +82,17 @@ vi.mock('convex-helpers/react/sessions', () => ({
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     chatrooms: {
-      updateStatus: { name: 'updateStatus' },
+      archive: { name: 'archive' },
+      getLifecycleImpacts: { name: 'getLifecycleImpacts' },
+      markAsUnread: { name: 'markAsUnread' },
+      markAsRead: { name: 'markAsRead' },
     },
     machines: {
       sendCommand: { name: 'sendCommand' },
       restartOfflineAgentsFromConfig: { name: 'restartOfflineAgentsFromConfig' },
+    },
+    commands: {
+      stopAllCommandRunsForChatroom: { name: 'stopAllCommandRunsForChatroom' },
     },
   },
 }));
@@ -69,7 +107,7 @@ interface TestChatroom {
   _id: string;
   _creationTime: number;
   status: 'active' | 'completed';
-  chatStatus: 'working' | 'active' | 'idle' | 'completed';
+  chatStatus: 'working' | 'active' | 'transitioning' | 'idle' | 'completed';
   name?: string;
   teamId?: string;
   teamName?: string;
@@ -125,13 +163,18 @@ const renderSidebar = (chatrooms: TestChatroom[]) => {
 
 describe('ChatroomSidebar', () => {
   beforeEach(() => {
-    mockUpdateStatus.mockReset();
-    mockUpdateStatus.mockResolvedValue(undefined);
+    mockArchiveChatroom.mockReset();
+    mockArchiveChatroom.mockResolvedValue({ success: true, disabledPromptCount: 0 });
     mockSendCommand.mockReset();
     mockSendCommand.mockResolvedValue(undefined);
+    mockStopAllCommandRuns.mockReset();
+    mockStopAllCommandRuns.mockResolvedValue({ stoppedCount: 0 });
     mockRestartOfflineAgents.mockReset();
     mockRestartOfflineAgents.mockResolvedValue({ restartedRoles: ['builder'] });
+    mockMarkAsUnread.mockReset();
+    mockMarkAsRead.mockReset();
     mockToastSuccess.mockReset();
+    mockToastError.mockReset();
     mockPush.mockReset();
     (useChatroomListing as ReturnType<typeof vi.fn>).mockClear();
   });
@@ -140,6 +183,19 @@ describe('ChatroomSidebar', () => {
     const chatroom = makeChatroom();
     renderSidebar([chatroom]);
     expect(screen.getByText('Test Chat')).toBeInTheDocument();
+  });
+
+  it('renders skeleton loader while chatrooms are loading', () => {
+    (useChatroomListing as ReturnType<typeof vi.fn>).mockReturnValue({
+      chatrooms: undefined,
+      isLoading: true,
+    });
+    render(<ChatroomSidebar activeChatroomId="chr-1" />);
+
+    expect(screen.getByRole('status', { name: 'Loading chatrooms' })).toBeInTheDocument();
+    expect(screen.getByText('Chatrooms')).toBeInTheDocument();
+    // No real chatroom items during load
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('right-click on non-completed item shows context menu with "Archive Chat"', async () => {
@@ -158,7 +214,7 @@ describe('ChatroomSidebar', () => {
     });
   });
 
-  it('selecting "Archive Chat" calls updateStatus with status completed', async () => {
+  it('selecting "Archive Chat" opens archive confirmation dialog (does not call mutation directly)', async () => {
     const chatroom = makeChatroom();
     renderSidebar([chatroom]);
 
@@ -176,10 +232,79 @@ describe('ChatroomSidebar', () => {
     fireEvent.click(archiveMenuItem);
 
     await waitFor(() => {
-      expect(mockUpdateStatus).toHaveBeenCalledWith({
+      expect(screen.getByTestId('archive-dialog')).toBeInTheDocument();
+    });
+
+    // Mutation should NOT be called on menu select — only on dialog confirm
+    expect(mockArchiveChatroom).not.toHaveBeenCalled();
+  });
+
+  it('shows "Mark as Unread" in context menu for active chatrooms', async () => {
+    const chatroom = makeChatroom();
+    renderSidebar([chatroom]);
+
+    const sidebarItem = screen.getByText('Test Chat').closest('[role="button"]');
+    expect(sidebarItem).toBeInTheDocument();
+
+    if (sidebarItem) {
+      fireEvent.contextMenu(sidebarItem, { button: 2 });
+    }
+
+    await waitFor(() => {
+      expect(screen.getByText('Mark as Unread')).toBeInTheDocument();
+    });
+  });
+
+  it('selecting "Mark as Unread" calls markAsUnread with chatroomId', async () => {
+    const chatroom = makeChatroom();
+    renderSidebar([chatroom]);
+
+    const sidebarItem = screen.getByText('Test Chat').closest('[role="button"]');
+    if (sidebarItem) {
+      fireEvent.contextMenu(sidebarItem, { button: 2 });
+    }
+
+    await waitFor(() => {
+      expect(screen.getByText('Mark as Unread')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Mark as Unread'));
+
+    await waitFor(() => {
+      expect(mockMarkAsUnread).toHaveBeenCalledWith({
         chatroomId: chatroom._id,
-        status: 'completed',
       });
+      expect(mockMarkAsRead).not.toHaveBeenCalled();
+    });
+  });
+
+  it('shows "Mark as Read" when chatroom hasUnread is true', async () => {
+    const chatroom = makeChatroom({ hasUnread: true });
+    renderSidebar([chatroom]);
+
+    const sidebarItem = screen.getByText('Test Chat').closest('[role="button"]');
+    if (sidebarItem) fireEvent.contextMenu(sidebarItem, { button: 2 });
+
+    await waitFor(() => {
+      expect(screen.getByText('Mark as Read')).toBeInTheDocument();
+      expect(screen.queryByText('Mark as Unread')).not.toBeInTheDocument();
+    });
+  });
+
+  it('selecting "Mark as Read" calls markAsRead with chatroomId', async () => {
+    const chatroom = makeChatroom({ hasUnread: true });
+    renderSidebar([chatroom]);
+
+    const sidebarItem = screen.getByText('Test Chat').closest('[role="button"]');
+    if (sidebarItem) fireEvent.contextMenu(sidebarItem, { button: 2 });
+
+    await waitFor(() => expect(screen.getByText('Mark as Read')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Mark as Read'));
+
+    await waitFor(() => {
+      expect(mockMarkAsRead).toHaveBeenCalledWith({ chatroomId: chatroom._id });
+      expect(mockMarkAsUnread).not.toHaveBeenCalled();
     });
   });
 
@@ -320,5 +445,26 @@ describe('ChatroomSidebar', () => {
     });
 
     expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it('stop button stops agents AND command processes for the chatroom', async () => {
+    const chatroom = makeChatroom({
+      remoteAgentStatus: 'running',
+      runningAgentConfigs: [{ machineId: 'machine-1', role: 'builder' }],
+    });
+    renderSidebar([chatroom]);
+
+    fireEvent.click(screen.getByTitle('Stop agent and processes'));
+
+    await waitFor(() => {
+      expect(mockSendCommand).toHaveBeenCalledWith({
+        machineId: 'machine-1',
+        type: 'stop-agent',
+        payload: { chatroomId: chatroom._id, role: 'builder' },
+      });
+      expect(mockStopAllCommandRuns).toHaveBeenCalledWith({
+        chatroomId: chatroom._id,
+      });
+    });
   });
 });

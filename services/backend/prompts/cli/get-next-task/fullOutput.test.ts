@@ -15,34 +15,11 @@ const BASE_PARAMS = {
     senderRole: 'planner',
     content: 'Please implement',
   },
-  currentContext: null,
-  originMessage: {
-    senderRole: 'user',
-    content: 'Please implement',
-    classification: 'new_feature',
-  },
-  followUpCountSinceOrigin: 0,
-  originMessageCreatedAt: null,
   isEntryPoint: false,
   availableHandoffTargets: ['planner'],
 };
 
 describe('generateFullCliOutput — nativeIntegration', () => {
-  test('native mode includes context staleness warnings like CLI', () => {
-    const output = generateFullCliOutput({
-      ...BASE_PARAMS,
-      teamId: 'duo',
-      role: 'planner',
-      isEntryPoint: true,
-      nativeIntegration: true,
-      currentContext: { content: 'Old focus', elapsedHours: 30 },
-    });
-
-    expect(output).toContain('<context>');
-    expect(output).toContain('⚠️ Context is 1d old.');
-    expect(output).toContain('context read --chatroom-id="test-chatroom-id"');
-  });
-
   test('native mode returns task content, eager templates, next steps, and handoff commands', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
@@ -200,6 +177,51 @@ describe('generateFullCliOutput — snippet attachments in primary delivery', ()
     expect(output).toContain('<attachments>');
     expect(output).toContain('file-source="src/foo.ts"');
     expect(output).toContain('const x = 1;');
+  });
+});
+
+describe('generateFullCliOutput — planner enhancer guidance', () => {
+  const plannerParams = {
+    ...BASE_PARAMS,
+    teamId: 'duo',
+    role: 'planner',
+    isEntryPoint: true,
+    availableHandoffTargets: ['builder', 'user'],
+    message: {
+      _id: 'test-message-id',
+      senderRole: 'user',
+      content: 'Please implement',
+    },
+  };
+
+  test('includes enhancer section when plannerEnhancerEnabled', () => {
+    const output = generateFullCliOutput({
+      ...plannerParams,
+      plannerEnhancerEnabled: true,
+    });
+
+    expect(output).toContain('<handoff-enhancer>');
+    expect(output).toContain('One check-in per builder delegation');
+    expect(output).toContain('asynchronously');
+  });
+
+  test('omits enhancer section when disabled', () => {
+    const output = generateFullCliOutput({
+      ...plannerParams,
+      plannerEnhancerEnabled: false,
+    });
+
+    expect(output).not.toContain('<handoff-enhancer>');
+  });
+
+  test('native mode includes enhancer section when enabled', () => {
+    const output = generateFullCliOutput({
+      ...plannerParams,
+      nativeIntegration: true,
+      plannerEnhancerEnabled: true,
+    });
+
+    expect(output).toContain('<handoff-enhancer>');
   });
 });
 

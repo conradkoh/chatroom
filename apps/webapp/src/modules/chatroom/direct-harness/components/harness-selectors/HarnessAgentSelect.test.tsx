@@ -50,6 +50,22 @@ describe('HarnessAgentSelect', () => {
     );
   });
 
+  it('uses conventional chatroom picker trigger styling', () => {
+    render(
+      <HarnessAgentSelect
+        agents={[{ name: 'builder', mode: 'primary' }]}
+        value="builder"
+        onValueChange={vi.fn()}
+        resolvedAgent="builder"
+      />
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Select agent' });
+    expect(trigger.className).toContain('bg-chatroom-bg-tertiary');
+    expect(trigger.className).toContain('uppercase');
+    expect(trigger.className).not.toContain('border-input');
+  });
+
   it('shows "default" for single-role harnesses', () => {
     render(
       <HarnessAgentSelect
@@ -62,6 +78,22 @@ describe('HarnessAgentSelect', () => {
 
     expect(screen.getByRole('button', { name: 'Select agent' })).toHaveTextContent('default');
     expect(screen.getByRole('button', { name: 'Select agent' })).not.toBeDisabled();
+  });
+
+  it('uses conventional chatroom picker trigger styling', () => {
+    render(
+      <HarnessAgentSelect
+        agents={[{ name: 'builder', mode: 'primary' }]}
+        value="builder"
+        onValueChange={vi.fn()}
+        resolvedAgent="builder"
+      />
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Select agent' });
+    expect(trigger.className).toContain('bg-chatroom-bg-tertiary');
+    expect(trigger.className).toContain('uppercase');
+    expect(trigger.className).not.toContain('border-input');
   });
 
   it('renders agent names when multiple roles are available', () => {

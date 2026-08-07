@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AgenticQueryPanel } from './AgenticQueryPanel';
@@ -45,6 +46,10 @@ vi.mock('./AgenticQueryHarnessSync', () => ({
   AgenticQueryHarnessSync: () => null,
 }));
 
+vi.mock('../../direct-harness/hooks/useRefreshCapabilities', () => ({
+  useRefreshCapabilities: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => ({
   useWorkspaceFileTreeEntries: () => ({
     entries: [],
@@ -54,12 +59,29 @@ vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => 
   }),
 }));
 
-vi.mock('../hooks/useAgenticQueryRunTurnStore', () => ({
-  useAgenticQueryRunTurnStore: () => ({
-    turns: [],
-    streamingOverlay: null,
-    isLoading: false,
+const mockScrollToBottom = vi.fn();
+let mockIsPinned = true;
+
+vi.mock('@/modules/chatroom/hooks/useScrollController', () => ({
+  useScrollController: () => ({
+    controller: {
+      current: {
+        attach: vi.fn(),
+        detach: vi.fn(),
+        onNewMessages: vi.fn(),
+        snapToBottom: vi.fn(),
+      },
+    },
+    isPinned: mockIsPinned,
+    scrollToBottom: mockScrollToBottom,
+    beginResize: vi.fn(),
+    endResize: vi.fn(),
   }),
+}));
+
+const mockUseAgenticQueryRunTurnStore = vi.fn();
+vi.mock('../hooks/useAgenticQueryRunTurnStore', () => ({
+  useAgenticQueryRunTurnStore: (...args: unknown[]) => mockUseAgenticQueryRunTurnStore(...args),
 }));
 
 Object.defineProperty(window, 'matchMedia', {
@@ -79,12 +101,20 @@ Object.defineProperty(window, 'matchMedia', {
 describe('AgenticQueryPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsPinned = true;
+    mockScrollToBottom.mockClear();
     mockSubmit.mockResolvedValue(undefined);
     mockToSubmitSelection.mockReturnValue({ harnessName: 'opencode-sdk' });
+    mockUseAgenticQueryRunTurnStore.mockReturnValue({
+      turns: [],
+      streamingOverlay: null,
+      isLoading: false,
+    });
     mockUseAgenticQuery.mockReturnValue({
       query: { status: 'draft', mode: 'search', title: 'Agentic Search' },
       turns: [],
       isLoading: false,
+      isNotFound: false,
       isRunning: false,
       isDraft: true,
       canFollowUp: false,
@@ -92,6 +122,34 @@ describe('AgenticQueryPanel', () => {
       harnessSessionId: undefined,
       submit: mockSubmit,
     });
+  });
+
+  it('shows unavailable message and calls onUnavailable when query is not found', () => {
+    const onUnavailable = vi.fn();
+    mockUseAgenticQuery.mockReturnValue({
+      query: undefined,
+      turns: [],
+      isLoading: false,
+      isNotFound: true,
+      isRunning: false,
+      isDraft: false,
+      canFollowUp: false,
+      canSubmit: false,
+      activeRunId: undefined,
+      submit: mockSubmit,
+    });
+
+    render(
+      <AgenticQueryPanel
+        queryId="query-missing"
+        mode="search"
+        workspaceId="ws-1"
+        onUnavailable={onUnavailable}
+      />
+    );
+
+    expect(screen.getByTestId('agentic-query-unavailable')).toBeInTheDocument();
+    expect(onUnavailable).toHaveBeenCalled();
   });
 
   it('renders config bar for draft queries', () => {
@@ -142,7 +200,7 @@ describe('AgenticQueryPanel', () => {
     expect(screen.getByTestId('agentic-query-config-bar')).toBeInTheDocument();
   });
 
-  it('keeps the composer above results with latest response directly below', () => {
+  it('renders turns in chronological order with newest at bottom', () => {
     mockUseAgenticQuery.mockReturnValue({
       query: { status: 'complete', mode: 'search', title: 'How auth works' },
       turns: [
@@ -175,14 +233,109 @@ describe('AgenticQueryPanel', () => {
     const composer = screen.getByTestId('agentic-query-composer');
     const results = screen.getByTestId('agentic-query-results');
     const latestTurn = screen.getByTestId('agentic-query-latest-turn');
+    const historyTurn = screen.getByTestId('agentic-query-history-turn');
 
     expect(
-      composer.compareDocumentPosition(results) & Node.DOCUMENT_POSITION_FOLLOWING
+      results.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    // Oldest turn appears before newest in document order
+    expect(
+      historyTurn.compareDocumentPosition(latestTurn) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    // Newest turn is last in results, directly above composer
+    expect(
+      latestTurn.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(latestTurn).toHaveTextContent('Latest question');
     expect(latestTurn).toHaveTextContent('Latest answer');
     expect(screen.getByText('First answer')).toBeInTheDocument();
     expect(screen.getByText('First question')).toBeInTheDocument();
+  });
+
+  it('shows collapsed thinking block while streaming reasoning tokens', () => {
+    mockUseAgenticQueryRunTurnStore.mockReturnValue({
+      turns: [],
+      streamingOverlay: {
+        turnId: 'turn-stream',
+        textContent: '',
+        reasoningContent: 'Let me search the codebase...',
+      },
+      isLoading: false,
+    });
+
+    mockUseAgenticQuery.mockReturnValue({
+      query: { status: 'running', mode: 'search', title: 'Search' },
+      turns: [{ _id: 'turn-1', seq: 0, userMessage: 'find auth', createdAt: 1 }],
+      isLoading: false,
+      isRunning: true,
+      isDraft: false,
+      canFollowUp: false,
+      canSubmit: false,
+      activeRunId: 'run-1',
+      submit: mockSubmit,
+    });
+
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+    expect(screen.getByText('Thinking')).toBeInTheDocument();
+    expect(screen.queryByText('Let me search the codebase...')).not.toBeInTheDocument();
+  });
+
+  it('shows jump to new messages button when scroll is unpinned', () => {
+    mockIsPinned = false;
+    mockUseAgenticQuery.mockReturnValue({
+      query: { status: 'complete', mode: 'search', title: 'Test' },
+      turns: [{ _id: 'turn-1', seq: 0, userMessage: 'q', assistantResponse: 'a', createdAt: 1 }],
+      isLoading: false,
+      isRunning: false,
+      isDraft: false,
+      canFollowUp: true,
+      canSubmit: false,
+      submit: mockSubmit,
+    });
+
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+    expect(screen.getByTestId('agentic-query-jump-to-new')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Jump to new messages' })).toBeInTheDocument();
+  });
+
+  it('hides jump to new messages button when pinned', () => {
+    mockIsPinned = true;
+    mockUseAgenticQuery.mockReturnValue({
+      query: { status: 'complete', mode: 'search', title: 'Test' },
+      turns: [{ _id: 'turn-1', seq: 0, userMessage: 'q', assistantResponse: 'a', createdAt: 1 }],
+      isLoading: false,
+      isRunning: false,
+      isDraft: false,
+      canFollowUp: true,
+      canSubmit: false,
+      submit: mockSubmit,
+    });
+
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+    expect(screen.queryByTestId('agentic-query-jump-to-new')).toBeNull();
+  });
+
+  it('calls scrollToBottom when jump button is clicked', async () => {
+    mockIsPinned = false;
+    const user = userEvent.setup();
+    mockUseAgenticQuery.mockReturnValue({
+      query: { status: 'complete', mode: 'search', title: 'Test' },
+      turns: [{ _id: 'turn-1', seq: 0, userMessage: 'q', assistantResponse: 'a', createdAt: 1 }],
+      isLoading: false,
+      isRunning: false,
+      isDraft: false,
+      canFollowUp: true,
+      canSubmit: false,
+      submit: mockSubmit,
+    });
+
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+    await user.click(screen.getByRole('button', { name: 'Jump to new messages' }));
+    expect(mockScrollToBottom).toHaveBeenCalledTimes(1);
   });
 
   it('submits on Enter', async () => {

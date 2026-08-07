@@ -14,7 +14,10 @@ export function PickerScrollBody({
   maxHeightClassName = 'max-h-[60vh]',
 }: PickerScrollBodyProps) {
   return (
-    <div data-picker-scroll-body className={cn('overflow-y-auto', maxHeightClassName, className)}>
+    <div
+      data-picker-scroll-body
+      className={cn('min-h-0 overflow-y-auto overscroll-contain', maxHeightClassName, className)}
+    >
       {children}
     </div>
   );

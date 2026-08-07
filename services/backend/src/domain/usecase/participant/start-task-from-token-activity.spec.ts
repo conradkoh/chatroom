@@ -28,12 +28,15 @@ async function createTestSession(id: string) {
   return { sessionId: id as SessionId };
 }
 
-async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+async function createChatroom(
+  sessionId: SessionId,
+  extraRoles?: string[]
+): Promise<Id<'chatroom_rooms'>> {
   return await t.mutation(api.chatrooms.create, {
     sessionId,
     teamId: 'duo',
     teamName: 'Duo Team',
-    teamRoles: ['planner', 'builder'],
+    teamRoles: ['planner', 'builder', ...(extraRoles ?? [])],
     teamEntryPoint: 'builder',
   });
 }
@@ -233,6 +236,27 @@ describe('startTaskFromTokenActivity — acknowledged path', () => {
     });
 
     expect(await getTaskStatus(taskId)).toBe('acknowledged');
+  });
+
+  test('starts acknowledged task on token activity via lastInFlightTaskId match', async () => {
+    const { sessionId } = await createTestSession('stta-inflight');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    const taskId = await seedAcknowledgedTask(chatroomId, 'builder');
+
+    await t.run(async (ctx) => {
+      await startTaskFromTokenActivity(
+        ctx,
+        { chatroomId, role: 'builder' },
+        {
+          lastStatus: 'agent.exited',
+          lastSeenAction: 'agent.turn-completed',
+          lastInFlightTaskId: taskId,
+        }
+      );
+    });
+
+    expect(await getTaskStatus(taskId)).toBe('in_progress');
   });
 });
 

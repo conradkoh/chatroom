@@ -117,13 +117,12 @@ function ExplorerPanelHeader({
             </button>
           )}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer rounded-none p-0.5"
-                aria-label="Explorer options"
-              >
-                <MoreHorizontal size={13} />
-              </button>
+            <DropdownMenuTrigger
+              type="button"
+              className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors cursor-pointer rounded-none p-0.5"
+              aria-label="Explorer options"
+            >
+              <MoreHorizontal size={13} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[180px]">
               <DropdownMenuCheckboxItem

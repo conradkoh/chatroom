@@ -116,6 +116,17 @@ Agents must NEVER close backlog items autonomously. If an item looks stale or al
 
 Give a concise, factual reason (e.g. \`User confirmed: shipped in PR #119\`).
 
+### Delete
+Permanently removes an item from any status (backlog / pending_user_review / closed). NOT a lifecycle
+transition — the row is hard-deleted and cannot be reopened. Use for mistakes or items that must not persist.
+
+\`\`\`
+${cliEnvPrefix}chatroom backlog delete --chatroom-id=<id> --role=<role> --backlog-item-id=<id>
+\`\`\`
+
+⚠️ **RESTRICTED: Only use when the user explicitly asks you to delete an item.**
+Agents must NEVER delete backlog items autonomously. For stale/superseded items, prefer \`close\` or \`mark-for-review\` so the user decides.
+
 ---
 
 ## Lifecycle
@@ -131,6 +142,8 @@ stateDiagram-v2
     closed --> backlog: reopen
 \`\`\`
 
+\`delete\` is a hard removal outside this FSM — not a status transition.
+
 ### Command decision table
 
 | Situation | Command |
@@ -139,6 +152,7 @@ stateDiagram-v2
 | PR merged and verified | \`complete\` |
 | Stale/duplicate/won't fix | \`close --reason=...\` |
 | Mistakenly completed early | \`reopen\` then \`mark-for-review\` |
+| Permanently remove a mistaken item (cannot be undone) | \`delete\` (user-only) |
 
 Reference: \`docs/plans/backlog-item-lifecycle-and-attachments.md\`
 

@@ -1,7 +1,8 @@
 'use client';
 
+import { ChevronRight, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
-import { ChevronRightIcon, ChevronDownIcon } from '@radix-ui/react-icons';
+
 import { cn } from '@/lib/utils';
 
 interface ThinkingBlockProps {
@@ -24,9 +25,9 @@ export function ThinkingBlock({ content, className }: ThinkingBlockProps) {
         aria-expanded={expanded}
       >
         {expanded ? (
-          <ChevronDownIcon className="shrink-0 h-3.5 w-3.5" />
+          <ChevronDown className="shrink-0 h-3.5 w-3.5" />
         ) : (
-          <ChevronRightIcon className="shrink-0 h-3.5 w-3.5" />
+          <ChevronRight className="shrink-0 h-3.5 w-3.5" />
         )}
         <span className="text-[10px] font-bold uppercase tracking-wider">Thinking</span>
       </button>

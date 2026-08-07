@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { getBuilderGuidance } from '../../../prompts/cli/roles/builder';
 import { getPlannerGuidance } from '../../../prompts/cli/roles/planner';
+import { getDelegationGuidelinesSection } from '../../../prompts/cli/sections/delegation-guidelines';
 import { composeSystemPrompt } from '../../../prompts/generator';
 import {
   getHandoffContinuityRule,
@@ -42,7 +43,7 @@ describe('native session continuity', () => {
     expect(guidance).not.toContain('task injection');
     expect(guidance).not.toMatch(/task read --chatroom-id/i);
     expect(guidance).toMatch(/end your turn/i);
-    expect(guidance).toContain('messages list');
+    expect(guidance).toContain('messages download');
   });
 
   test('builder guidance with nativeIntegration=true omits get-next-task and Level A/B', () => {
@@ -140,16 +141,61 @@ describe('native session continuity', () => {
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('last action');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('End your turn now');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('builder');
-    expect(getNativeHandoffTurnEndGuidance('builder')).toContain('messages list');
+    expect(getNativeHandoffTurnEndGuidance('builder')).toContain('messages download');
   });
 
   test('getNativeHandoffTurnEndGuidance for user handoff', () => {
     expect(getNativeHandoffTurnEndGuidance('user')).toContain('End your turn now');
-    expect(getNativeHandoffTurnEndGuidance('user')).not.toContain('messages list');
+    expect(getNativeHandoffTurnEndGuidance('user')).not.toContain('messages download');
   });
 
   test('getNativePlannerDelegationWaitNote', () => {
     expect(getNativePlannerDelegationWaitNote()).toMatch(/last action/i);
-    expect(getNativePlannerDelegationWaitNote()).toContain('messages list');
+    expect(getNativePlannerDelegationWaitNote()).toContain('messages download');
+  });
+});
+
+describe('completion-gates guidance', () => {
+  const builderParams = {
+    role: 'builder',
+    teamRoles: ['planner', 'builder'],
+    isEntryPoint: false,
+    convexUrl: 'http://127.0.0.1:3210',
+    codeChangesTarget: 'planner',
+    questionTarget: 'planner',
+  } as const;
+
+  const plannerParams = {
+    role: 'planner',
+    teamRoles: ['planner', 'builder'],
+    isEntryPoint: true,
+    convexUrl: 'http://127.0.0.1:3210',
+    chatroomId: 'test-room',
+  } as const;
+
+  test('builder guidance includes completion gates', () => {
+    const guidance = getBuilderGuidance(builderParams);
+    expect(guidance).toContain('Completion gates');
+    expect(guidance).toContain('verified end-to-end');
+    expect(guidance).toContain('mark-for-review');
+  });
+
+  test('planner guidance includes partial-work handback rule', () => {
+    const guidance = getPlannerGuidance({
+      role: 'planner',
+      teamRoles: ['planner', 'builder'],
+      isEntryPoint: true,
+      convexUrl: 'http://127.0.0.1:3210',
+      chatroomId: 'test-room',
+    });
+    expect(guidance).toContain('partial work');
+    expect(guidance).not.toContain('Partial implementation is an automatic handback');
+    expect(guidance).not.toContain('deliver partial results');
+  });
+
+  test('delegation guidelines define shippable slice', () => {
+    const section = getDelegationGuidelinesSection({ hasBuilder: true });
+    expect(section).toContain('verified end-to-end');
+    expect(section).not.toContain('deliver partial results');
   });
 });

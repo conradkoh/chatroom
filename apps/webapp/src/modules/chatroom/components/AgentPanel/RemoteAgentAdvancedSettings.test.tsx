@@ -15,11 +15,20 @@ describe('RemoteAgentAdvancedSettings', () => {
     render(<RemoteAgentAdvancedSettings {...baseProps} disabled />);
 
     expect(screen.getByText('Reconnect to last session')).toBeInTheDocument();
-    expect(screen.getByRole('switch', { name: 'Reconnect to last session' })).toBeDisabled();
+    expect(screen.getByRole('switch', { name: 'Reconnect to last session' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
   });
 
   it('hides reconnect toggle for harnesses without daemon-memory resume', () => {
     render(<RemoteAgentAdvancedSettings {...baseProps} agentHarness="cursor" />);
+
+    expect(screen.queryByText('Reconnect to last session')).not.toBeInTheDocument();
+  });
+
+  it('hides reconnect toggle for duo builder', () => {
+    render(<RemoteAgentAdvancedSettings {...baseProps} role="builder" teamId="duo" disabled />);
 
     expect(screen.queryByText('Reconnect to last session')).not.toBeInTheDocument();
   });

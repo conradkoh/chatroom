@@ -1,4 +1,8 @@
-export { AUTH_PROVIDER_MANAGE_PERMISSION, type Permission } from './permissions';
+export {
+  AUTH_PROVIDER_MANAGE_PERMISSION,
+  INVITES_MANAGE_PERMISSION,
+  type Permission,
+} from './permissions';
 export {
   type AppRole,
   getPermissionsForRole,

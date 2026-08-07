@@ -12,6 +12,7 @@ const permissions = {
   'settings:read': { description: 'View application settings' },
   'settings:write': { description: 'Update application settings' },
   'auth:provider:manage': { description: 'Configure authentication providers' },
+  'invites:manage': { description: 'Create and manage invite codes' },
   'attendance:read': { description: 'View attendance records' },
   'attendance:manage': { description: 'Manage attendance records' },
   'presentation:read': { description: 'View presentations' },

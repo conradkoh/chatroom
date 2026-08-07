@@ -7,10 +7,6 @@ const BASE_PARAMS = {
   role: 'builder',
   cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
   isEntryPoint: false,
-  currentContext: null,
-  originMessage: null,
-  followUpCountSinceOrigin: 0,
-  originMessageCreatedAt: null,
   deliveryMode: 'cli' as const,
 };
 

@@ -99,4 +99,14 @@ crons.interval(
   internal.connectionCleanup.cleanupExpiredConnectionCloseRequests
 );
 
+// Enhancer jobs — purge terminal rows older than retention (daily)
+crons.interval(
+  'purge terminal enhancer jobs',
+  { hours: 24 },
+  internal.enhancerJobReaper.purgeTerminalEnhancerJobs
+);
+
+// Scheduled prompts — fire due prompts every minute
+crons.interval('run scheduled prompts', { minutes: 1 }, internal.scheduledPrompts.runDue);
+
 export default crons;

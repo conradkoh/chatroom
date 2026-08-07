@@ -12,6 +12,7 @@ interface WorkspaceFileArgs {
   machineId: string;
   workingDir: string;
   filePath: string;
+  enabled?: boolean;
 }
 
 /**
@@ -21,6 +22,7 @@ export function useRequestWorkspaceFileContent({
   machineId,
   workingDir,
   filePath,
+  enabled = true,
 }: WorkspaceFileArgs) {
   const normalizedWorkingDir = useMemo(
     () => normalizeWorkspaceWorkingDir(workingDir),
@@ -29,8 +31,11 @@ export function useRequestWorkspaceFileContent({
   const requestContent = useSessionMutation(api.workspaceFiles.requestFileContent);
 
   useEffect(() => {
+    if (!enabled) return;
     requestContent({ machineId, workingDir: normalizedWorkingDir, filePath }).catch(() => {});
-  }, [machineId, normalizedWorkingDir, filePath, requestContent]);
+  }, [enabled, machineId, normalizedWorkingDir, filePath, requestContent]);
 
-  return useFileContent({ machineId, workingDir: normalizedWorkingDir, filePath });
+  return useFileContent(
+    enabled ? { machineId, workingDir: normalizedWorkingDir, filePath } : 'skip'
+  );
 }

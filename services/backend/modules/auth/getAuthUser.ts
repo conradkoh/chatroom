@@ -48,6 +48,10 @@ export const getAuthUser = async (
     throw new Error('Session not found');
   }
 
+  if (!session.userId) {
+    throw new Error('User not found');
+  }
+
   const user = await ctx.db.get('users', session.userId);
 
   if (!user) {

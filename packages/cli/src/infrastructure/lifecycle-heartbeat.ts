@@ -8,14 +8,18 @@
  * `messages list` and `backlog` commands automatic heartbeat coverage.
  */
 
+import { withRetry } from './retry-queue.js';
 import type { Id } from '../api.js';
 import { api } from '../api.js';
-import { withRetry } from './retry-queue.js';
+import { isDaemonWorkerRole } from '../daemon/domain/entities/execution-kind.js';
 
 export function sendLifecycleHeartbeat(
   client: { mutation: (fn: any, args: any) => Promise<any> },
   opts: { sessionId: string; chatroomId: string; role: string; action?: string }
 ): void {
+  // Daemon workers (e.g. enhancer) are not chatroom team participants — joining
+  // them is invalid and only produces Convex "Invalid role" errors + retries.
+  if (isDaemonWorkerRole(opts.role)) return;
   // Update lastSeenAt (and optionally lastSeenAction) on the participant row.
   withRetry(() =>
     client.mutation(api.participants.join, {

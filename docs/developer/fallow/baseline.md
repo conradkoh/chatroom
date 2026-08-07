@@ -18,8 +18,6 @@ pnpm exec fallow dead-code --save-baseline .fallow/baseline.json
 
 All previously flagged unused files have been addressed:
 
-- `apps/webapp/src/components/DateRangePicker.tsx` — deleted (unused)
-- `apps/webapp/src/components/ThemeToggle.tsx` — deleted (unused)
 - `apps/webapp/src/modules/checklist/checklist-empty-state.tsx` — now wired into `checklist.tsx`
 - `apps/webapp/src/hooks/useAllowTouchSelection.ts` — suppressed via `// fallow-ignore-file unused-file` because it is consumed only from `components/ui/*` which are in `ignorePatterns`. This is a documented false positive.
 

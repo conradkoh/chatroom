@@ -6,6 +6,8 @@ declare global {
   interface Window {
     /** Dev/e2e only — overrides keyboard inset when set (see /dev/mobile-picker-harness). */
     __MOBILE_KEYBOARD_TEST_INSET__?: number;
+    /** Dev/e2e only — overrides visualViewport.offsetTop when set (see /dev/mobile-picker-harness). */
+    __MOBILE_KEYBOARD_TEST_OFFSET_TOP__?: number;
   }
 }
 
@@ -37,7 +39,8 @@ function isEditableElementFocused(): boolean {
   return isContentEditableTarget(el);
 }
 
-export function useEditableElementFocused(enabled = true): boolean {
+/** Shared focus tracking — fires on focusin/focusout while enabled. */
+function useFocusWithin(check: () => boolean, enabled = true): boolean {
   const [focused, setFocused] = useState(false);
 
   useEffect(() => {
@@ -45,7 +48,7 @@ export function useEditableElementFocused(enabled = true): boolean {
       setFocused(false);
       return;
     }
-    const update = () => setFocused(isEditableElementFocused());
+    const update = () => setFocused(check());
     update();
     document.addEventListener('focusin', update, true);
     document.addEventListener('focusout', update, true);
@@ -53,9 +56,14 @@ export function useEditableElementFocused(enabled = true): boolean {
       document.removeEventListener('focusin', update, true);
       document.removeEventListener('focusout', update, true);
     };
-  }, [enabled]);
+  }, [enabled, check]);
 
   return enabled ? focused : false;
+}
+
+// fallow-ignore-next-line unused-export
+export function useEditableElementFocused(enabled = true): boolean {
+  return useFocusWithin(isEditableElementFocused, enabled);
 }
 
 // fallow-ignore-next-line unused-export
@@ -70,15 +78,35 @@ export function computeKeyboardInsetPx(): number {
   return Math.max(0, Math.round(layoutHeight - vv.height - vv.offsetTop));
 }
 
-export function useVisualViewportKeyboardInset(enabled = true): number {
-  const [insetPx, setInsetPx] = useState(0);
+/**
+ * How far the browser scrolled the layout viewport to keep the focused element
+ * visible above the software keyboard. 0 when no keyboard scroll is active.
+ */
+// fallow-ignore-next-line unused-export
+export function computeVisualViewportOffsetTopPx(): number {
+  if (typeof window === 'undefined') return 0;
+  if (typeof window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__ === 'number') {
+    return Math.max(0, window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__);
+  }
+  const vv = window.visualViewport;
+  if (!vv) return 0;
+  return Math.max(0, Math.round(vv.offsetTop));
+}
+
+/**
+ * Shared subscription for visualViewport-derived metrics (keyboard inset,
+ * offset top). Recomputes on resize/scroll/focus changes with rAF + delayed
+ * rechecks to catch late browser layout/scroll settles.
+ */
+function useVisualViewportValue(enabled: boolean, compute: () => number): number {
+  const [valuePx, setValuePx] = useState(0);
 
   useEffect(() => {
     if (!enabled) {
-      setInsetPx(0);
+      setValuePx(0);
       return;
     }
-    const update = () => setInsetPx(computeKeyboardInsetPx());
+    const update = () => setValuePx(compute());
     let rafId: number | null = null;
     const timeoutIds: number[] = [];
 
@@ -115,13 +143,46 @@ export function useVisualViewportKeyboardInset(enabled = true): number {
       document.removeEventListener('focusout', scheduleUpdate, true);
       clearPending();
     };
-  }, [enabled]);
+  }, [enabled, compute]);
 
-  if (!enabled) return 0;
+  return enabled ? valuePx : 0;
+}
+
+export function useVisualViewportKeyboardInset(enabled = true): number {
+  const insetPx = useVisualViewportValue(enabled, computeKeyboardInsetPx);
 
   if (typeof window !== 'undefined' && typeof window.__MOBILE_KEYBOARD_TEST_INSET__ === 'number') {
     return Math.max(0, window.__MOBILE_KEYBOARD_TEST_INSET__);
   }
 
   return insetPx;
+}
+
+export function useVisualViewportOffsetTop(enabled = true): number {
+  return useVisualViewportValue(enabled, computeVisualViewportOffsetTopPx);
+}
+
+/** Root selector marking the main chat composer — footer keyboard lift keys off this. */
+// fallow-ignore-next-line unused-export
+export const MAIN_CHAT_COMPOSER_SELECTOR = '[data-main-chat-composer]';
+
+/** True when the focused element is inside the main chat composer (not a dialog input). */
+// fallow-ignore-next-line unused-export
+export function isMainChatComposerFocused(): boolean {
+  if (typeof document === 'undefined') return false;
+  const el = document.activeElement;
+  if (!el || !(el instanceof HTMLElement)) return false;
+  return el.closest(MAIN_CHAT_COMPOSER_SELECTOR) !== null;
+}
+
+/** Mirrors useEditableElementFocused but scoped to the main chat composer root. */
+export function useMainChatComposerFocused(enabled = true): boolean {
+  return useFocusWithin(isMainChatComposerFocused, enabled);
+}
+
+/** Keyboard inset for sticky footers — only non-zero when main chat composer has focus. */
+export function useMainChatComposerKeyboardInset(enabled = true): number {
+  const inset = useVisualViewportKeyboardInset(enabled);
+  const composerFocused = useMainChatComposerFocused(enabled);
+  return composerFocused ? inset : 0;
 }

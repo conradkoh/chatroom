@@ -1,29 +1,34 @@
 'use client';
 
 import { Command, Files, MessageCircle, MessagesSquare, Terminal } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useSyncExternalStore } from 'react';
 import { SiGithub } from 'react-icons/si';
 import { VscSourceControl } from 'react-icons/vsc';
 
-import { useCommandDialog } from '../context/CommandDialogContext';
+import { useCommandDialogActions } from '../context/CommandDialogContext';
+import {
+  getCommandPaletteOpen,
+  subscribeCommandPaletteOpen,
+} from '../context/commandPaletteController';
+import { EnhancerActivityBarItem } from '../features/enhancers/components/EnhancerActivityBarItem';
+import { ScheduledPromptsActivityBarItem } from '../features/scheduled-prompts/components/ScheduledPromptsActivityBarItem';
 
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ActivityView =
-  | 'explorer'
-  | 'messages'
-  | 'direct-harness'
-  | 'source-control'
-  | 'pull-requests'
-  | 'processes';
+  'explorer' | 'messages' | 'direct-harness' | 'source-control' | 'pull-requests' | 'processes';
 
 interface ActivityBarProps {
   /** Currently active view */
   activeView: ActivityView;
   /** Called when a view icon is clicked */
   onViewChange: (view: ActivityView) => void;
+  /** Chatroom ID for enhancer config */
+  chatroomId?: string;
+  /** Machine ID for enhancer config dialog */
+  machineId?: string | null;
 }
 
 interface ActivityBarItemProps {
@@ -69,19 +74,29 @@ const ActivityBarItem = memo(function ActivityBarItem({
  * Views (top to bottom):
  * 1. Explorer   — file browser
  * 2. Messages   — chatroom messages
- * 3. Direct Harness — direct AI harness
- * 4. Source Control — git diff + history (new)
- * 5. Pull Requests  — GitHub PR list (new)
- * 6. Processes  — command launcher / process manager (new)
+ * 3. Scheduled Prompts — scheduled prompts (Clock)
+ * 4. Enhancer   — enhancer configuration (Sparkles)
+ * 5. Direct Harness — direct AI harness
+ * 6. Source Control — git diff + history
+ * 7. Pull Requests  — GitHub PR list
+ * 8. Processes  — command launcher / process manager
  *
  * On mobile (hidden via CSS):
  * - Shows a command palette trigger at the bottom (Cmd+Shift+P equivalent)
  */
+// fallow-ignore-next-line complexity
 export const ActivityBar = memo(function ActivityBar({
   activeView,
   onViewChange,
+  chatroomId,
+  machineId,
 }: ActivityBarProps) {
-  const { openDialog, closeDialog, activeDialog } = useCommandDialog();
+  const { toggleCommandPalette } = useCommandDialogActions();
+  const paletteOpen = useSyncExternalStore(
+    subscribeCommandPaletteOpen,
+    getCommandPaletteOpen,
+    () => false
+  );
 
   return (
     <div className="shrink-0 w-12 bg-chatroom-bg-surface border-r-2 border-chatroom-border-strong flex flex-col items-center pt-1">
@@ -97,6 +112,10 @@ export const ActivityBar = memo(function ActivityBar({
         isActive={activeView === 'messages'}
         onClick={() => onViewChange('messages')}
       />
+      {chatroomId && <ScheduledPromptsActivityBarItem chatroomId={chatroomId} />}
+      {chatroomId && (
+        <EnhancerActivityBarItem chatroomId={chatroomId} machineId={machineId ?? null} />
+      )}
       <ActivityBarItem
         icon={<MessageCircle size={20} />}
         label="Direct Harness"
@@ -122,18 +141,18 @@ export const ActivityBar = memo(function ActivityBar({
         onClick={() => onViewChange('processes')}
       />
 
-      {/* Spacer to push chatroom switch to bottom */}
+      {/* Spacer to push command palette to bottom */}
       <div className="flex-1" />
 
-      {/* Command palette button */}
+      {/* Command palette button (Cmd+Shift+P equivalent) */}
       <button
         className={cn(
           'relative w-full h-12 flex items-center justify-center cursor-pointer transition-colors duration-100',
-          'text-chatroom-text-muted hover:text-chatroom-text-primary'
+          paletteOpen
+            ? 'text-chatroom-text-primary'
+            : 'text-chatroom-text-muted hover:text-chatroom-text-primary'
         )}
-        onClick={() =>
-          activeDialog === 'command-palette' ? closeDialog() : openDialog('command-palette')
-        }
+        onClick={() => toggleCommandPalette()}
         title="Command Palette"
       >
         <Command size={20} />

@@ -7,6 +7,7 @@ import { ArrowUp, Check, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide
 import React, { memo, useCallback, useState } from 'react';
 import Markdown from 'react-markdown';
 
+import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
 import { MessageAttachmentChips, countMessageAttachments } from '../../attachments';
 import type { Message } from '../../types/message';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
@@ -42,6 +43,7 @@ interface QueuedMessageDetailModalProps {
   onPromote: (queuedMessageId: string) => Promise<void>;
   /** Called when the user deletes the message. */
   onDelete: (queuedMessageId: string) => Promise<void>;
+  teamSupportsEnhancer?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -80,6 +82,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
   onClose,
   onPromote,
   onDelete,
+  teamSupportsEnhancer,
 }: QueuedMessageDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
@@ -286,19 +289,24 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
                 {isSaving ? 'Working...' : 'Promote'}
               </button>
 
+              {teamSupportsEnhancer ? (
+                <QueuedMessageEnhancerToggle
+                  queuedMessageId={message._id}
+                  plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
+                />
+              ) : null}
+
               <div className="flex-1" />
 
               <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    disabled={isSaving}
-                    className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="More actions"
-                  >
-                    <MoreHorizontal size={14} />
-                    Actions
-                  </button>
+                <DropdownMenuTrigger
+                  type="button"
+                  disabled={isSaving}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="More actions"
+                >
+                  <MoreHorizontal size={14} />
+                  Actions
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[160px]">
                   <DropdownMenuItem

@@ -77,14 +77,12 @@ export const CommitStatusIndicator = memo(function CommitStatusIndicator({
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex items-center shrink-0 p-0 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors"
-          title={title}
-        >
-          {icon}
-        </button>
+      <PopoverTrigger
+        type="button"
+        className="inline-flex items-center shrink-0 p-0 rounded-none hover:bg-chatroom-bg-hover/50 transition-colors"
+        title={title}
+      >
+        {icon}
       </PopoverTrigger>
       <PopoverContent align="end" side="top" className="w-auto min-w-[220px] max-w-[320px] p-2">
         <div className="flex flex-col gap-1">

@@ -101,9 +101,7 @@ function renderContextSection(
   ];
 
   if (ctx.triggerMessageContent) {
-    lines.push(
-      `(For the message that triggered this context, run: chatroom context read --chatroom-id="${chatroomId}" --role="${role}")`
-    );
+    lines.push(`(Trigger: chatroom context read --chatroom-id="${chatroomId}" --role="${role}")`);
   }
 
   lines.push(...renderStalenessNotice(ctx.elapsedHours));
@@ -119,7 +117,7 @@ export function renderTaskPrompt(input: RenderTaskPromptInput): string {
   lines.push(`   Status: ${status}`);
 
   if (input.context) {
-    lines.push('On conflict, the message wins over background context.');
+    lines.push('On conflict, message wins over background context.');
   }
 
   lines.push(...renderDivergenceWarnings(input));

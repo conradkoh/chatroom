@@ -20,9 +20,6 @@ const BASE_PARAMS = {
     _id: 'test-task-id',
     content: 'Implement the feature as described',
   },
-  currentContext: null,
-  followUpCountSinceOrigin: 0,
-  originMessageCreatedAt: null,
   isEntryPoint: false,
   availableHandoffTargets: ['planner'],
 };
@@ -35,11 +32,6 @@ describe('Duo Team > Builder > Get Next Task', () => {
         _id: 'test-message-id',
         senderRole: 'planner',
         content: 'Please implement dark mode for the settings page',
-      },
-      originMessage: {
-        senderRole: 'user',
-        content: 'Please implement dark mode for the settings page',
-        classification: 'new_feature',
       },
     });
 

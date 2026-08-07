@@ -120,8 +120,7 @@ Add payments API
       task: NativeOrchestrationSimulator.makeTask({
         taskId: 'task_builder' as never,
         assignedTo: 'builder',
-        taskContent:
-          '## Goal\nImplement dark mode\n## Session Augmentation\n// data:agent.session_augmentation=compact',
+        taskContent: '## Goal\nImplement dark mode',
         agentConfig: {
           role: 'builder',
           machineId: 'machine_1',
@@ -136,7 +135,7 @@ Add payments API
 
     expect(sim.harness.injections).toHaveLength(2);
     expect(sim.harness.promptsFor('planner')[0]).toContain('hello');
-    expect(sim.harness.promptsFor('builder')[0]).toContain('Context was compacted');
+    expect(sim.harness.promptsFor('builder')[0]).toContain('Starting a new agent session');
     expect(sim.harness.promptsFor('builder')[0]).toContain('Implement dark mode');
   });
 });

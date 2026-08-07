@@ -3,6 +3,8 @@ import path from 'path';
 import createMDX from '@next/mdx';
 import { withSentryConfig } from '@sentry/nextjs';
 
+const turbopackRoot = path.resolve(__dirname, '../../');
+
 const nextConfig = {
   // Configure `pageExtensions` to include markdown and MDX files
   pageExtensions: ['js', 'jsx', 'md', 'mdx', 'ts', 'tsx'],
@@ -10,7 +12,7 @@ const nextConfig = {
   typedRoutes: true,
   // Fix Turbopack workspace root detection in monorepo
   turbopack: {
-    root: path.resolve(__dirname, '../../'),
+    root: turbopackRoot,
   },
   // Disable when `.next/dev/cache/turbopack` grows unbounded and compaction pegs CPU.
   // Use: TURBOPACK_FS_CACHE=1 pnpm dev to opt in

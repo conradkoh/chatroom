@@ -9,7 +9,7 @@ import { useEventStreamMachine } from '../context/EventStreamMachineContext';
 import { getMachineDisplayName } from '../types/machine';
 import { formatTimestamp, formatTimestampFull } from '../viewModels/eventStreamViewModel';
 
-export const EVENT_STREAM_ROW_HEIGHT = 52;
+export const EVENT_STREAM_ROW_HEIGHT = 60;
 
 // ─── Machine Detail Row ──────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ export interface EventRowProps {
 
 /**
  * Reusable event row component for the event list.
- * Renders a compact row with type badge, primary/secondary info, and timestamp.
+ * Renders badge and info on the first line, timestamp bottom-right on the second.
  */
 export const EventRow = memo(function EventRow({
   badgeText,
@@ -62,7 +62,7 @@ export const EventRow = memo(function EventRow({
   return (
     <div
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 border-b border-chatroom-border last:border-b-0 transition-colors box-border overflow-hidden ${
+      className={`flex flex-col justify-between gap-0.5 px-4 py-1.5 border-b border-chatroom-border last:border-b-0 transition-colors box-border overflow-hidden ${
         onClick ? 'cursor-pointer' : ''
       } ${
         isSelected
@@ -71,24 +71,26 @@ export const EventRow = memo(function EventRow({
       }`}
       style={{ height: EVENT_STREAM_ROW_HEIGHT }}
     >
-      {/* Type badge */}
-      <span
-        className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${badgeColorStyles[badgeColor]}`}
-      >
-        {badgeText}
-      </span>
-      {/* Primary info (usually role) */}
-      <span className="flex-shrink-0 text-[10px] font-medium text-chatroom-text-primary truncate max-w-[100px]">
-        {primaryInfo}
-      </span>
-      {/* Secondary info (optional) */}
-      {secondaryInfo && (
-        <span className="flex-shrink text-[10px] text-chatroom-text-secondary truncate">
-          {secondaryInfo}
+      <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+        {/* Type badge */}
+        <span
+          className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${badgeColorStyles[badgeColor]}`}
+        >
+          {badgeText}
         </span>
-      )}
-      {/* Timestamp — pushed right */}
-      <span className="ml-auto flex-shrink-0 text-[10px] text-chatroom-text-muted tabular-nums font-mono">
+        {/* Primary info (usually role) */}
+        <span className="flex-shrink-0 text-[10px] font-medium text-chatroom-text-primary truncate max-w-[100px]">
+          {primaryInfo}
+        </span>
+        {/* Secondary info (optional) */}
+        {secondaryInfo && (
+          <span className="flex-shrink text-[10px] text-chatroom-text-secondary truncate">
+            {secondaryInfo}
+          </span>
+        )}
+      </div>
+      {/* Timestamp — bottom right */}
+      <span className="self-end flex-shrink-0 text-[10px] text-chatroom-text-muted tabular-nums font-mono leading-none">
         {formatTimestamp(timestamp)}
       </span>
     </div>
@@ -222,7 +224,7 @@ export const PlaceholderEventRow = memo(function PlaceholderEventRow({
   return (
     <div
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 border-b border-chatroom-border last:border-b-0 transition-colors box-border overflow-hidden ${
+      className={`flex flex-col justify-between gap-0.5 px-4 py-1.5 border-b border-chatroom-border last:border-b-0 transition-colors box-border overflow-hidden ${
         onClick ? 'cursor-pointer' : ''
       } ${
         isSelected
@@ -233,12 +235,12 @@ export const PlaceholderEventRow = memo(function PlaceholderEventRow({
     >
       {/* Type badge */}
       <span
-        className={`flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${badgeColorStyles.muted}`}
+        className={`self-start flex-shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${badgeColorStyles.muted}`}
       >
         {type}
       </span>
-      {/* Timestamp */}
-      <span className="ml-auto text-[10px] text-chatroom-text-muted tabular-nums font-mono">
+      {/* Timestamp — bottom right */}
+      <span className="self-end flex-shrink-0 text-[10px] text-chatroom-text-muted tabular-nums font-mono leading-none">
         {formatTimestamp(timestamp)}
       </span>
     </div>

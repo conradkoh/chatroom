@@ -24,7 +24,6 @@ vi.mock('../../features/run-command/hooks/useCommandUsage', () => ({
 describe('useCommandPaletteCommands', () => {
   const baseProps = {
     onOpenSettings: vi.fn(),
-    onOpenEventStream: vi.fn(),
     onOpenGitPanel: vi.fn(),
     onOpenBacklog: vi.fn(),
     onOpenPendingReview: vi.fn(),
@@ -279,6 +278,59 @@ describe('useCommandPaletteCommands', () => {
       expect(result.current.some((command) => command.id === 'agents-start-all-remote')).toBe(
         false
       );
+    });
+  });
+
+  describe('Agents: Restart by role commands', () => {
+    it('adds a restart command per restartable role', () => {
+      const onRestartRemoteAgent = vi.fn();
+
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          restartableAgentRoles: ['planner', 'builder'],
+          onRestartRemoteAgent,
+        })
+      );
+
+      const plannerCmd = result.current.find((c) => c.id === 'agents-restart-planner');
+      const builderCmd = result.current.find((c) => c.id === 'agents-restart-builder');
+
+      expect(plannerCmd).toMatchObject({
+        label: 'Agents: Restart Planner',
+        category: 'Agents',
+      });
+      expect(builderCmd).toMatchObject({
+        label: 'Agents: Restart Builder',
+        category: 'Agents',
+      });
+
+      plannerCmd?.action();
+      expect(onRestartRemoteAgent).toHaveBeenCalledWith('planner');
+    });
+
+    it('omits per-role restart commands when onRestartRemoteAgent is null', () => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          restartableAgentRoles: ['planner'],
+          onRestartRemoteAgent: null,
+        })
+      );
+
+      expect(result.current.find((c) => c.id === 'agents-restart-planner')).toBeUndefined();
+    });
+
+    it('omits per-role restart commands when restartableAgentRoles is empty', () => {
+      const { result } = renderHook(() =>
+        useCommandPaletteCommands({
+          ...baseProps,
+          restartableAgentRoles: [],
+          onRestartRemoteAgent: vi.fn(),
+        })
+      );
+
+      expect(result.current.filter((c) => c.id.startsWith('agents-restart-'))).toHaveLength(0);
     });
   });
 

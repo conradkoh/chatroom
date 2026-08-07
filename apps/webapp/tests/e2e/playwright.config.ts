@@ -1,40 +1,18 @@
-import fs from 'node:fs';
-import path from 'node:path';
-
 import { defineConfig, devices } from '@playwright/test';
 
-/**
- * Reads the PORT value from the webapp's .env.local file.
- * Falls back to 3000 if the file doesn't exist or PORT is not set.
- */
-function getPort(): string {
-  const envPath = path.resolve(__dirname, '../../.env.local');
-  try {
-    const content = fs.readFileSync(envPath, 'utf-8');
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('#') || trimmed === '') continue;
-      const eqIndex = trimmed.indexOf('=');
-      if (eqIndex === -1) continue;
-      const key = trimmed.slice(0, eqIndex).trim();
-      const value = trimmed.slice(eqIndex + 1).trim();
-      if (key === 'PORT') return value;
-    }
-  } catch {
-    // .env.local not found — use default
-  }
-  return '3000';
-}
+import { getWebappBaseUrl, getWebappPort } from './support/env';
 
-const port = getPort();
-const baseURL = `http://localhost:${port}`;
+const port = getWebappPort();
+const baseURL = getWebappBaseUrl();
+
+console.log(`[e2e] Using port ${port} (baseURL: ${baseURL})`);
 
 /**
  * Playwright configuration for e2e tests.
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  testDir: '.',
+  testDir: './specs',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -67,7 +45,12 @@ export default defineConfig({
     command: 'pnpm dev',
     url: baseURL,
     reuseExistingServer: !process.env.CI,
-    cwd: '../..', // webapp root relative to config location
+    cwd: '../../..', // repo root — turbo starts webapp + Convex
+    timeout: 120_000,
+    // turbo runs each dev task in its own process group, so Playwright's default
+    // SIGKILL of the shell group leaves an orphaned `next dev` holding the port.
+    // SIGTERM lets turbo forward shutdown to its child tasks and exit cleanly.
+    gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
     env: {
       PORT: port,
     },

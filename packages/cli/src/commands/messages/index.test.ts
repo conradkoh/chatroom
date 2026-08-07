@@ -31,9 +31,7 @@ const MOCK_MESSAGE = {
   senderRole: 'user',
   targetRole: null as string | null,
   chatroomId: TEST_CHATROOM_ID,
-  classification: null as string | null,
   taskStatus: null as string | null,
-  featureTitle: null as string | null,
 };
 
 function createMockDeps(overrides?: Partial<MessagesDeps>): MessagesDeps {

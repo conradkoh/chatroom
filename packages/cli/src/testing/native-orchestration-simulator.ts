@@ -11,8 +11,8 @@ import { Effect } from 'effect';
 
 import { RecordingHarness } from './recording-harness.js';
 import { api } from '../api.js';
-import { buildNativeInjectionPrompt } from '../commands/machine/daemon-start/native-task-injector-logic.js';
-import { runNativeInjectionEffect } from '../commands/machine/daemon-start/native-task-injector.js';
+import { buildNativeInjectionPrompt } from '../daemon/entry/native-delivery/native-task-injector-logic.js';
+import { runNativeInjectionEffect } from '../daemon/entry/native-delivery/native-task-injector.js';
 
 export interface SimulateInjectionOptions {
   task: AssignedTaskView;
@@ -56,7 +56,6 @@ function createBackendMock(deliveryOutput: string) {
     if (
       isClaimMutation(args) ||
       args.action === NATIVE_TASK_INJECTED_ACTION ||
-      fn === api.machines.emitSessionCompacted ||
       fn === api.machines.emitSessionAugmented
     ) {
       return undefined;

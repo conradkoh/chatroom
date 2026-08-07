@@ -29,7 +29,7 @@ export function StopRestartButtons({
           title="Stop"
           aria-label="Stop"
         >
-          <Square size={14} />
+          <Square size={10} fill="currentColor" />
         </button>
         <button
           type="button"
@@ -52,7 +52,7 @@ export function StopRestartButtons({
         disabled={!active}
         className="flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wider text-red-500 dark:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40 disabled:pointer-events-none"
       >
-        <Square size={12} />
+        <Square size={10} fill="currentColor" />
         Stop
       </button>
       <button

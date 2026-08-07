@@ -1,11 +1,12 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Check, Paperclip, MoreHorizontal, Pencil, StopCircle, Trash2, X } from 'lucide-react';
+import { Check, Paperclip, MoreHorizontal, StopCircle, Trash2, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
+import { HandoffStructuredContent } from './HandoffStructuredContent';
 import {
   modalMarkdownComponents,
   modalMarkdownWrapProseClassNames,
@@ -27,6 +28,11 @@ import {
   FixedModalContent,
   FixedModalHeader,
 } from '@/components/ui/fixed-modal';
+
+/** True when a click originates from an interactive element — never enter edit mode. */
+function isInteractiveClickTarget(target: EventTarget | null): boolean {
+  return !!(target as HTMLElement)?.closest?.('button, a, input, textarea, select, label');
+}
 
 interface Task {
   _id: Id<'chatroom_tasks'>;
@@ -98,7 +104,6 @@ export function TaskDetailModal({
   const [editedContent, setEditedContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
 
   // Attachments context for adding to chat
   const { add, isAttached, canAddMore } = useAttachments();
@@ -121,13 +126,18 @@ export function TaskDetailModal({
   }, [isOpen, task, initializedTaskId]);
 
   /** Escape / header close / backdrop (when not editing): exit edit first, then close modal. */
+  const cancelEdit = useCallback(() => {
+    if (task) setEditedContent(task.content);
+    setIsEditing(false);
+  }, [task]);
+
   const dismissFromChrome = useCallback(() => {
     if (isEditing) {
-      setIsEditing(false);
+      cancelEdit();
     } else {
       onClose();
     }
-  }, [isEditing, onClose]);
+  }, [isEditing, cancelEdit, onClose]);
 
   const handleSave = useCallback(async () => {
     if (!task || !editedContent.trim()) return;
@@ -206,75 +216,45 @@ export function TaskDetailModal({
         <FixedModalBody className="flex flex-col min-h-0 p-0">
           <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
             {isEditing ? (
-              <>
-                {/* Tab Bar */}
-                <div className="flex border-b-2 border-chatroom-border-strong bg-chatroom-bg-tertiary flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('edit')}
-                    className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors border-b-2 -mb-[2px] ${
-                      activeTab === 'edit'
-                        ? 'border-chatroom-accent text-chatroom-text-primary bg-chatroom-bg-primary'
-                        : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
-                    }`}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('preview')}
-                    className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors border-b-2 -mb-[2px] ${
-                      activeTab === 'preview'
-                        ? 'border-chatroom-accent text-chatroom-text-primary bg-chatroom-bg-primary'
-                        : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
-                    }`}
-                  >
-                    Preview
-                  </button>
-                </div>
-
-                {/* Tab Content - min-h-[260px] ensures comfortable editing area */}
-                <div className="flex-1 flex flex-col overflow-hidden min-h-[260px]">
-                  {activeTab === 'edit' ? (
-                    <textarea
-                      value={editedContent}
-                      onChange={(e) => setEditedContent(e.target.value)}
-                      onKeyDown={(e) => {
-                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                          e.preventDefault();
-                          if (editedContent.trim()) {
-                            handleSave();
-                          }
-                        }
-                      }}
-                      className="flex-1 w-full bg-chatroom-bg-primary border-0 text-chatroom-text-primary text-sm p-4 resize-none focus:outline-none font-mono"
-                      autoFocus
-                      placeholder="Write your markdown here..."
-                    />
-                  ) : (
-                    <div
-                      className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
-                    >
-                      <Markdown
-                        remarkPlugins={chatroomRemarkPlugins}
-                        components={modalMarkdownComponents}
-                      >
-                        {editedContent || '*No content yet*'}
-                      </Markdown>
-                    </div>
-                  )}
-                </div>
-              </>
+              <textarea
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    if (editedContent.trim()) {
+                      handleSave();
+                    }
+                  }
+                }}
+                className="flex-1 w-full bg-chatroom-bg-primary border-0 text-chatroom-text-primary text-sm p-4 resize-none focus:outline-none font-mono"
+                autoFocus
+                placeholder="Write your markdown here..."
+              />
             ) : (
               <div
-                className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
+                onClick={
+                  !isProtected
+                    ? (e) => {
+                        if (isInteractiveClickTarget(e.target)) return;
+                        setIsEditing(true);
+                      }
+                    : undefined
+                }
+                className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${!isProtected ? 'cursor-pointer' : ''} ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
               >
-                <Markdown
-                  remarkPlugins={chatroomRemarkPlugins}
-                  components={modalMarkdownComponents}
-                >
-                  {task.content}
-                </Markdown>
+                <HandoffStructuredContent
+                  content={task.content}
+                  variant="detail"
+                  fallback={
+                    <Markdown
+                      remarkPlugins={chatroomRemarkPlugins}
+                      components={modalMarkdownComponents}
+                    >
+                      {task.content}
+                    </Markdown>
+                  }
+                />
               </div>
             )}
           </div>
@@ -301,7 +281,7 @@ export function TaskDetailModal({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsEditing(false)}
+                  onClick={cancelEdit}
                   disabled={isLoading}
                   className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
                 >
@@ -329,26 +309,16 @@ export function TaskDetailModal({
                 <div className="flex-1" />
 
                 <DropdownMenu modal={false}>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      disabled={isLoading}
-                      className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors disabled:opacity-50"
-                      title="More actions"
-                    >
-                      <MoreHorizontal size={14} />
-                      Actions
-                    </button>
+                  <DropdownMenuTrigger
+                    type="button"
+                    disabled={isLoading}
+                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors disabled:opacity-50"
+                    title="More actions"
+                  >
+                    <MoreHorizontal size={14} />
+                    Actions
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-[160px]">
-                    <DropdownMenuItem
-                      onClick={() => setIsEditing(true)}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <Pencil size={14} />
-                      Edit
-                    </DropdownMenuItem>
-
                     <DropdownMenuItem
                       onClick={() => {
                         if (task) {

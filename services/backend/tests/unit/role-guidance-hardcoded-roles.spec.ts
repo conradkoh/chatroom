@@ -48,9 +48,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
+      - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
-        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-      - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change"
+        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation."
     `);
   });
 
@@ -76,9 +76,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To implement** → Work on the chatroom task directly (you are acting as implementer)
+      - **For rework** → Revise your implementation directly and re-validate
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
-        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-      - **For rework** → Revise your implementation directly and re-validate"
+        ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation."
     `);
   });
 
@@ -188,6 +188,10 @@ describe('getBuilderGuidance', () => {
       - Follow established patterns and best practices from the codebase
       - Handle edge cases and error scenarios
       - Commit work with descriptive, atomic commit messages
+
+      **Completion gates (before PR or handoff):**
+      - All **(Required)** files done; **verified end-to-end** (user-facing entry point works: CLI command runnable, API reachable, or UI action functional)
+      - If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
       "
     `);
   });

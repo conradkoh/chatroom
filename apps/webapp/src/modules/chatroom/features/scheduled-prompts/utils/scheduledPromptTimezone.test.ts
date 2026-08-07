@@ -1,0 +1,40 @@
+import { describe, it, expect, vi, afterEach } from 'vitest';
+
+import {
+  formatDailyScheduleLocal,
+  formatTimezoneLabel,
+  getBrowserTimezone,
+  localDailyTimeToUtc,
+  utcDailyTimeToLocal,
+} from './scheduledPromptTimezone';
+
+describe('scheduledPromptTimezone', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('getBrowserTimezone returns IANA timezone', () => {
+    expect(getBrowserTimezone()).toBeTruthy();
+    expect(typeof getBrowserTimezone()).toBe('string');
+  });
+
+  it('formatTimezoneLabel includes IANA name', () => {
+    const label = formatTimezoneLabel('UTC');
+    expect(label).toContain('UTC');
+  });
+
+  it('localDailyTimeToUtc and utcDailyTimeToLocal round-trip in UTC', () => {
+    vi.stubEnv('TZ', 'UTC');
+    const utc = localDailyTimeToUtc(9, 30);
+    expect(utc).toEqual({ hourUTC: 9, minuteUTC: 30 });
+    const local = utcDailyTimeToLocal(9, 30);
+    expect(local).toEqual({ hour: 9, minute: 30 });
+  });
+
+  it('formatDailyScheduleLocal shows local time without timezone suffix', () => {
+    vi.stubEnv('TZ', 'UTC');
+    const result = formatDailyScheduleLocal(9, 0);
+    expect(result).toBe('Daily at 09:00');
+  });
+});

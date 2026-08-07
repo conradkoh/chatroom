@@ -173,6 +173,38 @@ export interface AgentResumeStormAbortedEvent extends EventStreamEventBase {
   chatroomId: string;
 }
 
+export interface AgentRestartEvent extends EventStreamEventBase {
+  type: 'agent.restart';
+  role: string;
+  machineId: string;
+  agentHarness: string;
+  model: string;
+  workingDir: string;
+  correlationId: string;
+  wantResume?: boolean;
+  deadline: number;
+  chatroomId: string;
+}
+
+export interface AgentRestartCompletedEvent extends EventStreamEventBase {
+  type: 'agent.restartCompleted';
+  role: string;
+  machineId: string;
+  correlationId: string;
+  deliveredTaskIds?: string[];
+  chatroomId: string;
+}
+
+export interface AgentRestartPhaseEvent extends EventStreamEventBase {
+  type: 'agent.restartPhase';
+  role: string;
+  machineId: string;
+  correlationId: string;
+  phase: string;
+  detail?: string;
+  chatroomId: string;
+}
+
 export interface AgentRestartLimitReachedEvent extends EventStreamEventBase {
   type: 'agent.restartLimitReached';
   role: string;
@@ -204,6 +236,12 @@ export interface AgentHarnessSessionIdUpdatedEvent extends EventStreamEventBase 
 
 export interface AgentAwaitingHandoffEvent extends EventStreamEventBase {
   type: 'agent.awaitingHandoff';
+  role: string;
+  chatroomId: string;
+}
+
+export interface AgentEnhancingEvent extends EventStreamEventBase {
+  type: 'agent.enhancing';
   role: string;
   chatroomId: string;
 }
@@ -434,6 +472,41 @@ export interface CommandStopEvent extends EventStreamEventBase {
   runId: string;
 }
 
+export interface EnhancerJobCreatedEvent extends EventStreamEventBase {
+  type: 'enhancer.job.created';
+  jobId: string;
+  userId: string;
+  attemptCount: number;
+  maxAttempts: number;
+}
+
+export interface EnhancerAttemptFailedEvent extends EventStreamEventBase {
+  type: 'enhancer.attempt.failed';
+  jobId: string;
+  attemptCount: number;
+  error: string;
+  nextRetryAt?: number;
+}
+
+export interface EnhancerJobFailedEvent extends EventStreamEventBase {
+  type: 'enhancer.job.failed';
+  jobId: string;
+  attemptCount: number;
+  error: string;
+}
+
+export interface EnhancerJobCompleteEvent extends EventStreamEventBase {
+  type: 'enhancer.job.complete';
+  jobId: string;
+  attemptCount: number;
+}
+
+export interface EnhancerJobCancelledEvent extends EventStreamEventBase {
+  type: 'enhancer.job.cancelled';
+  jobId: string;
+  attemptCount: number;
+}
+
 // ─── Event Stream Event Union ────────────────────────────────────────────────
 
 /**
@@ -456,10 +529,14 @@ export type EventStreamEvent =
   | AgentSessionCompactedEvent
   | AgentSessionAugmentedEvent
   | AgentResumeStormAbortedEvent
+  | AgentRestartEvent
+  | AgentRestartCompletedEvent
+  | AgentRestartPhaseEvent
   | AgentRestartLimitReachedEvent
   | AgentStopTimeoutEvent
   | AgentHarnessSessionIdUpdatedEvent
   | AgentAwaitingHandoffEvent
+  | AgentEnhancingEvent
   | AgentTaskDeliveredEvent
   | AgentTaskDeliveryFailedEvent
   | MachineSwitchedEvent
@@ -484,4 +561,9 @@ export type EventStreamEvent =
   | DaemonPickFolderEvent
   | DaemonLocalActionEvent
   | CommandRunEvent
-  | CommandStopEvent;
+  | CommandStopEvent
+  | EnhancerJobCreatedEvent
+  | EnhancerAttemptFailedEvent
+  | EnhancerJobFailedEvent
+  | EnhancerJobCompleteEvent
+  | EnhancerJobCancelledEvent;

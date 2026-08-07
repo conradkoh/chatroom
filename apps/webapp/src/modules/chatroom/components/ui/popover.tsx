@@ -5,7 +5,7 @@
  */
 'use client';
 
-import * as PopoverPrimitive from '@radix-ui/react-popover';
+import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 import { useCallback, useRef } from 'react';
 import type * as React from 'react';
 
@@ -21,7 +21,9 @@ function Popover({
   defaultOpen,
   onOpenChange,
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Root>) {
+}: Omit<PopoverPrimitive.Root.Props, 'onOpenChange'> & {
+  onOpenChange?: (open: boolean) => void;
+}) {
   const dismissRef = useRef<() => void>(() => undefined);
 
   dismissRef.current = () => {
@@ -46,36 +48,46 @@ function Popover({
   );
 }
 
-function PopoverTrigger({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
+function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
   return <PopoverPrimitive.Trigger data-slot="chatroom-popover-trigger" {...props} />;
-}
-
-function PopoverAnchor({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
-  return <PopoverPrimitive.Anchor data-slot="chatroom-popover-anchor" {...props} />;
 }
 
 function PopoverContent({
   className,
   align = 'center',
+  alignOffset = 0,
+  side = 'bottom',
   sideOffset = 4,
+  anchor,
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+}: PopoverPrimitive.Popup.Props &
+  Pick<
+    PopoverPrimitive.Positioner.Props,
+    'align' | 'alignOffset' | 'side' | 'sideOffset' | 'anchor'
+  >) {
   const portalContainer = useOverlayPortalContainer();
   return (
     <PopoverPrimitive.Portal container={portalContainer ?? undefined}>
-      <PopoverPrimitive.Content
-        data-slot="chatroom-popover-content"
+      <PopoverPrimitive.Positioner
         align={align}
+        alignOffset={alignOffset}
+        side={side}
         sideOffset={sideOffset}
-        className={cn(
-          'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 w-72 origin-(--radix-popover-content-transform-origin)',
-          chatroomPortaledMenuFloatingClassName,
-          className
-        )}
-        {...props}
-      />
+        anchor={anchor}
+        className="isolate z-50"
+      >
+        <PopoverPrimitive.Popup
+          data-slot="chatroom-popover-content"
+          className={cn(
+            'data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 w-72 origin-(--transform-origin)',
+            chatroomPortaledMenuFloatingClassName,
+            className
+          )}
+          {...props}
+        />
+      </PopoverPrimitive.Positioner>
     </PopoverPrimitive.Portal>
   );
 }
 
-export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor };
+export { Popover, PopoverTrigger, PopoverContent };

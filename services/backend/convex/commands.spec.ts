@@ -8,9 +8,9 @@
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { t } from '../test.setup';
 import { createTestSession, registerMachineWithDaemon } from '../tests/helpers/integration';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ async function createPendingRun(
   machineId: string,
   workingDir: string,
   commandName: string
-): Promise<Id<'chatroom_commandRuns'>> {
+): Promise<Id<'chatroom_commandRunsV2'>> {
   // Sync the command first
   await t.mutation(api.commands.syncCommands, {
     sessionId,
@@ -57,7 +57,7 @@ async function createPendingRun(
     commandName,
     script: 'echo test',
   });
-  return runId as Id<'chatroom_commandRuns'>;
+  return runId as Id<'chatroom_commandRunsV2'>;
 }
 
 async function createRunningRun(
@@ -65,7 +65,7 @@ async function createRunningRun(
   machineId: string,
   workingDir: string,
   commandName: string
-): Promise<Id<'chatroom_commandRuns'>> {
+): Promise<Id<'chatroom_commandRunsV2'>> {
   const runId = await createPendingRun(sessionId, machineId, workingDir, commandName);
   // Simulate daemon picking it up
   await t.mutation(api.commands.updateRunStatus, {
@@ -77,15 +77,41 @@ async function createRunningRun(
   return runId;
 }
 
-async function getRunStopEvents(runId: Id<'chatroom_commandRuns'>) {
+async function insertRunTail(
+  runId: Id<'chatroom_commandRunsV2'>,
+  machineId: string,
+  tail: {
+    compression: 'gzip';
+    content: string;
+    byteLength: number;
+    totalBytesWritten: number;
+    updatedAt: number;
+    lineCount?: number;
+  }
+) {
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_commandRunTailsV2', {
+      runId,
+      machineId,
+      compression: tail.compression,
+      content: tail.content,
+      byteLength: tail.byteLength,
+      totalBytesWritten: tail.totalBytesWritten,
+      updatedAt: tail.updatedAt,
+      lineCount: tail.lineCount ?? 0,
+    });
+  });
+}
+
+async function getRunStopEvents(runId: Id<'chatroom_commandRunsV2'>) {
   return t.run(async (ctx) => {
     const all = await ctx.db.query('chatroom_eventStream').collect();
     return all.filter((e: any) => e.type === 'command.stop' && e.runId === runId.toString());
   });
 }
 
-async function getRun(runId: Id<'chatroom_commandRuns'>) {
-  return t.run(async (ctx) => ctx.db.get('chatroom_commandRuns', runId));
+async function getRun(runId: Id<'chatroom_commandRunsV2'>) {
+  return t.run(async (ctx) => ctx.db.get('chatroom_commandRunsV2', runId));
 }
 
 // ─── stopCommand tests ──────────────────────────────────────────────────────
@@ -107,7 +133,7 @@ describe('stopCommand', () => {
     expect(stopEvents).toHaveLength(0);
   });
 
-  test('running run → terminationReason set, command.stop event dispatched', async () => {
+  test('running run → terminationReason set, no command.stop event (row is source of truth)', async () => {
     const { sessionId, machineId } = await setupMachine('stop-running');
     const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
@@ -118,8 +144,10 @@ describe('stopCommand', () => {
     // Status should NOT be changed by stopCommand for running runs
     expect(run!.status).toBe('running');
 
+    // The daemon's dedicated subscription observes the terminationReason on the
+    // run row — no chatroom_eventStream event is emitted anymore.
     const stopEvents = await getRunStopEvents(runId);
-    expect(stopEvents).toHaveLength(1);
+    expect(stopEvents).toHaveLength(0);
   });
 
   test('terminal run → throws ConvexError COMMAND_NOT_RUNNING', async () => {
@@ -224,7 +252,7 @@ describe('updateRunStatus', () => {
 
     // Simulate runCommand marking it killed (replace semantics)
     await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_commandRuns', runId, {
+      await ctx.db.patch('chatroom_commandRunsV2', runId, {
         status: 'killed',
         completedAt: FIXED_NOW,
       });
@@ -445,7 +473,7 @@ describe('controlRunOutputV2', () => {
 
     expect(result).toEqual({ logObserverCount: 1 });
 
-    const run = await t.run(async (ctx) => ctx.db.get('chatroom_commandRuns', runId));
+    const run = await t.run(async (ctx) => ctx.db.get('chatroom_commandRunsV2', runId));
     expect(run?.logObserverCount).toBe(1);
   });
 
@@ -478,7 +506,7 @@ describe('controlRunOutputV2', () => {
       action: 'requestFull',
     });
 
-    const run = await t.run(async (ctx) => ctx.db.get('chatroom_commandRuns', runId));
+    const run = await t.run(async (ctx) => ctx.db.get('chatroom_commandRunsV2', runId));
     expect(run?.pendingFullOutputSync).toBe(true);
   });
 });
@@ -497,11 +525,11 @@ describe('listRunsWithLogObservers', () => {
     const otherMachineRunId = await createRunningRun(sessionId, otherMachine, '/tmp/other', 'dev');
 
     await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_commandRuns', observedRunId, { logObserverCount: 1 });
-      await ctx.db.patch('chatroom_commandRuns', pendingFullRunId, {
+      await ctx.db.patch('chatroom_commandRunsV2', observedRunId, { logObserverCount: 1 });
+      await ctx.db.patch('chatroom_commandRunsV2', pendingFullRunId, {
         pendingFullOutputSync: true,
       });
-      await ctx.db.patch('chatroom_commandRuns', otherMachineRunId, { logObserverCount: 1 });
+      await ctx.db.patch('chatroom_commandRunsV2', otherMachineRunId, { logObserverCount: 1 });
     });
 
     const runs = await t.query(api.commands.listRunsWithLogObservers, {
@@ -533,7 +561,7 @@ describe('listRunsWithLogObservers', () => {
     const completedRunId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
     await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_commandRuns', completedRunId, {
+      await ctx.db.patch('chatroom_commandRunsV2', completedRunId, {
         logObserverCount: 1,
         status: 'completed',
       });
@@ -552,7 +580,7 @@ describe('listRunsWithLogObservers', () => {
     const observedRunId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
     await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_commandRuns', observedRunId, { logObserverCount: 1 });
+      await ctx.db.patch('chatroom_commandRunsV2', observedRunId, { logObserverCount: 1 });
     });
 
     const [commandsRuns, daemonRuns] = await Promise.all([
@@ -564,25 +592,83 @@ describe('listRunsWithLogObservers', () => {
   });
 });
 
+// ─── listActionableCommandRuns tests ─────────────────────────────────────────
+
+describe('listActionableCommandRuns', () => {
+  test('returns pending spawns and running runs with a user-requested stop', async () => {
+    const { sessionId, machineId } = await setupMachine('lacr-scope');
+    const otherMachine = 'machine-lacr-other';
+    await registerMachineWithDaemon(sessionId, otherMachine);
+
+    const pendingRunId = await createPendingRun(sessionId, machineId, '/tmp/ws', 'dev');
+    const runningRunId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'build');
+    const stopRequestedRunId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'lint');
+    const otherMachineRunId = await createPendingRun(sessionId, otherMachine, '/tmp/other', 'dev');
+
+    // Mark one running run as stop-requested
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_commandRunsV2', stopRequestedRunId, {
+        terminationReason: 'user-stop',
+      });
+    });
+
+    const result = await t.query(api.daemon.commands.listActionableCommandRuns, {
+      sessionId,
+      machineId,
+    });
+
+    expect(result.pendingRuns.map((r) => r._id).sort()).toEqual([pendingRunId].sort());
+    expect(result.stopRequestedRuns.map((r) => r._id).sort()).toEqual([stopRequestedRunId].sort());
+
+    // Running run without a stop request is NOT included
+    expect(result.stopRequestedRuns.map((r) => r._id)).not.toContain(runningRunId);
+    // Other-machine runs are NOT included
+    expect(result.pendingRuns.map((r) => r._id)).not.toContain(otherMachineRunId);
+    expect(result.stopRequestedRuns.map((r) => r._id)).not.toContain(otherMachineRunId);
+  });
+
+  test('returns empty result when nothing is actionable', async () => {
+    const { sessionId, machineId } = await setupMachine('lacr-empty');
+
+    const result = await t.query(api.daemon.commands.listActionableCommandRuns, {
+      sessionId,
+      machineId,
+    });
+
+    expect(result.pendingRuns).toHaveLength(0);
+    expect(result.stopRequestedRuns).toHaveLength(0);
+  });
+
+  test('auth — caller without machine owner access is rejected', async () => {
+    const { sessionId: _sessionId, machineId } = await setupMachine('lacr-auth');
+    const { sessionId: otherSession } = await createTestSession('cmds-spec-lacr-auth-other');
+
+    await expect(
+      t.query(api.daemon.commands.listActionableCommandRuns, {
+        sessionId: otherSession,
+        machineId,
+      })
+    ).rejects.toThrow();
+  });
+});
+
 // ─── getRunOutput tests ─────────────────────────────────────────────────────
 
 describe('getRunOutputV2', () => {
-  test('running run with tailOutput and observer → returns tail, empty chunks', async () => {
+  test('running run with tail and observer → returns tail, empty chunks', async () => {
     const { sessionId, machineId } = await setupMachine('gor-tail');
     const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
     await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_commandRuns', runId, {
-        logObserverCount: 1,
-        tailOutput: {
-          compression: 'gzip' as const,
-          content: 'base64gzippedcontent',
-          byteLength: 1024,
-          totalBytesWritten: 2048,
-          updatedAt: FIXED_NOW,
-          lineCount: 10,
-        },
-      });
+      await ctx.db.patch('chatroom_commandRunsV2', runId, { logObserverCount: 1 });
+    });
+    await insertRunTail(runId, machineId, {
+      compression: 'gzip',
+      content: 'base64gzippedcontent',
+      byteLength: 1024,
+      totalBytesWritten: 2048,
+      updatedAt: FIXED_NOW,
+      lineCount: 10,
     });
 
     const result = await t.query(api.commands.getRunOutputV2, {
@@ -591,6 +677,7 @@ describe('getRunOutputV2', () => {
     });
 
     expect(result.run).toBeDefined();
+    expect(result.run).not.toHaveProperty('tailOutput');
     expect(result.tail).toEqual({
       compression: 'gzip',
       content: 'base64gzippedcontent',
@@ -602,20 +689,16 @@ describe('getRunOutputV2', () => {
     expect(result.chunks).toEqual([]);
   });
 
-  test('running run with no observer → returns null tail even if tailOutput set', async () => {
+  test('running run with no observer → returns null tail even if tail row exists', async () => {
     const { sessionId, machineId } = await setupMachine('gor-no-tail');
     const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
-    await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_commandRuns', runId, {
-        tailOutput: {
-          compression: 'gzip' as const,
-          content: 'x',
-          byteLength: 1,
-          totalBytesWritten: 1,
-          updatedAt: FIXED_NOW,
-        },
-      });
+    await insertRunTail(runId, machineId, {
+      compression: 'gzip',
+      content: 'x',
+      byteLength: 1,
+      totalBytesWritten: 1,
+      updatedAt: FIXED_NOW,
     });
 
     const result = await t.query(api.commands.getRunOutputV2, {
@@ -633,19 +716,21 @@ describe('getRunOutputV2', () => {
     const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
     await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_commandOutput', {
+      await ctx.db.insert('chatroom_commandOutputV2', {
         runId,
+        compression: 'gzip' as const,
         content: 'hello world',
         chunkIndex: 0,
         timestamp: FIXED_NOW,
       });
-      await ctx.db.insert('chatroom_commandOutput', {
+      await ctx.db.insert('chatroom_commandOutputV2', {
         runId,
+        compression: 'gzip' as const,
         content: 'second chunk',
         chunkIndex: 1,
         timestamp: FIXED_NOW + 1,
       });
-      await ctx.db.patch('chatroom_commandRuns', runId, {
+      await ctx.db.patch('chatroom_commandRunsV2', runId, {
         status: 'completed',
         completedAt: FIXED_NOW,
       });
@@ -659,22 +744,23 @@ describe('getRunOutputV2', () => {
     expect(result.run!.status).toBe('completed');
     expect(result.tail).toBeNull();
     expect(result.chunks).toHaveLength(2);
-    expect(result.chunks[0]!.content).toBe('hello world');
-    expect(result.chunks[1]!.content).toBe('second chunk');
+    expect(result.chunks[0]!.content).toEqual({ compression: 'gzip', content: 'hello world' });
+    expect(result.chunks[1]!.content).toEqual({ compression: 'gzip', content: 'second chunk' });
   });
 
-  test('completed run with legacy plain-text content → returns correctly', async () => {
-    const { sessionId, machineId } = await setupMachine('gor-legacy');
+  test('completed run with gzip chunk → returns mapped chunk shape', async () => {
+    const { sessionId, machineId } = await setupMachine('gor-gzip');
     const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
     await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_commandOutput', {
+      await ctx.db.insert('chatroom_commandOutputV2', {
         runId,
-        content: 'legacy plain text',
+        compression: 'gzip' as const,
+        content: 'gzip-base64-content',
         chunkIndex: 0,
         timestamp: FIXED_NOW,
       });
-      await ctx.db.patch('chatroom_commandRuns', runId, {
+      await ctx.db.patch('chatroom_commandRunsV2', runId, {
         status: 'completed',
         completedAt: FIXED_NOW,
       });
@@ -688,7 +774,11 @@ describe('getRunOutputV2', () => {
     expect(result.run!.status).toBe('completed');
     expect(result.tail).toBeNull();
     expect(result.chunks).toHaveLength(1);
-    expect(result.chunks[0]!.content).toBe('legacy plain text');
+    expect(result.chunks[0]).toEqual({
+      chunkIndex: 0,
+      timestamp: FIXED_NOW,
+      content: { compression: 'gzip', content: 'gzip-base64-content' },
+    });
   });
 
   test('completed run with both tail and chunks → returns chunks, ignores tail', async () => {
@@ -696,23 +786,24 @@ describe('getRunOutputV2', () => {
     const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
     await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_commandOutput', {
+      await ctx.db.insert('chatroom_commandOutputV2', {
         runId,
+        compression: 'gzip' as const,
         content: 'final output',
         chunkIndex: 0,
         timestamp: FIXED_NOW,
       });
-      await ctx.db.patch('chatroom_commandRuns', runId, {
+      await ctx.db.patch('chatroom_commandRunsV2', runId, {
         status: 'completed',
         completedAt: FIXED_NOW,
-        tailOutput: {
-          compression: 'gzip' as const,
-          content: 'stale-tail',
-          byteLength: 512,
-          totalBytesWritten: 1024,
-          updatedAt: FIXED_NOW - 1000,
-        },
       });
+    });
+    await insertRunTail(runId, machineId, {
+      compression: 'gzip',
+      content: 'stale-tail',
+      byteLength: 512,
+      totalBytesWritten: 1024,
+      updatedAt: FIXED_NOW - 1000,
     });
 
     const result = await t.query(api.commands.getRunOutputV2, {
@@ -723,26 +814,26 @@ describe('getRunOutputV2', () => {
     expect(result.run!.status).toBe('completed');
     expect(result.tail).toBeNull();
     expect(result.chunks).toHaveLength(1);
-    expect(result.chunks[0]!.content).toBe('final output');
+    expect(result.chunks[0]!.content).toEqual({ compression: 'gzip', content: 'final output' });
   });
 
-  test('stopped run with tailOutput but no chunks → returns tail fallback', async () => {
+  test('stopped run with tail row but no chunks → returns tail fallback', async () => {
     const { sessionId, machineId } = await setupMachine('gor-stopped-tail');
     const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
     await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_commandRuns', runId, {
+      await ctx.db.patch('chatroom_commandRunsV2', runId, {
         status: 'stopped',
         completedAt: FIXED_NOW,
-        tailOutput: {
-          compression: 'gzip' as const,
-          content: 'base64gzippedcontent',
-          byteLength: 1024,
-          totalBytesWritten: 2048,
-          updatedAt: FIXED_NOW,
-          lineCount: 10,
-        },
       });
+    });
+    await insertRunTail(runId, machineId, {
+      compression: 'gzip',
+      content: 'base64gzippedcontent',
+      byteLength: 1024,
+      totalBytesWritten: 2048,
+      updatedAt: FIXED_NOW,
+      lineCount: 10,
     });
 
     const result = await t.query(api.commands.getRunOutputV2, {
@@ -764,20 +855,16 @@ describe('getRunOutputV2', () => {
 });
 
 describe('listRunsV2', () => {
-  test('omits tailOutput from listed runs', async () => {
+  test('listed runs have no tailOutput field', async () => {
     const { sessionId, machineId } = await setupMachine('list-v2');
     const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
 
-    await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_commandRuns', runId, {
-        tailOutput: {
-          compression: 'gzip' as const,
-          content: 'big',
-          byteLength: 3,
-          totalBytesWritten: 100,
-          updatedAt: FIXED_NOW,
-        },
-      });
+    await insertRunTail(runId, machineId, {
+      compression: 'gzip',
+      content: 'big',
+      byteLength: 3,
+      totalBytesWritten: 100,
+      updatedAt: FIXED_NOW,
     });
 
     const runs = await t.query(api.commands.listRunsV2, {
@@ -788,5 +875,35 @@ describe('listRunsV2', () => {
 
     expect(runs[0]!._id).toBe(runId);
     expect(runs[0]).not.toHaveProperty('tailOutput');
+  });
+});
+
+describe('daemon.commands.updateRunTail', () => {
+  test('upserts tail row when observer is active', async () => {
+    const { sessionId, machineId } = await setupMachine('durt-happy');
+    const runId = await createRunningRun(sessionId, machineId, '/tmp/ws', 'dev');
+
+    await t.mutation(api.commands.controlRunOutputV2, {
+      sessionId,
+      runId,
+      action: 'observe',
+    });
+
+    await t.mutation(api.daemon.commands.updateRunTail, {
+      sessionId,
+      machineId,
+      runId,
+      tailOutput: {
+        compression: 'gzip',
+        content: 'tail-data',
+        byteLength: 9,
+        totalBytesWritten: 20,
+        updatedAt: FIXED_NOW,
+        lineCount: 1,
+      },
+    });
+
+    const result = await t.query(api.commands.getRunOutputV2, { sessionId, runId });
+    expect(result.tail?.content).toBe('tail-data');
   });
 });

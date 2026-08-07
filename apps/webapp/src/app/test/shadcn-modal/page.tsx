@@ -3,7 +3,7 @@
 import { CalendarIcon, MoreHorizontal, Plus } from 'lucide-react';
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
   Dialog,
@@ -22,6 +22,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 export default function ShadcnModalTestPage() {
   const [date, setDate] = useState<Date>();
@@ -115,23 +116,13 @@ export default function ShadcnModalTestPage() {
 
             <div>
               <h3 className="font-medium text-green-800 dark:text-green-200 mb-2">
-                2. Version Alignment via PNPM Overrides
+                2. Base UI migration
               </h3>
               <p className="text-green-700 dark:text-green-300 mb-2">
-                Added version override in root <code>package.json</code> to ensure all components
-                use the same dismissable layer version:
+                Modal primitives now use <code>@base-ui/react</code> instead of Radix UI. All{' '}
+                <code>@radix-ui/*</code> dependencies (including the former{' '}
+                <code>@radix-ui/react-dismissable-layer</code> pnpm override) have been removed.
               </p>
-              <div className="bg-green-100 dark:bg-green-900 p-3 rounded font-mono text-xs">
-                <pre>
-                  {`{
-  "pnpm": {
-    "overrides": {
-      "@radix-ui/react-dismissable-layer": "1.1.10"
-    }
-  }
-}`}
-                </pre>
-              </div>
             </div>
 
             <div>
@@ -141,8 +132,7 @@ export default function ShadcnModalTestPage() {
               <ul className="list-disc list-inside ml-4 space-y-1 text-green-700 dark:text-green-300">
                 <li>Proper modal behavior ensures correct focus and dismissal management</li>
                 <li>
-                  Version alignment of dismissable layers allows correct state tracking across react
-                  contexts with different package versions
+                  Base UI uses Floating UI for positioning and consistent dismissable-layer behavior
                 </li>
                 <li>iOS calendar issues are resolved through proper modal portal management</li>
               </ul>
@@ -160,11 +150,9 @@ export default function ShadcnModalTestPage() {
 
           <div className="flex justify-center pt-4">
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <MoreHorizontal className="h-4 w-4 mr-2" />
-                  Actions
-                </Button>
+              <DropdownMenuTrigger className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                <MoreHorizontal className="h-4 w-4 mr-2" />
+                Actions
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onClick={handleAddAction}>
@@ -218,17 +206,17 @@ export default function ShadcnModalTestPage() {
                 <Label className="text-right">Date</Label>
                 <div className="col-span-3">
                   <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date ? date.toDateString() : <span>Pick a date</span>}
-                      </Button>
+                    <PopoverTrigger
+                      className={cn(
+                        buttonVariants({ variant: 'outline' }),
+                        'w-full justify-start text-left font-normal'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {date ? date.toDateString() : <span>Pick a date</span>}
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+                      <Calendar mode="single" selected={date} onSelect={setDate} />
                     </PopoverContent>
                   </Popover>
                 </div>

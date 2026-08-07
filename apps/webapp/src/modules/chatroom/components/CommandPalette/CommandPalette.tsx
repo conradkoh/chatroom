@@ -1,42 +1,76 @@
 'use client';
 
-import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import type { Observable } from '@legendapp/state';
+import { useSelector } from '@legendapp/state/react';
+import { EyeOff } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback, useRef, useSyncExternalStore } from 'react';
 
 import { CommandOutputModal } from './CommandOutputModal';
-import { buildCommandPaletteRows } from './commandPaletteRows';
+import {
+  acquireCommandPalettePartition,
+  beginCommandPalettePreload,
+  commitCommandPalettePreload,
+  getCommandPaletteBrowseRows,
+  releaseCommandPalettePartition,
+  type CommandPalettePartitionState,
+} from './commandPalettePartitionStore';
+import { buildCommandPaletteRows, type CommandPaletteRow } from './commandPaletteRows';
 import { CommandPaletteVirtualizedList } from './CommandPaletteVirtualizedList';
 import type { CommandItem } from './types';
-import { COMMAND_DIALOG_CONTENT_CLASSES } from '../shared/commandDialogStyles';
+import { CommandDialogContent } from '../shared/CommandDialogContent';
 
 import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
-import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
-import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
+import {
+  getCommandPaletteOpen,
+  notifyCommandDialogClosed,
+  setCommandPaletteOpen,
+  subscribeCommandPaletteOpen,
+} from '@/modules/chatroom/context/commandPaletteController';
+import { useCommandBlacklist } from '@/modules/chatroom/hooks/useCommandBlacklist';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useCommandRanking } from '@/modules/chatroom/hooks/useCommandRanking';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
 import { sortCommandsByFrecency } from '@/modules/chatroom/lib/sortCommandsByFrecency';
 
 interface CommandPaletteProps {
+  chatroomId: string;
+  workspaceId: string | null | undefined;
   commands: CommandItem[];
   /** Command palette output state (lifted from parent via useCommandRunOutputV2) */
   inlineCommand: CommandPaletteOutputState;
 }
 
 /**
- * Global Cmd+Shift+P command palette.
+ * Cmd+Shift+P command palette with partition-scoped Legend State preload.
  *
- * - **Browse mode** (no search text): commands grouped by category
- * - **Search mode** (typing): flat list ranked by frécency
+ * Browse rows are precomputed on mount (per chatroomId:workspaceId) and read from
+ * the partition store on first open for instant list display.
  */
-export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps) {
-  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
-  const open = activeDialog === 'command-palette';
-  const setOpen = useCallback(
-    (val: boolean) => (val ? openDialog('command-palette') : closeDialog()),
-    [openDialog, closeDialog]
+export function CommandPalette({
+  chatroomId,
+  workspaceId,
+  commands,
+  inlineCommand,
+}: CommandPaletteProps) {
+  const { closeDialog } = useCommandDialogActions();
+  const open = useSyncExternalStore(
+    subscribeCommandPaletteOpen,
+    getCommandPaletteOpen,
+    () => false
   );
+  const setOpen = useCallback(
+    (val: boolean) => {
+      if (val) closeDialog();
+      setCommandPaletteOpen(val);
+      if (!val) notifyCommandDialogClosed();
+    },
+    [closeDialog]
+  );
+
+  const [partitionState$, setPartitionState$] =
+    useState<Observable<CommandPalettePartitionState> | null>(null);
 
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);
@@ -45,25 +79,21 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
   const inlineCommandRef = useRef(inlineCommand);
   inlineCommandRef.current = inlineCommand;
 
-  // Custom escape handler:
-  //   1st press — clear search
-  //   2nd press — close dialog
   const handleEscapeKeyDown = useCallback(
     (event: React.KeyboardEvent | KeyboardEvent) => {
       if (searchValueRef.current) {
         event.preventDefault();
         setSearchValue('');
       } else {
-        closeDialog();
+        setOpen(false);
       }
     },
-    [closeDialog]
+    [setOpen]
   );
 
-  // Frécency-boosted ranking with command-aware keys and refresh
   const { rankedFilter, trackUsage, frecencyScores, getScore } = useCommandRanking(commands);
+  const { blacklistedKeys, blacklist, unblacklist, isBlacklisted } = useCommandBlacklist();
 
-  // Reset search when closing
   useEffect(() => {
     if (!open) setSearchValue('');
   }, [open]);
@@ -74,7 +104,6 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
     shiftKey: 'required',
   });
 
-  // Group commands by category (for browse mode)
   const groupedCommands = useMemo(() => {
     const groups = new Map<string, CommandItem[]>();
     for (const command of commands) {
@@ -87,25 +116,85 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
 
   const isSearching = searchValue.trim().length > 0;
 
-  // Get recently used commands (frecency > 0) sorted by frecency desc for browse mode
   const recentCommands = useMemo(() => {
     const withUsage = commands.filter((cmd) => getScore(cmd) > 0);
     return sortCommandsByFrecency(withUsage, frecencyScores);
   }, [commands, getScore, frecencyScores]);
 
-  const rows = useMemo(
-    () =>
-      buildCommandPaletteRows({
-        commands,
-        search: searchValue,
-        rankedFilter,
-        recentCommands,
-        groupedCommands,
-        getScore,
-        frecencyScores,
-      }),
-    [commands, searchValue, rankedFilter, recentCommands, groupedCommands, getScore, frecencyScores]
-  );
+  useEffect(() => {
+    if (!chatroomId) return;
+
+    const state$ = acquireCommandPalettePartition(chatroomId, workspaceId);
+    setPartitionState$(state$);
+    const generation = beginCommandPalettePreload(state$);
+
+    const rows = buildCommandPaletteRows({
+      commands,
+      search: '',
+      rankedFilter,
+      recentCommands,
+      groupedCommands,
+      getScore,
+      frecencyScores,
+      blacklistedKeys,
+    });
+    commitCommandPalettePreload(state$, generation, rows);
+
+    return () => {
+      releaseCommandPalettePartition(chatroomId, workspaceId);
+      setPartitionState$(null);
+    };
+  }, [
+    chatroomId,
+    workspaceId,
+    commands,
+    rankedFilter,
+    recentCommands,
+    groupedCommands,
+    getScore,
+    frecencyScores,
+    blacklistedKeys,
+  ]);
+
+  const { browseRowsFromStore, partitionStatus } = useSelector(() => {
+    if (!partitionState$) {
+      return { browseRowsFromStore: [] as CommandPaletteRow[], partitionStatus: 'idle' as const };
+    }
+    const status = partitionState$.status.get();
+    const partitionKey = partitionState$.partitionKey.get();
+    return {
+      partitionStatus: status,
+      browseRowsFromStore: status === 'ready' ? getCommandPaletteBrowseRows(partitionKey) : [],
+    };
+  });
+
+  const rows = useMemo(() => {
+    if (!isSearching && partitionStatus === 'ready' && browseRowsFromStore.length > 0) {
+      return browseRowsFromStore;
+    }
+    return buildCommandPaletteRows({
+      commands,
+      search: searchValue,
+      rankedFilter,
+      recentCommands,
+      groupedCommands,
+      getScore,
+      frecencyScores,
+      blacklistedKeys,
+    });
+  }, [
+    isSearching,
+    partitionStatus,
+    browseRowsFromStore,
+    commands,
+    searchValue,
+    rankedFilter,
+    recentCommands,
+    groupedCommands,
+    getScore,
+    frecencyScores,
+    blacklistedKeys,
+  ]);
 
   const handleSelect = useCallback(
     (command: CommandItem) => {
@@ -113,24 +202,21 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
 
       if (command.showOutputInline && command.script) {
         inlineCommandRef.current.run(command.label, command.script);
-        closeDialog();
+        setOpen(false);
         return;
       }
 
-      // Normal command: close dialog and execute action synchronously so it runs
-      // within the iOS user-gesture context. Deferring via setTimeout breaks iOS's
-      // gesture chain and causes external URLs to open in an in-app WKWebView
-      // instead of the system browser.
-      closeDialog();
+      // Run the action BEFORE closing so side effects (e.g. openExternalUrl's
+      // anchor .click()) stay in the user-gesture stack.
       command.action();
+      setOpen(false);
     },
-    [trackUsage, closeDialog]
+    [trackUsage, setOpen]
   );
 
+  // fallow-ignore-next-line complexity
   const renderCommandItemContent = useCallback(
     (command: CommandItem) => {
-      // Returns the content nodes (without the CommandItemUI wrapper) for the virtual list.
-      // The virtual list renders its own item wrapper for keyboard nav compatibility.
       return (
         <>
           {command.icon && (
@@ -175,55 +261,58 @@ export function CommandPalette({ commands, inlineCommand }: CommandPaletteProps)
               ))}
             </span>
           )}
+          {isBlacklisted(command) && (
+            <span title="Blacklisted" className="flex-shrink-0">
+              <EyeOff className="h-3.5 w-3.5 text-chatroom-text-muted" />
+            </span>
+          )}
         </>
       );
     },
-    [isSearching, getScore]
+    [isSearching, getScore, isBlacklisted]
   );
 
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen} modal={false}>
-        <DialogPortal>
-          <DialogPrimitive.Content
-            forceMount
-            onEscapeKeyDown={handleEscapeKeyDown}
-            className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
-          >
-            <DialogPrimitive.Title className="sr-only">Command Palette</DialogPrimitive.Title>
-            <DialogPrimitive.Description className="sr-only">
-              Search and execute a command
-            </DialogPrimitive.Description>
+        <CommandDialogContent
+          open={open}
+          onEscapeKeyDown={handleEscapeKeyDown}
+          onBackdropDismiss={() => setOpen(false)}
+        >
+          <DialogTitle className="sr-only">Command Palette</DialogTitle>
+          <DialogDescription className="sr-only">Search and execute a command</DialogDescription>
 
-            {/* Command list section */}
-            <div className="flex flex-col w-full">
-              <Command
-                shouldFilter={false}
-                className="bg-chatroom-bg-primary text-chatroom-text-primary"
-              >
-                <CommandInput
-                  placeholder="Type a command..."
-                  className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
-                  value={searchValue}
-                  onValueChange={setSearchValue}
-                />
-                <CommandList className="min-h-[244px] h-[244px] p-0 overflow-hidden">
-                  <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
-                    No commands found.
-                  </CommandEmpty>
-                  {rows.length > 0 && (
-                    <CommandPaletteVirtualizedList
-                      rows={rows}
-                      onSelect={handleSelect}
-                      renderCommandItemContent={renderCommandItemContent}
-                      scrollResetKey={searchValue}
-                    />
-                  )}
-                </CommandList>
-              </Command>
-            </div>
-          </DialogPrimitive.Content>
-        </DialogPortal>
+          <div className="flex flex-col w-full">
+            <Command
+              shouldFilter={false}
+              className="bg-chatroom-bg-primary text-chatroom-text-primary"
+            >
+              <CommandInput
+                placeholder="Type a command..."
+                className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
+                value={searchValue}
+                onValueChange={setSearchValue}
+              />
+              <CommandList className="min-h-[244px] h-[244px] p-0 overflow-hidden">
+                <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
+                  No commands found.
+                </CommandEmpty>
+                {rows.length > 0 && (
+                  <CommandPaletteVirtualizedList
+                    rows={rows}
+                    onSelect={handleSelect}
+                    renderCommandItemContent={renderCommandItemContent}
+                    scrollResetKey={searchValue}
+                    isBlacklisted={isBlacklisted}
+                    onBlacklist={blacklist}
+                    onUnblacklist={unblacklist}
+                  />
+                )}
+              </CommandList>
+            </Command>
+          </div>
+        </CommandDialogContent>
       </Dialog>
       <CommandOutputModal inlineCommand={inlineCommand} />
     </>

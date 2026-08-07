@@ -35,10 +35,6 @@ const BASE_PARAMS = {
     senderRole: 'user',
     content: 'Can you work on this item',
   },
-  currentContext: null,
-  originMessage: null,
-  followUpCountSinceOrigin: 0,
-  originMessageCreatedAt: null,
   isEntryPoint: false,
   availableHandoffTargets: ['planner'],
 };
@@ -65,7 +61,7 @@ describe('task delivery attachment snapshots — CLI', () => {
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-001">
           <content>Refactor: extract shared auth helpers into a utility module</content>
-          <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-001</hint>
+          <hint>Work on this item. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-001</hint>
         </attachment>
       </attachments>
       <message sender="user" message-id="msg-snapshot-001">
@@ -144,7 +140,7 @@ describe('task delivery attachment snapshots — CLI', () => {
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-002">
           <content>Add login page</content>
-          <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-002</hint>
+          <hint>Work on this item. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-002</hint>
         </attachment>
         <attachment type="snippet" reference="attachment-reference-001">
         <snippet file-source="./src/auth.ts">
@@ -190,7 +186,7 @@ describe('task delivery attachment snapshots — native', () => {
       <attachments>
         <attachment type="backlog" backlog-item-id="backlog-item-snapshot-003">
           <content>Refactor: extract shared auth helpers into a utility module</content>
-          <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-003</hint>
+          <hint>Work on this item. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="snapshot-chatroom-id" --role="builder" --backlog-item-id=backlog-item-snapshot-003</hint>
         </attachment>
       </attachments>
       <message sender="user" message-id="msg-snapshot-001">

@@ -292,7 +292,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
-      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. **Before running \`context new\`, run \`context read\` — if the pinned context already uses the same \`--trigger-message-id\` as this task's Origin Message ID, do NOT create another context** (avoids duplicate timeline dividers). Only the entry point role can set contexts:
+      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. **Before running \`context new\`, run \`context read\`** — check only whether the pinned context's \`--trigger-message-id\` matches this task's Origin Message ID (do NOT create another context if it matches). **If a staleness warning is present, do not act on the stale goal — create a new context for the current user message.** Only the entry point role can set contexts:
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --trigger-message-id="ORIGIN_MESSAGE_ID" << 'CHATROOM_CONTEXT_END'
       ## Goal
@@ -349,6 +349,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       - Handle edge cases and error scenarios
       - Commit work with descriptive, atomic commit messages
 
+      **Completion gates (before PR or handoff):**
+      - All **(Required)** files done; **verified end-to-end** (user-facing entry point works: CLI command runnable, API reachable, or UI action functional)
+      - If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
+
        
 
       ### Handoff Options
@@ -374,8 +378,12 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
+      **History retrieval:** Use \`context read\` for current-task grounding; use \`messages download\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+
       **Reference commands:**
-      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
+      - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --format=linear --limit=10\`
+      - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
+      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):
@@ -397,9 +405,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       [TIMESTAMP] 📨 CHATROOM TASK received
 
       <task task-id="000000000000010007chatroom_tasks" origin-message-id="000000000010006chatroom_messages" sender="user">
-      <context>
-        <hint>(read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`</hint>
-      </context>
 
       <attachments>
         <attachment type="backlog" backlog-item-id="0000000000010005chatroom_backlog">
@@ -408,7 +413,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Add backlog section to get-next-task
           </content>
-          <hint>Work on this item. When done: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --backlog-item-id=0000000000010005chatroom_backlog</hint>
+          <hint>Work on this item. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --backlog-item-id=0000000000010005chatroom_backlog</hint>
         </attachment>
       </attachments>
       <message sender="user" message-id="000000000010006chatroom_messages">
@@ -455,7 +460,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ---
 
-      **Handoff Template (Builder → Planner)** — paste into the handoff message. Fill in EVERY section below. If a section does not apply, write \`Not Applicable\` (do not delete the section):
+      **Handoff Template (Builder → Planner)** — complete every section below. Do not omit sections, principles, or XML wrappers:
+
+      When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
 
       \`\`\`markdown
       ## Summary
@@ -467,18 +474,27 @@ ${taskDeliveryPrompt.fullCliOutput}
       <!-- Role guidance is static for your role and does not change between tasks. Run once if needed: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-role-guidance --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`. You do not need to re-read it on every task if you have already read it once. -->
 
       ## Proof of Principles
-      <!-- Demonstrate adherence to:
-      - Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms.
-      - Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders.
-      - Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently.
-      - Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order.
-      - No Revisit: implemented in a way so the user does not have to revisit this implementation again.
-      - Leave It Better: leave the code in a slightly better state than before when touching files.
-      -->
-      <how this work follows the principles above — localized changes, readable structure, correctness provable from source then tests>
+      <!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
+      - **Semantic Consistency:** <how this work demonstrates semantic consistency, or exactly "Not Applicable.">
+      <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+      - **Organization & Maintainability:** <how this work demonstrates organization & maintainability, or exactly "Not Applicable.">
+      <!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+      - **Reducing Optionality:** <how this work demonstrates reducing optionality, or exactly "Not Applicable.">
+      <!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+      - **Static Evaluability and Provability:** <how this work demonstrates static evaluability and provability, or exactly "Not Applicable.">
+      <!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+      - **No Revisit:** <how this work demonstrates no revisit, or exactly "Not Applicable.">
+      <!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+      - **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
+      <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
       ## Proof of Completion
-      - [ ] I confirm that the goal and acceptance criteria from the planner’s delegation brief have been met
+      - [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
       <!-- Reference the ## Goal and ## Requirements (acceptance criteria) sections from the planner handoff you received. State the delegation goal and confirm it was achieved. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
@@ -488,10 +504,12 @@ ${taskDeliveryPrompt.fullCliOutput}
       - [ ] I confirm that I have run typecheck and tests for the project (only required if code changes were made)
 
       ## Blockers / questions
-      <anything needing planner decision, or "Not Applicable">
+      <!-- REQUIRED. List blockers, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+      <anything needing planner decision>
 
       ## Notes for review
-      <specific areas for planner to check, or "Not Applicable">
+      <!-- REQUIRED. List review notes, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
+      <specific areas for planner to check>
       \`\`\`
 
       </handoff-templates>
@@ -551,7 +569,6 @@ ${taskDeliveryPrompt.fullCliOutput}
     // ===== VERIFY TASK DELIVERY PROMPT =====
     expect(taskDeliveryPrompt).toBeDefined();
     expect(taskDeliveryPrompt.fullCliOutput).toBeDefined();
-    expect(taskDeliveryPrompt.json).toBeDefined();
 
     // ===== VERIFY context view-template hint presence (init prompt only) =====
     expect(fullCliMessage).toContain('chatroom context view-template');
@@ -571,51 +588,14 @@ ${taskDeliveryPrompt.fullCliOutput}
     // Should have environment variable prefix
     expect(fullOutput).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
-    // ===== VERIFY JSON CONTEXT =====
-    const jsonContext = taskDeliveryPrompt.json;
+    // ===== VERIFY FULL CLI OUTPUT CONTENT =====
 
-    // Should have task information
-    expect(jsonContext.task).toBeDefined();
-    expect(jsonContext.task._id).toBe(startResult.taskId);
-    expect(jsonContext.task.status).toBe('in_progress');
+    // Backlog item content is rendered in the delivery envelope
+    expect(fullOutput).toContain('Fix: Agent lacks knowledge of backlog listing');
 
-    // Should have message information
-    expect(jsonContext.message).toBeDefined();
-    expect(jsonContext.message?._id).toBe(userMessageId);
-    expect(jsonContext.message?.senderRole).toBe('user');
-    expect(jsonContext.message?.content).toContain('backlog section');
-
-    // Should have context window
-    expect(jsonContext.contextWindow).toBeDefined();
-    expect(jsonContext.contextWindow.originMessage).toBeDefined();
-    expect(jsonContext.contextWindow.originMessage?.content).toContain('backlog section');
-
-    // Should have attached backlog item in context
-    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItemIds).toBeDefined();
-    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItemIds?.length).toBeGreaterThan(
-      0
-    );
-    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItems).toBeDefined();
-    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItems?.length).toBeGreaterThan(
-      0
-    );
-
-    // Verify backlog item details
-    const attachedItem = jsonContext.contextWindow.originMessage?.attachedBacklogItems?.[0];
-    expect(attachedItem).toBeDefined();
-    expect(attachedItem?.content).toContain('Fix: Agent lacks knowledge');
-    expect(attachedItem?.status).toBe('backlog');
-
-    // Should have role prompt context
-    expect(jsonContext.rolePrompt).toBeDefined();
-    expect(jsonContext.rolePrompt.availableHandoffRoles).toContain('planner');
-
-    // Should have chatroom metadata
-    expect(jsonContext.chatroomId).toBe(chatroomId);
-    expect(jsonContext.role).toBe('builder');
-    expect(jsonContext.teamName).toBe('Duo Team');
-    expect(jsonContext.teamRoles).toContain('builder');
-    expect(jsonContext.teamRoles).toContain('planner');
+    // Handoff roles are surfaced in the delivery
+    expect(fullOutput).toContain('**planner**');
+    expect(fullOutput).toContain('--next-role="planner"');
   });
 
   test('formats task info section correctly for CLI display', async () => {
@@ -656,87 +636,18 @@ ${taskDeliveryPrompt.fullCliOutput}
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    // Verify JSON contains all necessary info for CLI to format task info section
-    const jsonContext = taskDeliveryPrompt.json;
+    // Verify fullCliOutput contains all necessary info for CLI task info display
+    const fullOutput = taskDeliveryPrompt.fullCliOutput;
 
     // CLI needs task ID to show in TASK section
-    expect(jsonContext.task._id).toBeDefined();
-    expect(typeof jsonContext.task._id).toBe('string');
+    expect(fullOutput).toContain(`task-id="${startResult.taskId}"`);
 
-    // CLI needs message ID if present
-    expect(jsonContext.message?._id).toBeDefined();
+    // CLI needs origin message ID and sender for TASK section
+    expect(fullOutput).toContain(`origin-message-id="${userMessageId}"`);
+    expect(fullOutput).toContain('sender="user"');
 
-    // CLI needs origin message for TASK section
-    expect(jsonContext.contextWindow.originMessage).toBeDefined();
-    expect(jsonContext.contextWindow.originMessage?.content).toBe('Fix the dark mode toggle');
-    expect(jsonContext.contextWindow.originMessage?.senderRole).toBe('user');
-
-    // Verify classification is accessible (even if null for new message)
-    expect(jsonContext.contextWindow.classification).toBeDefined();
-  });
-
-  test('includes classification info when message is tagged', async () => {
-    // Setup
-    const { sessionId } = await createTestSession('test-classification-info');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
-
-    // User sends message
-    await t.mutation(api.messages.sendMessage, {
-      sessionId,
-      chatroomId,
-      senderRole: 'user',
-      content: 'Add user authentication',
-      type: 'message',
-    });
-
-    // Builder claims and starts
-    await t.mutation(api.tasks.claimTask, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-    });
-
-    const startResult = await t.mutation(api.tasks.startTask, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-    });
-
-    // Get task delivery prompt
-    const taskDeliveryPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      taskId: startResult.taskId,
-      convexUrl: 'http://127.0.0.1:3210',
-    });
-
-    // Role prompt has no classification until message is tagged (legacy data model)
-    expect(taskDeliveryPrompt.json.rolePrompt.currentClassification).toBeNull();
-
-    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', startResult.taskId));
-    expect(task?.sourceMessageId).toBeDefined();
-    await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_messages', task!.sourceMessageId!, {
-        classification: 'new_feature',
-        featureTitle: 'User Authentication',
-        featureDescription: 'Add login/logout functionality',
-        featureTechSpecs: 'Use JWT tokens, bcrypt for passwords',
-      });
-    });
-
-    // Get updated prompt
-    const updatedPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-      taskId: startResult.taskId,
-      convexUrl: 'http://127.0.0.1:3210',
-    });
-
-    // Should now have classification
-    expect(updatedPrompt.json.rolePrompt.currentClassification).toBe('new_feature');
+    // Origin message content is rendered in the delivery
+    expect(fullOutput).toContain('Fix the dark mode toggle');
   });
 });
 
@@ -857,7 +768,7 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(reminder).toContain('get-next-task');
   });
 
-  test('attached backlog tasks appear in task delivery prompt JSON', async () => {
+  test('attached backlog items appear in task delivery prompt fullCliOutput', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-attached-backlog-in-prompt');
     const chatroomId = await createDuoTeamChatroom(sessionId);
@@ -904,21 +815,12 @@ describe('Get-Next-Task Recent Improvements', () => {
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    // Verify attached backlog items appear in the prompt JSON
-    const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
-    expect(originMessage).toBeDefined();
-    expect(originMessage?.attachedBacklogItems).toBeDefined();
-    expect(originMessage?.attachedBacklogItems?.length).toBe(1);
-
-    const attachedItem = originMessage?.attachedBacklogItems?.[0];
-    expect(attachedItem?.content).toBe(
-      'Recovery of acknowledged tasks: implement 1-min grace period'
-    );
-    expect(attachedItem?.status).toBeDefined();
-
-    // Verify the full CLI output also exists
-    expect(taskDeliveryPrompt.fullCliOutput).toBeDefined();
-    expect(taskDeliveryPrompt.fullCliOutput.length).toBeGreaterThan(0);
+    // Verify attached backlog items appear in the fullCliOutput
+    const fullOutput = taskDeliveryPrompt.fullCliOutput;
+    expect(fullOutput).toContain('<attachments>');
+    expect(fullOutput).toContain('type="backlog"');
+    expect(fullOutput).toContain(`backlog-item-id="${backlogItemId}"`);
+    expect(fullOutput).toContain('Recovery of acknowledged tasks: implement 1-min grace period');
   });
 
   test('getPendingTasksForRole returns acknowledged tasks for recovery', async () => {
@@ -1136,23 +1038,6 @@ describe('Get-Next-Task Recent Improvements', () => {
       messageId: userMessageId,
       convexUrl: 'http://127.0.0.1:3210',
     });
-
-    // ── Verify JSON context has the attached backlog item ──────────────────────
-    const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
-    expect(originMessage).toBeDefined();
-
-    // The backlog item ID should appear in attachedBacklogItemIds
-    expect(originMessage?.attachedBacklogItemIds).toBeDefined();
-    expect(originMessage?.attachedBacklogItemIds).toContain(backlogItemId);
-
-    // The resolved item should appear in attachedBacklogItems
-    expect(originMessage?.attachedBacklogItems).toBeDefined();
-    expect(originMessage?.attachedBacklogItems?.length).toBe(1);
-    const attachedItem = originMessage?.attachedBacklogItems?.[0];
-    expect(attachedItem?.content).toBe(
-      'Refactor: extract shared auth helpers into a utility module'
-    );
-    expect(attachedItem?.status).toBe('backlog');
 
     // ── Verify CLI output includes backlog attachment in primary delivery ──
     const fullOutput = taskDeliveryPrompt.fullCliOutput;
@@ -1409,8 +1294,6 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(fullOutput).toContain('<user-selected-content>');
     expect(fullOutput).toContain('# Shadcn');
     expect(fullOutput).toContain('[attachment: attachment-reference-001]');
-
-    expect(taskDeliveryPrompt.json.message?.attachedSnippets).toHaveLength(1);
   });
 
   test('readTask mutation returns no attachedBacklogItems when source message has none', async () => {

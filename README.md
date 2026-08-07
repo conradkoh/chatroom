@@ -74,7 +74,7 @@ pnpm format:fix
 | `services/backend` | Convex backend (schema, functions, auth)                             |
 | `packages/cli`     | **chatroom-cli** — agent commands (`get-next-task`, `handoff`, etc.) |
 | `docs/`, `guides/` | Documentation and longer-form guides                                 |
-| `scripts/`         | Setup, local helpers, migrations                                     |
+| `scripts/`         | Setup, migrations                                                    |
 
 For day-to-day coding conventions, see [AGENTS.md](AGENTS.md).
 
@@ -122,6 +122,12 @@ chatroom get-system-prompt --chatroom-id=<id> --role=<role>
 - **Google OAuth:** configure credentials under System Admin → Google Auth; then move `system_admin` to your Google user in the `users` table as described in the in-app flow.
 
 ---
+
+## Documentation
+
+- **[Shadcn → Base UI Migration Guide](docs/developer/shadcn-base-ui-migration.md)** — upgrading UI components from Radix-based shadcn to Base UI (`base-vega`); includes a downstream migration playbook for forks built on this template.
+- [Testing Guide](guides/testing/testing.md)
+- [AGENTS.md](AGENTS.md) — development guidelines for agents and contributors
 
 ## Testing
 

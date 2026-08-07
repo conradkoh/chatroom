@@ -7,13 +7,6 @@ export interface RolePromptContext {
   role: string;
   teamRoles: string[];
   isEntryPoint: boolean;
-  currentClassification?: string;
-  userContext?: {
-    originalRequest: string;
-    featureTitle?: string;
-    featureDescription?: string;
-    techSpecs?: string;
-  };
   availableHandoffRoles: string[];
   cliEnvPrefix?: string;
 }

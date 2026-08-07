@@ -20,6 +20,7 @@ import { useAttachments } from '../../attachments';
 import { type BacklogItem, getScoringBadge } from '../backlog';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
 import { backlogReviewMarkdownComponents, backlogProseClassNames } from '../markdown-utils';
+import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from '../picker';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -214,16 +215,14 @@ const ReviewDetail = memo(function ReviewDetail({
         <div className="flex-1" />
 
         <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              disabled={isLoading}
-              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              title="More actions"
-            >
-              <MoreHorizontal size={14} />
-              Actions
-            </button>
+          <DropdownMenuTrigger
+            type="button"
+            disabled={isLoading}
+            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="More actions"
+          >
+            <MoreHorizontal size={14} />
+            Actions
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[160px]">
             <DropdownMenuItem
@@ -265,6 +264,11 @@ const ReviewDetail = memo(function ReviewDetail({
     </div>
   );
 });
+
+function reviewItemPickerLabel(content: string): string {
+  const firstLine = content.split('\n')[0]?.trim() ?? '';
+  return firstLine.length > 60 ? `${firstLine.slice(0, 57)}...` : firstLine || 'Review item';
+}
 
 // ─── UndoBar ────────────────────────────────────────────────────────────
 
@@ -353,6 +357,7 @@ export const ReviewPanel = memo(function ReviewPanel({
   const [selectedId, setSelectedId] = useState<Id<'chatroom_backlog'> | null>(null);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
+  const [mobileItemPickerOpen, setMobileItemPickerOpen] = useState(false);
   const undoTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Fetch pending review backlog items
@@ -570,7 +575,7 @@ export const ReviewPanel = memo(function ReviewPanel({
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">
       {/* Left Panel — Review Items List */}
-      <FixedModalSidebar className="w-72">
+      <FixedModalSidebar className="w-72 hidden sm:flex flex-col">
         <FixedModalHeader>
           <div className="flex items-center gap-2">
             <ClipboardCheck
@@ -604,6 +609,45 @@ export const ReviewPanel = memo(function ReviewPanel({
         <FixedModalHeader onClose={onClose}>
           <FixedModalTitle>Review Detail</FixedModalTitle>
         </FixedModalHeader>
+
+        {/* Mobile item selector — visible only on small screens */}
+        {visibleItems.length > 0 && (
+          <div className="sm:hidden border-b border-chatroom-border px-4 py-2 flex-shrink-0">
+            <ResponsivePickerShell
+              open={mobileItemPickerOpen}
+              onOpenChange={setMobileItemPickerOpen}
+              title="Select item"
+              align="start"
+              contentClassName="w-72"
+              trigger={
+                <button
+                  type="button"
+                  className="w-full text-xs bg-chatroom-bg-surface border border-chatroom-border text-chatroom-text-primary rounded-none focus:ring-0 focus:outline-none flex h-8 items-center justify-between gap-2 px-3 py-2"
+                >
+                  <span className="truncate text-left flex-1">
+                    {selectedItem ? reviewItemPickerLabel(selectedItem.content) : 'Select item'}
+                  </span>
+                </button>
+              }
+            >
+              <PickerScrollBody maxHeightClassName="max-h-60">
+                {visibleItems.map((item) => (
+                  <PickerOptionRow
+                    key={item._id}
+                    selected={selectedId === item._id}
+                    onSelect={() => {
+                      setSelectedId(item._id);
+                      setMobileItemPickerOpen(false);
+                    }}
+                  >
+                    {reviewItemPickerLabel(item.content)}
+                  </PickerOptionRow>
+                ))}
+              </PickerScrollBody>
+            </ResponsivePickerShell>
+          </div>
+        )}
+
         <FixedModalBody>
           {selectedItem ? (
             <ReviewDetail
@@ -617,6 +661,11 @@ export const ReviewPanel = memo(function ReviewPanel({
             <EmptyState />
           )}
         </FixedModalBody>
+
+        {/* Mobile undo bar — visible only on small screens */}
+        <div className="sm:hidden flex-shrink-0">
+          <UndoBar entries={undoStack} onUndo={handleUndo} />
+        </div>
       </FixedModalContent>
     </FixedModal>
   );

@@ -1,7 +1,7 @@
-import { api } from '../../api.js';
-import type { SessionRepository } from '../../domain/direct-harness/ports/session-repository.js';
-import type { OpenCodeSessionId } from '../../domain/direct-harness/entities/harness-session.js';
 import type { ConvexRepositoryOptions } from './convex-repository-options.js';
+import { api } from '../../api.js';
+import type { OpenCodeSessionId } from '../../daemon/domain/entities/harness-session.js';
+import type { SessionRepository } from '../../daemon/domain/usecase/open-harness-session.js';
 
 export type ConvexSessionRepositoryOptions = ConvexRepositoryOptions;
 

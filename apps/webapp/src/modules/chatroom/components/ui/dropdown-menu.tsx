@@ -1,23 +1,24 @@
 /**
  * Chatroom-local DropdownMenu — themed for portaled floating menus in the chatroom UI.
- * Defaults to modal={false} for performance; items use Radix focus/highlight states
- * with chatroom hover colors instead of shadcn accent grey.
+ * Defaults to modal={false} for performance; items use Base UI focus/highlight
+ * states with chatroom hover colors instead of shadcn accent grey.
  */
 'use client';
 
-import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
+import { Menu as DropdownMenuPrimitive } from '@base-ui/react/menu';
 import { CheckIcon, ChevronRightIcon } from 'lucide-react';
 import { useCallback, useRef } from 'react';
 import type * as React from 'react';
 
 import { useOverlayDismissStack } from '../../hooks/useOverlayDismissStack';
 import { chatroomPortaledMenuFloatingClassName } from '../shared/industrialDialogStyles';
+import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
 
 import { cn } from '@/lib/utils';
 
-/** Shared highlight styles for chatroom dropdown items (Radix roving focus / data-highlighted). */
+/** Shared highlight styles for chatroom dropdown items (Base UI focus / data-highlighted). */
 export const chatroomDropdownMenuItemHighlightClassName =
-  'rounded-none text-chatroom-text-primary focus:bg-chatroom-bg-hover focus:text-chatroom-text-primary data-[highlighted]:bg-chatroom-bg-hover data-[highlighted]:text-chatroom-text-primary';
+  'rounded-none text-chatroom-text-primary focus:bg-chatroom-bg-hover focus:text-chatroom-text-primary data-highlighted:bg-chatroom-bg-hover data-highlighted:text-chatroom-text-primary';
 
 /** Shared surface styles for chatroom portaled dropdown panels. */
 export const chatroomDropdownMenuContentClassName = `p-0 ${chatroomPortaledMenuFloatingClassName}`;
@@ -28,7 +29,9 @@ function DropdownMenu({
   defaultOpen,
   onOpenChange,
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+}: Omit<DropdownMenuPrimitive.Root.Props, 'onOpenChange'> & {
+  onOpenChange?: (open: boolean) => void;
+}) {
   const dismissRef = useRef<() => void>(() => undefined);
 
   dismissRef.current = () => {
@@ -53,45 +56,67 @@ function DropdownMenu({
   );
 }
 
-function DropdownMenuTrigger({
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
+function DropdownMenuTrigger({ ...props }: DropdownMenuPrimitive.Trigger.Props) {
   return <DropdownMenuPrimitive.Trigger data-slot="chatroom-dropdown-menu-trigger" {...props} />;
 }
 
 function DropdownMenuContent({
   className,
+  align = 'center',
   sideOffset = 4,
+  alignOffset = 0,
+  side = 'bottom',
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+}: DropdownMenuPrimitive.Popup.Props &
+  Pick<DropdownMenuPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>) {
+  const portalContainer = useOverlayPortalContainer();
   return (
-    <DropdownMenuPrimitive.Portal>
-      <DropdownMenuPrimitive.Content
-        data-slot="chatroom-dropdown-menu-content"
+    <DropdownMenuPrimitive.Portal container={portalContainer ?? undefined}>
+      <DropdownMenuPrimitive.Positioner
+        align={align}
+        alignOffset={alignOffset}
+        side={side}
         sideOffset={sideOffset}
-        className={cn(
-          'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 max-h-(--radix-dropdown-menu-content-available-height) min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto',
-          chatroomDropdownMenuContentClassName,
-          className
-        )}
-        {...props}
-      />
+        className="isolate z-50"
+      >
+        <DropdownMenuPrimitive.Popup
+          data-slot="chatroom-dropdown-menu-content"
+          className={cn(
+            'data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 max-h-(--available-height) min-w-[8rem] origin-(--transform-origin) overflow-x-hidden overflow-y-auto',
+            chatroomDropdownMenuContentClassName,
+            className
+          )}
+          {...props}
+        />
+      </DropdownMenuPrimitive.Positioner>
     </DropdownMenuPrimitive.Portal>
   );
 }
 
 function DropdownMenuItem({
   className,
+  onSelect,
+  onClick,
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Item>) {
+}: Omit<DropdownMenuPrimitive.Item.Props, 'onClick'> & {
+  onSelect?: (event: { preventDefault: () => void }) => void;
+  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
+}) {
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    onClick?.(event);
+    if (!event.defaultPrevented) {
+      onSelect?.(event);
+    }
+  };
   return (
     <DropdownMenuPrimitive.Item
       data-slot="chatroom-dropdown-menu-item"
       className={cn(
-        'relative flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'relative flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50',
         chatroomDropdownMenuItemHighlightClassName,
         className
       )}
+      onClick={handleClick}
       {...props}
     />
   );
@@ -102,12 +127,12 @@ function DropdownMenuCheckboxItem({
   children,
   checked,
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+}: DropdownMenuPrimitive.CheckboxItem.Props) {
   return (
     <DropdownMenuPrimitive.CheckboxItem
       data-slot="chatroom-dropdown-menu-checkbox-item"
       className={cn(
-        'relative flex cursor-pointer items-center gap-2 py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'relative flex cursor-pointer items-center gap-2 py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50',
         chatroomDropdownMenuItemHighlightClassName,
         className
       )}
@@ -115,9 +140,9 @@ function DropdownMenuCheckboxItem({
       {...props}
     >
       <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
-        <DropdownMenuPrimitive.ItemIndicator>
+        <DropdownMenuPrimitive.CheckboxItemIndicator>
           <CheckIcon className="size-4" />
-        </DropdownMenuPrimitive.ItemIndicator>
+        </DropdownMenuPrimitive.CheckboxItemIndicator>
       </span>
       {children}
     </DropdownMenuPrimitive.CheckboxItem>
@@ -128,11 +153,11 @@ function DropdownMenuLabel({
   className,
   inset,
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Label> & {
+}: React.ComponentProps<'div'> & {
   inset?: boolean;
 }) {
   return (
-    <DropdownMenuPrimitive.Label
+    <div
       data-slot="chatroom-dropdown-menu-label"
       data-inset={inset}
       className={cn(
@@ -145,10 +170,7 @@ function DropdownMenuLabel({
   );
 }
 
-function DropdownMenuSeparator({
-  className,
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Separator>) {
+function DropdownMenuSeparator({ className, ...props }: DropdownMenuPrimitive.Separator.Props) {
   return (
     <DropdownMenuPrimitive.Separator
       data-slot="chatroom-dropdown-menu-separator"
@@ -158,20 +180,20 @@ function DropdownMenuSeparator({
   );
 }
 
-function DropdownMenuSub({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
-  return <DropdownMenuPrimitive.Sub data-slot="chatroom-dropdown-menu-sub" {...props} />;
+function DropdownMenuSub({ ...props }: DropdownMenuPrimitive.SubmenuRoot.Props) {
+  return <DropdownMenuPrimitive.SubmenuRoot data-slot="chatroom-dropdown-menu-sub" {...props} />;
 }
 
 function DropdownMenuSubTrigger({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger>) {
+}: DropdownMenuPrimitive.SubmenuTrigger.Props) {
   return (
-    <DropdownMenuPrimitive.SubTrigger
+    <DropdownMenuPrimitive.SubmenuTrigger
       data-slot="chatroom-dropdown-menu-sub-trigger"
       className={cn(
-        'flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50',
         chatroomDropdownMenuItemHighlightClassName,
         className
       )}
@@ -179,24 +201,23 @@ function DropdownMenuSubTrigger({
     >
       {children}
       <ChevronRightIcon className="ml-auto size-4" />
-    </DropdownMenuPrimitive.SubTrigger>
+    </DropdownMenuPrimitive.SubmenuTrigger>
   );
 }
 
-function DropdownMenuSubContent({
-  className,
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+function DropdownMenuSubContent({ className, ...props }: DropdownMenuPrimitive.Popup.Props) {
   return (
-    <DropdownMenuPrimitive.SubContent
-      data-slot="chatroom-dropdown-menu-sub-content"
-      className={cn(
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 max-h-(--radix-dropdown-menu-content-available-height) min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto',
-        chatroomDropdownMenuContentClassName,
-        className
-      )}
-      {...props}
-    />
+    <DropdownMenuPrimitive.Positioner className="isolate z-50">
+      <DropdownMenuPrimitive.Popup
+        data-slot="chatroom-dropdown-menu-sub-content"
+        className={cn(
+          'data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 max-h-(--available-height) min-w-[8rem] origin-(--transform-origin) overflow-x-hidden overflow-y-auto',
+          chatroomDropdownMenuContentClassName,
+          className
+        )}
+        {...props}
+      />
+    </DropdownMenuPrimitive.Positioner>
   );
 }
 

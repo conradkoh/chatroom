@@ -15,24 +15,16 @@ import type React from 'react';
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
 import { MessageInput } from '../components/MessageInput';
 import { ChatroomMessagesPanel } from '../components/timeline/ChatroomMessagesPanel';
-import type { MessageViewMode } from '../hooks/persistence/useMessageViewMode';
-import type { TimelineScrollCoordinator } from '../hooks/timelineScrollCoordinator';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface MessagesPanelProps {
   chatroomId: string;
-  coordinator: React.MutableRefObject<TimelineScrollCoordinator>;
-  onRegisterOpenEventStream?: (openFn: () => void) => void;
-  onRegisterMessageStoreActions?: (actions: {
-    removeMessagesForTask: (taskId: string) => void;
-  }) => void;
   machines?: Map<string, { hostname: string; alias?: string }>;
-  viewMode: MessageViewMode;
   // SendForm props
-  onBeforeResize?: () => void;
-  onAfterResize?: () => void;
   onRegisterSendFormFocus?: (focusFn: () => void) => void;
+  onRegisterAllTabNavigation?: (actions: { goToLatestAnchor: () => void }) => void;
+  onMessageSent?: () => void;
   autocompleteFiles?: FileEntry[];
   refreshAutocompleteFiles?: () => void;
   hasAutocompleteWorkspace?: boolean;
@@ -44,14 +36,10 @@ export interface MessagesPanelProps {
 
 export function MessagesPanel({
   chatroomId,
-  coordinator,
-  onRegisterOpenEventStream,
-  onRegisterMessageStoreActions,
   machines,
-  viewMode,
-  onBeforeResize,
-  onAfterResize,
   onRegisterSendFormFocus,
+  onRegisterAllTabNavigation,
+  onMessageSent,
   autocompleteFiles,
   refreshAutocompleteFiles,
   hasAutocompleteWorkspace,
@@ -60,18 +48,14 @@ export function MessagesPanel({
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <ChatroomMessagesPanel
         chatroomId={chatroomId}
-        coordinator={coordinator}
-        onRegisterOpenEventStream={onRegisterOpenEventStream}
-        onRegisterMessageStoreActions={onRegisterMessageStoreActions}
         machines={machines}
-        viewMode={viewMode}
+        onRegisterAllTabNavigation={onRegisterAllTabNavigation}
         footer={
           <div className="shrink-0 border-t-2 border-chatroom-border-strong">
             <MessageInput
               chatroomId={chatroomId}
-              onBeforeResize={onBeforeResize}
-              onAfterResize={onAfterResize}
               onRegisterFocus={onRegisterSendFormFocus}
+              onMessageSent={onMessageSent}
               files={autocompleteFiles}
               hasAutocompleteWorkspace={hasAutocompleteWorkspace}
               onAtTriggerActivate={refreshAutocompleteFiles}

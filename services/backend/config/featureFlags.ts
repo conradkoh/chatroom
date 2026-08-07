@@ -1,3 +1,5 @@
+import type { SignupMethod } from './signupMethods';
+
 /**
  * Runtime feature flags for the backend.
  *
@@ -9,4 +11,6 @@ export const featureFlags = {
   disableLogin: false,
   /** Direct-harness sessions feature. Always on; kill-switch via requireDirectHarnessWorkers helper. */
   directHarnessWorkers: true,
+  /** null or [] = signups disabled. Default ['self'] preserves current open self-signup. */
+  allowedSignupMethods: ['self'] as SignupMethod[] | null,
 };

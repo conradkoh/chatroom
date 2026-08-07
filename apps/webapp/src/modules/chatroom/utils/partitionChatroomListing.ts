@@ -20,7 +20,10 @@ export function partitionChatroomListing(
   const completed = chatrooms.filter((c) => c.chatStatus === 'completed');
 
   const active = chatrooms
-    .filter((c) => c.chatStatus === 'working' || c.chatStatus === 'active')
+    .filter(
+      (c) =>
+        c.chatStatus === 'working' || c.chatStatus === 'active' || c.chatStatus === 'transitioning'
+    )
     .sort((a, b) => a._creationTime - b._creationTime);
 
   const activeIds = new Set(active.map((c) => c._id));

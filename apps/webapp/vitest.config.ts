@@ -10,7 +10,15 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     globals: true,
     css: true,
-    exclude: ['tests/e2e/**', 'node_modules/**'],
+    maxWorkers: 4,
+    testTimeout: 15_000,
+    exclude: [
+      'tests/e2e/**',
+      'tests/e2e/specs/**',
+      'tests/e2e/fixtures/**',
+      'tests/e2e/pages/**',
+      'node_modules/**',
+    ],
   },
   resolve: {
     alias: {

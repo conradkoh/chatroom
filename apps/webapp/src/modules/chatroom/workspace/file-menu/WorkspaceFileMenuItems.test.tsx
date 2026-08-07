@@ -1,13 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { WorkspaceFileMenuProps } from './types';
+import { WorkspaceFileMenuItems } from './WorkspaceFileMenuItems';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
-import { WorkspaceFileMenuItems } from './WorkspaceFileMenuItems';
-import type { WorkspaceFileMenuProps } from './types';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -48,9 +48,7 @@ const defaultVisibility: WorkspaceFileMenuProps['visibility'] = {
 function renderMenu(overrides: Partial<WorkspaceFileMenuProps> = {}) {
   return render(
     <DropdownMenu open={true} onOpenChange={vi.fn()} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <span />
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger type="button">open</DropdownMenuTrigger>
       <DropdownMenuContent>
         <WorkspaceFileMenuItems
           state={{ ...defaultState, ...overrides.state }}

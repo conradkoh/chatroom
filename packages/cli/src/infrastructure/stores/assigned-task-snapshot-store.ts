@@ -1,4 +1,4 @@
-import type { AssignedTaskSnapshotView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import type { AssignedTaskSnapshotView } from '../../daemon/domain/entities/assigned-task.js';
 
 let rows: AssignedTaskSnapshotView[] = [];
 let hasSnapshot = false;

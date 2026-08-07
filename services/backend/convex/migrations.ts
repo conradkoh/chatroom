@@ -3,6 +3,11 @@ import { Migrations } from '@convex-dev/migrations';
 import { components, internal } from './_generated/api';
 import type { DataModel, Doc } from './_generated/dataModel';
 import {
+  compactFileTreeDeltaOperation,
+  expandFileTreeDeltaOperations,
+  isVerboseFileTreeDeltaOp,
+} from './lib/fileTreeDeltaOps';
+import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,
 } from './utils/machineFavoriteScopeKey';
@@ -223,6 +228,23 @@ export const migrateEventReasonsToActorPrefixed = migrations.define({
 });
 
 /**
+ * Migration: Delete deprecated command.run and command.stop events from chatroom_eventStream.
+ * Command dispatch moved to dedicated chatroom_commandRunsV2 subscription — these events
+ * are no longer emitted. Legacy rows carry v1 chatroom_commandRuns runIds that block schema
+ * validation after the V2 table migration.
+ * Idempotent: only deletes events with type command.run or command.stop.
+ */
+export const deleteDeprecatedCommandEventStreamEvents = migrations.define({
+  table: 'chatroom_eventStream',
+  migrateOne: async (ctx, event) => {
+    const raw = event as Record<string, unknown>;
+    if (raw.type === 'command.run' || raw.type === 'command.stop') {
+      await ctx.db.delete('chatroom_eventStream', event._id);
+    }
+  },
+});
+
+/**
  * Migration: Deduplicate chatroom_teamAgentConfigs by teamRoleKey.
  * Keeps the most recently created row per teamRoleKey and deletes duplicates.
  * Note: This uses a full-table scan approach since dedup requires grouping.
@@ -333,10 +355,7 @@ export function inferLegacySavedCommandScope(row: { chatroomId?: string }): 'use
  * Migration: Backfill scope field for saved commands created before the scope feature.
  * Legacy rows have no scope field — chatroomId present → 'chatroom', otherwise → 'user'.
  *
- * Run via:
- *   cd services/backend && pnpm migrate:saved-command-scope
- *   # or: npx convex run migrations:run '{"fn":"migrations:backfillSavedCommandScope"}'
- *   # or: pnpm migrate  (included in migrations:runAll)
+ * Run via: pnpm migrate  (included in migrations:runAll)
  *
  * Idempotent: rows with scope already set are skipped.
  */
@@ -505,13 +524,91 @@ export const seedStandingInstructionHistory = migrations.define({
   },
 });
 
+// --- Standing Instructions Title Migration ---
+
+/**
+ * Migration: Rename chatroom_rooms.standingInstructionsName to
+ * chatroom_rooms.standingInstructionsTitle.
+ *
+ * Standing instruction titles are now required; the legacy optional name field
+ * is removed. Copies any existing name into title and unsets the old field.
+ *
+ * Usage: npx convex run migrations:run '{"fn":"migrations:migrateStandingInstructionsNameToTitle"}'
+ * Idempotent: rows without a legacy name or with title already set are skipped.
+ */
+export const migrateStandingInstructionsNameToTitle = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (_ctx, room) => {
+    const doc = room as Record<string, unknown>;
+    const legacyName =
+      typeof doc.standingInstructionsName === 'string' ? doc.standingInstructionsName.trim() : '';
+    if (!legacyName) return;
+    if (doc.standingInstructionsTitle) return;
+    return {
+      standingInstructionsTitle: legacyName,
+      standingInstructionsName: undefined,
+    };
+  },
+});
+
+// --- Workspace File Tree Migrations ---
+
+/**
+ * Migration: Compact legacy verbose file-tree delta operations to short-key format.
+ * Required after PR #1122 changed the stored schema; production rows may still use
+ * {operation, path, entryType} shape.
+ *
+ * Run via: npx convex run migrations:run '{"fn": "migrations:compactWorkspaceFileTreeDeltaOperations"}'
+ * Idempotent: rows already compact are skipped.
+ */
+export const compactWorkspaceFileTreeDeltaOperations = migrations.define({
+  table: 'chatroom_workspaceFileTreeDelta',
+  migrateOne: async (_ctx, row) => {
+    if (!row.operations.some(isVerboseFileTreeDeltaOp)) return;
+    return {
+      operations: expandFileTreeDeltaOperations(row.operations).map(compactFileTreeDeltaOperation),
+    };
+  },
+});
+
+/**
+ * Migration: Backfill roleNames from legacy accessLevel.
+ * system_admin → ['system_admin'], all others → ['user'].
+ */
+export const backfillUserRoleNames = migrations.define({
+  table: 'users',
+  migrateOne: async (_ctx, user) => {
+    if (user.roleNames !== undefined) {
+      return;
+    }
+    const roleNames =
+      user.accessLevel === 'system_admin' ? (['system_admin'] as const) : (['user'] as const);
+    return { roleNames: [...roleNames] };
+  },
+});
+
+/**
+ * Migration: Strip legacy `manager` role from roleNames.
+ * Starter now ships only `user` and `system_admin`; forks add custom roles.
+ */
+export const stripManagerRoleNames = migrations.define({
+  table: 'users',
+  migrateOne: async (_ctx, user) => {
+    if (!user.roleNames?.includes('manager')) {
+      return;
+    }
+    const filtered = user.roleNames.filter((role) => role !== 'manager');
+    return { roleNames: filtered.length > 0 ? filtered : ['user'] };
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================
 
 /**
  * Run all migrations in order.
- * Usage: npx convex run migrations:runAll
+ * Usage: pnpm migrate  (from repo root; CI uses the same command with CONVEX_DEPLOY_KEY set)
  *
  * Migrations are run sequentially. Each migration tracks its own progress —
  * if interrupted, it will resume from where it left off on the next run.
@@ -529,9 +626,12 @@ export const runAll = migrations.runner([
   // Event Stream
   internal.migrations.migrateStopReasonToActorPrefixed,
   internal.migrations.migrateEventReasonsToActorPrefixed,
+  internal.migrations.deleteDeprecatedCommandEventStreamEvents,
   // Cleanup
   internal.migrations.deduplicateTeamAgentConfigs,
   internal.migrations.purgeWorkspaceCommitDetails,
+  // Workspace File Tree
+  internal.migrations.compactWorkspaceFileTreeDeltaOperations,
   // Git State
   internal.migrations.dropEmbeddedRecentCommits,
   // Machine Models
@@ -544,4 +644,9 @@ export const runAll = migrations.runner([
   internal.migrations.migrateMachineConfigFavoritesToMachineScope,
   // Standing Instructions History
   internal.migrations.seedStandingInstructionHistory,
+  // Standing Instructions Title
+  internal.migrations.migrateStandingInstructionsNameToTitle,
+  // RBAC
+  internal.migrations.backfillUserRoleNames,
+  internal.migrations.stripManagerRoleNames,
 ]);

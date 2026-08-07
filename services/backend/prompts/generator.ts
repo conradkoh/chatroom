@@ -28,7 +28,6 @@ import { getNativeHandoffTurnEndGuidance } from './native/session-continuity';
 import { composeNativeSystemPrompt } from './native/system-prompt';
 import { getClassificationGuideSection } from './sections/classification-guide';
 import { getCommandsReferenceSection } from './sections/commands-reference';
-import { getCurrentClassificationSection } from './sections/current-classification';
 import { getGettingStartedSection } from './sections/getting-started';
 import { getGlossarySection } from './sections/glossary';
 import { getHandoffOptionsSection } from './sections/handoff-options';
@@ -97,9 +96,10 @@ export interface RolePromptContext {
   teamName: string;
   teamRoles: string[];
   teamEntryPoint?: string;
-  currentClassification?: 'question' | 'new_feature' | 'follow_up' | null;
   availableHandoffRoles: string[];
   convexUrl: string; // Required Convex URL for env var prefix generation
+  /** When true, static planner guidance includes enhancer workflow references. */
+  plannerEnhancerActive?: boolean;
 }
 
 /**
@@ -118,7 +118,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
     teamEntryPoint: ctx.teamEntryPoint,
     convexUrl: ctx.convexUrl,
     chatroomId: ctx.chatroomId,
-    workflow: ctx.currentClassification,
+    plannerEnhancerActive: ctx.plannerEnhancerActive,
   });
 
   const sections: PromptSection[] = [];
@@ -130,11 +130,6 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
 
   // Role-specific guidance (team-aware)
   sections.push(getRoleGuidanceSection(selectorCtx));
-
-  // Current task context
-  if (ctx.currentClassification) {
-    sections.push(getCurrentClassificationSection(ctx.currentClassification));
-  }
 
   // Available handoff options
   sections.push(
@@ -157,8 +152,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
 
 // Note: getClassificationContext, getHandoffSection, and getCommandsSection were
 // replaced by PromptSection-producing functions in sections/ directory.
-// See sections/current-classification.ts, sections/handoff-options.ts,
-// sections/commands-reference.ts
+// See sections/handoff-options.ts and sections/commands-reference.ts
 
 // =============================================================================
 // FINAL OUTPUT COMPOSERS
@@ -224,6 +218,27 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   return composeSections(buildInitPromptSections(input, selectorCtx));
 }
 
+function isEnhancerCheckInQueuedHandoff(params: {
+  role: string;
+  nextRole: string;
+  enhancerCheckInQueued?: boolean;
+}): boolean {
+  return (
+    params.enhancerCheckInQueued === true &&
+    params.role.toLowerCase() === 'planner' &&
+    params.nextRole.toLowerCase() === 'enhancer'
+  );
+}
+
+function getEnhancerCheckInQueuedConfirmationLines(): string[] {
+  return [
+    '✅ Planning check-in queued for handoff enhancer',
+    '',
+    'Your check-in was sent to the handoff enhancer (async). You will receive planning feedback back as a planner task when review completes.',
+    '**Run get-next-task now and end your turn** — do not wait for feedback, poll, or re-submit the handoff.',
+  ];
+}
+
 /**
  * Generate the output shown after a successful handoff command.
  *
@@ -237,12 +252,25 @@ export function generateHandoffOutput(params: {
   chatroomId: string;
   convexUrl?: string;
   supportsNativeIntegration?: boolean;
+  /** When true, planner→enhancer handoff queued async check-in. */
+  enhancerCheckInQueued?: boolean;
 }): string {
-  const { role, nextRole, chatroomId, convexUrl, supportsNativeIntegration } = params;
+  const {
+    role,
+    nextRole,
+    chatroomId,
+    convexUrl,
+    supportsNativeIntegration,
+    enhancerCheckInQueued,
+  } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   const lines: string[] = [];
-  lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
+  if (isEnhancerCheckInQueuedHandoff({ role, nextRole, enhancerCheckInQueued })) {
+    lines.push(...getEnhancerCheckInQueuedConfirmationLines());
+  } else {
+    lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
+  }
 
   if (supportsNativeIntegration) {
     lines.push(getNativeHandoffTurnEndGuidance(nextRole));

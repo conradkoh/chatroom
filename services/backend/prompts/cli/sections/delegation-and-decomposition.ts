@@ -20,5 +20,5 @@ export function getDelegationAndDecompositionSection(config: TeamCompositionConf
 
   return `**Delegation & Decomposition:**
 
-Break complex tasks into small, focused slices and delegate them one at a time using a **Delegation Brief** (see **Delegation Guidelines** below).`;
+Any task that requires code changes must be delegated to the builder — break it into small, focused slices and delegate them one at a time using a **Delegation Brief** (see **Delegation Guidelines** below).`;
 }

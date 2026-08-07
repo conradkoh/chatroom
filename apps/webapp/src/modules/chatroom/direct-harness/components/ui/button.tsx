@@ -2,7 +2,7 @@
  * Harness-local Button — identical API to ShadCN Button but with sharp corners
  * (removes rounded-md from base and size variants) per docs/application/design/theme.md.
  */
-import { Slot } from '@radix-ui/react-slot';
+import { Button as ButtonPrimitive } from '@base-ui/react/button';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type * as React from 'react';
 
@@ -38,18 +38,12 @@ const buttonVariants = cva(
 
 function Button({
   className,
-  variant,
-  size,
-  asChild = false,
+  variant = 'default',
+  size = 'default',
   ...props
-}: React.ComponentProps<'button'> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean;
-  }) {
-  const Comp = asChild ? Slot : 'button';
-
+}: React.ComponentProps<'button'> & VariantProps<typeof buttonVariants>) {
   return (
-    <Comp
+    <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}

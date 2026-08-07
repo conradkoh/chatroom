@@ -29,6 +29,7 @@
 
 import { maybePromoteNextQueuedTask } from './maybe-promote-next-queued-task';
 import { adjustTaskCountsForTransition } from './task-counts';
+import { writeTimelineTaskStatusSignal } from './write-timeline-task-status-signal';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
@@ -111,6 +112,12 @@ export async function transitionTask(
   // 1. Delegate the FSM transition (validates rules, applies patches, logs)
   await fsmTransitionTask(ctx, taskId, newStatus, trigger, overrides);
   await projectAssignedTaskSnapshotsAfterTaskChange(ctx, taskId);
+
+  // 1a. Write timeline task-status signal for live cursor subscription
+  const transitionedTask = await ctx.db.get('chatroom_tasks', taskId);
+  if (transitionedTask) {
+    await writeTimelineTaskStatusSignal(ctx, transitionedTask);
+  }
 
   // 1b. Update materialized task counts
   if (taskBeforeTransition && oldStatus) {

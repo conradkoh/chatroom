@@ -56,8 +56,12 @@ ${waitCmd}
 
 ${getNextTaskReminder()}
 
+**History retrieval:** Use \`context read\` for current-task grounding; use \`messages download\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+
 **Reference commands:**
-- List recent messages: \`${cliEnvPrefix}chatroom messages list --chatroom-id="${params.chatroomId}" --role="${params.role}" --sender-role=user --limit=5 --full\`
+- Download message history: \`${cliEnvPrefix}chatroom messages download --chatroom-id="${params.chatroomId}" --role="${params.role}" --format=linear --limit=10\`
+- Anchor on the user's last message: \`${cliEnvPrefix}chatroom messages anchor --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
+- Read current chatroom task context: \`${cliEnvPrefix}chatroom context read --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):
@@ -68,9 +72,7 @@ ${getNextTaskReminder()}
   return createSection('commands-reference', 'knowledge', content);
 }
 
-/**
- * Commands reference for native-integration harnesses (handoff only).
- */
+/** ... */
 export function getNativeCommandsReferenceSection(params: CommandsReferenceParams): PromptSection {
   const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
 
@@ -93,8 +95,14 @@ ${HANDOFF_BODY_GUIDANCE}
 
 **Do not run \`register-agent\`** — your session was registered when the harness started.
 
+**History retrieval:** Use \`context read\` for current-task grounding; use \`messages download\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+
+// Mirrors the CLI commands reference above (native harness variant).
+// fallow-ignore-next-line code-duplication
 **Reference commands:**
-- List recent messages: \`${cliEnvPrefix}chatroom messages list --chatroom-id="${params.chatroomId}" --role="${params.role}" --sender-role=user --limit=5 --full\`
+- Download message history: \`${cliEnvPrefix}chatroom messages download --chatroom-id="${params.chatroomId}" --role="${params.role}" --format=linear --limit=10\`
+- Anchor on the user's last message: \`${cliEnvPrefix}chatroom messages anchor --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
+- Read current chatroom task context: \`${cliEnvPrefix}chatroom context read --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):

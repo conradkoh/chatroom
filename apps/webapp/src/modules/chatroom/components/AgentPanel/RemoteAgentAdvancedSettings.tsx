@@ -46,15 +46,13 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
         <li className="flex items-center justify-between gap-3">
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="min-w-0 cursor-default">
-                  <p className="text-[11px] font-medium leading-snug text-chatroom-text-primary">
-                    Reconnect to last session
-                  </p>
-                  <p className="text-[10px] text-chatroom-text-secondary mt-0.5">
-                    On Start, reuse the daemon&apos;s preserved session instead of a cold start
-                  </p>
-                </div>
+              <TooltipTrigger render={<div className="min-w-0 cursor-default" />}>
+                <p className="text-[11px] font-medium leading-snug text-chatroom-text-primary">
+                  Reconnect to last session
+                </p>
+                <p className="text-[10px] text-chatroom-text-secondary mt-0.5">
+                  On Start, reuse the daemon&apos;s preserved session instead of a cold start
+                </p>
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-[240px] text-xs">
                 Applies when you Start after stopping this agent on the same machine. The daemon

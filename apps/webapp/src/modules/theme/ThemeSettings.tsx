@@ -39,7 +39,7 @@ export function ThemeSettings() {
   };
 
   return (
-    <div className="border-t pt-6">
+    <div className="mt-6 border-t pt-6">
       <h2 className="text-xl font-semibold mb-2">Theme Preferences</h2>
       <p className="text-sm text-muted-foreground mb-4">
         Choose your preferred theme for the application. The system theme will automatically switch

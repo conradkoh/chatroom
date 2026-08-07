@@ -21,23 +21,26 @@ import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { ReviewPanel } from './ReviewPanel';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
-import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
-import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
-import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
-import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
-import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
-import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
-import { TaskItem } from './WorkQueue/TaskItem';
-import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
-import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
-import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
-import type { Message } from '../types/message';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
+import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
+import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
+import { useActiveEnhancerJob } from '../features/enhancers/hooks/useActiveEnhancerJob';
+import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
+import type { Message } from '../types/message';
+import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
+import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
+import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
+import { TaskItem } from './WorkQueue/TaskItem';
+import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
+import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
+import { teamSupportsEnhancer } from '../hooks/persistence/teamEnhancerSupport';
+import { useAgentPanelData } from '../hooks/useAgentPanelData';
 
 // Maximum number of pending review items to show in sidebar before "View More"
 const PENDING_REVIEW_PREVIEW_LIMIT = 3;
@@ -45,12 +48,7 @@ const PENDING_REVIEW_PREVIEW_LIMIT = 3;
 // Maximum number of current tasks to show in sidebar before "View More"
 const CURRENT_TASKS_PREVIEW_LIMIT = 3;
 
-export function WorkQueue({
-  chatroomId,
-  lifecycle,
-  onRegisterActions,
-  onTaskDeleted,
-}: WorkQueueProps) {
+export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
@@ -89,6 +87,9 @@ export function WorkQueue({
   const counts = useSessionQuery(api.tasks.getTaskCounts, {
     chatroomId,
   }) as TaskCounts | undefined;
+
+  // Active planner→enhancer job (job-only hook; disabling enhancement is separate)
+  const { isEnhancing, cancelJob, isCancelling } = useActiveEnhancerJob(chatroomId as string);
 
   // Derive needsPromotion from counts and lifecycle (replaces checkQueueHealth subscription)
   // A promotion is needed when: no active task, there are queued tasks, and all agents are waiting
@@ -164,6 +165,9 @@ export function WorkQueue({
     chatroomId,
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
+
+  const { teamRoles, isLoading: teamRolesLoading } = useAgentPanelData(chatroomId);
+  const teamSupportsEnhancerFlag = !teamRolesLoading && teamSupportsEnhancer(teamRoles);
 
   // Categorize tasks by status
   const categorizedTasks = useMemo(() => {
@@ -247,9 +251,8 @@ export function WorkQueue({
         type: 'task',
         taskId: taskId as Id<'chatroom_tasks'>,
       });
-      onTaskDeleted?.(taskId);
     },
-    [deleteUserMessageOrTask, onTaskDeleted]
+    [deleteUserMessageOrTask]
   );
 
   // Batch close all acknowledged tasks (force complete)
@@ -336,13 +339,12 @@ export function WorkQueue({
             <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
               <span>Current ({categorizedTasks.current.length})</span>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors p-1"
-                    title="Actions"
-                  >
-                    <MoreHorizontal size={14} />
-                  </button>
+                <DropdownMenuTrigger
+                  type="button"
+                  className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors p-1"
+                  title="Actions"
+                >
+                  <MoreHorizontal size={14} />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[160px]">
                   <DropdownMenuItem
@@ -362,6 +364,9 @@ export function WorkQueue({
                 task={task}
                 isProtected
                 onClick={() => handleOpenTaskDetail(task)}
+                showCancelEnhancer={task.assignedTo === 'enhancer' && isEnhancing}
+                onCancelEnhancer={cancelJob}
+                isCancellingEnhancer={isCancelling}
               />
             ))}
             {/* Show "View More" button when there are more items */}
@@ -387,6 +392,7 @@ export function WorkQueue({
                 key={message._id}
                 chatroomId={chatroomId}
                 message={message}
+                teamSupportsEnhancer={teamSupportsEnhancerFlag}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
               />
@@ -510,6 +516,8 @@ export function WorkQueue({
           onTaskClick={(task) => {
             handleOpenTaskDetail(task);
           }}
+          onCancelEnhancer={cancelJob}
+          isCancellingEnhancer={isCancelling}
         />
       )}
 
@@ -544,6 +552,7 @@ export function WorkQueue({
         <QueuedMessagesModal
           chatroomId={chatroomId}
           messages={queuedMessages}
+          teamSupportsEnhancer={teamSupportsEnhancerFlag}
           onClose={() => setIsQueuedMessagesModalOpen(false)}
           onPromote={handleQueuedPromote}
           onDelete={handleQueuedDelete}

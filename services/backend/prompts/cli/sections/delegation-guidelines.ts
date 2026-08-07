@@ -1,12 +1,8 @@
 /**
  * Delegation guidelines section for the planner role.
  *
- * When a builder is available, guidance focuses on delegation discipline.
- * When the planner is implementing themselves, guidance focuses on
- * incremental self-implementation (the planner's implementer metarole).
- *
- * Delegation is template-driven by default: the planner hands a focused
- * slice to the builder using the Delegation Brief.
+ * Delegation is template-driven: the planner hands focused slices
+ * to the builder using the Delegation Brief.
  */
 
 import type { TeamCompositionConfig } from './team-composition';
@@ -35,18 +31,20 @@ Break complex features into small, focused slices. For code review guidance, act
 function getBuilderDelegationGuidelines(
   cmd: CmdHelper,
   feedingNote: string,
-  delegationBriefRef: string
+  delegationBriefRef: string,
+  plannerEnhancerActive?: boolean
 ): string {
   return `**Delegation Guidelines:**
 
-Break complex features into small, focused slices, then delegate them to the builder one at a time. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
+Break features into small, focused slices, then delegate them to the builder one at a time. For code review guidance, activate the \`code-review\` skill: ${cmd('skill activate code-review')}.
+
+**Delegation rule:** If the task requires **any code changes** (new files, edits, deletions), you **must delegate to the builder** — regardless of how small the change is.
 
 **Decision flow:**
 \`\`\`mermaid
 flowchart TD
-    A[Receive task] --> B{Can handle alone?}
-    B -->|Yes: question, single fix| C[Handle yourself → deliver to user]
-    B -->|No: needs builder| D[Write a Delegation Brief]
+    A[Receive task] --> B{Code changes needed?}
+    B -->|Yes — any size| D[Write a Delegation Brief]
     D --> E[Hand off ONE slice to builder]
     E --> F[Review output]
     F -->|Not acceptable| G[Hand back with feedback]
@@ -54,6 +52,7 @@ flowchart TD
     F -->|Acceptable| H{More slices?}
     H -->|Yes| E
     H -->|No| I[Deliver to user]
+    B -->|No: question or clarification only| C[Answer directly → deliver to user]
 \`\`\`
 
 **Default: delegate with a Delegation Brief.** ${delegationBriefRef}
@@ -66,18 +65,21 @@ flowchart TD
 - **Spell out what to avoid** — anti-patterns and recurring mistakes you have seen from builders on similar work (scope creep, wrong abstractions, forbidden refactors).
 - **One slice ≈ one focused review surface.** If you can't imagine reviewing it in one sitting, split it.
 - **Order by dependency**, not by team convention. A slice should be runnable/testable when its dependencies are done.
+- **A slice is shippable only when verified end-to-end** — infra/helper files alone are not a complete slice.
 - **Skip phases that don't apply** (e.g., no frontend for a backend-only change, no schema for a pure refactor).
 
 **Code review:** For code-producing work, review before delivering. Activate the review framework with: ${cmd('skill activate code-review')}.
 
 **Backlog items:** When the task originates from a backlog item, activate the backlog skill: ${cmd('skill activate backlog')}.
 
-**If stuck:** After 2 failed rework attempts → step back, replan the slice, or deliver partial results with a clear explanation.
+**If stuck:** After 2 failed rework attempts → replan or hand back to planner as blocked. No partial PR, \`mark-for-review\`, or user delivery.
 
 **Review loop:**
 - Review completed work before moving to the next slice.
 - Send back with specific feedback if requirements aren't met.
-- ${feedingNote}.`;
+- ${feedingNote}.
+
+${plannerEnhancerActive ? `**When enhancement is enabled:** See \`<handoff-enhancer>\` in task delivery — one check-in per delegation before builder.` : ''}`;
 }
 
 /**
@@ -90,6 +92,7 @@ export function getDelegationGuidelinesSection(
     cliEnvPrefix?: string;
     chatroomId?: string;
     role?: string;
+    plannerEnhancerActive?: boolean;
   }
 ): string {
   const feedingNote = config.hasBuilder
@@ -105,5 +108,10 @@ export function getDelegationGuidelinesSection(
     return getSoloImplementationGuidelines(cmd, feedingNote);
   }
 
-  return getBuilderDelegationGuidelines(cmd, feedingNote, getDelegationBriefReference());
+  return getBuilderDelegationGuidelines(
+    cmd,
+    feedingNote,
+    getDelegationBriefReference(),
+    options?.plannerEnhancerActive
+  );
 }

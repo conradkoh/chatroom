@@ -5,7 +5,7 @@ import { useCallback, useMemo, type RefObject } from 'react';
 import { useTriggerAutocomplete } from './useTriggerAutocomplete';
 import type { FileEntry } from '../components/FileSelector/useFileSelector';
 import { createFileReferenceTrigger } from '../triggers/fileReferenceTrigger';
-import { getTextareaCaretOffsetInContainer } from '../utils/textareaCaretPosition';
+import { getTextareaCaretViewportOffset } from '../utils/textareaCaretPosition';
 
 export type FileReferenceDropdownPlacement = 'above' | 'below';
 
@@ -17,10 +17,11 @@ function fileReferenceDropdownPosition(
   offset: CaretOffset,
   placement: FileReferenceDropdownPlacement
 ): { top: number; left: number; height: number } {
+  // Viewport coordinates for `position: fixed` dropdowns.
   const top =
-    placement === 'below'
-      ? offset.top + offset.height + DROPDOWN_GAP_PX
-      : offset.height + DROPDOWN_GAP_PX;
+    placement === 'above'
+      ? offset.top - DROPDOWN_GAP_PX
+      : offset.top + offset.height + DROPDOWN_GAP_PX;
   return { top, left: offset.left, height: offset.height };
 }
 
@@ -31,6 +32,10 @@ export interface UseFileReferenceAutocompleteOptions {
   /** `above` for bottom-of-screen composers; `below` for top-of-panel composers. */
   dropdownPlacement?: FileReferenceDropdownPlacement;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
+  /**
+   * @deprecated Position is now viewport-based (`getTextareaCaretViewportOffset`);
+   * kept for consumer compatibility and not used by the dropdown math.
+   */
   anchorRef: RefObject<HTMLElement | null>;
   text: string;
   onTextChange: (text: string) => void;
@@ -43,7 +48,6 @@ export function useFileReferenceAutocomplete({
   onAtTriggerActivate,
   dropdownPlacement = 'above',
   textareaRef,
-  anchorRef,
   text,
   onTextChange,
   onAfterUpdate,
@@ -60,12 +64,11 @@ export function useFileReferenceAutocomplete({
 
   const getCaretPosition = useCallback(() => {
     const textarea = textareaRef.current;
-    const anchor = anchorRef.current;
-    if (!textarea || !anchor) return null;
-    const offset = getTextareaCaretOffsetInContainer(textarea, anchor);
+    if (!textarea) return null;
+    const offset = getTextareaCaretViewportOffset(textarea);
     if (!offset) return null;
     return fileReferenceDropdownPosition(offset, dropdownPlacement);
-  }, [textareaRef, anchorRef, dropdownPlacement]);
+  }, [textareaRef, dropdownPlacement]);
 
   const autocomplete = useTriggerAutocomplete<FileEntry>(triggers, { getCaretPosition });
 

@@ -6,7 +6,7 @@ import type React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { TimelineEventRow } from './TimelineEventRow';
-import { TIMELINE_MESSAGE_HEADER_STICKY } from './timelineRowStyles';
+import { TIMELINE_MESSAGE_HEADER_STICKY, TIMELINE_ROW_ROOT } from './timelineRowStyles';
 import { AttachmentsProvider } from '../../attachments';
 import { mapMessageToTimelineEvent } from '../../timeline/mapMessageToTimelineEvent';
 import type { Message } from '../../types/message';
@@ -90,7 +90,45 @@ describe('TimelineEventRow', () => {
     renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
     const header = screen.getByTestId('timeline-message-header');
     expect(header).toHaveClass(...TIMELINE_MESSAGE_HEADER_STICKY.split(' '));
+    expect(header.className).not.toContain('-mx-4');
     expect(screen.getByText('planner')).toBeInTheDocument();
     expect(screen.getByText('user')).toBeInTheDocument();
+
+    const row = screen.getByTestId('timeline-team-message');
+    expect(row).toHaveClass(...TIMELINE_ROW_ROOT.split(' '));
+  });
+
+  it('renders nav cluster on team handoff header when headerNavigation is provided', () => {
+    const event = mapMessageToTimelineEvent(
+      makeMessage({ type: 'handoff', senderRole: 'planner', targetRole: 'user', content: 'Done' })
+    );
+    renderRow(
+      <TimelineEventRow
+        event={event}
+        chatroomId={TEST_CHATROOM_ID}
+        headerNavigation={{
+          onJumpToFirst: vi.fn(),
+          onJumpToPrevious: vi.fn(),
+          onJumpToCurrent: vi.fn(),
+          onJumpToNext: vi.fn(),
+          onJumpToLast: vi.fn(),
+          hasFirst: true,
+          hasPrevious: true,
+          hasNext: false,
+          hasLast: false,
+        }}
+      />
+    );
+    expect(screen.getByTestId('timeline-message-header-nav')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-header-nav-previous')).not.toBeDisabled();
+    expect(screen.getByTestId('timeline-header-nav-next')).toBeDisabled();
+  });
+
+  it('does not render nav cluster when headerNavigation is omitted', () => {
+    const event = mapMessageToTimelineEvent(
+      makeMessage({ senderRole: 'planner', content: 'No nav' })
+    );
+    renderRow(<TimelineEventRow event={event} chatroomId={TEST_CHATROOM_ID} />);
+    expect(screen.queryByTestId('timeline-message-header-nav')).toBeNull();
   });
 });

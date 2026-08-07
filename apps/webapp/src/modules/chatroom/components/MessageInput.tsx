@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { AlertTriangle, ArrowUp, Code2, X } from 'lucide-react';
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 
 import {
   AttachedBacklogItemChip,
@@ -30,18 +30,15 @@ import {
   MAX_TEXTAREA_HEIGHT_PX,
   measureTextareaContentHeightPx,
 } from './messageInputAutosize';
+import { getChatroomMobileFooterHorizontalSafeAreaStyle } from './shared/chatroomMobileSafeArea';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
 
-import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface MessageInputProps {
   chatroomId: string;
-  onBeforeResize?: () => void;
-  onAfterResize?: () => void;
   onRegisterFocus?: (focusFn: () => void) => void;
   /** Available workspace files for @ autocomplete (tagged with workspaceId) */
   files?: FileEntry[];
@@ -49,6 +46,8 @@ export interface MessageInputProps {
   hasAutocompleteWorkspace?: boolean;
   /** Refreshes autocomplete files when the @ trigger opens. */
   onAtTriggerActivate?: () => void;
+  /** Called after a message is successfully sent. */
+  onMessageSent?: () => void;
 }
 
 // ── Touch detection ──────────────────────────────────────────────────────────
@@ -141,12 +140,11 @@ function cleanupOldDrafts(currentKey: string) {
 
 export function MessageInput({
   chatroomId,
-  onBeforeResize,
-  onAfterResize,
   onRegisterFocus,
   files = [],
   hasAutocompleteWorkspace = false,
   onAtTriggerActivate,
+  onMessageSent,
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -158,7 +156,6 @@ export function MessageInput({
   const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
   const isDesktop = useIsDesktop(640);
   const mobile = !isDesktop;
-  const keyboardInsetPx = useVisualViewportKeyboardInset(mobile);
 
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -239,25 +236,53 @@ export function MessageInput({
   const sendMessage = useSessionMutation(api.messages.sendMessage);
 
   // ── Auto-resize textarea ───────────────────────────────────────────────────
-  const autoResize = useCallback(() => {
+  const lastTextareaHeightRef = useRef(0);
+  const resizeFrameRef = useRef<number | null>(null);
+
+  const applyTextareaHeight = useCallback(
+    (textarea: HTMLTextAreaElement) => {
+      const nextHeight = measureTextareaContentHeightPx(textarea, effectiveMaxTextareaHeightPx);
+      textarea.style.height = `${nextHeight}px`;
+      lastTextareaHeightRef.current = nextHeight;
+    },
+    [effectiveMaxTextareaHeightPx]
+  );
+
+  // Sync path: message changes — before paint (no rAF)
+  useLayoutEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    onBeforeResize?.();
-    const nextHeight = measureTextareaContentHeightPx(textarea, effectiveMaxTextareaHeightPx);
-    textarea.style.height = `${nextHeight}px`;
-    onAfterResize?.();
-  }, [onBeforeResize, onAfterResize, effectiveMaxTextareaHeightPx]);
+    applyTextareaHeight(textarea);
+  }, [message, applyTextareaHeight]);
 
-  // Re-measure when the composer width changes (e.g. explorer split panel resize).
+  // Async path: width changes via ResizeObserver only
+  const scheduleResize = useCallback(() => {
+    if (resizeFrameRef.current !== null) return;
+    resizeFrameRef.current = requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      applyTextareaHeight(textarea);
+    });
+  }, [applyTextareaHeight]);
+
+  useEffect(() => {
+    return () => {
+      if (resizeFrameRef.current !== null) {
+        cancelAnimationFrame(resizeFrameRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    const observer = new ResizeObserver(() => autoResize());
+    const observer = new ResizeObserver(() => scheduleResize());
     observer.observe(textarea);
     return () => observer.disconnect();
-  }, [autoResize]);
+  }, [scheduleResize]);
 
-  // ── Shared @ file reference autocomplete (after autoResize is defined) ──────
+  // ── Shared @ file reference autocomplete (after resize is set up) ──────
   const fileAutocomplete = useFileReferenceAutocomplete({
     files,
     hasWorkspace: hasAutocompleteWorkspace,
@@ -269,14 +294,7 @@ export function MessageInput({
       setMessage(v);
       setSendError(null);
     },
-    onAfterUpdate: autoResize,
   });
-
-  // Re-measure textarea height whenever message changes (covers draft restore,
-  // editor modal close, and autocomplete file select uniformly)
-  useEffect(() => {
-    autoResize();
-  }, [message, autoResize, effectiveMaxTextareaHeightPx]);
 
   // ── Send logic ─────────────────────────────────────────────────────────────
   const doSend = useCallback(
@@ -309,6 +327,7 @@ export function MessageInput({
         setMessage('');
         setSendError(null);
         localStorage.removeItem(draftKey);
+        onMessageSent?.();
         if (
           attachedTasks.length > 0 ||
           attachedBacklogItems.length > 0 ||
@@ -322,6 +341,7 @@ export function MessageInput({
           textareaRef.current.style.height = 'auto';
         }
         setTimeout(() => textareaRef.current?.focus(), 0);
+        onMessageSent?.();
       } catch (error) {
         console.error('Failed to send message:', error);
         setSendError(
@@ -343,6 +363,7 @@ export function MessageInput({
       snippetAttachments,
       clearAll,
       draftKey,
+      onMessageSent,
     ]
   );
 
@@ -409,8 +430,9 @@ export function MessageInput({
   return (
     <div
       ref={formContainerRef}
+      data-main-chat-composer
       className="relative bg-chatroom-bg-surface backdrop-blur-xl"
-      style={getMobileStickyFooterOffsetStyle(keyboardInsetPx)}
+      style={getChatroomMobileFooterHorizontalSafeAreaStyle(mobile)}
     >
       {/* @ file reference autocomplete dropdown */}
       <FileReferenceAutocomplete

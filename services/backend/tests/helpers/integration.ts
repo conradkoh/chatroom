@@ -156,6 +156,18 @@ export async function setupRemoteAgentConfig(
 /**
  * Get command events (agent.requestStart / agent.requestStop / daemon.ping) from the event stream for a machine.
  */
+/**
+ * Assert chatroom has only duo team roles (planner, builder).
+ * Used in task-transition-matrix tests to verify team agent vs daemon worker invariants.
+ */
+export async function assertDuoTeamOnly(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
+  await t.run(async (ctx) => {
+    const room = await ctx.db.get('chatroom_rooms', chatroomId);
+    const roles = [...(room?.teamRoles ?? [])].sort();
+    expect(roles).toEqual(['builder', 'planner']);
+  });
+}
+
 export async function getCommandEvents(sessionId: SessionId, machineId: string) {
   const result = await t.query(api.machines.getCommandEvents, {
     sessionId,

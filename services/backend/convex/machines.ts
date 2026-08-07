@@ -14,7 +14,7 @@ import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { str } from './utils/types';
 import { validateWorkingDir } from './workspacePathSecurity';
-import { DAEMON_LIVENESS_WRITE_INTERVAL_MS, OBSERVATION_TTL_MS } from '../config/reliability';
+import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
 import {
   agentStopReasonValidator,
   agentTypeValidator,
@@ -867,7 +867,6 @@ export const getCommandEvents = query({
     // 5b. Local action events (open-vscode, open-finder, etc.)
     // Time-filtered to avoid replaying stale actions on daemon restart.
     const LOCAL_ACTION_TTL_MS = 60_000; // 1 minute
-    const COMMAND_EVENT_TTL_MS = 60_000; // 1 minute
     const localActionEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
@@ -886,26 +885,6 @@ export const getCommandEvents = query({
       now
     );
 
-    // 6. Command runner events (command.run / command.stop)
-    // Time-filtered to avoid replaying stale commands on daemon restart.
-    const commandRunEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'command.run')
-      )
-      .filter((q) => q.gt(q.field('timestamp'), now - COMMAND_EVENT_TTL_MS))
-      .order('asc')
-      .collect();
-
-    const commandStopEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'command.stop')
-      )
-      .filter((q) => q.gt(q.field('timestamp'), now - COMMAND_EVENT_TTL_MS))
-      .order('asc')
-      .collect();
-
     // 7. Merge and sort by _creationTime ascending
     const all = [
       ...requestStartEvents,
@@ -916,8 +895,6 @@ export const getCommandEvents = query({
       ...capabilitiesRefreshEvents,
       ...localActionEvents,
       ...pickFolderEvents,
-      ...commandRunEvents,
-      ...commandStopEvents,
     ].sort((a, b) => (a._creationTime < b._creationTime ? -1 : 1));
 
     return { events: all };
@@ -1214,6 +1191,7 @@ export const sendLocalAction = mutation({
       v.literal('open-vscode'),
       v.literal('open-finder'),
       v.literal('open-github-desktop'),
+      v.literal('open-cursor'),
       v.literal('git-discard-file'),
       v.literal('git-discard-all'),
       v.literal('git-pull'),
@@ -2991,7 +2969,7 @@ export const emitSessionAugmented = mutation({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     taskId: v.id('chatroom_tasks'),
-    mode: v.union(v.literal('none'), v.literal('compact'), v.literal('new_session')),
+    mode: v.union(v.literal('none'), v.literal('new_session')),
     newSessionStarted: v.boolean(),
     harnessSessionId: v.optional(v.string()),
   },
@@ -3056,42 +3034,6 @@ export const emitHarnessSessionIdUpdated = mutation({
       previousResumableId: args.previousResumableId,
       resumableId: args.resumableId,
       source: args.source,
-      timestamp: Date.now(),
-    });
-
-    return { success: true };
-  },
-});
-
-/** Emits agent.sessionCompacted when native harness runs in-session compaction (`session_augmentation=compact`). */
-export const emitSessionCompacted = mutation({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    taskId: v.id('chatroom_tasks'),
-    harnessSessionId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) throw new Error('Authentication required');
-    await getOwnedMachine(ctx, args.machineId, auth.userId);
-
-    await assertMachineBelongsToChatroom(ctx, {
-      chatroomId: args.chatroomId,
-      machineId: args.machineId,
-      role: args.role,
-      allowNewMachine: false,
-    });
-
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.sessionCompacted',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      taskId: args.taskId,
-      harnessSessionId: args.harnessSessionId,
       timestamp: Date.now(),
     });
 
@@ -3383,78 +3325,6 @@ export const clearAllSpawnedPids = mutation({
     await projectAssignedTaskSnapshotsForMachine(ctx, args.machineId);
 
     return { clearedCount };
-  },
-});
-
-/**
- * Returns observed chatrooms for a machine — daemon subscribes to drive selective sync.
- * Only returns chatrooms where the frontend has sent a heartbeat within OBSERVATION_TTL_MS.
- */
-export const getObservedChatroomsForMachine = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) {
-      throw new Error('Authentication required');
-    }
-
-    // Verify machine belongs to user
-    await getOwnedMachine(ctx, args.machineId, auth.userId);
-
-    const now = Date.now();
-    const ttlThreshold = now - OBSERVATION_TTL_MS;
-
-    // Get all workspaces on this machine and build a chatroomId → workingDirs map
-    const workspaces = await ctx.db
-      .query('chatroom_workspaces')
-      .withIndex('by_machine', (q) => q.eq('machineId', args.machineId))
-      .collect();
-
-    const chatroomWorkingDirsMap = new Map<Id<'chatroom_rooms'>, string[]>();
-    for (const ws of workspaces) {
-      if (ws.removedAt) continue;
-      const existing = chatroomWorkingDirsMap.get(ws.chatroomId) ?? [];
-      existing.push(ws.workingDir);
-      chatroomWorkingDirsMap.set(ws.chatroomId, existing);
-    }
-
-    // Observation reads scoped to this machine's chatrooms (point lookups on
-    // by_chatroomId). Avoids a global by_lastObservedAt collect so unrelated
-    // observation heartbeats elsewhere in the deployment are not in the read set.
-    const chatroomIds = [...chatroomWorkingDirsMap.keys()];
-    const observationMap = new Map<Id<'chatroom_rooms'>, { lastRefreshedAt?: number }>();
-    await Promise.all(
-      chatroomIds.map(async (chatroomId) => {
-        const obs = await ctx.db
-          .query('chatroom_observation')
-          .withIndex('by_chatroomId', (q) => q.eq('chatroomId', chatroomId))
-          .first();
-        if (obs && obs.lastObservedAt >= ttlThreshold) {
-          observationMap.set(chatroomId, obs);
-        }
-      })
-    );
-
-    const result: {
-      chatroomId: Id<'chatroom_rooms'>;
-      workingDirs: string[];
-      lastRefreshedAt: number | null;
-    }[] = [];
-    for (const [chatroomId, workingDirs] of chatroomWorkingDirsMap) {
-      const obs = observationMap.get(chatroomId);
-      if (obs) {
-        result.push({
-          chatroomId,
-          workingDirs,
-          lastRefreshedAt: obs.lastRefreshedAt ?? null,
-        });
-      }
-    }
-
-    return result;
   },
 });
 

@@ -1,8 +1,8 @@
 import { promises as fsPromises, type Dirent } from 'node:fs';
 import path from 'node:path';
 
-import { runGit } from '../../git/run-command.js';
 import { isAlwaysExcludedDirName, isPathVisible } from './workspace-visibility-policy.js';
+import { runGit } from '../../../daemon/infrastructure/git/run-command.js';
 
 export interface GitRepoNode {
   workTree: string;

@@ -415,14 +415,16 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
         {/* File list sidebar with context menu — hidden when the parent supplies its own file picker */}
         {showFileList && showDiscard ? (
           <ContextMenu>
-            <ContextMenuTrigger asChild>
-              <div className="w-56 shrink-0 border-r border-chatroom-border overflow-y-auto flex flex-col">
-                <FileListContent
-                  sections={sections}
-                  selectedIdx={selectedFileIdx}
-                  onSelect={setSelectedFileIdx}
-                />
-              </div>
+            <ContextMenuTrigger
+              render={
+                <div className="w-56 shrink-0 border-r border-chatroom-border overflow-y-auto flex flex-col" />
+              }
+            >
+              <FileListContent
+                sections={sections}
+                selectedIdx={selectedFileIdx}
+                onSelect={setSelectedFileIdx}
+              />
             </ContextMenuTrigger>
             <ContextMenuContent>
               <ContextMenuItem

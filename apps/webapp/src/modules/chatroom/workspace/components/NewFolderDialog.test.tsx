@@ -24,7 +24,7 @@ describe('NewFolderDialog', () => {
     mockConfirmMkdir.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
   });
 
-  it('focuses the path input when the dialog opens', () => {
+  it('focuses the path input when the dialog opens', async () => {
     render(
       <NewFolderDialog
         open
@@ -36,7 +36,7 @@ describe('NewFolderDialog', () => {
     );
 
     const input = screen.getByPlaceholderText('docs');
-    expect(document.activeElement).toBe(input);
+    await waitFor(() => expect(document.activeElement).toBe(input));
   });
 
   it('creates a nested folder path from defaultDir and folder name', () => {

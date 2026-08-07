@@ -1,0 +1,72 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
+import { EnhancerConfigFavoritesList } from './EnhancerConfigFavoritesList';
+
+const favorite = {
+  targetId: 'handoff:planner-to-builder' as const,
+  agentHarness: 'opencode' as const,
+  model: 'anthropic/claude-opus-4',
+};
+
+describe('EnhancerConfigFavoritesList', () => {
+  it('renders favorites with apply callback on click', () => {
+    const onApply = vi.fn();
+    render(
+      <EnhancerConfigFavoritesList
+        favorites={[favorite]}
+        onApply={onApply}
+        onRemoveFavorite={vi.fn()}
+        onMoveFavorite={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId('enhancer-config-favorites-list')).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/CLAUDE OPUS 4/));
+    expect(onApply).toHaveBeenCalledWith(favorite);
+  });
+
+  it('returns null when favorites empty', () => {
+    const { container } = render(
+      <EnhancerConfigFavoritesList
+        favorites={[]}
+        onApply={vi.fn()}
+        onRemoveFavorite={vi.fn()}
+        onMoveFavorite={vi.fn()}
+      />
+    );
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('renders model on primary line and harness as subtitle', () => {
+    const longLabelFav = {
+      targetId: 'handoff:planner-to-builder' as const,
+      agentHarness: 'opencode' as const,
+      model: 'minimax/MiniMax-M2.5-highspeed',
+    };
+    render(
+      <EnhancerConfigFavoritesList
+        favorites={[longLabelFav]}
+        onApply={vi.fn()}
+        onRemoveFavorite={vi.fn()}
+        onMoveFavorite={vi.fn()}
+      />
+    );
+    expect(screen.getByText(/MINIMAX M2\.5 HIGHSPEED/)).toBeInTheDocument();
+    expect(screen.getByText(/OpenCode/)).toBeInTheDocument();
+    expect(screen.getByTitle(/OpenCode.*MINIMAX M2\.5 HIGHSPEED/)).toBeInTheDocument();
+  });
+
+  it('renders move up, move down, and remove buttons', () => {
+    render(
+      <EnhancerConfigFavoritesList
+        favorites={[favorite]}
+        onApply={vi.fn()}
+        onRemoveFavorite={vi.fn()}
+        onMoveFavorite={vi.fn()}
+      />
+    );
+    expect(screen.getByLabelText('Move up')).toBeInTheDocument();
+    expect(screen.getByLabelText('Move down')).toBeInTheDocument();
+    expect(screen.getByLabelText('Remove favorite')).toBeInTheDocument();
+  });
+});

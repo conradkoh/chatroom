@@ -2,23 +2,27 @@
 
 import { Star, Plus } from 'lucide-react';
 
+import { AgenticQueryHarnessControls } from './AgenticQueryHarnessControls';
+
+import { ModelFilterButton } from '@/modules/chatroom/components/model-selection';
+import type { UseMachineModelFilterResult } from '@/modules/chatroom/components/model-selection';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/modules/chatroom/components/ui/dialog';
-import { AgenticQueryHarnessControls } from './AgenticQueryHarnessControls';
-import { HarnessFilterButton } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessFilterButton';
-import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
-import type { UseHarnessModelFilterResult } from '@/modules/chatroom/direct-harness/hooks/useHarnessModelFilter';
-import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
+import { WorkspaceCapabilitiesRefreshButton } from '@/modules/chatroom/direct-harness/components/WorkspaceCapabilitiesRefreshButton';
+import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 import { SearchConfigFavoritesList } from '@/modules/chatroom/features/search-config/components/SearchConfigFavoritesList';
+import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
+import { en } from '@/modules/chatroom/lang/en';
 
 export interface AgenticQueryConfigModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  workspaceId: string;
   harnesses: HarnessOption[];
   harnessName: string;
   onHarnessChange: (name: string) => void;
@@ -26,7 +30,7 @@ export interface AgenticQueryConfigModalProps {
   selectedModel: string;
   onModelChange: (modelKey: string) => void;
   isModelHidden?: (modelKey: string) => boolean;
-  filter: UseHarnessModelFilterResult;
+  filter: UseMachineModelFilterResult;
   currentEntry: SearchConfigEntry | null;
   isFavorite: (entry: SearchConfigEntry) => boolean;
   onAddFavorite: (entry: SearchConfigEntry) => void;
@@ -40,6 +44,7 @@ export interface AgenticQueryConfigModalProps {
 export function AgenticQueryConfigModal({
   open,
   onOpenChange,
+  workspaceId,
   harnesses,
   harnessName,
   onHarnessChange,
@@ -61,7 +66,7 @@ export function AgenticQueryConfigModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} modal={false}>
-      <DialogContent data-testid="agentic-query-config-modal" className="sm:max-w-lg">
+      <DialogContent data-testid="agentic-query-config-modal" className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Search configuration</DialogTitle>
         </DialogHeader>
@@ -75,7 +80,16 @@ export function AgenticQueryConfigModal({
             onModelChange={onModelChange}
             isModelHidden={isModelHidden}
             disabled={disabled}
-            filterButton={<HarnessFilterButton filter={filter} providers={providers} />}
+            refreshButton={
+              <WorkspaceCapabilitiesRefreshButton
+                workspaceId={workspaceId}
+                disabled={disabled}
+                hasProviders={providers.some((provider) => provider.models.length > 0)}
+              />
+            }
+            filterButton={
+              <ModelFilterButton filter={filter} providers={providers} variant="harness" />
+            }
           />
           {currentEntry && !currentIsFavorite && (
             <button
@@ -85,13 +99,13 @@ export function AgenticQueryConfigModal({
               className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-warning disabled:opacity-50"
             >
               <Plus size={12} />
-              Add current config to favorites
+              {en.configFavorites.addCurrentConfig}
             </button>
           )}
           {currentIsFavorite && (
             <div className="flex items-center gap-1 text-xs text-chatroom-text-muted">
               <Star size={12} className="text-chatroom-status-warning" />
-              Current config is favorited
+              {en.configFavorites.currentConfigFavorited}
             </div>
           )}
           <SearchConfigFavoritesList

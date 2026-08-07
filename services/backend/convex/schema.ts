@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { storedFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
 import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
 
 const attachedSnippetValidator = v.object({
@@ -138,6 +139,7 @@ export default defineSchema({
         email: v.string(),
         recoveryCode: v.optional(v.string()),
         accessLevel: v.optional(v.union(v.literal('user'), v.literal('system_admin'))),
+        roleNames: v.optional(v.array(v.string())),
         google: v.optional(
           v.object({
             id: v.string(),
@@ -151,12 +153,14 @@ export default defineSchema({
             hd: v.optional(v.string()),
           })
         ),
+        invitedByInviteId: v.optional(v.id('invites')),
       }),
       v.object({
         type: v.literal('anonymous'),
         name: v.string(), //system generated name
         recoveryCode: v.optional(v.string()),
         accessLevel: v.optional(v.union(v.literal('user'), v.literal('system_admin'))),
+        roleNames: v.optional(v.array(v.string())),
       })
     )
   )
@@ -171,7 +175,8 @@ export default defineSchema({
    */
   sessions: defineTable({
     sessionId: v.string(), //this is provided by the client
-    userId: v.id('users'), // null means session exists but not authenticated
+    userId: v.optional(v.id('users')), // undefined for pre-auth invite sessions
+    pendingInviteId: v.optional(v.id('invites')),
     createdAt: v.number(),
     authMethod: v.optional(
       v.union(
@@ -255,6 +260,23 @@ export default defineSchema({
    * Tracks the state of a connect attempt and links to sessions and users.
    * Separate from login requests to make flow types explicit and ensure proper validation.
    */
+  /**
+   * Invite codes for controlled signup via invite-only registration.
+   */
+  invites: defineTable({
+    code: v.string(),
+    inviteeName: v.string(),
+    inviteeEmail: v.string(),
+    createdBy: v.id('users'),
+    createdAt: v.number(),
+    expiresAt: v.optional(v.number()), // undefined = indefinite
+    disabled: v.boolean(),
+    usedAt: v.optional(v.number()),
+    usedByUserId: v.optional(v.id('users')),
+  })
+    .index('by_code', ['code'])
+    .index('by_createdBy', ['createdBy']),
+
   auth_connectRequests: defineTable({
     sessionId: v.string(), // Session initiating the connect
     status: v.union(v.literal('pending'), v.literal('completed'), v.literal('failed')), // Status of the connect request
@@ -300,6 +322,7 @@ export default defineSchema({
     messageCount: v.optional(v.number()),
     standingInstructions: v.optional(v.string()),
     standingInstructionsEnabled: v.optional(v.boolean()),
+    standingInstructionsTitle: v.optional(v.string()),
   })
     .index('by_status', ['status'])
     .index('by_ownerId', ['ownerId'])
@@ -416,8 +439,7 @@ export default defineSchema({
     ),
     // Role that created the context (new-context messages only; e.g. 'planner', 'solo')
     contextCreatedBy: v.optional(v.string()),
-    // Classification of user messages (set via task read / classify)
-    // Used to determine allowed handoff paths and context window
+    // DEPRECATED: Task classification removed from product. Field retained for existing documents.
     classification: v.optional(
       v.union(
         v.literal('question'), // Quick question - can hand directly back to user
@@ -425,7 +447,7 @@ export default defineSchema({
         v.literal('follow_up') // Follow-up to previous message - part of same context
       )
     ),
-    // Feature metadata (set for new_feature classification)
+    // DEPRECATED: Feature metadata removed from product. Field retained for existing documents.
     featureTitle: v.optional(v.string()),
     featureDescription: v.optional(v.string()),
     featureTechSpecs: v.optional(v.string()),
@@ -435,6 +457,12 @@ export default defineSchema({
     // Link to the task created for this message (for user messages)
     // Used to track processing status in the UI
     taskId: v.optional(v.id('chatroom_tasks')),
+
+    // Link to the enhancer job that produced this message (for enhanced handoffs)
+    enhancerJobId: v.optional(v.id('chatroom_enhancerJobs')),
+
+    // When true, message appears only in the ALL timeline tab (not role-filtered views)
+    visibleInAllTabOnly: v.optional(v.boolean()),
 
     // Attached backlog tasks for context
     // User can attach multiple backlog tasks to a message for agent context
@@ -458,6 +486,9 @@ export default defineSchema({
     // current app code. Retained so existing documents continue to validate.
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
 
+    // Link to the scheduled prompt that triggered this message
+    scheduledPromptId: v.optional(v.id('chatroom_scheduledPrompts')),
+
     // Message lifecycle tracking
     // acknowledgedAt: When an agent received and started working on this message
     acknowledgedAt: v.optional(v.number()),
@@ -471,7 +502,8 @@ export default defineSchema({
     // Index for efficient origin message lookup (non-follow-up user messages)
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type'])
-    .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole']),
+    .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole'])
+    .index('by_scheduledPromptId', ['scheduledPromptId']),
 
   /**
    * Staging table for queued user messages.
@@ -506,6 +538,8 @@ export default defineSchema({
     content: v.string(),
     // Always 'message' - only user messages get staged
     type: v.literal('message'),
+    // Source platform for messages from external integrations (e.g. "scheduled", "telegram")
+    sourcePlatform: v.optional(v.string()),
     // Attached backlog tasks for context
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
     // Attached backlog items for context
@@ -519,6 +553,10 @@ export default defineSchema({
     attachedWorkflowIds: v.optional(v.array(v.id('chatroom_workflows'))),
     // Queue ordering (lower = earlier in queue, older message)
     queuePosition: v.number(),
+    // Scheduled prompt ID that triggered this queued message
+    scheduledPromptId: v.optional(v.id('chatroom_scheduledPrompts')),
+    // Snapshot of enhancer enabled at enqueue time (undefined = legacy/live fallback)
+    plannerEnhancerEnabled: v.optional(v.boolean()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
@@ -587,11 +625,35 @@ export default defineSchema({
 
     // Queue ordering (lower = earlier in queue)
     queuePosition: v.number(),
+    // Snapshot of enhancer enabled at task creation (user-tasks only; undefined = legacy/live fallback)
+    plannerEnhancerEnabled: v.optional(v.boolean()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])
     .index('by_chatroom_status_assignedTo', ['chatroomId', 'status', 'assignedTo'])
-    .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
+    .index('by_chatroom_queue', ['chatroomId', 'queuePosition'])
+    .index('by_assignedTo_status', ['assignedTo', 'status']),
+
+  /**
+   * Slim timeline task-status signals — one row per FSM transition.
+   * Webapp subscribes via indexed cursor (pay-once deltas).
+   */
+  chatroom_timelineTaskStatusSignals: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    taskId: v.id('chatroom_tasks'),
+    taskStatus: v.union(
+      v.literal('pending'),
+      v.literal('acknowledged'),
+      v.literal('in_progress'),
+      v.literal('completed'),
+      v.literal('closed'),
+      v.literal('backlog'),
+      v.literal('pending_user_review'),
+      v.literal('backlog_acknowledged')
+    ),
+    signalKey: v.string(),
+    taskUpdatedAt: v.number(),
+  }).index('by_chatroom_signalKey', ['chatroomId', 'signalKey']),
 
   /**
    * Slim daemon task-monitor rows — one per (machineId, taskId, role).
@@ -607,9 +669,7 @@ export default defineSchema({
     taskAssignedTo: v.optional(v.string()),
     taskCreatedAt: v.number(),
     taskUpdatedAt: v.number(),
-    sessionAugmentation: v.optional(
-      v.union(v.literal('none'), v.literal('compact'), v.literal('new_session'))
-    ),
+    sessionAugmentation: v.optional(v.union(v.literal('none'), v.literal('new_session'))),
 
     agentHarness: v.string(),
     model: v.optional(v.string()),
@@ -956,6 +1016,20 @@ export default defineSchema({
       v.object({
         harnessName: v.string(),
         modelKey: v.string(),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index('by_user_machine', ['userId', 'machineId']),
+
+  /** User favorites for enhancer target+harness+model configs. Scoped per machine. */
+  chatroom_enhancerConfigFavorites: defineTable({
+    userId: v.id('users'),
+    machineId: v.string(),
+    favorites: v.array(
+      v.object({
+        targetId: v.literal('handoff:planner-to-builder'),
+        agentHarness: agentHarnessValidator,
+        model: v.string(),
       })
     ),
     updatedAt: v.number(),
@@ -1377,7 +1451,7 @@ export default defineSchema({
         harnessSessionId: v.optional(v.string()),
         timestamp: v.number(),
       }),
-      // Session augmentation applied on task delivery (none / compact / new_session)
+      // Session augmentation applied on task delivery (none / new_session; compact retained for historical events only)
       v.object({
         type: v.literal('agent.sessionAugmented'),
         chatroomId: v.id('chatroom_rooms'),
@@ -1627,6 +1701,7 @@ export default defineSchema({
           v.literal('open-vscode'),
           v.literal('open-finder'),
           v.literal('open-github-desktop'),
+          v.literal('open-cursor'),
           v.literal('git-discard-file'),
           v.literal('git-discard-all'),
           v.literal('git-pull'),
@@ -1636,21 +1711,23 @@ export default defineSchema({
         workingDir: v.string(),
         timestamp: v.number(),
       }),
-      // Request to run a command on a machine (dispatched from web UI)
+      // DEPRECATED: command.run/command.stop — command dispatch moved to dedicated
+      // chatroom_commandRunsV2 subscription channel. Variants retained so existing
+      // chatroom_eventStream documents (with v1 runIds) continue to validate until
+      // deleteDeprecatedCommandEventStreamEvents migration runs.
       v.object({
         type: v.literal('command.run'),
         machineId: v.string(),
         workingDir: v.string(),
         commandName: v.string(),
         script: v.string(),
-        runId: v.id('chatroom_commandRuns'),
+        runId: v.string(),
         timestamp: v.number(),
       }),
-      // Request to stop a running command on a machine
       v.object({
         type: v.literal('command.stop'),
         machineId: v.string(),
-        runId: v.id('chatroom_commandRuns'),
+        runId: v.string(),
         timestamp: v.number(),
       }),
       // Agent's native harness turn ended with in_progress work — awaiting handoff
@@ -1658,6 +1735,57 @@ export default defineSchema({
         type: v.literal('agent.awaitingHandoff'),
         chatroomId: v.id('chatroom_rooms'),
         role: v.string(),
+        timestamp: v.number(),
+      }),
+      v.object({
+        type: v.literal('agent.enhancing'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        timestamp: v.number(),
+      }),
+      // Enhancer job created for planner→builder handoff
+      v.object({
+        type: v.literal('enhancer.job.created'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        userId: v.id('users'),
+        attemptCount: v.number(),
+        maxAttempts: v.number(),
+        timestamp: v.number(),
+      }),
+      // Enhancer attempt failed (will retry)
+      v.object({
+        type: v.literal('enhancer.attempt.failed'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
+        error: v.string(),
+        nextRetryAt: v.optional(v.number()),
+        timestamp: v.number(),
+      }),
+      // Enhancer job failed after max attempts
+      v.object({
+        type: v.literal('enhancer.job.failed'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
+        error: v.string(),
+        timestamp: v.number(),
+      }),
+      // Enhancer job completed with enhanced content
+      v.object({
+        type: v.literal('enhancer.job.complete'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
+        timestamp: v.number(),
+      }),
+      // Enhancer job cancelled by user (draft handoff delivered)
+      v.object({
+        type: v.literal('enhancer.job.cancelled'),
+        chatroomId: v.id('chatroom_rooms'),
+        jobId: v.id('chatroom_enhancerJobs'),
+        attemptCount: v.number(),
         timestamp: v.number(),
       })
     )
@@ -2282,6 +2410,28 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_platform', ['chatroomId', 'platform']),
 
+  /**
+   * Scheduled prompts that fire as user messages on interval/daily schedules.
+   */
+  chatroom_scheduledPrompts: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    name: v.optional(v.string()),
+    prompt: v.string(),
+    scheduleKind: v.union(v.literal('interval'), v.literal('daily')),
+    intervalMinutes: v.optional(v.number()),
+    hourUTC: v.optional(v.number()),
+    minuteUTC: v.optional(v.number()),
+    disabledReason: v.optional(v.union(v.literal('user'), v.literal('archive'))),
+    isRunnable: v.boolean(),
+    nextRunAt: v.optional(v.number()),
+    lastRunAt: v.optional(v.number()),
+    createdBy: v.id('users'),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_isRunnable_nextRunAt', ['isRunnable', 'nextRunAt']),
+
   // ─── Command Runner ─────────────────────────────────────────────────────────
   // Synced commands discovered from package.json scripts and turbo.json tasks.
 
@@ -2294,7 +2444,12 @@ export default defineSchema({
     workingDir: v.string(),
     name: v.string(),
     script: v.string(),
-    source: v.union(v.literal('package.json'), v.literal('turbo.json')),
+    source: v.union(
+      v.literal('package.json'),
+      v.literal('turbo.json'),
+      v.literal('deno.json'),
+      v.literal('Makefile')
+    ),
     /** Relative workspace path (e.g., '.', 'apps/webapp', 'packages/cli') @deprecated Use subWorkspace instead */
     workspace: v.optional(v.string()),
     /** Relative sub-workspace path within the monorepo (e.g., '.', 'apps/webapp', 'packages/cli') */
@@ -2312,9 +2467,10 @@ export default defineSchema({
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
-   * Command execution runs. Tracks lifecycle of a spawned command process.
+   * V2 command execution runs — metadata only. Live tail in chatroom_commandRunTailsV2.
+   * Terminal output in chatroom_commandOutputV2 (gzip-only).
    */
-  chatroom_commandRuns: defineTable({
+  chatroom_commandRunsV2: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
     commandName: v.string(),
@@ -2340,26 +2496,9 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
     exitCode: v.optional(v.number()),
     requestedBy: v.id('users'),
-    /**
-     * Rolling compressed tail of command output for live viewing while the run is active.
-     * Daemon overwrites this field on each flush (every ~3s) with the last ~32KB of output.
-     * When the run terminates, daemon flushes the full output as chatroom_commandOutput chunks
-     * and clears this field. This avoids N× reactive chunk fan-out during a run:
-     * only a single row update per flush instead of an insert per flush.
-     */
-    tailOutput: v.optional(
-      v.object({
-        compression: v.literal('gzip'),
-        content: v.string(), // base64-encoded gzipped UTF-8
-        byteLength: v.number(), // decompressed byte length of the tail window
-        totalBytesWritten: v.number(), // total bytes the daemon has streamed since run start (monotonic)
-        updatedAt: v.number(),
-        lineCount: v.optional(v.number()), // V2: lines included in tail (max 50)
-      })
-    ),
-    /** V2: refcount of UI surfaces watching live logs; daemon syncs tail only when > 0 */
+    /** Refcount of UI surfaces watching live logs; daemon syncs tail only when > 0 */
     logObserverCount: v.optional(v.number()),
-    /** V2: webapp requested one-shot full log flush from daemon temp file */
+    /** Webapp requested one-shot full log flush from daemon temp file */
     pendingFullOutputSync: v.optional(v.boolean()),
   })
     .index('by_machine_workingDir', ['machineId', 'workingDir'])
@@ -2370,17 +2509,27 @@ export default defineSchema({
     .index('by_status', ['status']),
 
   /**
-   * Buffered output chunks for command runs.
-   * While a run is active, output is streamed via the live tail (chatroom_commandRuns.tailOutput).
-   * On termination, daemon flushes the full output as compressed chunks here.
-   * content supports dual-encoding: legacy plaintext (v.string()) and gzip-compressed (v.object).
+   * V2 live tail for active command runs — isolated from run metadata.
+   * Deleted when run completes or via cleanup.
    */
-  chatroom_commandOutput: defineTable({
-    runId: v.id('chatroom_commandRuns'),
-    content: v.union(
-      v.string(), // Legacy: plain UTF-8 text
-      v.object({ compression: v.literal('gzip'), content: v.string() }) // base64-encoded gzip
-    ),
+  chatroom_commandRunTailsV2: defineTable({
+    runId: v.id('chatroom_commandRunsV2'),
+    machineId: v.string(),
+    compression: v.literal('gzip'),
+    content: v.string(),
+    byteLength: v.number(),
+    totalBytesWritten: v.number(),
+    updatedAt: v.number(),
+    lineCount: v.number(),
+  }).index('by_runId', ['runId']),
+
+  /**
+   * V2 buffered output chunks — gzip-only (base64). Written on termination / full sync.
+   */
+  chatroom_commandOutputV2: defineTable({
+    runId: v.id('chatroom_commandRunsV2'),
+    compression: v.literal('gzip'),
+    content: v.string(),
     chunkIndex: v.number(),
     timestamp: v.number(),
   }).index('by_runId_chunkIndex', ['runId', 'chunkIndex']),
@@ -2476,25 +2625,17 @@ export default defineSchema({
   }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
-   * Append-only, ordered file-tree changes after a checkpoint. operationId is
-   * daemon-generated and unique within a workspace, making retries idempotent.
+   * Append-only, ordered file-tree changes after a checkpoint. operationId and
+   * createdAt on the delta row are optional — the receipt table keeps them.
    */
   chatroom_workspaceFileTreeDelta: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
-    operationId: v.string(),
+    operationId: v.optional(v.string()),
     baseRevision: v.number(),
     revision: v.number(),
-    operations: v.array(
-      v.object({
-        operation: v.union(v.literal('add'), v.literal('remove'), v.literal('type-change')),
-        path: v.string(),
-        entryType: v.optional(v.union(v.literal('file'), v.literal('directory'))),
-        size: v.optional(v.number()),
-        modifiedAt: v.optional(v.number()),
-      })
-    ),
-    createdAt: v.number(),
+    operations: v.array(storedFileTreeDeltaOperationValidator),
+    createdAt: v.optional(v.number()),
   })
     .index('by_machine_workingDir_revision', ['machineId', 'workingDir', 'revision'])
     .index('by_machine_workingDir_operationId', ['machineId', 'workingDir', 'operationId']),
@@ -2692,6 +2833,7 @@ export default defineSchema({
     userId: v.id('users'),
     content: v.string(),
     contentKey: v.string(),
+    title: v.optional(v.string()),
     useCount: v.number(),
     lastUsedAt: v.number(),
     createdAt: v.number(),
@@ -2949,6 +3091,91 @@ export default defineSchema({
     .index('by_run', ['runId'])
     .index('by_run_role', ['runId', 'role'])
     .index('by_messageId', ['messageId']),
+
+  /**
+   * Per-user-per-chatroom enhancer configuration.
+   * Synced from webapp; read by handoff CLI when planner queues an enhancer check-in.
+   */
+  chatroom_enhancerConfigs: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    enabled: v.boolean(),
+    targetId: v.literal('handoff:planner-to-builder'),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    machineId: v.string(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom_user', ['chatroomId', 'userId'])
+    .index('by_chatroom', ['chatroomId']),
+
+  /**
+   * One-shot enhancer job per planner→enhancer check-in.
+   * Populated in slice 2.3; schema now so migrations are stable.
+   */
+  chatroom_enhancerJobs: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    targetId: v.literal('handoff:planner-to-builder'),
+    fromRole: v.string(),
+    toRole: v.string(),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('running'),
+      v.literal('complete'),
+      v.literal('failed'),
+      v.literal('cancelled')
+    ),
+    draftContent: v.string(),
+    enhancedContent: v.optional(v.string()),
+    templateSnapshot: v.string(),
+    inputTemplateSnapshot: v.optional(v.string()),
+    agentHarness: agentHarnessValidator,
+    model: v.string(),
+    machineId: v.string(),
+    workingDir: v.string(),
+    attemptCount: v.number(),
+    maxAttempts: v.number(),
+    runningSince: v.optional(v.number()),
+    nextRetryAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+    originUserMessageId: v.optional(v.id('chatroom_messages')),
+    /** Task row created by traditional planner→enhancer handoff. */
+    taskId: v.optional(v.id('chatroom_tasks')),
+    /** Handoff message that created the enhancer task. */
+    handoffMessageId: v.optional(v.id('chatroom_messages')),
+    pendingHandoffArgs: v.optional(
+      v.object({
+        senderRole: v.string(),
+        targetRole: v.string(),
+        attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+      })
+    ),
+  })
+    .index('by_chatroom_status', ['chatroomId', 'status'])
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_status_nextRetryAt', ['status', 'nextRetryAt'])
+    .index('by_chatroom_originUserMessageId', ['chatroomId', 'originUserMessageId'])
+    .index('by_userId_status', ['userId', 'status']),
+
+  chatroom_taskDeliveryReceipts: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    taskId: v.id('chatroom_tasks'),
+    role: v.string(),
+    deliveryKind: v.union(
+      v.literal('native_inject'),
+      v.literal('enhancer_claim'),
+      v.literal('cli_get_next_task')
+    ),
+    harnessSessionId: v.optional(v.string()),
+    jobId: v.optional(v.id('chatroom_enhancerJobs')),
+    deliveredAt: v.number(),
+    startedAt: v.optional(v.number()),
+  })
+    .index('by_chatroom_role_task', ['chatroomId', 'role', 'taskId'])
+    .index('by_taskId', ['taskId']),
 
   /**
    * Messages produced by a harness session (both user prompts and assistant

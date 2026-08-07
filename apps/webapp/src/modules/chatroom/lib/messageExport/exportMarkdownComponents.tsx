@@ -32,7 +32,7 @@ function ExportCodeBlock({
   return (
     <div className="relative not-prose mb-3">
       <div className="flex items-center justify-between bg-chatroom-bg-secondary border-2 border-b-0 border-chatroom-border px-4 py-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+        <span className="text-[10px] font-bold tracking-wide text-chatroom-text-muted">
           {language}
         </span>
       </div>

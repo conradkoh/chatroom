@@ -177,6 +177,49 @@ describe('Unread Status Tracking', () => {
     expect(status!.hasUnreadHandoff).toBe(false);
   });
 
+  test('markAsUnread sets hasUnread without changing read cursor', async () => {
+    const sessionKey = 'test-mark-unread';
+    const login = await t.mutation(api.auth.loginAnon, { sessionId: sessionKey as SessionId });
+    const sessionId = sessionKey as SessionId;
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+
+    // Mark as read first (establishes cursor)
+    await t.mutation(api.chatrooms.markAsRead, { sessionId, chatroomId });
+
+    const cursorBefore = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_read_cursors')
+        .withIndex('by_userId_chatroomId', (q: any) =>
+          q.eq('userId', login.userId!).eq('chatroomId', chatroomId)
+        )
+        .first();
+    });
+    expect(cursorBefore).not.toBeNull();
+
+    // Mark as unread
+    await t.mutation(api.chatrooms.markAsUnread, { sessionId, chatroomId });
+
+    const status = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_unreadStatus')
+        .withIndex('by_userId_chatroomId', (q: any) =>
+          q.eq('userId', login.userId!).eq('chatroomId', chatroomId)
+        )
+        .first();
+    });
+    expect(status?.hasUnread).toBe(true);
+
+    const cursorAfter = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_read_cursors')
+        .withIndex('by_userId_chatroomId', (q: any) =>
+          q.eq('userId', login.userId!).eq('chatroomId', chatroomId)
+        )
+        .first();
+    });
+    expect(cursorAfter?.lastSeenAt).toBe(cursorBefore?.lastSeenAt);
+  });
+
   test('handoff-to-user with empty queue sets hasUnreadHandoff', async () => {
     const { sessionId } = await createTestSession('test-unread-handoff-empty');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);

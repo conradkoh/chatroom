@@ -1,8 +1,5 @@
-import Markdown from 'react-markdown';
-
 import { type BacklogItem, getScoringBadge } from '../../backlog';
-import { chatroomRemarkPlugins } from '../../chatroomRemarkPlugins';
-import { backlogReviewCompactMarkdownComponents } from '../../markdown-utils';
+import { WorkQueuePreviewText } from '../WorkQueuePreviewText';
 import { formatRelativeTime } from '../utils';
 
 export interface PendingReviewBacklogModalItemProps {
@@ -59,15 +56,7 @@ export function PendingReviewBacklogModalItem({
         </div>
       )}
 
-      {/* Content - with markdown */}
-      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
-        <Markdown
-          remarkPlugins={chatroomRemarkPlugins}
-          components={backlogReviewCompactMarkdownComponents}
-        >
-          {item.content}
-        </Markdown>
-      </div>
+      <WorkQueuePreviewText content={item.content} className="flex-1 min-w-0" />
 
       {/* Relative Time */}
       <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>

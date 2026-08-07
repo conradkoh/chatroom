@@ -8,6 +8,7 @@ import { closeBacklogItem as closeBacklogItemUseCase } from '../src/domain/useca
 import { completeAllPendingReviewBacklogItems as completeAllPendingReviewBacklogItemsUseCase } from '../src/domain/usecase/backlog/complete-all-pending-review-backlog-items';
 import { completeBacklogItem as completeBacklogItemUseCase } from '../src/domain/usecase/backlog/complete-backlog-item';
 import { createBacklogItem as createBacklogItemUseCase } from '../src/domain/usecase/backlog/create-backlog-item';
+import { deleteBacklogItem as deleteBacklogItemUseCase } from '../src/domain/usecase/backlog/delete-backlog-item';
 import { getBacklogItemsByIds as getBacklogItemsByIdsUseCase } from '../src/domain/usecase/backlog/get-backlog-items-by-ids';
 import { listBacklogItems as listBacklogItemsUseCase } from '../src/domain/usecase/backlog/list-backlog-items';
 import { markBacklogItemForReview as markBacklogItemForReviewUseCase } from '../src/domain/usecase/backlog/mark-backlog-item-for-review';
@@ -95,7 +96,7 @@ export const closeBacklogItem = mutation({
     reason: v.string(),
   },
   handler: async (ctx, args) => {
-    const item = await ctx.db.get("chatroom_backlog", args.itemId);
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
     if (!item)
       throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     const reason = args.reason.trim();
@@ -108,6 +109,23 @@ export const closeBacklogItem = mutation({
   },
 });
 
+/** Permanently deletes a backlog item (hard delete) from any status. Cannot be undone. */
+export const deleteBacklogItem = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    itemId: v.id('chatroom_backlog'),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
+    if (!item)
+      throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
+    await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
+    await deleteBacklogItemUseCase(ctx, item);
+    return { success: true };
+  },
+});
+
 /** Marks a backlog item as completed (user confirms agent's work is done). Must be in pending_user_review. */
 export const completeBacklogItem = mutation({
   args: {
@@ -116,7 +134,7 @@ export const completeBacklogItem = mutation({
     itemId: v.id('chatroom_backlog'),
   },
   handler: async (ctx, args) => {
-    const item = await ctx.db.get("chatroom_backlog", args.itemId);
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
     if (!item)
       throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
@@ -146,7 +164,7 @@ export const reopenBacklogItem = mutation({
     itemId: v.id('chatroom_backlog'),
   },
   handler: async (ctx, args) => {
-    const item = await ctx.db.get("chatroom_backlog", args.itemId);
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
     if (!item)
       throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
@@ -163,7 +181,7 @@ export const markBacklogItemForReview = mutation({
     itemId: v.id('chatroom_backlog'),
   },
   handler: async (ctx, args) => {
-    const item = await ctx.db.get("chatroom_backlog", args.itemId);
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
     if (!item)
       throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
@@ -180,7 +198,7 @@ export const sendBacklogItemBackForRework = mutation({
     itemId: v.id('chatroom_backlog'),
   },
   handler: async (ctx, args) => {
-    const item = await ctx.db.get("chatroom_backlog", args.itemId);
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
     if (!item)
       throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
@@ -198,7 +216,7 @@ export const updateBacklogItem = mutation({
     content: v.string(),
   },
   handler: async (ctx, args) => {
-    const item = await ctx.db.get("chatroom_backlog", args.itemId);
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
     if (!item)
       throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
@@ -216,8 +234,9 @@ export const getBacklogItemsByIds = query({
   handler: async (ctx, args) => {
     if (args.itemIds.length === 0) return [];
     const items = await getBacklogItemsByIdsUseCase(ctx, args.itemIds);
-    if (items.length > 0) {
-      await requireChatroomAccess(ctx, args.sessionId, items[0]!.chatroomId);
+    const firstItem = items[0];
+    if (firstItem) {
+      await requireChatroomAccess(ctx, args.sessionId, firstItem.chatroomId);
     }
     return items;
   },
@@ -234,7 +253,7 @@ export const patchBacklogItem = mutation({
     value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
   },
   handler: async (ctx, args) => {
-    const item = await ctx.db.get("chatroom_backlog", args.itemId);
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
     if (!item)
       throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);

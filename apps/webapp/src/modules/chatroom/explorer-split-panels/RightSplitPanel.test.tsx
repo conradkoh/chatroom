@@ -47,18 +47,7 @@ vi.mock('../components/ui/select', () => ({
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 const CHATROOM_ID = 'cr1' as never;
-const DEFAULT_TEAM_ROLES = ['planner', 'builder'];
-const DEFAULT_MESSAGES_PROPS = {
-  coordinator: {
-    current: {
-      attach: vi.fn(),
-      detach: vi.fn(),
-      subscribe: vi.fn(() => () => {}),
-      getSnapshot: vi.fn(() => true),
-    },
-  },
-  onRegisterOpenEventStream: vi.fn(),
-} as any;
+const DEFAULT_MESSAGES_PROPS = {} as any;
 const DEFAULT_HARNESS_PROPS = {
   selectedHarnessSessionId: null,
   setSelectedHarnessSessionId: vi.fn(),
@@ -73,7 +62,6 @@ describe('RightSplitPanel', () => {
     render(
       <RightSplitPanel
         chatroomId={CHATROOM_ID}
-        teamRoles={DEFAULT_TEAM_ROLES}
         messagesPanelProps={DEFAULT_MESSAGES_PROPS}
         {...DEFAULT_HARNESS_PROPS}
       />
@@ -86,7 +74,6 @@ describe('RightSplitPanel', () => {
     render(
       <RightSplitPanel
         chatroomId={CHATROOM_ID}
-        teamRoles={DEFAULT_TEAM_ROLES}
         messagesPanelProps={DEFAULT_MESSAGES_PROPS}
         {...DEFAULT_HARNESS_PROPS}
       />
@@ -103,7 +90,6 @@ describe('RightSplitPanel', () => {
     render(
       <RightSplitPanel
         chatroomId={CHATROOM_ID}
-        teamRoles={DEFAULT_TEAM_ROLES}
         messagesPanelProps={DEFAULT_MESSAGES_PROPS}
         {...DEFAULT_HARNESS_PROPS}
       />
@@ -118,7 +104,6 @@ describe('RightSplitPanel', () => {
     render(
       <RightSplitPanel
         chatroomId={CHATROOM_ID}
-        teamRoles={DEFAULT_TEAM_ROLES}
         messagesPanelProps={DEFAULT_MESSAGES_PROPS}
         {...DEFAULT_HARNESS_PROPS}
       />

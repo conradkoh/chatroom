@@ -13,6 +13,7 @@ const permissions = {
   'settings:read': { description: 'View application settings' },
   'settings:write': { description: 'Update application settings' },
   'auth:provider:manage': { description: 'Configure authentication providers' },
+  'invites:manage': { description: 'Create and manage invite codes' },
   'attendance:read': { description: 'View attendance records' },
   'attendance:manage': { description: 'Manage attendance records' },
   'presentation:read': { description: 'View presentations' },
@@ -24,3 +25,5 @@ export const allPermissions = Object.keys(permissions) as Permission[];
 
 /** Configure authentication providers — use instead of checking roles in handlers. */
 export const AUTH_PROVIDER_MANAGE_PERMISSION = 'auth:provider:manage' as const satisfies Permission;
+
+export const INVITES_MANAGE_PERMISSION = 'invites:manage' as const satisfies Permission;

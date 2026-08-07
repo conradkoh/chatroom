@@ -55,6 +55,8 @@ export async function promoteQueuedMessage(
     ...(queueRecord.attachedWorkflowIds?.length && {
       attachedWorkflowIds: queueRecord.attachedWorkflowIds,
     }),
+    ...(queueRecord.sourcePlatform ? { sourcePlatform: queueRecord.sourcePlatform } : {}),
+    ...(queueRecord.scheduledPromptId ? { scheduledPromptId: queueRecord.scheduledPromptId } : {}),
   });
 
   // Note: acknowledgedAt is intentionally NOT set here.
@@ -73,6 +75,9 @@ export async function promoteQueuedMessage(
     sourceMessageId: messageId,
     queuePosition,
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),
+    ...(queueRecord.plannerEnhancerEnabled !== undefined
+      ? { plannerEnhancerEnabled: queueRecord.plannerEnhancerEnabled }
+      : {}),
   });
 
   // Patch message with taskId (bidirectional link)

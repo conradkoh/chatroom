@@ -1,13 +1,12 @@
 'use client';
 
+import { Sparkles } from 'lucide-react';
 import React from 'react';
-import Markdown from 'react-markdown';
 
-import { MessageAttachmentChips } from '../../attachments';
-import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { compactMarkdownComponents } from '../markdown-utils';
 import type { Task } from './types';
 import { getStatusBadge, formatRelativeTime } from './utils';
+import { WorkQueuePreviewText } from './WorkQueuePreviewText';
+import { MessageAttachmentChips } from '../../attachments';
 
 import {
   FixedModal,
@@ -21,9 +20,18 @@ export interface CurrentTasksModalProps {
   tasks: Task[];
   onClose: () => void;
   onTaskClick: (task: Task) => void;
+  /** Cancel the active enhancer job for an enhancer-assigned task. */
+  onCancelEnhancer?: (task: Task) => void;
+  isCancellingEnhancer?: boolean;
 }
 
-export function CurrentTasksModal({ tasks, onClose, onTaskClick }: CurrentTasksModalProps) {
+export function CurrentTasksModal({
+  tasks,
+  onClose,
+  onTaskClick,
+  onCancelEnhancer,
+  isCancellingEnhancer = false,
+}: CurrentTasksModalProps) {
   return (
     <FixedModal isOpen onClose={onClose} maxWidth="max-w-xl" className="sm:max-h-[70vh]">
       <FixedModalContent>
@@ -38,7 +46,13 @@ export function CurrentTasksModal({ tasks, onClose, onTaskClick }: CurrentTasksM
             <div className="p-8 text-center text-chatroom-text-muted text-sm">No current tasks</div>
           ) : (
             tasks.map((task) => (
-              <CurrentTasksModalItem key={task._id} task={task} onClick={() => onTaskClick(task)} />
+              <CurrentTasksModalItem
+                key={task._id}
+                task={task}
+                onClick={() => onTaskClick(task)}
+                onCancelEnhancer={onCancelEnhancer}
+                isCancellingEnhancer={isCancellingEnhancer}
+              />
             ))
           )}
         </FixedModalBody>
@@ -51,10 +65,17 @@ export function CurrentTasksModal({ tasks, onClose, onTaskClick }: CurrentTasksM
 export interface CurrentTasksModalItemProps {
   task: Task;
   onClick: () => void;
+  onCancelEnhancer?: (task: Task) => void;
+  isCancellingEnhancer?: boolean;
 }
 
 // fallow-ignore-next-line complexity
-export function CurrentTasksModalItem({ task, onClick }: CurrentTasksModalItemProps) {
+export function CurrentTasksModalItem({
+  task,
+  onClick,
+  onCancelEnhancer,
+  isCancellingEnhancer = false,
+}: CurrentTasksModalItemProps) {
   const badge = getStatusBadge(task.status);
   const relativeTime = task.updatedAt ? formatRelativeTime(task.updatedAt) : '';
 
@@ -66,7 +87,7 @@ export function CurrentTasksModalItem({ task, onClick }: CurrentTasksModalItemPr
 
   return (
     <div
-      className="p-3 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group border-b border-chatroom-border last:border-b-0"
+      className="flex items-center gap-2 px-3 py-2 hover:bg-chatroom-bg-hover transition-colors cursor-pointer border-b border-chatroom-border last:border-b-0"
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -77,50 +98,65 @@ export function CurrentTasksModalItem({ task, onClick }: CurrentTasksModalItemPr
         }
       }}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex-1 min-w-0">
         {/* Status Badge */}
-        <span
-          className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${badge.classes}`}
-        >
-          {badge.label}
-        </span>
-
-        {/* Content - with markdown */}
-        <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
-          <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
-            {task.content}
-          </Markdown>
+        <div className="flex items-center gap-2 mb-1">
+          <span
+            className={`px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${badge.classes}`}
+          >
+            {badge.label}
+          </span>
+          {task.assignedTo && (
+            <span className="text-[9px] text-chatroom-text-muted">→ {task.assignedTo}</span>
+          )}
         </div>
 
-        {/* Assigned To */}
-        {task.assignedTo && (
-          <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">
-            → {task.assignedTo}
-          </span>
-        )}
+        {/* Content - plain text preview */}
+        <WorkQueuePreviewText content={task.content} />
 
         {/* Relative Time */}
-        <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>
+        {relativeTime && (
+          <p className="text-[10px] text-chatroom-text-muted mt-0.5">{relativeTime}</p>
+        )}
+
+        {/* Attachment chips */}
+        {taskHasAttachments && (
+          <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+            <MessageAttachmentChips
+              message={{
+                _id: task._id,
+                type: 'task',
+                senderRole: 'user',
+                content: task.content,
+                _creationTime: task.createdAt,
+                attachedTasks: task.attachedTasks,
+                attachedBacklogItems: task.attachedBacklogItems,
+                attachedMessages: task.attachedMessages,
+                attachedSnippets: task.attachedSnippets,
+              }}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Attachment chips */}
-      {taskHasAttachments && (
-        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-          <MessageAttachmentChips
-            message={{
-              _id: task._id,
-              type: 'task',
-              senderRole: 'user',
-              content: task.content,
-              _creationTime: task.createdAt,
-              attachedTasks: task.attachedTasks,
-              attachedBacklogItems: task.attachedBacklogItems,
-              attachedMessages: task.attachedMessages,
-              attachedSnippets: task.attachedSnippets,
+      {/* Cancel enhancer — trailing action, end-aligned */}
+      <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        {task.assignedTo === 'enhancer' && onCancelEnhancer && (
+          <button
+            type="button"
+            data-testid="cancel-enhancer-modal-item"
+            title="Cancel planning review"
+            disabled={isCancellingEnhancer}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCancelEnhancer(task);
             }}
-          />
-        </div>
-      )}
+            className="p-1.5 rounded transition-colors disabled:opacity-50 text-blue-500 dark:text-blue-400 hover:bg-blue-500/10"
+          >
+            <Sparkles size={14} className="fill-current" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

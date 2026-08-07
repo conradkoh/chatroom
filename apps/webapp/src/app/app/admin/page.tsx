@@ -1,6 +1,7 @@
 'use client';
 
-import { Settings, Shield, Users } from 'lucide-react';
+import { getSignupConfigLabel } from '@workspace/backend/config/signupMethods';
+import { Settings, Shield, Ticket, Users } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { SYSTEM_ADMIN_ACCESS_PERMISSION, useHasPermission } from '@/application/auth';
@@ -44,6 +45,12 @@ export default function AdminDashboard() {
             ? 'Ready for user login'
             : 'Configuration required',
         icon: <Shield className="h-4 w-4 text-muted-foreground" />,
+      },
+      {
+        title: 'Sign-up Mode',
+        value: getSignupConfigLabel(),
+        description: 'Edit featureFlags.ts and redeploy to change',
+        icon: <Ticket className="h-4 w-4 text-muted-foreground" />,
       },
       {
         title: 'Your Access',

@@ -1,12 +1,11 @@
 'use client';
 
-import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { CommandOutputPanel } from './CommandOutputPanel';
+import { CommandDialogContent } from '../shared/CommandDialogContent';
 
-import { Dialog, DialogPortal } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
 
 interface CommandOutputModalProps {
@@ -18,17 +17,89 @@ interface CommandOutputModalProps {
  *
  * Isolated from the CommandPalette dialog: ESC on this modal closes only
  * the output panel, not the command palette behind it.
+ *
+ * Open-grace guard: when the palette closes right after a command is selected,
+ * focus-restore moves focus outside this non-modal dialog, firing
+ * `onFocusOutside` (and on some gestures `onPointerDownOutside`) within the same
+ * interaction. These spurious dismisses flash the output modal closed. The guard
+ * ignores outside-interaction dismissals during the brief open window.
  */
+const OPEN_GRACE_MS = 300;
+// fallow-ignore-next-line unused-export
+export { OPEN_GRACE_MS };
+
+type DialogChangeEventDetails = {
+  reason: string;
+  event: Event;
+  cancel: () => void;
+};
+
+function isOutsideDismissReason(reason: string): boolean {
+  return reason === 'outside-press' || reason === 'focus-out';
+}
+
+// fallow-ignore-next-line complexity
+function handleDialogOpenChange(
+  val: boolean,
+  eventDetails: DialogChangeEventDetails | undefined,
+  withinGrace: () => boolean,
+  onPointerDownOutside: (event: Event) => void,
+  onFocusOutside: (event: Event) => void,
+  detach: () => void
+): void {
+  if (val) return;
+
+  if (eventDetails && isOutsideDismissReason(eventDetails.reason)) {
+    if (withinGrace()) {
+      eventDetails.cancel();
+      return;
+    }
+    if (eventDetails.reason === 'outside-press') {
+      onPointerDownOutside(eventDetails.event);
+    } else {
+      onFocusOutside(eventDetails.event);
+    }
+  }
+
+  detach();
+}
+
 export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
   const open = inlineCommand.commandName !== null;
 
-  const handleOpenChange = useCallback(
-    (val: boolean) => {
-      if (!val) {
-        inlineCommand.detach();
-      }
+  const openedAtRef = useRef(0);
+  useEffect(() => {
+    if (open) openedAtRef.current = Date.now();
+  }, [open]);
+
+  const withinGrace = useCallback(() => Date.now() - openedAtRef.current < OPEN_GRACE_MS, []);
+
+  const handlePointerDownOutside = useCallback(
+    (event: Event) => {
+      if (withinGrace()) event.preventDefault();
     },
-    [inlineCommand]
+    [withinGrace]
+  );
+
+  const handleFocusOutside = useCallback(
+    (event: Event) => {
+      if (withinGrace()) event.preventDefault();
+    },
+    [withinGrace]
+  );
+
+  const handleOpenChange = useCallback(
+    (val: boolean, eventDetails?: DialogChangeEventDetails) => {
+      handleDialogOpenChange(
+        val,
+        eventDetails,
+        withinGrace,
+        handlePointerDownOutside,
+        handleFocusOutside,
+        inlineCommand.detach
+      );
+    },
+    [inlineCommand, handlePointerDownOutside, handleFocusOutside, withinGrace]
   );
 
   const handleEscapeKeyDown = useCallback(
@@ -54,50 +125,57 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
     inlineCommand.detach();
   }, [inlineCommand]);
 
+  // Base UI non-modal dialogs do not emit focus-out dismiss like Radix; mirror Radix
+  // behavior so spurious focus moves close the panel after the open-grace window.
+  useEffect(() => {
+    if (!open) return;
+
+    // fallow-ignore-next-line complexity
+    const handleFocusIn = (event: FocusEvent) => {
+      const popup = document.querySelector('[data-slot="command-dialog-content"]');
+      const target = event.target as Node | null;
+      if (!popup || !target || popup.contains(target)) return;
+
+      if (withinGrace()) return;
+
+      handleFocusOutside(event);
+      inlineCommand.detach();
+    };
+
+    document.addEventListener('focusin', handleFocusIn, true);
+    return () => document.removeEventListener('focusin', handleFocusIn, true);
+  }, [open, handleFocusOutside, inlineCommand, withinGrace]);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange} modal={false}>
-      <DialogPortal>
-        <DialogPrimitive.Content
-          forceMount
-          onEscapeKeyDown={handleEscapeKeyDown}
-          className={cn(
-            // Position: top-anchored, matching CommandPalette position
-            'fixed left-[50%] translate-x-[-50%] top-[10%] sm:top-[15%] z-50',
-            'w-[600px] max-w-[90vw] h-[320px]',
-            // Industrial theme: sharp corners, 2px adaptive border, drop shadow for depth
-            'rounded-none border-2 border-chatroom-border shadow-lg',
-            // Background
-            'bg-chatroom-bg-primary overflow-hidden',
-            // Animation: open instantly (duration-0), close with smooth fade+zoom-out
-            'data-[state=open]:animate-in data-[state=closed]:animate-out',
-            'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
-            'data-[state=closed]:zoom-out-95',
-            'data-[state=open]:duration-0 data-[state=closed]:duration-200',
-            'data-[state=closed]:fill-mode-forwards',
-            'data-[state=closed]:pointer-events-none'
-          )}
-        >
-          <DialogPrimitive.Title className="sr-only">Command Output</DialogPrimitive.Title>
-          <DialogPrimitive.Description className="sr-only">
-            Output for {inlineCommand.commandName ?? 'command'}
-          </DialogPrimitive.Description>
+      <CommandDialogContent
+        open={open}
+        onEscapeKeyDown={handleEscapeKeyDown}
+        onPointerDownOutside={handlePointerDownOutside}
+        onFocusOutside={handleFocusOutside}
+        onBackdropDismiss={inlineCommand.detach}
+        className="h-[320px]"
+      >
+        <DialogTitle className="sr-only">Command Output</DialogTitle>
+        <DialogDescription className="sr-only">
+          Output for {inlineCommand.commandName ?? 'command'}
+        </DialogDescription>
 
-          {inlineCommand.commandName && (
-            <CommandOutputPanel
-              commandName={inlineCommand.commandName}
-              status={inlineCommand.status}
-              terminationReason={inlineCommand.terminationReason}
-              output={inlineCommand.output}
-              onStop={handleStop}
-              onRunAgain={handleRunAgain}
-              onClose={handleClose}
-              onLoadMore={inlineCommand.loadMore}
-              canLoadMore={inlineCommand.canLoadMore}
-              fullOutputPending={inlineCommand.fullOutputPending}
-            />
-          )}
-        </DialogPrimitive.Content>
-      </DialogPortal>
+        {inlineCommand.commandName && (
+          <CommandOutputPanel
+            commandName={inlineCommand.commandName}
+            status={inlineCommand.status}
+            terminationReason={inlineCommand.terminationReason}
+            output={inlineCommand.output}
+            onStop={handleStop}
+            onRunAgain={handleRunAgain}
+            onClose={handleClose}
+            onLoadMore={inlineCommand.loadMore}
+            canLoadMore={inlineCommand.canLoadMore}
+            fullOutputPending={inlineCommand.fullOutputPending}
+          />
+        )}
+      </CommandDialogContent>
     </Dialog>
   );
 }

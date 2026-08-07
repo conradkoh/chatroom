@@ -7,8 +7,9 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 export interface AnonymousLoginButtonProps {
   variant?: 'list' | 'button';
@@ -93,15 +94,12 @@ function _renderButtonVariant(isLoading: boolean, handleClick: () => void, class
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="outline"
-            onClick={handleClick}
-            disabled={isLoading}
-            className={className}
-          >
-            {isLoading ? 'Logging in...' : 'Login Anonymously'}
-          </Button>
+        <TooltipTrigger
+          className={cn(buttonVariants({ variant: 'outline' }), className)}
+          onClick={handleClick}
+          disabled={isLoading}
+        >
+          {isLoading ? 'Logging in...' : 'Login Anonymously'}
         </TooltipTrigger>
         <TooltipContent>
           <p>Continue without creating an account</p>

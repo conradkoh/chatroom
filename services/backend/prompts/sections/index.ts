@@ -29,9 +29,6 @@ export { getTeamContextSection } from './team-context';
 // Role Guidance
 export { getRoleGuidanceSection } from './role-guidance';
 
-// Current Classification
-export { getCurrentClassificationSection } from './current-classification';
-
 // Handoff Options
 export { getHandoffOptionsSection } from './handoff-options';
 

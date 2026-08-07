@@ -5,8 +5,8 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { runGit } from '../../git/run-command.js';
 import { discoverGitWorkspaceHierarchy } from './git-workspace-hierarchy.js';
+import { runGit } from '../../../daemon/infrastructure/git/run-command.js';
 
 async function git(...args: string[]): Promise<void> {
   const result = await runGit(args, tmpDir);

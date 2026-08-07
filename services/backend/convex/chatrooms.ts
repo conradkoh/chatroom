@@ -4,9 +4,18 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
+import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
-import { clearChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
+import {
+  clearChatroomUnread,
+  markChatroomUnread,
+} from '../src/domain/usecase/chatroom/unread-status';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
+import {
+  getChatroomLifecycleImpacts,
+  disableScheduledPromptsForArchive,
+} from '../src/domain/usecase/chatroom/lifecycle-impacts';
+import { listChatroomIdsWithActiveEnhancerWork } from '../src/domain/usecase/enhancer/planner-enhancing-status';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({
@@ -187,17 +196,61 @@ export const listByUserWithStatus = query({
   },
 });
 
-/** Updates the status of a chatroom. */
+/** Updates the status of a chatroom. Use the archive mutation to mark a chatroom completed. */
 export const updateStatus = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
-    status: v.union(v.literal('active'), v.literal('completed')),
+    status: v.literal('active'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { status: args.status });
+  },
+});
+
+/**
+ * Returns lifecycle impacts for archiving a chatroom (e.g. how many scheduled
+ * prompts will be disabled). Extensible via LifecycleAction union.
+ */
+export const getLifecycleImpacts = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    action: v.literal('archive'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const impacts = await getChatroomLifecycleImpacts(ctx, {
+      chatroomId: args.chatroomId,
+      action: args.action,
+    });
+    return { action: args.action, impacts };
+  },
+});
+
+/**
+ * Atomically archives a chatroom: disables all active scheduled prompts
+ * and marks the chatroom as completed.
+ */
+export const archive = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) {
+      throw new ConvexError({ code: 'NOT_FOUND', message: 'Chatroom not found' });
+    }
+    if (chatroom.status === 'completed') {
+      return { success: true, disabledPromptCount: 0 };
+    }
+    const now = Date.now();
+    const disabledPromptCount = await disableScheduledPromptsForArchive(ctx, args.chatroomId, now);
+    await ctx.db.patch('chatroom_rooms', args.chatroomId, { status: 'completed' });
+    return { success: true, disabledPromptCount };
   },
 });
 
@@ -366,6 +419,18 @@ export const markAsRead = mutation({
   },
 });
 
+/** Marks a chatroom as unread for the owner (e.g. sidebar "Mark as Unread"). Does not change read cursor. */
+export const markAsUnread = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await markChatroomUnread(ctx, args.chatroomId, session.userId, false);
+  },
+});
+
 /** Returns the IDs of chatrooms that the authenticated user has favorited. */
 export const listFavoriteIds = query({
   args: {
@@ -460,6 +525,24 @@ export const listUnreadStatus = query({
   },
 });
 
+/** Returns chatrooms with active enhancer work for the authenticated user. */
+export const listActiveEnhancerWork = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+
+    const chatroomIds = await listChatroomIdsWithActiveEnhancerWork(ctx, auth.userId);
+
+    return chatroomIds.map((chatroomId) => ({
+      chatroomId: chatroomId as string,
+      hasActiveEnhancerWork: true as const,
+    }));
+  },
+});
+
 /** Returns participant presence (role, lastSeenAt, lastSeenAction) for all chatrooms the user owns. */
 export const listParticipantPresence = query({
   args: {
@@ -532,11 +615,20 @@ export const recordChatroomObservation = mutation({
       .first();
 
     if (existing) {
-      // Update existing observation
+      const isRefresh = args.refresh === true;
+      const lastObservedStale =
+        now - existing.lastObservedAt >= OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS;
+
+      // Regular heartbeats: skip redundant writes that would invalidate daemon subscriptions.
+      // Refresh calls always write (lastRefreshedAt must be updated).
+      if (!isRefresh && !lastObservedStale) {
+        return;
+      }
+
       const patch: { lastObservedAt: number; lastRefreshedAt?: number } = {
         lastObservedAt: now,
       };
-      if (args.refresh) {
+      if (isRefresh) {
         patch.lastRefreshedAt = now;
       }
       await ctx.db.patch('chatroom_observation', existing._id, patch);

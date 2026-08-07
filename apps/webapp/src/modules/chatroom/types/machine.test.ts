@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   HARNESS_DISPLAY_NAMES,
+  formatHarnessLabel,
   getHarnessDisplayName,
   getModelDisplayLabel,
   getCompactModelId,
@@ -41,6 +42,18 @@ describe('HARNESS_DISPLAY_NAMES', () => {
     for (const harness of ALL_KNOWN_HARNESSES) {
       expect(displayNameKeys).toContain(harness);
     }
+  });
+});
+
+describe('formatHarnessLabel', () => {
+  it('returns display name without version when version is absent', () => {
+    expect(formatHarnessLabel('opencode-sdk')).toBe('OpenCode (SDK)');
+  });
+
+  it('appends version suffix when version is provided', () => {
+    expect(formatHarnessLabel('opencode-sdk', { version: '1.17.18', major: 1 })).toBe(
+      'OpenCode (SDK) v1.17.18'
+    );
   });
 });
 

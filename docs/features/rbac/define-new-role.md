@@ -2,6 +2,19 @@
 
 This guide explains how to define application permissions and roles, enforce them in Convex, and use them in the Next.js webapp. RBAC is **declarative and code-defined** in `application/auth/` — not stored in database tables in the current phase.
 
+## Reference implementation (Phase 1b)
+
+Forks and downstream repos adopting multi-role assignment should use [**PR #94 — feat(rbac): add users.roleNames for multi-role assignment (Phase 1b)**](https://github.com/conradkoh/next-convex-starter-app/pull/94) as the canonical change set. That PR introduces:
+
+- `roleNames` optional array on `users` (Convex schema)
+- `getRolesForUser` resolution: `accessLevel: 'system_admin'` first (no migration required for system admins), then `roleNames`, then default `['user']`
+- `backfillUserRoleNames` migration for non-admin users
+- Unit tests in `application/auth/resolve.spec.ts` and `rbac-registry-sync.spec.ts`
+
+The starter ships exactly two built-in roles — `user` and `system_admin`. Custom roles like `manager` are fork extensions (see [Add a new role](#add-a-new-role)).
+
+Port that diff when bringing the same capability into another repo.
+
 ---
 
 ## Architecture
@@ -185,7 +198,7 @@ pnpm typecheck
 pnpm test
 ```
 
-Relevant tests: `application/auth/__tests__/resolve.spec.ts`, `rbac-registry-sync.spec.ts`.
+Relevant tests: `application/auth/resolve.spec.ts`, `rbac-registry-sync.spec.ts`.
 
 ---
 
@@ -193,26 +206,23 @@ Relevant tests: `application/auth/__tests__/resolve.spec.ts`, `rbac-registry-syn
 
 ### 1. Define the role (both `roles.ts` files)
 
-Append to `roleDefinitions`:
+The starter ships exactly two roles — `user` and `system_admin`. Append to `roleDefinitions`:
 
 ```typescript
+// Starter ships:
 export const roleDefinitions = [
   {
     role: 'user',
-    permissions: [
-      /* ... */
-    ] as const satisfies readonly Permission[],
-  },
-  {
-    role: 'manager',
-    permissions: [
-      'users:list',
-      'users:read',
-      'attendance:manage',
-    ] as const satisfies readonly Permission[],
+    permissions: [/* ... */] as const satisfies readonly Permission[],
   },
   { role: 'system_admin', permissions: systemAdminPermissions },
 ] as const;
+
+// Fork extension example — append a custom role:
+// {
+//   role: 'manager',
+//   permissions: ['users:list', 'users:read', 'attendance:manage'] as const satisfies readonly Permission[],
+// },
 ```
 
 `AppRole` is inferred from `roleDefinitions`. Use `satisfies readonly Permission[]` so invalid keys fail at compile time.
@@ -225,14 +235,24 @@ permissions: ['users:*', 'attendance:read'] as const satisfies readonly RolePerm
 
 ### 2. Assign roles to users
 
-**Today (Phase 1):** only `accessLevel` on `users` drives roles in `getRolesForUser`:
+**Phase 1b (current):** `roleNames` on `users` is the primary assignment field for non-admin users. Set an array of role strings matching keys in `roleDefinitions`:
 
-| `accessLevel`           | Resolved roles     |
-| ----------------------- | ------------------ |
-| `undefined` or `'user'` | `['user']`         |
-| `'system_admin'`        | `['system_admin']` |
+| `roleNames` value | Resolved roles          |
+| ----------------- | ----------------------- |
+| `['user']`        | Standard signed-in user |
 
-Custom roles such as `manager` can be defined in `roleDefinitions` but are **not active** until users can be assigned multiple roles (planned Phase 1b: `users.roleNames`). Do not uncomment placeholder roles for production assignment until that field exists and `getRolesForUser` reads it.
+**System administrators:** `accessLevel: 'system_admin'` always resolves to `['system_admin']` — no `roleNames` migration required. This takes priority over any `roleNames` value on the document.
+
+**Legacy fallback (non-admin users):** when `roleNames` is absent, empty, or contains only unknown strings, `getRolesForUser` defaults to `['user']`:
+
+| `accessLevel`           | Resolved roles                                         |
+| ----------------------- | ------------------------------------------------------ |
+| `undefined` or `'user'` | `['user']`                                             |
+| `'system_admin'`        | `['system_admin']` (always, regardless of `roleNames`) |
+
+Run `npx convex run migrations:run '{fn: "migrations:backfillUserRoleNames"}'` to backfill `roleNames` for non-admin users (optional for system admins).
+
+The starter admin UI at `/app/admin/users` exposes **Standard User** and **System Administrator** presets. Forks that add custom roles should extend both `roleDefinitions` and the admin assignment UI/API.
 
 ### 3. Use the same backend and frontend patterns
 
@@ -258,7 +278,7 @@ flowchart LR
 - **`permissionGrantMatches`** — exact key, `*`, or `resource:*`.
 - **`getResolvedPermissionsForUser`** — filters the registry to concrete keys the user holds (used for `AuthState.permissions`).
 
-For logic details and edge cases, see `resolve.ts` and `__tests__/resolve.spec.ts`.
+For logic details and edge cases, see `resolve.ts` and `resolve.spec.ts`.
 
 ---
 
@@ -300,7 +320,6 @@ Permissions come from the server. If a handler is not guarded, the UI may show c
 ## What is out of scope (current phase)
 
 - Database-backed `rbac_roles` / `rbac_permissions` tables
-- System-admin UI for assigning roles to users
 - Per-resource instance permissions (e.g. “only my attendance”)
 - Replacing `accessLevel` checks entirely in one pass
 

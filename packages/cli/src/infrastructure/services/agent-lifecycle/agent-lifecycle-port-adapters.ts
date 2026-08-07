@@ -10,10 +10,13 @@
 import { Effect } from 'effect';
 
 import type { AgentLifecyclePorts, SpawnPort, HarnessSpawnPort } from './agent-lifecycle-types.js';
+import type {
+  RemoteAgentService,
+  SpawnResult,
+} from '../../../daemon/infrastructure/local/harness/services/remote-agent-service.js';
+import type { SpawnPrompt } from '../../../daemon/infrastructure/local/harness/services/spawn-prompt.js';
 import { isProcessAlive } from '../../deps/process.js';
 import type { AgentHarness } from '../../machine/types.js';
-import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
-import type { SpawnPrompt } from '../remote-agents/spawn-prompt.js';
 
 // ─── Port Adapter Dependencies ────────────────────────────────────────────────
 

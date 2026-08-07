@@ -55,7 +55,7 @@ describe('commands.runCommand — replace semantics', () => {
     await t.mutation(api.commands.updateRunStatus, {
       sessionId,
       machineId,
-      runId: firstRunId as Id<'chatroom_commandRuns'>,
+      runId: firstRunId as Id<'chatroom_commandRunsV2'>,
       status: 'running',
     });
 
@@ -70,7 +70,7 @@ describe('commands.runCommand — replace semantics', () => {
 
     // First run should now be killed with reason 'replaced'
     const firstRun = await t.run(async (ctx) =>
-      ctx.db.get(firstRunId as Id<'chatroom_commandRuns'>)
+      ctx.db.get(firstRunId as Id<'chatroom_commandRunsV2'>)
     );
     expect(firstRun?.status).toBe('killed');
     expect(firstRun?.terminationReason).toBe('replaced');
@@ -79,7 +79,7 @@ describe('commands.runCommand — replace semantics', () => {
     // New run should be a fresh pending run
     expect(secondRunId).not.toBe(firstRunId);
     const secondRun = await t.run(async (ctx) =>
-      ctx.db.get(secondRunId as Id<'chatroom_commandRuns'>)
+      ctx.db.get(secondRunId as Id<'chatroom_commandRunsV2'>)
     );
     expect(secondRun?.status).toBe('pending');
     expect(secondRun?.terminationReason).toBeUndefined();
@@ -112,7 +112,7 @@ describe('commands.runCommand — replace semantics', () => {
     await t.mutation(api.commands.updateRunStatus, {
       sessionId,
       machineId,
-      runId: devRunId as Id<'chatroom_commandRuns'>,
+      runId: devRunId as Id<'chatroom_commandRunsV2'>,
       status: 'running',
     });
 
@@ -125,9 +125,7 @@ describe('commands.runCommand — replace semantics', () => {
       script: 'pnpm build',
     });
 
-    const devRun = await t.run(async (ctx) =>
-      ctx.db.get(devRunId as Id<'chatroom_commandRuns'>)
-    );
+    const devRun = await t.run(async (ctx) => ctx.db.get(devRunId as Id<'chatroom_commandRunsV2'>));
     expect(devRun?.status).toBe('running'); // untouched
     expect(devRun?.terminationReason).toBeUndefined();
   });
@@ -149,13 +147,13 @@ describe('commands.runCommand — replace semantics', () => {
     await t.mutation(api.commands.updateRunStatus, {
       sessionId,
       machineId,
-      runId: pendingRunId as Id<'chatroom_commandRuns'>,
+      runId: pendingRunId as Id<'chatroom_commandRunsV2'>,
       status: 'running',
     });
     await t.mutation(api.commands.updateRunStatus, {
       sessionId,
       machineId,
-      runId: pendingRunId as Id<'chatroom_commandRuns'>,
+      runId: pendingRunId as Id<'chatroom_commandRunsV2'>,
       status: 'completed',
     });
 
@@ -169,12 +167,12 @@ describe('commands.runCommand — replace semantics', () => {
     });
 
     const pendingRun = await t.run(async (ctx) =>
-      ctx.db.get(pendingRunId as Id<'chatroom_commandRuns'>)
+      ctx.db.get(pendingRunId as Id<'chatroom_commandRunsV2'>)
     );
     expect(pendingRun?.status).toBe('completed'); // unchanged
 
     const freshRun = await t.run(async (ctx) =>
-      ctx.db.get(freshRunId as Id<'chatroom_commandRuns'>)
+      ctx.db.get(freshRunId as Id<'chatroom_commandRunsV2'>)
     );
     expect(freshRun?.status).toBe('pending');
   });
@@ -208,7 +206,7 @@ describe('commands.runCommand — back-to-back dedup', () => {
     // Only one run row should exist
     const allRuns = await t.run(async (ctx) =>
       ctx.db
-        .query('chatroom_commandRuns')
+        .query('chatroom_commandRunsV2')
         .withIndex('by_machine_workingDir', (q) =>
           q.eq('machineId', machineId).eq('workingDir', WORKING_DIR)
         )
@@ -232,7 +230,7 @@ describe('commands.runCommand — back-to-back dedup', () => {
     await t.mutation(api.commands.updateRunStatus, {
       sessionId,
       machineId,
-      runId: firstRunId as Id<'chatroom_commandRuns'>,
+      runId: firstRunId as Id<'chatroom_commandRunsV2'>,
       status: 'running',
     });
 
@@ -248,7 +246,7 @@ describe('commands.runCommand — back-to-back dedup', () => {
     expect(secondRunId).not.toBe(firstRunId);
 
     const firstRun = await t.run(async (ctx) =>
-      ctx.db.get(firstRunId as Id<'chatroom_commandRuns'>)
+      ctx.db.get(firstRunId as Id<'chatroom_commandRunsV2'>)
     );
     expect(firstRun?.status).toBe('killed');
     expect(firstRun?.terminationReason).toBe('replaced');
@@ -273,19 +271,17 @@ describe('commands.stopCommand — terminationReason', () => {
     await t.mutation(api.commands.updateRunStatus, {
       sessionId,
       machineId,
-      runId: runId as Id<'chatroom_commandRuns'>,
+      runId: runId as Id<'chatroom_commandRunsV2'>,
       status: 'running',
     });
 
     await t.mutation(api.commands.stopCommand, {
       sessionId,
       machineId,
-      runId: runId as Id<'chatroom_commandRuns'>,
+      runId: runId as Id<'chatroom_commandRunsV2'>,
     });
 
-    const run = await t.run(async (ctx) =>
-      ctx.db.get(runId as Id<'chatroom_commandRuns'>)
-    );
+    const run = await t.run(async (ctx) => ctx.db.get(runId as Id<'chatroom_commandRunsV2'>));
     expect(run?.terminationReason).toBe('user-stop');
     // Status should still be 'running' — the daemon actually stops it after receiving the event
     expect(run?.status).toBe('running');
@@ -306,12 +302,10 @@ describe('commands.stopCommand — terminationReason', () => {
     await t.mutation(api.commands.stopCommand, {
       sessionId,
       machineId,
-      runId: runId as Id<'chatroom_commandRuns'>,
+      runId: runId as Id<'chatroom_commandRunsV2'>,
     });
 
-    const run = await t.run(async (ctx) =>
-      ctx.db.get(runId as Id<'chatroom_commandRuns'>)
-    );
+    const run = await t.run(async (ctx) => ctx.db.get(runId as Id<'chatroom_commandRunsV2'>));
     expect(run?.terminationReason).toBe('user-stop');
   });
 });

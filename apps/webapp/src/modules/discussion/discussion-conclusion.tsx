@@ -145,7 +145,7 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
             />
             <Select
               value={conclusion.tag}
-              onValueChange={(val: string) => handleTagChange(conclusion.id, val)}
+              onValueChange={(val) => val !== null && handleTagChange(conclusion.id, val)}
             >
               <SelectTrigger className="w-[110px] h-8">
                 <SelectValue />

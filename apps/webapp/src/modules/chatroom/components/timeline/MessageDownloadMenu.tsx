@@ -15,16 +15,21 @@ import type { Message } from '../../types/message';
 
 interface MessageDownloadMenuProps {
   message: Message;
+  /** When set, export uses this content instead of message.content (e.g. enhancer toggle). */
+  contentOverride?: string;
 }
 
-export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
+export function MessageDownloadMenu({ message, contentOverride }: MessageDownloadMenuProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const exportMessage =
+    contentOverride != null ? { ...message, content: contentOverride } : message;
+
   const handleMarkdown = useCallback(async () => {
     const result = await saveTextFile(
-      messageExportFilename(message, 'md'),
-      buildMessageMarkdownDownload(message),
+      messageExportFilename(exportMessage, 'md'),
+      buildMessageMarkdownDownload(exportMessage),
       'text/markdown',
       ['.md']
     );
@@ -32,12 +37,12 @@ export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
       toast.success(result === 'saved' ? 'Saved markdown' : 'Downloaded markdown');
     }
     setOpen(false);
-  }, [message]);
+  }, [exportMessage]);
 
   const handleDocx = useCallback(async () => {
     setBusy(true);
     try {
-      const result = await exportMessageAsDocx(message);
+      const result = await exportMessageAsDocx(exportMessage);
       if (result === 'cancelled') return;
       toast.success(result === 'saved' ? 'Saved DOCX' : 'Downloaded DOCX');
     } catch {
@@ -46,7 +51,7 @@ export function MessageDownloadMenu({ message }: MessageDownloadMenuProps) {
       setBusy(false);
       setOpen(false);
     }
-  }, [message]);
+  }, [exportMessage]);
 
   return (
     <ResponsivePickerShell

@@ -49,6 +49,7 @@ function buildCheckSessionDeps(ctx: QueryCtx | MutationCtx): CheckSessionDeps {
         .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
         .unique();
       if (!session) return null;
+      if (!session.userId) return null;
       return { userId: str(session.userId) };
     },
     getUser: async (userId: string) => {

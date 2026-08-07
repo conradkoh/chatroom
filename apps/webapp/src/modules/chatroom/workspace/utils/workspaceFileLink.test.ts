@@ -120,12 +120,9 @@ describe('workspaceFileLink', () => {
   });
 
   describe('resolveWorkspaceFileLinkOpenTarget', () => {
-    it('returns explorer when explorer view and split messages panel enabled', () => {
+    it('returns explorer when explorer view is active', () => {
       expect(resolveWorkspaceFileLinkOpenTarget('explorer', true)).toBe('explorer');
-    });
-
-    it('returns preview when explorer view but split panel disabled', () => {
-      expect(resolveWorkspaceFileLinkOpenTarget('explorer', false)).toBe('preview');
+      expect(resolveWorkspaceFileLinkOpenTarget('explorer', false)).toBe('explorer');
     });
 
     it('returns preview when messages view', () => {

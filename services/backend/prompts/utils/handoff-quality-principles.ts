@@ -3,6 +3,8 @@
  * Names and descriptions are SSOT — templates import from here for semantic consistency.
  */
 
+import { HANDOFF_NOT_APPLICABLE_EXACT_TEXT } from './handoff-section-guidance';
+
 const HANDOFF_QUALITY_PRINCIPLES = [
   {
     name: 'Semantic Consistency',
@@ -41,11 +43,27 @@ export const PROOF_OF_PRINCIPLES_HEADING_H2 = '## Proof of Principles';
 /** H3 heading for planner→user and solo→user reports */
 export const PROOF_OF_PRINCIPLES_HEADING_H3 = '### Proof of Principles';
 
+export const PROOF_OF_PRINCIPLES_MANDATORY_COMMENT = `<!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "${HANDOFF_NOT_APPLICABLE_EXACT_TEXT}" with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->`;
+
 /**
- * HTML comment block listing principles for handoff template guidance.
- * Matches existing format exactly (bullet list inside <!-- -->).
+ * Per-principle template block for handoff "Proof of Principles" sections.
+ * Each principle is a bullet with its own HTML comment and a required response
+ * (explanation or exactly "Not Applicable.").
  */
-export function getHandoffQualityPrinciplesCommentBlock(): string {
-  const bullets = HANDOFF_QUALITY_PRINCIPLES.map((p) => `- ${p.name}: ${p.description}`).join('\n');
-  return `<!-- Demonstrate adherence to:\n${bullets}\n-->`;
+export function getHandoffQualityPrinciplesTemplateBlock(): string {
+  const lines = HANDOFF_QUALITY_PRINCIPLES.flatMap((p) => [
+    `- **${p.name}:** <how this work demonstrates ${p.name.toLowerCase()}, or exactly "${HANDOFF_NOT_APPLICABLE_EXACT_TEXT}">`,
+    `<!-- ${p.name}: ${p.description} -->`,
+    '',
+  ]);
+  return lines.join('\n').trimEnd();
+}
+
+/**
+ * Full section block: heading + REQUIRED comment + per-principle bullets.
+ */
+export function getHandoffQualityPrinciplesSectionBlock(): string {
+  return `${PROOF_OF_PRINCIPLES_HEADING_H2}
+${PROOF_OF_PRINCIPLES_MANDATORY_COMMENT}
+${getHandoffQualityPrinciplesTemplateBlock()}`;
 }

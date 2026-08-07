@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 import type {
   WorkspaceFileMenuHandlers,
@@ -76,35 +77,41 @@ export function useWorkspaceFileContextMenu(
       : ({} as WorkspaceFileMenuContentState);
 
   const contextMenu =
-    open && menuFrame ? (
-      <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
-        <DropdownMenuTrigger asChild>
-          <span
-            aria-hidden
-            style={{
-              position: 'fixed',
-              left: point.x,
-              top: point.y,
-              width: 1,
-              height: 1,
-              pointerEvents: 'none',
-            }}
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <WorkspaceFileMenuItems
-            state={{
-              relativePath: menuFrame.relativePath,
-              workingDir: menuFrame.workingDir,
-              nodeType: menuFrame.nodeType,
-              ...liveContentState,
-            }}
-            handlers={menuFrame.handlers}
-            visibility={menuFrame.visibility}
-          />
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ) : null;
+    open && menuFrame && typeof document !== 'undefined'
+      ? createPortal(
+          <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
+            <DropdownMenuTrigger
+              nativeButton={false}
+              render={
+                <span
+                  aria-hidden
+                  style={{
+                    position: 'fixed',
+                    left: point.x,
+                    top: point.y,
+                    width: 1,
+                    height: 1,
+                    pointerEvents: 'none',
+                  }}
+                />
+              }
+            />
+            <DropdownMenuContent>
+              <WorkspaceFileMenuItems
+                state={{
+                  relativePath: menuFrame.relativePath,
+                  workingDir: menuFrame.workingDir,
+                  nodeType: menuFrame.nodeType,
+                  ...liveContentState,
+                }}
+                handlers={menuFrame.handlers}
+                visibility={menuFrame.visibility}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>,
+          document.body
+        )
+      : null;
 
   return { openAtPointer, close, contextMenu };
 }

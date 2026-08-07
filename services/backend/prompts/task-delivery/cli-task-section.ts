@@ -16,12 +16,6 @@ export interface CliTaskSectionParams {
   isEntryPoint: boolean;
   task: { _id: string; content: string };
   message: { _id: string; senderRole: string } | null;
-  currentContext: { elapsedHours: number } | null;
-  originMessage: {
-    senderRole: string;
-  } | null;
-  followUpCountSinceOrigin: number;
-  originMessageCreatedAt: number | null;
   sourceAttachments?: PrimaryDeliveryAttachments;
   standingInstructions?: string | null;
 }

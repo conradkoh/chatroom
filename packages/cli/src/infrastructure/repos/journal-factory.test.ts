@@ -4,7 +4,7 @@ import { BufferedJournalFactory } from './journal-factory.js';
 import type {
   OutputRepository,
   OutputChunk,
-} from '../../domain/direct-harness/ports/output-repository.js';
+} from '../../daemon/domain/usecase/open-harness-session.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -220,30 +220,19 @@ describe('BufferedJournalFactory', () => {
     expect(repo.appendChunks).toHaveBeenCalledTimes(1);
   });
 
-  it('logs a per-chunk trace on record() with session, messageId, partType, and bytes', () => {
+  it('does not log on record() by default', () => {
     const repo = mockOutputRepository();
-    const logSpy = vi.fn();
-    const factory = new BufferedJournalFactory({
-      outputRepository: repo,
-      flushIntervalMs: 500,
-      logger: { warn: warnSpy, log: logSpy },
-    });
-
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const factory = new BufferedJournalFactory({ outputRepository: repo });
     const journal = factory.create('row-xyz');
     journal.record({
-      content: 'hello world',
+      content: 'hello',
       timestamp: 100,
       messageId: 'msg_42',
       partType: 'reasoning',
     });
-
-    expect(logSpy).toHaveBeenCalledTimes(1);
-    const line = logSpy.mock.calls[0][0] as string;
-    expect(line).toContain('[journal] chunk recorded');
-    expect(line).toContain('session=row-xyz');
-    expect(line).toContain('messageId=msg_42');
-    expect(line).toContain('partType=reasoning');
-    expect(line).toContain('bytes=11');
+    expect(logSpy).not.toHaveBeenCalled();
+    logSpy.mockRestore();
   });
 
   // ─── flush() ────────────────────────────────────────────────────────────────

@@ -10,8 +10,9 @@ describe('getContextRuleBlock', () => {
     );
 
     expect(block).toContain('**Before running `context new`, run `context read`');
-    expect(block).toContain("same `--trigger-message-id` as this task's Origin Message ID");
-    expect(block).toContain('do NOT create another context');
-    expect(block).toContain('avoids duplicate timeline dividers');
+    expect(block).toContain('check only whether the pinned context');
+    expect(block).toContain('do NOT create another context if it matches');
+    expect(block).toContain('staleness warning is present');
+    expect(block).toContain('do not act on the stale goal');
   });
 });

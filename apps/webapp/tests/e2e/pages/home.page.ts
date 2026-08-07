@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 import { BasePage } from './base.page';
 
@@ -30,10 +30,10 @@ export class HomePage extends BasePage {
     return this.page.getByRole('link', { name: 'Login' });
   }
 
-  /** Navigate to the home page and wait for it to load. */
+  /** Navigate to the home page and wait for the main content to render. */
   override async navigate(path = '/'): Promise<void> {
-    await super.navigate(path);
-    await this.waitForLoad();
+    await this.page.goto(path);
+    await expect(this.heading).toBeVisible();
   }
 
   /** Get the main heading text content. */

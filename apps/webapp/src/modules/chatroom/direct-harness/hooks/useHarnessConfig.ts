@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AgentOption, ProviderOption } from '../components/harness-selectors/types';
+import type { HarnessVersionInfo } from '../../types/machine';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,8 @@ export interface HarnessOption {
   displayName: string;
   agents: AgentOption[];
   providers: ProviderOption[];
+  /** Daemon-reported harness version from machine.harnessVersions. */
+  version?: HarnessVersionInfo;
 }
 
 interface UseHarnessConfigArgs {
@@ -102,12 +105,10 @@ export function useHarnessConfig({
   const resolvedAgent =
     eligibleAgents.length > 0
       ? (eligibleAgents.find((a) => a.name === selectedAgent)?.name ??
-        (initial?.agent
-          ? eligibleAgents.find((a) => a.name === initial.agent)?.name
-          : undefined) ??
+        (initial?.agent ? eligibleAgents.find((a) => a.name === initial.agent)?.name : undefined) ??
         eligibleAgents[0]?.name ??
         '')
-      : (selectedAgent || 'builder');
+      : selectedAgent || 'builder';
 
   // Resolved model (after filter): user selection → agent default → first visible model
   const agentDefaultModel = eligibleAgents.find((a) => a.name === resolvedAgent)?.model;

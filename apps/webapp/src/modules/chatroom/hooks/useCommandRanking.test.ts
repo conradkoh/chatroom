@@ -1,9 +1,15 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { useCommandRanking } from './useCommandRanking';
 import type { CommandItem } from '../components/CommandPalette/types';
-import { getCommandUsageStore } from '../features/run-command/stores/commandUsageStore';
+import {
+  getCommandUsageRevision,
+  getCommandUsageStore,
+  subscribeCommandUsage,
+} from '../features/run-command/stores/commandUsageStore';
+
+const DAY = 24 * 60 * 60 * 1000;
 
 function makeCmd(id: string, label: string, category = 'Test'): CommandItem {
   return { id, label, category, action: () => undefined };
@@ -63,5 +69,23 @@ describe('useCommandRanking', () => {
     });
 
     expect(result.current.getScore(builtinCmd)).toBeGreaterThan(result.current.getScore(savedCmd));
+  });
+
+  test('rendering with expired usage data does not synchronously bump store revision', () => {
+    const store = getCommandUsageStore();
+    (store as any).data.commands = {
+      'nav-a': [Date.now() - 31 * DAY],
+    };
+    const listener = vi.fn();
+    const unsubscribe = subscribeCommandUsage(listener);
+    const revisionBefore = getCommandUsageRevision();
+
+    const commands = [makeCmd('nav-a', 'A')];
+    const { result } = renderHook(() => useCommandRanking(commands));
+
+    expect(listener).not.toHaveBeenCalled();
+    expect(getCommandUsageRevision()).toBe(revisionBefore);
+    expect(result.current.getScore(commands[0])).toBe(0);
+    unsubscribe();
   });
 });

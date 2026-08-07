@@ -18,12 +18,14 @@
 
 import {
   ChevronDown,
+  ClipboardCopy,
   Code2,
   ExternalLink,
   FolderOpen,
   GitBranch,
   GitPullRequest as GitPullRequestIcon,
   PanelBottomOpen,
+  Terminal,
 } from 'lucide-react';
 import type { ComponentType, ReactNode } from 'react';
 import { memo, useState, useCallback, useMemo, useEffect } from 'react';
@@ -31,6 +33,7 @@ import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
 import { CommitStatusIndicator } from './CommitStatusIndicator';
 import { GitDiffStatClickable, InlineDiffStat } from './shared';
+import { getChatroomMobileFooterSafeAreaStyle } from '../../components/shared/chatroomMobileSafeArea';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +49,7 @@ import type { Workspace } from '../../types/workspace';
 import { getWorkspaceDisplayHostname } from '../../types/workspace';
 import { useWorkspaceGit, useGitRefresh } from '../hooks/useWorkspaceGit';
 import type { GitPullRequest, GitRemote, CommitStatusSummary } from '../types/git';
+import { copyWorkspacePathToClipboard } from '../utils/clipboard';
 
 import {
   FixedModal,
@@ -54,13 +58,8 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
-import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import {
-  useEditableElementFocused,
-  useVisualViewportKeyboardInset,
-} from '@/hooks/useMobileKeyboard';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { cn } from '@/lib/utils';
@@ -70,8 +69,6 @@ import { cn } from '@/lib/utils';
 interface WorkspaceBottomBarProps {
   workspaces: Workspace[];
   chatroomId: string;
-  /** From `useObserveChatroom` on the chatroom page; git panel calls this on mount. */
-  refreshObservedChatroom: () => void;
   /** Switches the activity bar to the Source Control view. */
   onSwitchToSourceControl?: () => void;
   /** @deprecated No longer used; removal planned. */
@@ -84,22 +81,6 @@ type WorkspaceWithMachine = Workspace & { machineId: string };
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ACTIVE_WS_KEY_PREFIX = 'chatroom-active-workspace-';
-
-/** Minimum visualViewport inset (px) before treating keyboard as open. Filters mobile browser chrome false positives. */
-export const WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX = 120;
-
-/** Ignore inset-based safe-area suppress until visualViewport has had time to settle after mount/navigation. */
-export const WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS = 300;
-
-export function shouldSuppressWorkspaceBottomBarSafeArea(
-  keyboardInsetPx: number,
-  editableFocused: boolean,
-  insetSettled = true
-): boolean {
-  if (editableFocused) return true;
-  if (!insetSettled) return false;
-  return keyboardInsetPx >= WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX;
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -283,16 +264,14 @@ const RemotePopover = memo(function RemotePopover({ remotes }: { remotes: GitRem
   // Multiple remotes — popover
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary transition-colors font-mono uppercase tracking-wider"
-          title="View remotes"
-        >
-          <PrimaryIcon size={11} className="shrink-0" />
-          {primaryRemote.name}
-          <ChevronDown size={9} className="text-chatroom-text-muted" />
-        </button>
+      <PopoverTrigger
+        type="button"
+        className="inline-flex items-center gap-1 text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary transition-colors font-mono uppercase tracking-wider"
+        title="View remotes"
+      >
+        <PrimaryIcon size={11} className="shrink-0" />
+        {primaryRemote.name}
+        <ChevronDown size={9} className="text-chatroom-text-muted" />
       </PopoverTrigger>
       <PopoverContent align="end" side="top" className="w-auto min-w-[180px] p-1">
         {remotes.map((remote) => {
@@ -391,25 +370,23 @@ const WorkspaceStatusContent = memo(function WorkspaceStatusContent({
           <div className="inline-flex items-center gap-0.5 shrink-0">
             {hasPopoverContent ? (
               <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      'inline-flex items-center gap-1 text-[11px] font-mono shrink-0 px-1.5 py-0.5 rounded-none transition-colors',
-                      hasPR
-                        ? 'text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50'
-                        : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover/50'
-                    )}
-                    title={hasPR ? openPullRequests[0]!.title : branchDisplay}
-                  >
-                    {hasPR ? (
-                      <GitPullRequestIcon size={11} className="shrink-0" />
-                    ) : (
-                      <GitBranch size={11} className="shrink-0" />
-                    )}
-                    <span className="uppercase tracking-wider">{branchDisplay}</span>
-                    {hasPR && <span>(#{openPullRequests[0]!.prNumber})</span>}
-                  </button>
+                <PopoverTrigger
+                  type="button"
+                  className={cn(
+                    'inline-flex items-center gap-1 text-[11px] font-mono shrink-0 px-1.5 py-0.5 rounded-none transition-colors',
+                    hasPR
+                      ? 'text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50'
+                      : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover/50'
+                  )}
+                  title={hasPR ? openPullRequests[0]!.title : branchDisplay}
+                >
+                  {hasPR ? (
+                    <GitPullRequestIcon size={11} className="shrink-0" />
+                  ) : (
+                    <GitBranch size={11} className="shrink-0" />
+                  )}
+                  <span className="uppercase tracking-wider">{branchDisplay}</span>
+                  {hasPR && <span>(#{openPullRequests[0]!.prNumber})</span>}
                 </PopoverTrigger>
                 <PopoverContent align="end" side="top" className="w-auto min-w-[200px] p-1">
                   {isLocal && (
@@ -598,7 +575,7 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
   isLocal: boolean;
   sendAction: (
     machineId: string,
-    action: 'open-vscode' | 'open-finder' | 'open-github-desktop',
+    action: 'open-vscode' | 'open-finder' | 'open-github-desktop' | 'open-cursor',
     workingDir: string
   ) => void;
 }) {
@@ -711,6 +688,17 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                     <PanelBottomOpen size={12} className="shrink-0" />
                     Open workspace details
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void copyWorkspacePathToClipboard(workspace.workingDir);
+                      onClose();
+                    }}
+                    className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
+                  >
+                    <ClipboardCopy size={12} className="shrink-0" />
+                    Copy workspace path
+                  </button>
                   {/* Local actions */}
                   {isLocal && (
                     <>
@@ -735,6 +723,17 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
                       >
                         <Code2 size={12} className="shrink-0" />
                         Open in VS Code
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void sendAction(workspace.machineId, 'open-cursor', workspace.workingDir);
+                          onClose();
+                        }}
+                        className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-chatroom-text-secondary hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover/50 rounded-none transition-colors w-full text-left"
+                      >
+                        <Terminal size={12} className="shrink-0" />
+                        Open in Cursor
                       </button>
                     </>
                   )}
@@ -977,45 +976,15 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
 
 // ─── WorkspaceBottomBar ───────────────────────────────────────────────────────
 
-// fallow-ignore-next-line unused-export
-export function getWorkspaceBottomBarPaddingBottom(suppressSafeArea: boolean): string | number {
-  return suppressSafeArea ? 0 : 'env(safe-area-inset-bottom, 0px)';
-}
-
 export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
   const isDesktop = useIsDesktop(640);
   const mobile = !isDesktop;
-  const keyboardInsetPx = useVisualViewportKeyboardInset(mobile);
-  const editableFocused = useEditableElementFocused(mobile);
-  const [insetSettled, setInsetSettled] = useState(!mobile);
-
-  useEffect(() => {
-    if (!mobile) {
-      setInsetSettled(true);
-      return;
-    }
-    setInsetSettled(false);
-    const id = window.setTimeout(
-      () => setInsetSettled(true),
-      WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS
-    );
-    return () => window.clearTimeout(id);
-  }, [mobile]);
-
-  const suppressSafeArea = shouldSuppressWorkspaceBottomBarSafeArea(
-    keyboardInsetPx,
-    editableFocused,
-    insetSettled
-  );
 
   return (
     <div
       data-testid="workspace-bottom-bar"
-      className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface select-none"
-      style={{
-        paddingBottom: getWorkspaceBottomBarPaddingBottom(suppressSafeArea),
-        ...getMobileStickyFooterOffsetStyle(keyboardInsetPx),
-      }}
+      className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary select-none"
+      style={getChatroomMobileFooterSafeAreaStyle(mobile)}
     >
       <div className="flex items-center h-8 min-h-[32px] px-2">{children}</div>
     </div>
@@ -1025,7 +994,6 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
 export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
   workspaces,
   chatroomId,
-  refreshObservedChatroom: _refreshObservedChatroom,
   onSwitchToSourceControl,
   onRegisterOpenGitPanel: _onRegisterOpenGitPanel, // deprecated, no-op
 }: WorkspaceBottomBarProps) {
@@ -1093,21 +1061,19 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
           <>
             {/* Workspace selector — click to switch workspaces, sub-menu for actions */}
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 px-3 h-full hover:bg-chatroom-bg-hover/50 transition-colors border-r border-chatroom-border-strong min-w-0"
-                  title={activeWorkspace?.workingDir ?? ''}
-                >
-                  <FolderOpen size={12} className="text-chatroom-text-muted shrink-0" />
-                  <span className="text-[11px] font-bold text-chatroom-text-primary uppercase tracking-wider truncate max-w-[340px]">
-                    {workspaceTriggerLabel}
-                  </span>
-                  <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider truncate max-w-[200px]">
-                    {workspaceMachineLabel}
-                  </span>
-                  <ChevronDown size={10} className="text-chatroom-text-muted shrink-0" />
-                </button>
+              <DropdownMenuTrigger
+                type="button"
+                className="flex items-center gap-2 px-3 h-full hover:bg-chatroom-bg-hover/50 transition-colors border-r border-chatroom-border-strong min-w-0"
+                title={activeWorkspace?.workingDir ?? ''}
+              >
+                <FolderOpen size={12} className="text-chatroom-text-muted shrink-0" />
+                <span className="text-[11px] font-bold text-chatroom-text-primary uppercase tracking-wider truncate max-w-[340px]">
+                  {workspaceTriggerLabel}
+                </span>
+                <span className="text-[10px] text-chatroom-text-muted uppercase tracking-wider truncate max-w-[200px]">
+                  {workspaceMachineLabel}
+                </span>
+                <ChevronDown size={10} className="text-chatroom-text-muted shrink-0" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="top" className="min-w-[280px]">
                 {validWorkspaces.map((ws) => {
@@ -1152,6 +1118,12 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                           <PanelBottomOpen size={13} className="mr-2" />
                           Open workspace details
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => void copyWorkspacePathToClipboard(ws.workingDir)}
+                        >
+                          <ClipboardCopy size={13} className="mr-2" />
+                          Copy workspace path
+                        </DropdownMenuItem>
                         {isLocal && (
                           <>
                             <DropdownMenuSeparator />
@@ -1170,6 +1142,14 @@ export const WorkspaceBottomBar = memo(function WorkspaceBottomBar({
                             >
                               <Code2 size={13} className="mr-2" />
                               Open in VS Code
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                void sendAction(ws.machineId, 'open-cursor', ws.workingDir)
+                              }
+                            >
+                              <Terminal size={13} className="mr-2" />
+                              Open in Cursor
                             </DropdownMenuItem>
                           </>
                         )}

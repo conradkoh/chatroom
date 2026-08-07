@@ -5,7 +5,10 @@ import { useState } from 'react';
 
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+import {
+  useVisualViewportKeyboardInset,
+  useVisualViewportOffsetTop,
+} from '@/hooks/useMobileKeyboard';
 import {
   PickerOptionRow,
   PickerPanelHeader,
@@ -14,6 +17,10 @@ import {
   getMobileDrawerContentStyle,
   MOBILE_DRAWER_CONTENT_CLASSNAME,
 } from '@/modules/chatroom/components/picker';
+import {
+  chatroomIndustrialButtonPrimaryClassName,
+  chatroomIndustrialButtonSecondaryClassName,
+} from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { useOverlayPortalContainer } from '@/modules/chatroom/components/shared/overlayPortalContainer';
 
 export function StandingInstructionsBarSection() {
@@ -29,6 +36,7 @@ export function StandingInstructionsBarSection() {
   const iconSize = isDesktop ? 12 : 14;
 
   const keyboardInsetPx = useVisualViewportKeyboardInset(editOpen && !isDesktop);
+  const viewportOffsetTopPx = useVisualViewportOffsetTop(editOpen && !isDesktop);
   const portalContainer = useOverlayPortalContainer();
 
   return (
@@ -108,7 +116,7 @@ export function StandingInstructionsBarSection() {
         >
           <DrawerContent
             className={MOBILE_DRAWER_CONTENT_CLASSNAME}
-            style={getMobileDrawerContentStyle(keyboardInsetPx)}
+            style={getMobileDrawerContentStyle(keyboardInsetPx, viewportOffsetTopPx)}
           >
             <DrawerHeader className="p-0 shrink-0">
               <DrawerTitle className="sr-only">Edit standing instructions</DrawerTitle>
@@ -126,14 +134,14 @@ export function StandingInstructionsBarSection() {
                 <button
                   type="button"
                   onClick={() => setEditOpen(false)}
-                  className="min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 bg-chatroom-accent text-chatroom-text-on-accent"
+                  className={`flex-1 ${chatroomIndustrialButtonPrimaryClassName}`}
                 >
                   Confirm
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditOpen(false)}
-                  className="min-h-11 flex-1 text-sm font-bold uppercase tracking-wider px-4 py-3 text-chatroom-text-muted border border-chatroom-border"
+                  className={`flex-1 ${chatroomIndustrialButtonSecondaryClassName}`}
                 >
                   Cancel
                 </button>

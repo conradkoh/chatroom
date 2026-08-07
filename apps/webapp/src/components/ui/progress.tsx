@@ -1,44 +1,66 @@
 'use client';
 
-import * as ProgressPrimitive from '@radix-ui/react-progress';
-import type * as React from 'react';
+import { Progress as ProgressPrimitive } from '@base-ui/react/progress';
 
 import { cn } from '@/lib/utils';
 
-/**
- * Progress bar component built on top of Radix UI primitives.
- * Displays a horizontal progress indicator with smooth animations.
- * Supports values from 0 to 100 representing completion percentage.
- *
- * Features:
- * - Smooth transition animations
- * - Accessible progress semantics
- * - Customizable styling via className
- * - Responsive design
- * - Support for indeterminate state (when value is undefined)
- *
- * @param className - Additional CSS classes to apply to the progress container
- * @param value - Progress value between 0 and 100, or undefined for indeterminate state
- * @param props - All other props are forwarded to the underlying Radix progress primitive
- */
-function Progress({
-  className,
-  value,
-  ...props
-}: React.ComponentProps<typeof ProgressPrimitive.Root>) {
+function Progress({ className, children, value, ...props }: ProgressPrimitive.Root.Props) {
   return (
     <ProgressPrimitive.Root
+      value={value}
       data-slot="progress"
-      className={cn('bg-primary/20 relative h-2 w-full overflow-hidden rounded-full', className)}
+      className={cn('flex flex-wrap gap-3', className)}
       {...props}
     >
-      <ProgressPrimitive.Indicator
-        data-slot="progress-indicator"
-        className="bg-primary h-full w-full flex-1 transition-all"
-        style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
-      />
+      {children}
+      <ProgressTrack>
+        <ProgressIndicator />
+      </ProgressTrack>
     </ProgressPrimitive.Root>
   );
 }
 
-export { Progress };
+function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
+  return (
+    <ProgressPrimitive.Track
+      className={cn(
+        'relative flex h-1.5 w-full items-center overflow-x-hidden rounded-full bg-muted',
+        className
+      )}
+      data-slot="progress-track"
+      {...props}
+    />
+  );
+}
+
+function ProgressIndicator({ className, ...props }: ProgressPrimitive.Indicator.Props) {
+  return (
+    <ProgressPrimitive.Indicator
+      data-slot="progress-indicator"
+      className={cn('h-full bg-primary transition-all', className)}
+      {...props}
+    />
+  );
+}
+
+function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
+  return (
+    <ProgressPrimitive.Label
+      className={cn('text-sm font-medium', className)}
+      data-slot="progress-label"
+      {...props}
+    />
+  );
+}
+
+function ProgressValue({ className, ...props }: ProgressPrimitive.Value.Props) {
+  return (
+    <ProgressPrimitive.Value
+      className={cn('ml-auto text-sm text-muted-foreground tabular-nums', className)}
+      data-slot="progress-value"
+      {...props}
+    />
+  );
+}
+
+export { Progress, ProgressTrack, ProgressIndicator, ProgressLabel, ProgressValue };

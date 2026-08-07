@@ -15,7 +15,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 import { ConclusionForm } from '@/modules/discussion/discussion-conclusion';
 import { DiscussionForm } from '@/modules/discussion/discussion-form';
 import { useDiscussionSync } from '@/modules/discussion/use-discussion-sync';
@@ -198,10 +199,13 @@ export function Discussion({ title, discussionKey, className }: DiscussionProps)
                 <p className="font-medium text-xs">{msg.name}</p>
                 {isActive && (
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <MoreHorizontal className="h-3 w-3" />
-                      </Button>
+                    <DropdownMenuTrigger
+                      className={cn(
+                        buttonVariants({ variant: 'ghost', size: 'sm' }),
+                        'h-6 w-6 p-0'
+                      )}
+                    >
+                      <MoreHorizontal className="h-3 w-3" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem

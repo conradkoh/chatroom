@@ -159,12 +159,13 @@ describe('workspace file write requests', () => {
     expect(second.status).toBe('pending');
   });
 
-  test('completeFileWriteRequest sets done and purges cached content', async () => {
+  test('completeFileWriteRequest sets done and upserts v2 cache for create/update', async () => {
     const { sessionId, machineId } = await setupMachine(
       'test-wfw-complete',
       'machine-wfw-complete'
     );
     const filePath = 'src/app.ts';
+    const writeData = gzipContent('export const x = 1;');
 
     const { requestId } = await t.mutation(api.workspaceFiles.requestFileWrite, {
       sessionId,
@@ -172,19 +173,7 @@ describe('workspace file write requests', () => {
       workingDir: WORKING_DIR,
       filePath,
       operation: 'update',
-      data: gzipContent('export {}'),
-    });
-
-    const cacheId = await t.run(async (ctx) => {
-      return ctx.db.insert('chatroom_workspaceFileContentV2', {
-        machineId,
-        workingDir: WORKING_DIR,
-        filePath,
-        data: gzipContent('stale'),
-        encoding: 'utf8',
-        truncated: false,
-        fetchedAt: Date.now(),
-      });
+      data: writeData,
     });
 
     await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
@@ -199,9 +188,59 @@ describe('workspace file write requests', () => {
     });
     expect(request?.status).toBe('done');
 
-    const cached = await t.run(async (ctx) =>
-      ctx.db.get('chatroom_workspaceFileContentV2', cacheId)
+    // v2 cache should be populated with write payload, not deleted
+    const cached = await t.query(api.workspaceFiles.getFileContentV2, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath,
+    });
+    expect(cached).not.toBeNull();
+    expect(cached?.data).toEqual(writeData);
+  });
+
+  test('completeFileWriteRequest deletes v2 cache for delete operation', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-delete-cache',
+      'machine-wfw-delete-cache'
     );
+    const filePath = 'to-delete.ts';
+
+    const { requestId: createRequestId } = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath,
+      operation: 'create',
+      data: gzipContent('delete me'),
+    });
+
+    await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
+      sessionId,
+      requestId: createRequestId,
+      status: 'done',
+    });
+
+    const { requestId: deleteRequestId } = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath,
+      operation: 'delete',
+    });
+
+    await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
+      sessionId,
+      requestId: deleteRequestId,
+      status: 'done',
+    });
+
+    const cached = await t.query(api.workspaceFiles.getFileContentV2, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath,
+    });
     expect(cached).toBeNull();
   });
 

@@ -18,6 +18,7 @@ import React, { useState, useMemo, useCallback, memo, useRef } from 'react';
 
 import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { CreateChatroomForm } from './CreateChatroomForm';
+import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import {
   getChatStatusDescription,
@@ -242,7 +243,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
             <Star size={12} className="text-yellow-500" fill="currentColor" />
             Favorites
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {favorites.map((chatroom) => (
               <ChatroomCard
                 key={chatroom._id}
@@ -321,7 +322,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
                       Active
                     </h2>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {partitioned.active.map((chatroom) => (
                       <ChatroomCard
                         key={chatroom._id}
@@ -342,7 +343,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
                     <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
                       {label}
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       {items.map((chatroom) => (
                         <ChatroomCard
                           key={chatroom._id}
@@ -366,7 +367,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
         )
       ) : viewMode === 'grid' ? (
         partitioned.completed.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {partitioned.completed.map((chatroom) => (
               <ChatroomCard
                 key={chatroom._id}
@@ -404,7 +405,7 @@ const ChatroomCard = memo(function ChatroomCard({
   onSelect,
   activeTab,
 }: ChatroomCardProps) {
-  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
 
   const handleToggleFavorite = useCallback(
@@ -421,30 +422,10 @@ const ChatroomCard = memo(function ChatroomCard({
     [toggleFavorite, chatroom._id]
   );
 
-  const handleArchive = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation(); // Prevent card click
-      try {
-        await updateStatus({
-          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-          status: 'completed',
-        });
-      } catch (error) {
-        console.error('Failed to archive chat:', error);
-      }
-    },
-    [updateStatus, chatroom._id]
-  );
-
-  const formattedDate = useMemo(() => {
-    return new Date(chatroom._creationTime).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  }, [chatroom._creationTime]);
+  const handleArchive = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    setArchiveDialogOpen(true);
+  }, []);
 
   // Use computed chatStatus from context (single source of truth via deriveChatStatus)
   const { chatStatus } = chatroom;
@@ -462,71 +443,68 @@ const ChatroomCard = memo(function ChatroomCard({
   const displayName = chatroom.name || teamName;
 
   return (
-    <div className="relative">
-      <div
-        role="button"
-        tabIndex={0}
-        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-3 md:p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
-        onClick={() => onSelect(chatroom._id)}
-        onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
-        data-chat-status={chatStatus}
-      >
-        {/* Card Main */}
-        <div className="flex justify-between items-start mb-2 md:mb-3">
-          <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
-            <ChatroomStatusIndicator chatStatus={chatStatus} />
-            <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate">
-              {displayName}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Favorite Star Button */}
-            <button
-              onClick={handleToggleFavorite}
-              className={`w-7 h-7 flex items-center justify-center transition-all duration-100 ${
-                chatroom.isFavorite
-                  ? 'text-yellow-500 hover:text-yellow-400'
-                  : 'text-chatroom-text-muted hover:text-yellow-500'
-              }`}
-              title={chatroom.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-            >
-              <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
-            </button>
-            {/* Action Menu - only show for non-completed chatrooms */}
-            {chatStatus !== 'completed' && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <div
+    <>
+      <div className="relative">
+        <div
+          role="button"
+          tabIndex={0}
+          className="bg-chatroom-bg-surface border-2 border-chatroom-border p-2 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
+          onClick={() => onSelect(chatroom._id)}
+          onKeyDown={createChatroomSelectKeyDown(() => onSelect(chatroom._id))}
+          data-chat-status={chatStatus}
+        >
+          {/* Card Main */}
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
+              <ChatroomStatusIndicator chatStatus={chatStatus} />
+              <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate">
+                {displayName}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Favorite Star Button */}
+              <button
+                onClick={handleToggleFavorite}
+                className={`w-7 h-7 flex items-center justify-center transition-all duration-100 ${
+                  chatroom.isFavorite
+                    ? 'text-yellow-500 hover:text-yellow-400'
+                    : 'text-chatroom-text-muted hover:text-yellow-500'
+                }`}
+                title={chatroom.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
+              </button>
+              {/* Action Menu - only show for non-completed chatrooms */}
+              {chatStatus !== 'completed' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    type="button"
                     className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all duration-100"
                     onClick={(e) => e.stopPropagation()}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.stopPropagation();
-                      }
-                    }}
+                    aria-label="Chatroom actions"
                   >
                     <MoreVertical size={14} />
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[140px]">
-                  <DropdownMenuItem onClick={handleArchive}>
-                    <CheckCircle size={14} className="mr-2" />
-                    Archive Chat
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[140px]">
+                    <DropdownMenuItem onClick={handleArchive}>
+                      <CheckCircle size={14} className="mr-2" />
+                      Archive Chat
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </div>
         </div>
-        <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-2 md:mb-3">
-          {chatroom._id}
-        </div>
-        {/* Card Date */}
-        <div className="text-[10px] text-chatroom-text-muted mt-2 md:mt-3">{formattedDate}</div>
       </div>
-    </div>
+
+      <LifecycleConfirmDialog
+        open={archiveDialogOpen}
+        onOpenChange={setArchiveDialogOpen}
+        chatroomId={chatroom._id as Id<'chatroom_rooms'>}
+        action="archive"
+      />
+    </>
   );
 });
 
@@ -544,7 +522,8 @@ const ChatroomTable = memo(function ChatroomTable({
   onSelect,
   activeTab,
 }: ChatroomTableProps) {
-  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [pendingArchiveChatroomId, setPendingArchiveChatroomId] = useState<string | null>(null);
   const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
 
   const handleToggleFavorite = useCallback(
@@ -561,20 +540,11 @@ const ChatroomTable = memo(function ChatroomTable({
     [toggleFavorite]
   );
 
-  const handleArchive = useCallback(
-    async (e: React.MouseEvent, chatroomId: string) => {
-      e.stopPropagation();
-      try {
-        await updateStatus({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          status: 'completed',
-        });
-      } catch (error) {
-        console.error('Failed to archive chat:', error);
-      }
-    },
-    [updateStatus]
-  );
+  const handleArchive = useCallback((e: React.MouseEvent, chatroomId: string) => {
+    e.stopPropagation();
+    setPendingArchiveChatroomId(chatroomId);
+    setArchiveDialogOpen(true);
+  }, []);
 
   // Filter chatrooms based on active tab
   const filteredChatrooms = useMemo(() => {
@@ -596,102 +566,96 @@ const ChatroomTable = memo(function ChatroomTable({
   }
 
   return (
-    <div className="border-2 border-chatroom-border overflow-hidden">
-      {/* Table Header */}
-      <div className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-          Name
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-          Status
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-right">
-          Created
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
-      </div>
-      {/* Table Rows */}
-      {filteredChatrooms.map((chatroom) => {
-        const teamName = chatroom.teamName || 'Team';
-        const displayName = chatroom.name || teamName;
+    <>
+      <div className="border-2 border-chatroom-border overflow-hidden">
+        {/* Table Header */}
+        <div className="grid grid-cols-[32px_1fr_auto_40px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+            Name
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+            Status
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
+        </div>
+        {/* Table Rows */}
+        {filteredChatrooms.map((chatroom) => {
+          const teamName = chatroom.teamName || 'Team';
+          const displayName = chatroom.name || teamName;
 
-        const formattedDate = new Date(chatroom._creationTime).toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        });
-
-        return (
-          <div
-            role="button"
-            tabIndex={0}
-            key={chatroom._id}
-            className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full cursor-pointer"
-            onClick={() => onSelect(chatroom._id)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onSelect(chatroom._id);
-              }
-            }}
-          >
-            {/* Favorite Star */}
-            <StopClickPropagation className="flex items-center justify-center">
-              <button
-                onClick={(e) => handleToggleFavorite(e, chatroom._id)}
-                className={`w-7 h-7 flex items-center justify-center transition-all duration-100 ${
-                  chatroom.isFavorite
-                    ? 'text-yellow-500 hover:text-yellow-400'
-                    : 'text-chatroom-text-muted hover:text-yellow-500'
-                }`}
-                title={chatroom.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-              >
-                <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
-              </button>
-            </StopClickPropagation>
-            {/* Name */}
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
-                {displayName}
-              </span>
-              <span className="font-mono text-[9px] text-chatroom-text-muted truncate">
-                {chatroom._id}
-              </span>
-            </div>
-            {/* Status */}
-            <div className="flex items-center min-w-[120px]">
-              <ChatroomStatusIndicator chatStatus={chatroom.chatStatus} />
-            </div>
-            {/* Created */}
-            <div className="flex items-center justify-end">
-              <span className="text-[10px] font-mono tabular-nums text-chatroom-text-muted">
-                {formattedDate}
-              </span>
-            </div>
-            {/* Actions */}
-            <StopClickPropagation className="flex items-center justify-center">
-              {chatroom.chatStatus !== 'completed' && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <div className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-tertiary transition-all duration-100 cursor-pointer">
+          return (
+            <div
+              role="button"
+              tabIndex={0}
+              key={chatroom._id}
+              className="grid grid-cols-[32px_1fr_auto_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full cursor-pointer"
+              onClick={() => onSelect(chatroom._id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelect(chatroom._id);
+                }
+              }}
+            >
+              {/* Favorite Star */}
+              <StopClickPropagation className="flex items-center justify-center">
+                <button
+                  onClick={(e) => handleToggleFavorite(e, chatroom._id)}
+                  className={`w-7 h-7 flex items-center justify-center transition-all duration-100 ${
+                    chatroom.isFavorite
+                      ? 'text-yellow-500 hover:text-yellow-400'
+                      : 'text-chatroom-text-muted hover:text-yellow-500'
+                  }`}
+                  title={chatroom.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                >
+                  <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
+                </button>
+              </StopClickPropagation>
+              {/* Name */}
+              <div className="flex items-center min-w-0">
+                <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
+                  {displayName}
+                </span>
+              </div>
+              {/* Status */}
+              <div className="flex items-center min-w-[120px]">
+                <ChatroomStatusIndicator chatStatus={chatroom.chatStatus} />
+              </div>
+              {/* Actions */}
+              <StopClickPropagation className="flex items-center justify-center">
+                {chatroom.chatStatus !== 'completed' && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      type="button"
+                      className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-tertiary transition-all duration-100"
+                      aria-label="Chatroom actions"
+                    >
                       <MoreVertical size={14} />
-                    </div>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-[140px]">
-                    <DropdownMenuItem onClick={(e) => handleArchive(e, chatroom._id)}>
-                      <CheckCircle size={14} className="mr-2" />
-                      Archive Chat
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </StopClickPropagation>
-          </div>
-        );
-      })}
-    </div>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[140px]">
+                      <DropdownMenuItem onClick={(e) => handleArchive(e, chatroom._id)}>
+                        <CheckCircle size={14} className="mr-2" />
+                        Archive Chat
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </StopClickPropagation>
+            </div>
+          );
+        })}
+      </div>
+
+      <LifecycleConfirmDialog
+        open={archiveDialogOpen}
+        onOpenChange={(open) => {
+          setArchiveDialogOpen(open);
+          if (!open) setPendingArchiveChatroomId(null);
+        }}
+        chatroomId={(pendingArchiveChatroomId ?? chatrooms[0]?._id) as Id<'chatroom_rooms'>}
+        action="archive"
+      />
+    </>
   );
 });

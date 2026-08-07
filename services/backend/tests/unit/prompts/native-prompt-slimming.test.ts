@@ -62,6 +62,69 @@ describe('native task-started content', () => {
     expect(prompt).toContain('Begin immediately');
     expect(prompt).not.toMatch(/task read/i);
   });
+
+  test('enhancer review intake omits context new', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: '## Summary\nFeedback' },
+      message: { _id: 'enh-msg-id', senderRole: 'enhancer' },
+      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      isEntryPoint: true,
+      plannerEnhancerEnabled: true,
+    });
+
+    expect(output).toContain('Do not run `context new`');
+    expect(output).not.toContain('--trigger-message-id="enh-msg-id"');
+    expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).toContain('<enhancer-review>');
+    expect(output).toContain('Handoff to `builder`');
+  });
+
+  test('enhancer enabled user task includes delegation-loop workflow guidance', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: 'Implement feature' },
+      message: { _id: 'user-msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['enhancer', 'builder', 'user'],
+      isEntryPoint: true,
+      plannerEnhancerEnabled: true,
+    });
+
+    expect(output).toContain('<handoff-enhancer>');
+    expect(output).toContain('One check-in per builder delegation');
+    expect(output).toContain('planner → enhancer → planner → builder');
+    expect(output).toContain('--next-role="enhancer"');
+    expect(output).toContain('Handoff to `enhancer`');
+    expect(output).toContain('--trigger-message-id="user-msg-id"');
+    expect(output).not.toContain('<enhancer-review>');
+    expect(output).toContain(
+      'user → [loop planner → enhancer → planner → builder → planner] → user'
+    );
+  });
+
+  test('enhancer disabled user task omits enhancer sections', () => {
+    const output = generateNativeTaskDeliveryOutput({
+      chatroomId: 'room-id',
+      role: 'planner',
+      teamId: 'duo',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      task: { _id: 'task-id', content: 'Implement feature' },
+      message: { _id: 'user-msg-id', senderRole: 'user' },
+      availableHandoffTargets: ['builder', 'user'],
+      isEntryPoint: true,
+      plannerEnhancerEnabled: false,
+    });
+
+    expect(output).not.toContain('<handoff-enhancer>');
+    expect(output).not.toContain('Handoff to `enhancer`');
+    expect(output).toContain('--next-role="user"');
+  });
 });
 
 describe('native init', () => {
@@ -85,23 +148,6 @@ describe('native init', () => {
 });
 
 describe('native task delivery', () => {
-  test('includes context staleness section when context is old', () => {
-    const output = generateNativeTaskDeliveryOutput({
-      chatroomId: 'room-id',
-      role: 'planner',
-      teamId: 'duo',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      task: { _id: 'task-id', content: 'hello' },
-      message: { _id: 'msg-id', senderRole: 'user' },
-      availableHandoffTargets: ['builder', 'user'],
-      isEntryPoint: true,
-      currentContext: { elapsedHours: 10 },
-    });
-
-    expect(output).toContain('<context>');
-    expect(output).toContain('⚠️ Context is 10h old — consider refreshing if stale.');
-  });
-
   test('omits role guidance block; operating model lives in init', () => {
     const output = generateNativeTaskDeliveryOutput({
       chatroomId: 'room-id',

@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getMobileDrawerContentStyle } from './getMobileDrawerContentStyle';
 import {
+  DESKTOP_PICKER_CHILDREN_WRAPPER_CLASSNAME,
   MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME,
   MOBILE_DRAWER_CONTENT_CLASSNAME,
 } from './mobileDrawerLayout';
 import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 
 import {
   Drawer,
@@ -18,7 +19,10 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
+import {
+  useVisualViewportKeyboardInset,
+  useVisualViewportOffsetTop,
+} from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
 
 export interface ResponsivePickerShellProps {
@@ -55,10 +59,13 @@ export function ResponsivePickerShell({
   useEffect(() => setIsClient(true), []);
 
   const isDesktop = useIsDesktop(desktopBreakpoint);
-  const keyboardInsetPx = useVisualViewportKeyboardInset(isClient && !isDesktop);
+  const mobileActive = isClient && !isDesktop && open;
+  const keyboardInsetPx = useVisualViewportKeyboardInset(mobileActive);
+  const viewportOffsetTopPx = useVisualViewportOffsetTop(mobileActive);
   const portalContainer = useOverlayPortalContainer();
   const [pointerAnchor, setPointerAnchor] = useState<{ x: number; y: number } | null>(null);
   const [triggerEl, setTriggerEl] = useState<HTMLElement | null>(null);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -112,14 +119,15 @@ export function ResponsivePickerShell({
         <div
           ref={setTriggerEl}
           onClick={toggleOpen}
-          className="w-full"
+          className="w-full h-full flex items-stretch"
           data-testid="picker-pointer-trigger-wrap"
         >
           {triggerNode}
         </div>
         <Popover open={open} onOpenChange={handleOpenChange}>
           {open && resolvedAnchor ? (
-            <PopoverAnchor
+            <div
+              ref={anchorRef}
               aria-hidden
               data-testid="picker-pointer-anchor"
               style={{
@@ -133,11 +141,12 @@ export function ResponsivePickerShell({
             />
           ) : null}
           <PopoverContent
-            className={cn('p-0', contentClassName)}
+            className={cn('p-0 overflow-hidden', contentClassName)}
             align="center"
+            anchor={anchorRef}
             {...(side ? { side } : {})}
           >
-            {children}
+            <div className={DESKTOP_PICKER_CHILDREN_WRAPPER_CLASSNAME}>{children}</div>
           </PopoverContent>
         </Popover>
       </>
@@ -148,13 +157,13 @@ export function ResponsivePickerShell({
   if (isDesktop) {
     return (
       <Popover open={open} onOpenChange={onOpenChange}>
-        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        <PopoverTrigger render={React.isValidElement(trigger) ? trigger : undefined} />
         <PopoverContent
-          className={cn('p-0', contentClassName)}
+          className={cn('p-0 overflow-hidden', contentClassName)}
           align={align}
           {...(side ? { side } : {})}
         >
-          {children}
+          <div className={DESKTOP_PICKER_CHILDREN_WRAPPER_CLASSNAME}>{children}</div>
         </PopoverContent>
       </Popover>
     );
@@ -173,7 +182,7 @@ export function ResponsivePickerShell({
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
       <DrawerContent
         className={cn(MOBILE_DRAWER_CONTENT_CLASSNAME, drawerContentClassName)}
-        style={getMobileDrawerContentStyle(keyboardInsetPx)}
+        style={getMobileDrawerContentStyle(keyboardInsetPx, viewportOffsetTopPx)}
       >
         <DrawerHeader className="p-0 shrink-0">
           <DrawerTitle className="sr-only">{title}</DrawerTitle>

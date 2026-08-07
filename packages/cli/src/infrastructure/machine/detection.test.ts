@@ -1,25 +1,21 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { Effect, Duration } from 'effect';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { detectAvailableHarnesses } from './detection.js';
 import {
   BaseCLIAgentService,
   type CLIAgentServiceDeps,
-} from '../services/remote-agents/base-cli-agent-service.js';
-import {
-  DetectionResult,
-  isInstalled,
-  isDetectionError,
-} from '../services/remote-agents/detection-result.js';
+} from '../../daemon/infrastructure/local/harness/services/base-cli-agent-service.js';
+import { DetectionResult } from '../../daemon/infrastructure/local/harness/services/detection-result.js';
 import type {
   SpawnOptions,
   SpawnResult,
   RemoteAgentService,
-} from '../services/remote-agents/remote-agent-service.js';
+} from '../../daemon/infrastructure/local/harness/services/remote-agent-service.js';
 
 // ─── Mock Harness Registry ────────────────────────────────────────────────────
 
-vi.mock('../services/remote-agents/index.js', () => ({
+vi.mock('../../daemon/infrastructure/local/harness/services/index.js', () => ({
   initHarnessRegistry: vi.fn(),
   getAllHarnesses: vi.fn(() => []),
   getHarness: vi.fn(),
@@ -146,7 +142,8 @@ describe('detectAvailableHarnesses', () => {
   });
 
   it('returns only installed harnesses', async () => {
-    const { getAllHarnesses } = await import('../services/remote-agents/index.js');
+    const { getAllHarnesses } =
+      await import('../../daemon/infrastructure/local/harness/services/index.js');
     const mockedGetAll = vi.mocked(getAllHarnesses);
 
     const installedService = new FakeInstalledService(createMockDeps());
@@ -171,7 +168,8 @@ describe('detectAvailableHarnesses', () => {
   });
 
   it('emits structured console.warn for detection errors', async () => {
-    const { getAllHarnesses } = await import('../services/remote-agents/index.js');
+    const { getAllHarnesses } =
+      await import('../../daemon/infrastructure/local/harness/services/index.js');
     const mockedGetAll = vi.mocked(getAllHarnesses);
 
     const brokenService = new FakeDetectionErrorService(
@@ -206,7 +204,8 @@ describe('detectAvailableHarnesses', () => {
   });
 
   it('does not warn for NotInstalled harnesses', async () => {
-    const { getAllHarnesses } = await import('../services/remote-agents/index.js');
+    const { getAllHarnesses } =
+      await import('../../daemon/infrastructure/local/harness/services/index.js');
     const mockedGetAll = vi.mocked(getAllHarnesses);
 
     const notInstalledService = new FakeNotInstalledService(
@@ -233,7 +232,8 @@ describe('detectAvailableHarnesses', () => {
   });
 
   it('falls back to boolean isInstalled() for non-BaseCLIAgentService instances', async () => {
-    const { getAllHarnesses } = await import('../services/remote-agents/index.js');
+    const { getAllHarnesses } =
+      await import('../../daemon/infrastructure/local/harness/services/index.js');
     const mockedGetAll = vi.mocked(getAllHarnesses);
 
     const fakeService: RemoteAgentService = {
@@ -258,7 +258,8 @@ describe('detectAvailableHarnesses', () => {
 
   it('runs detection in parallel (~max delay, not sum)', async () => {
     vi.useFakeTimers();
-    const { getAllHarnesses } = await import('../services/remote-agents/index.js');
+    const { getAllHarnesses } =
+      await import('../../daemon/infrastructure/local/harness/services/index.js');
     const mockedGetAll = vi.mocked(getAllHarnesses);
 
     const startTime = Date.now();
@@ -286,7 +287,8 @@ describe('detectAvailableHarnesses', () => {
 
   it('handles mixed outcomes in parallel', async () => {
     vi.useFakeTimers();
-    const { getAllHarnesses } = await import('../services/remote-agents/index.js');
+    const { getAllHarnesses } =
+      await import('../../daemon/infrastructure/local/harness/services/index.js');
     const mockedGetAll = vi.mocked(getAllHarnesses);
 
     const svcInstalled = new DelayedFakeService('ok', 20, 'installed');

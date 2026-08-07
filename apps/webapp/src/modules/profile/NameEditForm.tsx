@@ -1,11 +1,10 @@
 'use client';
 
-import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -27,7 +26,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuthState, useCurrentUser } from '@/modules/auth/AuthProvider';
-import { ConnectButton, GoogleIcon } from '@/modules/auth/ConnectButton';
+import { ConnectButton } from '@/modules/auth/ConnectButton';
+import { GoogleIcon } from '@/modules/auth/GoogleIcon';
 
 // Helper function to create OAuth state for connect flow
 function createConnectOAuthState(connectRequestId: string): string {
@@ -44,6 +44,24 @@ interface _DisconnectDialogState {
   providerId: string;
   providerName: string;
   isDisconnecting: boolean;
+}
+
+interface _GoogleProviderInfo {
+  id: string;
+  name: string;
+  icon: React.ReactNode;
+  isConnected: boolean;
+  connectedEmail?: string;
+}
+
+interface _GoogleAccountContext {
+  showDisconnectConfirmation: (providerId: string, providerName: string) => void;
+  handleGoogleConnect: () => Promise<void>;
+  isConnectingGoogle: boolean;
+  googleAuthAvailable: boolean;
+  authMethod: string | undefined;
+  googleProvider: _GoogleProviderInfo;
+  handleDisconnectClick: () => void;
 }
 
 /**
@@ -310,6 +328,16 @@ export function NameEditForm() {
     return <div>Loading...</div>;
   }
 
+  const googleAccountContext: _GoogleAccountContext = {
+    showDisconnectConfirmation,
+    handleGoogleConnect,
+    isConnectingGoogle,
+    googleAuthAvailable: !!isGoogleAuthAvailable,
+    authMethod,
+    googleProvider,
+    handleDisconnectClick,
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -318,16 +346,7 @@ export function NameEditForm() {
       {/* Main content */}
       {isEditing
         ? _renderEditForm(name, error, isLoading, handleNameChange, handleSubmit, handleCancel)
-        : _renderDisplayView(
-            currentUser,
-            showDisconnectConfirmation,
-            handleGoogleConnect,
-            isConnectingGoogle,
-            !!isGoogleAuthAvailable,
-            authMethod,
-            googleProvider,
-            handleDisconnectClick
-          )}
+        : _renderDisplayView(currentUser, googleAccountContext)}
 
       {/* Disconnect confirmation dialog */}
       <AlertDialog open={disconnectDialog.isOpen} onOpenChange={closeDisconnectDialog}>
@@ -381,19 +400,7 @@ function _renderDisplayView(
   user: NonNullable<
     Extract<NonNullable<ReturnType<typeof useAuthState>>, { state: 'authenticated' }>['user']
   >,
-  showDisconnectConfirmation: (providerId: string, providerName: string) => void,
-  handleGoogleConnect: () => Promise<void>,
-  isConnectingGoogle: boolean,
-  googleAuthAvailable: boolean,
-  authMethod: string | undefined,
-  googleProvider: {
-    id: string;
-    name: string;
-    icon: React.ReactNode;
-    isConnected: boolean;
-    connectedEmail?: string;
-  },
-  handleDisconnectClick: () => void
+  ctx: _GoogleAccountContext
 ) {
   return (
     <div className="p-4 bg-secondary/50 rounded-md">
@@ -401,16 +408,7 @@ function _renderDisplayView(
         {_renderUserAvatar(user)}
         <div className="flex-1">
           <p className="font-medium">{user.name}</p>
-          {_renderUserTypeInfo(
-            user,
-            showDisconnectConfirmation,
-            handleGoogleConnect,
-            isConnectingGoogle,
-            googleAuthAvailable,
-            authMethod,
-            googleProvider,
-            handleDisconnectClick
-          )}
+          {_renderUserTypeInfo(user, ctx)}
         </div>
       </div>
     </div>
@@ -443,20 +441,18 @@ function _renderUserAvatar(user: { type: string; google?: { picture?: string }; 
  */
 function _renderUserTypeInfo(
   user: { type: string; email?: string; google?: { email?: string } },
-  showDisconnectConfirmation: (providerId: string, providerName: string) => void,
-  handleGoogleConnect: () => Promise<void>,
-  isConnectingGoogle: boolean,
-  googleAuthAvailable: boolean,
-  authMethod: string | undefined,
-  googleProvider: {
-    id: string;
-    name: string;
-    icon: React.ReactNode;
-    isConnected: boolean;
-    connectedEmail?: string;
-  },
-  handleDisconnectClick: () => void
+  ctx: _GoogleAccountContext
 ) {
+  const {
+    showDisconnectConfirmation,
+    handleGoogleConnect,
+    isConnectingGoogle,
+    googleAuthAvailable,
+    authMethod,
+    googleProvider,
+    handleDisconnectClick,
+  } = ctx;
+
   return (
     <div className="mt-3 space-y-4">
       {/* Show email if available */}
@@ -546,20 +542,15 @@ function _renderThirdPartyAccounts(
             <div className="flex items-center gap-3">
               {googleProvider.isConnected ? (
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                    >
-                      <div className="w-2 h-2 bg-green-500 rounded-full" />
-                      <span>
-                        Connected
-                        {googleProvider.connectedEmail && (
-                          <span className="ml-1">({googleProvider.connectedEmail})</span>
-                        )}
-                      </span>
-                      <ChevronDownIcon className="h-3 w-3" />
-                    </button>
+                  <DropdownMenuTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                    <div className="w-2 h-2 bg-green-500 rounded-full" />
+                    <span>
+                      Connected
+                      {googleProvider.connectedEmail && (
+                        <span className="ml-1">({googleProvider.connectedEmail})</span>
+                      )}
+                    </span>
+                    <ChevronDown className="h-3 w-3" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem

@@ -41,13 +41,13 @@ describe('deriveInitialResumeSession', () => {
     expect(deriveInitialResumeSession(null, configs, undefined)).toBe(false);
   });
 
-  it('defaults to true only when no persisted wantResume exists anywhere (new start)', () => {
-    expect(deriveInitialResumeSession('m1', [mkConfig('m1', undefined)], undefined)).toBe(true);
-    expect(deriveInitialResumeSession(null, [], undefined)).toBe(true);
+  it('defaults to false when no persisted wantResume exists anywhere (new start)', () => {
+    expect(deriveInitialResumeSession('m1', [mkConfig('m1', undefined)], undefined)).toBe(false);
+    expect(deriveInitialResumeSession(null, [], undefined)).toBe(false);
   });
 
   it('does not let a present-but-false value get masked by the default', () => {
-    // Regression guard: false must survive, never coerced to the true default.
+    // Regression guard: false must survive, never coerced to the false default.
     const configs = [mkConfig('m1', false)];
     expect(deriveInitialResumeSession('m1', configs, undefined)).not.toBe(true);
   });

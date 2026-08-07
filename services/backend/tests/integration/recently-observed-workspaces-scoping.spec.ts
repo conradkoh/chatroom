@@ -82,10 +82,10 @@ describe('recently-observed workspaces scoping', () => {
     await setObservedAt(staleRoom, now - 2 * RECENCY_WINDOW_MS);
 
     const result = await listForMachine(sid, machineId);
-    const chatroomIds = result.map((w) => w.chatroomId);
+    const workingDirs = result ?? [];
 
-    expect(chatroomIds).toContain(recentRoom);
-    expect(chatroomIds).not.toContain(staleRoom);
+    expect(workingDirs).toContain('/ws/recent');
+    expect(workingDirs).not.toContain('/ws/stale');
   });
 
   test('excludes a chatroom that has no observation row', async () => {
@@ -103,10 +103,10 @@ describe('recently-observed workspaces scoping', () => {
     // unobservedRoom intentionally has no observation row
 
     const result = await listForMachine(sid, machineId);
-    const chatroomIds = result.map((w) => w.chatroomId);
+    const workingDirs = result ?? [];
 
-    expect(chatroomIds).toContain(observedRoom);
-    expect(chatroomIds).not.toContain(unobservedRoom);
+    expect(workingDirs).toContain('/ws/observed');
+    expect(workingDirs).not.toContain('/ws/unobserved');
   });
 
   test('does not leak recently-observed chatrooms belonging to other machines', async () => {
@@ -127,9 +127,22 @@ describe('recently-observed workspaces scoping', () => {
     await setObservedAt(otherRoom, now);
 
     const result = await listForMachine(sid, machineId);
-    const chatroomIds = result.map((w) => w.chatroomId);
+    const workingDirs = result ?? [];
 
-    expect(chatroomIds).toContain(myRoom);
-    expect(chatroomIds).not.toContain(otherRoom);
+    expect(workingDirs).toContain('/ws/mine');
+    expect(workingDirs).not.toContain('/ws/theirs');
+  });
+
+  test('returns null when no workspaces are recently observed', async () => {
+    const { sessionId: sid } = await createTestSession('test-rows-null');
+    const machineId = 'machine-rows-null';
+    await registerMachineWithDaemon(sid, machineId);
+
+    const staleRoom = await createDuoTeamChatroom(sid);
+    await registerWorkspace(sid, staleRoom, machineId, '/ws/stale');
+    await setObservedAt(staleRoom, Date.now() - 2 * RECENCY_WINDOW_MS);
+
+    const result = await listForMachine(sid, machineId);
+    expect(result).toBeNull();
   });
 });

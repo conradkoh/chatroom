@@ -1,6 +1,6 @@
 'use client';
 
-import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { XIcon } from 'lucide-react';
 import * as React from 'react';
 
@@ -63,7 +63,7 @@ import { cn } from '@/lib/utils';
  */
 
 interface FixedSizeDialogProps extends React.ComponentPropsWithoutRef<
-  typeof DialogPrimitive.Content
+  typeof DialogPrimitive.Popup
 > {
   /**
    * Whether to show the close button in the top-right corner
@@ -76,16 +76,16 @@ interface FixedSizeDialogProps extends React.ComponentPropsWithoutRef<
  * Root FixedSizeDialog component - wraps the dialog content with fixed sizing
  */
 export const FixedSizeDialog = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ElementRef<typeof DialogPrimitive.Popup>,
   FixedSizeDialogProps
->(({ className, children, onEscapeKeyDown, showCloseButton = true, ...props }, ref) => {
+>(({ className, children, showCloseButton = true, ...props }, ref) => {
   // Fix iOS text selection handles not being draggable
   useAllowTouchSelection();
 
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
-      <DialogPrimitive.Content
+      <DialogPrimitive.Popup
         ref={ref}
         data-slot="fixed-size-dialog"
         className={cn(
@@ -98,13 +98,12 @@ export const FixedSizeDialog = React.forwardRef<
           // Layout: flex column for sticky header/footer
           'flex flex-col overflow-hidden',
           // Animations
-          'data-[state=open]:animate-in data-[state=closed]:animate-out',
-          'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
-          'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+          'data-open:animate-in data-closed:animate-out',
+          'data-closed:fade-out-0 data-open:fade-in-0',
+          'data-closed:zoom-out-95 data-open:zoom-in-95',
           'duration-200',
           className
         )}
-        onEscapeKeyDown={onEscapeKeyDown}
         {...props}
       >
         {children}
@@ -114,7 +113,7 @@ export const FixedSizeDialog = React.forwardRef<
               'absolute top-4 right-4 z-10',
               'rounded-xs opacity-70 transition-opacity hover:opacity-100',
               'ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus:outline-hidden',
-              'data-[state=open]:bg-accent data-[state=open]:text-muted-foreground',
+              'data-open:bg-accent data-open:text-muted-foreground',
               'disabled:pointer-events-none',
               '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*="size-"])]:size-4'
             )}
@@ -124,7 +123,7 @@ export const FixedSizeDialog = React.forwardRef<
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}
-      </DialogPrimitive.Content>
+      </DialogPrimitive.Popup>
     </DialogPortal>
   );
 });

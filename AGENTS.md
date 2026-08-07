@@ -25,14 +25,19 @@ See **[docs/application/design/theme.md](docs/application/design/theme.md)** —
 
 ### UI Components & Icons
 
-- **Components**: ShadCN UI
-- **Icons**: @radix-ui/react-icons, lucide-react, react-icons
+- **Components**: ShadCN UI with **Base UI** backend (`base-vega` style in `apps/webapp/components.json`)
+- **Primitives**: `@base-ui/react` (not Radix UI)
+- **Icons**: lucide-react, react-icons
 
 **Add a new ShadCN component:**
 
 ```bash
 cd apps/webapp && npx shadcn@latest add <component-name>
 ```
+
+**Migrating from Radix-based shadcn (downstream forks):**
+
+See **[docs/developer/shadcn-base-ui-migration.md](docs/developer/shadcn-base-ui-migration.md)** — strategy, API changes (`asChild` removal, data-attribute selectors), and a playbook for older apps.
 
 ### Next.js App Router
 

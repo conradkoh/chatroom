@@ -13,9 +13,7 @@ describe('WorkspaceDropdownMenuItem', () => {
   it('renders icon and label with shared workspace menu spacing', () => {
     render(
       <DropdownMenu open onOpenChange={vi.fn()} modal={false}>
-        <DropdownMenuTrigger asChild>
-          <button type="button">open</button>
-        </DropdownMenuTrigger>
+        <DropdownMenuTrigger type="button">open</DropdownMenuTrigger>
         <DropdownMenuContent>
           <WorkspaceDropdownMenuItem icon={Copy} onSelect={vi.fn()}>
             Copy Relative Path

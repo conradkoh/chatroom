@@ -3,11 +3,12 @@
 // fallow-ignore-file complexity
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Loader2, Search, Send } from 'lucide-react';
+import { ChevronDown, Loader2, Search, Send } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { AgenticQueryConfigBar } from './AgenticQueryConfigBar';
 import { AgenticQueryHarnessSync } from './AgenticQueryHarnessSync';
+import { useRefreshCapabilities } from '../../direct-harness/hooks/useRefreshCapabilities';
 import { isModEnterKey } from '../../utils/isModEnterKey';
 import { useAgenticQuery } from '../hooks/useAgenticQuery';
 import { useAgenticQueryHarnessSelection } from '../hooks/useAgenticQueryHarnessSelection';
@@ -23,7 +24,14 @@ import {
   chatroomIndustrialButtonSecondaryClassName,
 } from '@/modules/chatroom/components/shared/industrialDialogStyles';
 import { TimelineMarkdownBody } from '@/modules/chatroom/components/timeline/TimelineMarkdownBody';
+import {
+  JUMP_TO_NEW_MESSAGES_GAP_PX,
+  JUMP_TO_NEW_MESSAGES_Z_INDEX,
+} from '@/modules/chatroom/components/timeline/timelineVirtualizerConfig';
+import { ThinkingBlock } from '@/modules/chatroom/direct-harness/components/ThinkingBlock';
 import { useFileReferenceAutocomplete } from '@/modules/chatroom/hooks/useFileReferenceAutocomplete';
+import { useScrollController } from '@/modules/chatroom/hooks/useScrollController';
+import type { ScrollController } from '@/modules/chatroom/hooks/useScrollController';
 
 export interface AgenticQueryPanelProps {
   queryId: string;
@@ -36,6 +44,7 @@ export interface AgenticQueryPanelProps {
   onAtTriggerActivate?: () => void;
   onMetaChange?: (meta: { title: string; mode: AgenticQueryMode }) => void;
   focusToken?: number;
+  onUnavailable?: () => void;
 }
 
 type AgenticTurn = {
@@ -50,9 +59,11 @@ function AgenticStreamingBody({ runId }: { runId: Id<'chatroom_agenticQueryRuns'
   const { turns, streamingOverlay, isLoading } = useAgenticQueryRunTurnStore(runId);
   const latestAssistant = [...turns].reverse().find((t) => t.role === 'assistant');
   const streamText = streamingOverlay?.textContent?.trim();
+  const streamReasoning = streamingOverlay?.reasoningContent?.trim();
   const content = streamText || latestAssistant?.textContent?.trim();
+  const reasoning = streamReasoning || latestAssistant?.reasoningContent?.trim();
 
-  if (isLoading && !content) {
+  if (isLoading && !content && !reasoning) {
     return (
       <div className="flex items-center gap-2 text-xs text-chatroom-text-muted">
         <Loader2 className="size-3 animate-spin" />
@@ -61,11 +72,16 @@ function AgenticStreamingBody({ runId }: { runId: Id<'chatroom_agenticQueryRuns'
     );
   }
 
-  if (!content) {
+  if (!content && !reasoning) {
     return <p className="text-xs text-chatroom-text-muted">Waiting for agent response…</p>;
   }
 
-  return <TimelineMarkdownBody content={content} />;
+  return (
+    <div className="space-y-2">
+      {reasoning ? <ThinkingBlock content={reasoning} /> : null}
+      {content ? <TimelineMarkdownBody content={content} /> : null}
+    </div>
+  );
 }
 
 function AgenticTurnBlock({
@@ -111,6 +127,32 @@ function AgenticTurnBlock({
   );
 }
 
+function AgenticQueryStreamScrollSync({
+  runId,
+  controller,
+  feedRef,
+}: {
+  runId: Id<'chatroom_agenticQueryRuns'>;
+  controller: React.MutableRefObject<ScrollController>;
+  feedRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const { streamingOverlay } = useAgenticQueryRunTurnStore(runId);
+  const prevScrollHeightRef = useRef(0);
+
+  useLayoutEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    const newScrollHeight = el.scrollHeight;
+    const heightDiff = newScrollHeight - prevScrollHeightRef.current;
+    if (heightDiff > 0 && prevScrollHeightRef.current > 0) {
+      controller.current.onNewMessages(heightDiff, false, false);
+    }
+    prevScrollHeightRef.current = newScrollHeight;
+  }, [streamingOverlay?.textContent, streamingOverlay?.reasoningContent, controller, feedRef]);
+
+  return null;
+}
+
 // fallow-ignore-next-line complexity
 export function AgenticQueryPanel({
   queryId,
@@ -121,6 +163,7 @@ export function AgenticQueryPanel({
   onAtTriggerActivate,
   onMetaChange,
   focusToken,
+  onUnavailable,
 }: AgenticQueryPanelProps) {
   const [composerText, setComposerText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -128,16 +171,34 @@ export function AgenticQueryPanel({
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const lastMetaRef = useRef<{ title: string; mode: AgenticQueryMode } | null>(null);
 
-  const { query, turns, isRunning, canSubmit, canFollowUp, activeRunId, submit, isLoading } =
-    useAgenticQuery(queryId);
+  const {
+    query,
+    turns,
+    isRunning,
+    canSubmit,
+    canFollowUp,
+    activeRunId,
+    submit,
+    isLoading,
+    isNotFound,
+  } = useAgenticQuery(queryId);
+
+  useEffect(() => {
+    if (isNotFound) {
+      onUnavailable?.();
+    }
+  }, [isNotFound, onUnavailable]);
 
   const harnessSelection = useAgenticQueryHarnessSelection(workspaceId);
+  const { refresh: refreshCapabilities } = useRefreshCapabilities();
   const harnessControlsDisabled = isRunning || isSubmitting;
   const isFollowUpMode = canFollowUp && turns.length > 0;
   const canCompose = isFollowUpMode ? canFollowUp : canSubmit;
 
-  const latestTurn = turns.length > 0 ? turns[turns.length - 1] : null;
-  const olderTurns = turns.length > 1 ? turns.slice(0, -1).reverse() : [];
+  useEffect(() => {
+    if (!workspaceId) return;
+    refreshCapabilities(workspaceId as Id<'chatroom_workspaces'>);
+  }, [workspaceId, refreshCapabilities]);
 
   useEffect(() => {
     if (!query?.title || !onMetaChange) return;
@@ -174,17 +235,59 @@ export function AgenticQueryPanel({
       await submit(message, harnessSelection.toSubmitSelection());
       setComposerText('');
     } catch (e) {
+      const message = e instanceof Error ? e.message : '';
+      const isMissing =
+        message.includes('Agentic query not found') ||
+        message.includes('NOT_FOUND') ||
+        message.includes('no longer available');
       setError(
-        e instanceof Error
-          ? e.message
-          : isFollowUpMode
-            ? 'Failed to submit follow-up'
-            : 'Failed to submit query'
+        isMissing
+          ? 'This search session is no longer available.'
+          : e instanceof Error
+            ? e.message
+            : isFollowUpMode
+              ? 'Failed to submit follow-up'
+              : 'Failed to submit query'
       );
     } finally {
       setIsSubmitting(false);
     }
   }, [canCompose, composerText, harnessSelection, isFollowUpMode, submit]);
+
+  // ── Scroll controller ──────────────────────────────────────────────────
+  const { controller, isPinned, scrollToBottom, beginResize, endResize } = useScrollController();
+  const resultsRef = useRef<HTMLDivElement | null>(null);
+  const prevScrollHeightRef = useRef(0);
+  const prevTurnCountRef = useRef(0);
+
+  const resultsRefCallback = useCallback(
+    (node: HTMLDivElement | null) => {
+      resultsRef.current = node;
+      if (node) {
+        controller.current.attach(node);
+      } else {
+        controller.current.detach();
+      }
+    },
+    [controller]
+  );
+
+  useLayoutEffect(() => {
+    const el = resultsRef.current;
+    if (!el) return;
+    const newScrollHeight = el.scrollHeight;
+    const heightDiff = newScrollHeight - prevScrollHeightRef.current;
+    const turnsAdded = turns.length > prevTurnCountRef.current;
+
+    if (turnsAdded && heightDiff > 0 && prevScrollHeightRef.current > 0) {
+      controller.current.onNewMessages(heightDiff, false, false);
+    } else if (prevScrollHeightRef.current === 0 && turns.length > 0) {
+      controller.current.snapToBottom();
+    }
+
+    prevScrollHeightRef.current = newScrollHeight;
+    prevTurnCountRef.current = turns.length;
+  }, [turns.length, controller]);
 
   const AGENTIC_COMPOSER_MAX_HEIGHT_PX = 192;
   const AGENTIC_COMPOSER_MIN_HEIGHT_PX = 40;
@@ -192,9 +295,11 @@ export function AgenticQueryPanel({
   const adjustComposerHeight = useCallback(() => {
     const el = composerRef.current;
     if (!el) return;
+    beginResize();
     const measured = measureTextareaContentHeightPx(el, AGENTIC_COMPOSER_MAX_HEIGHT_PX);
     el.style.height = `${Math.max(measured, AGENTIC_COMPOSER_MIN_HEIGHT_PX)}px`;
-  }, []);
+    endResize();
+  }, [beginResize, endResize]);
 
   useLayoutEffect(() => {
     adjustComposerHeight();
@@ -219,7 +324,7 @@ export function AgenticQueryPanel({
     files: autocompleteFiles,
     hasWorkspace: hasAutocompleteWorkspace,
     onAtTriggerActivate,
-    dropdownPlacement: 'below',
+    dropdownPlacement: 'above',
     textareaRef: composerRef,
     anchorRef: composerAnchorRef,
     text: composerText,
@@ -252,6 +357,19 @@ export function AgenticQueryPanel({
       ? 'Follow up'
       : 'Search';
 
+  if (isNotFound) {
+    return (
+      <div
+        className="flex-1 flex items-center justify-center p-8 text-center"
+        data-testid="agentic-query-unavailable"
+      >
+        <p className="text-sm text-chatroom-text-muted max-w-md">
+          This search session is no longer available. It may have expired or been removed.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col min-h-0" data-testid="agentic-query-panel">
       <AgenticQueryHarnessSync
@@ -260,8 +378,51 @@ export function AgenticQueryPanel({
         activeRunId={activeRunId}
       />
 
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={resultsRefCallback}
+          className="h-full overflow-y-auto p-4 space-y-4"
+          data-testid="agentic-query-results"
+        >
+          {turns.map((turn, index) => (
+            <AgenticTurnBlock
+              key={turn._id}
+              turn={turn}
+              isLatest={index === turns.length - 1}
+              isRunning={index === turns.length - 1 && isRunning}
+              activeRunId={activeRunId}
+            />
+          ))}
+        </div>
+
+        {activeRunId ? (
+          <AgenticQueryStreamScrollSync
+            runId={activeRunId}
+            controller={controller}
+            feedRef={resultsRef}
+          />
+        ) : null}
+
+        {!isPinned ? (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            style={{
+              bottom: JUMP_TO_NEW_MESSAGES_GAP_PX,
+              zIndex: JUMP_TO_NEW_MESSAGES_Z_INDEX,
+            }}
+            className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent shadow-lg hover:bg-chatroom-accent/90 transition-all"
+            aria-label="Jump to new messages"
+            data-testid="agentic-query-jump-to-new"
+          >
+            <ChevronDown size={16} />
+            <span className="text-xs font-medium">Jump to new messages</span>
+          </button>
+        ) : null}
+      </div>
+
       <div
-        className="shrink-0 p-4 gap-4 flex flex-col border-b border-chatroom-border bg-chatroom-bg-primary"
+        className="shrink-0 p-4 gap-4 flex flex-col border-t border-chatroom-border bg-chatroom-bg-primary"
         data-testid="agentic-query-composer"
       >
         <div className="flex items-center gap-2">
@@ -281,6 +442,7 @@ export function AgenticQueryPanel({
         ) : null}
 
         <AgenticQueryConfigBar
+          workspaceId={workspaceId}
           harnesses={harnessSelection.harnesses}
           harnessName={harnessSelection.harnessName}
           selectedModel={harnessSelection.selectedModel}
@@ -307,7 +469,7 @@ export function AgenticQueryPanel({
             onSelect={fileAutocomplete.handleFileSelect}
             onHoverItem={fileAutocomplete.setSelectedIndex}
             visible={fileAutocomplete.autocompleteState.visible}
-            placement="below"
+            placement="above"
           />
           <textarea
             ref={composerRef}
@@ -347,30 +509,6 @@ export function AgenticQueryPanel({
         </div>
 
         {error ? <p className="text-xs text-red-500">{error}</p> : null}
-      </div>
-
-      <div
-        className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4"
-        data-testid="agentic-query-results"
-      >
-        {latestTurn ? (
-          <AgenticTurnBlock
-            turn={latestTurn}
-            isLatest
-            isRunning={isRunning}
-            activeRunId={activeRunId}
-          />
-        ) : null}
-
-        {olderTurns.map((turn) => (
-          <AgenticTurnBlock
-            key={turn._id}
-            turn={turn}
-            isLatest={false}
-            isRunning={false}
-            activeRunId={activeRunId}
-          />
-        ))}
       </div>
     </div>
   );

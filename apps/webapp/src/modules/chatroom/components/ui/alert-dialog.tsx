@@ -3,61 +3,68 @@
  */
 'use client';
 
-import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog';
+import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog';
 import type * as React from 'react';
 
 import {
   chatroomIndustrialButtonDestructiveClassName,
   chatroomIndustrialButtonSecondaryClassName,
+  chatroomIndustrialConfirmationModalContentClassName,
+  chatroomIndustrialConfirmationOverlayClassName,
   chatroomIndustrialDialogDescriptionClassName,
   chatroomIndustrialDialogFooterClassName,
   chatroomIndustrialDialogTitleClassName,
   chatroomIndustrialModalContentClassName,
   chatroomIndustrialOverlayClassName,
 } from '../shared/industrialDialogStyles';
+import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
 
 import { useAllowTouchSelection } from '@/hooks/useAllowTouchSelection';
 import { cn } from '@/lib/utils';
 
-function AlertDialog({ ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
+function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
   return <AlertDialogPrimitive.Root data-slot="chatroom-alert-dialog" {...props} />;
 }
 
-function AlertDialogTrigger({
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Trigger>) {
+function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
   return <AlertDialogPrimitive.Trigger data-slot="chatroom-alert-dialog-trigger" {...props} />;
 }
 
-function AlertDialogPortal({ ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Portal>) {
+function AlertDialogPortal({ ...props }: AlertDialogPrimitive.Portal.Props) {
   return <AlertDialogPrimitive.Portal data-slot="chatroom-alert-dialog-portal" {...props} />;
 }
 
-function AlertDialogOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
+function AlertDialogOverlay({ className, ...props }: AlertDialogPrimitive.Backdrop.Props) {
+  const portalContainer = useOverlayPortalContainer();
   return (
-    <AlertDialogPrimitive.Overlay
+    <AlertDialogPrimitive.Backdrop
       data-slot="chatroom-alert-dialog-overlay"
-      className={cn(chatroomIndustrialOverlayClassName, className)}
+      className={cn(
+        portalContainer != null
+          ? chatroomIndustrialConfirmationOverlayClassName
+          : chatroomIndustrialOverlayClassName,
+        className
+      )}
       {...props}
     />
   );
 }
 
-function AlertDialogContent({
-  className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
+function AlertDialogContent({ className, ...props }: AlertDialogPrimitive.Popup.Props) {
   useAllowTouchSelection();
+  const portalContainer = useOverlayPortalContainer();
 
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
-      <AlertDialogPrimitive.Content
+      <AlertDialogPrimitive.Popup
         data-slot="chatroom-alert-dialog-content"
-        className={cn(chatroomIndustrialModalContentClassName, className)}
+        className={cn(
+          portalContainer != null
+            ? chatroomIndustrialConfirmationModalContentClassName
+            : chatroomIndustrialModalContentClassName,
+          className
+        )}
         {...props}
       />
     </AlertDialogPortal>
@@ -84,10 +91,7 @@ function AlertDialogFooter({ className, ...props }: React.ComponentProps<'div'>)
   );
 }
 
-function AlertDialogTitle({
-  className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
+function AlertDialogTitle({ className, ...props }: AlertDialogPrimitive.Title.Props) {
   return (
     <AlertDialogPrimitive.Title
       data-slot="chatroom-alert-dialog-title"
@@ -97,10 +101,7 @@ function AlertDialogTitle({
   );
 }
 
-function AlertDialogDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Description>) {
+function AlertDialogDescription({ className, ...props }: AlertDialogPrimitive.Description.Props) {
   return (
     <AlertDialogPrimitive.Description
       data-slot="chatroom-alert-dialog-description"
@@ -110,24 +111,18 @@ function AlertDialogDescription({
   );
 }
 
-function AlertDialogAction({
-  className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Action>) {
+function AlertDialogAction({ className, ...props }: AlertDialogPrimitive.Close.Props) {
   return (
-    <AlertDialogPrimitive.Action
+    <AlertDialogPrimitive.Close
       className={cn(chatroomIndustrialButtonDestructiveClassName, className)}
       {...props}
     />
   );
 }
 
-function AlertDialogCancel({
-  className,
-  ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Cancel>) {
+function AlertDialogCancel({ className, ...props }: AlertDialogPrimitive.Close.Props) {
   return (
-    <AlertDialogPrimitive.Cancel
+    <AlertDialogPrimitive.Close
       className={cn(chatroomIndustrialButtonSecondaryClassName, className)}
       {...props}
     />

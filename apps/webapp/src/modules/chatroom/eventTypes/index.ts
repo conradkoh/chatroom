@@ -17,6 +17,7 @@ import { commandEventDefinitions } from './commandEvents';
 import { configEventDefinitions } from './configEvents';
 import { connectionEventDefinitions } from './connectionEvents';
 import { daemonEventDefinitions } from './daemonEvents';
+import { enhancerEventDefinitions } from './enhancerEvents';
 import { initRegistry } from './registry';
 import { skillEventDefinitions } from './skillEvents';
 import { taskEventDefinitions } from './taskEvents';
@@ -44,7 +45,7 @@ export type { BadgeColor } from './shared';
  *
  * The spread below must cover every key in EventTypeName.
  * TypeScript enforces this: missing any key is a compile-time error.
- * Call once at application startup (e.g. top of EventStreamModal).
+ * Call once at application startup (e.g. top of EventStreamPanel).
  */
 export function initializeEventTypes(): void {
   initRegistry({
@@ -55,6 +56,7 @@ export function initializeEventTypes(): void {
     ...configEventDefinitions,
     ...commandEventDefinitions,
     ...connectionEventDefinitions,
+    ...enhancerEventDefinitions,
     ...workflowEventDefinitions,
   });
 }

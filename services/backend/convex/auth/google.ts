@@ -4,6 +4,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { z } from 'zod';
 
 import { featureFlags } from '../../config/featureFlags';
+import { isSelfSignupAllowed, isSignupAllowed } from '../../config/signupMethods';
 import { api } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import {
@@ -14,6 +15,7 @@ import {
   type QueryCtx,
   query,
 } from '../_generated/server';
+import { redeemPendingInvite } from '../system/invites';
 
 // Public interfaces and types
 export type OAuthState = z.infer<typeof OAuthStateSchema>;
@@ -192,6 +194,61 @@ export const exchangeGoogleCode = action({
 });
 
 /**
+ * Registers a new Google user with signup-method gating and optional invite redemption.
+ */
+// fallow-ignore-next-line complexity
+async function _registerNewGoogleUser(
+  ctx: MutationCtx,
+  sessionId: SessionId,
+  profile: _GoogleProfile
+): Promise<Id<'users'>> {
+  if (!isSignupAllowed()) {
+    throw new ConvexError({
+      code: 'SIGNUP_DISABLED',
+      message: 'Sign-ups are currently disabled',
+    });
+  }
+
+  const session = await ctx.db
+    .query('sessions')
+    .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
+    .first();
+
+  if (!isSelfSignupAllowed() && !session?.pendingInviteId) {
+    throw new ConvexError({
+      code: 'SIGNUP_DISABLED',
+      message: 'Sign-up requires an invite code',
+    });
+  }
+
+  const existingEmailUser = await ctx.db
+    .query('users')
+    .withIndex('by_email', (q) => q.eq('email', profile.email))
+    .first();
+
+  if (existingEmailUser) {
+    throw new ConvexError({
+      code: 'EMAIL_ALREADY_EXISTS',
+      message: 'An account with this email already exists with a different authentication method',
+    });
+  }
+
+  const newUserId = await ctx.db.insert('users', {
+    type: 'full',
+    name: profile.name,
+    email: profile.email,
+    google: profile,
+    accessLevel: 'user',
+  });
+
+  if (!isSelfSignupAllowed()) {
+    await redeemPendingInvite(ctx, sessionId, newUserId, profile.email);
+  }
+
+  return newUserId;
+}
+
+/**
  * Creates or updates a Google user and establishes a session.
  */
 export const loginWithGoogle = mutation({
@@ -210,14 +267,7 @@ export const loginWithGoogle = mutation({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    // Check if Google auth is enabled dynamically
-    const isEnabled = await _isGoogleAuthEnabled(ctx);
-    if (!isEnabled) {
-      throw new ConvexError({
-        code: 'FEATURE_DISABLED',
-        message: 'Google authentication is currently disabled or not configured',
-      });
-    }
+    await _assertGoogleAuthEnabled(ctx);
 
     const { profile, sessionId } = args;
 
@@ -244,30 +294,7 @@ export const loginWithGoogle = mutation({
 
             return existingUser._id;
           })()
-        : await (async () => {
-            // Check if user exists with same email but different auth type
-            const existingEmailUser = await ctx.db
-              .query('users')
-              .withIndex('by_email', (q) => q.eq('email', profile.email))
-              .first();
-
-            if (existingEmailUser) {
-              throw new ConvexError({
-                code: 'EMAIL_ALREADY_EXISTS',
-                message:
-                  'An account with this email already exists with a different authentication method',
-              });
-            }
-
-            // Create new full user with Google profile
-            return await ctx.db.insert('users', {
-              type: 'full',
-              name: profile.name,
-              email: profile.email,
-              google: profile,
-              accessLevel: 'user', // Default access level for new Google users
-            });
-          })();
+        : await _registerNewGoogleUser(ctx, sessionId, profile);
 
       // Create or update session (following existing session pattern)
       const existingSession = await ctx.db
@@ -329,14 +356,7 @@ export const connectGoogle = mutation({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    // Check if Google auth is enabled dynamically
-    const isEnabled = await _isGoogleAuthEnabled(ctx);
-    if (!isEnabled) {
-      throw new ConvexError({
-        code: 'FEATURE_DISABLED',
-        message: 'Google authentication is currently disabled or not configured',
-      });
-    }
+    await _assertGoogleAuthEnabled(ctx);
 
     const { profile, sessionId } = args;
 
@@ -1028,6 +1048,19 @@ async function _convertAnonymousToFullUser(
       name: googleProfile.name,
       recoveryCode: anonymousUser.recoveryCode,
       accessLevel: anonymousUser.accessLevel ?? 'user', // Ensure access level is set
+    });
+  }
+}
+
+/**
+ * Checks if Google Auth is dynamically enabled for mutations and queries.
+ */
+async function _assertGoogleAuthEnabled(ctx: QueryCtx | MutationCtx): Promise<void> {
+  const isEnabled = await _isGoogleAuthEnabled(ctx);
+  if (!isEnabled) {
+    throw new ConvexError({
+      code: 'FEATURE_DISABLED',
+      message: 'Google authentication is currently disabled or not configured',
     });
   }
 }

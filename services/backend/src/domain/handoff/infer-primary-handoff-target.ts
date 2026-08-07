@@ -11,13 +11,16 @@ export interface InferPrimaryHandoffTargetParams {
   availableHandoffTargets: string[];
   /** True when this role is the team entry point (e.g. duo planner). */
   isEntryPoint?: boolean;
+  /** When true, entry-point planner tasks from user must check in with enhancer first. */
+  plannerEnhancerEnabled?: boolean;
 }
 
 // fallow-ignore-next-line complexity
 export function inferPrimaryHandoffTarget(
   params: InferPrimaryHandoffTargetParams
 ): string | undefined {
-  const { senderRole, role, availableHandoffTargets, isEntryPoint } = params;
+  const { senderRole, role, availableHandoffTargets, isEntryPoint, plannerEnhancerEnabled } =
+    params;
 
   if (availableHandoffTargets.length === 0) {
     return undefined;
@@ -32,6 +35,25 @@ export function inferPrimaryHandoffTarget(
 
   if (normalizedSender === normalizedRole) {
     return availableHandoffTargets[0];
+  }
+
+  if (
+    isEntryPoint &&
+    normalizedSender === 'enhancer' &&
+    normalizedRole === 'planner' &&
+    availableHandoffTargets.some((target) => target.toLowerCase() === 'builder')
+  ) {
+    return 'builder';
+  }
+
+  if (
+    plannerEnhancerEnabled &&
+    isEntryPoint &&
+    normalizedSender === 'user' &&
+    normalizedRole === 'planner' &&
+    availableHandoffTargets.some((target) => target.toLowerCase() === 'enhancer')
+  ) {
+    return 'enhancer';
   }
 
   if (

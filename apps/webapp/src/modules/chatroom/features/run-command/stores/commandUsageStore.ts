@@ -41,6 +41,7 @@ function emit(): void {
 
 class CommandUsageStore {
   private data: StorageData;
+  private persistScheduled = false;
 
   constructor() {
     this.data = this.load();
@@ -78,10 +79,16 @@ class CommandUsageStore {
 
   /**
    * Get all command IDs with their timestamps.
-   * Prunes expired entries and saves.
+   * Prunes expired entries in memory and schedules a deferred persist + emit.
+   *
+   * Never emits synchronously — callers may invoke this during render (e.g.
+   * from useMemo), and a synchronous emit would notify useSyncExternalStore
+   * subscribers mid-render.
    */
   getAllUsage(): Map<string, number[]> {
-    this.pruneExpired();
+    if (this.pruneExpired()) {
+      this.schedulePersist();
+    }
     const result = new Map<string, number[]>();
     for (const [id, timestamps] of Object.entries(this.data.commands)) {
       if (timestamps.length > 0) {
@@ -128,9 +135,11 @@ class CommandUsageStore {
   /**
    * Remove timestamps older than MAX_AGE_MS across all commands.
    * Delete commands with no remaining timestamps.
+   *
+   * @returns true if any in-memory entries were pruned.
    */
   // fallow-ignore-next-line complexity
-  private pruneExpired(): void {
+  private pruneExpired(): boolean {
     const cutoff = Date.now() - MAX_AGE_MS;
     let changed = false;
 
@@ -146,7 +155,20 @@ class CommandUsageStore {
       }
     }
 
-    if (changed) this.save();
+    return changed;
+  }
+
+  /**
+   * Persist + emit on the microtask queue so read-path pruning never notifies
+   * subscribers synchronously during a render.
+   */
+  private schedulePersist(): void {
+    if (this.persistScheduled) return;
+    this.persistScheduled = true;
+    queueMicrotask(() => {
+      this.persistScheduled = false;
+      this.save();
+    });
   }
 
   /**

@@ -112,7 +112,7 @@ describe('precedence line', () => {
 
   it('appears only once', () => {
     const output = renderTaskPrompt(FULL_INPUT);
-    const matches = output.match(/On conflict, the message wins over background context\./g);
+    const matches = output.match(/On conflict, message wins over background context\./g);
     expect(matches?.length ?? 0).toBeGreaterThanOrEqual(1);
     expect(matches?.length ?? 0).toBeLessThanOrEqual(1);
   });

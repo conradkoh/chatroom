@@ -35,12 +35,7 @@ export { BacklogFsService } from './backlog-fs-service.js';
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 type TaskStatus =
-  | 'pending'
-  | 'acknowledged'
-  | 'in_progress'
-  | 'pending_user_review'
-  | 'completed'
-  | 'closed';
+  'pending' | 'acknowledged' | 'in_progress' | 'pending_user_review' | 'completed' | 'closed';
 
 type BacklogItemStatus = 'backlog' | 'pending_user_review' | 'closed';
 
@@ -66,6 +61,11 @@ export interface CloseBacklogOptions {
   role: string;
   backlogItemId: string;
   reason: string;
+}
+
+export interface DeleteBacklogOptions {
+  role: string;
+  backlogItemId: string;
 }
 
 export interface CompleteBacklogOptions {
@@ -280,13 +280,11 @@ export const listBacklogEffect = (
         limit,
       })
       .pipe(
-        Effect.mapError(
-          (cause): BacklogError => ({
-            _tag: 'QueryFailed',
-            cause,
-            context: 'Failed to list backlog items',
-          })
-        )
+        Effect.mapError((cause): BacklogError => ({
+          _tag: 'QueryFailed',
+          cause,
+          context: 'Failed to list backlog items',
+        }))
       );
 
     // fallow-ignore-next-line complexity
@@ -366,13 +364,11 @@ export const addBacklogEffect = (
         createdBy: options.role,
       })
       .pipe(
-        Effect.mapError(
-          (cause): BacklogError => ({
-            _tag: 'MutationFailed',
-            cause,
-            context: 'Failed to add backlog item',
-          })
-        )
+        Effect.mapError((cause): BacklogError => ({
+          _tag: 'MutationFailed',
+          cause,
+          context: 'Failed to add backlog item',
+        }))
       );
 
     yield* Effect.sync(() => {
@@ -520,13 +516,11 @@ export const patchBacklogEffect = (
         priority: priorityNum,
       })
       .pipe(
-        Effect.mapError(
-          (cause): BacklogError => ({
-            _tag: 'MutationFailed',
-            cause,
-            context: 'Failed to patch backlog item',
-          })
-        )
+        Effect.mapError((cause): BacklogError => ({
+          _tag: 'MutationFailed',
+          cause,
+          context: 'Failed to patch backlog item',
+        }))
       );
 
     yield* Effect.sync(() => {
@@ -642,13 +636,11 @@ export const markForReviewBacklogEffect = (
         itemId: options.backlogItemId as Id<'chatroom_backlog'>,
       })
       .pipe(
-        Effect.mapError(
-          (cause): BacklogError => ({
-            _tag: 'MutationFailed',
-            cause,
-            context: 'Failed to mark backlog item for review',
-          })
-        )
+        Effect.mapError((cause): BacklogError => ({
+          _tag: 'MutationFailed',
+          cause,
+          context: 'Failed to mark backlog item for review',
+        }))
       );
 
     yield* Effect.sync(() => {
@@ -712,13 +704,11 @@ export const historyBacklogEffect = (
         limit: options.limit,
       })
       .pipe(
-        Effect.mapError(
-          (cause): BacklogError => ({
-            _tag: 'QueryFailed',
-            cause,
-            context: 'Failed to load history',
-          })
-        )
+        Effect.mapError((cause): BacklogError => ({
+          _tag: 'QueryFailed',
+          cause,
+          context: 'Failed to load history',
+        }))
       );
 
     // fallow-ignore-next-line complexity
@@ -823,13 +813,11 @@ export const updateBacklogEffect = (
         content: options.content.trim(),
       })
       .pipe(
-        Effect.mapError(
-          (cause): BacklogError => ({
-            _tag: 'MutationFailed',
-            cause,
-            context: 'Failed to update backlog item',
-          })
-        )
+        Effect.mapError((cause): BacklogError => ({
+          _tag: 'MutationFailed',
+          cause,
+          context: 'Failed to update backlog item',
+        }))
       );
 
     yield* Effect.sync(() => {
@@ -873,13 +861,11 @@ export const closeBacklogEffect = (
         reason,
       })
       .pipe(
-        Effect.mapError(
-          (cause): BacklogError => ({
-            _tag: 'MutationFailed',
-            cause,
-            context: 'Failed to close backlog item',
-          })
-        )
+        Effect.mapError((cause): BacklogError => ({
+          _tag: 'MutationFailed',
+          cause,
+          context: 'Failed to close backlog item',
+        }))
       );
 
     yield* Effect.sync(() => {
@@ -888,6 +874,46 @@ export const closeBacklogEffect = (
       console.log(`   ID: ${options.backlogItemId}`);
       console.log(`   Status: closed`);
       console.log(`   Reason: ${reason}`);
+      console.log('');
+    });
+  });
+
+// fallow-ignore-next-line unused-export
+export const deleteBacklogEffect = (
+  chatroomId: string,
+  options: DeleteBacklogOptions
+): Effect.Effect<void, BacklogError, BackendService | SessionService> =>
+  Effect.gen(function* () {
+    const sessionService = yield* SessionService;
+    const backend = yield* BackendService;
+    const sessionId = yield* requireAuthEffect(sessionService);
+    yield* validateChatroomIdEffect(chatroomId);
+
+    if (!options.backlogItemId || options.backlogItemId.trim().length === 0) {
+      return yield* Effect.fail<BacklogError>({
+        _tag: 'InvalidInput',
+        message: 'Backlog item ID is required',
+      });
+    }
+
+    yield* backend
+      .mutation<void>(api.backlog.deleteBacklogItem, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        itemId: options.backlogItemId as Id<'chatroom_backlog'>,
+      })
+      .pipe(
+        Effect.mapError((cause): BacklogError => ({
+          _tag: 'MutationFailed',
+          cause,
+          context: 'Failed to delete backlog item',
+        }))
+      );
+
+    yield* Effect.sync(() => {
+      console.log('');
+      console.log('✅ Backlog item deleted');
+      console.log(`   ID: ${options.backlogItemId}`);
       console.log('');
     });
   });
@@ -911,13 +937,11 @@ export const exportBacklogEffect = (
         statusFilter: 'backlog',
       })
       .pipe(
-        Effect.mapError(
-          (cause): BacklogError => ({
-            _tag: 'QueryFailed',
-            cause,
-            context: 'Failed to export backlog items',
-          })
-        )
+        Effect.mapError((cause): BacklogError => ({
+          _tag: 'QueryFailed',
+          cause,
+          context: 'Failed to export backlog items',
+        }))
       );
 
     const exportData: BacklogExportFile = {
@@ -952,25 +976,21 @@ export const exportBacklogEffect = (
     const exportDir = options.path ?? nodePath.join(process.cwd(), DEFAULT_EXPORT_DIR);
 
     yield* fsService.mkdir(exportDir, { recursive: true }).pipe(
-      Effect.mapError(
-        (cause): BacklogError => ({
-          _tag: 'QueryFailed',
-          cause,
-          context: 'Failed to export backlog items',
-        })
-      )
+      Effect.mapError((cause): BacklogError => ({
+        _tag: 'QueryFailed',
+        cause,
+        context: 'Failed to export backlog items',
+      }))
     );
 
     const filePath = nodePath.join(exportDir, BACKLOG_EXPORT_FILENAME);
 
     yield* fsService.writeFile(filePath, JSON.stringify(exportData, null, 2)).pipe(
-      Effect.mapError(
-        (cause): BacklogError => ({
-          _tag: 'QueryFailed',
-          cause,
-          context: 'Failed to export backlog items',
-        })
-      )
+      Effect.mapError((cause): BacklogError => ({
+        _tag: 'QueryFailed',
+        cause,
+        context: 'Failed to export backlog items',
+      }))
     );
 
     yield* Effect.sync(() => {
@@ -1266,6 +1286,23 @@ export async function closeBacklog(
   const d = deps ?? (await createDefaultDeps());
   await Effect.runPromise(
     closeBacklogEffect(chatroomId, options).pipe(
+      Effect.catchAll(handleBacklogError),
+      Effect.provide(buildBaseLayer(d))
+    )
+  );
+}
+
+/**
+ * Permanently delete a backlog item (cannot be undone).
+ */
+export async function deleteBacklog(
+  chatroomId: string,
+  options: DeleteBacklogOptions,
+  deps?: BacklogDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  await Effect.runPromise(
+    deleteBacklogEffect(chatroomId, options).pipe(
       Effect.catchAll(handleBacklogError),
       Effect.provide(buildBaseLayer(d))
     )

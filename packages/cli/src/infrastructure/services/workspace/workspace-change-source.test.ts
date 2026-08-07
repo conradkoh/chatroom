@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { discoverGitWorkspaceHierarchy } from './git-workspace-hierarchy.js';
 import { createWorkspaceChangeSource } from './workspace-change-source.js';
-import { runGit } from '../../git/run-command.js';
+import { runGit } from '../../../daemon/infrastructure/git/run-command.js';
 
 const mocks = vi.hoisted(() => ({ close: vi.fn(async () => undefined) }));
 let emitter: EventEmitter;

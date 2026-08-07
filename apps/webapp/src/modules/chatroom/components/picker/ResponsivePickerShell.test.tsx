@@ -9,6 +9,7 @@ import { OverlayPortalContainerProvider } from '../shared/overlayPortalContainer
 
 const mockUseIsDesktop = vi.fn();
 const mockUseKeyboardInset = vi.fn();
+const mockUseOffsetTop = vi.fn();
 
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => mockUseIsDesktop(),
@@ -19,6 +20,7 @@ vi.mock('@/hooks/useMobileKeyboard', async (importOriginal) => {
   return {
     ...(actual as Record<string, unknown>),
     useVisualViewportKeyboardInset: () => mockUseKeyboardInset(),
+    useVisualViewportOffsetTop: () => mockUseOffsetTop(),
   };
 });
 
@@ -39,6 +41,10 @@ function renderShell(overrides: Record<string, unknown> = {}) {
 describe('ResponsivePickerShell', () => {
   beforeEach(() => {
     mockUseIsDesktop.mockReset();
+    mockUseKeyboardInset.mockReset();
+    mockUseOffsetTop.mockReset();
+    mockUseKeyboardInset.mockReturnValue(0);
+    mockUseOffsetTop.mockReturnValue(0);
   });
 
   it('renders popover content when isDesktop is true', () => {
@@ -100,6 +106,8 @@ describe('ResponsivePickerShell', () => {
       const wrap = document.querySelector('[data-testid="picker-pointer-trigger-wrap"]');
       expect(wrap).not.toBeNull();
       expect(wrap).toHaveClass('w-full');
+      expect(wrap).toHaveClass('h-full');
+      expect(wrap).toHaveClass('flex');
     });
 
     it('renders pointer anchor at pointer-down coordinates on desktop', async () => {
@@ -183,6 +191,18 @@ describe('ResponsivePickerShell', () => {
     expect(drawerContent?.getAttribute('style')).toContain('120px');
   });
 
+  it('top-anchors mobile drawer when keyboard inset and viewport offsetTop are non-zero', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    mockUseKeyboardInset.mockReturnValue(120);
+    mockUseOffsetTop.mockReturnValue(80);
+    renderShell();
+
+    const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
+    const style = drawerContent?.getAttribute('style') ?? '';
+    expect(style).toContain('top');
+    expect(style).toMatch(/margin-top:\s*0|marginTop:\s*0/);
+  });
+
   it('includes safe-area horizontal padding on mobile drawer', () => {
     mockUseIsDesktop.mockReturnValue(false);
     renderShell();
@@ -217,7 +237,7 @@ describe('ResponsivePickerShell', () => {
       </ResponsivePickerShell>
     );
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
-    expect(onOpenChange).toHaveBeenCalledWith(true);
+    expect(onOpenChange.mock.calls[0]?.[0]).toBe(true);
   });
 
   it('calls onOpenChange(true) when trigger clicked on mobile', async () => {
@@ -299,6 +319,33 @@ describe('ResponsivePickerShell', () => {
 
     const scrollBody = document.querySelector('[data-picker-scroll-body]');
     expect(scrollBody).not.toBeNull();
+    const wrapper = scrollBody?.parentElement;
+    expect(wrapper?.className).toContain('flex-col');
+    expect(wrapper?.className).toContain('overflow-hidden');
+  });
+
+  it('applies flex scroll layout to PickerScrollBody in desktop popover', () => {
+    mockUseIsDesktop.mockReturnValue(true);
+    render(
+      <ResponsivePickerShell
+        open={true}
+        onOpenChange={vi.fn()}
+        trigger={<button type="button">Open</button>}
+        title="Test"
+      >
+        <PickerSearch value="" onChange={vi.fn()} />
+        <PickerScrollBody maxHeightClassName="max-h-60">
+          <div>Option</div>
+        </PickerScrollBody>
+      </ResponsivePickerShell>
+    );
+
+    const scrollBody = document.querySelector('[data-picker-scroll-body]');
+    expect(scrollBody).not.toBeNull();
+    expect(scrollBody?.className).toContain('min-h-0');
+    expect(scrollBody?.className).toContain('max-h-60');
+    const popoverContent = document.querySelector('[data-slot="chatroom-popover-content"]');
+    expect(popoverContent?.className).toContain('overflow-hidden');
     const wrapper = scrollBody?.parentElement;
     expect(wrapper?.className).toContain('flex-col');
     expect(wrapper?.className).toContain('overflow-hidden');

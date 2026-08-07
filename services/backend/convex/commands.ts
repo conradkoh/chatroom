@@ -11,18 +11,22 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
-import { requireMachineOwner } from './auth/cli/machineAccess.js';
+import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession, requireSession } from './auth/session';
-
 import {
   handleRunCommand,
   handleStopCommand,
   handleAppendOutput,
-  handleUpdateRunTailV2,
   handleSetRunLogObserver,
   handleRequestRunOutputFullSync,
   handleClearPendingFullOutputSync,
 } from './commands/mutations';
+import {
+  updateRunStatus as handleUpdateRunStatus,
+  clearStuckRuns as handleClearStuckCommandRuns,
+  reapOrphansForMachine as handleReapOrphansForDaemonRestart,
+} from './commands/process/run_status';
+import { syncCommands as handleSyncCommands } from './commands/process/sync';
 import {
   handleListCommands,
   handleListActiveRuns,
@@ -31,12 +35,8 @@ import {
   handleGetRunStatus,
   handleListRunsWithLogObservers,
 } from './commands/queries';
-import { syncCommands as handleSyncCommands } from './commands/process/sync';
-import {
-  updateRunStatus as handleUpdateRunStatus,
-  clearStuckRuns as handleClearStuckCommandRuns,
-  reapOrphansForMachine as handleReapOrphansForDaemonRestart,
-} from './commands/process/run_status';
+import { str } from './utils/types';
+import { stopAllCommandRunsForChatroom as stopAllCommandRunsForChatroomUseCase } from '../src/domain/usecase/commands/stop-all-command-runs-for-chatroom';
 
 // ─── Mutations ──────────────────────────────────────────────────────────────
 
@@ -49,7 +49,12 @@ export const syncCommands = mutation({
       v.object({
         name: v.string(),
         script: v.string(),
-        source: v.union(v.literal('package.json'), v.literal('turbo.json')),
+        source: v.union(
+          v.literal('package.json'),
+          v.literal('turbo.json'),
+          v.literal('deno.json'),
+          v.literal('Makefile')
+        ),
         subWorkspace: v.optional(
           v.object({
             type: v.string(),
@@ -121,7 +126,7 @@ export const stopCommand = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
   },
   handler: async (ctx, args) => {
     const auth = await requireSession(ctx, args.sessionId);
@@ -135,11 +140,30 @@ export const stopCommand = mutation({
   },
 });
 
+export const stopAllCommandRunsForChatroom = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireSession(ctx, args.sessionId);
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'chatroom', id: str(args.chatroomId) },
+      permission: 'write-access',
+    });
+
+    return await stopAllCommandRunsForChatroomUseCase(ctx, {
+      chatroomId: args.chatroomId,
+    });
+  },
+});
+
 export const updateRunStatus = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
     status: v.union(
       v.literal('running'),
       v.literal('completed'),
@@ -172,11 +196,8 @@ export const appendOutput = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
-    content: v.union(
-      v.string(),
-      v.object({ compression: v.literal('gzip'), content: v.string() })
-    ),
+    runId: v.id('chatroom_commandRunsV2'),
+    content: v.object({ compression: v.literal('gzip'), content: v.string() }),
     chunkIndex: v.number(),
   },
   handler: async (ctx, args) => {
@@ -196,50 +217,15 @@ export const appendOutput = mutation({
   },
 });
 
-export const updateRunTailV2 = mutation({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
-    tailOutput: v.object({
-      compression: v.literal('gzip'),
-      content: v.string(),
-      byteLength: v.number(),
-      totalBytesWritten: v.number(),
-      updatedAt: v.number(),
-      lineCount: v.number(),
-    }),
-  },
-  handler: async (ctx, args) => {
-    const auth = await requireSession(ctx, args.sessionId);
-    const ownerCheck = await checkAccess(ctx, {
-      accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'machine', id: args.machineId },
-      permission: 'owner',
-    });
-    if (!ownerCheck.ok)
-      throw new ConvexError({
-        code: 'NOT_AUTHORIZED_MACHINE',
-        message: 'Not authorized for this machine',
-      });
-
-    await handleUpdateRunTailV2(ctx, args);
-  },
-});
-
 export const controlRunOutputV2 = mutation({
   args: {
     ...SessionIdArg,
-    runId: v.id('chatroom_commandRuns'),
-    action: v.union(
-      v.literal('observe'),
-      v.literal('unobserve'),
-      v.literal('requestFull')
-    ),
+    runId: v.id('chatroom_commandRunsV2'),
+    action: v.union(v.literal('observe'), v.literal('unobserve'), v.literal('requestFull')),
   },
   handler: async (ctx, args) => {
     const auth = await requireSession(ctx, args.sessionId);
-    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+    const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
     if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
 
     await requireAccess(ctx, {
@@ -264,7 +250,7 @@ export const clearPendingFullOutputSync = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
   },
   handler: async (ctx, args) => {
     const auth = await requireSession(ctx, args.sessionId);
@@ -345,14 +331,14 @@ export const listRunsV2 = query({
 export const getRunOutputV2 = query({
   args: {
     ...SessionIdArg,
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
     loadFull: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return { chunks: [], run: null, tail: null, fullOutputPending: false };
 
-    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+    const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
     if (!run) return { chunks: [], run: null, tail: null, fullOutputPending: false };
 
     await requireAccess(ctx, {
@@ -369,13 +355,13 @@ export const getRunStatus = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    runId: v.id('chatroom_commandRuns'),
+    runId: v.id('chatroom_commandRunsV2'),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) return null;
 
-    const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+    const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
     if (!run) return null;
     if (run.machineId !== args.machineId) return null;
 

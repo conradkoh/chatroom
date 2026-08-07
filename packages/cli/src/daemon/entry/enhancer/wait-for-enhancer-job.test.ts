@@ -1,0 +1,162 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
+
+vi.mock('../../../../api.js', () => {
+  const api: Record<string, unknown> = {};
+  const setPath = (obj: Record<string, unknown>, path: string[], value: string) => {
+    let current = obj;
+    for (let i = 0; i < path.length - 1; i++) {
+      if (!current[path[i]]) current[path[i]] = {};
+      current = current[path[i]] as Record<string, unknown>;
+    }
+    current[path[path.length - 1]] = value;
+  };
+  setPath(api, ['web', 'enhancer', 'index', 'getJob'], 'getJob');
+  return { api };
+});
+
+describe('waitForEnhancerJobResolution', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('resolves complete via poll', async () => {
+    const getJob = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 'running' })
+      .mockResolvedValueOnce({ status: 'complete' });
+
+    const backend = { query: getJob };
+    const onFailure = vi.fn();
+    const onExitCb: (() => void)[] = [];
+
+    const promise = waitForEnhancerJobResolution({
+      sessionId: 'session',
+      chatroomId: 'room1',
+      jobId: 'job1',
+      backend: backend as any,
+      onFailure,
+      onExit: (cb) => {
+        onExitCb.push(cb);
+      },
+    });
+
+    // Advance well past poll interval to get second poll result
+    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(10);
+
+    const result = await promise;
+    expect(result).toBe('complete');
+    expect(onFailure).not.toHaveBeenCalled();
+  });
+
+  it('agent_end without complete calls forceTerminal failure', async () => {
+    const getJob = vi.fn().mockResolvedValue({ status: 'running' });
+    const backend = { query: getJob };
+    const onFailure = vi.fn();
+    const onAgentEndCb: (() => void)[] = [];
+
+    const promise = waitForEnhancerJobResolution({
+      sessionId: 'session',
+      chatroomId: 'room1',
+      jobId: 'job1',
+      backend: backend as any,
+      onFailure,
+      onAgentEnd: (cb) => {
+        onAgentEndCb.push(cb);
+      },
+      onExit: vi.fn(),
+    });
+
+    // Fire agent_end
+    onAgentEndCb[0]();
+
+    // Advance past grace period
+    await vi.advanceTimersByTimeAsync(4000);
+    await vi.advanceTimersByTimeAsync(100);
+
+    const result = await promise;
+    expect(result).toBe('failed');
+    expect(onFailure).toHaveBeenCalledWith('Agent exited without completing enhancer job', true);
+  });
+
+  it('onExit without complete triggers failure', async () => {
+    const getJob = vi.fn().mockResolvedValue({ status: 'running' });
+    const backend = { query: getJob };
+    const onFailure = vi.fn();
+    const onExitCb: (() => void)[] = [];
+
+    const promise = waitForEnhancerJobResolution({
+      sessionId: 'session',
+      chatroomId: 'room1',
+      jobId: 'job1',
+      backend: backend as any,
+      onFailure,
+      onExit: (cb) => {
+        onExitCb.push(cb);
+      },
+    });
+
+    // Fire onExit
+    onExitCb[0]();
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    const result = await promise;
+    expect(result).toBe('failed');
+    expect(onFailure).toHaveBeenCalledWith(
+      'Agent process exited without completing enhancer job',
+      false
+    );
+  });
+
+  it('agent_end without complete salvages accumulated text', async () => {
+    let salvaged = false;
+    const getJob = vi.fn().mockImplementation(() => {
+      return Promise.resolve({ status: salvaged ? 'complete' : 'running' });
+    });
+    const backend = { query: getJob };
+    const onFailure = vi.fn();
+    const onSalvageComplete = vi.fn().mockImplementation(async () => {
+      salvaged = true;
+    });
+    const onAgentEndCb: (() => void)[] = [];
+    const onAssistantTextCb: ((text: string) => void)[] = [];
+
+    const promise = waitForEnhancerJobResolution({
+      sessionId: 'session',
+      chatroomId: 'room1',
+      jobId: 'job1',
+      backend: backend as any,
+      onFailure,
+      onSalvageComplete,
+      onAgentEnd: (cb) => {
+        onAgentEndCb.push(cb);
+      },
+      onAssistantText: (cb) => {
+        onAssistantTextCb.push(cb);
+      },
+      onExit: vi.fn(),
+    });
+
+    // Simulate assistant text deltas
+    onAssistantTextCb[0]('## Summary\n');
+    onAssistantTextCb[0]('Planning feedback');
+
+    onAgentEndCb[0]();
+
+    // Run all pending timers and microtasks
+    await vi.runAllTimersAsync();
+
+    const result = await promise;
+    console.log(`[test] result = ${result}`);
+    expect(result).toBe('complete');
+    expect(onSalvageComplete).toHaveBeenCalledWith('## Summary\nPlanning feedback');
+    expect(onFailure).not.toHaveBeenCalled();
+  });
+});

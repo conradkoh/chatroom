@@ -2,12 +2,10 @@
  * Shared <task> XML envelope renderer for CLI and native task delivery.
  */
 
-import type { TaskDeliveryContextSectionParams } from './context-staleness.js';
-import { appendTaskDeliveryContextSection } from './context-staleness.js';
+import { appendStandingInstructionsSection } from './render-standing-instructions.js';
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { renderDeliveryAttachmentsBlock } from '../attachments/render-delivery-attachments.js';
 import { escapeXmlAttribute, escapeXmlText } from '../attachments/xml.js';
-import { appendStandingInstructionsSection } from './render-standing-instructions.js';
 
 export interface TaskEnvelopeParams {
   task: { _id: string; content: string };
@@ -17,10 +15,6 @@ export interface TaskEnvelopeParams {
   cliEnvPrefix: string;
   isEntryPoint: boolean;
   sourceAttachments?: PrimaryDeliveryAttachments;
-  currentContext?: TaskDeliveryContextSectionParams['currentContext'];
-  originMessage?: TaskDeliveryContextSectionParams['originMessage'];
-  followUpCountSinceOrigin?: number;
-  originMessageCreatedAt?: number | null;
   deliveryMode: 'cli' | 'native';
   /** CLI-only: token activity note rendered inside <task> */
   intakeNote?: string;
@@ -57,18 +51,6 @@ function renderOriginMessageBlock(
 // fallow-ignore-next-line complexity
 export function renderTaskEnvelopeLines(params: TaskEnvelopeParams): string[] {
   const lines: string[] = [taskOpenTag(params)];
-
-  // Context section — emits <context> XML
-  appendTaskDeliveryContextSection(lines, {
-    chatroomId: params.chatroomId,
-    role: params.role,
-    cliEnvPrefix: params.cliEnvPrefix,
-    isEntryPoint: params.isEntryPoint,
-    currentContext: params.currentContext ?? null,
-    originMessage: params.originMessage ?? null,
-    followUpCountSinceOrigin: params.followUpCountSinceOrigin ?? 0,
-    originMessageCreatedAt: params.originMessageCreatedAt ?? null,
-  });
 
   appendStandingInstructionsSection(lines, params.standingInstructions);
 

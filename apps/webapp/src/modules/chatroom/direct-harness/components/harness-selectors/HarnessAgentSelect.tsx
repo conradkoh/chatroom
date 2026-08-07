@@ -6,7 +6,6 @@ import { useState } from 'react';
 import { displayAgentRoleName, getEligibleAgents } from './display-agent-role';
 import { CAPABILITIES_REFRESH_HINT } from './select-empty-states';
 import type { AgentOption } from './types';
-import { selectTriggerClassName } from '../ui/select';
 import {
   ResponsivePickerShell,
   PickerSearch,
@@ -15,8 +14,11 @@ import {
   usePickerSearchState,
   filterPickerItems,
 } from '../../../components/picker';
-
-import { cn } from '@/lib/utils';
+import {
+  pickerTriggerClassName,
+  pickerTriggerChevronClassName,
+  PICKER_TRIGGER_CHEVRON_SIZE,
+} from '../../../components/picker/pickerTriggerStyles';
 
 interface HarnessAgentSelectProps {
   /** Full agents list — component filters to mode primary|all internally. */
@@ -64,12 +66,15 @@ export function HarnessAgentSelect({
         <button
           type="button"
           disabled={isDisabled}
-          className={selectTriggerClassName}
+          className={pickerTriggerClassName}
           title={hasAgents ? 'Select agent' : CAPABILITIES_REFRESH_HINT}
           aria-label={hasAgents ? 'Select agent' : 'No agents available yet'}
         >
-          <span className={cn('truncate text-left flex-1')}>{selectedLabel}</span>
-          <ChevronDown size={12} className="shrink-0 opacity-50" />
+          <span className="truncate flex items-center min-w-0">{selectedLabel}</span>
+          <ChevronDown
+            size={PICKER_TRIGGER_CHEVRON_SIZE}
+            className={pickerTriggerChevronClassName}
+          />
         </button>
       }
     >

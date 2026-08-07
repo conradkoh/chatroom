@@ -299,7 +299,7 @@ async function _testNewCredentials(
 
   try {
     const tokenEndpoint = 'https://oauth2.googleapis.com/token';
-    const testRedirectUri = 'http://localhost:3000/login/google/callback';
+    const testRedirectUri = 'http://localhost:3000/api/auth/google/callback';
 
     const response = await fetch(tokenEndpoint, {
       method: 'POST',

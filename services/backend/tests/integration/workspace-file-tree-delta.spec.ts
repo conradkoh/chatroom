@@ -17,6 +17,14 @@ async function setup(sessionKey: string, machineId: string) {
 }
 
 const ADD_OPERATION = {
+  o: 'a' as const,
+  p: 'src/index.ts',
+  e: 'f' as const,
+  s: 42,
+  m: 1_700_000_000_000,
+};
+
+const EXPECTED_ADD_OPERATION = {
   operation: 'add' as const,
   path: 'src/index.ts',
   entryType: 'file' as const,
@@ -67,20 +75,25 @@ describe('incremental workspace file tree', () => {
       workingDir: WORKING_DIR,
       afterRevision: 0,
     });
-    expect(result).toMatchObject({
+    expect(result).toEqual({
       status: 'ok',
-      checkpointRevision: 0,
-      currentRevision: 1,
-      hasMore: false,
       deltas: [
         {
-          operationId: 'watch-batch-1',
           baseRevision: 0,
           revision: 1,
-          operations: [ADD_OPERATION],
+          operations: [EXPECTED_ADD_OPERATION],
         },
       ],
     });
+
+    // Caught-up query returns null
+    const caughtUp = await t.query(api.workspaceFiles.getFileTreeDeltas, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      afterRevision: 1,
+    });
+    expect(caughtUp).toBeNull();
 
     // Idempotency is checked before base revision, as required for network retries.
     const duplicate = await t.mutation(api.workspaceFiles.applyFileTreeDeltaBatch, {
@@ -114,7 +127,7 @@ describe('incremental workspace file tree', () => {
       workingDir: WORKING_DIR,
       operationId: 'watch-batch-stale',
       baseRevision: 0,
-      operations: [{ operation: 'remove', path: 'src/index.ts' }],
+      operations: [{ o: 'r' as const, p: 'src/index.ts' }],
     });
 
     expect(stale).toEqual({ status: 'resync-required', expectedRevision: 1 });
@@ -313,7 +326,7 @@ describe('incremental workspace file tree', () => {
         workingDir: WORKING_DIR,
         operationId: 'unauthorized-batch',
         baseRevision: 1,
-        operations: [{ operation: 'remove', path: 'src/index.ts' }],
+        operations: [{ o: 'r' as const, p: 'src/index.ts' }],
       })
     ).rejects.toThrow();
     await expect(

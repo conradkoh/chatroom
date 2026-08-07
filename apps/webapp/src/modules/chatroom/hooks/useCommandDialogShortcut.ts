@@ -1,11 +1,19 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
 import {
   type CommandDialogType,
-  useCommandDialog,
+  useCommandDialogActions,
 } from '@/modules/chatroom/context/CommandDialogContext';
+import {
+  getCommandPaletteOpen,
+  subscribeCommandPaletteOpen,
+} from '@/modules/chatroom/context/commandPaletteController';
+import {
+  getActiveContextManagedDialog,
+  subscribeActiveContextManagedDialog,
+} from '@/modules/chatroom/context/contextManagedDialogsController';
 
 type CommandDialogShiftKey = 'required' | 'forbidden' | 'ignored';
 
@@ -37,21 +45,40 @@ function matchesCommandDialogShortcut(
   }
 }
 
+const noopSubscribe = () => () => {};
+
 /**
  * Registers a global keyboard shortcut that toggles a command dialog open/closed.
  * Used by Cmd+K (switcher), Cmd+P (file selector), and Cmd+Shift+P (command palette).
  */
+// fallow-ignore-next-line complexity
 export function useCommandDialogShortcut({
   dialog,
   key,
   shiftKey = 'ignored',
 }: CommandDialogShortcutOptions): void {
-  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
-  const open = activeDialog === dialog;
+  const { openDialog, closeDialog, toggleCommandPalette } = useCommandDialogActions();
+  const contextManagedOpen = useSyncExternalStore(
+    dialog === 'command-palette' ? noopSubscribe : subscribeActiveContextManagedDialog,
+    () => (dialog === 'command-palette' ? false : getActiveContextManagedDialog() === dialog),
+    () => false
+  );
+  const paletteOpen = useSyncExternalStore(
+    dialog === 'command-palette' ? subscribeCommandPaletteOpen : noopSubscribe,
+    dialog === 'command-palette' ? getCommandPaletteOpen : () => false,
+    () => false
+  );
+  const open = dialog === 'command-palette' ? paletteOpen : contextManagedOpen;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!matchesCommandDialogShortcut(event, { key, shiftKey })) return;
+
+      if (dialog === 'command-palette') {
+        event.preventDefault();
+        toggleCommandPalette();
+        return;
+      }
 
       event.preventDefault();
       if (open) {
@@ -63,5 +90,5 @@ export function useCommandDialogShortcut({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, openDialog, closeDialog, dialog, key, shiftKey]);
+  }, [open, openDialog, closeDialog, toggleCommandPalette, dialog, key, shiftKey]);
 }

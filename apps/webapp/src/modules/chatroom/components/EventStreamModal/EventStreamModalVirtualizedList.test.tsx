@@ -6,7 +6,7 @@ import { EVENT_STREAM_ROW_HEIGHT } from '../../eventTypes';
 import type { EventStreamEvent } from '../../viewModels/eventStreamViewModel';
 
 vi.mock('../../eventTypes', () => ({
-  EVENT_STREAM_ROW_HEIGHT: 52,
+  EVENT_STREAM_ROW_HEIGHT: 60,
   resolveEventTypeDefinition: () => ({
     cellRenderer: (event: { _id: string; type: string }, isSelected: boolean) => (
       <div data-testid={`event-${event._id}`} data-selected={isSelected}>
@@ -56,6 +56,6 @@ describe('EventStreamModalVirtualizedList', () => {
   it('EVENT_STREAM_ROW_HEIGHT matches EventRow rendered height', () => {
     // SSOT: virtualizer estimates rows at this height;
     // EventRow must match so there are no gaps between rows.
-    expect(EVENT_STREAM_ROW_HEIGHT).toBe(52);
+    expect(EVENT_STREAM_ROW_HEIGHT).toBe(60);
   });
 });

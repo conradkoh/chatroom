@@ -10,6 +10,7 @@
 
 import type * as agentResumeStorm from "../agentResumeStorm.js";
 import type * as agenticQueryCleanup from "../agenticQueryCleanup.js";
+import type * as allTabConversation from "../allTabConversation.js";
 import type * as api_agenticQueryHelpers from "../api/agenticQueryHelpers.js";
 import type * as api_directHarnessHelpers from "../api/directHarnessHelpers.js";
 import type * as api_harnessChunkAggregate from "../api/harnessChunkAggregate.js";
@@ -39,6 +40,7 @@ import type * as commands_process_run_status from "../commands/process/run_statu
 import type * as commands_process_state from "../commands/process/state.js";
 import type * as commands_process_sync from "../commands/process/sync.js";
 import type * as commands_queries from "../commands/queries.js";
+import type * as commands_tail from "../commands/tail.js";
 import type * as commands_types from "../commands/types.js";
 import type * as connectionCleanup from "../connectionCleanup.js";
 import type * as connections from "../connections.js";
@@ -61,9 +63,16 @@ import type * as daemon_directHarness_messages from "../daemon/directHarness/mes
 import type * as daemon_directHarness_queue from "../daemon/directHarness/queue.js";
 import type * as daemon_directHarness_sessions from "../daemon/directHarness/sessions.js";
 import type * as daemon_directHarness_turns from "../daemon/directHarness/turns.js";
+import type * as daemon_enhancer_auth from "../daemon/enhancer/auth.js";
+import type * as daemon_enhancer_index from "../daemon/enhancer/index.js";
+import type * as daemon_enhancer_jobs from "../daemon/enhancer/jobs.js";
+import type * as daemon_enhancer_spawnPayload from "../daemon/enhancer/spawnPayload.js";
 import type * as dev from "../dev.js";
 import type * as directHarnessCleanup from "../directHarnessCleanup.js";
 import type * as discussions from "../discussions.js";
+import type * as e2e from "../e2e.js";
+import type * as enhancerConfigFavorites from "../enhancerConfigFavorites.js";
+import type * as enhancerJobReaper from "../enhancerJobReaper.js";
 import type * as eventCleanup from "../eventCleanup.js";
 import type * as events from "../events.js";
 import type * as guidelines from "../guidelines.js";
@@ -78,6 +87,7 @@ import type * as integrations_telegram_types from "../integrations/telegram/type
 import type * as integrations_types from "../integrations/types.js";
 import type * as lib_backlogStateMachine from "../lib/backlogStateMachine.js";
 import type * as lib_chatroomUtils from "../lib/chatroomUtils.js";
+import type * as lib_fileTreeDeltaOps from "../lib/fileTreeDeltaOps.js";
 import type * as lib_handoffRoles from "../lib/handoffRoles.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
 import type * as lib_promoteNextTaskDeps from "../lib/promoteNextTaskDeps.js";
@@ -96,6 +106,7 @@ import type * as prompts_webapp from "../prompts/webapp.js";
 import type * as savedCommandValidation from "../savedCommandValidation.js";
 import type * as savedCommands from "../savedCommands.js";
 import type * as savedCommandsAuth from "../savedCommandsAuth.js";
+import type * as scheduledPrompts from "../scheduledPrompts.js";
 import type * as searchConfigFavorites from "../searchConfigFavorites.js";
 import type * as serviceDesk from "../serviceDesk.js";
 import type * as sessions from "../sessions.js";
@@ -103,6 +114,9 @@ import type * as skills from "../skills.js";
 import type * as standingInstructions from "../standingInstructions.js";
 import type * as storageCleanup from "../storageCleanup.js";
 import type * as system_auth_google from "../system/auth/google.js";
+import type * as system_invites from "../system/invites.js";
+import type * as system_users from "../system/users.js";
+import type * as taskDeliveryReceipts from "../taskDeliveryReceipts.js";
 import type * as tasks from "../tasks.js";
 import type * as utils_machineFavoriteScopeKey from "../utils/machineFavoriteScopeKey.js";
 import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
@@ -119,6 +133,14 @@ import type * as web_directHarness_messageQueue from "../web/directHarness/messa
 import type * as web_directHarness_messages from "../web/directHarness/messages.js";
 import type * as web_directHarness_sessions from "../web/directHarness/sessions.js";
 import type * as web_directHarness_turns from "../web/directHarness/turns.js";
+import type * as web_enhancer_completeLogic from "../web/enhancer/completeLogic.js";
+import type * as web_enhancer_delivery from "../web/enhancer/delivery.js";
+import type * as web_enhancer_enqueueHandoff from "../web/enhancer/enqueueHandoff.js";
+import type * as web_enhancer_index from "../web/enhancer/index.js";
+import type * as web_enhancer_internal from "../web/enhancer/internal.js";
+import type * as web_enhancer_jobHelpers from "../web/enhancer/jobHelpers.js";
+import type * as web_enhancer_mutations from "../web/enhancer/mutations.js";
+import type * as web_enhancer_queries from "../web/enhancer/queries.js";
 import type * as workspaceFiles from "../workspaceFiles.js";
 import type * as workspacePathSecurity from "../workspacePathSecurity.js";
 import type * as workspaces from "../workspaces.js";
@@ -132,6 +154,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   agentResumeStorm: typeof agentResumeStorm;
   agenticQueryCleanup: typeof agenticQueryCleanup;
+  allTabConversation: typeof allTabConversation;
   "api/agenticQueryHelpers": typeof api_agenticQueryHelpers;
   "api/directHarnessHelpers": typeof api_directHarnessHelpers;
   "api/harnessChunkAggregate": typeof api_harnessChunkAggregate;
@@ -161,6 +184,7 @@ declare const fullApi: ApiFromModules<{
   "commands/process/state": typeof commands_process_state;
   "commands/process/sync": typeof commands_process_sync;
   "commands/queries": typeof commands_queries;
+  "commands/tail": typeof commands_tail;
   "commands/types": typeof commands_types;
   connectionCleanup: typeof connectionCleanup;
   connections: typeof connections;
@@ -183,9 +207,16 @@ declare const fullApi: ApiFromModules<{
   "daemon/directHarness/queue": typeof daemon_directHarness_queue;
   "daemon/directHarness/sessions": typeof daemon_directHarness_sessions;
   "daemon/directHarness/turns": typeof daemon_directHarness_turns;
+  "daemon/enhancer/auth": typeof daemon_enhancer_auth;
+  "daemon/enhancer/index": typeof daemon_enhancer_index;
+  "daemon/enhancer/jobs": typeof daemon_enhancer_jobs;
+  "daemon/enhancer/spawnPayload": typeof daemon_enhancer_spawnPayload;
   dev: typeof dev;
   directHarnessCleanup: typeof directHarnessCleanup;
   discussions: typeof discussions;
+  e2e: typeof e2e;
+  enhancerConfigFavorites: typeof enhancerConfigFavorites;
+  enhancerJobReaper: typeof enhancerJobReaper;
   eventCleanup: typeof eventCleanup;
   events: typeof events;
   guidelines: typeof guidelines;
@@ -200,6 +231,7 @@ declare const fullApi: ApiFromModules<{
   "integrations/types": typeof integrations_types;
   "lib/backlogStateMachine": typeof lib_backlogStateMachine;
   "lib/chatroomUtils": typeof lib_chatroomUtils;
+  "lib/fileTreeDeltaOps": typeof lib_fileTreeDeltaOps;
   "lib/handoffRoles": typeof lib_handoffRoles;
   "lib/hierarchy": typeof lib_hierarchy;
   "lib/promoteNextTaskDeps": typeof lib_promoteNextTaskDeps;
@@ -218,6 +250,7 @@ declare const fullApi: ApiFromModules<{
   savedCommandValidation: typeof savedCommandValidation;
   savedCommands: typeof savedCommands;
   savedCommandsAuth: typeof savedCommandsAuth;
+  scheduledPrompts: typeof scheduledPrompts;
   searchConfigFavorites: typeof searchConfigFavorites;
   serviceDesk: typeof serviceDesk;
   sessions: typeof sessions;
@@ -225,6 +258,9 @@ declare const fullApi: ApiFromModules<{
   standingInstructions: typeof standingInstructions;
   storageCleanup: typeof storageCleanup;
   "system/auth/google": typeof system_auth_google;
+  "system/invites": typeof system_invites;
+  "system/users": typeof system_users;
+  taskDeliveryReceipts: typeof taskDeliveryReceipts;
   tasks: typeof tasks;
   "utils/machineFavoriteScopeKey": typeof utils_machineFavoriteScopeKey;
   "utils/teamRoleKey": typeof utils_teamRoleKey;
@@ -241,6 +277,14 @@ declare const fullApi: ApiFromModules<{
   "web/directHarness/messages": typeof web_directHarness_messages;
   "web/directHarness/sessions": typeof web_directHarness_sessions;
   "web/directHarness/turns": typeof web_directHarness_turns;
+  "web/enhancer/completeLogic": typeof web_enhancer_completeLogic;
+  "web/enhancer/delivery": typeof web_enhancer_delivery;
+  "web/enhancer/enqueueHandoff": typeof web_enhancer_enqueueHandoff;
+  "web/enhancer/index": typeof web_enhancer_index;
+  "web/enhancer/internal": typeof web_enhancer_internal;
+  "web/enhancer/jobHelpers": typeof web_enhancer_jobHelpers;
+  "web/enhancer/mutations": typeof web_enhancer_mutations;
+  "web/enhancer/queries": typeof web_enhancer_queries;
   workspaceFiles: typeof workspaceFiles;
   workspacePathSecurity: typeof workspacePathSecurity;
   workspaces: typeof workspaces;

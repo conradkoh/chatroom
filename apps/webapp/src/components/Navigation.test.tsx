@@ -37,6 +37,16 @@ vi.mock('@workspace/backend/config/featureFlags', () => ({
   },
 }));
 
+vi.mock('@/modules/header/HeaderPortalProvider', () => ({
+  useHeaderPortal: vi.fn(() => ({
+    left: null,
+    center: null,
+    right: null,
+    hideAppTitle: false,
+    hideUserMenu: false,
+  })),
+}));
+
 describe('Navigation', () => {
   it('renders login button when user is not authenticated', () => {
     vi.mocked(useAuthState).mockReturnValue({
@@ -77,5 +87,47 @@ describe('Navigation', () => {
     // Should not render login button or user menu
     expect(screen.queryByRole('link', { name: /login/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId('user-menu')).not.toBeInTheDocument();
+  });
+
+  it('links brand to / while auth state is loading', () => {
+    vi.mocked(useAuthState).mockReturnValue(undefined);
+
+    render(<Navigation />);
+
+    const brandLink = screen.getByRole('link', { name: /chatroom/i });
+    expect(brandLink).toHaveAttribute('href', '/');
+  });
+
+  it('links brand to / when user is unauthenticated', () => {
+    vi.mocked(useAuthState).mockReturnValue({
+      sessionId: 'test-session',
+      state: 'unauthenticated',
+      reason: 'test',
+    });
+
+    render(<Navigation />);
+
+    const brandLink = screen.getByRole('link', { name: /chatroom/i });
+    expect(brandLink).toHaveAttribute('href', '/');
+  });
+
+  it('links brand to /app when user is authenticated', () => {
+    vi.mocked(useAuthState).mockReturnValue({
+      sessionId: 'test-session',
+      state: 'authenticated',
+      user: {
+        _id: 'test-user-id' as Id<'users'>,
+        _creationTime: Date.now(),
+        type: 'anonymous',
+        name: 'Test User',
+      },
+      accessLevel: 'user',
+      permissions: ['attendance:read', 'presentation:read'],
+    });
+
+    render(<Navigation />);
+
+    const brandLink = screen.getByRole('link', { name: /chatroom/i });
+    expect(brandLink).toHaveAttribute('href', '/app');
   });
 });

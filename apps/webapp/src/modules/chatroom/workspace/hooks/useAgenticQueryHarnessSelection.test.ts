@@ -31,8 +31,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn(),
 }));
 
-vi.mock('@/modules/chatroom/direct-harness/hooks/useHarnessModelFilter', () => ({
-  useHarnessModelFilter: () => ({
+vi.mock('@/modules/chatroom/components/model-selection', () => ({
+  ...vi.importActual('@/modules/chatroom/components/model-selection'),
+  useMachineModelFilter: () => ({
     isHidden: undefined,
     setFilter: vi.fn(),
   }),

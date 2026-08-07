@@ -49,18 +49,15 @@ export interface SessionValidation {
 // Response types from backend functions
 export interface AllowedHandoffRoles {
   availableRoles: string[];
-  currentClassification: 'question' | 'new_feature' | 'follow_up' | null;
 }
 
 export interface ContextWindow {
   originMessage: Message | null;
   contextMessages: Message[];
-  classification: 'question' | 'new_feature' | 'follow_up' | null;
 }
 
 export interface RolePromptResponse {
   prompt: string;
-  currentClassification: 'question' | 'new_feature' | 'follow_up' | null;
   availableHandoffRoles: string[];
 }
 

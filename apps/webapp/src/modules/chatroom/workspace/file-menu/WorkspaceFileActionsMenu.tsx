@@ -3,13 +3,13 @@
 import { Copy, MoreHorizontal } from 'lucide-react';
 import { memo } from 'react';
 
+import type { WorkspaceFileMenuProps } from './types';
+import { WorkspaceFileMenuItems } from './WorkspaceFileMenuItems';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
-import { WorkspaceFileMenuItems } from './WorkspaceFileMenuItems';
-import type { WorkspaceFileMenuProps } from './types';
 
 import { cn } from '@/lib/utils';
 
@@ -27,22 +27,20 @@ export const WorkspaceFileActionsMenu = memo(function WorkspaceFileActionsMenu({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            'text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors shrink-0 min-w-8 min-h-8 flex items-center justify-center rounded-sm',
-            className
-          )}
-          aria-label={isMoreTrigger ? 'More copy options' : 'Copy file'}
-          title={isMoreTrigger ? 'More copy options' : 'Copy file'}
-        >
-          {isMoreTrigger ? (
-            <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
-          ) : (
-            <Copy className="h-3.5 w-3.5" aria-hidden />
-          )}
-        </button>
+      <DropdownMenuTrigger
+        type="button"
+        className={cn(
+          'text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors shrink-0 min-w-8 min-h-8 flex items-center justify-center rounded-sm',
+          className
+        )}
+        aria-label={isMoreTrigger ? 'More copy options' : 'Copy file'}
+        title={isMoreTrigger ? 'More copy options' : 'Copy file'}
+      >
+        {isMoreTrigger ? (
+          <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
+        ) : (
+          <Copy className="h-3.5 w-3.5" aria-hidden />
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <WorkspaceFileMenuItems {...menuProps} />

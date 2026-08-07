@@ -1,73 +1,35 @@
 'use client';
 
-import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Star } from 'lucide-react';
+import type { Observable } from '@legendapp/state';
+import { useSelector } from '@legendapp/state/react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
-
-import { COMMAND_DIALOG_CONTENT_CLASSES } from './shared/commandDialogStyles';
+import { useEffect, useCallback, useState, useRef, useMemo, useSyncExternalStore } from 'react';
 
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import { Dialog, DialogPortal } from '@/components/ui/dialog';
+  acquireChatroomSwitcherPartition,
+  beginChatroomSwitcherPreload,
+  commitChatroomSwitcherPreload,
+  getChatroomSwitcherPreloadChatrooms,
+  releaseChatroomSwitcherPartition,
+  type ChatroomSwitcherPartitionState,
+} from './chatroomSwitcherPartitionStore';
+import { buildChatroomSwitcherRows, getChatroomSwitcherKeywords } from './chatroomSwitcherRows';
+import { ChatroomSwitcherVirtualizedList } from './ChatroomSwitcherVirtualizedList';
+import { CommandDialogContent } from './shared/CommandDialogContent';
+
+import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
-import { useCommandListScrollReset } from '@/modules/chatroom/hooks/useCommandListScrollReset';
-import { fuzzyFilter } from '@/lib/fuzzyMatch';
-import { cn } from '@/lib/utils';
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
 import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
-import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
+import {
+  getChatroomSwitcherOpen,
+  subscribeActiveContextManagedDialog,
+} from '@/modules/chatroom/context/contextManagedDialogsController';
 import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
-import { getChatStatusIndicatorClasses } from '@/modules/chatroom/utils/chatStatusDisplay';
 import { sortChatroomsWithCurrentFirst } from '@/modules/chatroom/utils/sortChatroomsWithCurrentFirst';
-import { getChatroomDisplayName } from '@/modules/chatroom/viewModels/chatroomViewModel';
-
-function getChatroomSwitcherKeywords(
-  chatroom: Pick<ChatroomWithStatus, 'name' | 'teamName'>
-): string[] {
-  const displayName = getChatroomDisplayName(chatroom);
-  if (chatroom.teamName && chatroom.teamName !== displayName) {
-    return [displayName, chatroom.teamName];
-  }
-  return [displayName];
-}
-
-// Status indicator uses shared chatStatusDisplay (mirrors ChatroomSidebar + listing page)
-
-function ChatroomSwitcherItem({
-  chatroom,
-  onSelect,
-}: {
-  chatroom: ChatroomWithStatus;
-  onSelect: (chatroomId: string) => void;
-}) {
-  const displayName = getChatroomDisplayName(chatroom);
-
-  return (
-    <CommandItem
-      value={chatroom._id}
-      keywords={getChatroomSwitcherKeywords(chatroom)}
-      onSelect={() => onSelect(chatroom._id)}
-      className="flex flex-row items-center gap-2 rounded-none cursor-pointer text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
-    >
-      <span className={getChatStatusIndicatorClasses(chatroom.chatStatus)} />
-      <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
-        {displayName}
-      </span>
-      {chatroom.isFavorite && (
-        <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
-      )}
-      {chatroom.hasUnread && <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />}
-    </CommandItem>
-  );
-}
 
 /**
  * Global Cmd+K chatroom switcher.
@@ -82,8 +44,12 @@ function ChatroomSwitcherItem({
  * - Apply the industrial theme cleanly without fighting Tailwind specificity
  */
 export function ChatroomSwitcher() {
-  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
-  const open = activeDialog === 'switcher';
+  const { openDialog, closeDialog } = useCommandDialogActions();
+  const open = useSyncExternalStore(
+    subscribeActiveContextManagedDialog,
+    getChatroomSwitcherOpen,
+    () => false
+  );
   const setOpen = useCallback(
     (val: boolean) => (val ? openDialog('switcher') : closeDialog()),
     [openDialog, closeDialog]
@@ -107,11 +73,71 @@ export function ChatroomSwitcher() {
     return sortChatroomsWithCurrentFirst(activeChatrooms, activeChatroomId);
   }, [chatrooms, activeChatroomId]);
 
+  const [partitionState$, setPartitionState$] =
+    useState<Observable<ChatroomSwitcherPartitionState> | null>(null);
+
+  useEffect(() => {
+    if (!switcherChatrooms || switcherChatrooms.length === 0) return;
+
+    const state$ = acquireChatroomSwitcherPartition();
+    setPartitionState$(state$);
+    const generation = beginChatroomSwitcherPreload(state$);
+
+    const runPreload = () => {
+      for (const c of switcherChatrooms) {
+        getChatroomSwitcherKeywords(c);
+      }
+      commitChatroomSwitcherPreload(state$, generation, switcherChatrooms);
+    };
+
+    // fallow-ignore-next-line code-duplication
+    const idleId =
+      typeof requestIdleCallback !== 'undefined'
+        ? requestIdleCallback(runPreload, { timeout: 2000 })
+        : setTimeout(runPreload, 0);
+
+    return () => {
+      if (typeof cancelIdleCallback !== 'undefined' && typeof idleId === 'number') {
+        cancelIdleCallback(idleId);
+      } else {
+        clearTimeout(idleId as ReturnType<typeof setTimeout>);
+      }
+      releaseChatroomSwitcherPartition();
+      setPartitionState$(null);
+    };
+  }, [switcherChatrooms]);
+
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);
   searchValueRef.current = searchValue;
-  const listRef = useCommandListScrollReset(searchValue);
   const onEscapeKeyDown = useEscapeToClear(searchValueRef, () => setSearchValue(''));
+
+  const isSearching = searchValue.trim().length > 0;
+
+  const { preloadedChatrooms, partitionStatus } = useSelector(() => {
+    if (!partitionState$) {
+      return { preloadedChatrooms: [] as ChatroomWithStatus[], partitionStatus: 'idle' as const };
+    }
+    const status = partitionState$.status.get();
+    const partitionKey = partitionState$.partitionKey.get();
+    return {
+      partitionStatus: status,
+      preloadedChatrooms:
+        status === 'ready' ? getChatroomSwitcherPreloadChatrooms(partitionKey) : [],
+    };
+  });
+
+  const displayChatrooms = useMemo(() => {
+    if (!isSearching && partitionStatus === 'ready' && preloadedChatrooms.length > 0) {
+      return preloadedChatrooms;
+    }
+    return switcherChatrooms;
+  }, [isSearching, partitionStatus, preloadedChatrooms, switcherChatrooms]);
+
+  const rows = useMemo(
+    () => buildChatroomSwitcherRows(displayChatrooms ?? [], searchValue),
+    [displayChatrooms, searchValue]
+  );
 
   // Reset search when closing
   useEffect(() => {
@@ -129,53 +155,37 @@ export function ChatroomSwitcher() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen} modal={false}>
-      <DialogPortal>
-        {/* No overlay — cmd+k is a quick-picker, not a blocking modal. Avoids backdrop fade lag. */}
-        <DialogPrimitive.Content
-          forceMount
-          onEscapeKeyDown={onEscapeKeyDown}
-          className={cn(...COMMAND_DIALOG_CONTENT_CLASSES)}
-        >
-          {/* Accessible title and description (sr-only) */}
-          <DialogPrimitive.Title className="sr-only">Switch Chatroom</DialogPrimitive.Title>
-          <DialogPrimitive.Description className="sr-only">
-            Search and navigate to a chatroom
-          </DialogPrimitive.Description>
+      {/* No overlay — cmd+k is a quick-picker, not a blocking modal. Avoids backdrop fade lag. */}
+      <CommandDialogContent
+        open={open}
+        onEscapeKeyDown={onEscapeKeyDown}
+        onBackdropDismiss={() => setOpen(false)}
+      >
+        {/* Accessible title and description (sr-only) */}
+        <DialogTitle className="sr-only">Switch Chatroom</DialogTitle>
+        <DialogDescription className="sr-only">Search and navigate to a chatroom</DialogDescription>
 
-          <Command
-            filter={fuzzyFilter}
-            className="bg-chatroom-bg-primary text-chatroom-text-primary"
-          >
-            <CommandInput
-              placeholder="Search chatrooms..."
-              className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
-              value={searchValue}
-              onValueChange={setSearchValue}
-            />
-            <div ref={listRef} className="overflow-y-auto min-h-[244px] h-[244px]">
-              <CommandList className="min-h-full">
-                <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
-                  No chatrooms found.
-                </CommandEmpty>
-                {switcherChatrooms && switcherChatrooms.length > 0 && (
-                  <CommandGroup
-                    heading="Chatrooms"
-                    className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:text-chatroom-text-muted"
-                  >
-                    {switcherChatrooms.map((chatroom) => (
-                      <ChatroomSwitcherItem
-                        key={chatroom._id}
-                        chatroom={chatroom}
-                        onSelect={handleSelect}
-                      />
-                    ))}
-                  </CommandGroup>
-                )}
-              </CommandList>
-            </div>
-          </Command>
-        </DialogPrimitive.Content>
-      </DialogPortal>
+        <Command shouldFilter={false} className="bg-chatroom-bg-primary text-chatroom-text-primary">
+          <CommandInput
+            placeholder="Search chatrooms..."
+            className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
+            value={searchValue}
+            onValueChange={setSearchValue}
+          />
+          <CommandList className="min-h-[244px] h-[244px] p-0 overflow-hidden">
+            <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
+              No chatrooms found.
+            </CommandEmpty>
+            {rows.some((row) => row.type === 'item') && (
+              <ChatroomSwitcherVirtualizedList
+                rows={rows}
+                onSelect={handleSelect}
+                scrollResetKey={searchValue}
+              />
+            )}
+          </CommandList>
+        </Command>
+      </CommandDialogContent>
     </Dialog>
   );
 }

@@ -1,11 +1,45 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveNativeHarnessOptions, resolveSelectedHarnessName } from './harness-selection';
+import {
+  applyHarnessVersions,
+  resolveNativeHarnessOptions,
+  resolveSelectedHarnessName,
+} from './harness-selection';
 import type { HarnessOption } from '../hooks/useHarnessConfig';
 
 function harness(name: string): HarnessOption {
   return { name, displayName: name, agents: [], providers: [] };
 }
+
+describe('applyHarnessVersions', () => {
+  it('merges version into harness options', () => {
+    const harnesses = [
+      { name: 'opencode-sdk', displayName: 'OpenCode (SDK)', agents: [], providers: [] },
+    ];
+    const result = applyHarnessVersions(harnesses, {
+      'opencode-sdk': { version: '1.17.18', major: 1 },
+    });
+    expect(result[0].version).toEqual({ version: '1.17.18', major: 1 });
+    expect(result[0].displayName).toBe('OpenCode (SDK) v1.17.18');
+  });
+
+  it('returns harnesses unchanged when versions is undefined', () => {
+    const harnesses = [
+      { name: 'opencode-sdk', displayName: 'OpenCode (SDK)', agents: [], providers: [] },
+    ];
+    expect(applyHarnessVersions(harnesses, undefined)).toBe(harnesses);
+  });
+
+  it('returns harnesses unchanged when harness has no matching version', () => {
+    const harnesses = [
+      { name: 'opencode-sdk', displayName: 'OpenCode (SDK)', agents: [], providers: [] },
+    ];
+    const result = applyHarnessVersions(harnesses, {
+      'cursor-sdk': { version: '1.0.0', major: 1 },
+    });
+    expect(result[0].version).toBeUndefined();
+  });
+});
 
 describe('resolveNativeHarnessOptions', () => {
   it('keeps only native-integration SDK harnesses from daemon reports', () => {

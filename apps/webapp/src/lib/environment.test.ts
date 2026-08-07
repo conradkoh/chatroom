@@ -5,6 +5,8 @@ import {
   getAppTitle,
   getDaemonStartCommand,
   getAuthLoginCommand,
+  getLocalManagerPort,
+  getLocalManagerUrl,
 } from './environment';
 
 const PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
@@ -93,5 +95,58 @@ describe('getAuthLoginCommand', () => {
   it('returns bare command when NEXT_PUBLIC_CONVEX_URL is not set', () => {
     vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', '');
     expect(getAuthLoginCommand('')).toBe('chatroom auth login');
+  });
+});
+
+describe('getLocalManagerPort', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('returns null in production environment', () => {
+    vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', PRODUCTION_CONVEX_URL);
+    expect(getLocalManagerPort()).toBeNull();
+  });
+
+  it('returns null when NEXT_PUBLIC_CONVEX_URL is not set', () => {
+    vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', '');
+    expect(getLocalManagerPort()).toBeNull();
+  });
+
+  it('returns default 3847 when env var is not set in local environment', () => {
+    vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', LOCAL_CONVEX_URL);
+    vi.stubEnv('NEXT_PUBLIC_LOCAL_MANAGER_PORT', '');
+    expect(getLocalManagerPort()).toBe(3847);
+  });
+
+  it('returns custom port from env var in local environment', () => {
+    vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', LOCAL_CONVEX_URL);
+    vi.stubEnv('NEXT_PUBLIC_LOCAL_MANAGER_PORT', '4000');
+    expect(getLocalManagerPort()).toBe(4000);
+  });
+
+  it('returns null for invalid port values', () => {
+    vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', LOCAL_CONVEX_URL);
+    vi.stubEnv('NEXT_PUBLIC_LOCAL_MANAGER_PORT', 'invalid');
+    expect(getLocalManagerPort()).toBeNull();
+  });
+});
+
+describe('getLocalManagerUrl', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('returns null in production', () => {
+    vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', PRODUCTION_CONVEX_URL);
+    expect(getLocalManagerUrl()).toBeNull();
+  });
+
+  it('returns http://localhost:3847 by default in local env', () => {
+    vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', LOCAL_CONVEX_URL);
+    vi.stubEnv('NEXT_PUBLIC_LOCAL_MANAGER_PORT', '');
+    expect(getLocalManagerUrl()).toBe('http://localhost:3847');
+  });
+
+  it('returns http://localhost:4000 for custom port', () => {
+    vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', LOCAL_CONVEX_URL);
+    vi.stubEnv('NEXT_PUBLIC_LOCAL_MANAGER_PORT', '4000');
+    expect(getLocalManagerUrl()).toBe('http://localhost:4000');
   });
 });

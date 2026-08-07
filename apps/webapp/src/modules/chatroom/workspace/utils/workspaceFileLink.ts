@@ -118,15 +118,12 @@ export type WorkspaceFileLinkOpenTarget = 'explorer' | 'preview';
 /**
  * Whether a workspace file link from chat markdown should open inline in the
  * explorer or the Cmd+P-style preview dialog.
- *
- * Explorer only when the user is already in explorer view with the split
- * messages panel visible.
  */
 export function resolveWorkspaceFileLinkOpenTarget(
   activeView: string,
-  explorerSplitViewEnabled: boolean
+  _explorerSplitViewEnabled?: boolean
 ): WorkspaceFileLinkOpenTarget {
-  if (activeView === 'explorer' && explorerSplitViewEnabled) {
+  if (activeView === 'explorer') {
     return 'explorer';
   }
   return 'preview';

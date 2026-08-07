@@ -235,6 +235,10 @@ describe('Duo Team > Builder > System Prompt', () => {
       - Handle edge cases and error scenarios
       - Commit work with descriptive, atomic commit messages
 
+      **Completion gates (before PR or handoff):**
+      - All **(Required)** files done; **verified end-to-end** (user-facing entry point works: CLI command runnable, API reachable, or UI action functional)
+      - If blocked → ## Blockers / questions to planner. No PR or \`mark-for-review\` until gates pass — unless the user explicitly requested a draft or incremental PR
+
        
 
       ### Handoff Options
@@ -260,8 +264,12 @@ describe('Duo Team > Builder > System Prompt', () => {
 
       A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
+      **History retrieval:** Use \`context read\` for current-task grounding; use \`messages download\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+
       **Reference commands:**
-      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
+      - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --format=linear --limit=10\`
+      - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
+      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):

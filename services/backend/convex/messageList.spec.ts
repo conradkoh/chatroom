@@ -195,17 +195,15 @@ describe('subscribeNewMessages — strict-after cursor', () => {
 });
 
 // ---------------------------------------------------------------------------
-// subscribeVisibleMessageUpdates — lightweight delta
+// subscribeTaskStatusSignalsSince — cursor-based task status signals
 // ---------------------------------------------------------------------------
 
-describe('subscribeVisibleMessageUpdates — lightweight delta', () => {
-  test('returns taskStatus + latestProgress for requested ids only', async () => {
-    const { sessionId } = await createTestSession('visible-updates-1');
+describe('subscribeTaskStatusSignalsSince — cursor-based task status signals', () => {
+  test('returns signals strictly after afterKey in ascending order', async () => {
+    const { sessionId } = await createTestSession('task-signals-1');
     const chatroomId = await createChatroom(sessionId);
 
     const now = Date.now();
-
-    // Insert a task
     const taskId = await t.run(async (ctx) => {
       return await ctx.db.insert('chatroom_tasks', {
         chatroomId,
@@ -218,92 +216,92 @@ describe('subscribeVisibleMessageUpdates — lightweight delta', () => {
       });
     });
 
-    // Insert a message linked to the task
-    const messageId = await t.run(async (ctx) => {
-      return await ctx.db.insert('chatroom_messages', {
-        chatroomId,
-        senderRole: 'user',
-        targetRole: 'builder',
-        content: 'message with task',
-        type: 'message',
-        taskId: taskId as Id<'chatroom_tasks'>,
-      });
-    });
-
-    // Insert a progress message for the task
+    // Insert signal rows directly
+    const key1 = `${String(now).padStart(16, '0')}:${taskId}`;
+    const key2 = `${String(now + 1).padStart(16, '0')}:${taskId}`;
     await t.run(async (ctx) => {
-      return await ctx.db.insert('chatroom_messages', {
+      await ctx.db.insert('chatroom_timelineTaskStatusSignals', {
         chatroomId,
-        senderRole: 'builder',
-        content: 'working on it',
-        type: 'progress',
         taskId: taskId as Id<'chatroom_tasks'>,
+        taskStatus: 'in_progress',
+        signalKey: key1,
+        taskUpdatedAt: now,
+      });
+      await ctx.db.insert('chatroom_timelineTaskStatusSignals', {
+        chatroomId,
+        taskId: taskId as Id<'chatroom_tasks'>,
+        taskStatus: 'completed',
+        signalKey: key2,
+        taskUpdatedAt: now + 1,
       });
     });
 
-    // Query visible message updates
-    const result = await t.query(api.messageList.subscribeVisibleMessageUpdates, {
+    // Query with afterKey before first signal
+    const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId,
       chatroomId,
-      messageIds: [messageId as Id<'chatroom_messages'>],
+      afterKey: '',
     });
 
-    expect(result.length).toBe(1);
-    expect(result[0]._id).toBe(messageId);
-    expect(result[0].taskStatus).toBe('in_progress');
-    const progress = result[0].latestProgress;
-    expect(progress).toBeDefined();
-    expect(progress?.content).toBe('working on it');
-    expect(progress?.senderRole).toBe('builder');
+    expect(result).not.toBeNull();
+    expect(result!.items).toHaveLength(2);
+    expect(result!.items[0]).toEqual({ taskId, taskStatus: 'in_progress', signalKey: key1 });
+    expect(result!.items[1]).toEqual({ taskId, taskStatus: 'completed', signalKey: key2 });
+    expect(result!.highKey).toBe(key2);
+    expect(result!.hasMore).toBe(false);
   });
 
-  test('returns undefined fields for a message with no task', async () => {
-    const { sessionId } = await createTestSession('visible-updates-2');
+  test('returns null when no signals after cursor', async () => {
+    const { sessionId } = await createTestSession('task-signals-null');
     const chatroomId = await createChatroom(sessionId);
 
-    const ids = await seedMessages(chatroomId, 1);
-
-    const result = await t.query(api.messageList.subscribeVisibleMessageUpdates, {
+    const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId,
       chatroomId,
-      messageIds: [ids[0]],
+      afterKey: 'zzz',
     });
 
-    expect(result.length).toBe(1);
-    expect(result[0]._id).toBe(ids[0]);
-    expect(result[0].taskStatus).toBeUndefined();
-    expect(result[0].latestProgress).toBeUndefined();
+    expect(result).toBeNull();
   });
 
-  test('ignores ids from a different chatroom', async () => {
-    const { sessionId } = await createTestSession('visible-updates-3');
-    const chatroomA = await createChatroom(sessionId);
-    const chatroomB = await createChatroom(sessionId);
-
-    const idsA = await seedMessages(chatroomA, 1);
-
-    const result = await t.query(api.messageList.subscribeVisibleMessageUpdates, {
-      sessionId,
-      chatroomId: chatroomB,
-      messageIds: [idsA[0]],
-    });
-
-    expect(result.length).toBe(0);
-  });
-
-  test('caps input at MAX_VISIBLE_UPDATE_IDS (100)', async () => {
-    const { sessionId } = await createTestSession('visible-updates-4');
+  test('caps at limit', async () => {
+    const { sessionId } = await createTestSession('task-signals-cap');
     const chatroomId = await createChatroom(sessionId);
 
-    const ids = await seedMessages(chatroomId, 150);
+    const now = Date.now();
+    for (let i = 0; i < 5; i++) {
+      const taskId = await t.run(async (ctx) => {
+        return await ctx.db.insert('chatroom_tasks', {
+          chatroomId,
+          createdBy: 'user',
+          content: `task ${i}`,
+          status: 'pending',
+          createdAt: now + i,
+          updatedAt: now + i,
+          queuePosition: i,
+        });
+      });
+      const key = `${String(now + i).padStart(16, '0')}:${taskId}`;
+      await t.run(async (ctx) => {
+        await ctx.db.insert('chatroom_timelineTaskStatusSignals', {
+          chatroomId,
+          taskId,
+          taskStatus: 'pending',
+          signalKey: key,
+          taskUpdatedAt: now + i,
+        });
+      });
+    }
 
-    const result = await t.query(api.messageList.subscribeVisibleMessageUpdates, {
+    const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId,
       chatroomId,
-      messageIds: ids,
+      afterKey: '',
+      limit: 3,
     });
 
-    // Should be capped at 100 (no throw, max 100 results)
-    expect(result.length).toBeLessThanOrEqual(100);
+    expect(result).not.toBeNull();
+    expect(result!.items).toHaveLength(3);
+    expect(result!.hasMore).toBe(true);
   });
 });

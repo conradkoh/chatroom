@@ -17,7 +17,7 @@ function expectFixedHeaderHeight(className: string) {
 }
 
 describe('WorkspaceTabBar', () => {
-  it('renders shell with shared wrap-capable container classes', () => {
+  it('renders shell with single-row horizontal scroll container classes', () => {
     render(
       <WorkspaceTabBarShell testId="tab-bar-shell">
         <span>tab</span>
@@ -25,7 +25,9 @@ describe('WorkspaceTabBar', () => {
     );
 
     const bar = screen.getByTestId('tab-bar-shell');
-    expect(bar.className).toMatch(/flex-wrap/);
+    expect(bar.className).toMatch(/flex-nowrap/);
+    expect(bar.className).toMatch(/overflow-x-auto/);
+    expect(bar.className).not.toMatch(/flex-wrap/);
     expectFixedHeaderHeight(bar.className);
     expect(bar.className).toMatch(/border-b-2/);
   });

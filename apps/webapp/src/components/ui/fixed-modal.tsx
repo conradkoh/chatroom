@@ -1,6 +1,6 @@
 'use client';
 
-import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
 import React, { useCallback, useEffect, useLayoutEffect, memo, useRef, useState } from 'react';
 
@@ -10,8 +10,11 @@ import {
   popOverlayDismiss,
   pushOverlayDismiss,
 } from '@/modules/chatroom/components/shared/overlayDismissStack';
-import { Z_MODAL } from '@/modules/chatroom/components/shared/overlayLayers';
-import { OverlayPortalContainerProvider } from '@/modules/chatroom/components/shared/overlayPortalContainer';
+import { Z_FLOATING, Z_MODAL } from '@/modules/chatroom/components/shared/overlayLayers';
+import {
+  OverlayPortalContainerProvider,
+  useOverlayPortalContainer,
+} from '@/modules/chatroom/components/shared/overlayPortalContainer';
 
 // Reference-counted body scroll lock for nested/stacked modals.
 let scrollLockCount = 0;
@@ -235,9 +238,12 @@ const FixedModal = memo(function FixedModal({
   // Stable handler wrapper — delegates to latest onCloseRef.current
   const dismissHandler = useCallback(() => onCloseRef.current(), []);
 
-  // Portal container ref — Dialog.Content DOM node, used by nested overlays (Drawer/Popover)
+  // Portal host ref — dedicated overflow-visible node for nested overlays (Drawer/Popover)
   // to portal into this modal's FocusScope rather than document.body.
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
+  const parentPortalContainer = useOverlayPortalContainer();
+  const isNested = parentPortalContainer != null;
+  const modalZ = isNested ? Z_FLOATING : Z_MODAL;
 
   // Lock body scroll when modal is open (reference-counted for stacked modals)
   useEffect(() => {
@@ -265,52 +271,60 @@ const FixedModal = memo(function FixedModal({
     return () => popOverlayDismiss(dismissHandler);
   }, [isOpen, dismissHandler]);
 
+  // Intercept Escape so the dismiss stack can defer close when a portaled menu
+  // is open above this modal (preventDefault + stopPropagation keeps it open).
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key !== 'Escape') return;
+    if (!isTopOverlayDismiss(dismissHandler)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+
   if (typeof document === 'undefined') return null;
 
   return (
     <DialogPrimitive.Root
       open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) onCloseRef.current();
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onCloseRef.current();
       }}
+      // trap-focus keeps Base UI's focus trapping without its native scroll
+      // lock — the reference-counted lock below remains the sole scroll manager.
+      modal="trap-focus"
+      disablePointerDismissal={!closeOnBackdrop}
     >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay
+        <DialogPrimitive.Backdrop
           className={cn(
-            Z_MODAL,
+            modalZ,
             'fixed inset-0 flex items-center justify-center bg-black/50 p-0 sm:p-4',
-            'data-[state=open]:animate-in data-[state=closed]:animate-out',
-            'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0'
+            'data-open:animate-in data-closed:animate-out',
+            'data-closed:fade-out-0 data-open:fade-in-0'
           )}
-          onClick={closeOnBackdrop ? undefined : (e) => e.preventDefault()}
         />
-        <DialogPrimitive.Content
-          ref={(node) => setPortalContainer(node)}
+        <DialogPrimitive.Popup
           className={cn(
             'chatroom-root',
-            Z_MODAL,
+            modalZ,
             'fixed left-1/2 top-1/2 flex w-full -translate-x-1/2 -translate-y-1/2',
-            'bg-chatroom-bg-primary border-0 sm:border-2 border-chatroom-border-strong overflow-hidden',
+            'bg-chatroom-bg-primary border-0 sm:border-2 border-chatroom-border-strong overflow-visible',
             'h-full sm:h-[70vh]',
+            'outline-none focus:outline-none focus-visible:outline-none',
             maxWidth,
             className
           )}
-          onPointerDownOutside={(e) => {
-            if (!closeOnBackdrop) e.preventDefault();
-          }}
-          onInteractOutside={(e) => {
-            if (!closeOnBackdrop) e.preventDefault();
-          }}
-          onEscapeKeyDown={(e) => {
-            if (!isTopOverlayDismiss(dismissHandler)) {
-              e.preventDefault();
-            }
-          }}
+          onKeyDown={handleKeyDown}
         >
-          <OverlayPortalContainerProvider container={portalContainer}>
+          <div
+            ref={setPortalHost}
+            data-slot="chatroom-dialog-portal-host"
+            className="pointer-events-none fixed inset-0 overflow-visible z-[60]"
+          />
+          <OverlayPortalContainerProvider container={portalHost}>
             {children}
           </OverlayPortalContainerProvider>
-        </DialogPrimitive.Content>
+        </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );

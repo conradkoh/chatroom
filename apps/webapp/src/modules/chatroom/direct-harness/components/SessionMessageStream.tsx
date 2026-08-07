@@ -1,12 +1,12 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 
+import { ThinkingBlock } from './ThinkingBlock';
 import { useHarnessTurnStore } from '../hooks/useHarnessTurnStore';
 import { useQueuedMessages } from '../hooks/useQueuedMessages';
-import { ThinkingBlock } from './ThinkingBlock';
 
 import { cn } from '@/lib/utils';
 import { useScrollController } from '@/modules/chatroom/hooks/useScrollController';
@@ -145,8 +145,10 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
                   </div>
                 )}
                 <div className="flex items-center gap-1.5 mt-1">
-                  <ExclamationTriangleIcon className="size-3 text-amber-500 dark:text-amber-400" />
-                  <span className="text-[10px] font-mono font-bold text-amber-500 dark:text-amber-400">Interrupted</span>
+                  <TriangleAlert className="size-3 text-amber-500 dark:text-amber-400" />
+                  <span className="text-[10px] font-mono font-bold text-amber-500 dark:text-amber-400">
+                    Interrupted
+                  </span>
                 </div>
               </div>
             </div>
@@ -158,10 +160,9 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
           return null;
         }
 
-        const textContent = isStreaming ? streamingOverlay!.textContent : turn.textContent;
-        const thinkingContent = isStreaming
-          ? streamingOverlay!.reasoningContent
-          : turn.reasoningContent;
+        const overlay = isStreaming ? streamingOverlay : null;
+        const textContent = overlay ? overlay.textContent : turn.textContent;
+        const thinkingContent = overlay ? overlay.reasoningContent : turn.reasoningContent;
 
         const hasThinking = thinkingContent.length > 0;
         const hasText = textContent.length > 0;
@@ -182,12 +183,14 @@ export function SessionMessageStream({ sessionRowId }: SessionMessageStreamProps
         );
       })}
 
-      {hasQueue && (
+      {hasQueue && queuedMessages && (
         <div className="flex flex-col gap-2">
-          {queuedMessages!.map((qm) => (
+          {queuedMessages.map((qm) => (
             <div key={qm._id} className="flex justify-end">
               <div className="max-w-[75%] flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground shrink-0">Queued</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground shrink-0">
+                  Queued
+                </span>
                 <div className="rounded-2xl rounded-br-sm px-4 py-2.5 text-sm whitespace-pre-wrap break-words bg-primary/40 text-primary-foreground/70">
                   {qm.content}
                 </div>

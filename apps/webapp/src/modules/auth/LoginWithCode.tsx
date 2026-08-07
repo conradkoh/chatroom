@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { formatCodeInputValue } from '@/modules/auth/formatCodeInput';
 
 /**
  * Displays login form for users to authenticate using temporary login codes.
@@ -110,16 +111,7 @@ function _handleCodeChange(
   e: React.ChangeEvent<HTMLInputElement>,
   setCode: (code: string) => void
 ): void {
-  const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-  if (value.length <= 8) {
-    if (value.length <= 4) {
-      setCode(value);
-    } else {
-      const formattedCode = `${value.slice(0, 4)}-${value.slice(4, 8)}`;
-      setCode(formattedCode);
-    }
-  }
+  setCode(formatCodeInputValue(e.target.value));
 }
 
 interface _HandleSubmitParams {

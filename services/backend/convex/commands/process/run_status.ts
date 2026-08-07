@@ -1,4 +1,5 @@
 import { ConvexError } from 'convex/values';
+
 import type { MutationCtx } from '../../_generated/server';
 import { isTerminal, assertValidTransition } from '../fsm';
 import { buildStatusUpdate, type RunId } from './state';
@@ -14,7 +15,7 @@ export async function updateRunStatus(
     terminationReason?: string;
   }
 ) {
-  const run = await ctx.db.get('chatroom_commandRuns', args.runId);
+  const run = await ctx.db.get('chatroom_commandRunsV2', args.runId);
   if (!run) throw new ConvexError({ code: 'RUN_NOT_FOUND', message: 'Run not found' });
   if (run.machineId !== args.machineId)
     throw new ConvexError({
@@ -34,7 +35,7 @@ export async function updateRunStatus(
     terminationReason: args.terminationReason,
   });
 
-  await ctx.db.patch('chatroom_commandRuns', args.runId, update);
+  await ctx.db.patch('chatroom_commandRunsV2', args.runId, update);
 }
 
 export async function reapOrphansForMachine(
@@ -44,7 +45,7 @@ export async function reapOrphansForMachine(
   }
 ) {
   const allRuns = await ctx.db
-    .query('chatroom_commandRuns')
+    .query('chatroom_commandRunsV2')
     .withIndex('by_machine_workingDir', (q) => q.eq('machineId', args.machineId))
     .collect();
 
@@ -53,7 +54,7 @@ export async function reapOrphansForMachine(
 
   for (const run of allRuns) {
     if (run.status === 'pending' || run.status === 'running') {
-      await ctx.db.patch('chatroom_commandRuns', run._id, {
+      await ctx.db.patch('chatroom_commandRunsV2', run._id, {
         status: 'killed',
         terminationReason: 'daemon-restart',
         completedAt: now,
@@ -73,7 +74,7 @@ export async function clearStuckRuns(
   }
 ) {
   const allRuns = await ctx.db
-    .query('chatroom_commandRuns')
+    .query('chatroom_commandRunsV2')
     .withIndex('by_machine_workingDir', (q) =>
       q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
     )
@@ -84,23 +85,17 @@ export async function clearStuckRuns(
 
   for (const run of allRuns) {
     if (run.status === 'pending') {
-      await ctx.db.patch('chatroom_commandRuns', run._id, {
+      await ctx.db.patch('chatroom_commandRunsV2', run._id, {
         status: 'stopped',
         terminationReason: 'user-clear-stuck',
         completedAt: now,
       });
       clearedCount++;
     } else if (run.status === 'running') {
-      await ctx.db.patch('chatroom_commandRuns', run._id, {
+      await ctx.db.patch('chatroom_commandRunsV2', run._id, {
         status: 'stopped',
         terminationReason: 'user-clear-stuck',
         completedAt: now,
-      });
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'command.stop' as const,
-        machineId: args.machineId,
-        runId: run._id,
-        timestamp: now,
       });
       clearedCount++;
     }

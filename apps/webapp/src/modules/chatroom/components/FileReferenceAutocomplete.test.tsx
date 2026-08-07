@@ -14,7 +14,34 @@ function isSelectedItem(el: Element): boolean {
   return el.className.split(/\s+/).includes('bg-chatroom-bg-hover');
 }
 
+function expectOpaquePortaledSurface(className: string) {
+  expect(className).toContain('bg-chatroom-bg-primary');
+  expect(className).not.toContain('bg-chatroom-bg-surface');
+  expect(className).not.toContain('backdrop-blur');
+}
+
 describe('FileReferenceAutocomplete', () => {
+  it('uses opaque portaled surface classes on a fixed container', () => {
+    render(
+      <FileReferenceAutocomplete
+        results={files}
+        selectedIndex={0}
+        position={{ top: 8, left: 0 }}
+        onSelect={vi.fn()}
+        onHoverItem={vi.fn()}
+        visible
+      />
+    );
+
+    const item = document.querySelector('[data-autocomplete-item]') as HTMLElement;
+    const container = item.closest('.fixed') as HTMLElement;
+
+    expect(container).not.toBeNull();
+    expect(container.parentElement).toBe(document.body);
+    expectOpaquePortaledSurface(container.className);
+    expect(container.className).toContain('z-50');
+  });
+
   it('highlights the selected item and uses unique React keys per result', () => {
     const onSelect = vi.fn();
     const onHoverItem = vi.fn();

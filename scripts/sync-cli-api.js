@@ -91,7 +91,6 @@ export interface Message {
   type: 'message' | 'handoff' | 'interrupt';
   targetRole?: string;
   claimedByRole?: string;
-  classification?: 'question' | 'new_feature' | 'follow_up';
   taskOriginMessageId?: Id<'chatroom_messages'>;
   taskId?: Id<'chatroom_tasks'>;
   _creationTime?: number;
@@ -121,18 +120,15 @@ export interface AllowedHandoffRoles {
   availableRoles: string[];
   canHandoffToUser: boolean;
   restrictionReason: string | null;
-  currentClassification: 'question' | 'new_feature' | 'follow_up' | null;
 }
 
 export interface ContextWindow {
   originMessage: Message | null;
   contextMessages: Message[];
-  classification: 'question' | 'new_feature' | 'follow_up' | null;
 }
 
 export interface RolePromptResponse {
   prompt: string;
-  currentClassification: 'question' | 'new_feature' | 'follow_up' | null;
   availableHandoffRoles: string[];
   canHandoffToUser: boolean;
   restrictionReason: string | null;

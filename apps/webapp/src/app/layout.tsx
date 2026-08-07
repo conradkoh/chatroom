@@ -12,6 +12,7 @@ import { getAppTitle } from '@/lib/environment';
 import { AppInfoProvider } from '@/modules/app/AppInfoProvider';
 import { AuthProvider } from '@/modules/auth/AuthProvider';
 import { HeaderPortalProvider } from '@/modules/header/HeaderPortalProvider';
+import { PwaInstallProvider, InstallAppMobileBanner } from '@/modules/pwa-install';
 import { SentryErrorBoundary } from '@/modules/sentry/SentryErrorBoundary';
 import { ThemeProvider, themeScript } from '@/modules/theme/ThemeProvider';
 
@@ -78,14 +79,17 @@ export default function RootLayout({
               <AppInfoProvider>
                 <AuthProvider>
                   <ThemeProvider>
-                    <HeaderPortalProvider>
-                      <div className="flex h-dvh flex-col overflow-hidden bg-background dark:bg-zinc-950">
-                        <Navigation />
-                        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
-                          {children}
-                        </main>
-                      </div>
-                    </HeaderPortalProvider>
+                    <PwaInstallProvider>
+                      <HeaderPortalProvider>
+                        <div className="flex h-dvh flex-col overflow-hidden bg-background dark:bg-zinc-950">
+                          <Navigation />
+                          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
+                            <InstallAppMobileBanner />
+                            {children}
+                          </main>
+                        </div>
+                      </HeaderPortalProvider>
+                    </PwaInstallProvider>
                   </ThemeProvider>
                 </AuthProvider>
               </AppInfoProvider>
@@ -93,7 +97,6 @@ export default function RootLayout({
           </ConvexClientProvider>
           <Toaster />
           <ServiceWorkerRegistration />
-          {/* React Grab for development — afterInteractive to avoid hydration mismatch */}
           {process.env.NODE_ENV === 'development' && (
             <Script
               src="//unpkg.com/react-grab/dist/index.global.js"

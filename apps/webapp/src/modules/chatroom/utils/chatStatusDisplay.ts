@@ -16,8 +16,13 @@ const CHAT_STATUS_DISPLAY: Record<
   },
   active: {
     indicatorClass: 'bg-chatroom-status-success',
-    label: 'Active',
-    description: 'Agents are online and waiting for tasks',
+    label: 'Waiting',
+    description: 'Agents are waiting for tasks',
+  },
+  transitioning: {
+    indicatorClass: 'bg-chatroom-status-warning',
+    label: 'Transitioning',
+    description: 'Agents are online but not yet waiting for tasks',
   },
   idle: {
     indicatorClass: 'bg-chatroom-text-muted opacity-40',

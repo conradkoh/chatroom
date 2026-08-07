@@ -2,9 +2,11 @@
 
 import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
-import Markdown from 'react-markdown';
 
-import { compactMarkdownComponents } from '../../components/markdown-utils';
+import {
+  getWorkQueuePreviewSegments,
+  formatWorkQueuePreviewPlainText,
+} from '../../utils/getWorkQueuePreviewSegments';
 
 type AttachmentChipShellProps = {
   ariaLabel: string;
@@ -43,7 +45,7 @@ export function AttachmentChipShell({
           className="text-chatroom-text-secondary truncate max-w-[150px] hover:text-chatroom-text-primary transition-colors text-[10px] font-bold uppercase tracking-wider"
           title={firstLine}
         >
-          <Markdown components={compactMarkdownComponents}>{displayText}</Markdown>
+          {formatWorkQueuePreviewPlainText(getWorkQueuePreviewSegments(displayText))}
         </span>
       </button>
 

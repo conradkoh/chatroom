@@ -6,16 +6,13 @@ interface WorkingIndicatorProps {
   activeTask?: { status: string; assignedTo?: string } | null;
   /** Compact mode for bottom bar integration */
   compact?: boolean;
-  /** Optional chatroom ID (for future use / event stream integration) */
+  /** Optional chatroom ID (for future use) */
   chatroomId?: string;
-  /** Called when the user clicks the compact indicator */
-  onOpenEventStream?: () => void;
 }
 
 export const WorkingIndicator = memo(function WorkingIndicator({
   activeTask,
   compact = false,
-  onOpenEventStream,
 }: WorkingIndicatorProps) {
   if (activeTask?.status !== 'in_progress') {
     return null;
@@ -26,11 +23,7 @@ export const WorkingIndicator = memo(function WorkingIndicator({
   // Compact mode: inline in bottom bar
   if (compact) {
     return (
-      <button
-        type="button"
-        onClick={onOpenEventStream}
-        className="flex items-center gap-2 cursor-pointer hover:bg-chatroom-bg-hover transition-colors rounded"
-      >
+      <button type="button" className="flex items-center gap-2 cursor-default rounded">
         <div className="flex items-center gap-1.5">
           {/* Pulsing indicator - square per theme */}
           <span className="w-2 h-2 bg-chatroom-status-info animate-pulse" />

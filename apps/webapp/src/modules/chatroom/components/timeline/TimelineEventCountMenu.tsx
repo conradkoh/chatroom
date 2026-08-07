@@ -72,7 +72,7 @@ export function TimelineEventCountMenu({
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+      <DropdownMenuTrigger render={trigger} />
       <DropdownMenuContent align="end" side="top" className="min-w-[200px]">
         <DropdownMenuItem onSelect={handlePurge} disabled={!canPurge}>
           <span className="text-xs">Purge loaded history</span>

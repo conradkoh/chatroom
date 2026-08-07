@@ -15,7 +15,15 @@ import {
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import type React from 'react';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -44,21 +52,26 @@ import { FileSelectorModal, FilePreviewDialog, useFileSelector } from './compone
 import { isBinaryFile } from './components/FileSelector/binaryDetection';
 import type { FileEntry } from './components/FileSelector/useFileSelector';
 import { MessageInput } from './components/MessageInput';
+import { NotificationSoundToggleButton } from './components/NotificationSoundToggleButton';
 import { PanelLoadingSpinner } from './components/PanelLoadingSpinner';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
-import { MessageViewToggle } from './components/timeline/MessageViewToggle';
 import { WorkQueue } from './components/WorkQueue';
-import { useCommandDialog } from './context/CommandDialogContext';
+import { useChatroomChatStatus } from './context/ChatroomListingContext';
+import { useCommandDialogActions } from './context/CommandDialogContext';
+import {
+  getCommandPaletteRunsActive,
+  subscribeCommandDialogAnyClose,
+  subscribeCommandPaletteRunsActive,
+} from './context/commandPaletteController';
 import { PendingFileHighlightProvider } from './context/PendingFileHighlightContext';
 import { WorkspaceFileLinkProvider } from './context/WorkspaceFileLinkContext';
 import { RightSplitPanel } from './explorer-split-panels/RightSplitPanel';
 import { useExplorerSidebarVisible } from './hooks/persistence/useExplorerSidebarVisible';
 import { useExplorerSidebarWidth } from './hooks/persistence/useExplorerSidebarWidth';
 import { useExplorerSplitPanelSizes } from './hooks/persistence/useExplorerSplitPanelSizes';
-import { useMessageViewMode } from './hooks/persistence/useMessageViewMode';
 import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
@@ -66,8 +79,7 @@ import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
-import { REFRESH_COOLDOWN_MS } from './hooks/useObserveChatroom';
-import { useTimelineScroll } from './hooks/useTimelineScroll';
+import { useHandoffGitRefresh } from './hooks/useHandoffGitRefresh';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
 import type { TeamLifecycle } from './types/readiness';
@@ -78,10 +90,11 @@ import {
   runAgentStartBatch,
   startAgentsForRoles,
 } from './utils/agentBulkStart';
-import { deriveChatStatus, type AgentPresence, type ChatStatus } from './utils/deriveChatStatus';
 import { isFocusModeActive } from './utils/focusMode';
 import { AgenticQueryPanel } from './workspace/components/AgenticQueryPanel';
 import { CsvTablePane } from './workspace/components/CsvTablePane';
+import { EditorSplitDropOverlay } from './workspace/components/EditorSplitDropOverlay';
+import { EditorSplitLayout } from './workspace/components/EditorSplitLayout';
 import { ExplorerSidebarResizeHandle } from './workspace/components/ExplorerSidebarResizeHandle';
 import { FileContentViewer } from './workspace/components/FileContentViewer';
 import type { FileExplorerPanelHandle } from './workspace/components/FileExplorerPanel';
@@ -90,25 +103,18 @@ import { FileTabBar } from './workspace/components/FileTabBar';
 import { MarkdownFileEditorPane } from './workspace/components/MarkdownFileEditorPane';
 import { MarkdownPreviewPane } from './workspace/components/MarkdownPreviewPane';
 import { SourceControlPanel } from './workspace/components/panels/SourceControlPanel';
-import { RightPaneTabBar } from './workspace/components/RightPaneTabBar';
 import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
-import { isMarkdownFile } from './workspace/file-renderers';
+import { isMarkdownFile, shouldOpenInEditableExplorerPane } from './workspace/file-renderers';
 import { useMultiWorkspaceFileSync } from './workspace/files';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
 import { useExplorerTabCloseShortcut } from './workspace/hooks/useExplorerTabCloseShortcut';
-import type { AgenticQueryMode, UseFileTabsReturn } from './workspace/hooks/useFileTabs';
-import { editorTabKey } from './workspace/hooks/useFileTabs';
+import type { AgenticQueryMode, EditorTab, UseFileTabsReturn } from './workspace/hooks/useFileTabs';
+import { editorTabKey, isViewTabKey } from './workspace/hooks/useFileTabs';
 import { useOpenFileOnRemote } from './workspace/hooks/useOpenFileOnRemote';
 import { useWorkspaceGit } from './workspace/hooks/useWorkspaceGit';
-import {
-  editorPaneFlexClass,
-  isEditorExpanded,
-  isPreviewExpanded,
-  previewPaneFlexClass,
-} from './workspace/utils/editorExpandLayout';
-import { previewTabDoubleClickAction } from './workspace/utils/explorerExpandHandlers';
+import { isEditorExpanded, isPreviewExpanded } from './workspace/utils/editorExpandLayout';
 import type { FileLocation } from './workspace/utils/fileLocation';
 import { pendingHighlightForLocation } from './workspace/utils/openFileLocation';
 import { resolveWorkspaceFileLinkOpenTarget } from './workspace/utils/workspaceFileLink';
@@ -132,7 +138,6 @@ import { getAppTitle } from '@/lib/environment';
 import { exhaustive } from '@/lib/exhaustive';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { openExternalUrl } from '@/lib/navigation';
-import { cn } from '@/lib/utils';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 const AgentSettingsModal = dynamic(
@@ -181,6 +186,9 @@ const ProcessesPanel = dynamic(
 // Constant to indicate "all machines" when stopping agents across all connected machines
 const ALL_MACHINES = '';
 
+/** Minimum time between manual workspace-state refresh requests. */
+const REFRESH_COOLDOWN_MS = 5000;
+
 // ─── Teams Config ────────────────────────────────────────────────────────────
 // NOTE: For chatroom-themed floating popups/dropdowns, use `modules/chatroom/components/ui/dropdown-menu`.
 // For modals and delete confirmations, use `modules/chatroom/components/ui/dialog` and `alert-dialog`.
@@ -190,8 +198,6 @@ const ALL_MACHINES = '';
 interface ChatroomDashboardProps {
   chatroomId: string;
   onBack?: () => void;
-  /** From the chatroom page (`useObserveChatroom`); forwarded to the git panel for on-demand observed-sync refresh. */
-  refreshObservedChatroom: () => void;
   focusModeEnabled?: boolean;
   onSetFocusModeEnabled?: (enabled: boolean) => void;
 }
@@ -225,6 +231,150 @@ function ChatroomHeaderCenter(props: ChatroomTitleEditorProps) {
 // ─── Explorer Content Component ───────────────────────────────────────────────
 // Extracts shared file explorer UI to eliminate duplication between split/non-split views
 
+const EMPTY_SECONDARY_TAB_KEYS: string[] = [];
+
+interface ExplorerEditorTabContentProps {
+  tab: EditorTab;
+  workspaceId: string;
+  machineId: string;
+  workingDir: string;
+  autocompleteFiles: FileEntry[];
+  hasAutocompleteWorkspace: boolean;
+  onAtTriggerActivate: () => void;
+  agenticFocusToken: number;
+  onAgenticMetaChange: (meta: { title: string; mode: AgenticQueryMode }) => void;
+  onAgenticUnavailable: (queryId: string) => void;
+  onOpenPreview: (filePath: string) => void;
+  onOpenTableView: (filePath: string) => void;
+  onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
+  onOpenSelectionOnRemote: (filePath: string, selectedText: string) => void;
+}
+
+// fallow-ignore-next-line complexity
+function areExplorerEditorTabContentPropsEqual(
+  prev: ExplorerEditorTabContentProps,
+  next: ExplorerEditorTabContentProps
+): boolean {
+  if (editorTabKey(prev.tab) !== editorTabKey(next.tab)) return false;
+  if (prev.machineId !== next.machineId || prev.workingDir !== next.workingDir) return false;
+
+  if (prev.tab.kind === 'preview' || prev.tab.kind === 'table') {
+    return next.tab.kind === prev.tab.kind && next.tab.filePath === prev.tab.filePath;
+  }
+
+  return (
+    prev.workspaceId === next.workspaceId &&
+    prev.autocompleteFiles === next.autocompleteFiles &&
+    prev.hasAutocompleteWorkspace === next.hasAutocompleteWorkspace &&
+    prev.onAtTriggerActivate === next.onAtTriggerActivate &&
+    prev.agenticFocusToken === next.agenticFocusToken &&
+    prev.onAgenticMetaChange === next.onAgenticMetaChange &&
+    prev.onAgenticUnavailable === next.onAgenticUnavailable &&
+    prev.onOpenPreview === next.onOpenPreview &&
+    prev.onOpenTableView === next.onOpenTableView &&
+    prev.onSendSelectionToComposer === next.onSendSelectionToComposer &&
+    prev.onOpenSelectionOnRemote === next.onOpenSelectionOnRemote &&
+    prev.tab === next.tab
+  );
+}
+
+// fallow-ignore-next-line complexity
+const ExplorerEditorTabContent = memo(function ExplorerEditorTabContent({
+  tab,
+  workspaceId,
+  machineId,
+  workingDir,
+  autocompleteFiles,
+  hasAutocompleteWorkspace,
+  onAtTriggerActivate,
+  agenticFocusToken,
+  onAgenticMetaChange,
+  onAgenticUnavailable,
+  onOpenPreview,
+  onOpenTableView,
+  onSendSelectionToComposer,
+  onOpenSelectionOnRemote,
+}: ExplorerEditorTabContentProps) {
+  if (tab.kind === 'agentic-query') {
+    return (
+      <AgenticQueryPanel
+        key={editorTabKey(tab)}
+        queryId={tab.queryId}
+        mode={tab.mode}
+        workspaceId={workspaceId}
+        autocompleteFiles={autocompleteFiles}
+        hasAutocompleteWorkspace={hasAutocompleteWorkspace}
+        onAtTriggerActivate={onAtTriggerActivate}
+        focusToken={agenticFocusToken}
+        onMetaChange={onAgenticMetaChange}
+        onUnavailable={() => onAgenticUnavailable(tab.queryId)}
+      />
+    );
+  }
+  if (tab.kind === 'file') {
+    if (isBinaryFile(tab.filePath)) {
+      return (
+        <FileContentViewer
+          key={tab.filePath}
+          machineId={machineId}
+          workingDir={workingDir}
+          filePath={tab.filePath}
+          onSendSelectionToComposer={onSendSelectionToComposer}
+          onOpenPreview={onOpenPreview}
+          onOpenTableView={onOpenTableView}
+          onOpenSelectionOnRemote={onOpenSelectionOnRemote}
+        />
+      );
+    }
+    if (shouldOpenInEditableExplorerPane(tab.filePath)) {
+      return (
+        <MarkdownFileEditorPane
+          key={tab.filePath}
+          machineId={machineId}
+          workingDir={workingDir}
+          filePath={tab.filePath}
+          onSendSelectionToComposer={onSendSelectionToComposer}
+          onOpenPreview={onOpenPreview}
+          onOpenSelectionOnRemote={onOpenSelectionOnRemote}
+        />
+      );
+    }
+    return (
+      <FileContentViewer
+        key={tab.filePath}
+        machineId={machineId}
+        workingDir={workingDir}
+        filePath={tab.filePath}
+        onSendSelectionToComposer={onSendSelectionToComposer}
+        onOpenPreview={onOpenPreview}
+        onOpenTableView={onOpenTableView}
+        onOpenSelectionOnRemote={onOpenSelectionOnRemote}
+      />
+    );
+  }
+  if (tab.kind === 'preview') {
+    return (
+      <MarkdownPreviewPane
+        key={editorTabKey(tab)}
+        machineId={machineId}
+        workingDir={workingDir}
+        filePath={tab.filePath}
+      />
+    );
+  }
+  if (tab.kind === 'table') {
+    return (
+      <CsvTablePane
+        key={editorTabKey(tab)}
+        machineId={machineId}
+        workingDir={workingDir}
+        filePath={tab.filePath}
+      />
+    );
+  }
+  return null;
+}, areExplorerEditorTabContentPropsEqual);
+
 interface ExplorerContentProps {
   fileTabs: UseFileTabsReturn;
   activeWorkspace: {
@@ -239,6 +389,43 @@ interface ExplorerContentProps {
   onOpenTableView: (filePath: string) => void;
   onSendSelectionToComposer?: (payload: { filePath: string; selectedText: string }) => void;
   agenticFocusToken: number;
+}
+
+// fallow-ignore-next-line complexity
+function areExplorerContentStaticPropsEqual(
+  prev: ExplorerContentProps,
+  next: ExplorerContentProps
+): boolean {
+  return (
+    prev.activeWorkspace === next.activeWorkspace &&
+    prev.autocompleteFiles === next.autocompleteFiles &&
+    prev.hasAutocompleteWorkspace === next.hasAutocompleteWorkspace &&
+    prev.onAtTriggerActivate === next.onAtTriggerActivate &&
+    prev.onOpenPreview === next.onOpenPreview &&
+    prev.onOpenTableView === next.onOpenTableView &&
+    prev.onSendSelectionToComposer === next.onSendSelectionToComposer &&
+    prev.agenticFocusToken === next.agenticFocusToken
+  );
+}
+
+// fallow-ignore-next-line complexity
+function areExplorerContentPropsEqual(
+  prev: ExplorerContentProps,
+  next: ExplorerContentProps
+): boolean {
+  if (!areExplorerContentStaticPropsEqual(prev, next)) return false;
+  if (prev.fileTabs === next.fileTabs) return true;
+
+  const prevTabs = prev.fileTabs;
+  const nextTabs = next.fileTabs;
+  return (
+    prevTabs.tabs === nextTabs.tabs &&
+    prevTabs.activeTabKey === nextTabs.activeTabKey &&
+    prevTabs.editorSplit === nextTabs.editorSplit &&
+    prevTabs.editorSplitLayoutEpoch === nextTabs.editorSplitLayoutEpoch &&
+    prevTabs.expandedTabPath === nextTabs.expandedTabPath &&
+    prevTabs.expandedPane === nextTabs.expandedPane
+  );
 }
 
 // fallow-ignore-next-line complexity
@@ -268,7 +455,10 @@ const ExplorerContent = memo(function ExplorerContent({
     [openFileOnRemote]
   );
 
-  const hasSplit = fileTabs.rightTabs.length > 0;
+  const hasEditorSplit =
+    !!fileTabs.editorSplit?.enabled && (fileTabs.editorSplit.secondaryTabKeys.length ?? 0) > 0;
+  const secondaryTabKeys = fileTabs.editorSplit?.secondaryTabKeys ?? EMPTY_SECONDARY_TAB_KEYS;
+  const hasSplit = hasEditorSplit && secondaryTabKeys.some(isViewTabKey);
   const editorExpanded = isEditorExpanded(
     hasSplit,
     fileTabs.expandedTabPath,
@@ -281,6 +471,12 @@ const ExplorerContent = memo(function ExplorerContent({
     fileTabs.expandedPane,
     activeFilePath
   );
+  const editorSplitDefaultLayout: [number, number] = editorExpanded
+    ? [90, 10]
+    : previewExpanded
+      ? [10, 90]
+      : [50, 50];
+  const editorSplitLayoutKey = `${fileTabs.editorSplitLayoutEpoch}-${editorExpanded ? 'editor' : previewExpanded ? 'preview' : 'even'}`;
 
   const activeAgenticQueryId = activeTab?.kind === 'agentic-query' ? activeTab.queryId : null;
 
@@ -291,6 +487,35 @@ const ExplorerContent = memo(function ExplorerContent({
     },
     [activeAgenticQueryId, fileTabs]
   );
+
+  const handleAgenticUnavailable = useCallback(
+    (queryId: string) => {
+      fileTabs.closeAgenticQueryTab(queryId);
+    },
+    [fileTabs]
+  );
+
+  const secondaryTabKeySet = useMemo(() => new Set(secondaryTabKeys), [secondaryTabKeys]);
+  const secondaryTabs = useMemo(
+    () =>
+      hasEditorSplit ? fileTabs.tabs.filter((t) => secondaryTabKeys.includes(editorTabKey(t))) : [],
+    [hasEditorSplit, fileTabs.tabs, secondaryTabKeys]
+  );
+  const primaryTabs = useMemo(
+    () =>
+      hasEditorSplit
+        ? fileTabs.tabs.filter((t) => !secondaryTabKeySet.has(editorTabKey(t)))
+        : fileTabs.tabs,
+    [hasEditorSplit, fileTabs.tabs, secondaryTabKeySet]
+  );
+
+  const activeSecondaryTabKey = fileTabs.editorSplit?.activeSecondaryTabKey ?? null;
+  const activeSecondaryTab =
+    secondaryTabs.find((t) => editorTabKey(t) === activeSecondaryTabKey) ?? null;
+  const activePrimaryTab =
+    hasEditorSplit && activeTab && secondaryTabKeySet.has(editorTabKey(activeTab))
+      ? (primaryTabs[0] ?? null)
+      : activeTab;
 
   const fileTabBar = showTabBar ? (
     <FileTabBar
@@ -304,122 +529,92 @@ const ExplorerContent = memo(function ExplorerContent({
       onPin={fileTabs.pinTab}
       onToggleExpanded={fileTabs.toggleExpanded}
       onOpenFileOnRemote={(filePath) => void openFileOnRemote(filePath)}
+      enableDragSplit
     />
   ) : null;
+
+  const editorTabContentProps = {
+    workspaceId: activeWorkspace?.workspaceId ?? '',
+    machineId,
+    workingDir,
+    autocompleteFiles,
+    hasAutocompleteWorkspace,
+    onAtTriggerActivate,
+    agenticFocusToken,
+    onAgenticMetaChange: handleAgenticMetaChange,
+    onAgenticUnavailable: handleAgenticUnavailable,
+    onOpenPreview,
+    onOpenTableView,
+    onSendSelectionToComposer,
+    onOpenSelectionOnRemote: handleOpenSelectionOnRemote,
+  };
+
   const hasMachineAndDir = activeWorkspace?.machineId && activeWorkspace?.workingDir;
   const showContentArea = activeTab && hasMachineAndDir;
 
   return (
     <>
-      {/* Full-width tab bar when no preview/table split */}
-      {showTabBar && !hasSplit && fileTabBar}
+      {showTabBar && !hasEditorSplit && fileTabBar}
 
-      {/* Content Area — left pane + optional right pane */}
       {showContentArea ? (
-        <div className="flex-1 flex min-h-0 overflow-hidden">
-          {/* Left Pane — source code */}
-          <div
-            className={cn(
-              'flex flex-col min-h-0 overflow-hidden',
-              hasSplit
-                ? cn(
-                    editorPaneFlexClass(editorExpanded, previewExpanded, hasSplit),
-                    'border-r border-chatroom-border'
-                  )
-                : 'flex-1'
-            )}
-          >
-            {showTabBar && hasSplit && fileTabBar}
-            {activeTab.kind === 'agentic-query' ? (
-              <AgenticQueryPanel
-                key={editorTabKey(activeTab)}
-                queryId={activeTab.queryId}
-                mode={activeTab.mode}
-                workspaceId={activeWorkspace?.workspaceId ?? ''}
-                autocompleteFiles={autocompleteFiles}
-                hasAutocompleteWorkspace={hasAutocompleteWorkspace}
-                onAtTriggerActivate={onAtTriggerActivate}
-                focusToken={agenticFocusToken}
-                onMetaChange={handleAgenticMetaChange}
+        <div className="flex-1 flex min-h-0 overflow-hidden [contain:layout]">
+          <EditorSplitDropOverlay onSplitDrop={fileTabs.handleEditorSplitDrop}>
+            {hasEditorSplit ? (
+              <EditorSplitLayout
+                key={editorSplitLayoutKey}
+                defaultLayout={editorSplitDefaultLayout}
+                primary={
+                  <div className="flex flex-col h-full min-h-0 overflow-hidden">
+                    <FileTabBar
+                      tabs={primaryTabs}
+                      activeTabKey={fileTabs.activeTabKey}
+                      machineId={activeWorkspace?.machineId ?? null}
+                      workingDir={activeWorkspace?.workingDir ?? null}
+                      onActivate={fileTabs.setActiveTab}
+                      onClose={fileTabs.closeTab}
+                      onCloseOthers={fileTabs.closeOtherTabs}
+                      onPin={fileTabs.pinTab}
+                      onToggleExpanded={fileTabs.toggleExpanded}
+                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                      enableDragSplit
+                    />
+                    {activePrimaryTab ? (
+                      <ExplorerEditorTabContent tab={activePrimaryTab} {...editorTabContentProps} />
+                    ) : null}
+                  </div>
+                }
+                secondary={
+                  activeSecondaryTab ? (
+                    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+                      <ExplorerEditorTabContent
+                        tab={activeSecondaryTab}
+                        {...editorTabContentProps}
+                      />
+                    </div>
+                  ) : null
+                }
+                secondaryTabBar={
+                  secondaryTabs.length > 0 ? (
+                    <FileTabBar
+                      tabs={secondaryTabs}
+                      activeTabKey={activeSecondaryTabKey}
+                      machineId={activeWorkspace?.machineId ?? null}
+                      workingDir={activeWorkspace?.workingDir ?? null}
+                      onActivate={fileTabs.setActiveSecondaryTab}
+                      onClose={fileTabs.closeTab}
+                      onCloseOthers={fileTabs.closeOtherTabs}
+                      onPin={fileTabs.pinTab}
+                      onTogglePreviewExpanded={fileTabs.togglePreviewExpanded}
+                      onOpenFileOnRemote={(fp) => void openFileOnRemote(fp)}
+                      enableDragSplit
+                    />
+                  ) : null
+                }
               />
-            ) : activeTab.kind === 'file' ? (
-              isBinaryFile(activeTab.filePath) ? (
-                <FileContentViewer
-                  key={activeTab.filePath}
-                  machineId={machineId}
-                  workingDir={workingDir}
-                  filePath={activeTab.filePath}
-                  onSendSelectionToComposer={onSendSelectionToComposer}
-                  onOpenPreview={onOpenPreview}
-                  onOpenTableView={onOpenTableView}
-                  onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
-                />
-              ) : (
-                <MarkdownFileEditorPane
-                  key={activeTab.filePath}
-                  machineId={machineId}
-                  workingDir={workingDir}
-                  filePath={activeTab.filePath}
-                  onSendSelectionToComposer={onSendSelectionToComposer}
-                  onOpenPreview={onOpenPreview}
-                  onOpenSelectionOnRemote={handleOpenSelectionOnRemote}
-                />
-              )
+            ) : activeTab ? (
+              <ExplorerEditorTabContent tab={activeTab} {...editorTabContentProps} />
             ) : null}
-          </div>
-
-          {/* Right Pane — preview/table */}
-          {hasSplit && (
-            <div
-              className={cn(
-                'flex flex-col min-h-0 overflow-hidden',
-                previewPaneFlexClass(editorExpanded, previewExpanded)
-              )}
-            >
-              <RightPaneTabBar
-                tabs={fileTabs.rightTabs}
-                activeTabKey={fileTabs.activeRightTabKey}
-                onActivate={fileTabs.setActiveRightTab}
-                onClose={fileTabs.closeRight}
-                onTabDoubleClick={(tab) => {
-                  const action = previewTabDoubleClickAction(tab.viewType, activeFilePath);
-                  if (action?.action === 'togglePreviewExpanded') {
-                    fileTabs.togglePreviewExpanded(action.filePath);
-                  }
-                }}
-              />
-              {(() => {
-                const activeRight = fileTabs.rightTabs.find(
-                  (t) => t.key === fileTabs.activeRightTabKey
-                );
-                if (!activeRight) return null;
-                const mw = activeWorkspace?.machineId;
-                const wd = activeWorkspace?.workingDir;
-                if (!mw || !wd) return null;
-                if (activeRight.viewType === 'preview') {
-                  return (
-                    <MarkdownPreviewPane
-                      key={activeRight.key}
-                      machineId={mw}
-                      workingDir={wd}
-                      filePath={activeRight.filePath}
-                    />
-                  );
-                }
-                if (activeRight.viewType === 'table') {
-                  return (
-                    <CsvTablePane
-                      key={activeRight.key}
-                      machineId={mw}
-                      workingDir={wd}
-                      filePath={activeRight.filePath}
-                    />
-                  );
-                }
-                return null;
-              })()}
-            </div>
-          )}
+          </EditorSplitDropOverlay>
         </div>
       ) : (
         /* Empty state — no files open in explorer view */
@@ -435,7 +630,7 @@ const ExplorerContent = memo(function ExplorerContent({
       )}
     </>
   );
-});
+}, areExplorerContentPropsEqual);
 
 interface ModalState {
   isOpen: boolean;
@@ -476,7 +671,6 @@ function useIsSmallScreen(): boolean | undefined {
 export function ChatroomDashboard({
   chatroomId,
   onBack,
-  refreshObservedChatroom,
   focusModeEnabled = false,
   onSetFocusModeEnabled,
 }: ChatroomDashboardProps) {
@@ -500,15 +694,6 @@ export function ChatroomDashboard({
     explorerSyncEnabled,
     setExplorerSyncEnabled,
   } = chatroomLifecycle;
-
-  const [messageViewMode, setMessageViewMode] = useMessageViewMode(chatroomId);
-
-  // ─── Scroll controller (shared between timeline feed and SendForm) ───
-  const {
-    coordinator: timelineScrollCoordinator,
-    beginResize,
-    endResize,
-  } = useTimelineScroll(messageViewMode, chatroomId);
 
   const [explorerSplitSizes, setExplorerSplitSizes] = useExplorerSplitPanelSizes(
     chatroomId as Id<'chatroom_rooms'>
@@ -608,11 +793,43 @@ export function ChatroomDashboard({
     onCloseTab: fileTabs.closeTab,
   });
 
+  const { openDialog, closeDialog } = useCommandDialogActions();
+
+  const paletteRunsActive = useSyncExternalStore(
+    subscribeCommandPaletteRunsActive,
+    getCommandPaletteRunsActive,
+    () => false
+  );
+
   // Handle ActivityBar view changes with toggle sub-state support
   const focusSendFormRef = useRef<(() => void) | null>(null);
+  const allTabNavigationRef = useRef<{ goToLatestAnchor: () => void } | null>(null);
 
   const handleRegisterSendFormFocus = useCallback((fn: () => void) => {
     focusSendFormRef.current = fn;
+  }, []);
+
+  useEffect(() => {
+    return subscribeCommandDialogAnyClose(() => {
+      const messageInputVisible =
+        activeView === 'messages' ||
+        ((activeView === 'explorer' || activeView === 'source-control') &&
+          explorerSplitViewEnabled);
+      if (messageInputVisible) {
+        setTimeout(() => focusSendFormRef.current?.(), 0);
+      }
+    });
+  }, [activeView, explorerSplitViewEnabled]);
+
+  const handleRegisterAllTabNavigation = useCallback(
+    (actions: { goToLatestAnchor: () => void }) => {
+      allTabNavigationRef.current = actions;
+    },
+    []
+  );
+
+  const handleAllTabMessageSent = useCallback(() => {
+    allTabNavigationRef.current?.goToLatestAnchor();
   }, []);
 
   const handleExplorerSelectionToComposer = useCallback(
@@ -656,11 +873,11 @@ export function ChatroomDashboard({
   const handleFileSelect = useCallback(
     (filePath: string) => {
       fileTabs.openPreview(filePath);
-      if (isMarkdownFile(filePath) && fileTabs.rightTabs.some((t) => t.viewType === 'preview')) {
+      if (isMarkdownFile(filePath) && fileTabs.tabs.some((t) => t.kind === 'preview')) {
         fileTabs.navigateActivePreview(filePath);
       }
     },
-    [fileTabs.openPreview, fileTabs.navigateActivePreview, fileTabs.rightTabs]
+    [fileTabs.openPreview, fileTabs.navigateActivePreview, fileTabs.tabs]
   );
 
   const handleFileDoubleClick = useCallback(
@@ -769,9 +986,15 @@ export function ChatroomDashboard({
 
   // Send message mutation (used to execute saved commands)
   const deleteSavedCommandMutation = useSessionMutation(api.savedCommands.deleteSavedCommand);
-  const recordObservationMutation = useSessionMutation(api.chatrooms.recordChatroomObservation);
   const requestGitRefreshMutation = useSessionMutation(api.machines.requestGitRefresh);
   const lastRefreshRef = useRef(0);
+
+  useHandoffGitRefresh(
+    chatroomId,
+    chatroomWorkspaces,
+    requestGitRefreshMutation,
+    REFRESH_COOLDOWN_MS
+  );
 
   const handleConfirmedDelete = useCallback(
     async (commandId: string) => {
@@ -923,18 +1146,7 @@ export function ChatroomDashboard({
     [teamRoles, participants]
   );
 
-  const chatStatus = useMemo((): ChatStatus => {
-    if (!chatroom) return 'idle';
-    const agents: AgentPresence[] = participants.map((participant) => ({
-      lastSeenAction: participant.lastSeenAction ?? null,
-      lastStatus: participant.lastStatus ?? null,
-      lastDesiredState: participant.lastDesiredState ?? null,
-      isAlive: participant.isAlive ?? false,
-    }));
-    const roomStatus: 'active' | 'completed' =
-      chatroom.status === 'completed' ? 'completed' : 'active';
-    return deriveChatStatus(roomStatus, agents);
-  }, [chatroom, participants]);
+  const chatStatus = useChatroomChatStatus(chatroomId);
 
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
@@ -992,7 +1204,7 @@ export function ChatroomDashboard({
     (filePath: string) => {
       if (!filePath) return;
       // Close the file picker modal
-      fileSelector.setOpen(false);
+      closeDialog();
       // If already in explorer view, open inline instead of preview modal
       if (activeView === 'explorer') {
         handleOpenInExplorer(filePath);
@@ -1001,7 +1213,7 @@ export function ChatroomDashboard({
         fileSelector.selectFile(filePath);
       }
     },
-    [fileSelector, activeView, handleOpenInExplorer]
+    [closeDialog, fileSelector, activeView, handleOpenInExplorer]
   );
 
   const handleWorkspaceFileLinkClick = useCallback(
@@ -1010,18 +1222,28 @@ export function ChatroomDashboard({
       const target = resolveWorkspaceFileLinkOpenTarget(activeView, explorerSplitViewEnabled);
       if (target === 'explorer') {
         openFileLocationInExplorer(location);
+        if (isMarkdownFile(location.filePath)) {
+          if (fileTabs.tabs.some((t) => t.kind === 'preview')) {
+            fileTabs.navigateActivePreview(location.filePath);
+          } else {
+            fileTabs.openRight(location.filePath, 'preview');
+          }
+        } else {
+          fileTabs.openPreview(location.filePath);
+        }
       } else {
         setPendingFileHighlight(pendingHighlightForLocation(location));
         fileSelector.selectFile(location.filePath);
       }
     },
-    [activeView, explorerSplitViewEnabled, openFileLocationInExplorer, fileSelector]
+    [activeView, explorerSplitViewEnabled, openFileLocationInExplorer, fileSelector, fileTabs]
   );
 
   // Command runner (for Cmd+Shift+P "Run Script" commands)
   const commandRunner = useCommandRunner({
     machineId: activeWorkspace?.machineId ?? null,
     workingDir: activeWorkspace?.workingDir ?? null,
+    runsListEnabled: activeView === 'processes' || terminalOpen || paletteRunsActive,
   });
 
   // Single demand-driven output subscription for processes panel, terminal, and palette.
@@ -1031,26 +1253,9 @@ export function ChatroomDashboard({
 
   // ─── Command Palette (Cmd+Shift+P) ────────────────────────────────────────
   // Refs to hold imperative open callbacks registered by child components
-  const openEventStreamRef = useRef<(() => void) | null>(null);
   const openBacklogRef = useRef<(() => void) | null>(null);
   const openBacklogCreateRef = useRef<(() => void) | null>(null);
   const openPendingReviewRef = useRef<(() => void) | null>(null);
-  const removeMessagesForTaskRef = useRef<((taskId: string) => void) | null>(null);
-
-  const handleRegisterOpenEventStream = useCallback((fn: () => void) => {
-    openEventStreamRef.current = fn;
-  }, []);
-
-  const handleRegisterMessageStoreActions = useCallback(
-    (actions: { removeMessagesForTask: (taskId: string) => void }) => {
-      removeMessagesForTaskRef.current = actions.removeMessagesForTask;
-    },
-    []
-  );
-
-  const handleTaskDeleted = useCallback((taskId: string) => {
-    removeMessagesForTaskRef.current?.(taskId);
-  }, []);
 
   const handleRegisterWorkQueueActions = useCallback(
     (actions: {
@@ -1080,10 +1285,6 @@ export function ChatroomDashboard({
   const handleSwitchToPullRequests = useCallback(() => {
     setActivityView('pull-requests');
   }, [setActivityView]);
-
-  const handleCmdOpenEventStream = useCallback(() => {
-    openEventStreamRef.current?.();
-  }, []);
 
   const handleCmdOpenBacklog = useCallback(() => {
     openBacklogRef.current?.();
@@ -1306,6 +1507,65 @@ export function ChatroomDashboard({
     }
   }, [agentPanelData, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
 
+  // Per-role restart
+  const restartableAgentRoles = useMemo(
+    () => teamRoles.filter((r) => r !== 'user' && r.toLowerCase() !== 'enhancer'),
+    [teamRoles]
+  );
+
+  const [restartingAgentRole, setRestartingAgentRole] = useState<string | null>(null);
+
+  const isAnyAgentRestartInProgress = isRestartingAllAgents || restartingAgentRole !== null;
+
+  const hasRunningRemoteAgents = useMemo(
+    () => agentPanelData.agents.some((a) => a.state === 'running' || a.state === 'starting'),
+    [agentPanelData.agents]
+  );
+
+  const isAgentActionInProgress =
+    isStartingAllAgents || isStoppingAllAgents || isAnyAgentRestartInProgress;
+
+  const handleRestartRemoteAgent = useCallback(
+    async (role: string) => {
+      if (
+        !ensureAgentRolesConfigured([role], roleConfigMap, () => handleCmdOpenSettings('agents'))
+      ) {
+        return;
+      }
+      const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
+      const agent = agentPanelData.agents.find((a) => a.role.toLowerCase() === role.toLowerCase());
+      const isRunning = agent?.state === 'running';
+
+      setRestartingAgentRole(role);
+      try {
+        if (isRunning) {
+          await agentPanelData.sendCommand({
+            machineId: agent?.machineId ?? ALL_MACHINES,
+            type: 'stop-agent' as const,
+            payload: { chatroomId: chatroomIdTyped, role },
+          });
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        await runAgentStartBatch(
+          [role],
+          roleConfigMap,
+          chatroomIdTyped,
+          agentPanelData.sendCommand,
+          (failed) => {
+            if (failed.length > 0) {
+              toast.error(`Failed to restart ${role}`);
+            } else {
+              toast.success(isRunning ? `Restarted ${role}` : `Started ${role}`);
+            }
+          }
+        );
+      } finally {
+        setRestartingAgentRole(null);
+      }
+    },
+    [agentPanelData, roleConfigMap, chatroomId, handleCmdOpenSettings]
+  );
+
   const sourceControlPanel = useMemo(
     () => (
       <SourceControlPanel
@@ -1324,8 +1584,6 @@ export function ChatroomDashboard({
   );
 
   // Build command palette commands
-  const { openDialog } = useCommandDialog();
-
   const handleOpenChatroomSwitcher = useCallback(() => {
     openDialog('switcher');
   }, [openDialog]);
@@ -1352,9 +1610,10 @@ export function ChatroomDashboard({
   inlineCommandRef.current = inlineCommand;
   useEffect(() => {
     return () => {
+      closeDialog();
       inlineCommandRef.current.detach();
     };
-  }, [chatroomId]);
+  }, [chatroomId, closeDialog]);
 
   // Handler to open Processes panel from command palette
   const handleOpenProcessesPanel = useCallback(() => {
@@ -1384,12 +1643,6 @@ export function ChatroomDashboard({
     }
     lastRefreshRef.current = now;
     try {
-      await recordObservationMutation({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        refresh: true,
-      });
-      // Observed-sync handles refresh via lastRefreshedAt on recordObservation.
-      // requestGitRefreshMutation is an event-stream fallback for immediate git push.
       if (activeWorkspace?.machineId && activeWorkspace?.workingDir) {
         await requestGitRefreshMutation({
           machineId: activeWorkspace.machineId,
@@ -1401,17 +1654,10 @@ export function ChatroomDashboard({
       toast.error('Failed to refresh workspace state');
       console.error('Refresh workspace state failed:', err);
     }
-  }, [
-    activeWorkspace?.machineId,
-    activeWorkspace?.workingDir,
-    chatroomId,
-    recordObservationMutation,
-    requestGitRefreshMutation,
-  ]);
+  }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, requestGitRefreshMutation]);
 
   const commands = useCommandPaletteCommands({
     onOpenSettings: handleCmdOpenSettings,
-    onOpenEventStream: handleCmdOpenEventStream,
     onOpenBacklog: handleCmdOpenBacklog,
     onCreateBacklogItem: handleCmdCreateBacklogItem,
     onOpenPendingReview: handleCmdOpenPendingReview,
@@ -1443,9 +1689,13 @@ export function ChatroomDashboard({
         ? () => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)
         : null,
     workspaceCommands,
-    onStartAllRemoteAgents: isStartingAllAgents ? null : handleStartAllRemoteAgents,
-    onStopAllRemoteAgents: isStoppingAllAgents ? null : handleStopAllRemoteAgents,
-    onRestartAllRemoteAgents: isRestartingAllAgents ? null : handleRestartAllRemoteAgents,
+    onStartAllRemoteAgents:
+      isStartingAllAgents || isAnyAgentRestartInProgress ? null : handleStartAllRemoteAgents,
+    onStopAllRemoteAgents:
+      isStoppingAllAgents || isAnyAgentRestartInProgress ? null : handleStopAllRemoteAgents,
+    onRestartAllRemoteAgents: isAnyAgentRestartInProgress ? null : handleRestartAllRemoteAgents,
+    restartableAgentRoles: isAnyAgentRestartInProgress ? [] : restartableAgentRoles,
+    onRestartRemoteAgent: isAnyAgentRestartInProgress ? null : handleRestartRemoteAgent,
     onCreateCommand: (defaultScope?: SavedCommandScope) =>
       handleOpenSavedCommandModal(undefined, defaultScope),
     savedCommands,
@@ -1565,6 +1815,7 @@ export function ChatroomDashboard({
                 <Settings2 size={16} />
               </button>
             )}
+            <NotificationSoundToggleButton />
             <ThemeToggleButton />
           </div>
         ),
@@ -1638,7 +1889,12 @@ export function ChatroomDashboard({
               <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
                 <div className="flex flex-1 overflow-hidden relative min-h-0">
                   {/* Activity Bar — VSCode-style icon sidebar (always render, even before workspace loads) */}
-                  <ActivityBar activeView={activeView} onViewChange={handleActivityViewChange} />
+                  <ActivityBar
+                    activeView={activeView}
+                    onViewChange={handleActivityViewChange}
+                    chatroomId={chatroomId}
+                    machineId={activeWorkspace?.machineId ?? null}
+                  />
 
                   {/* File Explorer Left Sidebar — shown in explorer view */}
                   {activeView === 'explorer' && activeWorkspace && explorerSidebarVisible && (
@@ -1668,19 +1924,10 @@ export function ChatroomDashboard({
 
                   {/* Main Content Area */}
                   <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    {/* Content Toolbar — always renders, actions change based on active view */}
-                    <WorkspaceHeaderRow className="justify-between gap-2 px-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {activeView === 'messages' && (
-                          <MessageViewToggle
-                            mode={messageViewMode}
-                            onChange={setMessageViewMode}
-                            teamRoles={teamRoles}
-                          />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {(activeView === 'explorer' || activeView === 'source-control') && (
+                    {/* Content Toolbar — shown only for workspace views */}
+                    {(activeView === 'explorer' || activeView === 'source-control') && (
+                      <WorkspaceHeaderRow className="justify-between gap-2 px-2">
+                        <div className="flex items-center gap-2">
                           <button
                             className="w-6 h-6 hidden md:flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer rounded-sm"
                             onClick={() => setExplorerSplitViewEnabled(!explorerSplitViewEnabled)}
@@ -1696,9 +1943,9 @@ export function ChatroomDashboard({
                               <MessageSquare size={14} />
                             )}
                           </button>
-                        )}
-                      </div>
-                    </WorkspaceHeaderRow>
+                        </div>
+                      </WorkspaceHeaderRow>
+                    )}
 
                     {/* When in explorer or source-control with split view enabled, show workspace + messages */}
                     {(activeView === 'explorer' || activeView === 'source-control') &&
@@ -1738,15 +1985,11 @@ export function ChatroomDashboard({
                         >
                           <RightSplitPanel
                             chatroomId={chatroomId as Id<'chatroom_rooms'>}
-                            teamRoles={teamRoles}
                             messagesPanelProps={{
-                              coordinator: timelineScrollCoordinator,
-                              onRegisterOpenEventStream: handleRegisterOpenEventStream,
-                              onRegisterMessageStoreActions: handleRegisterMessageStoreActions,
                               machines: machineNameMap,
-                              onBeforeResize: beginResize,
-                              onAfterResize: endResize,
                               onRegisterSendFormFocus: handleRegisterSendFormFocus,
+                              onRegisterAllTabNavigation: handleRegisterAllTabNavigation,
+                              onMessageSent: handleAllTabMessageSent,
                               autocompleteFiles,
                               refreshAutocompleteFiles: handleAtTriggerActivate,
                               hasAutocompleteWorkspace,
@@ -1762,18 +2005,14 @@ export function ChatroomDashboard({
                       /* Message Feed — shown in messages view */
                       <ChatroomMessagesPanel
                         chatroomId={chatroomId}
-                        coordinator={timelineScrollCoordinator}
-                        onRegisterOpenEventStream={handleRegisterOpenEventStream}
-                        onRegisterMessageStoreActions={handleRegisterMessageStoreActions}
                         machines={machineNameMap}
-                        viewMode={messageViewMode}
+                        onRegisterAllTabNavigation={handleRegisterAllTabNavigation}
                         footer={
                           <div className="shrink-0 border-t-2 border-chatroom-border-strong">
                             <MessageInput
                               chatroomId={chatroomId}
-                              onBeforeResize={beginResize}
-                              onAfterResize={endResize}
                               onRegisterFocus={handleRegisterSendFormFocus}
+                              onMessageSent={handleAllTabMessageSent}
                               files={autocompleteFiles}
                               hasAutocompleteWorkspace={hasAutocompleteWorkspace}
                               onAtTriggerActivate={handleAtTriggerActivate}
@@ -1857,19 +2096,23 @@ export function ChatroomDashboard({
                       onTeamChange={handleTeamChange}
                       agentConfigs={agentPanelData.machineConfigs}
                       onOpenAgents={handleOpenAgents}
+                      hasRunningRemoteAgents={hasRunningRemoteAgents}
+                      onStartAllRemoteAgents={handleStartAllRemoteAgents}
+                      onStopAllRemoteAgents={executeStopAllRemoteAgents}
+                      onRestartAllRemoteAgents={handleRestartAllRemoteAgents}
+                      isAgentActionInProgress={isAgentActionInProgress}
+                      isStartingAllAgents={isStartingAllAgents}
                     />
                     <WorkQueue
                       chatroomId={chatroomId as Id<'chatroom_rooms'>}
                       lifecycle={lifecycle}
                       onRegisterActions={handleRegisterWorkQueueActions}
-                      onTaskDeleted={handleTaskDeleted}
                     />
                   </div>
                 </div>
                 <WorkspaceBottomBar
                   workspaces={chatroomWorkspaces}
                   chatroomId={chatroomId}
-                  refreshObservedChatroom={refreshObservedChatroom}
                   onSwitchToSourceControl={handleSwitchToSourceControl}
                 />
               </div>
@@ -1890,17 +2133,16 @@ export function ChatroomDashboard({
               />
 
               <FileSelectorModal
-                open={fileSelector.open}
-                onOpenChange={fileSelector.setOpen}
                 files={fileSelector.files}
                 recentFiles={fileSelector.recentFiles}
                 onSelectFile={handleCmdPFileSelect}
                 isLoading={fileSelector.isLoading}
                 hasWorkspace={fileSelector.hasWorkspace}
+                onRefresh={fileSelector.refresh}
               />
 
               <FilePreviewDialog
-                filePath={!fileSelector.open ? fileSelector.selectedFile : null}
+                filePath={fileSelector.selectedFile}
                 machineId={activeWorkspace?.machineId ?? null}
                 workingDir={activeWorkspace?.workingDir ?? null}
                 onClose={handleFilePreviewClose}
@@ -1915,6 +2157,7 @@ export function ChatroomDashboard({
                 isOpen={isSetupMode && setupModalOpen}
                 onClose={handleCloseSetup}
                 chatroomId={chatroomId}
+                teamId={chatroom?.teamId}
                 teamRoles={teamRoles}
                 teamEntryPoint={teamEntryPoint}
                 participants={participants || []}
@@ -1933,7 +2176,12 @@ export function ChatroomDashboard({
               />
 
               {/* Command Palette (Cmd+Shift+P) */}
-              <CommandPalette commands={commands} inlineCommand={inlineCommand} />
+              <CommandPalette
+                chatroomId={chatroomId}
+                workspaceId={activeWorkspace?.workspaceId ?? null}
+                commands={commands}
+                inlineCommand={inlineCommand}
+              />
               <WorkspaceCommandsAggregator
                 workspaces={chatroomWorkspaces}
                 callbacks={workspaceCommandCallbacks}

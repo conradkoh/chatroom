@@ -37,6 +37,23 @@ describe('measureTextareaContentHeightPx', () => {
     });
 
     expect(measureTextareaContentHeightPx(textarea, 60)).toBe(60);
-    expect(textarea.style.height).toBe('0px');
+    expect(textarea.style.height).toBe('auto');
+  });
+
+  it('caller must restore pixel height after measure even when capped height unchanged', () => {
+    const textarea = document.createElement('textarea');
+    textarea.style.height = '33px';
+    Object.defineProperty(textarea, 'scrollHeight', {
+      configurable: true,
+      get: () => 80,
+    });
+
+    const nextHeight = measureTextareaContentHeightPx(textarea, 60);
+    expect(nextHeight).toBe(60);
+    expect(textarea.style.height).toBe('auto');
+
+    // Simulate MessageInput restore (the fix)
+    textarea.style.height = `${nextHeight}px`;
+    expect(textarea.style.height).toBe('60px');
   });
 });

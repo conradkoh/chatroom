@@ -13,7 +13,6 @@ import {
   chatroomPortaledMenuFloatingClassName,
   chatroomPortaledMenuSurfaceClassName,
 } from '../shared/industrialDialogStyles';
-import { Z_MODAL } from '../shared/overlayLayers';
 
 import { FixedModal } from '@/components/ui/fixed-modal';
 
@@ -53,14 +52,77 @@ describe('DropdownMenuContent', () => {
   it('renders with opaque chatroom primary background', () => {
     render(
       <DropdownMenu open onOpenChange={vi.fn()} modal={false}>
-        <DropdownMenuTrigger asChild>
-          <button type="button">open</button>
-        </DropdownMenuTrigger>
+        <DropdownMenuTrigger type="button">open</DropdownMenuTrigger>
         <DropdownMenuContent data-testid="dropdown-content">item</DropdownMenuContent>
       </DropdownMenu>
     );
 
     expectOpaquePortaledSurface(screen.getByTestId('dropdown-content').className);
+  });
+});
+
+describe('DropdownMenuContent inside FixedModal', () => {
+  it('portals content into the FixedModal portal host (not document.body)', () => {
+    render(
+      <FixedModal isOpen onClose={() => undefined}>
+        <DropdownMenu open onOpenChange={vi.fn()} modal={false}>
+          <DropdownMenuTrigger render={<button type="button">open</button>} />
+          <DropdownMenuContent data-testid="dropdown-content">item</DropdownMenuContent>
+        </DropdownMenu>
+      </FixedModal>
+    );
+
+    const content = screen.getByTestId('dropdown-content');
+    const host = document.body.querySelector('[data-slot="chatroom-dialog-portal-host"]');
+    expect(host).not.toBeNull();
+    expect(host?.contains(content)).toBe(true);
+  });
+
+  it('nested FixedModal (list -> detail): portals into the innermost modal host', () => {
+    render(
+      <FixedModal isOpen onClose={() => undefined}>
+        <FixedModal isOpen onClose={() => undefined}>
+          <DropdownMenu open onOpenChange={vi.fn()} modal={false}>
+            <DropdownMenuTrigger render={<button type="button">open</button>} />
+            <DropdownMenuContent data-testid="dropdown-content">item</DropdownMenuContent>
+          </DropdownMenu>
+        </FixedModal>
+      </FixedModal>
+    );
+
+    const content = screen.getByTestId('dropdown-content');
+    const hosts = document.body.querySelectorAll('[data-slot="chatroom-dialog-portal-host"]');
+    expect(hosts.length).toBe(2);
+    expect(hosts[1].contains(content)).toBe(true);
+  });
+
+  it('registers above FixedModal so escape dismisses dropdown before modal', () => {
+    const onModalClose = vi.fn();
+    const onDropdownOpenChange = vi.fn();
+
+    const view = render(
+      <FixedModal isOpen onClose={onModalClose}>
+        <DropdownMenu open onOpenChange={onDropdownOpenChange}>
+          <DropdownMenuTrigger render={<button type="button">open</button>} />
+          <DropdownMenuContent data-testid="dropdown-content">item</DropdownMenuContent>
+        </DropdownMenu>
+      </FixedModal>
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onModalClose).not.toHaveBeenCalled();
+
+    view.rerender(
+      <FixedModal isOpen onClose={onModalClose}>
+        <DropdownMenu open={false} onOpenChange={onDropdownOpenChange}>
+          <DropdownMenuTrigger render={<button type="button">open</button>} />
+          <DropdownMenuContent data-testid="dropdown-content">item</DropdownMenuContent>
+        </DropdownMenu>
+      </FixedModal>
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onModalClose).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -85,9 +147,7 @@ describe('PopoverContent', () => {
   it('renders with opaque chatroom primary background', () => {
     render(
       <Popover open onOpenChange={vi.fn()}>
-        <PopoverTrigger asChild>
-          <button type="button">open</button>
-        </PopoverTrigger>
+        <PopoverTrigger type="button">open</PopoverTrigger>
         <PopoverContent data-testid="popover-content">panel</PopoverContent>
       </Popover>
     );
@@ -99,17 +159,15 @@ describe('PopoverContent', () => {
     render(
       <FixedModal isOpen onClose={() => undefined}>
         <Popover open onOpenChange={vi.fn()}>
-          <PopoverTrigger asChild>
-            <button type="button">open</button>
-          </PopoverTrigger>
+          <PopoverTrigger type="button">open</PopoverTrigger>
           <PopoverContent data-testid="popover-content">panel</PopoverContent>
         </Popover>
       </FixedModal>
     );
 
     const popoverContent = screen.getByTestId('popover-content');
-    expect(popoverContent.className).toContain(Z_MODAL);
     expect(popoverContent.className).toContain('z-50');
+    expect(popoverContent.className).not.toContain('z-[100]');
 
     const modalContent = document.body.querySelector<HTMLElement>('.chatroom-root');
     expect(modalContent).not.toBeNull();
@@ -123,9 +181,7 @@ describe('PopoverContent', () => {
     const view = render(
       <FixedModal isOpen onClose={onModalClose}>
         <Popover open onOpenChange={onPopoverOpenChange}>
-          <PopoverTrigger asChild>
-            <button type="button">open</button>
-          </PopoverTrigger>
+          <PopoverTrigger type="button">open</PopoverTrigger>
           <PopoverContent data-testid="popover-content">panel</PopoverContent>
         </Popover>
       </FixedModal>
@@ -137,9 +193,7 @@ describe('PopoverContent', () => {
     view.rerender(
       <FixedModal isOpen onClose={onModalClose}>
         <Popover open={false} onOpenChange={onPopoverOpenChange}>
-          <PopoverTrigger asChild>
-            <button type="button">open</button>
-          </PopoverTrigger>
+          <PopoverTrigger type="button">open</PopoverTrigger>
           <PopoverContent data-testid="popover-content">panel</PopoverContent>
         </Popover>
       </FixedModal>

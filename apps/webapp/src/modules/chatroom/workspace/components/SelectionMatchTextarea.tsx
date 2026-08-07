@@ -28,7 +28,7 @@ export function SelectionMatchTextarea({
     useSelectionMatchHighlights(content, textareaRef);
 
   return (
-    <div className="relative flex-1 min-h-0 overflow-hidden">
+    <div className="relative flex flex-col flex-1 min-h-0 overflow-hidden">
       <pre
         ref={mirrorRef}
         aria-hidden
@@ -54,7 +54,7 @@ export function SelectionMatchTextarea({
         placeholder={placeholder}
         spellCheck={false}
         className={cn(
-          'relative z-10 flex-1 min-h-0 h-full w-full resize-none bg-transparent p-4',
+          'relative z-10 flex-1 min-h-0 w-full resize-none bg-transparent p-4',
           'font-mono text-[13px] leading-relaxed text-transparent caret-chatroom-text-primary',
           'selection:bg-chatroom-accent/30',
           'placeholder:italic placeholder:text-chatroom-text-muted placeholder:[-webkit-text-fill-color:var(--chatroom-text-muted)]',

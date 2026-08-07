@@ -6,19 +6,39 @@
  * delivers work; the agent completes it and hands off.
  */
 
+import { getNativeEnhancerReviewTaskIntake } from './enhancer-review-intake';
 import {
   getNativeTaskStartedPrompt,
   getNativeTaskStartedPromptForHandoffRecipient,
 } from './task-started-content';
 import {
-  appendTaskDeliveryHandoffTargets,
-  appendTaskDeliveryHandoffTemplates,
-  appendTaskDeliveryNextSteps,
+  appendTaskDeliveryHandoffSections,
   type TaskDeliveryParams,
 } from '../task-delivery/core.js';
 import { renderTaskEnvelopeLines } from '../task-delivery/render-task-envelope.js';
 
 export type NativeTaskDeliveryParams = TaskDeliveryParams;
+
+function resolveNativeTaskIntakeContent(
+  params: Pick<
+    NativeTaskDeliveryParams,
+    'chatroomId' | 'role' | 'cliEnvPrefix' | 'isEntryPoint' | 'message'
+  >
+): string {
+  const { chatroomId, role, cliEnvPrefix, isEntryPoint, message } = params;
+  if (!isEntryPoint) {
+    return getNativeTaskStartedPromptForHandoffRecipient();
+  }
+  if (message?.senderRole.toLowerCase() === 'enhancer') {
+    return getNativeEnhancerReviewTaskIntake();
+  }
+  return getNativeTaskStartedPrompt({
+    chatroomId,
+    role,
+    cliEnvPrefix,
+    triggerMessageId: message?._id,
+  });
+}
 
 function appendNativeTaskIntake(
   lines: string[],
@@ -27,18 +47,7 @@ function appendNativeTaskIntake(
     'chatroomId' | 'role' | 'cliEnvPrefix' | 'teamId' | 'isEntryPoint' | 'message'
   >
 ): void {
-  const { chatroomId, role, cliEnvPrefix, isEntryPoint, message } = params;
-
-  const taskIntakeContent = isEntryPoint
-    ? getNativeTaskStartedPrompt({
-        chatroomId,
-        role,
-        cliEnvPrefix,
-        triggerMessageId: message?._id,
-      })
-    : getNativeTaskStartedPromptForHandoffRecipient();
-
-  lines.push('', '<task-intake>', taskIntakeContent, '</task-intake>');
+  lines.push('', '<task-intake>', resolveNativeTaskIntakeContent(params), '</task-intake>');
 }
 
 function appendNativeTaskSection(
@@ -52,10 +61,6 @@ function appendNativeTaskSection(
     | 'message'
     | 'isEntryPoint'
     | 'sourceAttachments'
-    | 'currentContext'
-    | 'originMessage'
-    | 'followUpCountSinceOrigin'
-    | 'originMessageCreatedAt'
     | 'standingInstructions'
   >
 ): void {
@@ -81,11 +86,8 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     availableHandoffTargets,
     isEntryPoint,
     sourceAttachments,
-    currentContext,
-    originMessage,
-    followUpCountSinceOrigin,
-    originMessageCreatedAt,
     standingInstructions,
+    plannerEnhancerEnabled,
   } = params;
 
   const lines: string[] = [];
@@ -97,10 +99,6 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     message,
     isEntryPoint,
     sourceAttachments,
-    currentContext,
-    originMessage,
-    followUpCountSinceOrigin,
-    originMessageCreatedAt,
     standingInstructions,
   });
   appendNativeTaskIntake(lines, {
@@ -111,21 +109,16 @@ export function generateNativeTaskDeliveryOutput(params: NativeTaskDeliveryParam
     isEntryPoint,
     message,
   });
-  appendTaskDeliveryNextSteps(lines, {
+  appendTaskDeliveryHandoffSections(lines, {
     chatroomId,
     role,
     cliEnvPrefix,
+    teamId,
+    task,
     message,
     availableHandoffTargets,
-    task,
     isEntryPoint,
-  });
-  appendTaskDeliveryHandoffTemplates(lines, { teamId, role, chatroomId, cliEnvPrefix });
-  appendTaskDeliveryHandoffTargets(lines, {
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    availableHandoffTargets,
+    plannerEnhancerEnabled,
   });
 
   return lines.join('\n').trim();

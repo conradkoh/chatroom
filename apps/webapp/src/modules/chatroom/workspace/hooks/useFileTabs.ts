@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { SplitDropSide } from '../components/EditorSplitDropOverlay';
 import type { ExpandPane } from '../utils/editorExpandLayout';
 
 import { getFileName } from '@/lib/pathUtils';
@@ -18,13 +19,26 @@ export type EditorTab =
       name: string;
       mode: AgenticQueryMode;
       isPinned: boolean;
-    };
-
-export function editorTabKey(tab: EditorTab): string {
-  return tab.kind === 'file' ? tab.filePath : `agentic-query:${tab.queryId}`;
-}
+    }
+  | { kind: 'preview'; filePath: string; name: string; isPinned: boolean }
+  | { kind: 'table'; filePath: string; name: string; isPinned: boolean };
 
 export type RightPaneViewType = 'preview' | 'table';
+
+function rightTabKey(filePath: string, viewType: RightPaneViewType): string {
+  return `${filePath}::${viewType}`;
+}
+
+function rightTabName(filePath: string, viewType: RightPaneViewType): string {
+  const name = getFileName(filePath);
+  return viewType === 'preview' ? `${name} (Preview)` : `${name} (Table)`;
+}
+
+export function editorTabKey(tab: EditorTab): string {
+  if (tab.kind === 'file') return tab.filePath;
+  if (tab.kind === 'agentic-query') return `agentic-query:${tab.queryId}`;
+  return rightTabKey(tab.filePath, tab.kind);
+}
 
 export interface RightPaneTab {
   /** Unique key: `${filePath}::${viewType}` */
@@ -37,6 +51,10 @@ export interface RightPaneTab {
   viewType: RightPaneViewType;
 }
 
+export function isViewTabKey(key: string): boolean {
+  return key.endsWith('::preview') || key.endsWith('::table');
+}
+
 export interface UseFileTabsOptions {
   chatroomId?: string;
 }
@@ -46,6 +64,13 @@ interface ExpandState {
   pane: ExpandPane;
 }
 
+export interface EditorSplitState {
+  enabled: boolean;
+  /** Tab keys assigned to secondary (right) pane; primary = all other file tabs */
+  secondaryTabKeys: string[];
+  activeSecondaryTabKey: string | null;
+}
+
 interface FileTabsPersistedState {
   tabs: EditorTab[];
   activeTabKey: string | null;
@@ -53,6 +78,7 @@ interface FileTabsPersistedState {
   expandedPane: ExpandPane | null;
   rightTabs: RightPaneTab[];
   activeRightTabKey: string | null;
+  editorSplit: EditorSplitState | null;
 }
 
 const defaultPersistedState: FileTabsPersistedState = {
@@ -62,7 +88,10 @@ const defaultPersistedState: FileTabsPersistedState = {
   expandedPane: null,
   rightTabs: [],
   activeRightTabKey: null,
+  editorSplit: null,
 };
+
+const FILE_TABS_PERSIST_DEBOUNCE_MS = 300;
 
 function getStorageKey(chatroomId: string | undefined): string {
   return `fileTabs:${chatroomId ?? 'global'}`;
@@ -78,6 +107,13 @@ function parseEditorTabs(raw: unknown): EditorTab[] {
         isValidAgenticQueryId(t.queryId) &&
         typeof t.name === 'string' &&
         (t.mode === 'search' || t.mode === 'ask') &&
+        typeof t.isPinned === 'boolean'
+      );
+    }
+    if (t.kind === 'preview' || t.kind === 'table') {
+      return (
+        typeof t.filePath === 'string' &&
+        typeof t.name === 'string' &&
         typeof t.isPinned === 'boolean'
       );
     }
@@ -112,6 +148,9 @@ function isValidEditorTab(tab: EditorTab): boolean {
   if (tab.kind === 'agentic-query') {
     return isValidAgenticQueryId(tab.queryId);
   }
+  if (tab.kind === 'preview' || tab.kind === 'table') {
+    return typeof tab.filePath === 'string' && tab.filePath.length > 0;
+  }
   return typeof tab.filePath === 'string' && tab.filePath.length > 0;
 }
 
@@ -134,7 +173,40 @@ function normalizeTab(t: EditorTab): EditorTab {
   if (t.kind === 'file') {
     return { ...t, name: t.name || getFileName(t.filePath) };
   }
+  if (t.kind === 'preview' || t.kind === 'table') {
+    return { ...t, name: t.name || rightTabName(t.filePath, t.kind) };
+  }
   return t;
+}
+
+// fallow-ignore-next-line complexity
+function migrateRightTabsToEditorTabs(state: FileTabsPersistedState): FileTabsPersistedState {
+  const { rightTabs } = state;
+  if (rightTabs.length === 0) return state;
+
+  const tabs = [...state.tabs];
+  const secondaryKeys = new Set(state.editorSplit?.secondaryTabKeys);
+
+  for (const rt of rightTabs) {
+    secondaryKeys.add(rt.key);
+    if (tabs.every((t) => editorTabKey(t) !== rt.key)) {
+      tabs.push({ kind: rt.viewType, filePath: rt.filePath, name: rt.name, isPinned: true });
+    }
+  }
+
+  const secondaryTabKeys = [...secondaryKeys];
+  const activeSecondaryTabKey =
+    [state.activeRightTabKey, state.editorSplit?.activeSecondaryTabKey, secondaryTabKeys[0]].find(
+      (key) => key != null && secondaryKeys.has(key)
+    ) ?? null;
+
+  return {
+    ...state,
+    tabs,
+    rightTabs: [],
+    activeRightTabKey: null,
+    editorSplit: { enabled: true, secondaryTabKeys, activeSecondaryTabKey },
+  };
 }
 
 function expandStateFromSaved(saved: FileTabsPersistedState): ExpandState | null {
@@ -146,9 +218,10 @@ function expandStateFromSaved(saved: FileTabsPersistedState): ExpandState | null
 }
 
 function sanitizePersistedState(state: FileTabsPersistedState): FileTabsPersistedState {
-  const tabs = dedupeTabsByKey(state.tabs.filter(isValidEditorTab));
+  const migrated = migrateRightTabsToEditorTabs(state);
+  const tabs = dedupeTabsByKey(migrated.tabs.filter(isValidEditorTab));
   const tabKeys = new Set(tabs.map(editorTabKey));
-  let { activeTabKey, expandedTabPath, expandedPane, activeRightTabKey } = state;
+  let { activeTabKey, expandedTabPath, expandedPane, activeRightTabKey } = migrated;
 
   if (activeTabKey !== null && !tabKeys.has(activeTabKey)) {
     activeTabKey = tabs.length > 0 ? editorTabKey(tabs[0]) : null;
@@ -161,12 +234,36 @@ function sanitizePersistedState(state: FileTabsPersistedState): FileTabsPersiste
     expandedPane = null;
   }
 
-  const rightKeys = new Set(state.rightTabs.map((t) => t.key));
+  const rightKeys = new Set(migrated.rightTabs.map((t) => t.key));
   if (activeRightTabKey !== null && !rightKeys.has(activeRightTabKey)) {
-    activeRightTabKey = state.rightTabs.length > 0 ? state.rightTabs[0].key : null;
+    activeRightTabKey = migrated.rightTabs.length > 0 ? migrated.rightTabs[0].key : null;
   }
 
-  return { ...state, tabs, activeTabKey, expandedTabPath, expandedPane, activeRightTabKey };
+  const editorSplit = sanitizeEditorSplit(migrated.editorSplit, tabKeys);
+
+  return {
+    ...migrated,
+    tabs,
+    activeTabKey,
+    expandedTabPath,
+    expandedPane,
+    activeRightTabKey,
+    editorSplit,
+  };
+}
+
+function sanitizeEditorSplit(
+  split: EditorSplitState | null | undefined,
+  tabKeys: Set<string>
+): EditorSplitState | null {
+  if (!split || !split.enabled) return null;
+  const secondaryTabKeys = split.secondaryTabKeys.filter((k) => tabKeys.has(k));
+  if (secondaryTabKeys.length === 0) return null;
+  const activeSecondaryTabKey =
+    split.activeSecondaryTabKey && secondaryTabKeys.includes(split.activeSecondaryTabKey)
+      ? split.activeSecondaryTabKey
+      : secondaryTabKeys[0];
+  return { enabled: true, secondaryTabKeys, activeSecondaryTabKey };
 }
 
 function readSavedState(storageKey: string): FileTabsPersistedState {
@@ -195,6 +292,21 @@ function readSavedState(storageKey: string): FileTabsPersistedState {
     const activeRightTabKey =
       typeof data.activeRightTabKey === 'string' ? data.activeRightTabKey : null;
 
+    const rawSplit = data.editorSplit as Record<string, unknown> | undefined;
+    const editorSplit: EditorSplitState | null =
+      rawSplit && typeof rawSplit === 'object'
+        ? {
+            enabled: true,
+            secondaryTabKeys: Array.isArray(rawSplit.secondaryTabKeys)
+              ? (rawSplit.secondaryTabKeys as string[]).filter((k) => typeof k === 'string')
+              : [],
+            activeSecondaryTabKey:
+              typeof rawSplit.activeSecondaryTabKey === 'string'
+                ? rawSplit.activeSecondaryTabKey
+                : null,
+          }
+        : null;
+
     return sanitizePersistedState({
       tabs: parseEditorTabs(data.tabs).map(normalizeTab),
       activeTabKey,
@@ -202,6 +314,7 @@ function readSavedState(storageKey: string): FileTabsPersistedState {
       expandedPane,
       rightTabs: parseRightTabs(data.rightTabs),
       activeRightTabKey,
+      editorSplit,
     });
   } catch {
     return { ...defaultPersistedState };
@@ -242,6 +355,14 @@ export interface UseFileTabsReturn {
   closeRight: (key: string) => void;
   setActiveRightTab: (key: string) => void;
   navigateActivePreview: (filePath: string) => void;
+  // Editor horizontal split
+  editorSplit: EditorSplitState | null;
+  moveTabToSecondaryPane: (tabKey: string) => void;
+  moveTabToPrimaryPane: (tabKey: string) => void;
+  setActiveSecondaryTab: (tabKey: string) => void;
+  closeSecondarySplit: () => void;
+  handleEditorSplitDrop: (tabKey: string, side: SplitDropSide) => void;
+  editorSplitLayoutEpoch: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -253,13 +374,18 @@ function activeFilePath(tabs: EditorTab[], activeTabKey: string | null): string 
   return null;
 }
 
-function rightTabKey(filePath: string, viewType: RightPaneViewType): string {
-  return `${filePath}::${viewType}`;
-}
-
-function rightTabName(filePath: string, viewType: RightPaneViewType): string {
-  const name = getFileName(filePath);
-  return viewType === 'preview' ? `${name} (Preview)` : `${name} (Table)`;
+function viewTabsFromEditorTabs(tabs: EditorTab[]): RightPaneTab[] {
+  return tabs
+    .filter(
+      (t): t is Extract<EditorTab, { kind: 'preview' | 'table' }> =>
+        t.kind === 'preview' || t.kind === 'table'
+    )
+    .map((t) => ({
+      key: editorTabKey(t),
+      filePath: t.filePath,
+      name: t.name,
+      viewType: t.kind,
+    }));
 }
 
 function findFileTab(
@@ -268,6 +394,88 @@ function findFileTab(
 ): Extract<EditorTab, { kind: 'file' }> | undefined {
   const tab = tabs.find((t) => t.kind === 'file' && t.filePath === filePath);
   return tab?.kind === 'file' ? tab : undefined;
+}
+
+// ─── Editor Split Drop ────────────────────────────────────────────────────────
+
+// fallow-ignore-next-line unused-export
+export function computeEditorSplitDrop(params: {
+  tabKey: string;
+  side: SplitDropSide;
+  activeTabKey: string | null;
+  editorSplit: EditorSplitState | null;
+  tabKeysInOrder: string[];
+}): { nextActiveTabKey: string | null; nextEditorSplit: EditorSplitState | null } {
+  const { tabKey, side, activeTabKey, editorSplit, tabKeysInOrder } = params;
+  const wasInSecondary = editorSplit?.secondaryTabKeys.includes(tabKey) ?? false;
+
+  if (side === 'right') {
+    let secondaryTabKeys: string[];
+    if (wasInSecondary) {
+      secondaryTabKeys = editorSplit?.secondaryTabKeys ?? [tabKey];
+    } else {
+      secondaryTabKeys = [...(editorSplit?.secondaryTabKeys ?? []), tabKey];
+    }
+
+    let nextActiveTabKey = activeTabKey;
+    let finalSecondaryTabKeys = secondaryTabKeys;
+
+    if (activeTabKey === tabKey) {
+      const primaryCandidate = tabKeysInOrder.find(
+        (k) => k !== tabKey && !secondaryTabKeys.includes(k)
+      );
+      if (primaryCandidate) {
+        nextActiveTabKey = primaryCandidate;
+      } else if (editorSplit?.enabled) {
+        // Primary pane would be empty — swap: promote active secondary tab to primary
+        const promoteKey =
+          editorSplit.activeSecondaryTabKey && editorSplit.activeSecondaryTabKey !== tabKey
+            ? editorSplit.activeSecondaryTabKey
+            : secondaryTabKeys.find((k) => k !== tabKey);
+        if (promoteKey) {
+          nextActiveTabKey = promoteKey;
+          finalSecondaryTabKeys = secondaryTabKeys.filter((k) => k !== promoteKey);
+        } else {
+          nextActiveTabKey = null;
+        }
+      } else {
+        nextActiveTabKey = null;
+      }
+    }
+
+    const nextEditorSplit: EditorSplitState = {
+      enabled: true,
+      secondaryTabKeys: finalSecondaryTabKeys,
+      activeSecondaryTabKey: tabKey,
+    };
+    return { nextActiveTabKey, nextEditorSplit };
+  }
+
+  // side === 'left'
+  if (!editorSplit?.enabled) {
+    const nextEditorSplit: EditorSplitState | null =
+      activeTabKey && activeTabKey !== tabKey
+        ? {
+            enabled: true,
+            secondaryTabKeys: [activeTabKey],
+            activeSecondaryTabKey: activeTabKey,
+          }
+        : null;
+    return { nextActiveTabKey: tabKey, nextEditorSplit };
+  }
+
+  const secondaryTabKeys = editorSplit.secondaryTabKeys.filter((k) => k !== tabKey);
+  if (secondaryTabKeys.length === 0) {
+    return { nextActiveTabKey: tabKey, nextEditorSplit: null };
+  }
+  const activeSecondaryTabKey =
+    editorSplit.activeSecondaryTabKey === tabKey
+      ? secondaryTabKeys[0]
+      : editorSplit.activeSecondaryTabKey;
+  return {
+    nextActiveTabKey: tabKey,
+    nextEditorSplit: { enabled: true, secondaryTabKeys, activeSecondaryTabKey },
+  };
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -286,12 +494,10 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     expandStateFromSaved(readSavedState(storageKey))
   );
 
-  const [rightTabs, setRightTabs] = useState<RightPaneTab[]>(
-    () => readSavedState(storageKey).rightTabs
+  const [editorSplit, setEditorSplit] = useState<EditorSplitState | null>(
+    () => readSavedState(storageKey).editorSplit
   );
-  const [activeRightTabKey, setActiveRightTabKey] = useState<string | null>(
-    () => readSavedState(storageKey).activeRightTabKey
-  );
+  const [editorSplitLayoutEpoch, setEditorSplitLayoutEpoch] = useState(0);
 
   const skipNextPersistRef = useRef(false);
 
@@ -302,8 +508,7 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     setTabs(saved.tabs);
     setActiveTabKey(saved.activeTabKey);
     setExpandState(expandStateFromSaved(saved));
-    setRightTabs(saved.rightTabs);
-    setActiveRightTabKey(saved.activeRightTabKey);
+    setEditorSplit(saved.editorSplit);
     lastStorageKeyRef.current = storageKey;
     skipNextPersistRef.current = true;
   }, [storageKey]);
@@ -315,15 +520,18 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
     }
     if (lastStorageKeyRef.current !== storageKey) return;
 
-    writeSavedState(storageKey, {
+    const timer = setTimeout(writeSavedState, FILE_TABS_PERSIST_DEBOUNCE_MS, storageKey, {
       tabs,
       activeTabKey,
       expandedTabPath: expandState?.filePath ?? null,
       expandedPane: expandState?.pane ?? null,
-      rightTabs,
-      activeRightTabKey,
+      rightTabs: [],
+      activeRightTabKey: null,
+      editorSplit,
     });
-  }, [storageKey, tabs, activeTabKey, expandState, rightTabs, activeRightTabKey]);
+
+    return () => clearTimeout(timer);
+  }, [storageKey, tabs, activeTabKey, expandState, editorSplit]);
 
   // ─── Left pane ──────────────────────────────────────────────
 
@@ -358,6 +566,16 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
 
   const closeTab = useCallback(
     (key: string) => {
+      // Remove from secondary pane if present
+      setEditorSplit((prev) => {
+        if (!prev || !prev.secondaryTabKeys.includes(key)) return prev;
+        const secondaryTabKeys = prev.secondaryTabKeys.filter((k) => k !== key);
+        if (secondaryTabKeys.length === 0) return null;
+        const activeSecondaryTabKey =
+          prev.activeSecondaryTabKey === key ? secondaryTabKeys[0] : prev.activeSecondaryTabKey;
+        return { ...prev, secondaryTabKeys, activeSecondaryTabKey };
+      });
+
       setTabs((prev) => {
         const next = prev.filter((t) => editorTabKey(t) !== key);
         setActiveTabKey((currentActive) => {
@@ -415,42 +633,53 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
 
     setTabs((prev) =>
       prev.map((tab) => {
-        if (tab.kind !== 'file') return tab;
+        if (tab.kind !== 'file' && tab.kind !== 'preview' && tab.kind !== 'table') return tab;
         const remapped = remapFilePath(tab.filePath);
         if (remapped === tab.filePath) return tab;
-        return { ...tab, filePath: remapped, name: getFileName(remapped) };
+        if (tab.kind === 'file') {
+          return { ...tab, filePath: remapped, name: getFileName(remapped) };
+        }
+        return {
+          ...tab,
+          filePath: remapped,
+          name: rightTabName(remapped, tab.kind),
+        };
       })
     );
 
-    setActiveTabKey((prev) => (prev ? remapFilePath(prev) : prev));
+    setActiveTabKey((prev) => {
+      if (!prev) return prev;
+      if (isViewTabKey(prev)) {
+        const separator = prev.indexOf('::');
+        const filePath = prev.slice(0, separator);
+        const viewType = prev.slice(separator + 2) as RightPaneViewType;
+        const remapped = remapFilePath(filePath);
+        return remapped === filePath ? prev : rightTabKey(remapped, viewType);
+      }
+      return remapFilePath(prev);
+    });
     setExpandState((prev) => {
       if (!prev) return prev;
       const remapped = remapFilePath(prev.filePath);
       return remapped === prev.filePath ? prev : { ...prev, filePath: remapped };
     });
 
-    setRightTabs((prev) =>
-      prev.map((tab) => {
-        const remapped = remapFilePath(tab.filePath);
-        if (remapped === tab.filePath) return tab;
-        const key = rightTabKey(remapped, tab.viewType);
-        return {
-          ...tab,
-          filePath: remapped,
-          name: rightTabName(remapped, tab.viewType),
-          key,
-        };
-      })
-    );
-
-    setActiveRightTabKey((prev) => {
+    setEditorSplit((prev) => {
       if (!prev) return prev;
-      const separator = prev.indexOf('::');
-      if (separator === -1) return prev;
-      const filePath = prev.slice(0, separator);
-      const viewType = prev.slice(separator + 2) as RightPaneViewType;
-      const remapped = remapFilePath(filePath);
-      return remapped === filePath ? prev : rightTabKey(remapped, viewType);
+      const secondaryTabKeys = prev.secondaryTabKeys.map((key) => {
+        if (!isViewTabKey(key)) return remapFilePath(key);
+        const separator = key.indexOf('::');
+        const filePath = key.slice(0, separator);
+        const viewType = key.slice(separator + 2) as RightPaneViewType;
+        const remapped = remapFilePath(filePath);
+        return remapped === filePath ? key : rightTabKey(remapped, viewType);
+      });
+      const activeSecondaryTabKey = prev.activeSecondaryTabKey
+        ? (secondaryTabKeys[prev.secondaryTabKeys.indexOf(prev.activeSecondaryTabKey)] ??
+          secondaryTabKeys[0] ??
+          null)
+        : null;
+      return { ...prev, secondaryTabKeys, activeSecondaryTabKey };
     });
   }, []);
 
@@ -503,87 +732,220 @@ export function useFileTabs(options?: UseFileTabsOptions): UseFileTabsReturn {
   // ─── Right pane ─────────────────────────────────────────────
 
   const openRight = useCallback((filePath: string, viewType: RightPaneViewType) => {
-    const key = rightTabKey(filePath, viewType);
-    setRightTabs((prev) => {
-      const existing = prev.find((t) => t.key === key);
-      if (existing) return prev;
-      return [...prev, { key, filePath, name: rightTabName(filePath, viewType), viewType }];
+    const viewKey = rightTabKey(filePath, viewType);
+    const sourceKey = filePath;
+
+    setTabs((prev) => {
+      if (prev.some((t) => editorTabKey(t) === viewKey)) return prev;
+      return [
+        ...prev,
+        {
+          kind: viewType,
+          filePath,
+          name: rightTabName(filePath, viewType),
+          isPinned: true,
+        },
+      ];
     });
-    setActiveRightTabKey(key);
+
+    setEditorSplit((prev) => {
+      const withoutSource = (prev?.secondaryTabKeys ?? []).filter((k) => k !== sourceKey);
+      const secondaryTabKeys = withoutSource.includes(viewKey)
+        ? withoutSource
+        : [...withoutSource, viewKey];
+      return {
+        enabled: true,
+        secondaryTabKeys,
+        activeSecondaryTabKey: viewKey,
+      };
+    });
+
+    setActiveTabKey(sourceKey);
   }, []);
 
-  const closeRight = useCallback((key: string) => {
-    setRightTabs((prev) => {
-      const next = prev.filter((t) => t.key !== key);
-      setActiveRightTabKey((currentActive) => {
-        if (currentActive !== key) return currentActive;
-        if (next.length === 0) return null;
-        const idx = prev.findIndex((t) => t.key === key);
-        return next[Math.min(idx, next.length - 1)].key;
-      });
-      return next;
-    });
-  }, []);
+  const closeRight = useCallback(
+    (key: string) => {
+      closeTab(key);
+    },
+    [closeTab]
+  );
 
   const setActiveRight = useCallback((key: string) => {
-    setActiveRightTabKey(key);
+    setEditorSplit((prev) => {
+      if (!prev?.secondaryTabKeys.includes(key)) return prev;
+      return { ...prev, activeSecondaryTabKey: key };
+    });
   }, []);
+
+  // ─── Editor Split ─────────────────────────────────────────
+
+  const moveTabToSecondaryPane = useCallback((tabKey: string) => {
+    setEditorSplit((prev) => {
+      if (prev?.secondaryTabKeys.includes(tabKey)) return prev;
+      const secondaryTabKeys = [...(prev?.secondaryTabKeys ?? []), tabKey];
+      return {
+        enabled: true,
+        secondaryTabKeys,
+        activeSecondaryTabKey: tabKey,
+      };
+    });
+  }, []);
+
+  const moveTabToPrimaryPane = useCallback((tabKey: string) => {
+    setEditorSplit((prev) => {
+      if (!prev) return prev;
+      const secondaryTabKeys = prev.secondaryTabKeys.filter((k) => k !== tabKey);
+      if (secondaryTabKeys.length === 0) return null;
+      const activeSecondaryTabKey =
+        prev.activeSecondaryTabKey === tabKey ? secondaryTabKeys[0] : prev.activeSecondaryTabKey;
+      return { ...prev, secondaryTabKeys, activeSecondaryTabKey };
+    });
+  }, []);
+
+  const setActiveSecondaryTab = useCallback((tabKey: string) => {
+    setEditorSplit((prev) => {
+      if (!prev?.secondaryTabKeys.includes(tabKey)) return prev;
+      return { ...prev, activeSecondaryTabKey: tabKey };
+    });
+  }, []);
+
+  const closeSecondarySplit = useCallback(() => {
+    setEditorSplit(null);
+  }, []);
+
+  const handleEditorSplitDrop = useCallback(
+    (tabKey: string, side: SplitDropSide) => {
+      const tabKeysInOrder = tabs.map((t) => editorTabKey(t));
+      const { nextActiveTabKey, nextEditorSplit } = computeEditorSplitDrop({
+        tabKey,
+        side,
+        activeTabKey,
+        editorSplit: editorSplit?.enabled ? editorSplit : null,
+        tabKeysInOrder,
+      });
+      setEditorSplit(nextEditorSplit);
+      if (nextActiveTabKey != null) setActiveTabKey(nextActiveTabKey);
+      setEditorSplitLayoutEpoch((e) => e + 1);
+    },
+    [tabs, activeTabKey, editorSplit, setActiveTabKey, setEditorSplit]
+  );
 
   const navigateActivePreview = useCallback(
     (filePath: string) => {
-      setRightTabs((prev) => {
-        const previewTabs = prev.filter((t) => t.viewType === 'preview');
-        if (previewTabs.length === 0) return prev;
+      const newKey = rightTabKey(filePath, 'preview');
+      const previewTabs = tabs.filter((t) => t.kind === 'preview');
+      if (previewTabs.length === 0) return;
 
-        const newKey = rightTabKey(filePath, 'preview');
+      if (tabs.some((t) => editorTabKey(t) === newKey)) {
+        setEditorSplit((split) =>
+          split?.secondaryTabKeys.includes(newKey)
+            ? { ...split, activeSecondaryTabKey: newKey }
+            : split
+        );
+        return;
+      }
 
-        const existing = prev.find((t) => t.key === newKey);
-        if (existing) {
-          setActiveRightTabKey(newKey);
-          return prev;
-        }
+      const targetKey =
+        editorSplit?.activeSecondaryTabKey &&
+        previewTabs.some((t) => editorTabKey(t) === editorSplit.activeSecondaryTabKey)
+          ? editorSplit.activeSecondaryTabKey
+          : editorTabKey(previewTabs[0]);
 
-        const target = previewTabs.find((t) => t.key === activeRightTabKey) ?? previewTabs[0];
-
-        setActiveRightTabKey(newKey);
-        return prev.map((t) =>
-          t.key === target.key
+      setTabs((prev) =>
+        prev.map((t) =>
+          editorTabKey(t) === targetKey
             ? {
-                key: newKey,
+                kind: 'preview' as const,
                 filePath,
                 name: rightTabName(filePath, 'preview'),
-                viewType: 'preview' as const,
+                isPinned: true,
               }
             : t
-        );
+        )
+      );
+
+      setEditorSplit((split) => {
+        if (!split) return split;
+        return {
+          ...split,
+          secondaryTabKeys: split.secondaryTabKeys.map((k) => (k === targetKey ? newKey : k)),
+          activeSecondaryTabKey:
+            split.activeSecondaryTabKey === targetKey ? newKey : split.activeSecondaryTabKey,
+        };
       });
     },
-    [activeRightTabKey]
+    [tabs, editorSplit?.activeSecondaryTabKey]
   );
 
   const computedActiveTabPath = activeFilePath(tabs, activeTabKey);
+  const derivedRightTabs = useMemo(() => viewTabsFromEditorTabs(tabs), [tabs]);
+  const derivedActiveRightTabKey = useMemo(() => {
+    if (editorSplit?.activeSecondaryTabKey && isViewTabKey(editorSplit.activeSecondaryTabKey)) {
+      return editorSplit.activeSecondaryTabKey;
+    }
+    return null;
+  }, [editorSplit?.activeSecondaryTabKey]);
 
-  return {
-    tabs,
-    activeTabKey,
-    activeTabPath: computedActiveTabPath,
-    expandedTabPath: expandState?.filePath ?? null,
-    expandedPane: expandState?.pane ?? null,
-    openPreview,
-    pinTab,
-    closeTab,
-    closeOtherTabs,
-    setActiveTab: setActive,
-    toggleExpanded,
-    togglePreviewExpanded,
-    renamePath,
-    openAgenticQueryTab,
-    closeAgenticQueryTab,
-    rightTabs,
-    activeRightTabKey,
-    openRight,
-    closeRight,
-    setActiveRightTab: setActiveRight,
-    navigateActivePreview,
-  };
+  return useMemo(
+    () => ({
+      tabs,
+      activeTabKey,
+      activeTabPath: computedActiveTabPath,
+      expandedTabPath: expandState?.filePath ?? null,
+      expandedPane: expandState?.pane ?? null,
+      openPreview,
+      pinTab,
+      closeTab,
+      closeOtherTabs,
+      setActiveTab: setActive,
+      toggleExpanded,
+      togglePreviewExpanded,
+      renamePath,
+      openAgenticQueryTab,
+      closeAgenticQueryTab,
+      rightTabs: derivedRightTabs,
+      activeRightTabKey: derivedActiveRightTabKey,
+      openRight,
+      closeRight,
+      setActiveRightTab: setActiveRight,
+      navigateActivePreview,
+      editorSplit,
+      moveTabToSecondaryPane,
+      moveTabToPrimaryPane,
+      setActiveSecondaryTab,
+      closeSecondarySplit,
+      handleEditorSplitDrop,
+      editorSplitLayoutEpoch,
+    }),
+    [
+      tabs,
+      activeTabKey,
+      computedActiveTabPath,
+      expandState?.filePath,
+      expandState?.pane,
+      openPreview,
+      pinTab,
+      closeTab,
+      closeOtherTabs,
+      setActive,
+      toggleExpanded,
+      togglePreviewExpanded,
+      renamePath,
+      openAgenticQueryTab,
+      closeAgenticQueryTab,
+      derivedRightTabs,
+      derivedActiveRightTabKey,
+      openRight,
+      closeRight,
+      setActiveRight,
+      navigateActivePreview,
+      editorSplit,
+      moveTabToSecondaryPane,
+      moveTabToPrimaryPane,
+      setActiveSecondaryTab,
+      closeSecondarySplit,
+      handleEditorSplitDrop,
+      editorSplitLayoutEpoch,
+    ]
+  );
 }

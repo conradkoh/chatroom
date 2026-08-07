@@ -330,6 +330,11 @@ Tight spacing:         0.5rem (gap-2)
 - Tabular numbers for scanability
 - High contrast between text weights
 
+### Focus Indicators
+
+- Do **not** rely on the shadcn default global `outline-ring` on all elements — it produces large blue outlines on modals and panels when Radix focus traps activate.
+- Chatroom surfaces use `outline-none` on modals, editors, and industrial inputs; use border or background changes for interactive state instead (see `chatroomIndustrialInputClassName`).
+
 ## Implementation Guidelines
 
 ### Canonical chatroom UI primitives (webapp)
@@ -473,16 +478,42 @@ const typography = {
 
 Z-index layers for portaled UI. SSOT: `apps/webapp/src/modules/chatroom/components/shared/overlayLayers.ts`.
 
-| Layer         | Constant          | Value   | Use                                             |
-| ------------- | ----------------- | ------- | ----------------------------------------------- |
-| Layout chrome | `Z_LAYOUT_CHROME` | z-30    | Mobile nav scrims                               |
-| Panel         | `Z_PANEL`         | z-40    | Side panels, light backdrops                    |
-| Modal         | `Z_MODAL`         | z-50    | Dialogs, FixedModal base                        |
-| Floating      | `Z_FLOATING`      | z-[100] | Portaled menus, popovers, drawers inside modals |
+| Layer         | Constant          | Value   | Use                                            |
+| ------------- | ----------------- | ------- | ---------------------------------------------- |
+| Layout chrome | `Z_LAYOUT_CHROME` | z-30    | Mobile nav scrims                              |
+| Panel         | `Z_PANEL`         | z-40    | Side panels, light backdrops                   |
+| Base modal    | `Z_MODAL`         | z-50    | FixedModal, page-level Dialogs, portaled menus |
+| Floating      | `Z_FLOATING`      | z-[100] | Nested modals/dialogs above parent modal       |
+| Confirmation  | `Z_CONFIRMATION`  | z-[110] | Alert/confirm dialogs above floating menus     |
 
-**Rule:** Any portaled interactive UI that opens _inside_ a modal must use `Z_FLOATING`. `FixedModal` uses inline `zIndex` (50 + 10× stack depth); float layer stays above via z-[100].
+**Auto-elevate:** Components inside a parent modal's `OverlayPortalContainerProvider` context auto-elevate:
 
-**Responsive pickers:** Use `ResponsivePickerShell` for select-style pickers — Popover on desktop, Drawer on mobile — so mobile gets drawer UX consistently.
+- `DialogContent` → `Z_FLOATING` (z-[100])
+- `AlertDialogContent` → `Z_CONFIRMATION` (z-[110])
+- `FixedModal` overlay + content → `Z_FLOATING` (z-[100])
+- `Drawer` overlay + content → `Z_FLOATING` (z-[100])
+
+Portaled menus stay at `Z_MODAL` (z-50); inside modals they elevate via the portal host at z-[60].
+
+**Rule:** Any portaled interactive UI that opens _inside_ a modal must use `Z_FLOATING`. Base modals use `Z_MODAL` (z-50); nested/floating dialogs stack above via z-[100].
+
+### Dialog layout contracts
+
+Chatroom Dialog (`modules/chatroom/components/ui/dialog.tsx`) has two consumer layout patterns:
+
+| Pattern        | DialogContent className                                | Body scroll                     | When to use                                     |
+| -------------- | ------------------------------------------------------ | ------------------------------- | ----------------------------------------------- |
+| Grid (default) | Industrial default only, or sizing tokens (`max-w-lg`) | None — content fits             | Short forms, confirmations, pickers             |
+| Flex scroll    | `flex flex-col min-h-0 max-h-[...]`                    | `<DialogScrollBody>` wraps body | Long lists, settings panels, mobile full-height |
+
+**Rules:**
+
+- `DialogContent` must stay `overflow-visible` (enforced internally) for portaled popovers
+- Never pass `overflow-*` on DialogContent — stripped silently; use DialogScrollBody
+- `flex flex-col` on DialogContent overrides industrial `grid gap-4` via tailwind-merge — only use with DialogScrollBody
+- For sidebar layouts use `FixedModal` (row flex at root), not Dialog
+
+**Canonical scroll example:** `ScheduledPromptsDialog.tsx`
 
 ## Responsive Behavior
 

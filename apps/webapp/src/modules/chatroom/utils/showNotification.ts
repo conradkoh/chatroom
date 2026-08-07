@@ -8,6 +8,8 @@
  * not available.
  */
 
+import { playNotificationSound } from './playNotificationSound';
+
 /**
  * Sends a notification via the Service Worker if available, otherwise
  * falls back to the window Notification API.
@@ -21,6 +23,8 @@ export function showNotification(
   chatroomId?: string
 ): void {
   if (typeof window === 'undefined') return;
+
+  playNotificationSound();
 
   // Try Service Worker first — richer notification support
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {

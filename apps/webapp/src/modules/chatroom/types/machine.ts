@@ -120,6 +120,11 @@ export function getHarnessDisplayName(harness: string): string {
   return HARNESS_DISPLAY_NAMES[harness] ?? harness.charAt(0).toUpperCase() + harness.slice(1);
 }
 
+/** Display label for a harness, optionally including daemon-reported version. */
+export function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): string {
+  return `${getHarnessDisplayName(harness)}${version ? ` v${version.version}` : ''}`;
+}
+
 /** Whether stop→start can reconnect to the daemon's preserved session on this machine. */
 export function harnessSupportsDaemonMemoryResume(harness: AgentHarness): boolean {
   return getHarnessCapabilities(harness).supportsDaemonMemoryResume;

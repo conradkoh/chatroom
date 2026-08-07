@@ -20,6 +20,7 @@ import {
 import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
+import { hasActivePlannerEnhancerJob } from '../src/domain/usecase/enhancer/planner-enhancing-status';
 import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { handleNativeAgentEnd as handleNativeAgentEndUsecase } from '../src/domain/usecase/participant/handle-native-agent-end';
@@ -185,13 +186,17 @@ export const join = mutation({
 
     // Emit agent.waiting event when agent enters the get-next-task loop
     if (args.action === 'get-next-task:started') {
+      const plannerEnhancerActive =
+        args.role.toLowerCase() === 'planner' &&
+        (await hasActivePlannerEnhancerJob(ctx, args.chatroomId));
+      const waitingStatus = plannerEnhancerActive ? 'agent.enhancing' : 'agent.waiting';
       await ctx.db.insert('chatroom_eventStream', {
-        type: 'agent.waiting',
+        type: waitingStatus,
         chatroomId: args.chatroomId,
         role: args.role,
         timestamp: now,
       });
-      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
+      await transitionAgentStatus(ctx, args.chatroomId, args.role, waitingStatus);
     }
 
     if (args.action === 'get-next-task:stopped') {

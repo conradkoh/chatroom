@@ -1,6 +1,6 @@
 'use client';
 
-import { Maximize2, Minus, Plus, RotateCcw } from 'lucide-react';
+import { Minus, Plus, RotateCcw } from 'lucide-react';
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -363,6 +363,7 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
     <div
       className={`fixed inset-0 ${Z_MODAL} flex items-center justify-center bg-black/60`}
       onClick={handleBackdropClick}
+      data-testid="mermaid-fullscreen-modal"
     >
       {/* Modal panel — landscape-oriented, near-full viewport */}
       <div className="chatroom-root relative w-[95vw] h-[85vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong flex flex-col overflow-hidden">
@@ -429,12 +430,30 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
+const DRAG_THRESHOLD_PX = 5;
+
 export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleDiagramPointerDown = (e: React.PointerEvent) => {
+    pointerStartRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleDiagramClick = (e: React.MouseEvent) => {
+    const start = pointerStartRef.current;
+    pointerStartRef.current = null;
+    if (!start) return;
+    const dx = Math.abs(e.clientX - start.x);
+    const dy = Math.abs(e.clientY - start.y);
+    if (dx < DRAG_THRESHOLD_PX && dy < DRAG_THRESHOLD_PX) {
+      setIsModalOpen(true);
+    }
+  };
 
   // Post-render: fix vertical centering of text in node rects (Safari).
   // Uses screen-space measurements (getBoundingClientRect) to avoid the
@@ -495,24 +514,20 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
 
   return (
     <>
-      <div className="relative my-3 group max-w-full min-w-0">
+      <div className="relative my-3 max-w-full min-w-0">
         <div
           ref={containerRef}
-          className="max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain"
+          onPointerDown={handleDiagramPointerDown}
+          onClick={handleDiagramClick}
+          className="max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain cursor-pointer"
           data-testid="mermaid-inline-scroll"
+          title="Click to expand"
         >
           <div
             className="inline-block min-w-max p-2 [&_svg]:block [&_svg]:max-w-none [&_svg]:overflow-visible"
             dangerouslySetInnerHTML={{ __html: svg }}
           />
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="absolute top-2 right-2 p-1.5 bg-chatroom-bg-primary/80 border border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all opacity-0 group-hover:opacity-100 z-10"
-          title="View fullscreen"
-        >
-          <Maximize2 size={14} />
-        </button>
       </div>
       <MermaidFullscreenModal
         svg={svg}

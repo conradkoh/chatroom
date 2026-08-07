@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import type { GitRepoNode } from './git-workspace-hierarchy.js';
 import type { WorkspaceFsEvent, WorkspaceFsEventKind } from './workspace-fs-watcher.js';
-import { runGit } from '../../git/run-command.js';
+import { runGit } from '../../../daemon/infrastructure/git/run-command.js';
 
 export const GIT_POLL_TIMEOUT_MS = 10_000;
 

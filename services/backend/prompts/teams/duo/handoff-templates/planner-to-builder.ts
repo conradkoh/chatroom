@@ -5,26 +5,23 @@
  * implementation slice to the builder. The planner owns technical decisions
  * down to the file level, with code snippets that leave no ambiguity; the
  * builder executes implementation, tool calls, and verification.
+ * Fields that do not apply may be omitted.
  */
 
 import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
 import { getFileReferenceGuidanceComment } from '../../../utils/file-reference-guidance';
+import { getDelegationBriefIntro } from '../../../utils/handoff-section-guidance';
 
 /**
  * Returns the markdown delegation-brief template the planner uses when
  * handing a unit of work to the builder.
  *
- * Every field is mandatory — when a section does not apply the planner writes
- * `Not Applicable` rather than omitting it, so the brief is never ambiguous.
+ * Fields that do not apply may be omitted.
  */
-export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): string {
-  const sessionManagement = nativeIntegration
-    ? `\`compact\` runs in-session context compaction via the SDK runtime. \`new_session\` starts a completely new session within the same process (not compaction). \`none\` continues the prior session. Tasks continue via injection.`
-    : `\`compact\` is NOT supported — use \`none\` or \`new_session\`. \`new_session\` requires a hard restart (daemon stops agent, cold-starts, agent rejoins via \`get-next-task\`). \`none\` resumes prior session (\`wantResume=true\`).`;
-
+export function getPlannerToBuilderHandoffTemplate(): string {
   return `${getHandoffRecipientVisibilityCallout('builder')}
 
-**Delegation Brief (Planner → Builder)** — paste into the handoff message and fill in EVERY field. No field is optional: if a section does not apply, write \`Not Applicable\` (do not delete the section).
+${getDelegationBriefIntro()}
 
 **Division of labor:** You (planner) own architecture and API shape. The builder implements exactly what you specify and does not redesign or invent alternatives unless blocked.
 
@@ -42,9 +39,10 @@ export function getPlannerToBuilderHandoffTemplate(nativeIntegration = false): s
 
 ## Force Multipliers
 <choices that greatly simplify the solution while preserving long-term maintainability — reuse existing abstractions, avoid unnecessary layers, leverage platform conventions>
+- Each builder delegation starts a fresh session automatically — the builder does not continue prior context.
 
 ## Files to implement (exhaustive, file-level)
-List **every** file in this slice. For each file, state the exact change and paste the code the builder should match (no guessing).
+List **every** file in this slice. Mark each file **(Required)** or **(Optional)** — all Required files must land before PR. For each file, state the exact change and paste the code the builder should match (no guessing).
 ${getFileReferenceGuidanceComment()}
 
 ### \`apps/webapp/src/path/to/file.ts\`
@@ -65,7 +63,7 @@ ${getFileReferenceGuidanceComment()}
 (Add one ### block per file. If this slice touches only one file, still use the ### header.)
 
 ## Shared contracts (planner-owned)
-Cross-file types, interfaces, or patterns that apply beyond a single file. Write \`Not Applicable\` if everything is already specified per-file above.
+Cross-file types, interfaces, or patterns that apply beyond a single file. Omit if everything is already specified per-file above.
 
 ### Interfaces & types
 \`\`\`typescript
@@ -79,25 +77,17 @@ Cross-file types, interfaces, or patterns that apply beyond a single file. Write
 
 ## Requirements (acceptance criteria)
 - <verifiable outcome the builder can self-check>
+- Include at least one check that the feature is **verified end-to-end**. Unit tests alone are insufficient for new features.
 
 ## What to avoid
 - <anti-patterns, recurring mistakes, or scope creep for this slice — be explicit>
-- <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs", or "Not Applicable">
+- <e.g. "Do not add new abstractions", "Do not refactor unrelated files", "Do not change existing public APIs">
 
 ## Skills to activate
-- <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder, or "Not Applicable">
+- <e.g. chatroom skill activate code-review --chatroom-id=<id> --role=builder>
 
 ## Out of scope
-- <files or areas the builder must NOT touch in this slice, or "Not Applicable">
-
-## Session Augmentation
-Valid values: \`none\` | \`compact\` | \`new_session\`
-- \`none\` — continue prior session context
-- \`compact\` — run in-session context compaction (native SDK harnesses only)
-- \`new_session\` — start a completely new session (default)
-// data:agent.session_augmentation=new_session
-
-${sessionManagement}
+- <files or areas the builder must NOT touch in this slice>
 
 Keep one slice ≈ one focused review surface. Delegate slices incrementally — one at a time, not all at once.`;
 }

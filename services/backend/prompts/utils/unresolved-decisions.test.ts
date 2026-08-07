@@ -10,6 +10,8 @@ describe('unresolved decisions section block', () => {
     expect(block).toContain(
       "Do not decide on the user's behalf unless they explicitly asked you to"
     );
-    expect(block).toContain('Not Applicable');
+    expect(block).toContain('REQUIRED');
+    expect(block).toContain('write exactly "Not Applicable."');
+    expect(block).not.toContain('Omit this section');
   });
 });

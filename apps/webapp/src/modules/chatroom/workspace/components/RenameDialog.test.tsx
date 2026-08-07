@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RenameDialog } from './RenameDialog';
@@ -25,7 +25,7 @@ describe('RenameDialog', () => {
     mockConfirmRename.mockResolvedValue(undefined);
   });
 
-  it('focuses the path input when the dialog opens for a nested file', () => {
+  it('focuses the path input when the dialog opens for a nested file', async () => {
     render(
       <RenameDialog
         open
@@ -39,10 +39,10 @@ describe('RenameDialog', () => {
     );
 
     const input = screen.getByLabelText('New name in src');
-    expect(document.activeElement).toBe(input);
+    await waitFor(() => expect(document.activeElement).toBe(input));
   });
 
-  it('focuses the filename input when opened for a root file', () => {
+  it('focuses the filename input when opened for a root file', async () => {
     render(
       <RenameDialog
         open
@@ -56,7 +56,7 @@ describe('RenameDialog', () => {
     );
 
     const input = screen.getByLabelText('New file name');
-    expect(document.activeElement).toBe(input);
+    await waitFor(() => expect(document.activeElement).toBe(input));
   });
 
   it('computes correct new path for nested file rename', () => {

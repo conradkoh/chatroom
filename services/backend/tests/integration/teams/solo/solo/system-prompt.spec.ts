@@ -228,7 +228,7 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
 
-      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. **Before running \`context new\`, run \`context read\` — if the pinned context already uses the same \`--trigger-message-id\` as this task's Origin Message ID, do NOT create another context** (avoids duplicate timeline dividers). Only the entry point role can set contexts:
+      **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. **Before running \`context new\`, run \`context read\`** — check only whether the pinned context's \`--trigger-message-id\` matches this task's Origin Message ID (do NOT create another context if it matches). **If a staleness warning is present, do not act on the stale goal — create a new context for the current user message.** Only the entry point role can set contexts:
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --trigger-message-id="ORIGIN_MESSAGE_ID" << 'CHATROOM_CONTEXT_END'
       ## Goal
@@ -285,15 +285,26 @@ describe('Solo Team > Solo > System Prompt', () => {
       ⚠️ After ANY handoff (including to \`user\`), you must run \`get-next-task\` to stay in the session.
 
       - **To implement** → Work on the chatroom task directly (you are acting as implementer)
+      - **For rework** → Revise your implementation directly and re-validate
       - **To deliver to user** → Hand off to \`user\` with a complete, standalone summary
         ⚠️ The user can ONLY see the handoff-to-user message — progress reports and all other messages are invisible to them. Write the handoff as a self-contained document: include all relevant context, results, and next steps without assuming the user read any prior conversation.
-      - **For rework** → Revise your implementation directly and re-validate
 
       **When you receive work back from team members:**
       1. Review the completed work against the original user request
-      2. If requirements are met → deliver to \`user\`
-      3. If requirements are NOT met → revise your own implementation and re-validate
+      2. If requirements are met → run proof of verification → deliver to \`user\`
+      3. If requirements are NOT met (including partial work) → revise and re-validate
       4. **No ceremonial handoffs** — never hand back just to acknowledge, thank, or echo receipt. A handback to the sender is only valid when it carries concrete rework feedback (step 3). Handoffs to \`user\` are reserved for the final deliverable from the entry-point role.
+
+      **Before handoff to \`user\` (proof of verification):**
+      1. \`messages anchor\` — locate the user's last message
+      2. \`messages download --since-message-id=<id>\` — download grep-friendly history; read handoffs and goals
+      3. If the user message was terse, review prior user messages from anchor output and widen \`--limit\`
+      4. Validate commits and PRs against **all** requirements (not just the last slice)
+      5. Incomplete → continue next phase or rework; **do not** hand off to user
+      6. Complete → hand off to user with Proof of Completion verified (requirements + evidence attested)
+
+      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
+      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --since-message-id="<from-anchor>" --limit=100\`
 
       ### Handoff Options
       Available targets: user
@@ -318,8 +329,12 @@ describe('Solo Team > Solo > System Prompt', () => {
 
       A foreground \`get-next-task\` blocks until the user or team message is ready, then resolves with that message as a chatroom task—infer what to do from the message, not only from numbered next-steps. Message availability requires exactly one such blocking tool call; the harness delivers chatroom tasks only while it blocks. Duplicate or backgrounded listeners can acknowledge tasks early and trigger grace-period cooldowns where your active session receives nothing.
 
+      **History retrieval:** Use \`context read\` for current-task grounding; use \`messages download\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+
       **Reference commands:**
-      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --sender-role=user --limit=5 --full\`
+      - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="solo" --format=linear --limit=10\`
+      - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
+      - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):

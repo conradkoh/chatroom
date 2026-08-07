@@ -3,10 +3,13 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Search, Pencil, Trash2 } from 'lucide-react';
 import React, { useState, useEffect, useMemo } from 'react';
-import Markdown from 'react-markdown';
 
 import { getScoringBadge } from './backlog';
-import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
+import {
+  getWorkQueuePreviewSegments,
+  formatWorkQueuePreviewPlainText,
+} from '../utils/getWorkQueuePreviewSegments';
+import { WorkQueuePreviewText } from './WorkQueue/WorkQueuePreviewText';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 
 import {
@@ -90,7 +93,11 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
       return tasks;
     }
     const query = searchQuery.toLowerCase();
-    return tasks.filter((task) => task.content.toLowerCase().includes(query));
+    return tasks.filter((task) =>
+      formatWorkQueuePreviewPlainText(getWorkQueuePreviewSegments(task.content))
+        .toLowerCase()
+        .includes(query)
+    );
   }, [tasks, searchQuery]);
 
   // Group tasks by status
@@ -197,43 +204,6 @@ function TaskGroup({ title, tasks, onTaskClick, isProtected = false }: TaskGroup
   );
 }
 
-// Simplified markdown components for compact display
-const compactMarkdownComponents = {
-  h1: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-bold">{children}</strong>
-  ),
-  h2: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-bold">{children}</strong>
-  ),
-  h3: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-bold">{children}</strong>
-  ),
-  h4: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-bold">{children}</strong>
-  ),
-  h5: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-bold">{children}</strong>
-  ),
-  h6: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-bold">{children}</strong>
-  ),
-  p: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
-  ul: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
-  ol: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
-  li: ({ children }: { children?: React.ReactNode }) => <span>• {children} </span>,
-  code: ({ children }: { children?: React.ReactNode }) => (
-    <code className="bg-chatroom-bg-tertiary px-0.5 text-[10px]">{children}</code>
-  ),
-  pre: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
-  em: ({ children }: { children?: React.ReactNode }) => <em className="italic">{children}</em>,
-  strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-bold">{children}</strong>
-  ),
-  a: ({ children }: { children?: React.ReactNode }) => (
-    <span className="underline">{children}</span>
-  ),
-};
-
 // Task List Item Component
 interface TaskListItemProps {
   task: Task;
@@ -301,12 +271,8 @@ function TaskListItem({
         </div>
       )}
 
-      {/* Content - with simplified markdown */}
-      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-        <Markdown remarkPlugins={chatroomRemarkPlugins} components={compactMarkdownComponents}>
-          {task.content}
-        </Markdown>
-      </div>
+      {/* Content - plain text preview */}
+      <WorkQueuePreviewText content={task.content} className="flex-1 min-w-0" />
 
       {/* Actions for editable tasks */}
       {!isProtected && (

@@ -21,7 +21,7 @@ export const ASSIGNED_TASK_SIGNAL_TYPES = ['task', 'agent_config'] as const;
 export type AssignedTaskSignalType = (typeof ASSIGNED_TASK_SIGNAL_TYPES)[number];
 export const assignedTaskSignalTypeSchema = z.enum(ASSIGNED_TASK_SIGNAL_TYPES);
 
-export const SESSION_AUGMENTATION_MODES = ['none', 'compact', 'new_session'] as const;
+export const SESSION_AUGMENTATION_MODES = ['none', 'new_session'] as const;
 export type SessionAugmentationMode = (typeof SESSION_AUGMENTATION_MODES)[number];
 export const sessionAugmentationSchema = z.enum(SESSION_AUGMENTATION_MODES);
 

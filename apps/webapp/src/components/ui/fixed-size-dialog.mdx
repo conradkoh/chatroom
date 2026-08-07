@@ -27,14 +27,12 @@ import {
   FixedSizeDialogContent,
   FixedSizeDialogTitle,
 } from '@/components/ui/fixed-size-dialog';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 
 export default function Example() {
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        <Button>Open Dialog</Button>
-      </DialogTrigger>
+      <DialogTrigger className={buttonVariants()}>Open Dialog</DialogTrigger>
       <FixedSizeDialog>
         <FixedSizeDialogTitle>Dialog Title</FixedSizeDialogTitle>
         <FixedSizeDialogContent>
@@ -189,5 +187,5 @@ Or use the close button in actions:
 
 ## Related Components
 
-- [Dialog](dialog.tsx) - Standard Radix UI dialog (centered, smaller)
+- [Dialog](dialog.tsx) - Standard Base UI dialog (centered, smaller)
 - [FullscreenDialogContent](dialog.tsx) - Fullscreen variant for mobile-optimized UIs

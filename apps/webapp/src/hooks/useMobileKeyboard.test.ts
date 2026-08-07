@@ -1,7 +1,14 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { computeKeyboardInsetPx, useEditableElementFocused } from './useMobileKeyboard';
+import {
+  computeKeyboardInsetPx,
+  computeVisualViewportOffsetTopPx,
+  isMainChatComposerFocused,
+  useEditableElementFocused,
+  useMainChatComposerFocused,
+  useMainChatComposerKeyboardInset,
+} from './useMobileKeyboard';
 
 describe('useEditableElementFocused', () => {
   afterEach(() => {
@@ -166,5 +173,172 @@ describe('computeKeyboardInsetPx', () => {
       value: { height: 900, offsetTop: 0 },
     });
     expect(computeKeyboardInsetPx()).toBe(0);
+  });
+});
+
+describe('computeVisualViewportOffsetTopPx', () => {
+  afterEach(() => {
+    delete window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__;
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  it('returns 0 when visualViewport is not available', () => {
+    expect(computeVisualViewportOffsetTopPx()).toBe(0);
+  });
+
+  it('returns 0 when offsetTop is 0', () => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { offsetTop: 0 },
+    });
+    expect(computeVisualViewportOffsetTopPx()).toBe(0);
+  });
+
+  it('returns offsetTop when keyboard scrolls the layout viewport', () => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { offsetTop: 120 },
+    });
+    expect(computeVisualViewportOffsetTopPx()).toBe(120);
+  });
+
+  it('rounds fractional offsetTop', () => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { offsetTop: 120.6 },
+    });
+    expect(computeVisualViewportOffsetTopPx()).toBe(121);
+  });
+
+  it('clamps negative offsetTop to 0', () => {
+    Object.defineProperty(window, 'visualViewport', {
+      configurable: true,
+      value: { offsetTop: -40 },
+    });
+    expect(computeVisualViewportOffsetTopPx()).toBe(0);
+  });
+
+  it('uses __MOBILE_KEYBOARD_TEST_OFFSET_TOP__ override when set', () => {
+    window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__ = 120;
+    expect(computeVisualViewportOffsetTopPx()).toBe(120);
+  });
+
+  it('clamps negative __MOBILE_KEYBOARD_TEST_OFFSET_TOP__ override to 0', () => {
+    window.__MOBILE_KEYBOARD_TEST_OFFSET_TOP__ = -20;
+    expect(computeVisualViewportOffsetTopPx()).toBe(0);
+  });
+});
+
+describe('main chat composer focus detection', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    document.body.focus();
+  });
+
+  it('returns false when focus is outside the composer', () => {
+    document.body.focus();
+    expect(isMainChatComposerFocused()).toBe(false);
+  });
+
+  it('returns true when a textarea inside [data-main-chat-composer] is focused', () => {
+    const root = document.createElement('div');
+    root.setAttribute('data-main-chat-composer', '');
+    const ta = document.createElement('textarea');
+    root.appendChild(ta);
+    document.body.appendChild(root);
+    ta.focus();
+    expect(isMainChatComposerFocused()).toBe(true);
+  });
+
+  it('returns false when a standalone input (simulating command dialog) is focused', () => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    document.body.appendChild(input);
+    input.focus();
+    expect(isMainChatComposerFocused()).toBe(false);
+  });
+});
+
+describe('useMainChatComposerFocused', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    document.body.focus();
+  });
+
+  it('returns true when the composer textarea is focused', () => {
+    const root = document.createElement('div');
+    root.setAttribute('data-main-chat-composer', '');
+    const ta = document.createElement('textarea');
+    root.appendChild(ta);
+    document.body.appendChild(root);
+    ta.focus();
+    const { result } = renderHook(() => useMainChatComposerFocused(true));
+    expect(result.current).toBe(true);
+  });
+
+  it('returns false when a standalone input (command dialog) is focused', () => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    document.body.appendChild(input);
+    input.focus();
+    const { result } = renderHook(() => useMainChatComposerFocused(true));
+    expect(result.current).toBe(false);
+  });
+
+  it('returns false when disabled via enabled=false', () => {
+    const root = document.createElement('div');
+    root.setAttribute('data-main-chat-composer', '');
+    const ta = document.createElement('textarea');
+    root.appendChild(ta);
+    document.body.appendChild(root);
+    ta.focus();
+    const { result } = renderHook(() => useMainChatComposerFocused(false));
+    expect(result.current).toBe(false);
+  });
+});
+
+describe('useMainChatComposerKeyboardInset', () => {
+  beforeEach(() => {
+    window.__MOBILE_KEYBOARD_TEST_INSET__ = 300;
+  });
+
+  afterEach(() => {
+    delete window.__MOBILE_KEYBOARD_TEST_INSET__;
+    document.body.innerHTML = '';
+    document.body.focus();
+  });
+
+  it('returns 0 when composer not focused even if keyboard inset is non-zero', () => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    document.body.appendChild(input);
+    input.focus();
+    const { result } = renderHook(() => useMainChatComposerKeyboardInset(true));
+    expect(result.current).toBe(0);
+  });
+
+  it('returns the keyboard inset when the main composer is focused', () => {
+    const root = document.createElement('div');
+    root.setAttribute('data-main-chat-composer', '');
+    const ta = document.createElement('textarea');
+    root.appendChild(ta);
+    document.body.appendChild(root);
+    ta.focus();
+    const { result } = renderHook(() => useMainChatComposerKeyboardInset(true));
+    expect(result.current).toBe(300);
+  });
+
+  it('returns 0 when disabled via enabled=false', () => {
+    const root = document.createElement('div');
+    root.setAttribute('data-main-chat-composer', '');
+    const ta = document.createElement('textarea');
+    root.appendChild(ta);
+    document.body.appendChild(root);
+    ta.focus();
+    const { result } = renderHook(() => useMainChatComposerKeyboardInset(false));
+    expect(result.current).toBe(0);
   });
 });

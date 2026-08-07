@@ -92,12 +92,10 @@ describe('readContext', () => {
             senderRole: 'planner',
             type: 'text',
             content: 'Hello',
-            classification: 'question',
           },
         ],
         pendingTasksForRole: 0,
         originMessage: null,
-        classification: null,
       });
 
       await readContext(TEST_CHATROOM_ID, { role: 'planner' }, deps);
@@ -113,13 +111,12 @@ describe('readContext', () => {
       expect(output).toContain('<message id="msg_1"');
       expect(output).toContain('from="planner"');
       expect(output).toContain('type="text"');
-      expect(output).toContain('classification="question"');
       expect(output).toContain('</message>');
       expect(output).toContain('<message-content>');
       expect(output).toContain('</message-content>');
     });
 
-    it('wraps message in XML tag with correct attributes including to and classification', async () => {
+    it('wraps message in XML tag with correct attributes including to', async () => {
       const deps = createMockDeps();
       (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue({
         messages: [
@@ -129,13 +126,11 @@ describe('readContext', () => {
             senderRole: 'planner',
             targetRole: 'builder',
             type: 'handoff',
-            classification: 'new_feature',
             content: 'Handing off to builder',
           },
         ],
         pendingTasksForRole: 0,
         originMessage: null,
-        classification: null,
       });
 
       await readContext(TEST_CHATROOM_ID, { role: 'planner' }, deps);
@@ -146,7 +141,6 @@ describe('readContext', () => {
       expect(output).toContain('from="planner"');
       expect(output).toContain('to="builder"');
       expect(output).toContain('type="handoff"');
-      expect(output).toContain('classification="new_feature"');
       expect(output).toContain('</message>');
     });
 
@@ -165,7 +159,6 @@ describe('readContext', () => {
         ],
         pendingTasksForRole: 0,
         originMessage: null,
-        classification: null,
       });
 
       await readContext(TEST_CHATROOM_ID, { role: 'planner' }, deps);
@@ -190,7 +183,6 @@ describe('readContext', () => {
         ],
         pendingTasksForRole: 0,
         originMessage: null,
-        classification: null,
       });
 
       await readContext(TEST_CHATROOM_ID, { role: 'planner' }, deps);
@@ -207,7 +199,6 @@ describe('readContext', () => {
         messages: [],
         pendingTasksForRole: 0,
         originMessage: null,
-        classification: null,
       });
 
       await readContext(TEST_CHATROOM_ID, { role: 'builder' }, deps);

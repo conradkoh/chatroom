@@ -49,6 +49,7 @@ export interface CreateTaskArgs {
   sourceMessageId?: Id<'chatroom_messages'>;
   attachedTaskIds?: Id<'chatroom_tasks'>[];
   queuePosition: number;
+  plannerEnhancerEnabled?: boolean;
 }
 
 export interface CreateTaskResult {
@@ -122,6 +123,9 @@ export async function createTask(
       args.attachedTaskIds.length > 0 && {
         attachedTaskIds: args.attachedTaskIds,
       }),
+    ...(args.plannerEnhancerEnabled !== undefined
+      ? { plannerEnhancerEnabled: args.plannerEnhancerEnabled }
+      : {}),
   });
 
   // Update materialized task counts

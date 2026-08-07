@@ -35,10 +35,14 @@ export const SUPPORTED_EVENT_TYPES = {
   'agent.sessionCompacted': { label: 'Session Compacted', badge: 'info' },
   'agent.sessionAugmented': { label: 'Session Augmented', badge: 'info' },
   'agent.resumeStormAborted': { label: 'Resume Storm Aborted', badge: 'error' },
+  'agent.restart': { label: 'Agent Restarting', badge: 'info' },
+  'agent.restartCompleted': { label: 'Agent Restarted', badge: 'success' },
+  'agent.restartPhase': { label: 'Agent Restart Failed', badge: 'error' },
   'agent.restartLimitReached': { label: 'Agent Restart Limit', badge: 'error' },
   'agent.stopTimeout': { label: 'Agent Stop Timeout', badge: 'warning' },
   'agent.harnessSessionIdUpdated': { label: 'Harness Session ID Updated', badge: 'info' },
   'agent.awaitingHandoff': { label: 'Awaiting Handoff', badge: 'warning' },
+  'agent.enhancing': { label: 'Planning Review', badge: 'info' },
   'agent.taskDelivered': { label: 'Task Delivered', badge: 'success' },
   'agent.taskDeliveryFailed': { label: 'Task Delivery Failed', badge: 'error' },
   'machine.switched': { label: 'Machine Switched', badge: 'info' },
@@ -64,6 +68,11 @@ export const SUPPORTED_EVENT_TYPES = {
   'config.requestRemoval': { label: 'Config Request Removal', badge: 'warning' },
   'command.run': { label: 'Command Run', badge: 'warning' },
   'command.stop': { label: 'Command Stop', badge: 'error' },
+  'enhancer.job.created': { label: 'Planning Review Started', badge: 'info' },
+  'enhancer.attempt.failed': { label: 'Planning Review Attempt Failed', badge: 'warning' },
+  'enhancer.job.failed': { label: 'Planning Review Failed', badge: 'error' },
+  'enhancer.job.complete': { label: 'Planning Review Complete', badge: 'success' },
+  'enhancer.job.cancelled': { label: 'Planning Review Cancelled', badge: 'warning' },
 } as const satisfies Record<string, SupportedEventTypeMeta>;
 
 export type EventTypeName = keyof typeof SUPPORTED_EVENT_TYPES;

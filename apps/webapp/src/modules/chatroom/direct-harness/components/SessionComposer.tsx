@@ -12,7 +12,7 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { useCreateSession } from '../hooks/useCreateSession';
 import { useHarnessConfig } from '../hooks/useHarnessConfig';
-import { useHarnessModelFilter } from '../hooks/useHarnessModelFilter';
+import { useMachineModelFilter } from '../../components/model-selection';
 import { useNativeHarnessWorkspace } from '../hooks/useNativeHarnessWorkspace';
 import { useSendMessage } from '../hooks/useSendMessage';
 import { resolveNativeHarnessOptions } from '../utils/harness-selection';
@@ -87,7 +87,7 @@ function useWorkspaceHarnessConfig(
 
   const harnesses = resolveNativeHarnessOptions(capabilities?.harnesses ?? []);
   const machineId = capabilities?.machineId ?? null;
-  const filter = useHarnessModelFilter(machineId, harnessName);
+  const filter = useMachineModelFilter(machineId, harnessName);
   const config = useHarnessConfig({
     harnesses,
     harnessName,

@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { featureFlags } from '../config/featureFlags';
+import { isSelfSignupAllowed } from '../config/signupMethods';
 import { api, internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { action, internalMutation, internalQuery, mutation, query } from './_generated/server';
@@ -73,6 +74,13 @@ export const loginAnon = mutation({
       throw new ConvexError({
         code: 'FEATURE_DISABLED',
         message: 'Login functionality is currently disabled',
+      });
+    }
+
+    if (!isSelfSignupAllowed()) {
+      throw new ConvexError({
+        code: 'SIGNUP_DISABLED',
+        message: 'Self-signup is not enabled',
       });
     }
 

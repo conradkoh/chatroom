@@ -37,8 +37,20 @@ describe('deriveChatStatus', () => {
     expect(deriveChatStatus('active', [agent({ lastStatus: 'task.inProgress' })])).toBe('working');
   });
 
+  it('derives working from isAlive + task.inProgress without any daemon notion', () => {
+    // isAlive (spawned PID) is the online gate — there is no daemon/connection
+    // dimension in this pure function, so a working agent must not show idle.
+    expect(
+      deriveChatStatus('active', [agent({ lastStatus: 'task.inProgress', lastSeenAction: null })])
+    ).toBe('working');
+  });
+
   it('returns active when an agent just completed a task (task.completed)', () => {
     expect(deriveChatStatus('active', [agent({ lastStatus: 'task.completed' })])).toBe('active');
+  });
+
+  it('returns working when planner is enhancing (agent.enhancing)', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.enhancing' })])).toBe('working');
   });
 
   it('returns working when an agent is awaiting handoff (agent.awaitingHandoff)', () => {
@@ -56,11 +68,28 @@ describe('deriveChatStatus', () => {
     ).toBe('working');
   });
 
-  it('non-working / non-awaiting-handoff event types stay active', () => {
-    // task.acknowledged resolves to the 'ready' variant (TASK RECEIVED), not 'working'.
-    expect(deriveChatStatus('active', [agent({ lastStatus: 'task.acknowledged' })])).toBe('active');
-    // agent.registered / agent.requestStart are transitioning, not working.
-    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.registered' })])).toBe('active');
+  it('returns transitioning when an agent just received a task (task.acknowledged)', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'task.acknowledged' })])).toBe(
+      'transitioning'
+    );
+  });
+
+  it('returns transitioning for transitional online states', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.registered' })])).toBe(
+      'transitioning'
+    );
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.requestStart' })])).toBe(
+      'transitioning'
+    );
+  });
+
+  it('non-working / non-awaiting-handoff transitional event types stay transitioning', () => {
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'task.acknowledged' })])).toBe(
+      'transitioning'
+    );
+    expect(deriveChatStatus('active', [agent({ lastStatus: 'agent.registered' })])).toBe(
+      'transitioning'
+    );
   });
 
   it('returns working when any online agent is working among waiting peers', () => {
@@ -86,5 +115,21 @@ describe('deriveChatStatus', () => {
         agent({ lastSeenAction: 'exited', isAlive: true, lastStatus: 'agent.waiting' }),
       ])
     ).toBe('active');
+  });
+
+  it('returns working when hasActiveEnhancerWork is true even with no online agents', () => {
+    expect(deriveChatStatus('active', [], { hasActiveEnhancerWork: true })).toBe('working');
+  });
+
+  it('returns working when hasActiveEnhancerWork is true even when agents are waiting', () => {
+    expect(
+      deriveChatStatus('active', [agent({ lastStatus: 'agent.waiting' })], {
+        hasActiveEnhancerWork: true,
+      })
+    ).toBe('working');
+  });
+
+  it('returns completed even when hasActiveEnhancerWork is true', () => {
+    expect(deriveChatStatus('completed', [], { hasActiveEnhancerWork: true })).toBe('completed');
   });
 });

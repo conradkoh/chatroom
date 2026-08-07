@@ -56,7 +56,7 @@ This is a manual recipe — there is no integration test that boots a real `open
 
 ## Automated coverage
 
-`packages/cli/src/infrastructure/services/remote-agents/opencode-sdk/opencode-sdk-native-flow.integration.test.ts` exercises deferInitialTurn + resumeTurn against a live `opencode serve` with `opencode/big-pickle`. Skips automatically when `opencode` or the model is unavailable.
+`packages/cli/src/daemon/infrastructure/local/harness/services/opencode-sdk/opencode-sdk-native-flow.integration.test.ts` exercises deferInitialTurn + resumeTurn against a live `opencode serve` with `opencode/big-pickle`. Skips automatically when `opencode` or the model is unavailable.
 
 ```bash
 pnpm --filter chatroom-cli test:integration

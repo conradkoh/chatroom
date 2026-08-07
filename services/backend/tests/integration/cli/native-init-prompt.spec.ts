@@ -150,7 +150,7 @@ describe('Native init prompt (integration)', () => {
     expect(output).not.toContain('Level A');
     expect(output).toContain('handed off to planner');
     expect(output).toContain('End your turn now');
-    expect(output).toContain('messages list');
+    expect(output).toContain('messages download');
   });
 
   test('native planner handoff to builder tells agent to end turn and wait for handback', () => {
@@ -165,7 +165,7 @@ describe('Native init prompt (integration)', () => {
     expect(output).toContain('handed off to builder');
     expect(output).toContain('End your turn now');
     expect(output).toContain('builder');
-    expect(output).toContain('messages list');
+    expect(output).toContain('messages download');
     expect(output).not.toContain('get-next-task');
   });
 });

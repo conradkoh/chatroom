@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
+import { generateRandomDevPort } from './devPort';
 import { TEMPLATE_REPO_URL, parseGitHubOwnerRepo } from './template-repo';
 import { updateCliConfig } from './update-cli-config';
 
@@ -180,12 +181,6 @@ function getConvexUrl(): string {
   return match[1].trim();
 }
 
-function generateRandomPort(): number {
-  const MIN_PORT = 3000;
-  const MAX_PORT = 9999;
-  return Math.floor(Math.random() * (MAX_PORT - MIN_PORT + 1)) + MIN_PORT;
-}
-
 function updateEnvVariable(envContent: string, key: string, value: string | number): string {
   const regex = new RegExp(`^${key}=.+$`, 'm');
   if (regex.test(envContent)) {
@@ -204,9 +199,10 @@ function setupWebappEnv(convexUrl: string): void {
 
   let envContent = existsSync(webappEnvPath) ? readFileSync(webappEnvPath, 'utf8') : '';
   envContent = updateEnvVariable(envContent, 'NEXT_PUBLIC_CONVEX_URL', convexUrl);
+  envContent = updateEnvVariable(envContent, 'NEXT_PUBLIC_LOCAL_MANAGER_PORT', '3847');
 
   if (!envContent.match(/^PORT=/m)) {
-    const randomPort = generateRandomPort();
+    const randomPort = generateRandomDevPort();
     envContent = updateEnvVariable(envContent, 'PORT', randomPort);
     console.log(`🔧 Generated random port: ${randomPort}`);
   } else {

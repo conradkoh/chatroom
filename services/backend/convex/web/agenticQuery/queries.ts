@@ -41,12 +41,12 @@ export const get = query({
   handler: async (ctx, args) => {
     const queryDoc = await ctx.db.get('chatroom_agenticQueries', args.queryId);
     if (!queryDoc) {
-      throw new ConvexError({ code: 'NOT_FOUND', message: 'Agentic query not found' });
+      return null;
     }
 
     const workspace = await ctx.db.get('chatroom_workspaces', queryDoc.workspaceId);
     if (!workspace) {
-      throw new ConvexError({ code: 'NOT_FOUND', message: 'Workspace not found' });
+      return null;
     }
 
     await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);

@@ -20,7 +20,8 @@ function generateId(length = 32): string {
   const randomValues = new Uint8Array(length);
   crypto.getRandomValues(randomValues);
   for (let i = 0; i < length; i++) {
-    result += chars[randomValues[i]! % chars.length];
+    const byte = randomValues[i] ?? 0;
+    result += chars[byte % chars.length];
   }
   return result;
 }
@@ -178,6 +179,10 @@ export const approveAuthRequest = mutation({
       .unique();
 
     if (!session) {
+      return { success: false as const, error: 'Not authenticated' };
+    }
+
+    if (!session.userId) {
       return { success: false as const, error: 'Not authenticated' };
     }
 
@@ -429,14 +434,16 @@ export const listUserSessions = query({
       .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))
       .unique();
 
-    if (!webSession) {
+    if (!webSession || !webSession.userId) {
       return [];
     }
+
+    const userId = webSession.userId;
 
     // Get all CLI sessions for this user
     const sessions = await ctx.db
       .query('cliSessions')
-      .withIndex('by_userId', (q) => q.eq('userId', webSession.userId))
+      .withIndex('by_userId', (q) => q.eq('userId', userId))
       .collect();
 
     return sessions.map((s) => ({

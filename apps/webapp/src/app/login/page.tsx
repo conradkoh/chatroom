@@ -1,7 +1,12 @@
 'use client';
 
 import { featureFlags } from '@workspace/backend/config/featureFlags';
-import { AlertCircle, ChevronRight, KeyRound, KeySquare, Loader2 } from 'lucide-react';
+import {
+  isInviteSignupAllowed,
+  isSelfSignupAllowed,
+  isSignupAllowed,
+} from '@workspace/backend/config/signupMethods';
+import { AlertCircle, ChevronRight, KeyRound, KeySquare, Loader2, Ticket } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
@@ -74,7 +79,46 @@ function LoginPageContent() {
     return _renderDisabledState();
   }
 
-  return _renderLoginForm(googleAuthAvailable, sessionId);
+  const returnTo = searchParams.get('returnTo');
+  return _renderLoginForm(googleAuthAvailable, sessionId, returnTo);
+}
+
+function _renderSignupDisabledBanner() {
+  return (
+    <div className="rounded-lg border border-border bg-muted/50 p-4 text-center">
+      <p className="text-sm font-medium">Sign-ups are currently closed</p>
+      <p className="text-xs text-muted-foreground mt-1">Returning users can still sign in below.</p>
+    </div>
+  );
+}
+
+function _renderInviteOnlyHint() {
+  return (
+    <p className="text-xs text-muted-foreground text-center">
+      New users must sign up with an invite code. Google sign-in below is for returning users.
+    </p>
+  );
+}
+
+function _renderInviteSignupOption() {
+  return (
+    <Link href="/signup/invite" className="block no-underline">
+      <div className="flex items-center justify-between h-16 px-6 hover:bg-muted/50 transition-colors cursor-pointer group">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center justify-center w-8 h-8">
+            <Ticket className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+          </div>
+          <div className="flex flex-col">
+            <span className="font-medium text-left">Sign up with Invite Code</span>
+            <span className="text-sm text-muted-foreground text-left">
+              Enter your invite code to create an account
+            </span>
+          </div>
+        </div>
+        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+      </div>
+    </Link>
+  );
 }
 
 /**
@@ -138,12 +182,29 @@ function _renderDisabledState() {
 /**
  * Renders the main login form with authentication options.
  */
-function _renderLoginForm(googleAuthAvailable: boolean | null, sessionId: string | null) {
+function _renderLoginForm(
+  googleAuthAvailable: boolean | null,
+  sessionId: string | null,
+  returnTo: string | null
+) {
+  const signupAllowed = isSignupAllowed();
+  const selfSignupAllowed = isSelfSignupAllowed();
+  const inviteSignupAllowed = isInviteSignupAllowed();
+  const inviteOnlyMode = inviteSignupAllowed && !selfSignupAllowed;
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-24">
       <div className="w-full max-w-md space-y-6">
+        {!signupAllowed && _renderSignupDisabledBanner()}
         {_renderHeader()}
-        {_renderLoginOptions(googleAuthAvailable, sessionId)}
+        {_renderLoginOptions({
+          googleAuthAvailable,
+          sessionId,
+          selfSignupAllowed,
+          inviteSignupAllowed,
+          returnTo,
+        })}
+        {inviteOnlyMode && _renderInviteOnlyHint()}
         {_renderFooter()}
       </div>
     </main>
@@ -165,18 +226,33 @@ function _renderHeader() {
 /**
  * Renders the login options list with all available authentication methods.
  */
-function _renderLoginOptions(googleAuthAvailable: boolean | null, sessionId: string | null) {
+// fallow-ignore-next-line complexity
+function _renderLoginOptions(options: {
+  googleAuthAvailable: boolean | null;
+  sessionId: string | null;
+  selfSignupAllowed: boolean;
+  inviteSignupAllowed: boolean;
+  returnTo: string | null;
+}) {
+  const { googleAuthAvailable, sessionId, selfSignupAllowed, inviteSignupAllowed, returnTo } =
+    options;
+
   return (
     <div className="bg-card border border-border rounded-lg shadow-sm overflow-hidden">
       <div className="divide-y divide-border">
         {/* Google Login */}
-        {googleAuthAvailable && <GoogleLoginButton variant="ghost" showChevron={true} />}
+        {googleAuthAvailable && (
+          <GoogleLoginButton variant="ghost" showChevron={true} returnTo={returnTo} />
+        )}
 
         {/* Login with Code */}
         {_renderCodeLoginOption()}
 
+        {/* Invite Signup */}
+        {inviteSignupAllowed && _renderInviteSignupOption()}
+
         {/* Anonymous Login */}
-        {sessionId && <AnonymousLoginButton variant="list" />}
+        {sessionId && selfSignupAllowed && <AnonymousLoginButton variant="list" />}
       </div>
 
       {/* Recovery Section */}

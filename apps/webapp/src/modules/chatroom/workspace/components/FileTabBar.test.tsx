@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { FileTabBar } from './FileTabBar';
 import { RightPaneTabBar } from './RightPaneTabBar';
@@ -24,6 +24,10 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 vi.mock('../hooks/useFileContent', () => ({
   useFileContent: vi.fn(() => null),
 }));
+
+beforeAll(() => {
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+});
 
 const tabs: EditorTab[] = [
   { kind: 'file', filePath: 'src/a.ts', name: 'a.ts', isPinned: true },
@@ -56,7 +60,8 @@ describe('FileTabBar', () => {
     expect(onCloseOthers).toHaveBeenCalledWith('src/b.ts');
   });
 
-  it('renders agentic query tabs without a file context menu', async () => {
+  it('shows Close Others on agentic query tab right-click', async () => {
+    const onCloseOthers = vi.fn();
     const agenticTabs: EditorTab[] = [
       {
         kind: 'agentic-query',
@@ -65,15 +70,34 @@ describe('FileTabBar', () => {
         mode: 'search',
         isPinned: true,
       },
+      { kind: 'file', filePath: 'src/a.ts', name: 'a.ts', isPinned: true },
     ];
 
     render(
-      <FileTabBar {...defaultProps} tabs={agenticTabs} activeTabKey="agentic-query:query-1" />
+      <FileTabBar
+        {...defaultProps}
+        tabs={agenticTabs}
+        activeTabKey="agentic-query:query-1"
+        onCloseOthers={onCloseOthers}
+      />
     );
 
-    expect(screen.getByTitle('agentic-query:query-1')).toBeInTheDocument();
     fireEvent.contextMenu(screen.getByTitle('agentic-query:query-1'));
+
+    const closeOthersItem = await screen.findByRole('menuitem', { name: /close others/i });
+    expect(closeOthersItem).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /copy file name/i })).not.toBeInTheDocument();
+
+    fireEvent.click(closeOthersItem);
+    expect(onCloseOthers).toHaveBeenCalledWith('agentic-query:query-1');
+  });
+
+  it('scrolls active tab into view when activeTabKey changes', () => {
+    const { rerender } = render(<FileTabBar {...defaultProps} activeTabKey="src/a.ts" />);
+
+    rerender(<FileTabBar {...defaultProps} activeTabKey="src/c.ts" />);
+
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
   });
 
   it('disables Close Others when only one tab is open', async () => {
@@ -167,11 +191,13 @@ describe('FileTabBar', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders a wrap-capable tab bar container', () => {
+  it('renders a single-row horizontal scroll tab bar container', () => {
     render(<FileTabBar {...defaultProps} />);
 
     const bar = screen.getByTestId('file-tab-bar');
-    expect(bar.className).toMatch(/flex-wrap/);
+    expect(bar.className).toMatch(/flex-nowrap/);
+    expect(bar.className).toMatch(/overflow-x-auto/);
+    expect(bar.className).not.toMatch(/flex-wrap/);
     for (const token of WORKSPACE_HEADER_ROW_HEIGHT_CLASS.split(/\s+/)) {
       expect(bar.className).toContain(token);
     }

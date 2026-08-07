@@ -1,7 +1,7 @@
 /**
  * Integration tests for messageList.ts timeline queries.
  *
- * Tests getLatestMessages, subscribeNewMessages, subscribeVisibleMessageUpdates,
+ * Tests getLatestMessages, subscribeNewMessages, subscribeTaskStatusSignalsSince,
  * and listMessagesBefore from convex/messageList.ts.
  */
 
@@ -286,6 +286,21 @@ describe('listMessagesBefore', () => {
     }
   });
 
+  test('getLatestMessages returns taskStatusAfterKey', async () => {
+    const { sessionId } = await createTestSession('ml-task-status-key-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await sendMessages(sessionId, chatroomId, 3);
+
+    const result = await t.query(api.messageList.getLatestMessages, {
+      sessionId: sessionId as any,
+      chatroomId,
+      limit: 20,
+    });
+
+    expect(typeof result.taskStatusAfterKey).toBe('string');
+  });
+
   test('rejects access from unauthenticated session', async () => {
     const { sessionId } = await createTestSession('ml-before-auth-1');
     const chatroomId = await createDuoTeamChatroom(sessionId);
@@ -298,5 +313,85 @@ describe('listMessagesBefore', () => {
         limit: 20,
       })
     ).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// subscribeTaskStatusSignalsSince
+// ---------------------------------------------------------------------------
+
+describe('subscribeTaskStatusSignalsSince', () => {
+  test('returns null when no signals after cursor', async () => {
+    const { sessionId } = await createTestSession('ml-signals-null-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+      sessionId: sessionId as any,
+      chatroomId,
+      afterKey: 'zzz',
+    });
+
+    expect(result).toBeNull();
+  });
+
+  test('getLatestMessages seed key + subscribeTaskStatusSignalsSince integration', async () => {
+    const { sessionId } = await createTestSession('ml-signals-integration-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'planner');
+
+    // Initial load — seed key
+    const initial = await t.query(api.messageList.getLatestMessages, {
+      sessionId: sessionId as any,
+      chatroomId,
+      limit: 20,
+    });
+    const seedKey = initial.taskStatusAfterKey;
+
+    // Query with seed key should return null (no transitions yet)
+    const nullResult = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+      sessionId: sessionId as any,
+      chatroomId,
+      afterKey: seedKey,
+    });
+    expect(nullResult).toBeNull();
+
+    // Create a task and transition it
+    const taskId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'planner',
+        content: 'integration test task',
+        status: 'pending',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        queuePosition: 0,
+      });
+    });
+
+    await t.run(async (ctx) => {
+      const { transitionTask } = await import('../../src/domain/usecase/task/transition-task');
+      await transitionTask(ctx, taskId, 'acknowledged', 'claimTask', { assignedTo: 'planner' });
+      await transitionTask(ctx, taskId, 'in_progress', 'startTask');
+    });
+
+    // Now should have signals
+    const afterTransition = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+      sessionId: sessionId as any,
+      chatroomId,
+      afterKey: seedKey,
+    });
+    expect(afterTransition).not.toBeNull();
+    expect(afterTransition!.items.length).toBe(2);
+    expect(
+      afterTransition!.items.some((i: any) => i.taskId === taskId && i.taskStatus === 'in_progress')
+    ).toBe(true);
+
+    // Query with highKey should return null
+    const afterHighKey = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
+      sessionId: sessionId as any,
+      chatroomId,
+      afterKey: afterTransition!.highKey,
+    });
+    expect(afterHighKey).toBeNull();
   });
 });

@@ -46,9 +46,7 @@ type MessageItem = {
   content: string;
   senderRole: string;
   targetRole: string | null;
-  classification: string | null;
   taskStatus: string | null;
-  featureTitle: string | null;
 };
 
 // ─── Domain errors ─────────────────────────────────────────────────────────
@@ -77,11 +75,10 @@ async function createDefaultDeps(): Promise<MessagesDeps> {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-/** Format classification and status badges for a message */
+/** Format status badges for a message */
 function formatBadges(message: MessageItem): string {
-  const classification = message.classification ? ` [${message.classification.toUpperCase()}]` : '';
   const status = message.taskStatus ? ` (${message.taskStatus})` : '';
-  return `${classification}${status}`;
+  return `${status}`;
 }
 
 /** Log message content, truncated or full based on the option */
@@ -154,9 +151,6 @@ export const listBySenderRoleEffect = (
         if (message.targetRole) {
           console.log(`   Target: ${message.targetRole}`);
         }
-        if (message.featureTitle) {
-          console.log(`   Title: ${message.featureTitle}`);
-        }
 
         logMessageContent(message.content, options.full ?? false);
       }
@@ -220,9 +214,6 @@ export const listSinceMessageEffect = (
         console.log(`   ID: ${message._id}`);
         console.log(`   Time: ${timestamp}`);
         console.log(`   Type: ${message.type}${badges}`);
-        if (message.featureTitle) {
-          console.log(`   Title: ${message.featureTitle}`);
-        }
 
         logMessageContent(message.content, options.full ?? false);
       }
@@ -309,3 +300,9 @@ export async function listSinceMessage(
     )
   );
 }
+
+export { downloadMessages } from './download.js';
+// fallow-ignore-next-line unused-export
+export { anchorMessages, anchorMessagesEffect } from './anchor.js';
+// fallow-ignore-next-line unused-type
+export type { AnchorMessagesOptions } from './anchor.js';

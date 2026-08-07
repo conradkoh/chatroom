@@ -4,7 +4,7 @@ Application-specific (non-framework) frontend code.
 
 ## Auth (`application/auth/`)
 
-Mirrors backend `permissions.ts` and `roles.ts` (must stay in sync — `__tests__/rbac-registry-sync.spec.ts`).
+Mirrors backend `permissions.ts` and `roles.ts` (must stay in sync — `rbac-registry-sync.spec.ts`).
 
 | Export                               | Purpose                                                  |
 | ------------------------------------ | -------------------------------------------------------- |
@@ -22,7 +22,7 @@ Use `authState.permissions` (server-resolved). **Never** gate on `accessLevel` o
 
 ### Add a role
 
-Append to `roleDefinitions` in both packages. Custom roles are not assignable until Phase 1b (`users.roleNames`).
+Append to `roleDefinitions` in both packages. Custom roles are assignable via `users.roleNames` (Phase 1b).
 
 ### Reference
 

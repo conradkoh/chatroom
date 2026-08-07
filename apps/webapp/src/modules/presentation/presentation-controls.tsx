@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { usePresentationContext } from './presentation-container';
-import { Button } from '../../components/ui/button';
+import { Button, buttonVariants } from '../../components/ui/button';
 
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -246,19 +246,18 @@ export function PresentationControls() {
           {/* Fullscreen Toggle - Hidden on mobile with CSS */}
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleFullScreen}
-                  className="hidden sm:flex h-8 w-8"
-                >
-                  {isFullScreen ? (
-                    <Minimize2 className="h-4 w-4" />
-                  ) : (
-                    <Maximize2 className="h-4 w-4" />
-                  )}
-                </Button>
+              <TooltipTrigger
+                className={cn(
+                  buttonVariants({ variant: 'ghost', size: 'icon' }),
+                  'hidden sm:flex h-8 w-8'
+                )}
+                onClick={toggleFullScreen}
+              >
+                {isFullScreen ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
               </TooltipTrigger>
               <TooltipContent>
                 <p>{isFullScreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}</p>
@@ -269,15 +268,14 @@ export function PresentationControls() {
           {/* Sync Control Button - Changes based on current state */}
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={syncButtonState.variant}
-                  size="icon"
-                  onClick={handleSyncButtonClick}
-                  className="h-8 w-8"
-                >
-                  {syncButtonState.icon}
-                </Button>
+              <TooltipTrigger
+                className={cn(
+                  buttonVariants({ variant: syncButtonState.variant, size: 'icon' }),
+                  'h-8 w-8'
+                )}
+                onClick={handleSyncButtonClick}
+              >
+                {syncButtonState.icon}
               </TooltipTrigger>
               <TooltipContent>
                 <p>{syncButtonState.tooltip}</p>
@@ -288,16 +286,12 @@ export function PresentationControls() {
           {/* Info Button - Shows detailed controls and status */}
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowSyncInfo(true)}
-                  className="h-8 w-8"
-                  ref={infoButtonRef}
-                >
-                  <Info className="h-4 w-4" />
-                </Button>
+              <TooltipTrigger
+                className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'h-8 w-8')}
+                onClick={() => setShowSyncInfo(true)}
+                ref={infoButtonRef}
+              >
+                <Info className="h-4 w-4" />
               </TooltipTrigger>
               <TooltipContent>
                 <p>Presentation Info</p>

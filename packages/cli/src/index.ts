@@ -263,6 +263,37 @@ agenticQueryCommand
     });
   });
 
+const enhancerCommand = program.command('enhancer').description('Handoff enhancer commands');
+
+enhancerCommand
+  .command('complete')
+  .description('Submit the enhanced handoff markdown')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--job-id <id>', 'Enhancer job identifier')
+  .action(async (options: { chatroomId: string; jobId: string }) => {
+    await maybeRequireAuth();
+    const { decode } = await import('./utils/serialization/decode/index.js');
+    const stdinContent = await readStdin();
+    let body: string;
+    try {
+      const { ENHANCER_STDIN_DELIMITER, HANDOFF_MESSAGE_MARKER, validateStdinHeredocBody } =
+        await import('@workspace/backend/prompts/cli/stdin-heredoc.js');
+      const decoded = decode(stdinContent, { singleParam: 'result' });
+      body = decoded.result;
+      body = body.replace(new RegExp(`^(${HANDOFF_MESSAGE_MARKER}\\s*)+`, 'i'), '').trim();
+      validateStdinHeredocBody(body, ENHANCER_STDIN_DELIMITER);
+    } catch (err) {
+      console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+      process.exit(1);
+    }
+    if (!body?.trim()) {
+      console.error('❌ Enhanced handoff body is empty');
+      process.exit(1);
+    }
+    const { enhancerComplete } = await import('./commands/enhancer/complete.js');
+    await enhancerComplete(options.chatroomId, { jobId: options.jobId, enhancedContent: body });
+  });
+
 // ============================================================================
 // BACKLOG COMMANDS (auth required)
 // ============================================================================
@@ -480,6 +511,18 @@ backlogCommand
   );
 
 backlogCommand
+  .command('delete')
+  .description('Permanently delete a backlog item (cannot be undone)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--backlog-item-id <id>', 'Backlog item ID to delete')
+  .action(async (options: { chatroomId: string; role: string; backlogItemId: string }) => {
+    await maybeRequireAuth();
+    const { deleteBacklog } = await import('./commands/backlog/index.js');
+    await deleteBacklog(options.chatroomId, options);
+  });
+
+backlogCommand
   .command('export')
   .description('Export backlog items to a JSON file')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
@@ -609,6 +652,72 @@ messagesCommand
           full: options.full,
         });
       }
+    }
+  );
+
+messagesCommand
+  .command('anchor')
+  .description('Locate the last user message and print proof-of-verification workflow commands')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--prior-limit <n>', 'Prior user messages to show (default: 3, max: 5)', '3')
+  .action(async (options: { chatroomId: string; role: string; priorLimit: string }) => {
+    await maybeRequireAuth();
+    let parsedPriorLimit = parseInt(options.priorLimit, 10);
+    if (isNaN(parsedPriorLimit) || parsedPriorLimit < 0) parsedPriorLimit = 3;
+    if (parsedPriorLimit > 5) parsedPriorLimit = 5;
+    const { anchorMessages } = await import('./commands/messages/anchor.js');
+    await anchorMessages(options.chatroomId, {
+      role: options.role,
+      priorLimit: parsedPriorLimit,
+    });
+  });
+
+messagesCommand
+  .command('download')
+  .description('Download chatroom message history to local files for reading/grep')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--format <format>', 'Download format (default: linear)', 'linear')
+  .option(
+    '--output-dir <path>',
+    'Output directory (default: .chatroom/downloads/messages/linear/<download-id>)'
+  )
+  .option('--limit <n>', 'Max messages to download (default: 10, max: 5000)')
+  .option(
+    '--since-message-id <messageId>',
+    'Download history since this message ID (inclusive, ascending)'
+  )
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      format?: string;
+      outputDir?: string;
+      limit?: string;
+      sinceMessageId?: string;
+    }) => {
+      await maybeRequireAuth();
+      if (options.format && options.format !== 'linear') {
+        console.error('❌ Unsupported format. Only --format=linear is supported.');
+        process.exit(1);
+      }
+      let parsedLimit: number | undefined;
+      if (options.limit) {
+        parsedLimit = parseInt(options.limit, 10);
+        if (isNaN(parsedLimit) || parsedLimit < 1) {
+          console.error('❌ --limit must be a positive integer (1-5000)');
+          process.exit(1);
+        }
+      }
+      const { downloadMessages } = await import('./commands/messages/download.js');
+      await downloadMessages(options.chatroomId, {
+        role: options.role,
+        format: 'linear',
+        outputDir: options.outputDir,
+        limit: parsedLimit,
+        sinceMessageId: options.sinceMessageId,
+      });
     }
   );
 

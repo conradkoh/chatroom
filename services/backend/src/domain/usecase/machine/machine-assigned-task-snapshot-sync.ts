@@ -16,7 +16,7 @@ import type { AssignedTaskPresenceSignal, AssignedTaskSignal } from './assigned-
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import { getTeamEntryPoint } from '../../entities/team';
-import { parseSessionAugmentation } from '../../handoff/parse-session-augmentation';
+import { resolveSessionAugmentationForRole } from '../../handoff/parse-session-augmentation';
 
 type RemoteAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 type SnapshotDoc = Doc<'chatroom_machineAssignedTaskSnapshots'>;
@@ -148,7 +148,7 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     taskAssignedTo: task.assignedTo,
     taskCreatedAt: task.createdAt ?? now,
     taskUpdatedAt,
-    sessionAugmentation: parseSessionAugmentation(task.content),
+    sessionAugmentation: resolveSessionAugmentationForRole(task.content, config.role),
     agentHarness: config.agentHarness ?? 'opencode',
     model: config.model,
     workingDir: config.workingDir,
