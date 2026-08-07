@@ -17,10 +17,10 @@ import {
 import { buildCommandPaletteRows, type CommandPaletteRow } from './commandPaletteRows';
 import { CommandPaletteVirtualizedList } from './CommandPaletteVirtualizedList';
 import type { CommandItem } from './types';
-import { CommandDialogContent } from '../shared/CommandDialogContent';
+import { CommandDialogContent, CommandDialogRoot } from '../shared/CommandDialogContent';
 
 import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
-import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
 import {
   getCommandPaletteOpen,
@@ -274,7 +274,7 @@ export function CommandPalette({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={setOpen} modal={false}>
+      <CommandDialogRoot open={open} onOpenChange={setOpen}>
         <CommandDialogContent
           open={open}
           onEscapeKeyDown={handleEscapeKeyDown}
@@ -313,7 +313,7 @@ export function CommandPalette({
             </Command>
           </div>
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
       <CommandOutputModal inlineCommand={inlineCommand} />
     </>
   );

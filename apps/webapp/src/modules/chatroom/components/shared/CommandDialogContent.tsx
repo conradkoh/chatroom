@@ -13,6 +13,29 @@ import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useVisualViewportOffsetTop } from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
 
+export type CommandDialogRootProps = DialogPrimitive.Root.Props;
+
+/**
+ * Dialog root for command-style pickers (Cmd+K, Cmd+P, Cmd+Shift+P).
+ *
+ * CommandDialogContent bypasses Dialog.Popup for performance, so Base UI treats
+ * every pointer press as an outside dismiss when modal={false}. Disable that
+ * here; backdrop dismiss is handled by CommandDialogContent's own backdrop.
+ */
+export function CommandDialogRoot({
+  modal = false,
+  disablePointerDismissal = true,
+  ...props
+}: CommandDialogRootProps) {
+  return (
+    <DialogPrimitive.Root
+      modal={modal}
+      disablePointerDismissal={disablePointerDismissal}
+      {...props}
+    />
+  );
+}
+
 const COMMAND_DIALOG_INPUT_SELECTOR = '[data-slot="command-input"]';
 const COMMAND_DIALOG_TITLE_SELECTOR = '[data-slot="dialog-title"]';
 const COMMAND_DIALOG_DESCRIPTION_SELECTOR = '[data-slot="dialog-description"]';

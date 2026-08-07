@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import { CommandOutputPanel } from './CommandOutputPanel';
-import { CommandDialogContent } from '../shared/CommandDialogContent';
+import { CommandDialogContent, CommandDialogRoot } from '../shared/CommandDialogContent';
 
-import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
 
 interface CommandOutputModalProps {
@@ -147,7 +147,7 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
   }, [open, handleFocusOutside, inlineCommand, withinGrace]);
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange} modal={false}>
+    <CommandDialogRoot open={open} onOpenChange={handleOpenChange}>
       <CommandDialogContent
         open={open}
         onEscapeKeyDown={handleEscapeKeyDown}
@@ -176,6 +176,6 @@ export function CommandOutputModal({ inlineCommand }: CommandOutputModalProps) {
           />
         )}
       </CommandDialogContent>
-    </Dialog>
+    </CommandDialogRoot>
   );
 }
