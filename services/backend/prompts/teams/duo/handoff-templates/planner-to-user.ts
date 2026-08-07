@@ -35,6 +35,6 @@ export function getPlannerToUserReportTemplate(
 ${getHandoffReportTemplateIntro('Report Template (Planner → User)')}
 
 \`\`\`markdown
-${getHandoffReportTemplateBody(roleGuidanceContext)}
+${getHandoffReportTemplateBody(roleGuidanceContext, { includeProofOfVerification: true })}
 \`\`\``;
 }

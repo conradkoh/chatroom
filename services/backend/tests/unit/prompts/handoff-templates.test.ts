@@ -169,12 +169,22 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
       ## Proof of Completion
+      <!-- Entry-point proof-of-completion workflow — run before filling this section:
+      1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\` — locate the user's last message (and prior user messages for context)
+      2. \`messages download --since-message-id=<id>\` — download grep-friendly history since anchor; read handoffs and goals
+      3. If the user's last message was terse (e.g. "do it", "raise a PR"), review prior user messages from anchor output and widen --limit before validating
+      4. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
+      Then: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner" → messages download --since-message-id=<id> from anchor output -->
+      - [ ] I confirm I verified the user's full request: anchored on the last user message, downloaded history since that anchor, reviewed handoffs/goals (including prior user messages when the latest was a terse follow-up), and validated every requirement below before this handoff
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
       <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`. State the context goal and confirm it was achieved. -->
+      - Context goal: <state the context goal and confirm it was achieved>
+      - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
+        - <requirement> — <PR URL, commit hash, or file evidence>
+      - Files changed (code tasks — list every file modified):
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
-      <evidence the goal was met — list every file you (or the builder) modified>
-
+        - <additional files as needed>
       ## Backlog Tasks Implemented
       <!-- REQUIRED. List backlog items addressed if none were in scope, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>
@@ -760,12 +770,22 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
       ## Proof of Completion
+      <!-- Entry-point proof-of-completion workflow — run before filling this section:
+      1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\` — locate the user's last message (and prior user messages for context)
+      2. \`messages download --since-message-id=<id>\` — download grep-friendly history since anchor; read handoffs and goals
+      3. If the user's last message was terse (e.g. "do it", "raise a PR"), review prior user messages from anchor output and widen --limit before validating
+      4. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
+      Then: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="solo" → messages download --since-message-id=<id> from anchor output -->
+      - [ ] I confirm I verified the user's full request: anchored on the last user message, downloaded history since that anchor, reviewed handoffs/goals (including prior user messages when the latest was a terse follow-up), and validated every requirement below before this handoff
       - [ ] I confirm that I read the current chatroom task context using the command below and that the goal stated in that context has been met
       <!-- Read context before handoff if not already done this task: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="solo"\`. State the context goal and confirm it was achieved. -->
+      - Context goal: <state the context goal and confirm it was achieved>
+      - Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
+        - <requirement> — <PR URL, commit hash, or file evidence>
+      - Files changed (code tasks — list every file modified):
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
       - \`apps/webapp/src/path/to/file.ts\` — <what changed and why>
-      <evidence the goal was met — list every file you (or the builder) modified>
-
+        - <additional files as needed>
       ## Backlog Tasks Implemented
       <!-- REQUIRED. List backlog items addressed if none were in scope, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
       - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>

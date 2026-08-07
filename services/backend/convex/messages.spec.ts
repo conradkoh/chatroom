@@ -636,3 +636,111 @@ describe('deleteUserMessageOrTask and materialized counts', () => {
     expect(updatedMessage?.content).toBe('updated content');
   });
 });
+
+describe('getLastUserMessage query', () => {
+  async function insertUserMessage(
+    sessionId: SessionId,
+    chatroomId: Id<'chatroom_rooms'>,
+    content: string
+  ): Promise<void> {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        targetRole: 'planner',
+        content,
+        type: 'message',
+      });
+    });
+    return;
+  }
+
+  test('returns the most recent user message with prior user messages', async () => {
+    const { sessionId } = await createTestSession('anchor-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    await insertUserMessage(sessionId, chatroomId, 'first request');
+    await insertUserMessage(sessionId, chatroomId, 'second request');
+    await insertUserMessage(sessionId, chatroomId, 'last request');
+
+    const result = await t.query(api.messages.getLastUserMessage, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(result.last).not.toBeNull();
+    expect(result.last!.content).toBe('last request');
+    expect(result.prior.map((m) => m.content)).toEqual(['second request', 'first request']);
+  });
+
+  test('returns null last and empty prior when no user messages exist', async () => {
+    const { sessionId } = await createTestSession('anchor-empty');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.query(api.messages.getLastUserMessage, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(result).toEqual({ last: null, prior: [] });
+  });
+
+  test('priorLimit controls how many prior user messages are returned (max 5)', async () => {
+    const { sessionId } = await createTestSession('anchor-prior-limit');
+    const chatroomId = await createChatroom(sessionId);
+
+    for (let i = 1; i <= 8; i++) {
+      await insertUserMessage(sessionId, chatroomId, `request ${i}`);
+    }
+
+    const withPrior = await t.query(api.messages.getLastUserMessage, {
+      sessionId,
+      chatroomId,
+      priorLimit: 2,
+    });
+    expect(withPrior.last!.content).toBe('request 8');
+    expect(withPrior.prior.map((m) => m.content)).toEqual(['request 7', 'request 6']);
+
+    const capped = await t.query(api.messages.getLastUserMessage, {
+      sessionId,
+      chatroomId,
+      priorLimit: 50,
+    });
+    expect(capped.prior.length).toBe(5);
+  });
+
+  test('ignores non-user messages and handoff-type messages', async () => {
+    const { sessionId } = await createTestSession('anchor-filter');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.run(async (ctx) => {
+      // Non-user agent handoff
+      await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'planner',
+        targetRole: 'builder',
+        content: 'planner handoff',
+        type: 'handoff',
+      });
+      // User handoff-type message
+      await ctx.db.insert('chatroom_messages', {
+        chatroomId,
+        senderRole: 'user',
+        targetRole: 'planner',
+        content: 'user handoff content',
+        type: 'handoff',
+      });
+    });
+
+    await insertUserMessage(sessionId, chatroomId, 'the actual user request');
+
+    const result = await t.query(api.messages.getLastUserMessage, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(result.last).not.toBeNull();
+    expect(result.last!.content).toBe('the actual user request');
+    expect(result.prior).toEqual([]);
+  });
+});

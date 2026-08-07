@@ -26,6 +26,6 @@ export function getSoloToUserReportTemplate(
 ${getHandoffReportTemplateIntro('Report Template (Solo → User)')}
 
 \`\`\`markdown
-${getHandoffReportTemplateBody(roleGuidanceContext)}
+${getHandoffReportTemplateBody(roleGuidanceContext, { includeProofOfVerification: true })}
 \`\`\``;
 }

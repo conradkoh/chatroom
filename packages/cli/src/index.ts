@@ -656,6 +656,24 @@ messagesCommand
   );
 
 messagesCommand
+  .command('anchor')
+  .description('Locate the last user message and print proof-of-verification workflow commands')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--prior-limit <n>', 'Prior user messages to show (default: 3, max: 5)', '3')
+  .action(async (options: { chatroomId: string; role: string; priorLimit: string }) => {
+    await maybeRequireAuth();
+    let parsedPriorLimit = parseInt(options.priorLimit, 10);
+    if (isNaN(parsedPriorLimit) || parsedPriorLimit < 0) parsedPriorLimit = 3;
+    if (parsedPriorLimit > 5) parsedPriorLimit = 5;
+    const { anchorMessages } = await import('./commands/messages/anchor.js');
+    await anchorMessages(options.chatroomId, {
+      role: options.role,
+      priorLimit: parsedPriorLimit,
+    });
+  });
+
+messagesCommand
   .command('download')
   .description('Download chatroom message history to local files for reading/grep')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
@@ -666,6 +684,10 @@ messagesCommand
     'Output directory (default: .chatroom/downloads/messages/linear/<download-id>)'
   )
   .option('--limit <n>', 'Max messages to download (default: 10, max: 5000)')
+  .option(
+    '--since-message-id <messageId>',
+    'Download history since this message ID (inclusive, ascending)'
+  )
   .action(
     async (options: {
       chatroomId: string;
@@ -673,6 +695,7 @@ messagesCommand
       format?: string;
       outputDir?: string;
       limit?: string;
+      sinceMessageId?: string;
     }) => {
       await maybeRequireAuth();
       if (options.format && options.format !== 'linear') {
@@ -693,6 +716,7 @@ messagesCommand
         format: 'linear',
         outputDir: options.outputDir,
         limit: parsedLimit,
+        sinceMessageId: options.sinceMessageId,
       });
     }
   );

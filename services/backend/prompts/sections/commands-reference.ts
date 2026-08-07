@@ -60,6 +60,7 @@ ${getNextTaskReminder()}
 
 **Reference commands:**
 - Download message history: \`${cliEnvPrefix}chatroom messages download --chatroom-id="${params.chatroomId}" --role="${params.role}" --format=linear --limit=10\`
+- Anchor on the user's last message: \`${cliEnvPrefix}chatroom messages anchor --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
 - Read current chatroom task context: \`${cliEnvPrefix}chatroom context read --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
 - Git log: \`git log --oneline -10\`
 
@@ -96,8 +97,11 @@ ${HANDOFF_BODY_GUIDANCE}
 
 **History retrieval:** Use \`context read\` for current-task grounding; use \`messages download\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
+// Mirrors the CLI commands reference above (native harness variant).
+// fallow-ignore-next-line code-duplication
 **Reference commands:**
 - Download message history: \`${cliEnvPrefix}chatroom messages download --chatroom-id="${params.chatroomId}" --role="${params.role}" --format=linear --limit=10\`
+- Anchor on the user's last message: \`${cliEnvPrefix}chatroom messages anchor --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
 - Read current chatroom task context: \`${cliEnvPrefix}chatroom context read --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
 - Git log: \`git log --oneline -10\`
 
