@@ -1,7 +1,15 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { buildFileSelectorRows } from './fileSelectorRows';
 import { FileSelectorVirtualizedList } from './FileSelectorVirtualizedList';
@@ -10,38 +18,64 @@ import { CommandDialogContent } from '../shared/CommandDialogContent';
 
 import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
 import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
+import {
+  getFileSelectorOpen,
+  openContextManagedDialog,
+  subscribeActiveContextManagedDialog,
+} from '@/modules/chatroom/context/contextManagedDialogsController';
+import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { useEscapeToClear } from '@/modules/chatroom/hooks/useEscapeToClear';
 
 interface FileSelectorModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   files: FileEntry[];
   recentFiles?: string[];
   onSelectFile: (filePath: string) => void;
   isLoading?: boolean;
   hasWorkspace?: boolean;
+  /** Refreshes the file tree when the picker opens. */
+  onRefresh?: () => void;
 }
 
 export const FileSelectorModal = memo(function FileSelectorModal({
-  open,
-  onOpenChange,
   files,
   recentFiles = [],
   onSelectFile,
   isLoading,
   hasWorkspace,
+  onRefresh,
 }: FileSelectorModalProps) {
+  const { closeDialog } = useCommandDialogActions();
+  const open = useSyncExternalStore(
+    subscribeActiveContextManagedDialog,
+    getFileSelectorOpen,
+    () => false
+  );
+
   const [search, setSearch] = useState('');
   const searchRef = useRef(search);
   searchRef.current = search;
   const onEscapeKeyDown = useEscapeToClear(searchRef, () => setSearch(''));
 
+  // Register Cmd+P / Ctrl+P shortcut (preventDefault blocks browser print dialog)
+  useCommandDialogShortcut({ dialog: 'file-selector', key: 'p', shiftKey: 'forbidden' });
+
   const handleOpenChange = useCallback(
     (newOpen: boolean) => {
-      onOpenChange(newOpen);
+      if (newOpen) openContextManagedDialog('file-selector');
+      else closeDialog();
     },
-    [onOpenChange]
+    [closeDialog]
   );
+
+  // Refresh the file tree on open (deferred to avoid blocking open animation).
+  useEffect(() => {
+    if (!open || !hasWorkspace) return;
+    const frame = requestAnimationFrame(() => {
+      if (getFileSelectorOpen()) onRefresh?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, hasWorkspace, onRefresh]);
 
   // Reset search after close — defer to avoid re-rendering list content during exit animation.
   useEffect(() => {
@@ -52,9 +86,9 @@ export const FileSelectorModal = memo(function FileSelectorModal({
     (filePath: string) => {
       onSelectFile(filePath);
       setSearch('');
-      onOpenChange(false);
+      closeDialog();
     },
-    [onSelectFile, onOpenChange]
+    [onSelectFile, closeDialog]
   );
 
   // Manual fuzzy filtering + row building (virtualized list renders only visible rows).
@@ -69,7 +103,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
       <CommandDialogContent
         open={open}
         onEscapeKeyDown={onEscapeKeyDown}
-        onBackdropDismiss={() => onOpenChange(false)}
+        onBackdropDismiss={() => closeDialog()}
         style={{ maxHeight: '60vh' }}
       >
         {/* Accessible title and description (sr-only) */}

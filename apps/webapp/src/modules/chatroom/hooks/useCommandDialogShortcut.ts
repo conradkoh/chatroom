@@ -5,12 +5,15 @@ import { useEffect, useSyncExternalStore } from 'react';
 import {
   type CommandDialogType,
   useCommandDialogActions,
-  useCommandDialogState,
 } from '@/modules/chatroom/context/CommandDialogContext';
 import {
   getCommandPaletteOpen,
   subscribeCommandPaletteOpen,
 } from '@/modules/chatroom/context/commandPaletteController';
+import {
+  getActiveContextManagedDialog,
+  subscribeActiveContextManagedDialog,
+} from '@/modules/chatroom/context/contextManagedDialogsController';
 
 type CommandDialogShiftKey = 'required' | 'forbidden' | 'ignored';
 
@@ -48,19 +51,24 @@ const noopSubscribe = () => () => {};
  * Registers a global keyboard shortcut that toggles a command dialog open/closed.
  * Used by Cmd+K (switcher), Cmd+P (file selector), and Cmd+Shift+P (command palette).
  */
+// fallow-ignore-next-line complexity
 export function useCommandDialogShortcut({
   dialog,
   key,
   shiftKey = 'ignored',
 }: CommandDialogShortcutOptions): void {
   const { openDialog, closeDialog, toggleCommandPalette } = useCommandDialogActions();
-  const { activeDialog } = useCommandDialogState();
+  const contextManagedOpen = useSyncExternalStore(
+    dialog === 'command-palette' ? noopSubscribe : subscribeActiveContextManagedDialog,
+    () => (dialog === 'command-palette' ? false : getActiveContextManagedDialog() === dialog),
+    () => false
+  );
   const paletteOpen = useSyncExternalStore(
     dialog === 'command-palette' ? subscribeCommandPaletteOpen : noopSubscribe,
     dialog === 'command-palette' ? getCommandPaletteOpen : () => false,
     () => false
   );
-  const open = dialog === 'command-palette' ? paletteOpen : activeDialog === dialog;
+  const open = dialog === 'command-palette' ? paletteOpen : contextManagedOpen;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

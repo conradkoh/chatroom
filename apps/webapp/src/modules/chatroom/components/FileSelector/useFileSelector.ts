@@ -2,7 +2,7 @@
 
 import type { Observable } from '@legendapp/state';
 import { useSelector } from '@legendapp/state/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   acquireFileSelectorPartition,
@@ -14,8 +14,6 @@ import {
 } from './fileSelectorPartitionStore';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
-import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
-import { useCommandDialogShortcut } from '@/modules/chatroom/hooks/useCommandDialogShortcut';
 import { fileTreeEntriesToFileEntries } from '@/modules/chatroom/workspace/files/fileTreeUtils';
 import { useWorkspaceFileTreeEntries } from '@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries';
 import {
@@ -56,14 +54,6 @@ function readRecentFiles(storageKey: string) {
 
 // fallow-ignore-next-line complexity
 export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSelectorOptions) {
-  const { activeDialog, openDialog, closeDialog } = useCommandDialog();
-  const open = activeDialog === 'file-selector';
-  const openRef = useRef(open);
-  openRef.current = open;
-  const setOpen = useCallback(
-    (val: boolean) => (val ? openDialog('file-selector') : closeDialog()),
-    [openDialog, closeDialog]
-  );
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   const hasWorkspace = !!machineId && !!workingDir;
@@ -150,18 +140,6 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
 
   const isLoading = hasWorkspace && !hasTree && partitionStatus !== 'ready';
 
-  useEffect(() => {
-    if (!open || !hasWorkspace) return;
-    const frame = requestAnimationFrame(() => {
-      if (!openRef.current) return;
-      refresh();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [open, hasWorkspace, refresh]);
-
-  // Register Cmd+P / Ctrl+P shortcut (preventDefault blocks browser print dialog)
-  useCommandDialogShortcut({ dialog: 'file-selector', key: 'p', shiftKey: 'forbidden' });
-
   const recentFilesStorageKey = getRecentFilesStorageKey(chatroomId);
 
   // Recently opened files (persisted in localStorage)
@@ -191,13 +169,12 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
   );
 
   return {
-    open,
-    setOpen,
     files,
     recentFiles,
     selectedFile,
     selectFile,
     isLoading,
     hasWorkspace,
+    refresh,
   };
 }

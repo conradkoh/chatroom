@@ -3,8 +3,12 @@
 /**
  * Shared context for mutual exclusivity across command-style dialogs.
  *
- * Switcher and file selector share context state. Command palette uses a
- * module-level controller so opening it does not rerender ChatroomDashboard.
+ * Switcher and file-selector open state live in a module-level controller
+ * (`contextManagedDialogsController.ts`) so opening Cmd+P/Cmd+K does not
+ * rerender `ChatroomDashboard`. Command palette uses its own module-level
+ * controller (`commandPaletteController.ts`). This provider only supplies
+ * ACTIONS; open state is read via `useSyncExternalStore` in the components
+ * that need it (switcher, file selector, shortcut hook).
  */
 
 import { usePathname } from 'next/navigation';
@@ -15,7 +19,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 
@@ -26,8 +30,15 @@ import {
   setCommandPaletteOpen,
   toggleCommandPaletteOpen,
 } from './commandPaletteController';
+import {
+  closeContextManagedDialog,
+  getActiveContextManagedDialog,
+  openContextManagedDialog,
+  resetContextManagedDialogs,
+  subscribeActiveContextManagedDialog,
+} from './contextManagedDialogsController';
 
-/** Dialogs managed by shared context state (mutually exclusive with each other + palette). */
+/** Dialogs managed by the module controller (mutually exclusive with each other + palette). */
 export type ContextManagedDialog = 'switcher' | 'file-selector';
 
 /** @deprecated Use ContextManagedDialog — kept for shortcut hook compatibility */
@@ -45,17 +56,12 @@ interface CommandDialogActions {
   toggleCommandPalette: () => void;
 }
 
-const CommandDialogStateContext = createContext<CommandDialogState | null>(null);
 const CommandDialogActionsContext = createContext<CommandDialogActions | null>(null);
 
 export function CommandDialogProvider({ children }: { children: ReactNode }) {
-  const [activeDialog, setActiveDialog] = useState<ContextManagedDialog | null>(null);
-
   const closeDialog = useCallback(() => {
-    setActiveDialog((prev) => {
-      if (prev !== null) notifyCommandDialogClosed();
-      return null;
-    });
+    if (getActiveContextManagedDialog() !== null) notifyCommandDialogClosed();
+    closeContextManagedDialog();
   }, []);
 
   const openDialog = useCallback((dialog: ContextManagedDialog) => {
@@ -63,11 +69,11 @@ export function CommandDialogProvider({ children }: { children: ReactNode }) {
       setCommandPaletteOpen(false);
       notifyCommandDialogClosed();
     }
-    setActiveDialog(dialog);
+    openContextManagedDialog(dialog);
   }, []);
 
   const openCommandPalette = useCallback(() => {
-    setActiveDialog(null);
+    closeContextManagedDialog();
     setCommandPaletteOpen(true);
   }, []);
 
@@ -77,7 +83,7 @@ export function CommandDialogProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleCommandPalette = useCallback(() => {
-    setActiveDialog(null);
+    closeContextManagedDialog();
     const wasOpen = getCommandPaletteOpen();
     toggleCommandPaletteOpen();
     if (wasOpen) notifyCommandDialogClosed();
@@ -100,19 +106,15 @@ export function CommandDialogProvider({ children }: { children: ReactNode }) {
     if (prevPathnameRef.current !== pathname) {
       prevPathnameRef.current = pathname;
       const paletteWasOpen = getCommandPaletteOpen();
-      setActiveDialog(null);
+      resetContextManagedDialogs();
       resetCommandPalette();
       if (paletteWasOpen) notifyCommandDialogClosed();
     }
   }, [pathname]);
 
-  const state = useMemo(() => ({ activeDialog }), [activeDialog]);
-
   return (
     <CommandDialogActionsContext.Provider value={actions}>
-      <CommandDialogStateContext.Provider value={state}>
-        {children}
-      </CommandDialogStateContext.Provider>
+      {children}
     </CommandDialogActionsContext.Provider>
   );
 }
@@ -123,13 +125,19 @@ export function useCommandDialogActions(): CommandDialogActions {
   return ctx;
 }
 
+/** Read switcher/file-selector open state from the module controller (no provider needed). */
+// fallow-ignore-next-line unused-export
 export function useCommandDialogState(): CommandDialogState {
-  const ctx = useContext(CommandDialogStateContext);
-  if (!ctx) throw new Error('useCommandDialogState must be used within CommandDialogProvider');
-  return ctx;
+  const activeDialog = useSyncExternalStore(
+    subscribeActiveContextManagedDialog,
+    getActiveContextManagedDialog,
+    () => null
+  );
+  return { activeDialog };
 }
 
 /** @deprecated Prefer useCommandDialogActions + useCommandDialogState. Kept for gradual migration. */
+// fallow-ignore-next-line unused-export
 export function useCommandDialog() {
   const state = useCommandDialogState();
   const actions = useCommandDialogActions();

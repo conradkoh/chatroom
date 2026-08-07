@@ -14,6 +14,7 @@ import {
   resetCommandPalette,
   subscribeCommandPaletteOpen,
 } from './commandPaletteController';
+import { resetContextManagedDialogsForTests } from './contextManagedDialogsController';
 
 let mockPathname = '/app/chatroom';
 vi.mock('next/navigation', () => ({
@@ -55,10 +56,12 @@ describe('CommandDialogProvider route reset', () => {
   beforeEach(() => {
     mockPathname = '/app/chatroom';
     resetCommandPalette();
+    resetContextManagedDialogsForTests();
   });
 
   afterEach(() => {
     resetCommandPalette();
+    resetContextManagedDialogsForTests();
   });
 
   it('resets activeDialog when pathname changes', async () => {

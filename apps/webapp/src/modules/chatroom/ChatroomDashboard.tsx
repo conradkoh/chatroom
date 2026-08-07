@@ -1204,7 +1204,7 @@ export function ChatroomDashboard({
     (filePath: string) => {
       if (!filePath) return;
       // Close the file picker modal
-      fileSelector.setOpen(false);
+      closeDialog();
       // If already in explorer view, open inline instead of preview modal
       if (activeView === 'explorer') {
         handleOpenInExplorer(filePath);
@@ -1213,7 +1213,7 @@ export function ChatroomDashboard({
         fileSelector.selectFile(filePath);
       }
     },
-    [fileSelector, activeView, handleOpenInExplorer]
+    [closeDialog, fileSelector, activeView, handleOpenInExplorer]
   );
 
   const handleWorkspaceFileLinkClick = useCallback(
@@ -2133,17 +2133,16 @@ export function ChatroomDashboard({
               />
 
               <FileSelectorModal
-                open={fileSelector.open}
-                onOpenChange={fileSelector.setOpen}
                 files={fileSelector.files}
                 recentFiles={fileSelector.recentFiles}
                 onSelectFile={handleCmdPFileSelect}
                 isLoading={fileSelector.isLoading}
                 hasWorkspace={fileSelector.hasWorkspace}
+                onRefresh={fileSelector.refresh}
               />
 
               <FilePreviewDialog
-                filePath={!fileSelector.open ? fileSelector.selectedFile : null}
+                filePath={fileSelector.selectedFile}
                 machineId={activeWorkspace?.machineId ?? null}
                 workingDir={activeWorkspace?.workingDir ?? null}
                 onClose={handleFilePreviewClose}

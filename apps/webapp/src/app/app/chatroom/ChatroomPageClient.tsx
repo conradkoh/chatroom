@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { ChatroomDashboard } from '@/modules/chatroom';
 import { ChatroomSidebar } from '@/modules/chatroom/components/ChatroomSidebar';
-import { useCommandDialog } from '@/modules/chatroom/context/CommandDialogContext';
+import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
 import { useObserveChatroom } from '@/modules/chatroom/hooks/useObserveChatroom';
 import { isListingSidebarVisible } from '@/modules/chatroom/utils/focusMode';
 
@@ -18,7 +18,7 @@ export function ChatroomPageClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const chatroomId = searchParams.get('id');
-  const { closeDialog } = useCommandDialog();
+  const { closeDialog } = useCommandDialogActions();
 
   const handleBack = () => {
     closeDialog();
