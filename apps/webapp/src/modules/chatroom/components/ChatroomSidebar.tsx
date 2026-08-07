@@ -19,13 +19,13 @@ import { toast } from 'sonner';
 
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
+import { ChatroomSidebarSkeleton } from './ChatroomSidebarSkeleton';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { getChatStatusIndicatorClasses } from '../utils/chatStatusDisplay';
 import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionChatroomListing';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
-import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -305,11 +305,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-6">
-        <ChatroomLoader size="sm" />
-      </div>
-    );
+    return <ChatroomSidebarSkeleton />;
   }
 
   if (!chatrooms || chatrooms.length === 0) {
