@@ -185,6 +185,19 @@ describe('ChatroomSidebar', () => {
     expect(screen.getByText('Test Chat')).toBeInTheDocument();
   });
 
+  it('renders skeleton loader while chatrooms are loading', () => {
+    (useChatroomListing as ReturnType<typeof vi.fn>).mockReturnValue({
+      chatrooms: undefined,
+      isLoading: true,
+    });
+    render(<ChatroomSidebar activeChatroomId="chr-1" />);
+
+    expect(screen.getByRole('status', { name: 'Loading chatrooms' })).toBeInTheDocument();
+    expect(screen.getByText('Chatrooms')).toBeInTheDocument();
+    // No real chatroom items during load
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('right-click on non-completed item shows context menu with "Archive Chat"', async () => {
     const chatroom = makeChatroom();
     renderSidebar([chatroom]);
