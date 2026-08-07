@@ -39,11 +39,24 @@ export function OutputPanel({
 }: OutputPanelProps) {
   const scrollRef = useRef<HTMLPreElement>(null);
   const [showLogHead, setShowLogHead] = useState(false);
+  const [pendingLogHead, setPendingLogHead] = useState(false);
   const [stickToBottom, setStickToBottom] = useState(true);
   const fullOutput = chunks.map((c) => c.content).join('');
   const output = showLogHead ? formatLogHead(fullOutput) : fullOutput;
   const lineCount = fullOutput.split('\n').length;
   const showJumpToStart = !showLogHead && (lineCount > LOG_HEAD_LINE_COUNT || canLoadMore);
+
+  useEffect(() => {
+    setShowLogHead(false);
+    setPendingLogHead(false);
+  }, [run?._id]);
+
+  useEffect(() => {
+    if (!pendingLogHead || fullOutputPending) return;
+    setShowLogHead(true);
+    setPendingLogHead(false);
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [pendingLogHead, fullOutputPending, fullOutput]);
 
   useEffect(() => {
     if (showLogHead || !stickToBottom) return;
@@ -58,8 +71,12 @@ export function OutputPanel({
   }, []);
 
   const handleShowLogHead = useCallback(async () => {
+    if (canLoadMore && onLoadMore) {
+      setPendingLogHead(true);
+      await onLoadMore();
+      return;
+    }
     setShowLogHead(true);
-    if (canLoadMore && onLoadMore) await onLoadMore();
     scrollRef.current?.scrollTo({ top: 0 });
   }, [canLoadMore, onLoadMore]);
 
@@ -108,7 +125,7 @@ export function OutputPanel({
           <button
             type="button"
             onClick={() => void handleShowLogHead()}
-            disabled={fullOutputPending}
+            disabled={fullOutputPending || pendingLogHead}
             className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${viewButtonClass(showLogHead)}`}
           >
             Log head
@@ -135,9 +152,11 @@ export function OutputPanel({
 
       <div className="px-4 py-2 border-t border-chatroom-border bg-chatroom-bg-primary text-[10px] text-chatroom-text-muted flex justify-between items-center gap-2">
         <span className="tabular-nums">
-          {showLogHead
-            ? `Showing first ${Math.min(lineCount, LOG_HEAD_LINE_COUNT)} of ${lineCount} lines`
-            : `${lineCount} lines`}
+          {pendingLogHead && fullOutputPending
+            ? 'Loading history…'
+            : showLogHead
+              ? `Showing first ${Math.min(lineCount, LOG_HEAD_LINE_COUNT)} of ${lineCount} lines`
+              : `${lineCount} lines`}
         </span>
         {showJumpToStart && (
           <button
