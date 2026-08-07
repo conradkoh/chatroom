@@ -13,6 +13,7 @@ import { MAX_WORKSPACE_UPLOAD_BYTES } from '@workspace/backend/src/domain/consta
 import { Effect } from 'effect';
 
 import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
+import { sortPendingFileWriteRequests } from './file-write-request-priority.js';
 import { api } from '../../../api.js';
 import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
 import {
@@ -362,11 +363,13 @@ export const fulfillFileWriteRequestsEffect: Effect.Effect<void, never, DaemonSe
 
     if (requests.length === 0) return;
 
+    const sortedRequests = sortPendingFileWriteRequests(requests);
+
     console.log(
-      `[${formatTimestamp()}] ✏️  Received ${requests.length} pending file write request(s): ${requests.map((r) => r.filePath).join(', ')}`
+      `[${formatTimestamp()}] ✏️  Received ${sortedRequests.length} pending file write request(s): ${sortedRequests.map((r) => r.filePath).join(', ')}`
     );
 
-    for (const request of requests) {
+    for (const request of sortedRequests) {
       yield* Effect.catchAll(
         Effect.tryPromise(() => fulfillOneFileWriteRequest(session, request)),
         () => Effect.void

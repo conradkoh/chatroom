@@ -97,6 +97,67 @@ describe('fulfillFileWriteRequestsEffect', () => {
     );
   });
 
+  it('fulfills a delete before a slower storage-backed create in the same batch', async () => {
+    const filePath = 'delete-first.md';
+    const absolutePath = join(workingDir, filePath);
+    await writeFile(absolutePath, '# hello');
+
+    const storageCreate = {
+      _id: 'req-storage-create',
+      workingDir,
+      filePath: 'uploads/slow.pdf',
+      operation: 'create' as const,
+    };
+
+    const delayedFetch = vi.fn().mockImplementation(
+      () =>
+        new Promise<{ ok: boolean; arrayBuffer: () => Promise<ArrayBuffer> }>((resolve) => {
+          setTimeout(() => {
+            resolve({
+              ok: true,
+              arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+            });
+          }, 20);
+        })
+    );
+    vi.stubGlobal('fetch', delayedFetch);
+
+    const completedRequestIds: string[] = [];
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
+      backend: {
+        mutation: vi.fn(async (apiRef: string, args: { requestId?: string }) => {
+          if (args.requestId) completedRequestIds.push(args.requestId);
+          return undefined;
+        }),
+        query: vi.fn().mockImplementation((apiRef: string) => {
+          if (apiRef === 'mock-getWriteRequestStorageUrl') {
+            return Promise.resolve('https://storage.example/slow');
+          }
+          return Promise.resolve([
+            storageCreate,
+            { _id: 'req-delete', workingDir, filePath, operation: 'delete' },
+          ]);
+        }),
+      },
+    });
+
+    try {
+      await Effect.runPromise(
+        fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+      );
+
+      await expect(access(absolutePath)).rejects.toThrow();
+      expect(completedRequestIds[0]).toBe('req-delete');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('create fetches storage-backed upload when inline data is omitted', async () => {
     const uploadBytes = Buffer.from('binary upload');
     const storageRequest = {
