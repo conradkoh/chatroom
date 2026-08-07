@@ -20,6 +20,7 @@ import {
   getWhenWorkComesBackSection,
   getTeamCompositionSection,
   getPlannerPlusBuilderOperatingModel,
+  getProofOfVerificationSection,
 } from '../../../cli/sections';
 import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
@@ -63,5 +64,7 @@ ${getDelegationGuidelinesSection(DUO_TEAM_CONFIG, {
 
 ${getHandoffRulesSection(DUO_TEAM_CONFIG, nativeIntegration, plannerEnhancerActive)}
 
-${getWhenWorkComesBackSection(DUO_TEAM_CONFIG)}`;
+${getWhenWorkComesBackSection(DUO_TEAM_CONFIG)}
+
+${getProofOfVerificationSection({ chatroomId, role, cliEnvPrefix })}`;
 }

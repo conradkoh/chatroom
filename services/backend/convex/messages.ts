@@ -1608,6 +1608,22 @@ export const getTaskDeliveryPrompt = query({
 // SENDER ROLE BASED QUERIES - For user-centric pagination
 // =============================================================================
 
+/** Enriches a message with its task status when a task is linked. */
+async function withTaskStatus<T extends { taskId?: Id<'chatroom_tasks'> | null }>(
+  ctx: QueryCtx,
+  message: T
+): Promise<T & { taskStatus?: TaskStatus }> {
+  let taskStatus: TaskStatus | undefined;
+  if (message.taskId) {
+    const task = await ctx.db.get('chatroom_tasks', message.taskId);
+    taskStatus = task?.status;
+  }
+  return {
+    ...message,
+    ...(taskStatus && { taskStatus }),
+  };
+}
+
 /** Returns messages filtered by sender role in descending order. */
 export const listBySenderRole = query({
   args: {
@@ -1633,22 +1649,43 @@ export const listBySenderRole = query({
       .order('desc')
       .take(Math.min(limit, maxLimit));
 
-    // Enrich with task status
-    const enrichedMessages = await Promise.all(
-      messages.map(async (message) => {
-        let taskStatus: TaskStatus | undefined;
-        if (message.taskId) {
-          const task = await ctx.db.get('chatroom_tasks', message.taskId);
-          taskStatus = task?.status;
-        }
-        return {
-          ...message,
-          ...(taskStatus && { taskStatus }),
-        };
-      })
-    );
+    return Promise.all(messages.map((message) => withTaskStatus(ctx, message)));
+  },
+});
 
-    return enrichedMessages;
+/** Returns the most recent user message plus prior user messages for anchoring on the user's last request. */
+export const getLastUserMessage = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    /** How many prior user messages to include for terse follow-ups (default 3, max 5) */
+    priorLimit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const priorLimit = Math.min(Math.max(args.priorLimit ?? 3, 0), 5);
+    const takeCount = priorLimit + 1;
+
+    // Use composite index for user messages, newest first (mirrors listBySenderRole)
+    // fallow-ignore-next-line code-duplication
+    const userMessages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .order('desc')
+      .take(takeCount);
+
+    if (userMessages.length === 0) {
+      return { last: null, prior: [] };
+    }
+
+    const last = await withTaskStatus(ctx, userMessages[0]);
+    const prior = await Promise.all(userMessages.slice(1).map((m) => withTaskStatus(ctx, m)));
+
+    return { last, prior };
   },
 });
 
@@ -1694,22 +1731,7 @@ export const listSinceMessage = query({
       .order('asc')
       .take(Math.min(limit, maxLimit));
 
-    // Enrich with task status
-    const enrichedMessages = await Promise.all(
-      messages.map(async (message) => {
-        let taskStatus: TaskStatus | undefined;
-        if (message.taskId) {
-          const task = await ctx.db.get('chatroom_tasks', message.taskId);
-          taskStatus = task?.status;
-        }
-        return {
-          ...message,
-          ...(taskStatus && { taskStatus }),
-        };
-      })
-    );
-
-    return enrichedMessages;
+    return Promise.all(messages.map((message) => withTaskStatus(ctx, message)));
   },
 });
 

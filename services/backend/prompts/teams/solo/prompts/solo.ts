@@ -7,12 +7,14 @@
  * entry point for all interactions.
  */
 
+import { getPlannerGuidanceContext } from '../../../cli/roles/planner-guidance-context';
 import {
   getCoreResponsibilitiesSection,
   getHandoffRulesSection,
   getWhenWorkComesBackSection,
   getTeamCompositionSection,
   getPlannerSoloOperatingModel,
+  getProofOfVerificationSection,
 } from '../../../cli/sections';
 import { getSessionContinuityLine } from '../../../native/session-continuity';
 import type { PlannerGuidanceParams } from '../../../types/cli';
@@ -21,6 +23,7 @@ const SOLO_TEAM_CONFIG = { hasBuilder: false } as const;
 
 export function getSoloGuidance(ctx: PlannerGuidanceParams): string {
   const { teamRoles, nativeIntegration } = ctx;
+  const { chatroomId, role, cliEnvPrefix } = getPlannerGuidanceContext(ctx);
 
   return `## Solo Operating Model
 
@@ -48,5 +51,7 @@ ${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG)}
 
 ${getHandoffRulesSection(SOLO_TEAM_CONFIG, nativeIntegration)}
 
-${getWhenWorkComesBackSection(SOLO_TEAM_CONFIG)}`;
+${getWhenWorkComesBackSection(SOLO_TEAM_CONFIG)}
+
+${getProofOfVerificationSection({ chatroomId, role, cliEnvPrefix })}`;
 }

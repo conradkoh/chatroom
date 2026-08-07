@@ -4,12 +4,19 @@ import { getFileReferenceProofOfCompletionExample } from './file-reference-guida
 import { getHandoffQualityPrinciplesSectionBlock } from './handoff-quality-principles';
 import { getHandoffNotApplicableSectionComment } from './handoff-section-guidance';
 import { getHandoffSeverityGuidanceBlock } from './handoff-severity-guidance';
+import { getEntryPointProofOfCompletionVerificationBlock } from './proof-of-verification';
 import { getRoleGuidanceDisclosureBlock } from './role-guidance-disclosure';
 import { getUnresolvedDecisionsSectionBlock } from './unresolved-decisions';
 import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
 
+export interface HandoffReportTemplateBodyOptions {
+  /** Entry-point handoffs (planner/solo → user) must verify the user's full request before delivery. */
+  includeProofOfVerification?: boolean;
+}
+
 export function getHandoffReportTemplateBody(
-  roleGuidanceContext?: RoleGuidanceCommandParams
+  roleGuidanceContext?: RoleGuidanceCommandParams,
+  options: HandoffReportTemplateBodyOptions = {}
 ): string {
   return `<handoff-overview>
 <!-- For informational tasks (summaries, feedback, Q&amp;A with no code changes): put the complete primary answer in Summary and What changed — the user only sees this handoff. -->
@@ -35,10 +42,20 @@ ${getHandoffNotApplicableSectionComment('List planning steps for trivial single-
 ${getHandoffQualityPrinciplesSectionBlock()}
 
 ## Proof of Completion
+${
+  options.includeProofOfVerification
+    ? `${getEntryPointProofOfCompletionVerificationBlock(roleGuidanceContext)}
 ${getContextReadDisclosureBlock(roleGuidanceContext)}
+- Context goal: <state the context goal and confirm it was achieved>
+- Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
+  - <requirement> — <PR URL, commit hash, or file evidence>
+- Files changed (code tasks — list every file modified):
 ${getFileReferenceProofOfCompletionExample()}
-<evidence the goal was met — list every file you (or the builder) modified>
-
+  - <additional files as needed>`
+    : `${getContextReadDisclosureBlock(roleGuidanceContext)}
+${getFileReferenceProofOfCompletionExample()}
+<evidence the goal was met — list every file you (or the builder) modified>`
+}
 ## Backlog Tasks Implemented
 ${getHandoffNotApplicableSectionComment('List backlog items addressed if none were in scope')}
 - \`backlog-item-id\` — <backlog item title/summary and how this work addresses it>

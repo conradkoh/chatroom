@@ -329,6 +329,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Reference commands:**
       - Download message history: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages download --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --format=linear --limit=10\`
+      - Anchor on the user's last message: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
       - Read current chatroom task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
       - Git log: \`git log --oneline -10\`
 
