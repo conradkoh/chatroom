@@ -86,7 +86,7 @@ export function CommandPaletteVirtualizedList({
       if (isBlacklisted && onBlacklist && onUnblacklist) {
         return (
           <ContextMenu key={command.id}>
-            <ContextMenuTrigger nativeButton={false} render={item as React.ReactElement} />
+            <ContextMenuTrigger render={item as React.ReactElement} />
             <ContextMenuContent className="min-w-[180px] rounded-none">
               {isBlacklisted(command) ? (
                 <ContextMenuItem onSelect={() => onUnblacklist(command)} className="rounded-none">
