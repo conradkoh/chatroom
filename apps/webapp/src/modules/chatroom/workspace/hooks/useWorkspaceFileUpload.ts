@@ -5,15 +5,22 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { MAX_WORKSPACE_UPLOAD_BYTES } from '@workspace/backend/src/domain/constants/workspace-upload';
 import { useConvex } from 'convex/react';
 import { useSessionId, useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback } from 'react';
 
 import { waitForFileWriteRequest } from './fileWritePolling';
+import { uploadFileToConvexStorage } from '../utils/uploadFileToConvexStorage';
+import { percentForUploadBytes } from '../utils/workspaceUploadProgress';
 
 const UPLOAD_WRITE_TIMEOUT_MS = 5 * 60 * 1000;
 
+export type WorkspaceFileUploadProgressUpdate = {
+  phase: 'uploading' | 'finalizing' | 'complete';
+  percent: number;
+};
+
 interface UseWorkspaceFileUploadArgs {
-  machineId: string;
-  workingDir: string;
+  machineId: string | null;
+  workingDir: string | null;
 }
 
 function formatMaxUploadSize(): string {
@@ -25,51 +32,43 @@ export function useWorkspaceFileUpload({ machineId, workingDir }: UseWorkspaceFi
   const [sessionId] = useSessionId();
   const generateUploadUrl = useSessionMutation(api.workspaceFiles.generateWorkspaceFileUploadUrl);
   const requestFileWrite = useSessionMutation(api.workspaceFiles.requestFileWrite);
-  const inFlightRef = useRef(false);
-  const [uploading, setUploading] = useState(false);
 
-  // fallow-ignore-next-line complexity
   const uploadFile = useCallback(
-    async (filePath: string, file: File) => {
-      if (inFlightRef.current) return;
+    async (
+      filePath: string,
+      file: File,
+      onProgress?: (update: WorkspaceFileUploadProgressUpdate) => void
+    ) => {
+      if (!machineId || !workingDir) {
+        throw new Error('No workspace connected');
+      }
       if (file.size > MAX_WORKSPACE_UPLOAD_BYTES) {
         throw new Error(`File is too large (max ${formatMaxUploadSize()})`);
       }
 
-      inFlightRef.current = true;
-      setUploading(true);
+      onProgress?.({ phase: 'uploading', percent: 0 });
+      const { uploadUrl } = await generateUploadUrl({ machineId, workingDir });
+      const { storageId } = await uploadFileToConvexStorage(uploadUrl, file, (loaded, total) => {
+        onProgress?.({ phase: 'uploading', percent: percentForUploadBytes(loaded, total) });
+      });
 
-      try {
-        const { uploadUrl } = await generateUploadUrl({ machineId, workingDir });
-        const uploadResponse = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': file.type || 'application/octet-stream' },
-          body: file,
-        });
+      onProgress?.({ phase: 'finalizing', percent: 90 });
+      const result = await requestFileWrite({
+        machineId,
+        workingDir,
+        filePath,
+        operation: 'create',
+        storageId: storageId as never,
+      });
 
-        if (!uploadResponse.ok) {
-          throw new Error('Failed to upload file');
-        }
+      await waitForFileWriteRequest(convex, sessionId, result.requestId, {
+        timeoutMs: UPLOAD_WRITE_TIMEOUT_MS,
+      });
 
-        const { storageId } = (await uploadResponse.json()) as { storageId: string };
-        const result = await requestFileWrite({
-          machineId,
-          workingDir,
-          filePath,
-          operation: 'create',
-          storageId: storageId as never,
-        });
-
-        await waitForFileWriteRequest(convex, sessionId, result.requestId, {
-          timeoutMs: UPLOAD_WRITE_TIMEOUT_MS,
-        });
-      } finally {
-        inFlightRef.current = false;
-        setUploading(false);
-      }
+      onProgress?.({ phase: 'complete', percent: 100 });
     },
     [convex, generateUploadUrl, machineId, requestFileWrite, sessionId, workingDir]
   );
 
-  return { uploadFile, uploading };
+  return { uploadFile };
 }
