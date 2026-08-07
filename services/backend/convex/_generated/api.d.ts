@@ -70,6 +70,7 @@ import type * as daemon_enhancer_spawnPayload from "../daemon/enhancer/spawnPayl
 import type * as dev from "../dev.js";
 import type * as directHarnessCleanup from "../directHarnessCleanup.js";
 import type * as discussions from "../discussions.js";
+import type * as e2e from "../e2e.js";
 import type * as enhancerConfigFavorites from "../enhancerConfigFavorites.js";
 import type * as enhancerJobReaper from "../enhancerJobReaper.js";
 import type * as eventCleanup from "../eventCleanup.js";
@@ -98,7 +99,6 @@ import type * as machineStatusCron from "../machineStatusCron.js";
 import type * as machines from "../machines.js";
 import type * as messageList from "../messageList.js";
 import type * as messages from "../messages.js";
-import type * as e2e from "../e2e.js";
 import type * as migrations from "../migrations.js";
 import type * as participants from "../participants.js";
 import type * as presentations from "../presentations.js";
@@ -114,6 +114,8 @@ import type * as skills from "../skills.js";
 import type * as standingInstructions from "../standingInstructions.js";
 import type * as storageCleanup from "../storageCleanup.js";
 import type * as system_auth_google from "../system/auth/google.js";
+import type * as system_invites from "../system/invites.js";
+import type * as system_users from "../system/users.js";
 import type * as taskDeliveryReceipts from "../taskDeliveryReceipts.js";
 import type * as tasks from "../tasks.js";
 import type * as utils_machineFavoriteScopeKey from "../utils/machineFavoriteScopeKey.js";
@@ -142,8 +144,6 @@ import type * as web_enhancer_queries from "../web/enhancer/queries.js";
 import type * as workspaceFiles from "../workspaceFiles.js";
 import type * as workspacePathSecurity from "../workspacePathSecurity.js";
 import type * as workspaces from "../workspaces.js";
-import type * as system_invites from "../system/invites.js";
-import type * as system_users from "../system/users.js";
 
 import type {
   ApiFromModules,
@@ -214,6 +214,7 @@ declare const fullApi: ApiFromModules<{
   dev: typeof dev;
   directHarnessCleanup: typeof directHarnessCleanup;
   discussions: typeof discussions;
+  e2e: typeof e2e;
   enhancerConfigFavorites: typeof enhancerConfigFavorites;
   enhancerJobReaper: typeof enhancerJobReaper;
   eventCleanup: typeof eventCleanup;
@@ -242,7 +243,6 @@ declare const fullApi: ApiFromModules<{
   machines: typeof machines;
   messageList: typeof messageList;
   messages: typeof messages;
-  e2e: typeof e2e;
   migrations: typeof migrations;
   participants: typeof participants;
   presentations: typeof presentations;
@@ -258,6 +258,8 @@ declare const fullApi: ApiFromModules<{
   standingInstructions: typeof standingInstructions;
   storageCleanup: typeof storageCleanup;
   "system/auth/google": typeof system_auth_google;
+  "system/invites": typeof system_invites;
+  "system/users": typeof system_users;
   taskDeliveryReceipts: typeof taskDeliveryReceipts;
   tasks: typeof tasks;
   "utils/machineFavoriteScopeKey": typeof utils_machineFavoriteScopeKey;
@@ -286,8 +288,6 @@ declare const fullApi: ApiFromModules<{
   workspaceFiles: typeof workspaceFiles;
   workspacePathSecurity: typeof workspacePathSecurity;
   workspaces: typeof workspaces;
-  "system/invites": typeof system_invites;
-  "system/users": typeof system_users;
 }>;
 
 /**

@@ -19,7 +19,7 @@ import {
   readGitPorcelainStatus,
   toWorkspaceRelativePath,
 } from './git-workspace-porcelain.js';
-import { runGit } from '../../git/run-command.js';
+import { runGit } from '../../../daemon/infrastructure/git/run-command.js';
 
 async function gitIn(cwd: string, ...args: string[]): Promise<void> {
   const result = await runGit(args, cwd);

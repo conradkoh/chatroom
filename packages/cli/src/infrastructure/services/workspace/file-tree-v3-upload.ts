@@ -2,7 +2,7 @@ import type { FileTree } from '@workspace/backend/src/domain/entities/workspace-
 
 import { MAX_SHARD_BATCH_SIZE, partitionFileTree } from './file-tree-partition.js';
 import { api } from '../../../api.js';
-import type { DaemonSessionServiceShape } from '../../../commands/machine/daemon-start/daemon-services.js';
+import type { DaemonSessionServiceShape } from '../../../daemon/entry/daemon-services.js';
 
 export async function uploadFileTreeV3(
   session: DaemonSessionServiceShape,

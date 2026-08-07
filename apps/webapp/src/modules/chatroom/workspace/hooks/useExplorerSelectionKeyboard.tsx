@@ -74,6 +74,7 @@ export function useRemoteSelectionContextMenu(
     onOpenSelectionOnRemote != null ? (
       <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
         <DropdownMenuTrigger
+          nativeButton={false}
           render={
             <span
               aria-hidden

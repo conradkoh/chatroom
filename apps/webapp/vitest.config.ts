@@ -1,14 +1,7 @@
-import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
-
-const require = createRequire(import.meta.url);
-const dialogRootContextPath = path.join(
-  path.dirname(require.resolve('@base-ui/react/package.json')),
-  'dialog/root/DialogRootContext.mjs'
-);
 
 export default defineConfig({
   plugins: [react()],
@@ -30,7 +23,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@base-ui/react/dialog/root/DialogRootContext': dialogRootContextPath,
     },
   },
 });

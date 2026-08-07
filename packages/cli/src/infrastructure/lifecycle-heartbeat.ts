@@ -11,7 +11,7 @@
 import { withRetry } from './retry-queue.js';
 import type { Id } from '../api.js';
 import { api } from '../api.js';
-import { isDaemonWorkerRole } from '../domain/execution-kind.js';
+import { isDaemonWorkerRole } from '../daemon/domain/entities/execution-kind.js';
 
 export function sendLifecycleHeartbeat(
   client: { mutation: (fn: any, args: any) => Promise<any> },

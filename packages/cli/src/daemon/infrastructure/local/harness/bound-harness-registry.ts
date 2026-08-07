@@ -1,0 +1,125 @@
+import { execSync } from 'node:child_process';
+
+import {
+  startClaudeSdkHarness,
+  createClaudeSdkChunkExtractor,
+} from './adapters/claude-sdk/index.js';
+import {
+  startCursorSdkHarness,
+  createCursorSdkChunkExtractor,
+} from './adapters/cursor-sdk/index.js';
+import { createOpencodeSdkChunkExtractor } from './adapters/opencode-sdk/event-extractor.js';
+import { startOpencodeSdkHarness } from './adapters/opencode-sdk/opencode-harness.js';
+import { startPiSdkHarness, createPiSdkChunkExtractor } from './adapters/pi-sdk/index.js';
+import { createStandardSdkChunkExtractor } from './adapters/shared-chunk-extractor.js';
+import type {
+  BoundHarness,
+  NativeDirectHarnessName,
+  StartBoundHarnessConfig,
+} from '../../../domain/entities/bound-harness.js';
+import type { DirectHarnessSessionEvent } from '../../../domain/entities/direct-harness-session.js';
+import type { ExtractedChunk } from '../../../domain/entities/turn-chunk.js';
+
+export type { NativeDirectHarnessName } from '../../../domain/entities/bound-harness.js';
+
+export const NATIVE_DIRECT_HARNESS_NAMES = [
+  'opencode-sdk',
+  'cursor-sdk',
+  'pi-sdk',
+  'claude-sdk',
+] as const satisfies readonly NativeDirectHarnessName[];
+
+export function isNativeDirectHarnessName(name: string): name is NativeDirectHarnessName {
+  return (NATIVE_DIRECT_HARNESS_NAMES as readonly string[]).includes(name);
+}
+
+export type ChunkExtractor = (event: DirectHarnessSessionEvent) => ExtractedChunk | null;
+
+// fallow-ignore-next-line complexity
+export async function startBoundHarness(config: StartBoundHarnessConfig): Promise<BoundHarness> {
+  switch (config.harnessName) {
+    case 'opencode-sdk':
+      return startOpencodeSdkHarness(config);
+    case 'cursor-sdk':
+      return startCursorSdkHarness(config);
+    case 'pi-sdk':
+      return startPiSdkHarness(config);
+    case 'claude-sdk':
+      return startClaudeSdkHarness(config);
+    default: {
+      const _exhaustive: never = config.harnessName;
+      throw new Error(`Unsupported direct harness: ${String(_exhaustive)}`);
+    }
+  }
+}
+
+// fallow-ignore-next-line complexity
+export function createChunkExtractor(harnessName: string): ChunkExtractor {
+  switch (harnessName) {
+    case 'opencode-sdk':
+      return createOpencodeSdkChunkExtractor();
+    case 'cursor-sdk':
+      return createCursorSdkChunkExtractor();
+    case 'pi-sdk':
+      return createPiSdkChunkExtractor();
+    case 'claude-sdk':
+      return createClaudeSdkChunkExtractor();
+    default:
+      return createStandardSdkChunkExtractor();
+  }
+}
+
+function opencodeOnPath(): boolean {
+  try {
+    execSync('opencode --version', { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function isCursorSdkInstalled(): Promise<boolean> {
+  if (!process.env.CURSOR_API_KEY?.trim()) return false;
+  try {
+    const { importBundledCursorSdk } = await import('./services/cursor-sdk/cursor-sdk-package.js');
+    await importBundledCursorSdk();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function isPiSdkInstalled(): Promise<boolean> {
+  try {
+    const { importBundledPiSdk } = await import('./services/pi-sdk/pi-sdk-package.js');
+    const { ModelRegistry, AuthStorage } = await importBundledPiSdk();
+    const authStorage = AuthStorage.create();
+    const modelRegistry = ModelRegistry.create(authStorage);
+    return modelRegistry.getAvailable().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function isClaudeSdkInstalled(): Promise<boolean> {
+  try {
+    const { importBundledClaudeSdk, resolvePathToClaudeCodeExecutable } =
+      await import('./services/claude-sdk/claude-sdk-package.js');
+    await importBundledClaudeSdk();
+    await resolvePathToClaudeCodeExecutable();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Returns native direct harness names that are installed on this machine. */
+// fallow-ignore-next-line complexity
+export async function listInstalledNativeDirectHarnesses(): Promise<NativeDirectHarnessName[]> {
+  const installed: NativeDirectHarnessName[] = [];
+  if (opencodeOnPath()) installed.push('opencode-sdk');
+  if (await isCursorSdkInstalled()) installed.push('cursor-sdk');
+  if (await isPiSdkInstalled()) installed.push('pi-sdk');
+  if (await isClaudeSdkInstalled()) installed.push('claude-sdk');
+  return installed;
+}

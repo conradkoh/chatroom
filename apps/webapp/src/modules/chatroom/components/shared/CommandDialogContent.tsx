@@ -1,20 +1,21 @@
 'use client';
 
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
-import { useLayoutEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useReducer, useRef, useState } from 'react';
 
 import {
   COMMAND_DIALOG_CONTENT_CLASSES,
   COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES,
   getCommandDialogContentStyle,
 } from './commandDialogStyles';
-import { useCommandDialogStore } from './useCommandDialogStore';
 
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useVisualViewportOffsetTop } from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
 
 const COMMAND_DIALOG_INPUT_SELECTOR = '[data-slot="command-input"]';
+const COMMAND_DIALOG_TITLE_SELECTOR = '[data-slot="dialog-title"]';
+const COMMAND_DIALOG_DESCRIPTION_SELECTOR = '[data-slot="dialog-description"]';
 
 function focusCommandDialogInput(container: HTMLElement | null): void {
   const input = container?.querySelector<HTMLInputElement>(COMMAND_DIALOG_INPUT_SELECTOR);
@@ -30,7 +31,30 @@ type CommandDialogContentProps = Omit<
   onEscapeKeyDown?: (event: KeyboardEvent) => void;
   onPointerDownOutside?: (event: Event) => void;
   onFocusOutside?: (event: Event) => void;
+  onBackdropDismiss?: () => void;
 };
+
+// fallow-ignore-next-line complexity
+function readCommandDialogAriaIds(node: HTMLDivElement) {
+  return {
+    titleElementId: node.querySelector(COMMAND_DIALOG_TITLE_SELECTOR)?.id || undefined,
+    descriptionElementId: node.querySelector(COMMAND_DIALOG_DESCRIPTION_SELECTOR)?.id || undefined,
+  };
+}
+
+// fallow-ignore-next-line complexity
+function handleBackdropPointerDown(
+  event: React.PointerEvent<HTMLDivElement>,
+  onPointerDownOutside: CommandDialogContentProps['onPointerDownOutside'],
+  onBackdropDismiss: CommandDialogContentProps['onBackdropDismiss']
+): void {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  onPointerDownOutside?.(event.nativeEvent);
+  if (!event.nativeEvent.defaultPrevented) {
+    onBackdropDismiss?.();
+  }
+}
 
 /**
  * Lightweight portal surface for command-style dialogs (Cmd+K, Cmd+P, Cmd+Shift+P).
@@ -43,8 +67,9 @@ export function CommandDialogContent({
   className,
   style,
   onEscapeKeyDown,
-  onPointerDownOutside: _onPointerDownOutside,
+  onPointerDownOutside,
   onFocusOutside: _onFocusOutside,
+  onBackdropDismiss,
   children,
   ...props
 }: CommandDialogContentProps) {
@@ -52,27 +77,33 @@ export function CommandDialogContent({
   const viewportOffsetTopPx = useVisualViewportOffsetTop(open && !isDesktop);
   const viewportStyle = getCommandDialogContentStyle(viewportOffsetTopPx);
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const {
-    mounted,
-    open: storeOpen,
-    transitionStatus,
-    titleElementId,
-    descriptionElementId,
-    setPopupElement,
-    popupRef,
-  } = useCommandDialogStore();
+  const [attachGeneration, bumpAttachGeneration] = useReducer((n: number) => n + 1, 0);
 
-  const setRefs = (node: HTMLDivElement | null) => {
+  const [mounted, setMounted] = useState(open);
+  const isSurfaceVisible = open || mounted;
+
+  const assignSurfaceRef = useCallback((node: HTMLDivElement | null) => {
     surfaceRef.current = node;
-    popupRef.current = node;
-    setPopupElement(node);
-  };
+    if (node) bumpAttachGeneration();
+  }, []);
+
+  const ariaIds =
+    open && surfaceRef.current
+      ? readCommandDialogAriaIds(surfaceRef.current)
+      : { titleElementId: undefined, descriptionElementId: undefined };
 
   useLayoutEffect(() => {
-    if (!storeOpen) return;
+    if (open) {
+      setMounted(true);
+    } else {
+      setMounted(false);
+    }
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
     focusCommandDialogInput(surfaceRef.current);
-    queueMicrotask(() => focusCommandDialogInput(surfaceRef.current));
-  }, [storeOpen]);
+  }, [open, attachGeneration]);
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key !== 'Escape' || !onEscapeKeyDown) return;
@@ -82,34 +113,28 @@ export function CommandDialogContent({
     }
   };
 
-  const dataState = !mounted
-    ? {}
-    : storeOpen
-      ? { 'data-open': '' as const }
-      : { 'data-closed': '' as const };
+  const dataState = open ? { 'data-open': '' as const } : {};
 
   return (
     <DialogPrimitive.Portal keepMounted>
       {open ? (
-        <DialogPrimitive.Close
-          render={
-            <div
-              data-slot="command-dialog-dismiss-backdrop"
-              aria-hidden="true"
-              className={COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES}
-            />
+        <div
+          data-slot="command-dialog-dismiss-backdrop"
+          aria-hidden="true"
+          className={COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES}
+          onPointerDown={(event) =>
+            handleBackdropPointerDown(event, onPointerDownOutside, onBackdropDismiss)
           }
         />
       ) : null}
       <div
-        ref={setRefs}
+        ref={assignSurfaceRef}
         role="dialog"
         aria-modal={false}
-        aria-labelledby={titleElementId ?? undefined}
-        aria-describedby={descriptionElementId ?? undefined}
+        aria-labelledby={ariaIds.titleElementId ?? undefined}
+        aria-describedby={ariaIds.descriptionElementId ?? undefined}
         data-slot="command-dialog-content"
-        hidden={!mounted}
-        data-transition-status={transitionStatus}
+        hidden={!isSurfaceVisible}
         className={cn(...COMMAND_DIALOG_CONTENT_CLASSES, className)}
         style={{ ...viewportStyle, ...style }}
         onKeyDown={handleKeyDown}

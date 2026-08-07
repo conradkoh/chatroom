@@ -5,15 +5,24 @@ import { useCommandDialogShortcut } from './useCommandDialogShortcut';
 
 const openDialog = vi.fn();
 const closeDialog = vi.fn();
+const toggleCommandPalette = vi.fn();
 
-let activeDialog: 'switcher' | 'file-selector' | 'command-palette' | null = null;
+let activeDialog: 'switcher' | 'file-selector' | null = null;
 
 vi.mock('@/modules/chatroom/context/CommandDialogContext', () => ({
-  useCommandDialog: () => ({
-    activeDialog,
+  useCommandDialogActions: () => ({
     openDialog,
     closeDialog,
+    toggleCommandPalette,
   }),
+  useCommandDialogState: () => ({
+    activeDialog,
+  }),
+}));
+
+vi.mock('@/modules/chatroom/context/commandPaletteController', () => ({
+  getCommandPaletteOpen: () => false,
+  subscribeCommandPaletteOpen: () => () => {},
 }));
 
 function pressShortcut(init: KeyboardEventInit) {
@@ -30,6 +39,7 @@ describe('useCommandDialogShortcut', () => {
     activeDialog = null;
     openDialog.mockClear();
     closeDialog.mockClear();
+    toggleCommandPalette.mockClear();
     Object.defineProperty(navigator, 'platform', {
       value: 'MacIntel',
       configurable: true,
@@ -72,7 +82,7 @@ describe('useCommandDialogShortcut', () => {
     expect(openDialog).toHaveBeenCalledWith('file-selector');
   });
 
-  it('opens command palette on Cmd+Shift+P only', () => {
+  it('toggles command palette on Cmd+Shift+P', () => {
     renderHook(() =>
       useCommandDialogShortcut({
         dialog: 'command-palette',
@@ -82,10 +92,11 @@ describe('useCommandDialogShortcut', () => {
     );
 
     pressShortcut({ key: 'p', metaKey: true });
-    expect(openDialog).not.toHaveBeenCalled();
+    expect(toggleCommandPalette).not.toHaveBeenCalled();
 
     pressShortcut({ key: 'p', metaKey: true, shiftKey: true });
-    expect(openDialog).toHaveBeenCalledWith('command-palette');
+    expect(toggleCommandPalette).toHaveBeenCalled();
+    expect(openDialog).not.toHaveBeenCalled();
   });
 
   it('uses Ctrl modifier on non-Mac platforms', () => {

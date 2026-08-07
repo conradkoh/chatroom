@@ -6,12 +6,7 @@
  * - Handler functions and types for testing
  */
 
-import { Effect } from 'effect';
-
-import { startCommandLoopEffect } from './command-loop.js';
-import { daemonSessionToLayers } from './daemon-layers.js';
-import { initDaemon } from './init.js';
-import { startBackgroundModelDiscoveryEffect } from './models-refresh.js';
+import { startDaemon } from '../../../daemon/entry/start-daemon.js';
 
 // ─── Entry Point ─────────────────────────────────────────────────────────────
 
@@ -19,10 +14,7 @@ import { startBackgroundModelDiscoveryEffect } from './models-refresh.js';
  * Start the daemon: initialize, then enter the command processing loop.
  */
 export async function daemonStart(): Promise<void> {
-  const init = await initDaemon();
-  const layers = daemonSessionToLayers(init);
-  Effect.runFork(startBackgroundModelDiscoveryEffect.pipe(Effect.provide(layers)));
-  await Effect.runPromise(startCommandLoopEffect.pipe(Effect.provide(layers)));
+  await startDaemon();
 }
 
 // ─── Re-exports for Testing ─────────────────────────────────────────────────
@@ -32,7 +24,7 @@ export type {
   StartAgentCommand,
   StopAgentCommand,
   MachineCommand,
-} from './types.js';
+} from '../../../daemon/entry/daemon-types.js';
 
 export type {
   DaemonDeps,
@@ -40,4 +32,4 @@ export type {
   StopAgentDeps,
   StateRecoveryDeps,
   MachineStateOps,
-} from './deps.js';
+} from '../../../daemon/entry/daemon-deps.js';

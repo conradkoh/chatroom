@@ -1,0 +1,132 @@
+import {
+  GET_NEXT_TASK_STARTED_ACTION,
+  NATIVE_WAITING_ACTION,
+} from '@workspace/backend/src/domain/entities/participant.js';
+import type { AssignedTaskSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+import { describe, expect, it } from 'vitest';
+
+import { createTaskMonitorSnapshot } from './task-monitor-snapshot.js';
+import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
+
+function makeSnapshot(overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSnapshotView {
+  return {
+    taskId: 'task_1',
+    chatroomId: 'room_1',
+    status: 'pending',
+    assignedTo: 'builder',
+    updatedAt: 1_000,
+    createdAt: 1_000,
+    agentConfig: {
+      role: 'builder',
+      machineId: 'machine_1',
+      agentHarness: 'cursor-sdk',
+      workingDir: '/tmp/project',
+      spawnedAgentPid: 100,
+      desiredState: 'running',
+    },
+    participant: {
+      lastSeenAction: NATIVE_WAITING_ACTION,
+      lastSeenAt: 500,
+      lastStatus: 'agent.waiting',
+    },
+    ...overrides,
+  };
+}
+
+function makeSignal(overrides: Partial<AssignedTaskSignal> = {}): AssignedTaskSignal {
+  return {
+    taskId: 'task_1' as AssignedTaskSignal['taskId'],
+    chatroomId: 'room_1' as AssignedTaskSignal['chatroomId'],
+    role: 'builder',
+    status: 'pending',
+    signalType: 'task',
+    revisionKey: 'rev-1',
+    machineId: 'machine_1',
+    lastSeenAction: 'native.waiting',
+    spawnedAgentPid: 200,
+    desiredState: 'running',
+    agentHarness: 'cursor-sdk',
+    workingDir: '/tmp/project',
+    assignedTo: 'builder',
+    createdAt: 1_000,
+    ...overrides,
+  };
+}
+
+describe('createTaskMonitorSnapshot', () => {
+  it('replaces all rows on reconcile refresh', () => {
+    const snapshot = createTaskMonitorSnapshot();
+    snapshot.replaceAll([makeSnapshot()]);
+    expect(snapshot.getByKey('task_1:builder')).toBeDefined();
+
+    snapshot.replaceAll([]);
+    expect(snapshot.getByKey('task_1:builder')).toBeUndefined();
+  });
+
+  it('merges incremental signals while preserving reconcile-only fields', () => {
+    const snapshot = createTaskMonitorSnapshot();
+    snapshot.replaceAll([makeSnapshot()]);
+
+    const merged = snapshot.mergeSignal(
+      makeSignal({
+        status: 'acknowledged',
+        lastSeenAction: 'task.injected',
+        spawnedAgentPid: 200,
+      })
+    );
+
+    expect(merged?.status).toBe('acknowledged');
+    expect(merged?.agentConfig.spawnedAgentPid).toBe(200);
+    expect(merged?.participant?.lastSeenAction).toBe('task.injected');
+    expect(merged?.participant?.lastSeenAt).toBe(500);
+    expect(merged?.createdAt).toBe(1_000);
+    expect(merged?.assignedTo).toBe('builder');
+    expect(snapshot.getByKey('task_1:builder')?.participant?.lastSeenAction).toBe('task.injected');
+  });
+
+  it('constructs a new row when merging a signal with no base row', () => {
+    const snapshot = createTaskMonitorSnapshot();
+    const merged = snapshot.mergeSignal(makeSignal());
+    expect(merged).toBeDefined();
+    expect(merged?.taskId).toBe('task_1');
+    expect(merged?.status).toBe('pending');
+    expect(merged?.agentConfig.role).toBe('builder');
+    expect(merged?.agentConfig.agentHarness).toBe('cursor-sdk');
+    expect(merged?.agentConfig.workingDir).toBe('/tmp/project');
+    expect(merged?.agentConfig.spawnedAgentPid).toBe(200);
+    expect(merged?.createdAt).toBe(1_000);
+    expect(merged?.participant?.lastSeenAction).toBe('native.waiting');
+    expect(merged?.participant?.lastSeenAt).toBeNull();
+    expect(snapshot.getByKey('task_1:builder')).toBe(merged);
+  });
+
+  it('ignores presence when no base row exists, then applies signal', () => {
+    const snapshot = createTaskMonitorSnapshot();
+
+    const presenceOnly = snapshot.mergePresence({
+      taskId: 'task_1' as AssignedTaskSignal['taskId'],
+      chatroomId: 'room_1' as AssignedTaskSignal['chatroomId'],
+      role: 'builder',
+      lastSeenAt: 900,
+      lastSeenAction: GET_NEXT_TASK_STARTED_ACTION,
+      presenceUpdatedAt: 900,
+      presenceKey: 'presence-key',
+    });
+    expect(presenceOnly).toBeUndefined();
+    expect(snapshot.getByKey('task_1:builder')).toBeUndefined();
+
+    const row = snapshot.mergeSignal(makeSignal());
+    expect(row).toBeDefined();
+
+    snapshot.mergePresence({
+      taskId: row!.taskId as AssignedTaskSignal['taskId'],
+      chatroomId: row!.chatroomId as AssignedTaskSignal['chatroomId'],
+      role: row!.agentConfig.role,
+      lastSeenAt: 1_100,
+      lastSeenAction: GET_NEXT_TASK_STARTED_ACTION,
+      presenceUpdatedAt: 1_100,
+      presenceKey: 'presence-key-2',
+    });
+    expect(snapshot.getByKey('task_1:builder')?.participant?.lastSeenAt).toBe(1_100);
+  });
+});

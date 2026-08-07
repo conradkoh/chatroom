@@ -17,11 +17,9 @@
 import type {
   OutputRepository,
   OutputChunk,
-} from '../../domain/direct-harness/ports/output-repository.js';
-import type {
   SessionJournal,
   JournalFactory,
-} from '../../domain/direct-harness/usecases/open-session.js';
+} from '../../daemon/domain/usecase/open-harness-session.js';
 
 export interface BufferedJournalFactoryOptions {
   readonly outputRepository: OutputRepository;

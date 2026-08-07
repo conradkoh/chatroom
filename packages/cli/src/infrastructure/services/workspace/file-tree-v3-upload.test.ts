@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MAX_SHARD_BATCH_SIZE, MAX_TREE_JSON_BYTES } from './file-tree-partition.js';
 import { uploadFileTreeV3 } from './file-tree-v3-upload.js';
-import type { DaemonSessionServiceShape } from '../../../commands/machine/daemon-start/daemon-services.js';
+import type { DaemonSessionServiceShape } from '../../../daemon/entry/daemon-services.js';
 
 vi.mock('../../../api.js', () => ({
   api: {

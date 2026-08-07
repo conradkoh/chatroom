@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import { ConvexCapabilitiesPublisher } from './convex-capabilities-publisher.js';
-import type { MachineCapabilities } from '../../domain/direct-harness/entities/machine-capabilities.js';
+import type { MachineCapabilities } from '../../daemon/domain/entities/machine-capabilities.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
