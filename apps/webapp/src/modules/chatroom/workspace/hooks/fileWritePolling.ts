@@ -7,7 +7,8 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { formatFileWriteError, type FileWriteOperation } from './fileWriteErrorFormatting';
 
 const FILE_WRITE_POLL_INTERVAL_MS = 500;
-const FILE_WRITE_POLL_TIMEOUT_MS = 30_000;
+export const FILE_WRITE_CONFIRM_TIMEOUT_MS = 5 * 60 * 1000;
+const FILE_WRITE_POLL_TIMEOUT_MS = FILE_WRITE_CONFIRM_TIMEOUT_MS;
 
 export type WaitForFileWriteOptions = {
   timeoutMs?: number;

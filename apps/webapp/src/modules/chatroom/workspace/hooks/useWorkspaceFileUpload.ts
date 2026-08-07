@@ -7,11 +7,9 @@ import { useConvex } from 'convex/react';
 import { useSessionId, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback } from 'react';
 
-import { waitForFileWriteRequest } from './fileWritePolling';
+import { FILE_WRITE_CONFIRM_TIMEOUT_MS, waitForFileWriteRequest } from './fileWritePolling';
 import { uploadFileToConvexStorage } from '../utils/uploadFileToConvexStorage';
 import { percentForUploadBytes } from '../utils/workspaceUploadProgress';
-
-const UPLOAD_WRITE_TIMEOUT_MS = 5 * 60 * 1000;
 
 export type WorkspaceFileUploadProgressUpdate = {
   phase: 'uploading' | 'finalizing' | 'complete';
@@ -62,7 +60,7 @@ export function useWorkspaceFileUpload({ machineId, workingDir }: UseWorkspaceFi
       });
 
       await waitForFileWriteRequest(convex, sessionId, result.requestId, {
-        timeoutMs: UPLOAD_WRITE_TIMEOUT_MS,
+        timeoutMs: FILE_WRITE_CONFIRM_TIMEOUT_MS,
       });
 
       onProgress?.({ phase: 'complete', percent: 100 });
