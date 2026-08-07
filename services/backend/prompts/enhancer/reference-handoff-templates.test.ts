@@ -85,6 +85,8 @@ describe('materialized enhancer handoff-templates block (spawn output contract)'
       6. **Error boundaries** — risky subtrees wrapped so a throw does not crash the whole app? failure isolated from the dashboard?
       7. **Alignment** — traced parent layout before leaf styles? position/height match siblings? snapshot test to map hierarchy?
       8. **Feedback** — immediate pending state on async actions (e.g. ⌘Enter save → button "Saving...")?
+      9. **Destructive actions** — confirmation dialog before delete/remove/archive/reset/clear or other irreversible/high-impact single actions?
+      10. **Bulk actions** — confirmation before batch/multi-item operations (with count or impact summary)?
 
       ### Flow complexity
       - Primary action ≤3 clicks from entry point
@@ -140,6 +142,15 @@ describe('materialized enhancer handoff-templates block (spawn output contract)'
       - Show inline error on failure; brief success confirmation optional
       - Pair shortcut hints with pending state ("Press ⌘Enter to save" only when save shows pending feedback)
 
+      ### Destructive & bulk action safeguards
+      - **Destructive actions** (delete, remove, archive, reset, clear stuck, disable) require an explicit confirmation step — never fire immediately from a menu item or button without a dialog
+      - Use \`AlertDialog\` via \`apps/webapp/src/modules/chatroom/components/ui/alert-dialog.tsx\` (chatroom) or \`@/components/ui/alert-dialog\` (app shell)
+      - Canonical patterns: \`LifecycleConfirmDialog\` (archive with impact summary), \`ProcessesPanel\` "Clear stuck commands?", \`ChatroomDashboard\` archive flow
+      - Destructive confirm actions use clear title + description of what will happen; primary action styled destructive when appropriate
+      - **Bulk actions** (multi-select delete, batch disable, clear-all, merge-many) require confirmation before execution — show how many items are affected
+      - Bulk confirm should summarize scope ("Delete 12 items?", "Disable 3 scheduled prompts") — see \`LifecycleConfirmDialog\` impact lines
+      - Flag plans that wire bulk/destructive handlers directly to mutations without a confirm gate
+
       ### Keyboard shortcuts (reference)
       | Shortcut | Action |
       |----------|--------|
@@ -186,6 +197,8 @@ describe('materialized enhancer handoff-templates block (spawn output contract)'
       - **Error boundaries:** <error boundary placement; failure isolated from the whole app>
       - **Alignment:** <hierarchy traced; position/height issues; inline snapshot consideration>
       - **Feedback:** <immediate pending state on async actions; ⌘Enter + button state>
+      - **Destructive safeguards:** <single-item irreversible/high-impact actions gated by confirm dialog; cite missing confirms>
+      - **Bulk safeguards:** <batch/multi-item operations gated by confirm with count/impact summary; cite missing confirms>
       </handoff-ux>
 
       <handoff-notes>

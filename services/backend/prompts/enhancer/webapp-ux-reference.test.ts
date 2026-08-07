@@ -28,12 +28,21 @@ describe('renderWebappUxReference', () => {
     expect(ref.indexOf('### UX review checklist') < ref.indexOf('### Keyboard shortcuts'));
   });
 
-  it('lists all 8 UX review checklist items', () => {
+  it('lists all 10 UX review checklist items', () => {
     const ref = renderWebappUxReference();
     expect(ref).toContain('5. **States**');
     expect(ref).toContain('6. **Error boundaries**');
     expect(ref).toContain('7. **Alignment**');
     expect(ref).toContain('8. **Feedback**');
+    expect(ref).toContain('9. **Destructive actions**');
+    expect(ref).toContain('10. **Bulk actions**');
+  });
+
+  it('documents destructive and bulk action safeguard patterns', () => {
+    const ref = renderWebappUxReference();
+    expect(ref).toContain('### Destructive & bulk action safeguards');
+    expect(ref).toContain('LifecycleConfirmDialog');
+    expect(ref).toContain('Clear stuck commands?');
   });
 
   it('documents error/loading, error boundary, alignment, and feedback sections', () => {
