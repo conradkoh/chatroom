@@ -354,13 +354,15 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       Complete the optional **UX** section in your output when the planner proposes UI changes. Write exactly "Not Applicable." for non-UI tasks. Put code snippets in **Suggested edits** only.
 
       1. **Flows** — primary action ≤3 clicks? simpler path exists?
-      2. **Patterns** — matches existing components? recommend one if multiple. mobile vs desktop (md: variants vs separate mobile UI)?
+      2. **Patterns** — matches existing components? recommend one if multiple. mobile vs desktop (responsive variants vs separate mobile UI)?
       3. **Layout** — compact title+menu row, description, trailing end-aligned CTA? unnecessary wrappers?
-      4. **Shortcuts** — consistent with catalog below? gaps or conflicts?
+      4. **Shortcuts** — consistent with project conventions? gaps or conflicts?
       5. **States** — loading spinners/skeletons for async data? error messages on failure? empty states?
-      6. **Error boundaries** — risky subtrees wrapped so a throw does not crash the whole app? failure isolated from the dashboard?
-      7. **Alignment** — traced parent layout before leaf styles? position/height match siblings? snapshot test to map hierarchy?
-      8. **Feedback** — immediate pending state on async actions (e.g. ⌘Enter save → button "Saving...")?
+      6. **Error boundaries** — risky subtrees wrapped so a throw does not crash the whole app? failure isolated from the shell?
+      7. **Alignment** — traced parent layout before leaf styles? position/height match siblings?
+      8. **Feedback** — immediate pending state on async actions (e.g. save → button "Saving...")?
+      9. **Destructive actions** — confirmation dialog before delete/remove/archive/reset/clear or other irreversible/high-impact single actions?
+      10. **Bulk actions** — confirmation before batch/multi-item operations (with count or impact summary)?
 
       ### Flow complexity
       - Primary action ≤3 clicks from entry point
@@ -369,66 +371,66 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - Prefer inline actions over navigate-away-and-back
 
       ### Presentation & responsive patterns
-      - Reuse existing components: \`CommandPalette\`, industrial dialogs, \`ChatroomLoader\`, timeline row chrome
-      - Match badge/button patterns from timeline (\`BADGE_BASE\`, \`navButtonClass\` in All-tab)
+      - Reuse existing design-system components and established UI patterns before introducing new abstractions
+      - Match badge/button styling from similar surfaces in the app
       - When multiple valid patterns exist, recommend one and explain tradeoff
-      - **md: breakpoint** (768px) splits mobile vs desktop
-      - **Hide/show:** \`hidden md:flex\` / \`flex md:hidden\` for alternate chrome
-      - **Mobile overlay:** fixed sidebar overlay with backdrop (\`md:hidden\`)
-      - **Separate mobile UI:** dedicated mobile modal/picker when desktop uses side panel
-      - **Shared responsive density:** same component, \`md:\` size variants (\`h-7 md:h-9\`)
-      - **Command dialogs:** industrial theme via \`commandDialogStyles.ts\`, top-anchored, max-w-[90vw]
+      - Use the project's standard breakpoint(s) for mobile vs desktop
+      - **Hide/show:** responsive utility classes or equivalent for alternate chrome per viewport
+      - **Mobile overlay:** full-screen or sheet overlay with backdrop when desktop uses persistent panels
+      - **Separate mobile UI:** dedicated mobile modal/picker when desktop uses side panel or split view
+      - **Shared responsive density:** same component with size/density variants per breakpoint
+      - **Command/search dialogs:** match existing modal/dialog styling; sensible max-width on small screens
 
       ### Layout simplification
       - Review card/section layouts for unnecessary rows, nested wrappers, or misaligned actions
-      - Prefer compact rows: title and overflow menu (⋮ \`MoreVertical\` popover) on one line via flex/grid
-      - Description on the next line; primary CTA (e.g. "View Details") on a trailing row aligned end
+      - Prefer compact rows: title and overflow menu on one line via flex/grid
+      - Description on the next line; primary CTA on a trailing row aligned end
       - Canonical simplified card pattern:
         \`\`\`
-        <title>          <overflow-menu ⋮>
+        <title>          <overflow-menu>
         <description>
                          <primary-cta aligned end>
         \`\`\`
-      - Reuse \`CardHeader\` + \`CardAction\` grid (\`grid-cols-[1fr_auto]\`) or equivalent flex \`justify-between\`
-      - Flag multi-row chrome that could collapse (menu on its own row, CTA left-aligned when end-aligned matches existing cards)
+      - Use header + action grid or equivalent flex \`justify-between\`
+      - Flag multi-row chrome that could collapse (menu on its own row, CTA misaligned vs similar cards)
 
       ### Error & loading states
-      - Initial fetch: \`ChatroomLoader\` centered (see \`ChatroomTimelineFeed\`, \`ConversationSlicePanel\`)
-      - Pagination: \`isLoadingOlder\` / \`isLoadingMore\` inline loader at scroll edge
-      - Save mutations: inline success/error text beside button (\`AgentSettingsModal\` \`saveResult\` pattern)
+      - Initial fetch: centered loader or skeleton for the content area
+      - Pagination/infinite scroll: inline loader at scroll edge
+      - Save/submit mutations: inline success/error feedback beside the trigger control
       - Never leave blank panels on fetch failure — show error message or retry affordance
-      - Disable interactive controls while \`isLoading\` / \`isPending\`
+      - Disable interactive controls while loading or pending
 
       ### Error boundaries
-      - Wrap data-dependent or third-party subtrees with \`ErrorBoundary\` (chatroom) or rely on \`SentryErrorBoundary\` (root) / \`AuthErrorBoundary\` (app shell)
-      - A single component throw must not unmount the entire dashboard — scope boundaries to the failing panel/section
-      - Provide fallback UI with recovery action (reload button pattern in \`ErrorBoundary.tsx\`)
+      - Wrap data-dependent or third-party subtrees with error boundaries so a single failure does not unmount the whole app
+      - Scope boundaries to the failing panel/section, not the entire shell
+      - Provide fallback UI with a recovery action (retry, reload, or navigate away)
 
       ### Alignment & component hierarchy
-      - Before styling a leaf component, trace parent flex/grid — sticky headers, \`grid-cols-[1fr_auto_1fr]\` timeline nav, \`items-center\` vs \`items-start\`
-      - Match sibling heights and vertical rhythm (\`h-7 md:h-9\` density pattern)
+      - Before styling a leaf component, trace parent flex/grid context
+      - Match sibling heights and vertical rhythm
       - Flag absolute positioning or fixed heights that fight parent layout
-      - **Planner/builder shortcut:** when hierarchy is unclear, write a vitest inline snapshot (\`render\` + \`toMatchInlineSnapshot\`, the repo convention in backend prompt tests) to inspect the full component tree before deciding leaf styles — remove or keep the snapshot based on team preference. Webapp currently has no snapshot-test precedent, so treat this as a diagnostic tool, not a convention to mandate.
+      - When hierarchy is unclear, inspect the rendered component tree (e.g. DOM inspector or component test snapshot) before deciding leaf styles
 
       ### Fast user feedback
-      - Async actions triggered by keyboard (\`⌘Enter\` via \`isModEnterKey\`) or click must show **immediate** UI response
-      - Canonical pattern: \`isSaving\` / \`isPending\` local state → button label \`Saving...\`, \`disabled\` while in flight (\`AgentSettingsModal\`)
+      - Async actions triggered by keyboard shortcut or click must show **immediate** UI response
+      - Canonical pattern: pending local state → button label changes (e.g. "Saving..."), control disabled while in flight
       - Show inline error on failure; brief success confirmation optional
-      - Pair shortcut hints with pending state ("Press ⌘Enter to save" only when save shows pending feedback)
+      - Pair shortcut hints with pending state only when the action shows pending feedback
 
-      ### Keyboard shortcuts (reference)
-      | Shortcut | Action |
-      |----------|--------|
-      | ⌘K / Ctrl+K | Chatroom switcher |
-      | ⌘P / Ctrl+P | File selector |
-      | ⌘⇧P / Ctrl+Shift+P | Command palette (scripts, saved commands) |
-      | ⌘⇧F / Ctrl+Shift+F | Workspace search |
-      | ⌘I / Ctrl+I | Attach explorer snippet |
-      | Enter (desktop, no Shift) | Send message |
-      | Shift+Enter | New line in composer |
-      | ⌘Enter / Ctrl+Enter | Confirm/save in modals |
-      | ⌘S / Ctrl+S | Save in workspace file dialogs |
-      | Escape | Close modal/dialog |
+      ### Destructive & bulk action safeguards
+      - **Destructive actions** (delete, remove, archive, reset, clear, disable) require an explicit confirmation step — never fire immediately from a menu item or button without a dialog
+      - Use the project's standard confirmation dialog/modal pattern
+      - Confirmation includes clear title + description of what will happen; primary action styled as destructive when appropriate
+      - **Bulk actions** (multi-select delete, batch disable, clear-all) require confirmation before execution — show how many items are affected
+      - Bulk confirm should summarize scope (e.g. "Delete 12 items?") and list material impact when non-obvious
+      - Flag plans that wire bulk/destructive handlers directly to mutations/API calls without a confirm gate
+
+      ### Keyboard shortcuts
+      - Align proposed shortcuts with the project's existing shortcut catalog and platform conventions (⌘ on macOS, Ctrl on Windows/Linux)
+      - Avoid conflicting bindings; document new shortcuts when introducing them
+      - Common patterns: modifier+letter for global commands, Enter to confirm in dialogs, Escape to cancel/close, Shift+Enter for multiline input where applicable
+      - Flag plans that add shortcuts without checking for conflicts or omit keyboard access for primary actions
 
       \`\`\`markdown
       <handoff-overview>
@@ -462,6 +464,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - **Error boundaries:** <error boundary placement; failure isolated from the whole app>
       - **Alignment:** <hierarchy traced; position/height issues; inline snapshot consideration>
       - **Feedback:** <immediate pending state on async actions; ⌘Enter + button state>
+      - **Destructive safeguards:** <single-item irreversible/high-impact actions gated by confirm dialog; cite missing confirms>
+      - **Bulk safeguards:** <batch/multi-item operations gated by confirm with count/impact summary; cite missing confirms>
       </handoff-ux>
 
       <handoff-notes>

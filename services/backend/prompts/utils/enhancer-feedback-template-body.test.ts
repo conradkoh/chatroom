@@ -60,6 +60,8 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     expect(uxBlock).toContain('**Error boundaries:**');
     expect(uxBlock).toContain('**Alignment:**');
     expect(uxBlock).toContain('**Feedback:**');
+    expect(uxBlock).toContain('**Destructive safeguards:**');
+    expect(uxBlock).toContain('**Bulk safeguards:**');
     expect(body.indexOf('<handoff-ux>')).toBeGreaterThan(body.indexOf('</handoff-direction>'));
     expect(body.indexOf('<handoff-ux>')).toBeLessThan(body.indexOf('<handoff-notes>'));
   });

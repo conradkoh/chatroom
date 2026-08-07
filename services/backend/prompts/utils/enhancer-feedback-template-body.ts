@@ -39,6 +39,8 @@ export function getEnhancerFeedbackTemplateBody(): string {
 - **Error boundaries:** <error boundary placement; failure isolated from the whole app>
 - **Alignment:** <hierarchy traced; position/height issues; inline snapshot consideration>
 - **Feedback:** <immediate pending state on async actions; ⌘Enter + button state>
+- **Destructive safeguards:** <single-item irreversible/high-impact actions gated by confirm dialog; cite missing confirms>
+- **Bulk safeguards:** <batch/multi-item operations gated by confirm with count/impact summary; cite missing confirms>
 </handoff-ux>
 
 <handoff-notes>
