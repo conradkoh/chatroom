@@ -4,7 +4,7 @@ import { getFileReferenceProofOfCompletionExample } from './file-reference-guida
 import { getHandoffQualityPrinciplesSectionBlock } from './handoff-quality-principles';
 import { getHandoffNotApplicableSectionComment } from './handoff-section-guidance';
 import { getHandoffSeverityGuidanceBlock } from './handoff-severity-guidance';
-import { getProofOfVerificationDisclosureBlock } from './proof-of-verification';
+import { getEntryPointProofOfCompletionVerificationBlock } from './proof-of-verification';
 import { getRoleGuidanceDisclosureBlock } from './role-guidance-disclosure';
 import { getUnresolvedDecisionsSectionBlock } from './unresolved-decisions';
 import type { RoleGuidanceCommandParams } from '../cli/role-guidance/command';
@@ -42,19 +42,19 @@ ${getHandoffNotApplicableSectionComment('List planning steps for trivial single-
 ${getHandoffQualityPrinciplesSectionBlock()}
 
 ## Proof of Completion
-${getContextReadDisclosureBlock(roleGuidanceContext)}
-${getFileReferenceProofOfCompletionExample()}
-<evidence the goal was met — list every file you (or the builder) modified>
-
 ${
   options.includeProofOfVerification
-    ? `## Proof of Verification
-${getHandoffNotApplicableSectionComment('Entry-point only — write Not Applicable for non-entry roles')}
-${getProofOfVerificationDisclosureBlock(roleGuidanceContext)}
-- <requirement from user message / context — met or not>
-(list each key requirement and evidence: PR URL, commit, or file)
-`
-    : ''
+    ? `${getEntryPointProofOfCompletionVerificationBlock(roleGuidanceContext)}
+${getContextReadDisclosureBlock(roleGuidanceContext)}
+- Context goal: <state the context goal and confirm it was achieved>
+- Requirements (one bullet per user requirement from the user's message — met/not met + evidence):
+  - <requirement> — <PR URL, commit hash, or file evidence>
+- Files changed (code tasks — list every file modified):
+${getFileReferenceProofOfCompletionExample()}
+  - <additional files as needed>`
+    : `${getContextReadDisclosureBlock(roleGuidanceContext)}
+${getFileReferenceProofOfCompletionExample()}
+<evidence the goal was met — list every file you (or the builder) modified>`
 }
 ## Backlog Tasks Implemented
 ${getHandoffNotApplicableSectionComment('List backlog items addressed if none were in scope')}

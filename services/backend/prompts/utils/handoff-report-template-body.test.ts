@@ -103,32 +103,49 @@ describe('getHandoffReportTemplateBody', () => {
     expect(proofs).toContain('REQUIRED: Complete every principle below');
   });
 
-  test('does not include Proof of Verification by default (non-entry templates)', () => {
+  test('does not include proof of verification by default (non-entry templates)', () => {
     const body = getHandoffReportTemplateBody();
     expect(body).not.toContain('## Proof of Verification');
-    expect(body).not.toContain('I confirm I ran proof of verification');
+    expect(body).not.toContain('I confirm I verified the user');
     expect(body).not.toContain('messages anchor');
   });
 
-  test('includes Proof of Verification section for entry-point handoffs', () => {
+  test('entry-point Proof of Completion includes the verification workflow', () => {
     const body = getHandoffReportTemplateBody(undefined, { includeProofOfVerification: true });
     const proofs = body.match(/<handoff-proofs>[\s\S]*<\/handoff-proofs>/)?.[0] ?? '';
-    expect(proofs).toContain('## Proof of Verification');
-    expect(proofs).toContain('I confirm I ran proof of verification');
-    expect(proofs).toContain('anchored on the user');
-    expect(proofs).toContain('validated commits/PRs against all user requirements');
+
+    // No separate Proof of Verification section — rolled into Proof of Completion.
+    expect(body).not.toContain('## Proof of Verification');
+    expect(proofs).toContain('## Proof of Completion');
+
+    // Verification checkbox present.
+    expect(proofs).toContain('I confirm I verified the user');
+    expect(proofs).toContain('validated every requirement below before this handoff');
+
+    // Workflow comment with anchor command.
     expect(proofs).toContain('messages anchor');
-    expect(proofs).toContain('then messages download --since-message-id=<id> from anchor output');
-    expect(proofs).toContain('- <requirement from user message / context — met or not>');
+    expect(proofs).toContain('messages download --since-message-id=<id>');
+
+    // Terse follow-up guidance present.
+    expect(proofs).toMatch(/terse/i);
+    expect(proofs).toMatch(/prior user messages/);
+
+    // Requirement + file placeholders.
+    expect(proofs).toContain('- Requirements');
+    expect(proofs).toContain('- Files changed');
+
+    // Verification checkbox appears BEFORE the context-read checkbox.
+    const verificationIdx = proofs.indexOf('I confirm I verified the user');
+    const contextIdx = proofs.indexOf('I confirm that I read the current chatroom task context');
+    expect(verificationIdx).toBeGreaterThan(-1);
+    expect(contextIdx).toBeGreaterThan(verificationIdx);
   });
 
-  test('Proof of Verification renders after Proof of Completion and before Backlog Tasks', () => {
+  test('entry-point Proof of Completion renders verification before Backlog Tasks', () => {
     const body = getHandoffReportTemplateBody(undefined, { includeProofOfVerification: true });
     const completionIdx = body.indexOf('## Proof of Completion');
-    const verificationIdx = body.indexOf('## Proof of Verification');
     const backlogIdx = body.indexOf('## Backlog Tasks Implemented');
     expect(completionIdx).toBeGreaterThan(-1);
-    expect(verificationIdx).toBeGreaterThan(completionIdx);
-    expect(backlogIdx).toBeGreaterThan(verificationIdx);
+    expect(backlogIdx).toBeGreaterThan(completionIdx);
   });
 });

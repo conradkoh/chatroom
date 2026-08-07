@@ -1,9 +1,13 @@
 /**
- * Proof of verification attestation for entry-point user handoffs.
+ * Proof of verification workflow for entry-point user handoffs.
  *
  * Entry-point agents (planner/solo) must re-anchor on the user's last message
  * and download grep-friendly history since that anchor before handing off to
  * the user — especially on long multi-phase tasks that survive compaction.
+ *
+ * The verification workflow is rolled up INTO the Proof of Completion section
+ * (not a separate `## Proof of Verification` heading), so the agent answers
+ * "was the goal met?" once, with requirement-by-requirement evidence.
  */
 
 export interface ProofOfVerificationParams {
@@ -40,16 +44,26 @@ export function messagesDownloadSinceCommand(
 }
 
 const PROOF_OF_VERIFICATION_CHECKBOX =
-  "- [ ] I confirm I ran proof of verification: anchored on the user's last message, downloaded history since that anchor, reviewed handoffs/goals, and validated commits/PRs against all user requirements before this handoff";
+  "- [ ] I confirm I verified the user's full request: anchored on the last user message, downloaded history since that anchor, reviewed handoffs/goals (including prior user messages when the latest was a terse follow-up), and validated every requirement below before this handoff";
 
-/** HTML comment with the exact proof-of-verification workflow commands. */
+/** HTML comment with the entry-point proof-of-completion workflow commands. */
 function getProofOfVerificationComment(params: ProofOfVerificationParams = {}): string {
-  return `<!-- ${messagesAnchorCommand(params)} then messages download --since-message-id=<id> from anchor output -->`;
+  const anchorCmd = messagesAnchorCommand(params);
+  return `<!-- Entry-point proof-of-completion workflow — run before filling this section:
+1. \`${anchorCmd}\` — locate the user's last message (and prior user messages for context)
+2. \`messages download --since-message-id=<id>\` — download grep-friendly history since anchor; read handoffs and goals
+3. If the user's last message was terse (e.g. "do it", "raise a PR"), review prior user messages from anchor output and widen --limit before validating
+4. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
+Then: ${anchorCmd} → messages download --since-message-id=<id> from anchor output -->`;
 }
 
-/** Checkbox + HTML comment for entry-point Proof of Verification sections. */
-export function getProofOfVerificationDisclosureBlock(
+/**
+ * Entry-point Proof of Completion extension: verification workflow comment +
+ * verification checkbox. Rendered INSIDE Proof of Completion (not a separate
+ * `## Proof of Verification` section).
+ */
+export function getEntryPointProofOfCompletionVerificationBlock(
   params: ProofOfVerificationParams = {}
 ): string {
-  return `${PROOF_OF_VERIFICATION_CHECKBOX}\n${getProofOfVerificationComment(params)}`;
+  return `${getProofOfVerificationComment(params)}\n${PROOF_OF_VERIFICATION_CHECKBOX}`;
 }
