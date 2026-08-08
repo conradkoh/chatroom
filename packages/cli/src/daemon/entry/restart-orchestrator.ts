@@ -2,6 +2,8 @@
  * Orchestrates atomic user restart: reset → spawn → await session → ready → deliver pending.
  */
 
+import type { DatabaseSync } from 'node:sqlite';
+
 import { HARNESS_SESSION_READY_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import type { AgentRestartPhase } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
@@ -28,6 +30,8 @@ import { getErrorMessage } from '../../utils/convex-error.js';
 import { isDeliverableTaskStatus } from '../domain/entities/assigned-task.js';
 import type { AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
+import { listSnapshotViewsFromReadModels } from '../infrastructure/persistence/read-models/task-snapshot-adapter.js';
+import { isDaemonOrchestrationP2CutoverEnabled } from '../infrastructure/projection/feature-flags.js';
 
 interface RestartOrchestratorEvent {
   chatroomId: string;
@@ -52,6 +56,13 @@ export interface RestartOrchestratorSession {
 interface RestartOrchestratorDeps {
   session: RestartOrchestratorSession;
   agentMgr: DaemonAgentProcessManagerServiceShape;
+}
+
+let restartOrchestratorDb: DatabaseSync | undefined;
+
+/** Set the SQLite handle used for P2 cutover reads (set by start-daemon when P2_CUTOVER enabled). */
+export function setRestartOrchestratorDb(db: DatabaseSync | undefined): void {
+  restartOrchestratorDb = db;
 }
 
 async function emitPhase(
@@ -121,18 +132,27 @@ async function listDeliverableSnapshots(
   deps: RestartOrchestratorDeps,
   event: RestartOrchestratorEvent
 ): Promise<AssignedTaskSnapshotView[]> {
-  await deps.session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
-    sessionId: deps.session.sessionId,
-    machineId: deps.session.machineId,
-  });
-
-  const result = (await deps.session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
-    sessionId: deps.session.sessionId,
-    machineId: deps.session.machineId,
-  })) as { tasks?: unknown };
-
   const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
-  return mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(result.tasks ?? []))
+
+  let candidates: AssignedTaskSnapshotView[];
+  if (restartOrchestratorDb && isDaemonOrchestrationP2CutoverEnabled()) {
+    candidates = listSnapshotViewsFromReadModels(restartOrchestratorDb, deps.session.machineId);
+  } else {
+    await deps.session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
+      sessionId: deps.session.sessionId,
+      machineId: deps.session.machineId,
+    });
+    const result = (await deps.session.backend.query(
+      api.machines.listMachineAssignedTaskSnapshots,
+      {
+        sessionId: deps.session.sessionId,
+        machineId: deps.session.machineId,
+      }
+    )) as { tasks?: unknown };
+    candidates = mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(result.tasks ?? []));
+  }
+
+  return candidates
     .filter(
       (t) =>
         t.chatroomId === event.chatroomId &&

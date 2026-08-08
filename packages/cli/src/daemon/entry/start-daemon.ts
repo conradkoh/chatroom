@@ -6,6 +6,7 @@ import { createDaemonDeps } from './deps.js';
 import { initDaemon } from './init-daemon.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 import { resolveLocalWebPort } from './resolve-local-web-port.js';
+import { setRestartOrchestratorDb } from './restart-orchestrator.js';
 import { startAllSubscribers } from './subscriber-registry.js';
 import { setTaskMonitorReadModelDb } from './task-monitor-runtime.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
@@ -60,6 +61,7 @@ export async function startDaemon(): Promise<void> {
       query: (fn, args) => init.backend.query(fn, args),
     });
     setTaskMonitorReadModelDb(persistence.db);
+    setRestartOrchestratorDb(persistence.db);
     if (isDaemonOrchestrationP2CutoverEnabled()) {
       setAssignedTaskSnapshotProvider(() =>
         listSnapshotViewsFromReadModels(persistence.db, init.machineId)
