@@ -10,10 +10,12 @@ import { startAllSubscribers } from './subscriber-registry.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
+import { hydrateReadModelsFromConvex } from '../infrastructure/persistence/read-models/hydrate-from-convex.js';
 import { createConvexProjectionAdapter } from '../infrastructure/projection/convex/convex-projection-adapter.js';
 import {
   isDaemonOrchestrationP1CutoverEnabled,
   isDaemonOrchestrationP1Enabled,
+  isDaemonOrchestrationP2Enabled,
 } from '../infrastructure/projection/feature-flags.js';
 import { startOutboxDrainWorker } from '../infrastructure/projection/outbox-drain-worker.js';
 import { startLocalWebServer } from '../local-web/server/create-local-web-server.js';
@@ -44,6 +46,16 @@ export async function startDaemon(): Promise<void> {
       isCutoverEnabled: isDaemonOrchestrationP1CutoverEnabled,
     });
     console.log('[daemon] Outbox drain worker started (P1)');
+  }
+
+  if (isDaemonOrchestrationP2Enabled()) {
+    const { taskCount } = await hydrateReadModelsFromConvex({
+      db: persistence.db,
+      machineId: init.machineId,
+      sessionId: init.sessionId,
+      query: (fn, args) => init.backend.query(fn, args),
+    });
+    console.log(`[daemon] P2 read models hydrated (${taskCount} tasks)`);
   }
 
   const localWebPort = resolveLocalWebPort();
