@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -64,5 +64,23 @@ describe('resolvePathWithinWorkspace', () => {
     if (!result.ok) {
       expect(result.error).toBe('Path escapes workspace');
     }
+  });
+
+  it('rejects .chatroom symlink escape for attachment upload path', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'chatroom-ws-'));
+    const outside = await mkdtemp(join(tmpdir(), 'chatroom-out-'));
+    dirs.push(workspace, outside);
+
+    await symlink(outside, join(workspace, '.chatroom'));
+
+    const root = await realpath(workspace);
+    const attachmentPath =
+      '.chatroom/downloads/attachments/files/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d_notes.md';
+    const result = await resolvePathWithinWorkspace(root, attachmentPath);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe('Path escapes workspace');
+    }
+    await expect(access(join(outside, 'downloads', 'attachments', 'files'))).rejects.toThrow();
   });
 });
