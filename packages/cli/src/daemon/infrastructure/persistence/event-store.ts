@@ -12,3 +12,10 @@ export function appendOutboundEvent(db: DatabaseSync, event: OutboundEvent): num
     .run(event.type, JSON.stringify(event), now);
   return Number(result.lastInsertRowid);
 }
+
+export function loadOutboundEventById(db: DatabaseSync, id: number): OutboundEvent | null {
+  const row = db.prepare(`SELECT payload_json FROM outbound_events WHERE id = ?`).get(id) as
+    { payload_json: string } | undefined;
+  if (!row) return null;
+  return JSON.parse(row.payload_json) as OutboundEvent;
+}

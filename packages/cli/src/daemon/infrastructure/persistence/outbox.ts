@@ -32,3 +32,25 @@ export function listPendingOutbox(
     )
     .all(limit) as { id: number; outboundEventId: number; target: string }[];
 }
+
+export function markOutboxDone(db: DatabaseSync, outboxId: number): void {
+  const now = Date.now();
+  db.prepare(`UPDATE outbox SET status = 'done', updated_at = ? WHERE id = ?`).run(now, outboxId);
+}
+
+export function markOutboxFailed(db: DatabaseSync, outboxId: number, error: string): void {
+  const now = Date.now();
+  db.prepare(
+    `UPDATE outbox SET status = 'failed', last_error = ?, updated_at = ? WHERE id = ?`
+  ).run(error, now, outboxId);
+}
+
+export function incrementOutboxAttempts(db: DatabaseSync, outboxId: number, error: string): number {
+  const now = Date.now();
+  db.prepare(
+    `UPDATE outbox SET attempts = attempts + 1, last_error = ?, updated_at = ? WHERE id = ?`
+  ).run(error, now, outboxId);
+  const row = db.prepare(`SELECT attempts FROM outbox WHERE id = ?`).get(outboxId) as
+    { attempts: number } | undefined;
+  return row?.attempts ?? 0;
+}
