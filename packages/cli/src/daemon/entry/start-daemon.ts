@@ -7,6 +7,7 @@ import { initDaemon } from './init-daemon.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 import { resolveLocalWebPort } from './resolve-local-web-port.js';
 import { startAllSubscribers } from './subscriber-registry.js';
+import { setTaskMonitorReadModelDb } from './task-monitor-runtime.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
@@ -55,6 +56,7 @@ export async function startDaemon(): Promise<void> {
       sessionId: init.sessionId,
       query: (fn, args) => init.backend.query(fn, args),
     });
+    setTaskMonitorReadModelDb(persistence.db);
     console.log(`[daemon] P2 read models hydrated (${taskCount} tasks)`);
   }
 
