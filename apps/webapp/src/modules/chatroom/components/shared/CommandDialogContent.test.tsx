@@ -1,4 +1,3 @@
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
@@ -6,8 +5,6 @@ import { CommandDialogContent, CommandDialogRoot } from './CommandDialogContent'
 
 import { Command, CommandInput } from '@/components/ui/command';
 import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
-
-const Dialog = DialogPrimitive.Root;
 
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: vi.fn(() => true),
@@ -32,6 +29,18 @@ describe('CommandDialogRoot', () => {
 
     expect(onOpenChange).not.toHaveBeenCalled();
   });
+
+  it('does not allow callers to override modal or disablePointerDismissal', () => {
+    const onOpenChange = vi.fn();
+    render(
+      // @ts-expect-error modal and disablePointerDismissal are not overridable props
+      <CommandDialogRoot open onOpenChange={onOpenChange} modal disablePointerDismissal={false}>
+        <CommandDialogContent open data-testid="content">
+          body
+        </CommandDialogContent>
+      </CommandDialogRoot>
+    );
+  });
 });
 
 describe('CommandDialogContent dismiss backdrop', () => {
@@ -45,32 +54,32 @@ describe('CommandDialogContent dismiss backdrop', () => {
 
   it('renders backdrop when open and omits it when closed', () => {
     const { rerender } = render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open data-testid="content">
           body
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
     vi.advanceTimersByTime(0);
     expect(document.querySelector('[data-slot="command-dialog-dismiss-backdrop"]')).not.toBeNull();
 
     rerender(
-      <Dialog open={false} onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open={false} onOpenChange={vi.fn()}>
         <CommandDialogContent open={false} data-testid="content">
           body
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
     expect(document.querySelector('[data-slot="command-dialog-dismiss-backdrop"]')).toBeNull();
   });
 
   it('backdrop is z-40; content is z-50', () => {
     render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open data-testid="content">
           body
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
     vi.advanceTimersByTime(0);
     const backdrop = document.querySelector('[data-slot="command-dialog-dismiss-backdrop"]');
@@ -85,12 +94,12 @@ describe('CommandDialogContent dismiss backdrop', () => {
         <button type="button" data-testid="underlying">
           beneath
         </button>
-        <Dialog open onOpenChange={onOpenChange} modal={false}>
+        <CommandDialogRoot open onOpenChange={onOpenChange}>
           <CommandDialogContent open>
-            <DialogPrimitive.Title className="sr-only">Test</DialogPrimitive.Title>
+            <DialogTitle className="sr-only">Test</DialogTitle>
             dialog body
           </CommandDialogContent>
-        </Dialog>
+        </CommandDialogRoot>
       </div>
     );
     vi.advanceTimersByTime(0);
@@ -101,16 +110,50 @@ describe('CommandDialogContent dismiss backdrop', () => {
     expect(backdrop?.className).toContain('inset-0');
     expect(backdrop?.className).toContain('bg-transparent');
   });
+
+  it('calls onBackdropDismiss when backdrop is pressed', () => {
+    const onBackdropDismiss = vi.fn();
+    render(
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
+        <CommandDialogContent open onBackdropDismiss={onBackdropDismiss}>
+          body
+        </CommandDialogContent>
+      </CommandDialogRoot>
+    );
+
+    const backdrop = document.querySelector<HTMLElement>(
+      '[data-slot="command-dialog-dismiss-backdrop"]'
+    );
+    backdrop?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+    expect(onBackdropDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onBackdropDismiss for non-primary buttons', () => {
+    const onBackdropDismiss = vi.fn();
+    render(
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
+        <CommandDialogContent open onBackdropDismiss={onBackdropDismiss}>
+          body
+        </CommandDialogContent>
+      </CommandDialogRoot>
+    );
+
+    const backdrop = document.querySelector<HTMLElement>(
+      '[data-slot="command-dialog-dismiss-backdrop"]'
+    );
+    backdrop?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 2 }));
+    expect(onBackdropDismiss).not.toHaveBeenCalled();
+  });
 });
 
 describe('CommandDialogContent surface', () => {
   it('renders a plain dialog surface with aria-modal false', () => {
     render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open data-testid="content">
           body
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
     const surface = screen.getByTestId('content');
     expect(surface).toHaveAttribute('role', 'dialog');
@@ -120,13 +163,13 @@ describe('CommandDialogContent surface', () => {
 
   it('wires aria-labelledby and aria-describedby from DialogTitle and DialogDescription', () => {
     render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open data-testid="content">
           <DialogTitle className="sr-only">Command Palette</DialogTitle>
           <DialogDescription className="sr-only">Search and execute a command</DialogDescription>
           body
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
 
     const surface = screen.getByTestId('content');
@@ -138,25 +181,25 @@ describe('CommandDialogContent surface', () => {
 
   it('is not hidden on the first render when reopening after close', () => {
     const { rerender } = render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open data-testid="content">
           body
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
     rerender(
-      <Dialog open={false} onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open={false} onOpenChange={vi.fn()}>
         <CommandDialogContent open={false} data-testid="content">
           body
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
     rerender(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open data-testid="content">
           body
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
     expect(screen.getByTestId('content')).not.toHaveAttribute('hidden');
     expect(screen.getByTestId('content')).toHaveAttribute('data-open');
@@ -164,11 +207,11 @@ describe('CommandDialogContent surface', () => {
 
   it('surface has no animation utility classes', () => {
     render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open data-testid="content">
           body
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
     const className = screen.getByTestId('content').className;
     expect(className).not.toContain('animate-out');
@@ -184,12 +227,12 @@ describe('CommandDialogContent surface', () => {
     const beforeCount = document.body.querySelectorAll('[data-base-ui-inert]').length;
 
     render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open>
           <DialogTitle className="sr-only">Test</DialogTitle>
           dialog body
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
     const afterCount = document.body.querySelectorAll('[data-base-ui-inert]').length;
     expect(afterCount).toBe(beforeCount);
@@ -199,13 +242,13 @@ describe('CommandDialogContent surface', () => {
 describe('CommandDialogContent input focus', () => {
   it('focuses the command input when the dialog opens', async () => {
     render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open>
           <Command>
             <CommandInput placeholder="Search..." />
           </Command>
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
 
     const input = document.querySelector<HTMLInputElement>('[data-slot="command-input"]');
@@ -218,11 +261,11 @@ describe('CommandDialogContent input focus', () => {
   it('does not throw when no command input is present', () => {
     expect(() => {
       render(
-        <Dialog open onOpenChange={vi.fn()} modal={false}>
+        <CommandDialogRoot open onOpenChange={vi.fn()}>
           <CommandDialogContent open data-testid="content">
             dialog body
           </CommandDialogContent>
-        </Dialog>
+        </CommandDialogRoot>
       );
     }).not.toThrow();
   });
