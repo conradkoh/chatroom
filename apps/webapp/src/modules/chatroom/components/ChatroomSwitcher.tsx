@@ -15,10 +15,10 @@ import {
 } from './chatroomSwitcherPartitionStore';
 import { buildChatroomSwitcherRows, getChatroomSwitcherKeywords } from './chatroomSwitcherRows';
 import { ChatroomSwitcherVirtualizedList } from './ChatroomSwitcherVirtualizedList';
-import { CommandDialogContent } from './shared/CommandDialogContent';
+import { CommandDialogContent, CommandDialogRoot } from './shared/CommandDialogContent';
 
 import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
-import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useTwoFingerTap } from '@/hooks/useTwoFingerTap';
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
 import type { ChatroomWithStatus } from '@/modules/chatroom/context/ChatroomListingContext';
@@ -154,7 +154,7 @@ export function ChatroomSwitcher() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen} modal={false}>
+    <CommandDialogRoot open={open} onOpenChange={setOpen}>
       {/* No overlay — cmd+k is a quick-picker, not a blocking modal. Avoids backdrop fade lag. */}
       <CommandDialogContent
         open={open}
@@ -186,6 +186,6 @@ export function ChatroomSwitcher() {
           </CommandList>
         </Command>
       </CommandDialogContent>
-    </Dialog>
+    </CommandDialogRoot>
   );
 }

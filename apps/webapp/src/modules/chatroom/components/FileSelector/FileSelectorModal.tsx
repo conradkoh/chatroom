@@ -14,10 +14,10 @@ import {
 import { buildFileSelectorRows } from './fileSelectorRows';
 import { FileSelectorVirtualizedList } from './FileSelectorVirtualizedList';
 import type { FileEntry } from './useFileSelector';
-import { CommandDialogContent } from '../shared/CommandDialogContent';
+import { CommandDialogContent, CommandDialogRoot } from '../shared/CommandDialogContent';
 
 import { Command, CommandEmpty, CommandInput, CommandList } from '@/components/ui/command';
-import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useCommandDialogActions } from '@/modules/chatroom/context/CommandDialogContext';
 import {
   getFileSelectorOpen,
@@ -98,7 +98,7 @@ export const FileSelectorModal = memo(function FileSelectorModal({
   );
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange} modal={false}>
+    <CommandDialogRoot open={open} onOpenChange={handleOpenChange}>
       {/* No overlay — file selector is a quick-picker, not a blocking modal. */}
       <CommandDialogContent
         open={open}
@@ -153,6 +153,6 @@ export const FileSelectorModal = memo(function FileSelectorModal({
           </CommandList>
         </Command>
       </CommandDialogContent>
-    </Dialog>
+    </CommandDialogRoot>
   );
 });
