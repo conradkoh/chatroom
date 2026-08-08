@@ -5,9 +5,10 @@
  * - File content: frontend requests content; daemon fulfills; cached in DB
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getSession } from './auth/session';
@@ -22,6 +23,9 @@ import {
   validateFilePath,
 } from './workspacePathSecurity';
 import { requireAccess } from '../modules/auth/accessCheck';
+import { getInvalidChatAttachmentUploadPathReason } from '../src/domain/constants/chat-attachment-upload-path';
+import { MAX_WORKSPACE_UPLOAD_BYTES } from '../src/domain/constants/workspace-upload';
+import { getBlockedUploadTargetReason } from '../src/domain/constants/workspace-upload-path-policy';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -45,6 +49,50 @@ const MAX_CONTENT_BYTES = 512 * 1024;
 
 /** Max pending requests returned per query (prevent unbounded reads). */
 const MAX_PENDING_REQUESTS = 50;
+
+const CHAT_ATTACHMENT_RESERVED_PREFIX = '.chatroom/downloads/attachments/';
+
+function validateChatAttachmentWriteRequest(args: {
+  uploadKind?: 'chatAttachment';
+  storageId?: Id<'_storage'>;
+  operation: string;
+  filePath: string;
+}): void {
+  if (args.uploadKind === 'chatAttachment') {
+    if (args.operation !== 'create' || !args.storageId) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: 'Chat attachments require create with storageId',
+        fields: ['uploadKind'],
+      });
+    }
+    const reason = getInvalidChatAttachmentUploadPathReason(args.filePath);
+    if (reason) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: reason,
+        fields: ['filePath'],
+      });
+    }
+  }
+
+  if (
+    args.storageId &&
+    args.filePath.replace(/\\/g, '/').startsWith(CHAT_ATTACHMENT_RESERVED_PREFIX)
+  ) {
+    const reason = getInvalidChatAttachmentUploadPathReason(args.filePath);
+    if (reason) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: reason,
+        fields: ['filePath'],
+      });
+    }
+  }
+}
+
+/** Fast file write operations that supersede any pending request on the same path. */
+const FAST_FILE_WRITE_OPERATIONS = new Set(['delete', 'rename', 'mkdir']);
 
 const MAX_DIR_LISTING_BYTES = 200 * 1024;
 
@@ -1357,6 +1405,51 @@ export const getFileContentV2 = query({
 // fallow-ignore-next-line code-duplication
 
 /**
+ * Returns a short-lived upload URL for workspace file uploads (transient Convex storage).
+ */
+export const generateWorkspaceFileUploadUrl = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
+
+    const uploadUrl = await ctx.storage.generateUploadUrl();
+    return { uploadUrl };
+  },
+});
+
+/**
+ * Whether a new write request on the same path should supersede an existing
+ * pending request instead of silently returning it. Fast ops (delete/rename/
+ * mkdir) always supersede; storage-backed create/update retries replace their
+ * upload blob. Inline create/update dedups so a second write coalesces onto the
+ * pending request already in flight.
+ */
+function shouldSupersedePendingRequest(
+  _existingOperation: string,
+  args: { operation: string; storageId?: unknown }
+): boolean {
+  if (FAST_FILE_WRITE_OPERATIONS.has(args.operation)) return true;
+  // Preserve existing storageId replace behavior for create/update uploads
+  if (
+    args.storageId !== undefined &&
+    (args.operation === 'create' || args.operation === 'update')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Requests a file create, update, or delete on the daemon's local filesystem.
  * Returns an existing pending request for the same path, or creates a new one.
  */
@@ -1379,7 +1472,9 @@ export const requestFileWrite = mutation({
         content: v.string(),
       })
     ),
+    storageId: v.optional(v.id('_storage')),
     targetFilePath: v.optional(v.string()),
+    uploadKind: v.optional(v.literal('chatAttachment')),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -1395,6 +1490,9 @@ export const requestFileWrite = mutation({
       if (args.data !== undefined) {
         throw new Error('Mkdir requests must not include file data');
       }
+      if (args.storageId !== undefined) {
+        throw new Error('Mkdir requests must not include storageId');
+      }
       if (args.targetFilePath !== undefined) {
         throw new Error('Mkdir requests must not include targetFilePath');
       }
@@ -1405,6 +1503,9 @@ export const requestFileWrite = mutation({
       if (args.data !== undefined) {
         throw new Error('Rename requests must not include file data');
       }
+      if (args.storageId !== undefined) {
+        throw new Error('Rename requests must not include storageId');
+      }
       validateFilePath(args.targetFilePath);
       if (args.targetFilePath === args.filePath) {
         throw new Error('Rename target must differ from source path');
@@ -1413,16 +1514,41 @@ export const requestFileWrite = mutation({
       if (args.data !== undefined) {
         throw new Error('Delete requests must not include file data');
       }
-    } else {
-      if (!args.data) {
-        throw new Error('File data is required for create and update');
+      if (args.storageId !== undefined) {
+        throw new Error('Delete requests must not include storageId');
       }
-      if (new TextEncoder().encode(args.data.content).length > MAX_CONTENT_BYTES) {
-        throw new Error('File content too large');
+    } else {
+      const hasData = args.data !== undefined;
+      const hasStorage = args.storageId !== undefined;
+      if (hasData === hasStorage) {
+        throw new Error('Create and update require exactly one of data or storageId');
+      }
+
+      if (args.storageId !== undefined) {
+        const blockedReason = getBlockedUploadTargetReason(args.filePath);
+        if (blockedReason) {
+          throw new Error(blockedReason);
+        }
+      }
+
+      validateChatAttachmentWriteRequest(args);
+
+      if (args.storageId) {
+        const metadata = await ctx.storage.getMetadata(args.storageId);
+        if (!metadata) {
+          throw new Error('Upload not found');
+        }
+        if (metadata.size > MAX_WORKSPACE_UPLOAD_BYTES) {
+          throw new Error('File content too large');
+        }
+      } else if (args.data) {
+        if (new TextEncoder().encode(args.data.content).length > MAX_CONTENT_BYTES) {
+          throw new Error('File content too large');
+        }
       }
     }
 
-    const existingRequest = await ctx.db
+    const pathRequests = await ctx.db
       .query('chatroom_workspaceFileWriteRequests')
       .withIndex('by_machine_workingDir_path', (q: any) =>
         q
@@ -1430,39 +1556,181 @@ export const requestFileWrite = mutation({
           .eq('workingDir', args.workingDir)
           .eq('filePath', args.filePath)
       )
-      .first();
+      .collect();
 
-    if (existingRequest && existingRequest.status === 'pending') {
-      return { status: 'pending' as const, requestId: existingRequest._id };
+    const pendingRequest = pathRequests.find((row) => row.status === 'pending');
+    const processingRequest = pathRequests.find((row) => row.status === 'processing');
+
+    if (pendingRequest) {
+      if (!shouldSupersedePendingRequest(pendingRequest.operation, args)) {
+        return { status: 'pending' as const, requestId: pendingRequest._id };
+      }
+      // Supersede pending row — fall through to patch/replace below.
+    } else if (processingRequest) {
+      // Never mutate processing rows — insert a new request below.
     }
 
     const now = Date.now();
+    const uploadKindField =
+      args.uploadKind === 'chatAttachment' ? { uploadKind: 'chatAttachment' as const } : {};
     const requestPatch = {
       operation: args.operation,
       status: 'pending' as const,
       errorMessage: undefined,
       requestedAt: now,
       updatedAt: now,
+      claimedAt: undefined,
+      ...uploadKindField,
       ...(args.operation === 'rename'
-        ? { data: undefined, targetFilePath: args.targetFilePath }
+        ? { data: undefined, storageId: undefined, targetFilePath: args.targetFilePath }
         : args.operation === 'delete' || args.operation === 'mkdir'
-          ? { data: undefined, targetFilePath: undefined }
-          : { data: args.data, targetFilePath: undefined }),
+          ? { data: undefined, storageId: undefined, targetFilePath: undefined }
+          : args.storageId
+            ? { data: undefined, storageId: args.storageId, targetFilePath: undefined }
+            : { data: args.data, storageId: undefined, targetFilePath: undefined }),
     };
 
-    if (existingRequest) {
-      await ctx.db.patch('chatroom_workspaceFileWriteRequests', existingRequest._id, requestPatch);
-      return { status: 'requested' as const, requestId: existingRequest._id };
+    if (pendingRequest) {
+      const nextRevision = (pendingRequest.revision ?? 1) + 1;
+      const keepsStorageBlob =
+        args.storageId !== undefined &&
+        (args.operation === 'create' || args.operation === 'update') &&
+        args.storageId === pendingRequest.storageId;
+      if (pendingRequest.storageId && !keepsStorageBlob) {
+        await ctx.storage.delete(pendingRequest.storageId);
+      }
+
+      if (args.storageId && (args.operation === 'create' || args.operation === 'update')) {
+        await ctx.db.replace('chatroom_workspaceFileWriteRequests', pendingRequest._id, {
+          machineId: args.machineId,
+          workingDir: args.workingDir,
+          filePath: args.filePath,
+          operation: args.operation,
+          status: 'pending',
+          revision: nextRevision,
+          requestedAt: now,
+          updatedAt: now,
+          storageId: args.storageId,
+          ...uploadKindField,
+        });
+      } else {
+        await ctx.db.patch('chatroom_workspaceFileWriteRequests', pendingRequest._id, {
+          ...requestPatch,
+          revision: nextRevision,
+        });
+      }
+      return { status: 'requested' as const, requestId: pendingRequest._id };
     }
 
-    const requestId = await ctx.db.insert('chatroom_workspaceFileWriteRequests', {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      filePath: args.filePath,
-      ...requestPatch,
-    });
+    const insertPayload =
+      args.storageId && (args.operation === 'create' || args.operation === 'update')
+        ? {
+            machineId: args.machineId,
+            workingDir: args.workingDir,
+            filePath: args.filePath,
+            operation: args.operation,
+            status: 'pending' as const,
+            revision: 1,
+            requestedAt: now,
+            updatedAt: now,
+            storageId: args.storageId,
+            ...uploadKindField,
+          }
+        : {
+            machineId: args.machineId,
+            workingDir: args.workingDir,
+            filePath: args.filePath,
+            revision: 1,
+            ...requestPatch,
+          };
+
+    const requestId = await ctx.db.insert('chatroom_workspaceFileWriteRequests', insertPayload);
 
     return { status: 'requested' as const, requestId };
+  },
+});
+
+function getWriteRequestRevision(revision: number | undefined): number {
+  return revision ?? 1;
+}
+
+async function hasNewerActiveRequestForPath(
+  ctx: MutationCtx,
+  request: {
+    _id: Id<'chatroom_workspaceFileWriteRequests'>;
+    machineId: string;
+    workingDir: string;
+    filePath: string;
+    requestedAt: number;
+  }
+): Promise<boolean> {
+  const pathRequests = await ctx.db
+    .query('chatroom_workspaceFileWriteRequests')
+    .withIndex('by_machine_workingDir_path', (q: any) =>
+      q
+        .eq('machineId', request.machineId)
+        .eq('workingDir', request.workingDir)
+        .eq('filePath', request.filePath)
+    )
+    .collect();
+
+  return pathRequests.some(
+    (row) => row._id !== request._id && (row.status === 'pending' || row.status === 'processing')
+  );
+}
+
+/**
+ * Atomically claims a pending write request for daemon fulfillment.
+ */
+export const claimFileWriteRequest = mutation({
+  args: {
+    ...SessionIdArg,
+    requestId: v.id('chatroom_workspaceFileWriteRequests'),
+    expectedRevision: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+
+    const request = await ctx.db.get('chatroom_workspaceFileWriteRequests', args.requestId);
+    if (!request) {
+      return { status: 'stale' as const };
+    }
+
+    await requireMachineAccess(ctx, request.machineId, auth.userId);
+
+    const revision = getWriteRequestRevision(request.revision);
+    if (request.status !== 'pending' || revision !== args.expectedRevision) {
+      return { status: 'stale' as const };
+    }
+
+    if (await hasNewerActiveRequestForPath(ctx, request)) {
+      return { status: 'stale' as const };
+    }
+
+    const claimedAt = Date.now();
+    await ctx.db.patch('chatroom_workspaceFileWriteRequests', args.requestId, {
+      status: 'processing',
+      claimedAt,
+      updatedAt: claimedAt,
+    });
+
+    return {
+      status: 'claimed' as const,
+      request: {
+        _id: request._id,
+        revision,
+        workingDir: request.workingDir,
+        filePath: request.filePath,
+        operation: request.operation,
+        storageId: request.storageId,
+        targetFilePath: request.targetFilePath,
+        uploadKind: request.uploadKind,
+        data: request.storageId ? undefined : request.data,
+      },
+    };
   },
 });
 
@@ -1529,12 +1797,45 @@ export const getPendingFileWriteRequests = query({
 
     return requests.map((r) => ({
       _id: r._id,
+      revision: getWriteRequestRevision(r.revision),
       workingDir: r.workingDir,
       filePath: r.filePath,
       operation: r.operation,
-      data: r.data,
+      data: r.storageId ? undefined : r.data,
+      storageId: r.storageId,
       targetFilePath: r.targetFilePath,
+      uploadKind: r.uploadKind,
     }));
+  },
+});
+
+/**
+ * Returns a signed URL for the storage blob attached to a pending write request.
+ * Daemon uses this to download upload payloads.
+ */
+export const getWriteRequestStorageUrl = query({
+  args: {
+    ...SessionIdArg,
+    requestId: v.id('chatroom_workspaceFileWriteRequests'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return null;
+    }
+
+    const request = await ctx.db.get('chatroom_workspaceFileWriteRequests', args.requestId);
+    if (!request?.storageId) {
+      return null;
+    }
+
+    try {
+      await requireMachineAccess(ctx, request.machineId, auth.userId);
+    } catch {
+      return null;
+    }
+
+    return await ctx.storage.getUrl(request.storageId);
   },
 });
 
@@ -1546,6 +1847,7 @@ export const completeFileWriteRequest = mutation({
   args: {
     ...SessionIdArg,
     requestId: v.id('chatroom_workspaceFileWriteRequests'),
+    revision: v.number(),
     status: v.union(v.literal('done'), v.literal('error')),
     errorMessage: v.optional(v.string()),
   },
@@ -1562,12 +1864,25 @@ export const completeFileWriteRequest = mutation({
 
     await requireMachineAccess(ctx, request.machineId, auth.userId);
 
+    const revision = getWriteRequestRevision(request.revision);
+    if (request.status !== 'processing' || revision !== args.revision) {
+      throw new Error('Stale write request');
+    }
+
+    if (await hasNewerActiveRequestForPath(ctx, request)) {
+      throw new Error('Stale write request');
+    }
+
     const now = Date.now();
     await ctx.db.patch('chatroom_workspaceFileWriteRequests', args.requestId, {
       status: args.status,
       errorMessage: args.errorMessage,
       updatedAt: now,
     });
+
+    if (request.storageId) {
+      await ctx.storage.delete(request.storageId);
+    }
 
     if (args.status === 'done') {
       const workingDir = normalizeWorkingDir(request.workingDir);
@@ -1630,6 +1945,38 @@ export const completeFileWriteRequest = mutation({
         }
       }
     }
+  },
+});
+
+/**
+ * Discards a storage blob that was uploaded but never attached to a write request.
+ */
+export const discardUnattachedWorkspaceUpload = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    storageId: v.id('_storage'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    await requireRegisteredWorkspaceForMachine(ctx, args.machineId, args.workingDir);
+
+    const attached = await ctx.db
+      .query('chatroom_workspaceFileWriteRequests')
+      .filter((q: any) => q.eq(q.field('storageId'), args.storageId))
+      .first();
+
+    if (attached && (attached.status === 'pending' || attached.status === 'processing')) {
+      throw new Error('Upload is attached to an active write request');
+    }
+
+    await ctx.storage.delete(args.storageId);
   },
 });
 

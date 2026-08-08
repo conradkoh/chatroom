@@ -19,7 +19,9 @@ vi.mock('../../../api.js', () => ({
   api: {
     workspaceFiles: {
       getPendingFileWriteRequests: 'mock-getPendingFileWriteRequests',
+      claimFileWriteRequest: 'mock-claimFileWriteRequest',
       completeFileWriteRequest: 'mock-completeFileWriteRequest',
+      getWriteRequestStorageUrl: 'mock-getWriteRequestStorageUrl',
     },
   },
 }));
@@ -34,6 +36,7 @@ function makeRequest(
 ) {
   return {
     _id: requestId,
+    revision: 1,
     workingDir,
     filePath,
     operation,
@@ -49,7 +52,34 @@ function makeRequest(
   };
 }
 
-type FulfillmentRequest = ReturnType<typeof makeRequest>;
+type FulfillmentRequest = ReturnType<typeof makeRequest> & {
+  storageId?: string;
+  uploadKind?: 'chatAttachment';
+};
+
+function createClaimAwareMutation(requests: FulfillmentRequest[]) {
+  return vi.fn().mockImplementation(async (_apiRef: string, args: Record<string, unknown>) => {
+    if ('expectedRevision' in args) {
+      const request = requests.find((candidate) => candidate._id === args.requestId);
+      if (!request) return { status: 'stale' };
+      return {
+        status: 'claimed',
+        request: {
+          _id: request._id,
+          revision: request.revision,
+          workingDir: request.workingDir,
+          filePath: request.filePath,
+          operation: request.operation,
+          targetFilePath: request.targetFilePath,
+          data: request.data,
+          storageId: request.storageId,
+          uploadKind: request.uploadKind,
+        },
+      };
+    }
+    return undefined;
+  });
+}
 
 async function runFulfillment(requests: FulfillmentRequest[]) {
   const workingDir = requests[0]?.workingDir ?? '';
@@ -60,7 +90,7 @@ async function runFulfillment(requests: FulfillmentRequest[]) {
       updatedAt: Date.now(),
     },
     backend: {
-      mutation: vi.fn().mockResolvedValue(undefined),
+      mutation: createClaimAwareMutation(requests),
       query: vi.fn().mockResolvedValue(requests),
     },
   });
@@ -94,6 +124,189 @@ describe('fulfillFileWriteRequestsEffect', () => {
       expect.anything(),
       expect.objectContaining({ status: 'done' })
     );
+  });
+
+  it('fulfills a delete before a slower storage-backed create in the same batch', async () => {
+    const filePath = 'delete-first.md';
+    const absolutePath = join(workingDir, filePath);
+    await writeFile(absolutePath, '# hello');
+
+    const storageCreate = {
+      _id: 'req-storage-create',
+      revision: 1,
+      workingDir,
+      filePath: 'uploads/slow.pdf',
+      operation: 'create' as const,
+    };
+
+    const delayedFetch = vi.fn().mockImplementation(
+      () =>
+        new Promise<{ ok: boolean; arrayBuffer: () => Promise<ArrayBuffer> }>((resolve) => {
+          setTimeout(() => {
+            resolve({
+              ok: true,
+              arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+            });
+          }, 20);
+        })
+    );
+    vi.stubGlobal('fetch', delayedFetch);
+
+    const completedRequestIds: string[] = [];
+    const pendingRequests = [
+      storageCreate,
+      { _id: 'req-delete', revision: 1, workingDir, filePath, operation: 'delete' as const },
+    ];
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
+      backend: {
+        mutation: vi.fn(async (apiRef: string, args: { requestId?: string; status?: string }) => {
+          if ('expectedRevision' in args) {
+            const request = pendingRequests.find((candidate) => candidate._id === args.requestId);
+            if (!request) return { status: 'stale' };
+            return {
+              status: 'claimed',
+              request: {
+                _id: request._id,
+                revision: request.revision,
+                workingDir: request.workingDir,
+                filePath: request.filePath,
+                operation: request.operation,
+              },
+            };
+          }
+          if (args.requestId && args.status) completedRequestIds.push(args.requestId);
+          return undefined;
+        }),
+        query: vi.fn().mockImplementation((apiRef: string) => {
+          if (apiRef === 'mock-getWriteRequestStorageUrl') {
+            return Promise.resolve('https://storage.example/slow');
+          }
+          return Promise.resolve(pendingRequests);
+        }),
+      },
+    });
+
+    try {
+      await Effect.runPromise(
+        fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+      );
+
+      await expect(access(absolutePath)).rejects.toThrow();
+      expect(completedRequestIds[0]).toBe('req-delete');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('create fetches storage-backed upload when inline data is omitted', async () => {
+    const uploadBytes = Buffer.from('binary upload');
+    const storageRequest = {
+      _id: 'req-storage-1',
+      revision: 1,
+      workingDir,
+      filePath: 'uploads/doc.pdf',
+      operation: 'create' as const,
+    };
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () =>
+        uploadBytes.buffer.slice(
+          uploadBytes.byteOffset,
+          uploadBytes.byteOffset + uploadBytes.byteLength
+        ),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
+      backend: {
+        mutation: createClaimAwareMutation([storageRequest]),
+        query: vi.fn().mockImplementation((apiRef: string) => {
+          if (apiRef === 'mock-getWriteRequestStorageUrl') {
+            return Promise.resolve('https://storage.example/blob');
+          }
+          return Promise.resolve([storageRequest]);
+        }),
+      },
+    });
+
+    try {
+      await Effect.runPromise(
+        fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+      );
+
+      const content = await readFile(join(workingDir, 'uploads/doc.pdf'));
+      expect(content.equals(uploadBytes)).toBe(true);
+      expect(fetchMock).toHaveBeenCalledWith('https://storage.example/blob');
+      expect(init.backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ status: 'done' })
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('create prefers storage fetch when stale inline data lacks content', async () => {
+    const uploadBytes = Buffer.from('from storage');
+    const storageRequest = {
+      _id: 'req-storage-stale',
+      revision: 1,
+      workingDir,
+      filePath: 'uploads/stale.pdf',
+      operation: 'create' as const,
+      data: { compression: 'gzip' as const, content: '' },
+      storageId: 'storage-123',
+    };
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () =>
+        uploadBytes.buffer.slice(
+          uploadBytes.byteOffset,
+          uploadBytes.byteOffset + uploadBytes.byteLength
+        ),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
+      backend: {
+        mutation: createClaimAwareMutation([storageRequest]),
+        query: vi.fn().mockImplementation((apiRef: string) => {
+          if (apiRef === 'mock-getWriteRequestStorageUrl') {
+            return Promise.resolve('https://storage.example/stale');
+          }
+          return Promise.resolve([storageRequest]);
+        }),
+      },
+    });
+
+    try {
+      await Effect.runPromise(
+        fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+      );
+
+      const content = await readFile(join(workingDir, 'uploads/stale.pdf'));
+      expect(content.equals(uploadBytes)).toBe(true);
+      expect(fetchMock).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('update overwrites an existing file', async () => {
@@ -155,6 +368,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
     const backend = await runFulfillment([
       {
         _id: 'req-del-1',
+        revision: 1,
         workingDir,
         filePath,
         operation: 'delete',
@@ -176,6 +390,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
     const backend = await runFulfillment([
       {
         _id: 'req-del-dir',
+        revision: 1,
         workingDir,
         filePath: dirPath,
         operation: 'delete',
@@ -193,6 +408,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
     const backend = await runFulfillment([
       {
         _id: 'req-del-root',
+        revision: 1,
         workingDir,
         filePath: '',
         operation: 'delete',
@@ -212,6 +428,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
     const backend = await runFulfillment([
       {
         _id: 'req-del-missing',
+        revision: 1,
         workingDir,
         filePath: 'missing.md',
         operation: 'delete',
@@ -341,12 +558,13 @@ describe('fulfillFileWriteRequestsEffect', () => {
   });
 
   it('rejects unregistered workingDir before touching disk', async () => {
+    const request = makeRequest(workingDir, 'notes.md', 'create', 'hi');
     const init = createMockDaemonSessionInit({
       machineId: 'machine-write-test',
       workspaceListStore: { workspaces: [], updatedAt: Date.now() },
       backend: {
-        mutation: vi.fn().mockResolvedValue(undefined),
-        query: vi.fn().mockResolvedValue([makeRequest(workingDir, 'notes.md', 'create', 'hi')]),
+        mutation: createClaimAwareMutation([request]),
+        query: vi.fn().mockResolvedValue([request]),
       },
     });
 
@@ -362,6 +580,136 @@ describe('fulfillFileWriteRequestsEffect', () => {
       })
     );
     await expect(access(join(workingDir, 'notes.md'))).rejects.toThrow();
+  });
+
+  it('skips fulfillment when the claim reports stale', async () => {
+    const filePath = 'claimed-elsewhere.md';
+    const absolutePath = join(workingDir, filePath);
+    const request = makeRequest(workingDir, filePath, 'create', 'never written');
+
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
+      backend: {
+        mutation: vi
+          .fn()
+          .mockImplementation(async (_apiRef: string, args: Record<string, unknown>) => {
+            if ('expectedRevision' in args) return { status: 'stale' };
+            return undefined;
+          }),
+        query: vi.fn().mockResolvedValue([request]),
+      },
+    });
+
+    await Effect.runPromise(
+      fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+    );
+
+    await expect(access(absolutePath)).rejects.toThrow();
+    expect(init.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ expectedRevision: 1 })
+    );
+    expect(init.backend.mutation).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: expect.anything() })
+    );
+  });
+
+  it('create uses exclusive write and reports File already exists on EEXIST', async () => {
+    const filePath = 'atomic-create.md';
+    const absolutePath = join(workingDir, filePath);
+    await writeFile(absolutePath, 'raced in first');
+
+    const backend = await runFulfillment([makeRequest(workingDir, filePath, 'create', 'second')]);
+
+    const content = await readFile(absolutePath, 'utf8');
+    expect(content).toBe('raced in first');
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'File already exists',
+      })
+    );
+  });
+
+  it('blocks storage-backed create to sensitive path but allows inline create', async () => {
+    const storageRequest: FulfillmentRequest = {
+      _id: 'req-storage-secret',
+      revision: 1,
+      workingDir,
+      filePath: '.git/config',
+      operation: 'create',
+      storageId: 'storage-1',
+    };
+
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
+      backend: {
+        mutation: createClaimAwareMutation([storageRequest]),
+        query: vi.fn().mockResolvedValue([storageRequest]),
+      },
+    });
+
+    await Effect.runPromise(
+      fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+    );
+
+    expect(init.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: expect.stringMatching(/blocked/i),
+      })
+    );
+    await expect(access(join(workingDir, '.git/config'))).rejects.toThrow();
+  });
+
+  it('completes invalid chat attachment path as terminal error', async () => {
+    const storageRequest: FulfillmentRequest = {
+      _id: 'req-invalid-attachment',
+      revision: 1,
+      workingDir,
+      filePath: '.chatroom/downloads/attachments/files/not-valid.txt',
+      operation: 'create',
+      storageId: 'storage-1',
+      uploadKind: 'chatAttachment',
+    };
+
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
+      backend: {
+        mutation: createClaimAwareMutation([storageRequest]),
+        query: vi.fn().mockResolvedValue([storageRequest]),
+      },
+    });
+
+    await Effect.runPromise(
+      fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+    );
+
+    expect(init.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Invalid attachment path',
+      })
+    );
+    await expect(
+      access(join(workingDir, '.chatroom/downloads/attachments/files/not-valid.txt'))
+    ).rejects.toThrow();
   });
 });
 

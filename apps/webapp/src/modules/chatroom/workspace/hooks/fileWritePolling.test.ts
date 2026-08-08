@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { formatFileWriteError } from './fileWriteErrorFormatting';
+import { FILE_WRITE_CONFIRM_TIMEOUT_MS } from './fileWritePolling';
+
+describe('FILE_WRITE_CONFIRM_TIMEOUT_MS', () => {
+  it('gives deletes and other writes a 5 minute confirmation window', () => {
+    expect(FILE_WRITE_CONFIRM_TIMEOUT_MS).toBe(5 * 60 * 1000);
+  });
+});
 
 describe('formatFileWriteError', () => {
   it('maps Missing file data for mkdir to upgrade message', () => {

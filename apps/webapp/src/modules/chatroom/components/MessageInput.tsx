@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { AlertTriangle, ArrowUp, Code2, X } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Paperclip, X } from 'lucide-react';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 
 import {
@@ -21,7 +21,6 @@ import {
   useSnippetAttachments,
   useTaskAttachments,
 } from '../attachments';
-import { EditorModal } from './EditorModal';
 import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
 import type { FileEntry } from './FileSelector/useFileSelector';
 import {
@@ -30,10 +29,11 @@ import {
   MAX_TEXTAREA_HEIGHT_PX,
   measureTextareaContentHeightPx,
 } from './messageInputAutosize';
-import { getChatroomMobileFooterHorizontalSafeAreaStyle } from './shared/chatroomMobileSafeArea';
+import { ComposerAccessoryButton } from './shared/ComposerAccessoryButton';
+import { composerAccessoryRowClassName } from './shared/composerAccessoryButtonStyles';
+import { useChatInputFileDrop } from '../hooks/useChatInputFileDrop';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
-
-import { useIsDesktop } from '@/hooks/useIsDesktop';
+import { WorkspaceUploadProgressList } from '../workspace/components/WorkspaceUploadProgressList';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +48,9 @@ export interface MessageInputProps {
   onAtTriggerActivate?: () => void;
   /** Called after a message is successfully sent. */
   onMessageSent?: () => void;
+  machineId?: string | null;
+  workingDir?: string | null;
+  onUploadComplete?: () => void;
 }
 
 // ── Touch detection ──────────────────────────────────────────────────────────
@@ -145,6 +148,9 @@ export function MessageInput({
   hasAutocompleteWorkspace = false,
   onAtTriggerActivate,
   onMessageSent,
+  machineId = null,
+  workingDir = null,
+  onUploadComplete,
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -154,10 +160,6 @@ export function MessageInput({
   const snippetRefsRef = useRef<string[]>([]);
   const isTouchDevice = useIsTouchDevice();
   const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
-  const isDesktop = useIsDesktop(640);
-  const mobile = !isDesktop;
-
-  const [editorOpen, setEditorOpen] = useState(false);
 
   // Register focus callback for external callers
   useEffect(() => {
@@ -296,6 +298,29 @@ export function MessageInput({
     },
   });
 
+  const {
+    uploadJobs,
+    isDragging,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+    fileInputRef,
+    handleAttachClick,
+    handleFileInputChange,
+  } = useChatInputFileDrop({
+    machineId,
+    workingDir,
+    message,
+    setMessage,
+    textareaRef,
+    onUploadComplete,
+  });
+
+  const hasActiveUploads = uploadJobs.some(
+    (job) => job.phase === 'uploading' || job.phase === 'finalizing'
+  );
+
   // ── Send logic ─────────────────────────────────────────────────────────────
   const doSend = useCallback(
     async (text: string) => {
@@ -380,29 +405,14 @@ export function MessageInput({
       if (isTouchDevice) return;
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
+        if (hasActiveUploads) return;
         handleSubmit();
       }
     },
-    [fileAutocomplete, handleSubmit, isTouchDevice]
+    [fileAutocomplete, handleSubmit, hasActiveUploads, isTouchDevice]
   );
 
   const handleFileSelect = fileAutocomplete.handleFileSelect;
-
-  // ── Editor modal callbacks ─────────────────────────────────────────────────
-  const handleEditorClose = useCallback((editedText: string) => {
-    setMessage(editedText);
-    setEditorOpen(false);
-    setTimeout(() => textareaRef.current?.focus(), 0);
-  }, []);
-
-  const handleEditorSend = useCallback(
-    async (text: string) => {
-      setMessage(text);
-      setEditorOpen(false);
-      await doSend(text);
-    },
-    [doSend]
-  );
 
   // ── Send button click ──────────────────────────────────────────────────────
   const handleSendClick = useCallback(() => {
@@ -425,14 +435,17 @@ export function MessageInput({
     [remove]
   );
 
-  const canSend = message.trim().length > 0 && !sending;
+  const canSend = message.trim().length > 0 && !sending && !hasActiveUploads;
 
   return (
     <div
       ref={formContainerRef}
       data-main-chat-composer
-      className="relative bg-chatroom-bg-surface backdrop-blur-xl"
-      style={getChatroomMobileFooterHorizontalSafeAreaStyle(mobile)}
+      className={`relative bg-chatroom-bg-surface backdrop-blur-xl${isDragging ? ' ring-2 ring-chatroom-accent/60' : ''}`}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
       {/* @ file reference autocomplete dropdown */}
       <FileReferenceAutocomplete
@@ -511,6 +524,28 @@ export function MessageInput({
         </div>
       )}
 
+      <WorkspaceUploadProgressList jobs={uploadJobs} embedded />
+
+      {/* Add attachment */}
+      <div className={composerAccessoryRowClassName}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileInputChange}
+          aria-hidden
+          tabIndex={-1}
+        />
+        <ComposerAccessoryButton
+          onClick={handleAttachClick}
+          aria-label="Add attachment"
+          icon={<Paperclip size={14} aria-hidden />}
+        >
+          Add Attachment
+        </ComposerAccessoryButton>
+      </div>
+
       {/* Input row */}
       <div className="flex items-center gap-1.5 px-2 py-1.5 w-full">
         {/* Textarea wrapper: border + flex-1 min-w-0 */}
@@ -530,18 +565,6 @@ export function MessageInput({
 
         {/* Action buttons */}
         <div className="flex items-center gap-0.5 flex-shrink-0">
-          {/* Editor modal button (desktop only) */}
-          {!isTouchDevice && (
-            <button
-              type="button"
-              onClick={() => setEditorOpen(true)}
-              title="Open editor"
-              className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
-            >
-              <Code2 size={16} />
-            </button>
-          )}
-
           {/* Send button: icon-only, circular */}
           <button
             type="button"
@@ -558,14 +581,6 @@ export function MessageInput({
           </button>
         </div>
       </div>
-
-      {/* Editor Modal */}
-      <EditorModal
-        isOpen={editorOpen}
-        initialValue={message}
-        onClose={handleEditorClose}
-        onSend={handleEditorSend}
-      />
     </div>
   );
 }

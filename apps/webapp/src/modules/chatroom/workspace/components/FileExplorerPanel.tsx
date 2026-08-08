@@ -8,7 +8,9 @@ import { toast } from 'sonner';
 import { NewFileDialog } from './NewFileDialog';
 import { NewFolderDialog } from './NewFolderDialog';
 import { RenameDialog } from './RenameDialog';
+import { UploadFileDialog } from './UploadFileDialog';
 import { WorkspaceFileExplorer, type ExplorerDeleteTarget } from './WorkspaceFileExplorer';
+import { WorkspaceUploadProgressList } from './WorkspaceUploadProgressList';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,10 +29,12 @@ import {
 } from '../../components/ui/dropdown-menu';
 import { useWorkspaceFileContextMenu, useWorkspaceFileMenuContent } from '../file-menu';
 import type { WorkspaceFileMenuProps, WorkspaceFileMenuVisibility } from '../file-menu';
+import { useExplorerFileDrop } from '../hooks/useExplorerFileDrop';
 import { useExplorerNewFileOps } from '../hooks/useExplorerNewFileOps';
 import type { UseFileTabsReturn } from '../hooks/useFileTabs';
 import { useOpenFileOnRemote } from '../hooks/useOpenFileOnRemote';
 import { useWorkspaceFileDelete } from '../hooks/useWorkspaceFileDelete';
+import { useWorkspaceUploadJobs } from '../hooks/useWorkspaceUploadJobs';
 
 export interface FileExplorerPanelHandle {
   refresh: () => void;
@@ -194,6 +198,16 @@ export const FileExplorerPanel = memo(
       });
       const explorerFileOps = useExplorerNewFileOps(fileTabs);
       const { openFileOnRemote } = useOpenFileOnRemote(machineId ?? '', workingDir ?? '');
+      const {
+        dropHighlightPath,
+        uploadDialogOpen,
+        pendingUpload,
+        remainingCount,
+        handleDragOver,
+        handleDragLeave,
+        handleDrop,
+        handleUploadDialogOpenChange,
+      } = useExplorerFileDrop();
 
       const openNewFileDialog = useCallback((defaultDir = '') => {
         setNewFileDefaultDir(defaultDir);
@@ -276,6 +290,16 @@ export const FileExplorerPanel = memo(
       }, []);
 
       useImperativeHandle(ref, () => ({ refresh: refreshExplorer }), [refreshExplorer]);
+
+      const { jobs, startUpload } = useWorkspaceUploadJobs({
+        machineId,
+        workingDir,
+        onUploadComplete: (filePath) => {
+          refreshExplorer();
+          explorerFileOps.onFileCreated(filePath);
+        },
+        onUploadFailed: (_filePath, error) => toast.error(error),
+      });
 
       // fallow-ignore-next-line complexity
       const handleConfirmDelete = useCallback(async () => {
@@ -383,6 +407,16 @@ export const FileExplorerPanel = memo(
             onExplorerRefresh={refreshExplorer}
           />
 
+          <UploadFileDialog
+            open={uploadDialogOpen}
+            onOpenChange={handleUploadDialogOpenChange}
+            targetDir={pendingUpload?.targetDir ?? ''}
+            file={pendingUpload?.file ?? null}
+            remainingCount={remainingCount}
+            onUploaded={() => refreshExplorer()}
+            onStartUpload={startUpload}
+          />
+
           <AlertDialog
             open={deleteTarget !== null}
             onOpenChange={(open) => {
@@ -445,7 +479,12 @@ export const FileExplorerPanel = memo(
 
           {/* Tree content */}
           <div
-            className="flex flex-1 flex-col min-h-0 overflow-hidden"
+            className={`flex flex-1 flex-col min-h-0 overflow-hidden ${
+              dropHighlightPath === '' ? 'ring-2 ring-inset ring-chatroom-accent/40' : ''
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
             onContextMenu={(event) => {
               if ((event.target as HTMLElement).closest('[data-tree-node]')) return;
               const props = buildFileMenuProps({ kind: 'root' });
@@ -462,6 +501,7 @@ export const FileExplorerPanel = memo(
               revealPath={effectiveRevealPath}
               selectedPath={effectiveSelectedPath}
               filterQuery={filterQuery}
+              dropHighlightPath={dropHighlightPath}
               onNodeContextMenu={(node, event) => {
                 const target: ExplorerContextTarget = {
                   kind: 'node',
@@ -477,6 +517,8 @@ export const FileExplorerPanel = memo(
               }}
             />
           </div>
+
+          {jobs.length > 0 ? <WorkspaceUploadProgressList jobs={jobs} /> : null}
 
           {contextMenu}
         </div>

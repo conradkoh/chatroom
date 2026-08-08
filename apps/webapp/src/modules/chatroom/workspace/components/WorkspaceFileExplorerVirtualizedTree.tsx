@@ -12,6 +12,7 @@ interface WorkspaceFileExplorerVirtualizedTreeProps {
   displayNodes: ExplorerTreeNode[];
   expandedPaths: Set<string>;
   selectedPath: string | null;
+  dropHighlightPath?: string | null;
   scrollToPath?: string | null;
   loadingDirs: Set<string>;
   onToggle: (path: string) => void;
@@ -25,6 +26,7 @@ export function WorkspaceFileExplorerVirtualizedTree({
   displayNodes,
   expandedPaths,
   selectedPath,
+  dropHighlightPath = null,
   scrollToPath,
   loadingDirs,
   onToggle,
@@ -48,6 +50,7 @@ export function WorkspaceFileExplorerVirtualizedTree({
         depth={row.depth}
         isExpanded={expandedPaths.has(row.node.path)}
         isSelected={row.node.path === selectedPath}
+        isDropHighlighted={dropHighlightPath !== null && row.node.path === dropHighlightPath}
         isLoading={loadingDirs.has(row.node.path)}
         onToggle={onToggle}
         onFileSelect={onFileSelect}
@@ -58,6 +61,7 @@ export function WorkspaceFileExplorerVirtualizedTree({
     [
       expandedPaths,
       selectedPath,
+      dropHighlightPath,
       loadingDirs,
       onToggle,
       onFileSelect,

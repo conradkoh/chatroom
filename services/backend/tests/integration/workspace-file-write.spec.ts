@@ -10,6 +10,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { buildChatAttachmentUploadPath } from '../../src/domain/constants/chat-attachment-upload-path';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
@@ -48,6 +49,35 @@ function gzipContent(text: string) {
     compression: 'gzip' as const,
     content: gzipSync(Buffer.from(text)).toString('base64'),
   };
+}
+
+async function claimWriteRequest(
+  sessionId: string,
+  requestId: Id<'chatroom_workspaceFileWriteRequests'>,
+  expectedRevision = 1
+) {
+  return t.mutation(api.workspaceFiles.claimFileWriteRequest, {
+    sessionId,
+    requestId,
+    expectedRevision,
+  });
+}
+
+async function completeWriteRequest(
+  sessionId: string,
+  requestId: Id<'chatroom_workspaceFileWriteRequests'>,
+  revision = 1,
+  status: 'done' | 'error' = 'done',
+  errorMessage?: string
+) {
+  await claimWriteRequest(sessionId, requestId, revision);
+  await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
+    sessionId,
+    requestId,
+    revision,
+    status,
+    errorMessage,
+  });
 }
 
 describe('workspace file write requests', () => {
@@ -159,6 +189,43 @@ describe('workspace file write requests', () => {
     expect(second.status).toBe('pending');
   });
 
+  test('requestFileWrite supersedes pending create with delete on same path', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-supersede-inline',
+      'machine-wfw-supersede-inline'
+    );
+
+    const first = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath: 'docs/supersede.md',
+      operation: 'create',
+      data: gzipContent('# v1'),
+    });
+    expect(first.status).toBe('requested');
+
+    const second = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath: 'docs/supersede.md',
+      operation: 'delete',
+    });
+
+    expect(second.status).toBe('requested');
+    expect(second.requestId).toBe(first.requestId);
+
+    const pending = await t.query(api.workspaceFiles.getPendingFileWriteRequests, {
+      sessionId,
+      machineId,
+    });
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.filePath).toBe('docs/supersede.md');
+    expect(pending[0]?.operation).toBe('delete');
+    expect(pending[0]?.data).toBeUndefined();
+  });
+
   test('completeFileWriteRequest sets done and upserts v2 cache for create/update', async () => {
     const { sessionId, machineId } = await setupMachine(
       'test-wfw-complete',
@@ -176,11 +243,7 @@ describe('workspace file write requests', () => {
       data: writeData,
     });
 
-    await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
-      sessionId,
-      requestId,
-      status: 'done',
-    });
+    await completeWriteRequest(sessionId, requestId);
 
     const request = await t.query(api.workspaceFiles.getFileWriteRequest, {
       sessionId,
@@ -215,11 +278,7 @@ describe('workspace file write requests', () => {
       data: gzipContent('delete me'),
     });
 
-    await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
-      sessionId,
-      requestId: createRequestId,
-      status: 'done',
-    });
+    await completeWriteRequest(sessionId, createRequestId);
 
     const { requestId: deleteRequestId } = await t.mutation(api.workspaceFiles.requestFileWrite, {
       sessionId,
@@ -229,11 +288,7 @@ describe('workspace file write requests', () => {
       operation: 'delete',
     });
 
-    await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
-      sessionId,
-      requestId: deleteRequestId,
-      status: 'done',
-    });
+    await completeWriteRequest(sessionId, deleteRequestId);
 
     const cached = await t.query(api.workspaceFiles.getFileContentV2, {
       sessionId,
@@ -256,12 +311,7 @@ describe('workspace file write requests', () => {
       data: gzipContent('noop'),
     });
 
-    await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
-      sessionId,
-      requestId,
-      status: 'error',
-      errorMessage: 'File does not exist',
-    });
+    await completeWriteRequest(sessionId, requestId, 1, 'error', 'File does not exist');
 
     const request = await t.query(api.workspaceFiles.getFileWriteRequest, {
       sessionId,
@@ -308,5 +358,170 @@ describe('workspace file write requests', () => {
         data: gzipContent('nope'),
       })
     ).rejects.toThrow(/must not include/i);
+  });
+
+  test('requestFileWrite allows inline create to sensitive paths', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-inline-sensitive',
+      'machine-wfw-inline-sensitive'
+    );
+
+    const result = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath: 'packages/app/.env.local',
+      operation: 'create',
+      data: gzipContent('secret'),
+    });
+
+    expect(result.status).toBe('requested');
+  });
+
+  test('requestFileWrite rejects blocked storage-backed upload paths', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-blocked-storage-path',
+      'machine-wfw-blocked-storage-path'
+    );
+
+    const storageId = await t.run(async (ctx) => ctx.storage.store(new Blob(['secret'])));
+
+    await expect(
+      t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: WORKING_DIR,
+        filePath: '.env',
+        operation: 'create',
+        storageId,
+      })
+    ).rejects.toThrow(/blocked/i);
+  });
+
+  test('stale revision cannot complete after superseding request while processing', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-stale-revision',
+      'machine-wfw-stale-revision'
+    );
+
+    const first = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath: 'docs/race.md',
+      operation: 'create',
+      data: gzipContent('# v1'),
+    });
+
+    const claim = await claimWriteRequest(sessionId, first.requestId, 1);
+    expect(claim.status).toBe('claimed');
+
+    const second = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath: 'docs/race.md',
+      operation: 'delete',
+    });
+    expect(second.requestId).not.toBe(first.requestId);
+
+    await expect(
+      t.mutation(api.workspaceFiles.completeFileWriteRequest, {
+        sessionId,
+        requestId: first.requestId,
+        revision: 1,
+        status: 'done',
+      })
+    ).rejects.toThrow(/stale/i);
+  });
+
+  test('requestFileWrite rejects create without data or storageId', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-missing-payload',
+      'machine-wfw-missing-payload'
+    );
+
+    await expect(
+      t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: WORKING_DIR,
+        filePath: 'docs/readme.md',
+        operation: 'create',
+      })
+    ).rejects.toThrow(/exactly one of data or storageId/i);
+  });
+
+  test('requestFileWrite validates chat attachment uploadKind path before storage', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-chat-attachment-ok',
+      'machine-wfw-chat-attachment-ok'
+    );
+
+    const filePath = buildChatAttachmentUploadPath(
+      'notes.md',
+      'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'
+    );
+
+    const storageId = await t.run(async (ctx) => ctx.storage.store(new Blob(['hello'])));
+
+    let caught: unknown;
+    try {
+      await t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: WORKING_DIR,
+        filePath,
+        operation: 'create',
+        storageId,
+        uploadKind: 'chatAttachment',
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeDefined();
+    expect(String(caught)).not.toMatch(/Invalid attachment path/i);
+  });
+
+  test('requestFileWrite rejects chat attachment with wrong prefix', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-chat-attachment-prefix',
+      'machine-wfw-chat-attachment-prefix'
+    );
+
+    const storageId = await t.run(async (ctx) => ctx.storage.store(new Blob(['hello'])));
+
+    await expect(
+      t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: WORKING_DIR,
+        filePath: 'docs/notes.md',
+        operation: 'create',
+        storageId,
+        uploadKind: 'chatAttachment',
+      })
+    ).rejects.toThrow(/Invalid attachment path/i);
+  });
+
+  test('requestFileWrite rejects malformed path under attachments dir without uploadKind', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-chat-attachment-defense',
+      'machine-wfw-chat-attachment-defense'
+    );
+
+    const storageId = await t.run(async (ctx) => ctx.storage.store(new Blob(['hello'])));
+
+    await expect(
+      t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: WORKING_DIR,
+        filePath: '.chatroom/downloads/attachments/files/not-a-valid-path.txt',
+        operation: 'create',
+        storageId,
+      })
+    ).rejects.toThrow(/Invalid attachment path/i);
   });
 });
