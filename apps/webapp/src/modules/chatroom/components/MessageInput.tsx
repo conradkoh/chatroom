@@ -524,6 +524,28 @@ export function MessageInput({
 
       <WorkspaceUploadProgressList jobs={uploadJobs} embedded />
 
+      {/* Add attachment */}
+      <div className="px-2 pt-1">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileInputChange}
+          aria-hidden
+          tabIndex={-1}
+        />
+        <button
+          type="button"
+          onClick={handleAttachClick}
+          aria-label="Add attachment"
+          className="flex items-center gap-1.5 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover py-1 transition-colors rounded-none"
+        >
+          <Paperclip size={14} aria-hidden />
+          <span>Add Attachment</span>
+        </button>
+      </div>
+
       {/* Input row */}
       <div className="flex items-center gap-1.5 px-2 py-1.5 w-full">
         {/* Textarea wrapper: border + flex-1 min-w-0 */}
@@ -543,26 +565,6 @@ export function MessageInput({
 
         {/* Action buttons */}
         <div className="flex items-center gap-0.5 flex-shrink-0">
-          {/* File picker button */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleFileInputChange}
-            aria-hidden
-            tabIndex={-1}
-          />
-          <button
-            type="button"
-            onClick={handleAttachClick}
-            title="Attach files"
-            aria-label="Attach files"
-            className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
-          >
-            <Paperclip size={16} />
-          </button>
-
           {/* Send button: icon-only, circular */}
           <button
             type="button"

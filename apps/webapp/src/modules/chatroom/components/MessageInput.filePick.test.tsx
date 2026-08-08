@@ -8,7 +8,6 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageInput } from './MessageInput';
 import { AttachmentsProvider } from '../attachments';
 
-const mockUseIsDesktop = vi.fn();
 let touchDevice = true;
 let mockFileInputRef: { current: HTMLInputElement | null };
 const mockHandleAttachClick = vi.fn();
@@ -28,10 +27,6 @@ beforeAll(() => {
     })),
   });
 });
-
-vi.mock('@/hooks/useIsDesktop', () => ({
-  useIsDesktop: () => mockUseIsDesktop(),
-}));
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue('msg-id'),
@@ -62,7 +57,6 @@ vi.mock('../hooks/useChatInputFileDrop', () => ({
 describe('MessageInput file picker', () => {
   beforeEach(() => {
     touchDevice = true;
-    mockUseIsDesktop.mockReturnValue(false);
     mockFileInputRef = { current: null };
     mockHandleAttachClick.mockClear();
     mockHandleAttachClick.mockImplementation(() => mockFileInputRef.current?.click());
@@ -75,7 +69,7 @@ describe('MessageInput file picker', () => {
       </AttachmentsProvider>
     );
 
-    expect(screen.getByRole('button', { name: 'Attach files' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add attachment' })).toBeInTheDocument();
   });
 
   it('shows attach button on non-touch (desktop) devices', () => {
@@ -87,7 +81,7 @@ describe('MessageInput file picker', () => {
       </AttachmentsProvider>
     );
 
-    expect(screen.getByRole('button', { name: 'Attach files' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add attachment' })).toBeInTheDocument();
   });
 
   it('clicking attach button triggers file input click', () => {
@@ -100,9 +94,24 @@ describe('MessageInput file picker', () => {
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     const clickSpy = vi.spyOn(input, 'click').mockImplementation(() => {});
 
-    fireEvent.click(screen.getByRole('button', { name: 'Attach files' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }));
 
     expect(mockHandleAttachClick).toHaveBeenCalled();
     expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it('places Add attachment above input row, not beside send', () => {
+    render(
+      <AttachmentsProvider>
+        <MessageInput chatroomId="chatroom-1" />
+      </AttachmentsProvider>
+    );
+
+    const addBtn = screen.getByRole('button', { name: 'Add attachment' });
+    const sendBtn = screen.getByRole('button', { name: 'Send message' });
+    const inputRow = sendBtn.closest('.flex.items-center.gap-1\\.5');
+    expect(inputRow).toBeTruthy();
+    expect(inputRow?.contains(addBtn)).toBe(false);
+    expect(screen.getByText('Add Attachment')).toBeInTheDocument();
   });
 });
