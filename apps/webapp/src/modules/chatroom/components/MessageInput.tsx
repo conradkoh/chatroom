@@ -30,12 +30,9 @@ import {
   MAX_TEXTAREA_HEIGHT_PX,
   measureTextareaContentHeightPx,
 } from './messageInputAutosize';
-import { getChatroomMobileFooterHorizontalSafeAreaStyle } from './shared/chatroomMobileSafeArea';
 import { useChatInputFileDrop } from '../hooks/useChatInputFileDrop';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
 import { WorkspaceUploadProgressList } from '../workspace/components/WorkspaceUploadProgressList';
-
-import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -162,8 +159,6 @@ export function MessageInput({
   const snippetRefsRef = useRef<string[]>([]);
   const isTouchDevice = useIsTouchDevice();
   const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
-  const isDesktop = useIsDesktop(640);
-  const mobile = !isDesktop;
 
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -464,7 +459,6 @@ export function MessageInput({
       ref={formContainerRef}
       data-main-chat-composer
       className={`relative bg-chatroom-bg-surface backdrop-blur-xl${isDragging ? ' ring-2 ring-chatroom-accent/60' : ''}`}
-      style={getChatroomMobileFooterHorizontalSafeAreaStyle(mobile)}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
