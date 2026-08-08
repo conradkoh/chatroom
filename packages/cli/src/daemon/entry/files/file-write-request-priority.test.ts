@@ -13,6 +13,7 @@ function makeRequest(
 ): PendingFileWriteRequest {
   return {
     _id,
+    revision: 1,
     workingDir: '/w',
     filePath: `file-${_id}.txt`,
     operation,

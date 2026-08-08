@@ -19,6 +19,7 @@ vi.mock('../../../api.js', () => ({
   api: {
     workspaceFiles: {
       getPendingFileWriteRequests: 'mock-getPendingFileWriteRequests',
+      claimFileWriteRequest: 'mock-claimFileWriteRequest',
       completeFileWriteRequest: 'mock-completeFileWriteRequest',
       getWriteRequestStorageUrl: 'mock-getWriteRequestStorageUrl',
     },
@@ -35,6 +36,7 @@ function makeRequest(
 ) {
   return {
     _id: requestId,
+    revision: 1,
     workingDir,
     filePath,
     operation,
@@ -50,7 +52,30 @@ function makeRequest(
   };
 }
 
-type FulfillmentRequest = ReturnType<typeof makeRequest>;
+type FulfillmentRequest = ReturnType<typeof makeRequest> & { storageId?: string };
+
+function createClaimAwareMutation(requests: FulfillmentRequest[]) {
+  return vi.fn().mockImplementation(async (_apiRef: string, args: Record<string, unknown>) => {
+    if ('expectedRevision' in args) {
+      const request = requests.find((candidate) => candidate._id === args.requestId);
+      if (!request) return { status: 'stale' };
+      return {
+        status: 'claimed',
+        request: {
+          _id: request._id,
+          revision: request.revision,
+          workingDir: request.workingDir,
+          filePath: request.filePath,
+          operation: request.operation,
+          targetFilePath: request.targetFilePath,
+          data: request.data,
+          storageId: request.storageId,
+        },
+      };
+    }
+    return undefined;
+  });
+}
 
 async function runFulfillment(requests: FulfillmentRequest[]) {
   const workingDir = requests[0]?.workingDir ?? '';
@@ -61,7 +86,7 @@ async function runFulfillment(requests: FulfillmentRequest[]) {
       updatedAt: Date.now(),
     },
     backend: {
-      mutation: vi.fn().mockResolvedValue(undefined),
+      mutation: createClaimAwareMutation(requests),
       query: vi.fn().mockResolvedValue(requests),
     },
   });
@@ -104,6 +129,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
 
     const storageCreate = {
       _id: 'req-storage-create',
+      revision: 1,
       workingDir,
       filePath: 'uploads/slow.pdf',
       operation: 'create' as const,
@@ -123,6 +149,10 @@ describe('fulfillFileWriteRequestsEffect', () => {
     vi.stubGlobal('fetch', delayedFetch);
 
     const completedRequestIds: string[] = [];
+    const pendingRequests = [
+      storageCreate,
+      { _id: 'req-delete', revision: 1, workingDir, filePath, operation: 'delete' as const },
+    ];
     const init = createMockDaemonSessionInit({
       machineId: 'machine-write-test',
       workspaceListStore: {
@@ -130,18 +160,29 @@ describe('fulfillFileWriteRequestsEffect', () => {
         updatedAt: Date.now(),
       },
       backend: {
-        mutation: vi.fn(async (apiRef: string, args: { requestId?: string }) => {
-          if (args.requestId) completedRequestIds.push(args.requestId);
+        mutation: vi.fn(async (apiRef: string, args: { requestId?: string; status?: string }) => {
+          if ('expectedRevision' in args) {
+            const request = pendingRequests.find((candidate) => candidate._id === args.requestId);
+            if (!request) return { status: 'stale' };
+            return {
+              status: 'claimed',
+              request: {
+                _id: request._id,
+                revision: request.revision,
+                workingDir: request.workingDir,
+                filePath: request.filePath,
+                operation: request.operation,
+              },
+            };
+          }
+          if (args.requestId && args.status) completedRequestIds.push(args.requestId);
           return undefined;
         }),
         query: vi.fn().mockImplementation((apiRef: string) => {
           if (apiRef === 'mock-getWriteRequestStorageUrl') {
             return Promise.resolve('https://storage.example/slow');
           }
-          return Promise.resolve([
-            storageCreate,
-            { _id: 'req-delete', workingDir, filePath, operation: 'delete' },
-          ]);
+          return Promise.resolve(pendingRequests);
         }),
       },
     });
@@ -162,6 +203,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
     const uploadBytes = Buffer.from('binary upload');
     const storageRequest = {
       _id: 'req-storage-1',
+      revision: 1,
       workingDir,
       filePath: 'uploads/doc.pdf',
       operation: 'create' as const,
@@ -184,7 +226,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
         updatedAt: Date.now(),
       },
       backend: {
-        mutation: vi.fn().mockResolvedValue(undefined),
+        mutation: createClaimAwareMutation([storageRequest]),
         query: vi.fn().mockImplementation((apiRef: string) => {
           if (apiRef === 'mock-getWriteRequestStorageUrl') {
             return Promise.resolve('https://storage.example/blob');
@@ -215,6 +257,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
     const uploadBytes = Buffer.from('from storage');
     const storageRequest = {
       _id: 'req-storage-stale',
+      revision: 1,
       workingDir,
       filePath: 'uploads/stale.pdf',
       operation: 'create' as const,
@@ -239,7 +282,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
         updatedAt: Date.now(),
       },
       backend: {
-        mutation: vi.fn().mockResolvedValue(undefined),
+        mutation: createClaimAwareMutation([storageRequest]),
         query: vi.fn().mockImplementation((apiRef: string) => {
           if (apiRef === 'mock-getWriteRequestStorageUrl') {
             return Promise.resolve('https://storage.example/stale');
@@ -321,6 +364,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
     const backend = await runFulfillment([
       {
         _id: 'req-del-1',
+        revision: 1,
         workingDir,
         filePath,
         operation: 'delete',
@@ -342,6 +386,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
     const backend = await runFulfillment([
       {
         _id: 'req-del-dir',
+        revision: 1,
         workingDir,
         filePath: dirPath,
         operation: 'delete',
@@ -359,6 +404,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
     const backend = await runFulfillment([
       {
         _id: 'req-del-root',
+        revision: 1,
         workingDir,
         filePath: '',
         operation: 'delete',
@@ -378,6 +424,7 @@ describe('fulfillFileWriteRequestsEffect', () => {
     const backend = await runFulfillment([
       {
         _id: 'req-del-missing',
+        revision: 1,
         workingDir,
         filePath: 'missing.md',
         operation: 'delete',
@@ -507,12 +554,13 @@ describe('fulfillFileWriteRequestsEffect', () => {
   });
 
   it('rejects unregistered workingDir before touching disk', async () => {
+    const request = makeRequest(workingDir, 'notes.md', 'create', 'hi');
     const init = createMockDaemonSessionInit({
       machineId: 'machine-write-test',
       workspaceListStore: { workspaces: [], updatedAt: Date.now() },
       backend: {
-        mutation: vi.fn().mockResolvedValue(undefined),
-        query: vi.fn().mockResolvedValue([makeRequest(workingDir, 'notes.md', 'create', 'hi')]),
+        mutation: createClaimAwareMutation([request]),
+        query: vi.fn().mockResolvedValue([request]),
       },
     });
 
