@@ -1,0 +1,275 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { describe, expect, it, vi } from 'vitest';
+
+import type { HandoffChatroomPort } from './execute-handoff.js';
+import { executeHandoff } from './execute-handoff.js';
+import { openDatabase } from '../../infrastructure/persistence/open-database.js';
+import * as tasksModule from '../../infrastructure/persistence/read-models/tasks.js';
+import {
+  listActiveTaskReadModelsForChatroom,
+  listTaskReadModelsForChatroomRole,
+  taskReadModelFromSnapshot,
+  upsertTaskReadModel,
+} from '../../infrastructure/persistence/read-models/tasks.js';
+import type { AssignedTaskSnapshotView } from '../entities/assigned-task.js';
+import type { OutboundEvent } from '../entities/outbound-event.js';
+
+function tempDbPath(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'execute-handoff-'));
+  return join(dir, 'events.sqlite');
+}
+
+function makeSnapshot(overrides?: Partial<AssignedTaskSnapshotView>): AssignedTaskSnapshotView {
+  return {
+    taskId: 'task-planner',
+    chatroomId: 'room-1',
+    status: 'in_progress',
+    assignedTo: 'planner',
+    updatedAt: 200,
+    createdAt: 100,
+    agentConfig: {
+      role: 'planner',
+      machineId: 'machine-1',
+      agentHarness: 'opencode',
+    },
+    ...overrides,
+  };
+}
+
+function makePort(overrides?: Partial<HandoffChatroomPort>): HandoffChatroomPort {
+  return {
+    getContext: vi.fn(async () => ({
+      teamRoles: ['planner', 'builder'],
+      supportsNativeIntegration: false,
+      hasActiveEnhancerWork: false,
+    })),
+    getAgentHarness: vi.fn(async (_chatroomId, role) =>
+      role === 'builder' ? 'opencode' : 'opencode'
+    ),
+    ...overrides,
+  };
+}
+
+describe('executeHandoff', () => {
+  it('planner → builder completes in_progress task, creates builder task, appends event', async () => {
+    const db = openDatabase(tempDbPath());
+    const events: OutboundEvent[] = [];
+    try {
+      upsertTaskReadModel(db, taskReadModelFromSnapshot(makeSnapshot()));
+
+      const result = await executeHandoff(
+        {
+          db,
+          machineId: 'machine-1',
+          chatroom: makePort(),
+          appendEvent: (event) => events.push(event),
+          now: () => 1000,
+        },
+        {
+          sessionId: 'session-1',
+          chatroomId: 'room-1',
+          senderRole: 'planner',
+          content: 'handoff message',
+          targetRole: 'builder',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.completedTaskIds).toEqual(['task-planner']);
+      expect(result.newTaskId).toBeTruthy();
+
+      const plannerTasks = listTaskReadModelsForChatroomRole(db, 'room-1', 'planner');
+      expect(plannerTasks[0]?.status).toBe('completed');
+
+      const builderTasks = listTaskReadModelsForChatroomRole(db, 'room-1', 'builder');
+      expect(builderTasks).toHaveLength(1);
+      expect(builderTasks[0]?.status).toBe('pending');
+      expect(builderTasks[0]?.assignedTo).toBe('builder');
+
+      expect(events).toHaveLength(1);
+      expect(events[0]?.type).toBe('handoff.completed');
+      if (events[0]?.type === 'handoff.completed') {
+        expect(events[0].targetRole).toBe('builder');
+        expect(events[0].completedTaskIds).toEqual(['task-planner']);
+        expect(events[0].newTaskId).toBe(result.newTaskId);
+      }
+    } finally {
+      db.close();
+    }
+  });
+
+  it('planner → user handoff does not create a new task', async () => {
+    const db = openDatabase(tempDbPath());
+    const events: OutboundEvent[] = [];
+    try {
+      upsertTaskReadModel(db, taskReadModelFromSnapshot(makeSnapshot()));
+
+      const result = await executeHandoff(
+        {
+          db,
+          machineId: 'machine-1',
+          chatroom: makePort(),
+          appendEvent: (event) => events.push(event),
+          now: () => 1000,
+        },
+        {
+          sessionId: 'session-1',
+          chatroomId: 'room-1',
+          senderRole: 'planner',
+          content: 'done',
+          targetRole: 'user',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.newTaskId).toBeNull();
+      expect(listActiveTaskReadModelsForChatroom(db, 'room-1')).toHaveLength(0);
+      expect(events[0]?.type).toBe('handoff.completed');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects invalid target role with suggested targets', async () => {
+    const db = openDatabase(tempDbPath());
+    try {
+      const result = await executeHandoff(
+        {
+          db,
+          machineId: 'machine-1',
+          chatroom: makePort(),
+          appendEvent: () => {},
+        },
+        {
+          sessionId: 'session-1',
+          chatroomId: 'room-1',
+          senderRole: 'planner',
+          content: 'msg',
+          targetRole: 'reviewer',
+        }
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe('INVALID_TARGET_ROLE');
+      expect(result.error?.suggestedTargets).toEqual(['user', 'planner', 'builder']);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects when enhancer review is in progress', async () => {
+    const db = openDatabase(tempDbPath());
+    try {
+      const result = await executeHandoff(
+        {
+          db,
+          machineId: 'machine-1',
+          chatroom: makePort({
+            getContext: vi.fn(async () => ({
+              teamRoles: ['planner', 'builder'],
+              supportsNativeIntegration: false,
+              hasActiveEnhancerWork: true,
+            })),
+          }),
+          appendEvent: () => {},
+        },
+        {
+          sessionId: 'session-1',
+          chatroomId: 'room-1',
+          senderRole: 'planner',
+          content: 'msg',
+          targetRole: 'builder',
+        }
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe('ENHANCER_REVIEW_IN_PROGRESS');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rejects planner → enhancer without active planner task', async () => {
+    const db = openDatabase(tempDbPath());
+    try {
+      const result = await executeHandoff(
+        {
+          db,
+          machineId: 'machine-1',
+          chatroom: makePort({
+            getContext: vi.fn(async () => ({
+              teamRoles: ['planner', 'builder'],
+              supportsNativeIntegration: false,
+              hasActiveEnhancerWork: false,
+              enhancerConfig: {
+                enabled: true,
+                machineId: 'machine-1',
+                agentHarness: 'opencode',
+                model: 'gpt-4o',
+              },
+            })),
+          }),
+          appendEvent: () => {},
+        },
+        {
+          sessionId: 'session-1',
+          chatroomId: 'room-1',
+          senderRole: 'planner',
+          content: 'msg',
+          targetRole: 'enhancer',
+        }
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe('NO_PLANNER_USER_TASK');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rolls back read models when transaction fails', async () => {
+    const db = openDatabase(tempDbPath());
+    const events: OutboundEvent[] = [];
+    try {
+      upsertTaskReadModel(db, taskReadModelFromSnapshot(makeSnapshot()));
+
+      const originalUpsert = tasksModule.upsertTaskReadModel;
+      let callCount = 0;
+      vi.spyOn(tasksModule, 'upsertTaskReadModel').mockImplementation((database, row) => {
+        callCount += 1;
+        if (callCount === 2) {
+          throw new Error('boom');
+        }
+        return originalUpsert(database, row);
+      });
+
+      await expect(
+        executeHandoff(
+          {
+            db,
+            machineId: 'machine-1',
+            chatroom: makePort(),
+            appendEvent: (event) => events.push(event),
+          },
+          {
+            sessionId: 'session-1',
+            chatroomId: 'room-1',
+            senderRole: 'planner',
+            content: 'msg',
+            targetRole: 'builder',
+          }
+        )
+      ).rejects.toThrow('boom');
+
+      const plannerTasks = listTaskReadModelsForChatroomRole(db, 'room-1', 'planner');
+      expect(plannerTasks[0]?.status).toBe('in_progress');
+      expect(events).toHaveLength(0);
+    } finally {
+      db.close();
+      vi.restoreAllMocks();
+    }
+  });
+});

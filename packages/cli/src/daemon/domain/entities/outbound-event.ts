@@ -70,6 +70,27 @@ export type OutboundEvent =
       stream: 'stdout' | 'stderr';
       line: string;
       timestamp: number;
+    }
+  | {
+      type: 'handoff.completed';
+      idempotencyKey: string;
+      sessionId: string;
+      chatroomId: string;
+      senderRole: string;
+      content: string;
+      targetRole: string;
+      messageId: string;
+      completedTaskIds: string[];
+      newTaskId?: string;
+      promotedTaskId?: string;
+      taskOriginMessageId?: string;
+      enhancerJobPayload?: {
+        machineId: string;
+        agentHarness: string;
+        model: string;
+        originUserMessageId?: string;
+      };
+      timestamp: number;
     };
 
 export function isOutboundEvent(value: unknown): value is OutboundEvent {

@@ -47,6 +47,17 @@ Flags (both default **off**):
 
 Rollback: unset `DAEMON_ORCHESTRATION_P2_CUTOVER` (or both P2 flags) — the snapshot WS and Convex query paths resume unchanged.
 
+## P3 handoff local
+
+Flags (both default **off**):
+
+| Flag                                                                     | Effect                                                                                    |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `DAEMON_ORCHESTRATION_P3=1`                                              | (PR D) `chatroom handoff` routes to daemon HTTP instead of `api.messages.handoff`         |
+| `DAEMON_ORCHESTRATION_P3=1` + `DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY=1` | (PR D) Native delivery triggered from local handoff event instead of assigned-task signal |
+
+PR A adds `domain/usecase/execute-handoff.ts` — local SQLite transaction + `handoff.completed` outbound event. HTTP server, projection handler, and CLI routing land in PR B–D.
+
 ## Does not belong here
 
 | Kind                | Home instead             |

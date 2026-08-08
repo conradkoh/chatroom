@@ -2,6 +2,8 @@
 export {
   isDaemonOrchestrationP1CutoverEnabled,
   isDaemonOrchestrationP1Enabled,
+  isDaemonOrchestrationP3Enabled,
+  isDaemonOrchestrationP3LocalDeliveryEnabled,
 } from './feature-flags.js';
 export {
   drainOutboxOnce,

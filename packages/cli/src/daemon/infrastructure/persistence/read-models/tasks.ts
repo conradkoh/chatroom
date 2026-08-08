@@ -8,11 +8,13 @@ import type {
   AssignedTaskSnapshotView,
 } from '../../../domain/entities/assigned-task.js';
 
+export type TaskReadModelStatus = ActiveTaskStatus | 'completed' | 'queued';
+
 export type TaskReadModelRow = {
   chatroomId: string;
   role: string;
   taskId: string;
-  status: ActiveTaskStatus;
+  status: TaskReadModelStatus;
   assignedTo?: string;
   agentHarness: string;
   machineId: string;
@@ -62,7 +64,7 @@ function readTaskRow(row: {
     chatroomId: row.chatroomId,
     role: row.role,
     taskId: row.taskId,
-    status: row.status as ActiveTaskStatus,
+    status: row.status as TaskReadModelStatus,
     assignedTo: row.assignedTo ?? undefined,
     agentHarness: row.agentHarness,
     machineId: row.machineId,
@@ -164,6 +166,54 @@ export function listTaskReadModelsForChatroomRole(
   return rows.map(readTaskRow);
 }
 
+export function listTaskReadModelsForChatroom(
+  db: DatabaseSync,
+  chatroomId: string
+): TaskReadModelRow[] {
+  const rows = db
+    .prepare(`SELECT ${TASK_COLUMNS} FROM read_model_tasks WHERE chatroom_id = ?`)
+    .all(chatroomId) as Parameters<typeof readTaskRow>[0][];
+  return rows.map(readTaskRow);
+}
+
+export function listActiveTaskReadModelsForChatroom(
+  db: DatabaseSync,
+  chatroomId: string
+): TaskReadModelRow[] {
+  return listTaskReadModelsForChatroom(db, chatroomId).filter(
+    (task) => task.status === 'in_progress' || task.status === 'acknowledged'
+  );
+}
+
+export function findNextQueuedTaskForChatroom(
+  db: DatabaseSync,
+  chatroomId: string
+): TaskReadModelRow | null {
+  const row = db
+    .prepare(
+      `SELECT ${TASK_COLUMNS} FROM read_model_tasks
+       WHERE chatroom_id = ? AND status = 'queued'
+       ORDER BY created_at ASC LIMIT 1`
+    )
+    .get(chatroomId) as Parameters<typeof readTaskRow>[0] | undefined;
+  return row ? readTaskRow(row) : null;
+}
+
+export function findTopPendingTaskForSender(
+  db: DatabaseSync,
+  chatroomId: string,
+  senderRole: string
+): TaskReadModelRow | null {
+  const row = db
+    .prepare(
+      `SELECT ${TASK_COLUMNS} FROM read_model_tasks
+       WHERE chatroom_id = ? AND status = 'pending' AND assigned_to = ?
+       ORDER BY created_at ASC LIMIT 1`
+    )
+    .get(chatroomId, senderRole.toLowerCase()) as Parameters<typeof readTaskRow>[0] | undefined;
+  return row ? readTaskRow(row) : null;
+}
+
 export function taskReadModelFromSnapshot(snapshot: AssignedTaskSnapshotView): TaskReadModelRow {
   return {
     chatroomId: snapshot.chatroomId,
@@ -195,7 +245,7 @@ export function taskReadModelToSnapshot(row: TaskReadModelRow): AssignedTaskSnap
   return {
     taskId: row.taskId,
     chatroomId: row.chatroomId,
-    status: row.status,
+    status: row.status as ActiveTaskStatus,
     assignedTo: row.assignedTo,
     updatedAt: row.updatedAt,
     createdAt: row.createdAt,
