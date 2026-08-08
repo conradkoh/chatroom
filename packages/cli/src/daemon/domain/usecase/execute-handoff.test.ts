@@ -133,6 +133,48 @@ describe('executeHandoff', () => {
     }
   });
 
+  it('promotes next queued task to pending on handoff-to-user when no active tasks remain', async () => {
+    const db = openDatabase(tempDbPath());
+    try {
+      upsertTaskReadModel(db, taskReadModelFromSnapshot(makeSnapshot()));
+      upsertTaskReadModel(db, {
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-queued',
+        status: 'queued',
+        assignedTo: 'builder',
+        agentHarness: 'opencode',
+        machineId: 'machine-1',
+        createdAt: 500,
+        updatedAt: 500,
+      });
+
+      const result = await executeHandoff(
+        {
+          db,
+          machineId: 'machine-1',
+          chatroom: makePort(),
+          appendEvent: () => {},
+          now: () => 1000,
+        },
+        {
+          sessionId: 'session-1',
+          chatroomId: 'room-1',
+          senderRole: 'planner',
+          content: 'done',
+          targetRole: 'user',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.promotedTaskId).toBe('task-queued');
+      const queuedNow = listTaskReadModelsForChatroomRole(db, 'room-1', 'builder')[0];
+      expect(queuedNow?.status).toBe('pending');
+    } finally {
+      db.close();
+    }
+  });
+
   it('rejects invalid target role with suggested targets', async () => {
     const db = openDatabase(tempDbPath());
     try {
