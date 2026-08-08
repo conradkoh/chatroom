@@ -1,6 +1,6 @@
 # Daemon-Centric Orchestration — Discovery
 
-**Status:** Discovery (no implementation)  
+**Status:** Discovery — architectural decisions resolved (no implementation)  
 **Branch:** `docs/daemon-centric-orchestration-discovery`  
 **Related:** [Convex → Daemon incremental sync](../../packages/cli/src/infrastructure/incremental-sync/README.md), [daemon persistence](../../packages/cli/src/daemon/infrastructure/persistence/README.md), [local web](../../packages/cli/src/daemon/local-web/README.md)
 
@@ -123,7 +123,7 @@ flowchart LR
         UI[Realtime / cursor queries]
     end
 
-    H -->|local IPC or in-proc| CMD
+    H -->|HTTP localhost| CMD
     CMD --> ORCH
     ORCH --> EVT
     EVT --> SQLITE
@@ -150,9 +150,27 @@ flowchart LR
 | ----------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------- |
 | **T0 — local only**     | Harness stdout/stderr lines, debug traces                    | Never sync; SQLite + local-web only                                   |
 | **T1 — batched low**    | Presence heartbeats, `lastSeenAt`, stream checkpoints        | Aggregate per role/chatroom; flush every N seconds                    |
-| **T2 — batched medium** | Task status transitions, delivery outcomes, restart phases   | Outbox with debounce; idempotent projection mutations                 |
+| **T2 — batched medium** | Restart phases, delivery telemetry, stream checkpoints       | Outbox with debounce; idempotent projection mutations                 |
 | **T3 — immediate**      | Handoff messages, new user messages, enhancer job completion | Project quickly for webapp; still via outbox for retry                |
 | **T4 — on-demand**      | Workspace git/file requests from webapp                      | Remains Convex-initiated → daemon fulfills (inbound), not moved in v1 |
+
+**Realtime SLI (locked):** The following projection types are **T3 — immediate** (webapp must see updates in realtime):
+
+- **Task status** — task lifecycle transitions, delivery outcomes visible in UI
+- **Agent status** — participant presence, turn phase, native agent lifecycle
+- **Messages** — handoffs, user messages, task delivery content
+
+All other types use T0 (local only), T1/T2 (batched), or T4 (on-demand inbound) as listed above.
+
+### 3.3 Resolved architectural decisions
+
+| Decision                  | Resolution                                                                                                                                                                  |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CLI→daemon transport**  | HTTP server on localhost (harness commands call daemon HTTP API)                                                                                                            |
+| **Handoff migration**     | No dual-write. CLI calls daemon HTTP → daemon executes handoff locally (SQLite SSOT) → projection worker syncs to Convex (eventual consistency). Daemon is source of truth. |
+| **Enhancer queue**        | Fully local — daemon owns enqueue, claim, and spawn; Convex receives projection only                                                                                        |
+| **Webapp realtime SLI**   | Task status, agent status, and messages are **realtime** (T3 immediate). All other projection types use batch tiers (T0–T2, T4).                                            |
+| **Shared domain package** | Not needed. Daemon maintains its own domain layer; do not extract shared rules to `services/backend/src/domain`. Domains remain separate.                                   |
 
 ---
 
@@ -179,6 +197,8 @@ All subscribers are registered in `subscriber-registry.ts` and map to `InboundEv
 | File tree request      | `workspaceFiles.getPendingFileTreeRequests`                   | `file-tree.request`             | `file-tree-subscription.ts`                         |
 | File content request   | `workspaceFiles.getPendingFileContentRequests`                | `file-content.request`          | `file-content-fulfillment.ts`                       |
 | File write request     | `workspaceFiles.getPendingFileWriteRequests`                  | `file-write.request`            | `file-write-fulfillment.ts`                         |
+
+**Enhancer (migration target):** Subscriber `enhancer.job-assigned` will be replaced by local queue; Convex projection for visibility only.
 
 **Additional inbound (not via subscriber registry):**
 
@@ -294,6 +314,8 @@ These run inside agent harness processes, not the daemon. They are **orchestrati
 
 **Migration note:** `handoff` and `get-next-task` are the highest-impact commands to route through daemon-local orchestration instead of Convex-first mutations.
 
+**Transport (resolved):** `handoff` and `get-next-task` will call daemon HTTP on localhost; daemon writes to SQLite first, then projects to Convex asynchronously.
+
 ### 4.4 Convex schema tables (orchestration-relevant)
 
 | Table / feed                            | Role in loop                              |
@@ -321,7 +343,7 @@ These run inside agent harness processes, not the daemon. They are **orchestrati
 | **Missed handoff reminder**        | `handleNativeAgentEnd` → Convex → (implicit) next turn                   | Local turn-end handler → schedule reminder without Convex round-trip                                          | Medium     |
 | **Agent start/stop**               | APM ↔ `machines.updateSpawnedAgent`, `recordAgentExited`, many `emit*`   | APM emits local lifecycle events; sync worker projects subset to Convex                                       | High       |
 | **Restart orchestrator**           | Direct `emitRestartPhase/Completed` + snapshot sync                      | Local restart state machine; project phases                                                                   | Medium     |
-| **Enhancer job**                   | Convex pending → subscriber → spawn                                      | Local job queue mirrored from Convex **or** Convex remains enqueue-only                                       | Medium     |
+| **Enhancer job**                   | Convex pending → subscriber → spawn                                      | Fully local job queue in daemon; Convex projection for webapp visibility only                                 | Medium     |
 | **Direct harness / agentic query** | Convex pending queues → drain loops                                      | Local session queues with Convex as backup/projection                                                         | Medium     |
 | **Command runs**                   | Convex actionable runs → drain                                           | Local command inbox; project status                                                                           | Medium     |
 | **Workspace git/file**             | Convex request queue → fulfill → upsert                                  | **Likely stays inbound-from-Convex** in v1; batch upserts                                                     | Low–Med    |
@@ -396,7 +418,7 @@ packages/cli/src/daemon/
 │   │   ├── convex/
 │   │   │   └── user-intent-subscribers.ts   # webapp-originated only
 │   │   └── local/
-│   │       └── cli-command-server.ts        # handoff/get-next-task IPC
+│   │       └── cli-command-server.ts        # HTTP localhost API for handoff/get-next-task
 │   ├── agents/                  # agent-process-manager (existing path)
 │   ├── local/                   # harness services (existing)
 │   └── convex/                  # transitional: publishers + subscribers
@@ -418,16 +440,16 @@ packages/cli/src/daemon/
 - **`DomainEvent`** — append-only, typed union (separate from transport `OutboundEvent` during migration).
 - **`ProjectionEnvelope`** — `{ eventId, target: 'convex', tier, payload, idempotencyKey }` in outbox.
 - **`Read models`** — materialized views in SQLite (`tasks_by_role`, `agent_sessions`, `pending_handoffs`) updated synchronously in use cases after append.
-- **CLI IPC** — harness commands call daemon HTTP/UDS instead of Convex for `handoff` / `get-next-task` (exact transport TBD).
+- **CLI HTTP API** — harness commands call daemon HTTP on localhost for `handoff` / `get-next-task` instead of Convex mutations.
 
 ### 6.4 Backend (`services/backend`) impact
 
-| Area                  | Change                                                                                                   |
-| --------------------- | -------------------------------------------------------------------------------------------------------- |
-| `convex/messages.ts`  | Handoff mutation becomes **idempotent projection** from daemon envelope (or dual-write during migration) |
-| `convex/machines.ts`  | `emit*` mutations called by projection worker, not daemon hot path                                       |
-| `convex/schema.ts`    | Possible slimmer signal tables if daemon owns orchestration                                              |
-| `src/domain/usecase/` | Shared handoff/task rules extracted for use by both Convex (validation) and daemon (execution)           |
+| Area                  | Change                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| `convex/messages.ts`  | Handoff mutation becomes **idempotent projection** from daemon envelope (daemon-primary; no dual-write) |
+| `convex/machines.ts`  | `emit*` mutations called by projection worker, not daemon hot path                                      |
+| `convex/schema.ts`    | Possible slimmer signal tables if daemon owns orchestration                                             |
+| `src/domain/usecase/` | **No shared extraction.** Backend domain stays backend-specific; daemon owns its own domain layer       |
 
 ---
 
@@ -443,28 +465,34 @@ packages/cli/src/daemon/
 | **P5 — Subscriber shrink** | Keep only user-intent inbound (files, git, webapp commands)                    | Daemon no longer subscribes to self-projected state |
 | **P6 — CLI migration**     | `get-next-task`, `task read`, context reads optional local                     | Agents use daemon as SSOT                           |
 
-Each phase should be **feature-flagged** with dual-write/dual-read validation before cutting Convex orchestration.
+Each phase should be **feature-flagged**. Daemon is SSOT from the start of each migrated flow — no dual-write. Validate projection catch-up and webapp consistency before cutting legacy Convex orchestration paths.
 
 ---
 
-## 8. Risks and open decisions
+## 8. Risks and decisions
 
 ### Risks
 
-| Risk                                                         | Mitigation                                                                                                  |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| Split-brain between daemon SQLite and Convex                 | Idempotent projections + revision keys; Convex remains authority for **webapp-visible** conflict resolution |
-| Multi-machine same chatroom                                  | Convex still coordinates cross-machine; daemon owns **per-machine** orchestration                           |
-| Migration duration / dual paths                              | Feature flags per flow; incremental sync library reused for inbound user-intent only                        |
-| Handoff atomicity today (`messages.handoff` single mutation) | Local transaction in SQLite + compensating projection                                                       |
+| Risk                                                         | Mitigation                                                                                                                                                                    |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Split-brain between daemon SQLite and Convex                 | Idempotent projections + revision keys; Convex remains authority for **webapp-visible conflict resolution across machines**, daemon is SSOT for **per-machine** orchestration |
+| Multi-machine same chatroom                                  | Convex still coordinates cross-machine; daemon owns **per-machine** orchestration                                                                                             |
+| Migration duration / dual paths                              | Feature flags per flow; incremental sync library reused for inbound user-intent only                                                                                          |
+| Handoff atomicity today (`messages.handoff` single mutation) | Local transaction in SQLite + compensating projection                                                                                                                         |
 
-### Open decisions (for follow-up)
+### Resolved decisions
 
-1. **CLI→daemon transport:** HTTP on localhost, Unix socket, or shared SQLite command table?
-2. **Convex handoff during migration:** Dual-write vs daemon-primary with Convex validation-only?
-3. **Enhancer queue:** Remain Convex-enqueued (user/webapp visibility) or fully local?
-4. **Webapp realtime:** Which projections must stay T3 immediate vs batchable?
-5. **Shared domain package:** Extract handoff/task rules to `services/backend/src/domain` consumed by daemon?
+| #   | Decision              | Resolution                                                            |
+| --- | --------------------- | --------------------------------------------------------------------- |
+| 1   | CLI→daemon transport  | HTTP on localhost                                                     |
+| 2   | Handoff migration     | No dual-write; daemon-primary with eventual Convex projection         |
+| 3   | Enhancer queue        | Fully local in daemon                                                 |
+| 4   | Webapp realtime SLI   | Task status, agent status, messages = realtime (T3); others batchable |
+| 5   | Shared domain package | Not needed; separate daemon and backend domains                       |
+
+### Remaining open decisions
+
+Not Applicable — all prior open decisions resolved. New gaps discovered during implementation should be tracked separately.
 
 ---
 
