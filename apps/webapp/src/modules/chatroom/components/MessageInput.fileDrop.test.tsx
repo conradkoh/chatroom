@@ -79,10 +79,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-vi.mock('./EditorModal', () => ({
-  EditorModal: () => null,
-}));
-
 function makeFile(name: string): File {
   return new File(['content'], name, { type: 'text/plain' });
 }

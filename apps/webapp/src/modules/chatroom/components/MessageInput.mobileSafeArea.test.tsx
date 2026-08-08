@@ -46,10 +46,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-vi.mock('./EditorModal', () => ({
-  EditorModal: () => null,
-}));
-
 vi.mock('../hooks/useChatInputFileDrop', () => ({
   useChatInputFileDrop: () => ({
     uploadJobs: [],

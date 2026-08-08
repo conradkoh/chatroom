@@ -52,10 +52,6 @@ vi.mock('./FileReferenceAutocomplete', () => ({
   FileReferenceAutocomplete: () => null,
 }));
 
-vi.mock('./EditorModal', () => ({
-  EditorModal: () => null,
-}));
-
 vi.mock('../hooks/useChatInputFileDrop', () => ({
   useChatInputFileDrop: () => ({
     uploadJobs: [],

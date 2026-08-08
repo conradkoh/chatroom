@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { AlertTriangle, ArrowUp, Code2, Paperclip, X } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Paperclip, X } from 'lucide-react';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 
 import {
@@ -21,7 +21,6 @@ import {
   useSnippetAttachments,
   useTaskAttachments,
 } from '../attachments';
-import { EditorModal } from './EditorModal';
 import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
 import type { FileEntry } from './FileSelector/useFileSelector';
 import {
@@ -159,8 +158,6 @@ export function MessageInput({
   const snippetRefsRef = useRef<string[]>([]);
   const isTouchDevice = useIsTouchDevice();
   const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
-
-  const [editorOpen, setEditorOpen] = useState(false);
 
   // Register focus callback for external callers
   useEffect(() => {
@@ -415,22 +412,6 @@ export function MessageInput({
 
   const handleFileSelect = fileAutocomplete.handleFileSelect;
 
-  // ── Editor modal callbacks ─────────────────────────────────────────────────
-  const handleEditorClose = useCallback((editedText: string) => {
-    setMessage(editedText);
-    setEditorOpen(false);
-    setTimeout(() => textareaRef.current?.focus(), 0);
-  }, []);
-
-  const handleEditorSend = useCallback(
-    async (text: string) => {
-      setMessage(text);
-      setEditorOpen(false);
-      await doSend(text);
-    },
-    [doSend]
-  );
-
   // ── Send button click ──────────────────────────────────────────────────────
   const handleSendClick = useCallback(() => {
     handleSubmit();
@@ -562,18 +543,6 @@ export function MessageInput({
 
         {/* Action buttons */}
         <div className="flex items-center gap-0.5 flex-shrink-0">
-          {/* Editor modal button (desktop only) */}
-          {!isTouchDevice && (
-            <button
-              type="button"
-              onClick={() => setEditorOpen(true)}
-              title="Open editor"
-              className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
-            >
-              <Code2 size={16} />
-            </button>
-          )}
-
           {/* File picker button */}
           <input
             ref={fileInputRef}
@@ -610,14 +579,6 @@ export function MessageInput({
           </button>
         </div>
       </div>
-
-      {/* Editor Modal */}
-      <EditorModal
-        isOpen={editorOpen}
-        initialValue={message}
-        onClose={handleEditorClose}
-        onSend={handleEditorSend}
-      />
     </div>
   );
 }

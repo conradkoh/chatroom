@@ -45,10 +45,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-vi.mock('./EditorModal', () => ({
-  EditorModal: () => null,
-}));
-
 vi.mock('../hooks/useChatInputFileDrop', () => ({
   useChatInputFileDrop: () => ({
     uploadJobs: [],
@@ -91,20 +87,6 @@ describe('MessageInput file picker', () => {
       </AttachmentsProvider>
     );
 
-    expect(screen.getByRole('button', { name: 'Attach files' })).toBeInTheDocument();
-  });
-
-  it('shows both editor and attach buttons on desktop', () => {
-    touchDevice = false;
-    mockUseIsDesktop.mockReturnValue(true);
-
-    render(
-      <AttachmentsProvider>
-        <MessageInput chatroomId="chatroom-1" />
-      </AttachmentsProvider>
-    );
-
-    expect(screen.getByRole('button', { name: 'Open editor' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Attach files' })).toBeInTheDocument();
   });
 
