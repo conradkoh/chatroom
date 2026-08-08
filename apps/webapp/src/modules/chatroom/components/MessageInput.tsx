@@ -539,7 +539,7 @@ export function MessageInput({
           type="button"
           onClick={handleAttachClick}
           aria-label="Add attachment"
-          className="flex items-center gap-1.5 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover py-1 transition-colors rounded-none"
+          className="flex items-center gap-1.5 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary border-2 border-chatroom-border bg-chatroom-bg-primary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong px-2 py-1.5 transition-colors rounded-none"
         >
           <Paperclip size={14} aria-hidden />
           <span>Add Attachment</span>
