@@ -1,5 +1,5 @@
 /**
- * MessageInput — mobile file picker (paperclip button) tests
+ * MessageInput — file picker (paperclip button) tests
  */
 
 import { fireEvent, render, screen } from '@testing-library/react';
@@ -63,7 +63,7 @@ vi.mock('../hooks/useChatInputFileDrop', () => ({
   }),
 }));
 
-describe('MessageInput mobile file picker', () => {
+describe('MessageInput file picker', () => {
   beforeEach(() => {
     touchDevice = true;
     mockUseIsDesktop.mockReturnValue(false);
@@ -82,7 +82,7 @@ describe('MessageInput mobile file picker', () => {
     expect(screen.getByRole('button', { name: 'Attach files' })).toBeInTheDocument();
   });
 
-  it('hides attach button on non-touch devices', () => {
+  it('shows attach button on non-touch (desktop) devices', () => {
     touchDevice = false;
 
     render(
@@ -91,7 +91,21 @@ describe('MessageInput mobile file picker', () => {
       </AttachmentsProvider>
     );
 
-    expect(screen.queryByRole('button', { name: 'Attach files' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Attach files' })).toBeInTheDocument();
+  });
+
+  it('shows both editor and attach buttons on desktop', () => {
+    touchDevice = false;
+    mockUseIsDesktop.mockReturnValue(true);
+
+    render(
+      <AttachmentsProvider>
+        <MessageInput chatroomId="chatroom-1" />
+      </AttachmentsProvider>
+    );
+
+    expect(screen.getByRole('button', { name: 'Open editor' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Attach files' })).toBeInTheDocument();
   });
 
   it('clicking attach button triggers file input click', () => {

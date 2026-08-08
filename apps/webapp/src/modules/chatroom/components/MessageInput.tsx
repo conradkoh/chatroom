@@ -580,29 +580,25 @@ export function MessageInput({
             </button>
           )}
 
-          {/* File picker button (touch devices only) */}
-          {isTouchDevice && (
-            <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFileInputChange}
-                aria-hidden
-                tabIndex={-1}
-              />
-              <button
-                type="button"
-                onClick={handleAttachClick}
-                title="Attach files"
-                aria-label="Attach files"
-                className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
-              >
-                <Paperclip size={16} />
-              </button>
-            </>
-          )}
+          {/* File picker button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleFileInputChange}
+            aria-hidden
+            tabIndex={-1}
+          />
+          <button
+            type="button"
+            onClick={handleAttachClick}
+            title="Attach files"
+            aria-label="Attach files"
+            className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
+          >
+            <Paperclip size={16} />
+          </button>
 
           {/* Send button: icon-only, circular */}
           <button
