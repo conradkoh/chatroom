@@ -10,12 +10,6 @@ import { startAllSubscribers } from './subscriber-registry.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
-import { createConvexProjectionAdapter } from '../infrastructure/projection/convex/convex-projection-adapter.js';
-import {
-  isDaemonOrchestrationP1CutoverEnabled,
-  isDaemonOrchestrationP1Enabled,
-} from '../infrastructure/projection/feature-flags.js';
-import { startOutboxDrainWorker } from '../infrastructure/projection/outbox-drain-worker.js';
 import { startLocalWebServer } from '../local-web/server/create-local-web-server.js';
 
 export async function startDaemon(): Promise<void> {
@@ -29,22 +23,6 @@ export async function startDaemon(): Promise<void> {
     sessionId: init.sessionId,
     machineId: init.machineId,
   });
-
-  let drainWorker: ReturnType<typeof startOutboxDrainWorker> | undefined;
-  if (isDaemonOrchestrationP1Enabled()) {
-    const adapter = createConvexProjectionAdapter({
-      backend: init.backend,
-      sessionId: init.sessionId,
-      machineId: init.machineId,
-    });
-    drainWorker = startOutboxDrainWorker({
-      db: persistence.db,
-      projectEvent: (event) => adapter.project(event),
-      validateProjectable: (event) => adapter.validateProjectable(event),
-      isCutoverEnabled: isDaemonOrchestrationP1CutoverEnabled,
-    });
-    console.log('[daemon] Outbox drain worker started (P1)');
-  }
 
   const localWebPort = resolveLocalWebPort();
   const localWeb = await startLocalWebServer(
@@ -71,7 +49,6 @@ export async function startDaemon(): Promise<void> {
   try {
     await runtime.run();
   } finally {
-    drainWorker?.stop();
     await runtime.shutdown();
     await subscribers.stopAll();
     await localWeb.stop();

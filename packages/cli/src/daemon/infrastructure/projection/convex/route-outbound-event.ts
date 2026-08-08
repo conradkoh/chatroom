@@ -26,61 +26,45 @@ export function createConvexPublishers(deps: ConvexPublisherDeps) {
   };
 }
 
-export type ConvexPublisherSet = ReturnType<typeof createConvexPublishers>;
-
-/** Resolve the publisher handler for an event without invoking it. */
 // fallow-ignore-next-line complexity
-export function getConvexEventHandler(
-  publishers: ConvexPublisherSet,
+export function routeConvexEvent(
+  publishers: ReturnType<typeof createConvexPublishers>,
   event: OutboundEvent
-): ((event: OutboundEvent) => Promise<void>) | undefined {
+): Promise<void> | undefined {
   switch (event.type) {
     case 'heartbeat':
-      return publishers.heartbeat.publish.bind(publishers.heartbeat);
+      return publishers.heartbeat.publish(event);
     case 'turn.chunk':
     case 'turn.completed':
-      return publishers.turnOutput.publish.bind(publishers.turnOutput);
+      return publishers.turnOutput.publish(event);
     case 'session.lifecycle':
-      return publishers.sessionLifecycle.publish.bind(publishers.sessionLifecycle);
+      return publishers.sessionLifecycle.publish(event);
     case 'task.status':
-      return publishers.assignedTaskStatus.publish.bind(publishers.assignedTaskStatus);
+      return publishers.assignedTaskStatus.publish(event);
     case 'git.state':
-      return publishers.gitState.publish.bind(publishers.gitState);
+      return publishers.gitState.publish(event);
     case 'capabilities.updated':
-      return publishers.capabilities.publish.bind(publishers.capabilities);
+      return publishers.capabilities.publish(event);
     case 'models.updated':
-      return publishers.models.publish.bind(publishers.models);
+      return publishers.models.publish(event);
     case 'harness.fingerprint.updated':
-      return publishers.harnessFingerprint.publish.bind(publishers.harnessFingerprint);
+      return publishers.harnessFingerprint.publish(event);
     case 'command.result.ping':
     case 'command.result.folder-picker':
     case 'command.result.capabilities-refresh':
-      return publishers.commandResult.publish.bind(publishers.commandResult);
+      return publishers.commandResult.publish(event);
     case 'workspace.commands':
-      return publishers.workspaceCommands.publish.bind(publishers.workspaceCommands);
+      return publishers.workspaceCommands.publish(event);
     default:
       return undefined;
   }
 }
 
-// fallow-ignore-next-line complexity
-export function routeConvexEvent(
-  publishers: ConvexPublisherSet,
+export function assertProjectableEvent(
+  publishers: ReturnType<typeof createConvexPublishers>,
   event: OutboundEvent
-): Promise<void> | undefined {
-  return getConvexEventHandler(publishers, event)?.(event);
-}
-
-// fallow-ignore-next-line unused-export
-export function hasConvexEventHandler(
-  publishers: ConvexPublisherSet,
-  event: OutboundEvent
-): boolean {
-  return getConvexEventHandler(publishers, event) !== undefined;
-}
-
-export function assertProjectableEvent(publishers: ConvexPublisherSet, event: OutboundEvent): void {
-  if (!hasConvexEventHandler(publishers, event)) {
+): void {
+  if (routeConvexEvent(publishers, event) === undefined) {
     throw new Error(`No projection handler for event type: ${event.type}`);
   }
 }

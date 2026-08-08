@@ -8,8 +8,6 @@ import type { OutboundEvent } from '../../domain/entities/outbound-event.js';
 import { shouldEnqueueOutbox } from '../projection/sync-policy.js';
 
 export type PersistenceStore = {
-  /** Internal database handle for the outbox drain worker. */
-  readonly db: DatabaseSync;
   append(event: OutboundEvent): void;
   listHarnessStreamLines(opts?: {
     harness?: string;
@@ -22,7 +20,6 @@ export type PersistenceStore = {
 export function createPersistenceStore(dbPath: string): PersistenceStore {
   const db: DatabaseSync = openDatabase(dbPath);
   return {
-    db,
     append(event) {
       const eventId = appendOutboundEvent(db, event);
       if (shouldEnqueueOutbox(event)) {
