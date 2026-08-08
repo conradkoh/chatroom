@@ -4,6 +4,36 @@
 **Depends on:** [P2](./p2-local-read-models.md)  
 **Feature flag:** `DAEMON_ORCHESTRATION_P3` — when off, `chatroom handoff` uses Convex `messages.handoff`.
 
+## Shippability
+
+**Shippable alone:** Yes — with P2 complete (read models for handoff invariants); P4/P5/P6 not required.
+
+### What ships
+
+- Daemon HTTP endpoint for handoff
+- Local handoff execution (SQLite SSOT) + T3 projection to Convex
+- CLI `chatroom handoff` routes to daemon when P3 on
+
+### Flag-off guarantee
+
+`chatroom handoff` continues to call `api.messages.handoff` — identical to today.
+
+### Progressive rollout
+
+1. **P3 on:** CLI → daemon HTTP → local handoff → projection. Convex `messages.handoff` not called. Assigned-task signal subscriber may still fire from projection (acceptable until P5).
+2. **Optional (`DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY` on):** Native delivery triggered from local handoff event instead of `assigned-task.signal`. Ship separately from core P3; not required for P3 merge.
+
+### Toward outcome
+
+Breaks the largest CLI → Convex → signal → daemon loop. Handoff is locally authoritative.
+
+### Ship checklist
+
+- [ ] Flag off: handoff via Convex unchanged; existing tests pass
+- [ ] Flag on: planner → builder handoff E2E (task created, message visible in webapp)
+- [ ] Idempotent projection: replay handoff event is no-op
+- [ ] P3_LOCAL_DELIVERY (if enabled): delivery without waiting for assigned-task signal
+
 ---
 
 ## Goal
@@ -96,16 +126,13 @@ Route `chatroom handoff` through daemon HTTP on localhost. Daemon executes hando
 - Flag on: handoff completes without `messages.handoff` Convex call (mock/assert)
 - End-to-end: planner handoff → builder receives task via existing delivery path
 
-### P3-T5 — Stop relying on assigned-task signal for handoff delivery `[shrink]`
+### P3-T5 — Local delivery from handoff event (optional sub-flag) `[shrink]`
 
 **Modify:**
 
-- `packages/cli/src/daemon/entry/native-delivery/` — when P3 on, delivery triggered from local handoff event, not `assigned-task.signal` subscriber
+- `packages/cli/src/daemon/entry/native-delivery/` — when `DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY` on, delivery triggered from local handoff event, not `assigned-task.signal` subscriber
 
-**Verify:**
-
-- `pnpm --filter chatroom-cli test native-delivery` passes
-- Handoff → delivery without `assigned-task-signals` subscriber firing (P3+P5 combo; can stub in P3)
+**Note:** This todo is **optional within P3**. P3 is shippable without it. Full signal removal happens in P5.
 
 ---
 

@@ -4,6 +4,36 @@
 **Depends on:** [P1](./p1-outbox-drain.md)  
 **Feature flag:** `DAEMON_ORCHESTRATION_P2` — when off, task monitor continues Convex snapshot WS.
 
+## Shippability
+
+**Shippable alone:** Yes — with P1 complete (projection path for read-model sync); P3/P4 not required.
+
+### What ships
+
+- SQLite read models for tasks, participants, agents, handoffs
+- Hydration from Convex on startup
+- Shadow mode: models stay in sync; task monitor still uses Convex snapshots for decisions
+
+### Flag-off guarantee
+
+No new tables used for orchestration. Task monitor uses `listMachineAssignedTaskSnapshots` WS exactly as today.
+
+### Progressive rollout
+
+1. **Shadow (P2 on, cutover off):** Populate and maintain read models from Convex hydrate + inbound events. Task monitor **continues** Convex snapshot WS for nudge/delivery decisions. Read models used for observability, local-web, and parity tests only.
+2. **Cutover (`DAEMON_ORCHESTRATION_P2_CUTOVER` on):** Task monitor and restart orchestrator read local read models; disable Convex snapshot WS subscription.
+
+### Toward outcome
+
+Single local source for orchestration reads — removes Convex WS churn on hot path when cutover enabled.
+
+### Ship checklist
+
+- [ ] Flag off: task monitor behavior unchanged
+- [ ] Shadow: read model rows match Convex snapshot after hydrate (parity test)
+- [ ] Cutover: nudge/delivery works without snapshot WS; webapp status via P1 projection (T3)
+- [ ] Rollback: disable P2 cutover → reverts to Convex WS without data loss
+
 ---
 
 ## Goal
@@ -66,17 +96,17 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 - After hydrate, local task rows match Convex snapshot for same machine
 - Re-hydrate is idempotent (upsert semantics)
 
-### P2-T4 — Task monitor reads local read models `[modify]`
+### P2-T4 — Task monitor reads local read models (cutover-gated) `[modify]`
 
 **Modify:**
 
-- `packages/cli/src/daemon/entry/task-monitor-runtime.ts` — when P2 on, replace `listMachineAssignedTaskSnapshots` WS `onUpdate` with read model queries + local event updates
+- `packages/cli/src/daemon/entry/task-monitor-runtime.ts` — when `DAEMON_ORCHESTRATION_P2_CUTOVER` on (not merely P2), replace `listMachineAssignedTaskSnapshots` WS `onUpdate` with read model queries + local event updates. When P2 on but cutover off, keep Convex WS; additionally update read models in parallel (shadow).
 - `packages/cli/src/daemon/entry/task-monitor/task-monitor-snapshot.ts` — accept local row shape (or adapter from read model)
 - `packages/cli/src/daemon/entry/restart-orchestrator.ts` — read tasks from `read-models/tasks.ts` instead of Convex query
 
-**Delete (when P2 flag on and verified):**
+**Delete (only when P2 cutover on and verified):**
 
-- Remove hot-path `api.machines.listMachineAssignedTaskSnapshots` subscription in `task-monitor-runtime.ts` (keep behind flag off)
+- Remove hot-path `api.machines.listMachineAssignedTaskSnapshots` subscription in `task-monitor-runtime.ts` (keep behind cutover flag; P2 flag alone does not remove it)
 
 **Verify:**
 
@@ -104,6 +134,7 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 - [ ] Convex snapshot WS not required for nudge/delivery decisions
 - [ ] Webapp still sees task/agent status via projection (T3)
 - [ ] `pnpm turbo run typecheck test --filter=chatroom-cli` green
+- [ ] Shadow mode (P2 on, cutover off) shippable independently
 
 ## Rollback
 

@@ -4,6 +4,36 @@
 **Depends on:** [P0](./p0-discovery.md)  
 **Feature flag:** `DAEMON_ORCHESTRATION_P1` — when off, skip drain worker startup; existing direct Convex publishers remain hot path.
 
+## Shippability
+
+**Shippable alone:** Yes — with P0 complete; no later phase required.
+
+### What ships
+
+- Async Convex projection infrastructure (outbox drain worker, handlers, retry)
+- Offline → online catch-up for outbound events
+- Foundation for all later phases (no orchestration moves yet)
+
+### Flag-off guarantee
+
+Daemon starts unchanged. No drain loop. Publisher registry uses direct Convex publish only (today's behavior).
+
+### Progressive rollout
+
+1. **Shadow (P1 flag on, cutover off):** Enqueue outbox after SQLite append; drain worker projects to Convex in parallel. Direct publishers remain authoritative. Compare projection output vs direct publish in logs/tests (no user-visible change).
+2. **Cutover (`DAEMON_ORCHESTRATION_P1_CUTOVER` on):** Disable direct Convex publish per event type; outbox drain is sole write path. Ship cutover only after shadow soak (≥1 week dev usage or explicit sign-off).
+
+### Toward outcome
+
+Proves daemon → SQLite → Convex projection path with retry — prerequisite for moving orchestration local without Convex round-trips.
+
+### Ship checklist
+
+- [ ] Flag off: `pnpm turbo run typecheck test --filter=chatroom-cli` green; manual smoke (handoff, delivery) unchanged
+- [ ] Flag on, cutover off: shadow projection runs; Convex state matches direct publish (parity test or log diff)
+- [ ] Flag on, cutover on: no duplicate Convex mutations for covered event types
+- [ ] Offline soak: pending outbox drains on reconnect
+
 ---
 
 ## Goal
@@ -71,19 +101,21 @@ Wire the existing SQLite outbox (`infrastructure/persistence/outbox.ts`) to a Co
 - With flag **on**: drain loop runs; logs show batch drain activity
 - `pnpm turbo run typecheck test --filter=chatroom-cli` green both flag states
 
-### P1-T4 — Publisher registry enqueues outbox (dual-path transitional) `[modify]`
+### P1-T4 — Publisher registry shadow enqueue `[modify]`
 
 **Modify:**
 
-- `packages/cli/src/daemon/entry/publisher-registry.ts` — when P1 flag on, after SQLite append also `enqueueOutbox`; Convex direct publish becomes fallback-only or removed per-event-type behind sub-flag
+- `packages/cli/src/daemon/entry/publisher-registry.ts` — when `DAEMON_ORCHESTRATION_P1` on (and cutover **off**), after SQLite append also `enqueueOutbox`; **keep** direct Convex publish as authoritative (shadow mode)
+- Add cutover branch: when `DAEMON_ORCHESTRATION_P1_CUTOVER` on, skip direct Convex publish for event types with projection handlers; outbox drain is sole write path
 
-**Delete:** Nothing yet — keep direct publishers until P3+ validates projection path.
+**Delete:** Nothing in P1 — direct publishers remain until cutover sub-flag enabled.
 
 **Verify:**
 
+- Shadow mode: both outbox row created AND direct publish succeeds; Convex receives exactly one write (from direct publish, not duplicate from drain)
+- Cutover mode: only outbox drain writes to Convex; grep confirms no direct `api.*` calls for covered types
 - `harness.stream` events do **not** enqueue outbox (T0 — local only)
 - `task.status` events enqueue with T3 tier
-- Outbox row `target = 'convex'` matches existing schema
 
 ---
 
@@ -94,6 +126,8 @@ Wire the existing SQLite outbox (`infrastructure/persistence/outbox.ts`) to a Co
 - [ ] Offline → online: pending outbox rows drain on reconnect
 - [ ] `pnpm turbo run typecheck test --filter=chatroom-cli` green
 - [ ] No change to webapp behavior (projections produce same Convex state as direct publishers)
+- [ ] Shadow mode shippable without cutover sub-flag
+- [ ] Cutover sub-flag documented and gated behind soak checklist
 
 ## Rollback
 

@@ -4,6 +4,35 @@
 **Depends on:** [P3](./p3-handoff-local.md)  
 **Feature flag:** `DAEMON_ORCHESTRATION_P6` — per-command sub-flags optional.
 
+## Shippability
+
+**Shippable alone:** Yes — per-command sub-flags; P4/P5 not required (only P3 for HTTP server + P2 for read models).
+
+### What ships
+
+- `get-next-task`, `messages *`, `context *`, `task read` via daemon HTTP (per sub-flag)
+- Agents read/claim from daemon SSOT when enabled
+
+### Flag-off guarantee
+
+All CLI commands continue Convex-first paths — identical to today.
+
+### Progressive rollout
+
+1. Ship each command behind its own sub-flag (e.g. `DAEMON_ORCHESTRATION_P6_GET_NEXT_TASK`, `..._MESSAGES`, etc.) or enable P6 incrementally per todo.
+2. **Legacy deletion (`DAEMON_ORCHESTRATION_P6_LEGACY_DELETE`):** Only after all P6 sub-flags on and soaked ≥2 weeks. Removes Convex fallbacks — separate PR from initial P6 commands.
+
+### Toward outcome
+
+Agents use daemon as SSOT; completes CLI migration per discovery §4.3.
+
+### Ship checklist
+
+- [ ] Each command sub-flag: parity test vs Convex path before enabling
+- [ ] Flag off: all commands unchanged
+- [ ] Receipt lifecycle preserved (`docs/plans/task-lifecycle-refactor-test-matrix.md` scenarios 1–7)
+- [ ] LEGACY_DELETE: only after soak; grep confirms zero `api.messages.handoff` / `api.tasks.claimTask` in commands when all flags on
+
 ---
 
 ## Goal
@@ -79,9 +108,11 @@ Route remaining agent harness commands through daemon HTTP: `get-next-task`, `ta
 - `pnpm --filter @workspace/backend test tasks messages` passes
 - Multi-machine: Convex remains authority for cross-machine conflicts (document in test)
 
-### P6-T5 — Remove legacy Convex-first paths `[delete]`
+### P6-T5 — Remove legacy Convex-first paths (post-soak only) `[delete]`
 
-**Delete (when all P6 sub-flags on and soak complete):**
+**Prerequisite:** `DAEMON_ORCHESTRATION_P6_LEGACY_DELETE` enabled only after all P6 command sub-flags on and soaked ≥2 weeks.
+
+**Delete (when LEGACY_DELETE on):**
 
 - Convex direct-call fallbacks in `commands/handoff/`, `commands/get-next-task/`
 - `infrastructure/convex/publishers/` — entire folder if all types migrated to projection handlers
@@ -92,6 +123,8 @@ Route remaining agent harness commands through daemon HTTP: `get-next-task`, `ta
 - Grep `api.messages.handoff`, `api.tasks.claimTask` in `packages/cli/src/commands/` — zero hits
 - `pnpm turbo run typecheck test --filter=chatroom-cli --filter=@workspace/backend` green
 - Manual QA matrix from `docs/plans/task-lifecycle-refactor-test-matrix.md` scenarios 1–7 pass
+
+**Note:** P6 is shippable without T5. T5 is a separate cleanup slice after soak.
 
 ---
 

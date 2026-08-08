@@ -4,6 +4,36 @@
 **Depends on:** [P3](./p3-handoff-local.md), [P4](./p4-lifecycle-local.md)  
 **Feature flag:** `DAEMON_ORCHESTRATION_P5` — when off, full 16-subscriber registry remains.
 
+## Shippability
+
+**Shippable alone:** Yes — but only after **P3 and P4 have soaked** with flags on in dev/staging (see Ship checklist).
+
+### What ships
+
+- Orchestration Convex subscribers removed (assigned-task signals/presence, enhancer-job)
+- Publisher registry becomes event-store + outbox only (no direct Convex)
+- Inbound user-intent subscribers consolidated under `infrastructure/inbound/convex/`
+
+### Flag-off guarantee
+
+Full 16-subscriber registry remains; direct publishers remain on hot path.
+
+### Progressive rollout
+
+Single cutover phase — no shadow mode. Requires P3 handoff + P4 lifecycle already proven locally. Do not merge P5 until P3+P4 soak checklist complete.
+
+### Toward outcome
+
+Daemon stops subscribing to self-projected orchestration state — eliminates feedback loops and WS churn.
+
+### Ship checklist
+
+- [ ] **Soak gate:** P3 on ≥1 week AND P4 on ≥1 week in dev (or explicit sign-off) with zero orchestration regressions
+- [ ] Flag off: all 16 subscribers registered; behavior unchanged
+- [ ] Flag on: handoff → delivery → lifecycle E2E without assigned-task signal subscriber
+- [ ] File/git/direct-harness inbound still works
+- [ ] Rollback: re-enable full subscriber registry via flag off
+
 ---
 
 ## Goal

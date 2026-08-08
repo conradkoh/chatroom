@@ -4,6 +4,36 @@
 **Depends on:** [P2](./p2-local-read-models.md)  
 **Feature flag:** `DAEMON_ORCHESTRATION_P4` — when off, APM uses direct Convex `emit*` mutations.
 
+## Shippability
+
+**Shippable alone:** Yes — with P2 complete; **parallel with P3** (no dependency on P3).
+
+### What ships
+
+- APM emits local lifecycle events; read models update synchronously
+- Batched `emit*` via projection (reduced Convex mutation churn)
+- Local enhancer queue (replaces Convex pending poll)
+
+### Flag-off guarantee
+
+APM continues direct `api.machines.emit*` / `api.participants.*` mutations — identical to today.
+
+### Progressive rollout
+
+1. **P4 on:** APM appends local events + updates read models; projection worker batches to Convex. Direct mutations disabled on APM hot path.
+2. Enhancer: local queue replaces Convex subscriber poll; subscriber **registration** removed in P5 (not P4).
+
+### Toward outcome
+
+Reduces per-tick Convex mutations; lifecycle decisions become local-first.
+
+### Ship checklist
+
+- [ ] Flag off: agent start/stop/exit unchanged
+- [ ] Flag on: agent lifecycle E2E; webapp agent status within T3 SLA
+- [ ] Enhancer: planner → enhancer handoff spawns via local queue
+- [ ] Convex `emit*` call count drops on hot path (log/metric assertion)
+
 ---
 
 ## Goal
@@ -75,9 +105,7 @@ Agent process manager emits local domain lifecycle events; read models update sy
 - `packages/cli/src/daemon/entry/enhancer/job-subscriber.ts` — when P4 on, poll local queue instead of Convex `daemon.enhancer.index.pendingForMachine`
 - `packages/cli/src/daemon/application/use-cases/handoff/execute-handoff.ts` — enqueue enhancer locally on planner→enhancer handoff
 
-**Delete (when P4 on and verified):**
-
-- `packages/cli/src/daemon/infrastructure/convex/subscribers/enhancer-job.ts` registration (move to P5)
+**Delete:** Defer enhancer subscriber deregistration to [P5-T2](./p5-subscriber-shrink.md). P4 only switches `job-subscriber.ts` to poll local queue when P4 on.
 
 **Verify:**
 
