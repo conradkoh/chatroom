@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { AlertTriangle, ArrowUp, Code2, X } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Code2, Paperclip, X } from 'lucide-react';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 
 import {
@@ -304,15 +304,24 @@ export function MessageInput({
     },
   });
 
-  const { uploadJobs, isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } =
-    useChatInputFileDrop({
-      machineId,
-      workingDir,
-      message,
-      setMessage,
-      textareaRef,
-      onUploadComplete,
-    });
+  const {
+    uploadJobs,
+    isDragging,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+    fileInputRef,
+    handleAttachClick,
+    handleFileInputChange,
+  } = useChatInputFileDrop({
+    machineId,
+    workingDir,
+    message,
+    setMessage,
+    textareaRef,
+    onUploadComplete,
+  });
 
   const hasActiveUploads = uploadJobs.some(
     (job) => job.phase === 'uploading' || job.phase === 'finalizing'
@@ -569,6 +578,30 @@ export function MessageInput({
             >
               <Code2 size={16} />
             </button>
+          )}
+
+          {/* File picker button (touch devices only) */}
+          {isTouchDevice && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFileInputChange}
+                aria-hidden
+                tabIndex={-1}
+              />
+              <button
+                type="button"
+                onClick={handleAttachClick}
+                title="Attach files"
+                aria-label="Attach files"
+                className="p-1.5 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none transition-colors"
+              >
+                <Paperclip size={16} />
+              </button>
+            </>
           )}
 
           {/* Send button: icon-only, circular */}
