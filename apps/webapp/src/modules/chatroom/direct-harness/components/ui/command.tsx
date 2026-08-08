@@ -97,9 +97,7 @@ function CommandGroup({
 
 function CommandItem({
   className,
-  onMouseDown,
   onPointerDown,
-  onTouchStart,
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Item>) {
   return (
@@ -110,19 +108,10 @@ function CommandItem({
         className
       )}
       onPointerDown={(event) => {
-        // Prevent input blur before selection on touch/pointer (cmdk onSelect).
+        // Prevent command input blur before cmdk onSelect on pointer/touch paths.
+        // Mirrors apps/webapp/src/components/ui/command.tsx after mutation testing.
         event.preventDefault();
         onPointerDown?.(event);
-      }}
-      onTouchStart={(event) => {
-        // Belt-and-suspenders for browsers that blur on touchstart before pointerdown.
-        event.preventDefault();
-        onTouchStart?.(event);
-      }}
-      onMouseDown={(event) => {
-        // Prevent input blur before click in portaled command dialogs (cmdk onSelect).
-        event.preventDefault();
-        onMouseDown?.(event);
       }}
       {...props}
     />
