@@ -199,6 +199,21 @@ describe('SavedCommandModal component', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('renders at Z_FLOATING so it stacks above the command dialog', () => {
+    const { container } = render(
+      <SavedCommandModal
+        isOpen={true}
+        chatroomId="room-1"
+        onClose={vi.fn()}
+        existingNamesByScope={emptyNamesByScope}
+      />
+    );
+
+    const overlay = container.querySelector('div[class*="z-[100]"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.querySelector('[role="dialog"]')).not.toBeNull();
+  });
+
   it('duplicate name shows inline error and does not call mutation', async () => {
     const onClose = vi.fn();
     render(

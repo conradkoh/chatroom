@@ -497,6 +497,12 @@ Portaled menus stay at `Z_MODAL` (z-50); inside modals they elevate via the port
 
 **Rule:** Any portaled interactive UI that opens _inside_ a modal must use `Z_FLOATING`. Base modals use `Z_MODAL` (z-50); nested/floating dialogs stack above via z-[100].
 
+### Global shadcn UI (`components/ui/*`)
+
+Non-chatroom pages keep inline `z-50` on `components/ui/dialog`, `dropdown-menu`, `popover`, etc. These mirror `Z_MODAL` semantically but intentionally do **not** import `overlayLayers.ts` to avoid coupling generic UI primitives to the chatroom module. Chatroom-scoped overlays must use `overlayLayers` constants.
+
+`releaseBodyPointerLock` (body pointer-events/overflow safety net on dialog close) is wired on both the chatroom `Dialog` root and the global `components/ui/dialog` root.
+
 ### Dialog layout contracts
 
 Chatroom Dialog (`modules/chatroom/components/ui/dialog.tsx`) has two consumer layout patterns:
