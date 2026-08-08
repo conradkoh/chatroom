@@ -10,6 +10,8 @@ const {
   startLocalWebServer,
   createPersistenceStore,
   createDaemonDeps,
+  startOutboxDrainWorker,
+  createConvexProjectionAdapter,
   runFork,
   runPromise,
 } = vi.hoisted(() => ({
@@ -20,6 +22,11 @@ const {
   startLocalWebServer: vi.fn(),
   createPersistenceStore: vi.fn(),
   createDaemonDeps: vi.fn(),
+  startOutboxDrainWorker: vi.fn(() => ({ stop: vi.fn() })),
+  createConvexProjectionAdapter: vi.fn(() => ({
+    project: vi.fn(),
+    validateProjectable: vi.fn(),
+  })),
   runFork: vi.fn(),
   runPromise: vi.fn().mockResolvedValue(undefined),
 }));
@@ -71,6 +78,14 @@ vi.mock('../infrastructure/persistence/index.js', () => ({
   createPersistenceStore,
 }));
 
+vi.mock('../infrastructure/projection/outbox-drain-worker.js', () => ({
+  startOutboxDrainWorker,
+}));
+
+vi.mock('../infrastructure/projection/convex/convex-projection-adapter.js', () => ({
+  createConvexProjectionAdapter,
+}));
+
 vi.mock('./deps.js', () => ({
   createDaemonDeps,
 }));
@@ -98,7 +113,7 @@ describe('startDaemon', () => {
       machineId: 'machine-1',
     });
 
-    createPersistenceStore.mockReturnValue({ close: persistenceClose });
+    createPersistenceStore.mockReturnValue({ close: persistenceClose, db: {} });
     createDaemonDeps.mockReturnValue({ streamHub: { publish: vi.fn(), subscribe: vi.fn() } });
 
     startLocalWebServer.mockResolvedValue({
@@ -155,6 +170,29 @@ describe('startDaemon', () => {
             deliverInbound: expect.any(Function),
           }),
         }),
+      })
+    );
+  });
+
+  it('does not start outbox drain worker by default', async () => {
+    await startDaemon();
+
+    expect(startOutboxDrainWorker).not.toHaveBeenCalled();
+  });
+
+  it('starts outbox drain worker when DAEMON_ORCHESTRATION_P1 is set', async () => {
+    process.env.DAEMON_ORCHESTRATION_P1 = '1';
+    try {
+      await startDaemon();
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P1;
+    }
+
+    expect(startOutboxDrainWorker).toHaveBeenCalledOnce();
+    expect(createConvexProjectionAdapter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        machineId: 'machine-1',
       })
     );
   });

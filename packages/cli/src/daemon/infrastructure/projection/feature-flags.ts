@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 function envTruthy(value: string | undefined): boolean {
   return value === '1' || value === 'true';
 }
