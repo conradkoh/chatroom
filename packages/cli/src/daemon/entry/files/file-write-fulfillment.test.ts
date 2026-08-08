@@ -577,6 +577,97 @@ describe('fulfillFileWriteRequestsEffect', () => {
     );
     await expect(access(join(workingDir, 'notes.md'))).rejects.toThrow();
   });
+
+  it('skips fulfillment when the claim reports stale', async () => {
+    const filePath = 'claimed-elsewhere.md';
+    const absolutePath = join(workingDir, filePath);
+    const request = makeRequest(workingDir, filePath, 'create', 'never written');
+
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
+      backend: {
+        mutation: vi
+          .fn()
+          .mockImplementation(async (_apiRef: string, args: Record<string, unknown>) => {
+            if ('expectedRevision' in args) return { status: 'stale' };
+            return undefined;
+          }),
+        query: vi.fn().mockResolvedValue([request]),
+      },
+    });
+
+    await Effect.runPromise(
+      fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+    );
+
+    await expect(access(absolutePath)).rejects.toThrow();
+    expect(init.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ expectedRevision: 1 })
+    );
+    expect(init.backend.mutation).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: expect.anything() })
+    );
+  });
+
+  it('create uses exclusive write and reports File already exists on EEXIST', async () => {
+    const filePath = 'atomic-create.md';
+    const absolutePath = join(workingDir, filePath);
+    await writeFile(absolutePath, 'raced in first');
+
+    const backend = await runFulfillment([makeRequest(workingDir, filePath, 'create', 'second')]);
+
+    const content = await readFile(absolutePath, 'utf8');
+    expect(content).toBe('raced in first');
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'File already exists',
+      })
+    );
+  });
+
+  it('blocks storage-backed create to sensitive path but allows inline create', async () => {
+    const storageRequest: FulfillmentRequest = {
+      _id: 'req-storage-secret',
+      revision: 1,
+      workingDir,
+      filePath: '.git/config',
+      operation: 'create',
+      storageId: 'storage-1',
+    };
+
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
+      backend: {
+        mutation: createClaimAwareMutation([storageRequest]),
+        query: vi.fn().mockResolvedValue([storageRequest]),
+      },
+    });
+
+    await Effect.runPromise(
+      fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+    );
+
+    expect(init.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: expect.stringMatching(/blocked/i),
+      })
+    );
+    await expect(access(join(workingDir, '.git/config'))).rejects.toThrow();
+  });
 });
 
 describe('unsupportedFileWriteOperationMessage', () => {
