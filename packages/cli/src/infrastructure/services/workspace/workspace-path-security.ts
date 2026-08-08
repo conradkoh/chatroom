@@ -21,16 +21,38 @@ export function isPathInsideRoot(workspaceRoot: string, targetPath: string): boo
   return true;
 }
 
-async function realpathNearestExistingAncestor(startPath: string): Promise<string | null> {
-  let current = startPath;
+function assertContained(workspaceRoot: string, targetPath: string): PathResult | { ok: true } {
+  if (!isPathInsideRoot(workspaceRoot, targetPath)) {
+    return { ok: false, error: 'Path escapes workspace' };
+  }
+  return { ok: true };
+}
+
+// fallow-ignore-next-line complexity
+async function resolveNonExistentTarget(
+  workspaceRoot: string,
+  candidate: string
+): Promise<PathResult> {
+  let current = dirname(candidate);
   for (;;) {
     try {
-      return await realpath(current);
+      const ancestorReal = await realpath(current);
+      const ancestorCheck = assertContained(workspaceRoot, ancestorReal);
+      if (!ancestorCheck.ok) return ancestorCheck;
+      const suffix = relative(current, candidate);
+      const resolved = resolve(ancestorReal, suffix);
+      const resolvedCheck = assertContained(workspaceRoot, resolved);
+      if (!resolvedCheck.ok) return resolvedCheck;
+      return { ok: true, absolutePath: resolved };
     } catch (err) {
       const code = (err as NodeJS.ErrnoException)?.code;
-      if (code !== 'ENOENT') return null;
+      if (code !== 'ENOENT') {
+        return { ok: false, error: 'Invalid file path' };
+      }
       const parent = dirname(current);
-      if (parent === current) return null;
+      if (parent === current) {
+        return { ok: false, error: 'Path escapes workspace' };
+      }
       current = parent;
     }
   }
@@ -62,9 +84,8 @@ export async function resolvePathWithinWorkspace(
 
   try {
     const resolved = await realpath(candidate);
-    if (!isPathInsideRoot(workspaceRoot, resolved)) {
-      return { ok: false, error: 'Path escapes workspace' };
-    }
+    const containment = assertContained(workspaceRoot, resolved);
+    if (!containment.ok) return containment;
     return { ok: true, absolutePath: resolved };
   } catch (err) {
     const code = (err as NodeJS.ErrnoException)?.code;
@@ -72,16 +93,7 @@ export async function resolvePathWithinWorkspace(
       return { ok: false, error: 'Invalid file path' };
     }
 
-    const parent = dirname(candidate);
-    const ancestorReal = await realpathNearestExistingAncestor(parent);
-    if (!ancestorReal || !isPathInsideRoot(workspaceRoot, ancestorReal)) {
-      return { ok: false, error: 'Path escapes workspace' };
-    }
-    const resolved = resolve(ancestorReal, relative(workspaceRoot, candidate));
-    if (!isPathInsideRoot(workspaceRoot, resolved)) {
-      return { ok: false, error: 'Path escapes workspace' };
-    }
-    return { ok: true, absolutePath: resolved };
+    return resolveNonExistentTarget(workspaceRoot, candidate);
   }
 }
 

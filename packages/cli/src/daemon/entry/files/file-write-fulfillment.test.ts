@@ -70,6 +70,7 @@ function createClaimAwareMutation(requests: FulfillmentRequest[]) {
           targetFilePath: request.targetFilePath,
           data: request.data,
           storageId: request.storageId,
+          uploadKind: request.uploadKind,
         },
       };
     }
@@ -667,6 +668,45 @@ describe('fulfillFileWriteRequestsEffect', () => {
       })
     );
     await expect(access(join(workingDir, '.git/config'))).rejects.toThrow();
+  });
+
+  it('completes invalid chat attachment path as terminal error', async () => {
+    const storageRequest: FulfillmentRequest = {
+      _id: 'req-invalid-attachment',
+      revision: 1,
+      workingDir,
+      filePath: '.chatroom/downloads/attachments/files/not-valid.txt',
+      operation: 'create',
+      storageId: 'storage-1',
+      uploadKind: 'chatAttachment',
+    };
+
+    const init = createMockDaemonSessionInit({
+      machineId: 'machine-write-test',
+      workspaceListStore: {
+        workspaces: [{ workingDir }],
+        updatedAt: Date.now(),
+      },
+      backend: {
+        mutation: createClaimAwareMutation([storageRequest]),
+        query: vi.fn().mockResolvedValue([storageRequest]),
+      },
+    });
+
+    await Effect.runPromise(
+      fulfillFileWriteRequestsEffect.pipe(Effect.provide(daemonSessionToLayers(init)))
+    );
+
+    expect(init.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Invalid attachment path',
+      })
+    );
+    await expect(
+      access(join(workingDir, '.chatroom/downloads/attachments/files/not-valid.txt'))
+    ).rejects.toThrow();
   });
 });
 
