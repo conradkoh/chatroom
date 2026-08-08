@@ -1,9 +1,10 @@
 import type { OutboundEvent } from '../domain/entities/outbound-event.js';
 import type { ConvexPublisherDeps } from '../infrastructure/convex/publishers/publisher-deps.js';
+import { isDaemonOrchestrationP1CutoverEnabled } from '../infrastructure/projection/feature-flags.js';
 import type { PersistenceStore } from '../infrastructure/persistence/index.js';
 import {
   createConvexPublishers,
-  routeConvexEvent,
+  getConvexEventHandler,
 } from '../infrastructure/projection/convex/route-outbound-event.js';
 import type { StreamHub } from '../local-web/server/stream-hub.js';
 
@@ -40,7 +41,13 @@ export function createPublisherRegistry(deps: PublisherRegistryDeps = {}): Publi
 
       if (!publishers) return;
 
-      return routeConvexEvent(publishers, event);
+      const handler = getConvexEventHandler(publishers, event);
+      if (isDaemonOrchestrationP1CutoverEnabled() && handler) {
+        // cutover: outbox drain is the sole Convex writer — skip direct publish
+        return;
+      }
+
+      await handler?.(event);
     },
   };
 }

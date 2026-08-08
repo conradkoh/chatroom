@@ -66,4 +66,59 @@ describe('createPublisherRegistry', () => {
       registry.publish({ type: 'heartbeat', machineId: 'm-1' })
     ).resolves.toBeUndefined();
   });
+
+  it('routes heartbeat to convex by default (P1 cutover off)', async () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    const registry = createPublisherRegistry({
+      backend: { mutation, query: vi.fn() },
+      sessionId: 'sess-1',
+      machineId: 'machine-1',
+    });
+
+    await registry.publish({ type: 'heartbeat', machineId: 'machine-1' });
+
+    expect(mutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips direct convex publish when P1_CUTOVER enabled and handler exists', async () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    const registry = createPublisherRegistry({
+      backend: { mutation, query: vi.fn() },
+      sessionId: 'sess-1',
+      machineId: 'machine-1',
+    });
+
+    process.env.DAEMON_ORCHESTRATION_P1_CUTOVER = '1';
+    try {
+      await registry.publish({ type: 'heartbeat', machineId: 'machine-1' });
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P1_CUTOVER;
+    }
+
+    expect(mutation).not.toHaveBeenCalled();
+  });
+
+  it('never routes harness.stream to convex', async () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    const streamHub = createStreamHub();
+    const received: string[] = [];
+    streamHub.subscribe((event) => received.push(event.line));
+
+    const registry = createPublisherRegistry({
+      backend: { mutation, query: vi.fn() },
+      sessionId: 'sess-1',
+      machineId: 'machine-1',
+      streamHub,
+    });
+    await registry.publish({
+      type: 'harness.stream',
+      harness: 'h1',
+      stream: 'stdout',
+      line: 'hello',
+      timestamp: 1,
+    });
+
+    expect(mutation).not.toHaveBeenCalled();
+    expect(received).toEqual(['hello']);
+  });
 });
