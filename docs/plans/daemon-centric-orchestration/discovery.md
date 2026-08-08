@@ -2,7 +2,8 @@
 
 **Status:** Discovery — architectural decisions resolved (no implementation)  
 **Branch:** `docs/daemon-centric-orchestration-discovery`  
-**Related:** [Convex → Daemon incremental sync](../../packages/cli/src/infrastructure/incremental-sync/README.md), [daemon persistence](../../packages/cli/src/daemon/infrastructure/persistence/README.md), [local web](../../packages/cli/src/daemon/local-web/README.md)
+**Related:** [Convex → Daemon incremental sync](../../../packages/cli/src/infrastructure/incremental-sync/README.md), [daemon persistence](../../../packages/cli/src/daemon/infrastructure/persistence/README.md), [local web](../../../packages/cli/src/daemon/local-web/README.md)  
+**Plan folder:** [overview.md](./overview.md) · discovery (this doc)
 
 ---
 
@@ -434,6 +435,8 @@ packages/cli/src/daemon/
 │
 └── local-web/                   # existing — local UI over read models
 ```
+
+> **Note:** Detailed target structure with migration mapping and open questions is in [overview.md](./overview.md).
 
 ### 6.3 Shared contracts (cross-cutting)
 
