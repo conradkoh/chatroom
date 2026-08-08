@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import type { DatabaseSync } from 'node:sqlite';
 
 import type { OutboundEvent } from '../../domain/entities/outbound-event.js';
