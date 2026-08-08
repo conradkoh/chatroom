@@ -13,13 +13,11 @@ export function isDaemonOrchestrationP1CutoverEnabled(): boolean {
 }
 
 /** DAEMON_ORCHESTRATION_P2 — hydrate and shadow-sync local read models */
-// fallow-ignore-next-line unused-export
 export function isDaemonOrchestrationP2Enabled(): boolean {
   return envTruthy(process.env.DAEMON_ORCHESTRATION_P2);
 }
 
 /** DAEMON_ORCHESTRATION_P2_CUTOVER — task monitor reads local read models instead of Convex snapshot WS */
-// fallow-ignore-next-line unused-export
 export function isDaemonOrchestrationP2CutoverEnabled(): boolean {
   return envTruthy(process.env.DAEMON_ORCHESTRATION_P2_CUTOVER);
 }
