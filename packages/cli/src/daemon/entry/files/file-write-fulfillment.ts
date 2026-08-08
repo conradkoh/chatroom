@@ -8,6 +8,7 @@
 import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
+import { getInvalidChatAttachmentUploadPathReason } from '@workspace/backend/src/domain/constants/chat-attachment-upload-path.js';
 import { getBlockedUploadTargetReason } from '@workspace/backend/src/domain/constants/workspace-upload-path-policy.js';
 import { MAX_WORKSPACE_UPLOAD_BYTES } from '@workspace/backend/src/domain/constants/workspace-upload.js';
 import { Effect } from 'effect';
@@ -29,6 +30,8 @@ const MAX_INLINE_CONTENT_BYTES = 512 * 1024;
 /** Max storage-backed upload size (70MB) — matches backend MAX_WORKSPACE_UPLOAD_BYTES. */
 const MAX_UPLOAD_CONTENT_BYTES = MAX_WORKSPACE_UPLOAD_BYTES;
 
+const CHAT_ATTACHMENT_RESERVED_PREFIX = '.chatroom/downloads/attachments/';
+
 export type PendingFileWriteRequest = {
   _id: string;
   revision: number;
@@ -38,6 +41,7 @@ export type PendingFileWriteRequest = {
   targetFilePath?: string;
   data?: { compression: 'gzip'; content: string };
   storageId?: string;
+  uploadKind?: 'chatAttachment';
 };
 
 /** Errors that will not succeed on retry — complete request as terminal error. */
@@ -56,9 +60,27 @@ function isTerminalFileWriteError(errorMessage: string): boolean {
     'Directory already exists',
     'Workspace not registered for this machine',
     'Cannot upload to this location (.git and sensitive paths are blocked)',
+    'Invalid attachment path',
   ]);
   if (errorMessage.startsWith('Unsupported file write operation')) return true;
   return terminalMessages.has(errorMessage);
+}
+
+function getChatAttachmentValidationError(request: {
+  uploadKind?: 'chatAttachment';
+  filePath: string;
+  storageId?: string;
+}): string | null {
+  if (request.uploadKind === 'chatAttachment') {
+    return getInvalidChatAttachmentUploadPathReason(request.filePath);
+  }
+  if (
+    request.storageId &&
+    request.filePath.replace(/\\/g, '/').startsWith(CHAT_ATTACHMENT_RESERVED_PREFIX)
+  ) {
+    return getInvalidChatAttachmentUploadPathReason(request.filePath);
+  }
+  return null;
 }
 
 async function completeWriteRequest(
@@ -85,6 +107,7 @@ type ClaimedFileWriteRequest = {
   targetFilePath?: string;
   data?: { compression: 'gzip'; content: string };
   storageId?: string;
+  uploadKind?: 'chatAttachment';
 };
 
 async function claimWriteRequest(
@@ -203,6 +226,15 @@ async function fulfillOneFileWriteRequest(
     await completeWriteRequest(session, claimed._id, claimed.revision, {
       status: 'error',
       errorMessage: registered.error,
+    });
+    return;
+  }
+
+  const attachmentReason = getChatAttachmentValidationError(claimed);
+  if (attachmentReason) {
+    await completeWriteRequest(session, claimed._id, claimed.revision, {
+      status: 'error',
+      errorMessage: attachmentReason,
     });
     return;
   }

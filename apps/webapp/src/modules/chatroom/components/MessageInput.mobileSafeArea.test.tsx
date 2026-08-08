@@ -1,8 +1,9 @@
 /**
  * MessageInput — mobile safe-area padding tests
  *
- * Verifies MessageInput (mid-stack, above WorkspaceBottomBar) applies only
- * horizontal safe-area padding and never owns the bottom inset.
+ * MessageInput must NOT apply horizontal safe-area padding on mobile.
+ * Horizontal alignment comes from px-2 on inner rows (same as desktop).
+ * Only WorkspaceBottomBar owns bottom + horizontal safe-area for the footer stack.
  */
 
 import { render } from '@testing-library/react';
@@ -33,19 +34,6 @@ vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: () => mockUseIsDesktop(),
 }));
 
-vi.mock('./shared/chatroomMobileSafeArea', () => ({
-  // Only the horizontal helper is exported: if MessageInput ever regresses to
-  // the full (bottom-inset) helper, the import becomes undefined and the render
-  // throws, failing this suite.
-  getChatroomMobileFooterHorizontalSafeAreaStyle: (mobile: boolean) =>
-    mobile
-      ? {
-          paddingLeft: '12px',
-          paddingRight: '13px',
-        }
-      : {},
-}));
-
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue('msg-id'),
 }));
@@ -58,8 +46,15 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-vi.mock('./EditorModal', () => ({
-  EditorModal: () => null,
+vi.mock('../hooks/useChatInputFileDrop', () => ({
+  useChatInputFileDrop: () => ({
+    uploadJobs: [],
+    isDragging: false,
+    handleDragEnter: vi.fn(),
+    handleDragLeave: vi.fn(),
+    handleDragOver: vi.fn(),
+    handleDrop: vi.fn(),
+  }),
 }));
 
 describe('MessageInput mobile safe-area', () => {
@@ -67,7 +62,7 @@ describe('MessageInput mobile safe-area', () => {
     mockUseIsDesktop.mockReturnValue(false);
   });
 
-  it('applies horizontal safe-area padding only on mobile (no paddingBottom)', () => {
+  it('does not apply horizontal safe-area padding on mobile', () => {
     render(
       <AttachmentsProvider>
         <MessageInput chatroomId="chatroom-1" />
@@ -75,8 +70,8 @@ describe('MessageInput mobile safe-area', () => {
     );
 
     const composer = document.querySelector('[data-main-chat-composer]') as HTMLElement;
-    expect(composer.style.paddingLeft).toBe('12px');
-    expect(composer.style.paddingRight).toBe('13px');
+    expect(composer.style.paddingLeft).toBe('');
+    expect(composer.style.paddingRight).toBe('');
     expect(composer.style.paddingBottom).toBe('');
   });
 

@@ -5,7 +5,7 @@
  * - File content: frontend requests content; daemon fulfills; cached in DB
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Id } from './_generated/dataModel';
@@ -23,6 +23,7 @@ import {
   validateFilePath,
 } from './workspacePathSecurity';
 import { requireAccess } from '../modules/auth/accessCheck';
+import { getInvalidChatAttachmentUploadPathReason } from '../src/domain/constants/chat-attachment-upload-path';
 import { MAX_WORKSPACE_UPLOAD_BYTES } from '../src/domain/constants/workspace-upload';
 import { getBlockedUploadTargetReason } from '../src/domain/constants/workspace-upload-path-policy';
 
@@ -48,6 +49,47 @@ const MAX_CONTENT_BYTES = 512 * 1024;
 
 /** Max pending requests returned per query (prevent unbounded reads). */
 const MAX_PENDING_REQUESTS = 50;
+
+const CHAT_ATTACHMENT_RESERVED_PREFIX = '.chatroom/downloads/attachments/';
+
+function validateChatAttachmentWriteRequest(args: {
+  uploadKind?: 'chatAttachment';
+  storageId?: Id<'_storage'>;
+  operation: string;
+  filePath: string;
+}): void {
+  if (args.uploadKind === 'chatAttachment') {
+    if (args.operation !== 'create' || !args.storageId) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: 'Chat attachments require create with storageId',
+        fields: ['uploadKind'],
+      });
+    }
+    const reason = getInvalidChatAttachmentUploadPathReason(args.filePath);
+    if (reason) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: reason,
+        fields: ['filePath'],
+      });
+    }
+  }
+
+  if (
+    args.storageId &&
+    args.filePath.replace(/\\/g, '/').startsWith(CHAT_ATTACHMENT_RESERVED_PREFIX)
+  ) {
+    const reason = getInvalidChatAttachmentUploadPathReason(args.filePath);
+    if (reason) {
+      throw new ConvexError({
+        code: 'VALIDATION_ERROR',
+        message: reason,
+        fields: ['filePath'],
+      });
+    }
+  }
+}
 
 /** Fast file write operations that supersede any pending request on the same path. */
 const FAST_FILE_WRITE_OPERATIONS = new Set(['delete', 'rename', 'mkdir']);
@@ -1432,6 +1474,7 @@ export const requestFileWrite = mutation({
     ),
     storageId: v.optional(v.id('_storage')),
     targetFilePath: v.optional(v.string()),
+    uploadKind: v.optional(v.literal('chatAttachment')),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -1488,6 +1531,8 @@ export const requestFileWrite = mutation({
         }
       }
 
+      validateChatAttachmentWriteRequest(args);
+
       if (args.storageId) {
         const metadata = await ctx.storage.getMetadata(args.storageId);
         if (!metadata) {
@@ -1526,6 +1571,8 @@ export const requestFileWrite = mutation({
     }
 
     const now = Date.now();
+    const uploadKindField =
+      args.uploadKind === 'chatAttachment' ? { uploadKind: 'chatAttachment' as const } : {};
     const requestPatch = {
       operation: args.operation,
       status: 'pending' as const,
@@ -1533,6 +1580,7 @@ export const requestFileWrite = mutation({
       requestedAt: now,
       updatedAt: now,
       claimedAt: undefined,
+      ...uploadKindField,
       ...(args.operation === 'rename'
         ? { data: undefined, storageId: undefined, targetFilePath: args.targetFilePath }
         : args.operation === 'delete' || args.operation === 'mkdir'
@@ -1563,6 +1611,7 @@ export const requestFileWrite = mutation({
           requestedAt: now,
           updatedAt: now,
           storageId: args.storageId,
+          ...uploadKindField,
         });
       } else {
         await ctx.db.patch('chatroom_workspaceFileWriteRequests', pendingRequest._id, {
@@ -1585,6 +1634,7 @@ export const requestFileWrite = mutation({
             requestedAt: now,
             updatedAt: now,
             storageId: args.storageId,
+            ...uploadKindField,
           }
         : {
             machineId: args.machineId,
@@ -1677,6 +1727,7 @@ export const claimFileWriteRequest = mutation({
         operation: request.operation,
         storageId: request.storageId,
         targetFilePath: request.targetFilePath,
+        uploadKind: request.uploadKind,
         data: request.storageId ? undefined : request.data,
       },
     };
@@ -1753,6 +1804,7 @@ export const getPendingFileWriteRequests = query({
       data: r.storageId ? undefined : r.data,
       storageId: r.storageId,
       targetFilePath: r.targetFilePath,
+      uploadKind: r.uploadKind,
     }));
   },
 });

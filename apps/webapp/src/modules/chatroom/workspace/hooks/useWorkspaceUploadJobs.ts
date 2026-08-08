@@ -18,6 +18,11 @@ export type UseWorkspaceUploadJobsArgs = {
   workingDir: string | null;
   onUploadComplete?: (filePath: string) => void;
   onUploadFailed?: (filePath: string, error: string) => void;
+  errorDismissMs?: number | false;
+};
+
+export type StartUploadOptions = {
+  uploadKind?: 'chatAttachment';
 };
 
 export function useWorkspaceUploadJobs({
@@ -25,6 +30,7 @@ export function useWorkspaceUploadJobs({
   workingDir,
   onUploadComplete,
   onUploadFailed,
+  errorDismissMs = UPLOAD_ERROR_DISMISS_MS,
 }: UseWorkspaceUploadJobsArgs) {
   const [jobs, setJobs] = useState<WorkspaceUploadJob[]>([]);
   const { uploadFile } = useWorkspaceFileUpload({ machineId, workingDir });
@@ -60,7 +66,7 @@ export function useWorkspaceUploadJobs({
   }, []);
 
   const startUpload = useCallback(
-    async (filePath: string, file: File) => {
+    async (filePath: string, file: File, options?: StartUploadOptions) => {
       const id = crypto.randomUUID();
       setJobs((current) => [
         ...current,
@@ -68,13 +74,18 @@ export function useWorkspaceUploadJobs({
       ]);
 
       try {
-        await uploadFile(filePath, file, (update) => {
-          setJobs((current) =>
-            current.map((job) =>
-              job.id === id ? { ...job, phase: update.phase, percent: update.percent } : job
-            )
-          );
-        });
+        await uploadFile(
+          filePath,
+          file,
+          (update) => {
+            setJobs((current) =>
+              current.map((job) =>
+                job.id === id ? { ...job, phase: update.phase, percent: update.percent } : job
+              )
+            );
+          },
+          options
+        );
         setJobs((current) =>
           current.map((job) =>
             job.id === id ? { ...job, phase: 'complete', percent: COMPLETE_PROGRESS } : job
@@ -91,11 +102,13 @@ export function useWorkspaceUploadJobs({
               : job
           )
         );
-        scheduleDismiss(id, UPLOAD_ERROR_DISMISS_MS);
+        if (errorDismissMs !== false) {
+          scheduleDismiss(id, errorDismissMs);
+        }
         onUploadFailed?.(filePath, message);
       }
     },
-    [onUploadComplete, onUploadFailed, scheduleDismiss, uploadFile]
+    [errorDismissMs, onUploadComplete, onUploadFailed, scheduleDismiss, uploadFile]
   );
 
   return { jobs, startUpload };

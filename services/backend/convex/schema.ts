@@ -2313,6 +2313,7 @@ export default defineSchema({
     /** Monotonic revision; increments when a pending request is superseded. */
     revision: v.optional(v.number()),
     claimedAt: v.optional(v.number()),
+    uploadKind: v.optional(v.literal('chatAttachment')),
     errorMessage: v.optional(v.string()),
     requestedAt: v.number(),
     updatedAt: v.number(),

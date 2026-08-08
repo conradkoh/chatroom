@@ -39,8 +39,15 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
   },
 }));
 
-vi.mock('./EditorModal', () => ({
-  EditorModal: () => null,
+vi.mock('../hooks/useChatInputFileDrop', () => ({
+  useChatInputFileDrop: () => ({
+    uploadJobs: [],
+    isDragging: false,
+    handleDragEnter: vi.fn(),
+    handleDragLeave: vi.fn(),
+    handleDragOver: vi.fn(),
+    handleDrop: vi.fn(),
+  }),
 }));
 
 function renderAtTriggerInput(files: FileEntry[] = []) {

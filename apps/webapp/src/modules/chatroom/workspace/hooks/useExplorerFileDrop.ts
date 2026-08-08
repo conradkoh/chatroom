@@ -10,19 +10,12 @@ import {
   getExplorerRootDropTarget,
   readExplorerDropTargetFromElement,
 } from '../utils/explorerDropTarget';
+import { getFilesFromDrop, isOsFileDrag, shouldCommitOsFileDragLeave } from '../utils/osFileDrag';
 
 type PendingUpload = {
   file: File;
   targetDir: string;
 };
-
-function isOsFileDrag(event: DragEvent): boolean {
-  return Array.from(event.dataTransfer.types).includes('Files');
-}
-
-function getFilesFromDrop(event: DragEvent): File[] {
-  return Array.from(event.dataTransfer.files);
-}
 
 function joinUploadPath(targetDir: string, fileName: string): string {
   const trimmedName = fileName.trim();
@@ -71,8 +64,7 @@ export function useExplorerFileDrop() {
 
   const handleDragLeave = useCallback((event: DragEvent) => {
     if (!isOsFileDrag(event)) return;
-    const related = event.relatedTarget;
-    if (related instanceof Node && event.currentTarget.contains(related)) return;
+    if (!shouldCommitOsFileDragLeave(event, event.currentTarget)) return;
     setDropHighlightPath(null);
   }, []);
 
