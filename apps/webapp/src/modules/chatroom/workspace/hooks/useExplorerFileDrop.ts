@@ -105,20 +105,17 @@ export function useExplorerFileDrop() {
   const handleUploadDialogOpenChange = useCallback(
     (open: boolean) => {
       setUploadDialogOpen(open);
-      if (!open && queueRef.current.length > 0) {
-        openNextUploadDialog();
+      if (!open) {
+        if (queueRef.current.length > 0) {
+          openNextUploadDialog();
+        } else {
+          setPendingUpload(null);
+          setRemainingCount(0);
+        }
       }
     },
     [openNextUploadDialog]
   );
-
-  const handleUploadContinue = useCallback(() => {
-    if (queueRef.current.length > 0) {
-      openNextUploadDialog();
-      return;
-    }
-    setRemainingCount(0);
-  }, [openNextUploadDialog]);
 
   return {
     dropHighlightPath,
@@ -129,6 +126,5 @@ export function useExplorerFileDrop() {
     handleDragLeave,
     handleDrop,
     handleUploadDialogOpenChange,
-    handleUploadContinue,
   };
 }

@@ -27,7 +27,6 @@ interface UploadFileDialogProps {
   file: File | null;
   onUploaded: (filePath: string) => void;
   onStartUpload: (filePath: string, file: File) => void;
-  onContinue?: () => void;
   remainingCount?: number;
 }
 
@@ -45,7 +44,6 @@ export function UploadFileDialog({
   file,
   onUploaded,
   onStartUpload,
-  onContinue,
   remainingCount = 0,
 }: UploadFileDialogProps) {
   const normalizedTargetDir = useMemo(() => targetDir.replace(/\/$/, ''), [targetDir]);
@@ -75,18 +73,9 @@ export function UploadFileDialog({
 
     setValidationError(null);
     onUploaded(normalizedPath);
-    onOpenChange(false);
     onStartUpload(normalizedPath, file);
-    onContinue?.();
-  }, [
-    file,
-    fileNameInput,
-    normalizedTargetDir,
-    onContinue,
-    onOpenChange,
-    onStartUpload,
-    onUploaded,
-  ]);
+    onOpenChange(false);
+  }, [file, fileNameInput, normalizedTargetDir, onOpenChange, onStartUpload, onUploaded]);
 
   const kbdClassName = 'rounded-none border border-chatroom-border px-1';
 

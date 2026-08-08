@@ -123,7 +123,6 @@ vi.mock('../hooks/useExplorerFileDrop', () => ({
     handleDragLeave: vi.fn(),
     handleDrop: vi.fn(),
     handleUploadDialogOpenChange: vi.fn(),
-    handleUploadContinue: vi.fn(),
   }),
 }));
 

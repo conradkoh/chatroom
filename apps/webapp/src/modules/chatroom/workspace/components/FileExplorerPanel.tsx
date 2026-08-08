@@ -207,7 +207,6 @@ export const FileExplorerPanel = memo(
         handleDragLeave,
         handleDrop,
         handleUploadDialogOpenChange,
-        handleUploadContinue,
       } = useExplorerFileDrop();
 
       const openNewFileDialog = useCallback((defaultDir = '') => {
@@ -416,7 +415,6 @@ export const FileExplorerPanel = memo(
             remainingCount={remainingCount}
             onUploaded={() => refreshExplorer()}
             onStartUpload={startUpload}
-            onContinue={handleUploadContinue}
           />
 
           <AlertDialog

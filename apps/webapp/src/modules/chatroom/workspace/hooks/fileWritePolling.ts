@@ -17,7 +17,7 @@ export type WaitForFileWriteOptions = {
 export type { FileWriteOperation };
 
 export type FileWriteRequestStatus = {
-  status: 'pending' | 'done' | 'error';
+  status: 'pending' | 'processing' | 'done' | 'error';
   errorMessage?: string;
   operation?: FileWriteOperation;
 };
