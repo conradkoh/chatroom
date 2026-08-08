@@ -1,8 +1,8 @@
 # Phase P1 — Outbox Drain
 
-**Status:** Not started  
+**Status:** Implemented (in review) — stacked PRs [#1341](https://github.com/conradkoh/chatroom/pull/1341) → [#1342](https://github.com/conradkoh/chatroom/pull/1342) → [#1343](https://github.com/conradkoh/chatroom/pull/1343) on docs base [#1340](https://github.com/conradkoh/chatroom/pull/1340)  
 **Depends on:** [P0](./p0-discovery.md)  
-**Feature flag:** `DAEMON_ORCHESTRATION_P1` — when off, skip drain worker startup; existing direct Convex publishers remain hot path.
+**Feature flags:** `DAEMON_ORCHESTRATION_P1` (drain worker) · `DAEMON_ORCHESTRATION_P1_CUTOVER` (sole Convex write path) — both default **off**
 
 ## Shippability
 
@@ -10,8 +10,8 @@
 
 ### What ships
 
-- Async Convex projection infrastructure (outbox drain worker, handlers, retry)
-- Offline → online catch-up for outbound events
+- Async Convex projection infrastructure (outbox drain worker, shared routing, retry)
+- Offline → online catch-up for outbound events (when cutover enabled)
 - Foundation for all later phases (no orchestration moves yet)
 
 ### Flag-off guarantee
@@ -20,19 +20,21 @@ Daemon starts unchanged. No drain loop. Publisher registry uses direct Convex pu
 
 ### Progressive rollout
 
-1. **Shadow (P1 flag on, cutover off):** Enqueue outbox after SQLite append; drain worker projects to Convex in parallel. Direct publishers remain authoritative. Compare projection output vs direct publish in logs/tests (no user-visible change).
-2. **Cutover (`DAEMON_ORCHESTRATION_P1_CUTOVER` on):** Disable direct Convex publish per event type; outbox drain is sole write path. Ship cutover only after shadow soak (≥1 week dev usage or explicit sign-off).
+1. **Shadow (`DAEMON_ORCHESTRATION_P1=1`, cutover off):** `persistence-store` enqueues non-T0 events to outbox. Drain worker validates a projection handler exists (`assertProjectableEvent`) and marks rows done — **does not call Convex**. Direct publishers remain the sole Convex writers.
+2. **Cutover (`DAEMON_ORCHESTRATION_P1_CUTOVER=1`):** Drain worker calls Convex via existing publisher factories. Publisher-registry skips direct publish for event types with handlers. Ship cutover only after shadow soak (≥1 week dev usage or explicit sign-off).
 
 ### Toward outcome
 
-Proves daemon → SQLite → Convex projection path with retry — prerequisite for moving orchestration local without Convex round-trips.
+Proves daemon → SQLite → outbox → Convex projection path with retry — prerequisite for moving orchestration local without Convex round-trips.
 
 ### Ship checklist
 
-- [ ] Flag off: `pnpm turbo run typecheck test --filter=chatroom-cli` green; manual smoke (handoff, delivery) unchanged
-- [ ] Flag on, cutover off: shadow projection runs; Convex state matches direct publish (parity test or log diff)
+- [x] Code merged path: `pnpm turbo run typecheck test --filter=chatroom-cli` green (283 files / 2226 tests on `feat/daemon-orchestration-p1-3-integration`)
+- [ ] PRs merged: #1340 → #1341 → #1342 → #1343
+- [ ] Flag off: manual smoke (handoff, delivery) unchanged in dev
+- [ ] Flag on, cutover off: shadow drain runs; Convex receives writes only from direct publish (no duplicates)
 - [ ] Flag on, cutover on: no duplicate Convex mutations for covered event types
-- [ ] Offline soak: pending outbox drains on reconnect
+- [ ] Offline soak: pending outbox rows drain on reconnect (cutover mode)
 
 ---
 
@@ -47,88 +49,118 @@ Wire the existing SQLite outbox (`infrastructure/persistence/outbox.ts`) to a Co
 
 ---
 
+## Stacked PRs (as built)
+
+| PR                                                       | Branch                                                   | Scope                                    |
+| -------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------- |
+| [#1340](https://github.com/conradkoh/chatroom/pull/1340) | `docs/daemon-centric-orchestration-discovery` → `master` | Plan docs (discovery, overview, phases)  |
+| [#1341](https://github.com/conradkoh/chatroom/pull/1341) | `feat/daemon-orchestration-p1-1-foundation`              | P1-T1 + outbox helpers + T0 enqueue skip |
+| [#1342](https://github.com/conradkoh/chatroom/pull/1342) | `feat/daemon-orchestration-p1-2-handlers`                | P1-T2 routing extraction                 |
+| [#1343](https://github.com/conradkoh/chatroom/pull/1343) | `feat/daemon-orchestration-p1-3-integration`             | P1-T3 + P1-T4 wiring                     |
+
+**Merge order:** #1340 → #1341 → #1342 → #1343
+
+---
+
+## Implementation artifacts
+
+```
+packages/cli/src/daemon/infrastructure/projection/
+├── feature-flags.ts              # isDaemonOrchestrationP1Enabled, isDaemonOrchestrationP1CutoverEnabled
+├── sync-policy.ts                # SyncTier, getTierForOutboundEvent, shouldEnqueueOutbox
+├── outbox-drain-worker.ts        # drainOutboxOnce, startOutboxDrainWorker
+├── index.ts                      # barrel re-exports
+└── convex/
+    ├── route-outbound-event.ts   # createConvexPublishers, getConvexEventHandler, routeConvexEvent, assertProjectableEvent
+    └── convex-projection-adapter.ts  # createConvexProjectionAdapter
+
+packages/cli/src/daemon/infrastructure/persistence/
+├── event-store.ts                # + loadOutboundEventById
+├── outbox.ts                     # + markOutboxDone, markOutboxFailed, incrementOutboxAttempts
+├── persistence-store.ts          # T0 skip on enqueue; exposes db handle for drain worker
+└── README.md                     # flag matrix
+
+packages/cli/src/daemon/entry/
+├── publisher-registry.ts         # imports shared routing; cutover skips direct Convex
+└── start-daemon.ts               # starts/stops drain worker when P1 enabled
+```
+
+**Design choice:** No per-event `handlers/` or `mappers/` files — projection reuses existing `create*Publisher` factories from `infrastructure/convex/publishers/` via `route-outbound-event.ts` (single routing table).
+
+**Event types with handlers:** heartbeat, turn.chunk, turn.completed, session.lifecycle, task.status, git.state, capabilities.updated, models.updated, harness.fingerprint.updated, command.result.\*, workspace.commands. **Excluded (T0):** harness.stream.
+
+---
+
 ## Todos
 
-### P1-T1 — Create projection module skeleton `[new]`
+### P1-T1 — Projection foundation `[done]` — PR #1341
 
-**Implement:**
+**Shipped:**
 
-- `packages/cli/src/daemon/infrastructure/projection/sync-policy.ts` — export `SyncTier` enum (T0–T4), `getTierForOutboundEvent(type)`, T3 for `task.status` and message-adjacent types per discovery §3.2
-- `packages/cli/src/daemon/infrastructure/projection/outbox-drain-worker.ts` — poll `listPendingOutbox`, load outbound event payload, dispatch to handler, mark done/failed
-- `packages/cli/src/daemon/infrastructure/projection/convex/convex-projection-adapter.ts` — thin wrapper over existing Convex client/session
-- `packages/cli/src/daemon/infrastructure/projection/index.ts` — re-exports
+- `projection/feature-flags.ts`, `sync-policy.ts`, `outbox-drain-worker.ts`, `index.ts`
+- `persistence/event-store.ts` — `loadOutboundEventById`
+- `persistence/outbox.ts` — `markOutboxDone`, `markOutboxFailed`, `incrementOutboxAttempts`
+- `persistence/persistence-store.ts` — `shouldEnqueueOutbox` gate (skips `harness.stream`); exposes `db`
+- `projection/outbox-drain-worker.test.ts`, extended `outbox.test.ts`, `persistence-store.test.ts`
 
-**Verify:**
+**Verify:** `pnpm --filter chatroom-cli test outbox-drain outbox persistence-store`
 
-- `pnpm --filter chatroom-cli test outbox-drain` passes (add unit tests with in-memory SQLite)
-- Worker handles empty outbox without error
-- Failed projection increments `attempts` and sets `status = 'failed'` after max retries
+### P1-T2 — Shared Convex routing `[done]` — PR #1342
 
-### P1-T2 — Map existing OutboundEvent types to projection handlers `[new]`
+**Shipped:**
 
-**Implement:**
+- `projection/convex/route-outbound-event.ts` — extracted from publisher-registry; `getConvexEventHandler` for cutover check without double invocation
+- `projection/convex/convex-projection-adapter.ts` — `project` + `validateProjectable`
+- `publisher-registry.ts` — imports shared routing (no behavior change in PR2)
+- `projection/convex/route-outbound-event.test.ts` — all types routed except harness.stream
 
-- `packages/cli/src/daemon/infrastructure/projection/convex/handlers/` — one handler per existing publisher in `infrastructure/convex/publishers/`:
-  - `project-heartbeat.ts` ← `daemon-heartbeat.ts`
-  - `project-task-status.ts` ← `assigned-task-status.ts`
-  - `project-git-state.ts` ← `git-state.ts`
-  - `project-session-lifecycle.ts` ← `session-lifecycle.ts`
-  - `project-turn-output.ts` ← `turn-output.ts`
-  - (remaining publishers from publisher-registry — grep `infrastructure/convex/publishers/*.ts`)
-- `packages/cli/src/daemon/infrastructure/projection/convex/mappers/` — extract mutation arg mapping from existing publishers (reuse logic, don't duplicate business rules)
+**Verify:** `pnpm --filter chatroom-cli test route-outbound-event publisher-registry`
 
-**Modify:**
+**Not built (by design):** separate `handlers/` and `mappers/` directories — publishers are the handlers.
 
-- `packages/cli/src/daemon/infrastructure/persistence/outbox.ts` — add `markOutboxDone`, `markOutboxFailed`, `incrementOutboxAttempts` if missing
+### P1-T3 — Daemon startup wiring `[done]` — PR #1343
 
-**Verify:**
+**Shipped:**
 
-- Each handler is idempotent (safe retry) — document idempotency key in handler header comment
-- `pnpm --filter chatroom-cli test projection` passes
-- Manual: enqueue test outbox row → worker drains → Convex row updated
+- `start-daemon.ts` — `startOutboxDrainWorker` when `DAEMON_ORCHESTRATION_P1` enabled; `stop()` in `finally`
+- `persistence/README.md` — flag matrix documentation
+- `start-daemon.test.ts` — worker starts with flag, not by default
 
-### P1-T3 — Wire drain worker into daemon startup `[modify]`
+**Not modified:** `deps.ts` (worker deps wired directly in start-daemon)
 
-**Modify:**
+**Verify:** `pnpm --filter chatroom-cli test start-daemon`
 
-- `packages/cli/src/daemon/entry/start-daemon.ts` — start `outbox-drain-worker` when `DAEMON_ORCHESTRATION_P1` enabled
-- `packages/cli/src/daemon/entry/deps.ts` — add projection worker deps
-- `packages/cli/src/daemon/infrastructure/persistence/README.md` — document drain wiring
+### P1-T4 — Cutover skip in publisher-registry `[done]` — PR #1343
 
-**Verify:**
+**Shipped:**
 
-- With flag **off**: daemon starts unchanged; no drain loop
-- With flag **on**: drain loop runs; logs show batch drain activity
-- `pnpm turbo run typecheck test --filter=chatroom-cli` green both flag states
+- `publisher-registry.ts` — when `DAEMON_ORCHESTRATION_P1_CUTOVER` on and handler exists, skip direct Convex publish (drain is sole writer)
+- `publisher-registry.test.ts` — cutover skip, default direct publish, harness.stream never convex
 
-### P1-T4 — Publisher registry shadow enqueue `[modify]`
+**Not in publisher-registry:** outbox enqueue (already in `persistence-store.append` since before P1; P1 only added T0 skip)
 
-**Modify:**
-
-- `packages/cli/src/daemon/entry/publisher-registry.ts` — when `DAEMON_ORCHESTRATION_P1` on (and cutover **off**), after SQLite append also `enqueueOutbox`; **keep** direct Convex publish as authoritative (shadow mode)
-- Add cutover branch: when `DAEMON_ORCHESTRATION_P1_CUTOVER` on, skip direct Convex publish for event types with projection handlers; outbox drain is sole write path
-
-**Delete:** Nothing in P1 — direct publishers remain until cutover sub-flag enabled.
-
-**Verify:**
-
-- Shadow mode: both outbox row created AND direct publish succeeds; Convex receives exactly one write (from direct publish, not duplicate from drain)
-- Cutover mode: only outbox drain writes to Convex; grep confirms no direct `api.*` calls for covered types
-- `harness.stream` events do **not** enqueue outbox (T0 — local only)
-- `task.status` events enqueue with T3 tier
+**Verify:** cutover test asserts direct publish skipped; shadow asserts drain does not call `projectEvent`
 
 ---
 
 ## Definition of done
 
-- [ ] Outbox drain worker runs behind `DAEMON_ORCHESTRATION_P1`
-- [ ] All existing `OutboundEvent` types (except T0) have projection handlers
-- [ ] Offline → online: pending outbox rows drain on reconnect
-- [ ] `pnpm turbo run typecheck test --filter=chatroom-cli` green
-- [ ] No change to webapp behavior (projections produce same Convex state as direct publishers)
-- [ ] Shadow mode shippable without cutover sub-flag
-- [ ] Cutover sub-flag documented and gated behind soak checklist
+- [x] Outbox drain worker implemented behind `DAEMON_ORCHESTRATION_P1`
+- [x] All existing `OutboundEvent` types (except T0) routable via shared routing table
+- [x] Shadow mode shippable without cutover sub-flag (validate-only drain)
+- [x] Cutover sub-flag documented and gated behind soak checklist
+- [x] `pnpm turbo run typecheck test --filter=chatroom-cli` green on implementation branch
+- [ ] PRs merged to main/docs branch
+- [ ] Offline → online: pending outbox rows drain on reconnect (validated in dev, cutover mode)
+- [ ] No change to webapp behavior when cutover enabled (projections match direct publish)
 
 ## Rollback
 
-Disable `DAEMON_ORCHESTRATION_P1`; direct publishers remain authoritative.
+Disable `DAEMON_ORCHESTRATION_P1` (and `DAEMON_ORCHESTRATION_P1_CUTOVER` if set); direct publishers remain authoritative.
+
+## Remaining (post-merge)
+
+1. Merge PR stack #1340 → #1343
+2. Enable `DAEMON_ORCHESTRATION_P1=1` in dev; run shadow soak ≥1 week
+3. Enable `DAEMON_ORCHESTRATION_P1_CUTOVER=1`; validate cutover path and offline drain
+4. Optional: parity logging between shadow validation and direct publish before cutover
