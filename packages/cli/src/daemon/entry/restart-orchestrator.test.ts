@@ -1,7 +1,43 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
-import { runRestartOrchestrator } from './restart-orchestrator.js';
+import { runRestartOrchestrator, setRestartOrchestratorDb } from './restart-orchestrator.js';
+import type { AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
+import { openDatabase } from '../infrastructure/persistence/open-database.js';
+import {
+  taskReadModelFromSnapshot,
+  upsertTaskReadModel,
+} from '../infrastructure/persistence/read-models/tasks.js';
+
+function tempDbPath(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'v2-restart-orchestrator-'));
+  return join(dir, 'events.sqlite');
+}
+
+function makeSnapshot(overrides?: Partial<AssignedTaskSnapshotView>): AssignedTaskSnapshotView {
+  return {
+    taskId: 'task-1',
+    chatroomId: 'test-chatroom',
+    status: 'pending',
+    assignedTo: 'builder',
+    updatedAt: 200,
+    createdAt: 100,
+    agentConfig: {
+      role: 'builder',
+      machineId: 'test-machine',
+      agentHarness: 'opencode',
+      workingDir: '/tmp/test',
+      desiredState: 'running',
+      circuitState: 'closed',
+    },
+    participant: { lastSeenAction: 'idle', lastSeenAt: 180, lastStatus: 'waiting' },
+    ...overrides,
+  };
+}
 
 vi.mock('../../api.js', () => ({
   api: {
@@ -105,5 +141,35 @@ describe('runRestartOrchestrator', () => {
 
     const restartCompletedCalls = mutationLog.filter((call) => call.fn === 'emitRestartCompleted');
     expect(restartCompletedCalls).toHaveLength(0);
+  });
+
+  test('cutover reads deliverable snapshots from read models, not Convex snapshot query', async () => {
+    const db = openDatabase(tempDbPath());
+    setRestartOrchestratorDb(db);
+    process.env.DAEMON_ORCHESTRATION_P2_CUTOVER = '1';
+    try {
+      upsertTaskReadModel(db, taskReadModelFromSnapshot(makeSnapshot({ status: 'pending' })));
+      const { deps, backendMock } = createMockDeps();
+      backendMock.query.mockResolvedValue({ tasks: [] });
+
+      await runRestartOrchestrator(deps as any, {
+        chatroomId: 'test-chatroom',
+        role: 'builder',
+        agentHarness: 'opencode',
+        model: 'gpt-4',
+        workingDir: '/tmp/test',
+        correlationId: 'test-correlation',
+        wantResume: true,
+      });
+
+      expect(backendMock.query).not.toHaveBeenCalledWith(
+        'listMachineAssignedTaskSnapshots',
+        expect.anything()
+      );
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P2_CUTOVER;
+      setRestartOrchestratorDb(undefined);
+      db.close();
+    }
   });
 });

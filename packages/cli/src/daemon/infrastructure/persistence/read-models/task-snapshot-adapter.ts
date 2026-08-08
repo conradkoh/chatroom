@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file unused-export
 import type { DatabaseSync } from 'node:sqlite';
 
 import { listTaskReadModelsForMachine, taskReadModelToSnapshot } from './tasks.js';

@@ -6,16 +6,20 @@ import { createDaemonDeps } from './deps.js';
 import { initDaemon } from './init-daemon.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 import { resolveLocalWebPort } from './resolve-local-web-port.js';
+import { setRestartOrchestratorDb } from './restart-orchestrator.js';
 import { startAllSubscribers } from './subscriber-registry.js';
 import { setTaskMonitorReadModelDb } from './task-monitor-runtime.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
+import { setAssignedTaskSnapshotProvider } from '../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { hydrateReadModelsFromConvex } from '../infrastructure/persistence/read-models/hydrate-from-convex.js';
+import { listSnapshotViewsFromReadModels } from '../infrastructure/persistence/read-models/task-snapshot-adapter.js';
 import { createConvexProjectionAdapter } from '../infrastructure/projection/convex/convex-projection-adapter.js';
 import {
   isDaemonOrchestrationP1CutoverEnabled,
   isDaemonOrchestrationP1Enabled,
+  isDaemonOrchestrationP2CutoverEnabled,
   isDaemonOrchestrationP2Enabled,
 } from '../infrastructure/projection/feature-flags.js';
 import { startOutboxDrainWorker } from '../infrastructure/projection/outbox-drain-worker.js';
@@ -57,6 +61,13 @@ export async function startDaemon(): Promise<void> {
       query: (fn, args) => init.backend.query(fn, args),
     });
     setTaskMonitorReadModelDb(persistence.db);
+    setRestartOrchestratorDb(persistence.db);
+    if (isDaemonOrchestrationP2CutoverEnabled()) {
+      setAssignedTaskSnapshotProvider(() =>
+        listSnapshotViewsFromReadModels(persistence.db, init.machineId)
+      );
+      console.log('[daemon] P2 cutover — snapshot store sourced from read models');
+    }
     console.log(`[daemon] P2 read models hydrated (${taskCount} tasks)`);
   }
 

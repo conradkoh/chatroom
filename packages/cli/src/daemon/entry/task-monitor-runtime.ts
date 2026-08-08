@@ -487,7 +487,25 @@ function subscribeAssignedTaskSnapshotStore(
   );
 }
 
-// fallow-ignore-next-line unused-export
+// fallow-ignore-next-line complexity
+async function refreshAssignedTaskReadModelsFromConvex(
+  sessionDeps: NativeTaskDeliverySessionDeps
+): Promise<AssignedTaskSnapshotView[]> {
+  const result = (await sessionDeps.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
+    sessionId: sessionDeps.sessionId,
+    machineId: sessionDeps.machineId,
+  })) as { tasks?: unknown };
+  const tasks = mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(result.tasks ?? []));
+  if (taskMonitorReadModelDb) {
+    for (const task of tasks) {
+      upsertTaskReadModel(taskMonitorReadModelDb, taskReadModelFromSnapshot(task));
+    }
+  }
+  replaceAssignedTaskSnapshots(tasks);
+  return tasks;
+}
+
+// fallow-ignore-next-line complexity unused-export
 export function handleInboundAssignedTaskEvent(
   event: AssignedTaskInboundEvent,
   runMonitorPass: (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass) => void
@@ -544,11 +562,20 @@ export const startTaskMonitorEffect = (
       machineId: session.machineId,
     });
 
-    const unsubscribeSnapshotStore = subscribeAssignedTaskSnapshotStore(
-      wsClient,
-      { sessionId: session.sessionId, machineId: session.machineId },
-      () => stopped
-    );
+    const cutover = isDaemonOrchestrationP2CutoverEnabled();
+
+    let unsubscribeSnapshotStore: (() => void) | undefined;
+    if (cutover) {
+      void refreshAssignedTaskReadModelsFromConvex(sessionDeps).catch((err: unknown) => {
+        console.warn(`[TaskMonitor] P2 cutover refresh failed: ${getErrorMessage(err)}`);
+      });
+    } else {
+      unsubscribeSnapshotStore = subscribeAssignedTaskSnapshotStore(
+        wsClient,
+        { sessionId: session.sessionId, machineId: session.machineId },
+        () => stopped
+      );
+    }
 
     const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
       if (stopped || monitorPassInFlight || tasks.length === 0) return;
@@ -568,6 +595,16 @@ export const startTaskMonitorEffect = (
     };
 
     registerAssignedTaskMonitorHandler(async (event) => {
+      if (cutover) {
+        const tasks = await refreshAssignedTaskReadModelsFromConvex(sessionDeps);
+        const row = tasks.find(
+          (snapshot) => snapshot.taskId === event.taskId && snapshot.agentConfig.role === event.role
+        );
+        if (row) {
+          runMonitorPass([row], event.type === 'assigned-task.signal' ? 'signal' : 'presence');
+        }
+        return;
+      }
       handleInboundAssignedTaskEvent(event, runMonitorPass);
     });
 
@@ -594,7 +631,7 @@ export const startTaskMonitorEffect = (
       stop() {
         stopped = true;
         unregisterAssignedTaskMonitorHandler();
-        unsubscribeSnapshotStore();
+        unsubscribeSnapshotStore?.();
         clearAssignedTaskSnapshots();
         unregisterNativeDeliverySession();
         clearInterval(reconcileTimer);

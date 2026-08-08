@@ -27,6 +27,26 @@ The drain worker lives in `infrastructure/projection/outbox-drain-worker.ts` and
 
 Shadow mode produces **no duplicate Convex writes**: the drain worker validates only, while direct publishers remain the single writer. Cutover hands the write path to the drain worker.
 
+## P2 local read models
+
+`SCHEMA_VERSION = 2` adds orchestration read models under `infrastructure/persistence/read-models/`:
+
+| Table                     | Purpose                                                         |
+| ------------------------- | --------------------------------------------------------------- |
+| `read_model_tasks`        | 1:1 `AssignedTaskSnapshotView` rows (task monitor working rows) |
+| `read_model_participants` | Participant turn phase / last-seen                              |
+| `read_model_agents`       | Spawned agent session rows                                      |
+| `read_model_handoffs`     | Pending handoff state                                           |
+
+Flags (both default **off**):
+
+| Flag                                                              | Effect                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DAEMON_ORCHESTRATION_P2=1`                                       | Hydrate read models from Convex on startup; shadow-sync each assigned-task snapshot WS update into `read_model_tasks`. Convex WS remains authoritative for decisions.                                                                                                                                                                                              |
+| `DAEMON_ORCHESTRATION_P2=1` + `DAEMON_ORCHESTRATION_P2_CUTOVER=1` | Task monitor skips the snapshot WS subscription and sources snapshots from read models (via the snapshot-store provider); restart orchestrator reads deliverable tasks from read models. Signals/presence trigger a pull-refresh from Convex into read models. Cutover requires P1 (`DAEMON_ORCHESTRATION_P1_CUTOVER`) for Convex sync of task-status projections. |
+
+Rollback: unset `DAEMON_ORCHESTRATION_P2_CUTOVER` (or both P2 flags) — the snapshot WS and Convex query paths resume unchanged.
+
 ## Does not belong here
 
 | Kind                | Home instead             |
