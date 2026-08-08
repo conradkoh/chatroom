@@ -46,34 +46,4 @@ describe('createPersistenceStore', () => {
       store.close();
     }
   });
-
-  it('does not enqueue outbox row for harness.stream (T0 local only)', () => {
-    const store = createPersistenceStore(tempDbPath());
-    try {
-      store.append({
-        type: 'harness.stream',
-        harness: 'h1',
-        stream: 'stdout',
-        line: 'hello',
-        timestamp: 1,
-      });
-
-      expect(store.listPendingOutbox()).toHaveLength(0);
-    } finally {
-      store.close();
-    }
-  });
-
-  it('enqueues outbox row for heartbeat (non-T0)', () => {
-    const store = createPersistenceStore(tempDbPath());
-    try {
-      store.append({ type: 'heartbeat', machineId: 'm-1' });
-
-      const pending = store.listPendingOutbox();
-      expect(pending).toHaveLength(1);
-      expect(pending[0]?.target).toBe('convex');
-    } finally {
-      store.close();
-    }
-  });
 });

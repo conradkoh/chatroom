@@ -5,7 +5,6 @@ import { openDatabase } from './open-database.js';
 import { enqueueOutbox, listPendingOutbox } from './outbox.js';
 import { listHarnessStreamLines } from './read-model.js';
 import type { OutboundEvent } from '../../domain/entities/outbound-event.js';
-import { shouldEnqueueOutbox } from '../projection/sync-policy.js';
 
 export type PersistenceStore = {
   append(event: OutboundEvent): void;
@@ -22,9 +21,7 @@ export function createPersistenceStore(dbPath: string): PersistenceStore {
   return {
     append(event) {
       const eventId = appendOutboundEvent(db, event);
-      if (shouldEnqueueOutbox(event)) {
-        enqueueOutbox(db, eventId);
-      }
+      enqueueOutbox(db, eventId);
     },
     listHarnessStreamLines: (opts) => listHarnessStreamLines(db, opts),
     listPendingOutbox: (limit) => listPendingOutbox(db, limit),
