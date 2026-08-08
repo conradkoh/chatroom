@@ -7,6 +7,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ChangeEvent,
   type DragEvent,
   type RefObject,
 } from 'react';
@@ -82,19 +83,12 @@ export function useChatInputFileDrop({
     event.dataTransfer.dropEffect = 'copy';
   }, []);
 
-  const handleDrop = useCallback(
-    (event: DragEvent) => {
-      if (!isOsFileDrag(event)) return;
-      event.preventDefault();
-      dragDepthRef.current = 0;
-      setIsDragging(false);
-
+  const attachFiles = useCallback(
+    (files: File[]) => {
       if (!machineId || !workingDir) {
         toast.error('Connect a workspace to attach files');
         return;
       }
-
-      const files = getFilesFromDrop(event);
       if (files.length === 0) return;
 
       const caret = textareaRef.current?.selectionStart ?? message.length;
@@ -115,6 +109,33 @@ export function useChatInputFileDrop({
     [machineId, message, setMessage, startUpload, textareaRef, workingDir]
   );
 
+  const handleDrop = useCallback(
+    (event: DragEvent) => {
+      if (!isOsFileDrag(event)) return;
+      event.preventDefault();
+      dragDepthRef.current = 0;
+      setIsDragging(false);
+
+      attachFiles(getFilesFromDrop(event));
+    },
+    [attachFiles]
+  );
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAttachClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files ?? []);
+      attachFiles(files);
+      event.target.value = '';
+    },
+    [attachFiles]
+  );
+
   return {
     uploadJobs: jobs,
     isDragging,
@@ -122,5 +143,8 @@ export function useChatInputFileDrop({
     handleDragLeave,
     handleDragOver,
     handleDrop,
+    fileInputRef,
+    handleAttachClick,
+    handleFileInputChange,
   };
 }

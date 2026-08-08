@@ -37,6 +37,13 @@ function makeDropEvent(files: File[]): React.DragEvent {
   } as unknown as React.DragEvent;
 }
 
+function makeChangeEvent(files: File[]): React.ChangeEvent<HTMLInputElement> {
+  const input = document.createElement('input');
+  input.type = 'file';
+  Object.defineProperty(input, 'files', { value: files });
+  return { target: input } as unknown as React.ChangeEvent<HTMLInputElement>;
+}
+
 describe('useChatInputFileDrop', () => {
   beforeEach(() => {
     mockStartUpload.mockReset();
@@ -91,5 +98,53 @@ describe('useChatInputFileDrop', () => {
 
     const inserted = setMessage.mock.calls[0]?.[0] as string;
     expect(inserted).toMatch(/^before .+\.txt after$/);
+  });
+
+  it('attaches files from file input change preserving order', () => {
+    const setMessage = vi.fn();
+    const textareaRef = { current: { selectionStart: 3 } as HTMLTextAreaElement };
+
+    const { result } = renderHook(() =>
+      useChatInputFileDrop({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+        message: 'hey',
+        setMessage,
+        textareaRef,
+      })
+    );
+
+    act(() => {
+      result.current.handleFileInputChange(makeChangeEvent([makeFile('a.txt'), makeFile('b.txt')]));
+    });
+
+    expect(setMessage).toHaveBeenCalledTimes(1);
+    const inserted = setMessage.mock.calls[0]?.[0] as string;
+    expect(inserted).toContain(
+      '.chatroom/downloads/attachments/files/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d_a.txt'
+    );
+    expect(inserted.indexOf('a.txt')).toBeLessThan(inserted.indexOf('b.txt'));
+    expect(mockStartUpload).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows toast when picking files without a workspace', () => {
+    const setMessage = vi.fn();
+    const textareaRef = { current: { selectionStart: 3 } as HTMLTextAreaElement };
+
+    const { result } = renderHook(() =>
+      useChatInputFileDrop({
+        message: 'hey',
+        setMessage,
+        textareaRef,
+      })
+    );
+
+    act(() => {
+      result.current.handleFileInputChange(makeChangeEvent([makeFile('a.txt')]));
+    });
+
+    expect(mockToastError).toHaveBeenCalledWith('Connect a workspace to attach files');
+    expect(setMessage).not.toHaveBeenCalled();
+    expect(mockStartUpload).not.toHaveBeenCalled();
   });
 });
