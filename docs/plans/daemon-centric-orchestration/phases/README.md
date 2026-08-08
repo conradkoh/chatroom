@@ -7,15 +7,15 @@
 
 ## Phase index
 
-| Phase  | Doc                                                  | Depends on | Outcome                                                                   |
-| ------ | ---------------------------------------------------- | ---------- | ------------------------------------------------------------------------- |
-| **P0** | [p0-discovery.md](./p0-discovery.md)                 | —          | ✅ Complete — inventory, decisions, vocabulary                            |
-| **P1** | [p1-outbox-drain.md](./p1-outbox-drain.md)           | P0         | Convex projection worker drains outbox for existing `OutboundEvent` types |
-| **P2** | [p2-local-read-models.md](./p2-local-read-models.md) | P1         | Task/participant read models in SQLite; task monitor reads local          |
-| **P3** | [p3-handoff-local.md](./p3-handoff-local.md)         | P2         | `chatroom handoff` → daemon HTTP; Convex receives projection only         |
-| **P4** | [p4-lifecycle-local.md](./p4-lifecycle-local.md)     | P2         | APM lifecycle events local; batch `emit*` via projection                  |
-| **P5** | [p5-subscriber-shrink.md](./p5-subscriber-shrink.md) | P3, P4     | Remove orchestration Convex subscribers; keep user-intent inbound only    |
-| **P6** | [p6-cli-migration.md](./p6-cli-migration.md)         | P3         | `get-next-task`, reads route through daemon HTTP                          |
+| Phase  | Doc                                                  | Depends on | Outcome                                                                   | Shippable alone                                                   |
+| ------ | ---------------------------------------------------- | ---------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **P0** | [p0-discovery.md](./p0-discovery.md)                 | —          | ✅ Complete — inventory, decisions, vocabulary                            | ✅ (docs only)                                                    |
+| **P1** | [p1-outbox-drain.md](./p1-outbox-drain.md)           | P0         | Convex projection worker drains outbox for existing `OutboundEvent` types | Yes — shadow projection infra; flag off = unchanged               |
+| **P2** | [p2-local-read-models.md](./p2-local-read-models.md) | P1         | Task/participant read models in SQLite; task monitor reads local          | Yes — local read models (shadow); flag off = unchanged            |
+| **P3** | [p3-handoff-local.md](./p3-handoff-local.md)         | P2         | `chatroom handoff` → daemon HTTP; Convex receives projection only         | Yes — handoff via daemon HTTP; flag off = Convex handoff          |
+| **P4** | [p4-lifecycle-local.md](./p4-lifecycle-local.md)     | P2         | APM lifecycle events local; batch `emit*` via projection                  | Yes — lifecycle local; flag off = direct emit\*; parallel with P3 |
+| **P5** | [p5-subscriber-shrink.md](./p5-subscriber-shrink.md) | P3, P4     | Remove orchestration Convex subscribers; keep user-intent inbound only    | Yes — after P3+P4 soak; removes redundant subscribers             |
+| **P6** | [p6-cli-migration.md](./p6-cli-migration.md)         | P3         | `get-next-task`, reads route through daemon HTTP                          | Yes — per-command; flag off = Convex CLI paths                    |
 
 ## Dependency order
 
@@ -36,6 +36,28 @@ flowchart LR
 2. Each todo lists **verification criteria** — run before marking done.
 3. Feature-flag each phase at entry points; validate with flag on/off before cutting legacy paths.
 4. No dual-write: when a flow migrates, daemon is SSOT immediately for that flow.
+
+## Shippability contract
+
+Every phase MUST be **independently shippable**: mergeable to main with the phase flag default-off, deployable without coordinating later phases, and an improvement (never a regression) when the flag is enabled.
+
+| Principle                    | Meaning                                                                                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Flag-off = unchanged**     | With `DAEMON_ORCHESTRATION_P{n}` off, behavior is identical to pre-merge. No new code paths execute.                                    |
+| **Flag-on = additive value** | Enables a measurable step toward daemon-centric orchestration (see each phase's **Toward outcome**).                                    |
+| **Shadow before cutover**    | Phases that replace a hot path use shadow mode first (new path runs, legacy remains authoritative), then a sub-flag cutover after soak. |
+| **No duplicate writes**      | Never enqueue outbox AND direct-publish the same event without shadow comparison. Cutover disables direct publish.                      |
+| **Merge gates**              | Each phase's **Ship checklist** must pass before merge. E2E with flag on required — unit tests alone insufficient.                      |
+| **Soak before delete**       | File/subscriber/legacy-path deletion only after shadow or cutover has soaked (see phase Ship checklist).                                |
+
+Sub-flags (cutover within a phase):
+
+| Sub-flag                                 | Phase | Purpose                                                                         |
+| ---------------------------------------- | ----- | ------------------------------------------------------------------------------- |
+| `DAEMON_ORCHESTRATION_P1_CUTOVER`        | P1    | Disable direct Convex publish; outbox drain is sole write path                  |
+| `DAEMON_ORCHESTRATION_P2_CUTOVER`        | P2    | Task monitor reads local read models; disable Convex snapshot WS                |
+| `DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY` | P3    | Delivery from local handoff event (optional within P3; not required to ship P3) |
+| `DAEMON_ORCHESTRATION_P6_LEGACY_DELETE`  | P6    | Remove Convex-first CLI fallbacks (post-soak only)                              |
 
 ## Conventions
 
