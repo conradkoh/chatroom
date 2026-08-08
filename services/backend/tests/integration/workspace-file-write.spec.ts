@@ -50,6 +50,35 @@ function gzipContent(text: string) {
   };
 }
 
+async function claimWriteRequest(
+  sessionId: string,
+  requestId: Id<'chatroom_workspaceFileWriteRequests'>,
+  expectedRevision = 1
+) {
+  return t.mutation(api.workspaceFiles.claimFileWriteRequest, {
+    sessionId,
+    requestId,
+    expectedRevision,
+  });
+}
+
+async function completeWriteRequest(
+  sessionId: string,
+  requestId: Id<'chatroom_workspaceFileWriteRequests'>,
+  revision = 1,
+  status: 'done' | 'error' = 'done',
+  errorMessage?: string
+) {
+  await claimWriteRequest(sessionId, requestId, revision);
+  await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
+    sessionId,
+    requestId,
+    revision,
+    status,
+    errorMessage,
+  });
+}
+
 describe('workspace file write requests', () => {
   test('requestFileWrite creates a pending request with validated path', async () => {
     const { sessionId, machineId } = await setupMachine('test-wfw-create', 'machine-wfw-create');
@@ -213,11 +242,7 @@ describe('workspace file write requests', () => {
       data: writeData,
     });
 
-    await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
-      sessionId,
-      requestId,
-      status: 'done',
-    });
+    await completeWriteRequest(sessionId, requestId);
 
     const request = await t.query(api.workspaceFiles.getFileWriteRequest, {
       sessionId,
@@ -252,11 +277,7 @@ describe('workspace file write requests', () => {
       data: gzipContent('delete me'),
     });
 
-    await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
-      sessionId,
-      requestId: createRequestId,
-      status: 'done',
-    });
+    await completeWriteRequest(sessionId, createRequestId);
 
     const { requestId: deleteRequestId } = await t.mutation(api.workspaceFiles.requestFileWrite, {
       sessionId,
@@ -266,11 +287,7 @@ describe('workspace file write requests', () => {
       operation: 'delete',
     });
 
-    await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
-      sessionId,
-      requestId: deleteRequestId,
-      status: 'done',
-    });
+    await completeWriteRequest(sessionId, deleteRequestId);
 
     const cached = await t.query(api.workspaceFiles.getFileContentV2, {
       sessionId,
@@ -293,12 +310,7 @@ describe('workspace file write requests', () => {
       data: gzipContent('noop'),
     });
 
-    await t.mutation(api.workspaceFiles.completeFileWriteRequest, {
-      sessionId,
-      requestId,
-      status: 'error',
-      errorMessage: 'File does not exist',
-    });
+    await completeWriteRequest(sessionId, requestId, 1, 'error', 'File does not exist');
 
     const request = await t.query(api.workspaceFiles.getFileWriteRequest, {
       sessionId,
@@ -347,11 +359,31 @@ describe('workspace file write requests', () => {
     ).rejects.toThrow(/must not include/i);
   });
 
-  test('requestFileWrite rejects blocked upload target paths on create', async () => {
+  test('requestFileWrite allows inline create to sensitive paths', async () => {
     const { sessionId, machineId } = await setupMachine(
-      'test-wfw-blocked-path',
-      'machine-wfw-blocked-path'
+      'test-wfw-inline-sensitive',
+      'machine-wfw-inline-sensitive'
     );
+
+    const result = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath: 'packages/app/.env.local',
+      operation: 'create',
+      data: gzipContent('secret'),
+    });
+
+    expect(result.status).toBe('requested');
+  });
+
+  test('requestFileWrite rejects blocked storage-backed upload paths', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-blocked-storage-path',
+      'machine-wfw-blocked-storage-path'
+    );
+
+    const storageId = await t.run(async (ctx) => ctx.storage.store(new Blob(['secret'])));
 
     await expect(
       t.mutation(api.workspaceFiles.requestFileWrite, {
@@ -360,9 +392,46 @@ describe('workspace file write requests', () => {
         workingDir: WORKING_DIR,
         filePath: '.env',
         operation: 'create',
-        data: gzipContent('secret'),
+        storageId,
       })
     ).rejects.toThrow(/blocked/i);
+  });
+
+  test('stale revision cannot complete after superseding request while processing', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-stale-revision',
+      'machine-wfw-stale-revision'
+    );
+
+    const first = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath: 'docs/race.md',
+      operation: 'create',
+      data: gzipContent('# v1'),
+    });
+
+    const claim = await claimWriteRequest(sessionId, first.requestId, 1);
+    expect(claim.status).toBe('claimed');
+
+    const second = await t.mutation(api.workspaceFiles.requestFileWrite, {
+      sessionId,
+      machineId,
+      workingDir: WORKING_DIR,
+      filePath: 'docs/race.md',
+      operation: 'delete',
+    });
+    expect(second.requestId).not.toBe(first.requestId);
+
+    await expect(
+      t.mutation(api.workspaceFiles.completeFileWriteRequest, {
+        sessionId,
+        requestId: first.requestId,
+        revision: 1,
+        status: 'done',
+      })
+    ).rejects.toThrow(/stale/i);
   });
 
   test('requestFileWrite rejects create without data or storageId', async () => {

@@ -2304,7 +2304,15 @@ export default defineSchema({
     storageId: v.optional(v.id('_storage')),
     /** Destination path — required for rename */
     targetFilePath: v.optional(v.string()),
-    status: v.union(v.literal('pending'), v.literal('done'), v.literal('error')),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('processing'),
+      v.literal('done'),
+      v.literal('error')
+    ),
+    /** Monotonic revision; increments when a pending request is superseded. */
+    revision: v.optional(v.number()),
+    claimedAt: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
     requestedAt: v.number(),
     updatedAt: v.number(),
