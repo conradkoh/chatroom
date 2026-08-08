@@ -550,7 +550,7 @@ export function MessageInput({
       <WorkspaceUploadProgressList jobs={uploadJobs} embedded />
 
       {/* Input row */}
-      <div className="flex items-center gap-1.5 py-1.5 w-full">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 w-full">
         {/* Textarea wrapper: border + flex-1 min-w-0 */}
         <div className="flex-1 min-w-0 rounded-none border-2 border-chatroom-border bg-chatroom-bg-primary overflow-hidden">
           <textarea
