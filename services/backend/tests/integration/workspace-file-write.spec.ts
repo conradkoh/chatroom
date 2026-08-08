@@ -10,6 +10,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { buildChatAttachmentUploadPath } from '../../src/domain/constants/chat-attachment-upload-path';
 import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
@@ -449,5 +450,78 @@ describe('workspace file write requests', () => {
         operation: 'create',
       })
     ).rejects.toThrow(/exactly one of data or storageId/i);
+  });
+
+  test('requestFileWrite validates chat attachment uploadKind path before storage', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-chat-attachment-ok',
+      'machine-wfw-chat-attachment-ok'
+    );
+
+    const filePath = buildChatAttachmentUploadPath(
+      'notes.md',
+      'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'
+    );
+
+    const storageId = await t.run(async (ctx) => ctx.storage.store(new Blob(['hello'])));
+
+    let caught: unknown;
+    try {
+      await t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: WORKING_DIR,
+        filePath,
+        operation: 'create',
+        storageId,
+        uploadKind: 'chatAttachment',
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeDefined();
+    expect(String(caught)).not.toMatch(/Invalid attachment path/i);
+  });
+
+  test('requestFileWrite rejects chat attachment with wrong prefix', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-chat-attachment-prefix',
+      'machine-wfw-chat-attachment-prefix'
+    );
+
+    const storageId = await t.run(async (ctx) => ctx.storage.store(new Blob(['hello'])));
+
+    await expect(
+      t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: WORKING_DIR,
+        filePath: 'docs/notes.md',
+        operation: 'create',
+        storageId,
+        uploadKind: 'chatAttachment',
+      })
+    ).rejects.toThrow(/Invalid attachment path/i);
+  });
+
+  test('requestFileWrite rejects malformed path under attachments dir without uploadKind', async () => {
+    const { sessionId, machineId } = await setupMachine(
+      'test-wfw-chat-attachment-defense',
+      'machine-wfw-chat-attachment-defense'
+    );
+
+    const storageId = await t.run(async (ctx) => ctx.storage.store(new Blob(['hello'])));
+
+    await expect(
+      t.mutation(api.workspaceFiles.requestFileWrite, {
+        sessionId,
+        machineId,
+        workingDir: WORKING_DIR,
+        filePath: '.chatroom/downloads/attachments/files/not-a-valid-path.txt',
+        operation: 'create',
+        storageId,
+      })
+    ).rejects.toThrow(/Invalid attachment path/i);
   });
 });
