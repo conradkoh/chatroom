@@ -1,6 +1,5 @@
 'use client';
 
-// fallow-ignore-file unused-file
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 import { composerAccessoryButtonClassName } from './composerAccessoryButtonStyles';

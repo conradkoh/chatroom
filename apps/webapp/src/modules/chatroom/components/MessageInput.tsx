@@ -29,6 +29,8 @@ import {
   MAX_TEXTAREA_HEIGHT_PX,
   measureTextareaContentHeightPx,
 } from './messageInputAutosize';
+import { ComposerAccessoryButton } from './shared/ComposerAccessoryButton';
+import { composerAccessoryRowClassName } from './shared/composerAccessoryButtonStyles';
 import { useChatInputFileDrop } from '../hooks/useChatInputFileDrop';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
 import { WorkspaceUploadProgressList } from '../workspace/components/WorkspaceUploadProgressList';
@@ -525,7 +527,7 @@ export function MessageInput({
       <WorkspaceUploadProgressList jobs={uploadJobs} embedded />
 
       {/* Add attachment */}
-      <div className="px-2 pt-1">
+      <div className={composerAccessoryRowClassName}>
         <input
           ref={fileInputRef}
           type="file"
@@ -535,15 +537,13 @@ export function MessageInput({
           aria-hidden
           tabIndex={-1}
         />
-        <button
-          type="button"
+        <ComposerAccessoryButton
           onClick={handleAttachClick}
           aria-label="Add attachment"
-          className="flex items-center gap-1.5 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary border-2 border-chatroom-border bg-chatroom-bg-primary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong px-2 py-1.5 transition-colors rounded-none"
+          icon={<Paperclip size={14} aria-hidden />}
         >
-          <Paperclip size={14} aria-hidden />
-          <span>Add Attachment</span>
-        </button>
+          Add Attachment
+        </ComposerAccessoryButton>
       </div>
 
       {/* Input row */}
