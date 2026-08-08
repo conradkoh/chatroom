@@ -1,12 +1,15 @@
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { Command, CommandInput, CommandItem, CommandList } from './command';
 
 import { fuzzyFilter } from '@/lib/fuzzyMatch';
-import { CommandDialogContent } from '@/modules/chatroom/components/shared/CommandDialogContent';
+import {
+  CommandDialogContent,
+  CommandDialogRoot,
+} from '@/modules/chatroom/components/shared/CommandDialogContent';
 
 vi.mock('@/hooks/useIsDesktop', () => ({
   useIsDesktop: vi.fn(() => true),
@@ -16,16 +19,15 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
 });
 
-const Dialog = DialogPrimitive.Root;
-
 describe('CommandItem click after search', () => {
-  it('fires onSelect when clicking a filtered item', async () => {
+  it('fires onSelect when clicking a filtered item without spurious dismiss', async () => {
     const user = userEvent.setup();
     const onSelectAlpha = vi.fn();
     const onSelectBeta = vi.fn();
+    const onOpenChange = vi.fn();
 
     render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={onOpenChange}>
         <CommandDialogContent open>
           <Command filter={fuzzyFilter}>
             <CommandInput placeholder="Search..." />
@@ -39,7 +41,7 @@ describe('CommandItem click after search', () => {
             </CommandList>
           </Command>
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
 
     await user.click(screen.getByPlaceholderText('Search...'));
@@ -54,6 +56,7 @@ describe('CommandItem click after search', () => {
       expect(onSelectAlpha).toHaveBeenCalledTimes(1);
     });
     expect(onSelectBeta).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 
   it('fires onSelect via Enter on filtered item', async () => {
@@ -61,7 +64,7 @@ describe('CommandItem click after search', () => {
     const onSelect = vi.fn();
 
     render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open>
           <Command filter={fuzzyFilter}>
             <CommandInput placeholder="Search..." />
@@ -72,7 +75,7 @@ describe('CommandItem click after search', () => {
             </CommandList>
           </Command>
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
 
     await user.type(screen.getByPlaceholderText('Search...'), 'alp');
@@ -90,7 +93,7 @@ describe('CommandItem click after search', () => {
     const onPointerDown = vi.fn();
 
     render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open>
           <Command filter={fuzzyFilter}>
             <CommandInput placeholder="Search..." />
@@ -109,7 +112,7 @@ describe('CommandItem click after search', () => {
             </CommandList>
           </Command>
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
 
     await user.type(screen.getByPlaceholderText('Search...'), 'alp');
@@ -135,42 +138,82 @@ describe('CommandItem click after search', () => {
   it('fires onSelect on touch tap after search', async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
-    const onTouchStart = vi.fn();
 
     render(
-      <Dialog open onOpenChange={vi.fn()} modal={false}>
+      <CommandDialogRoot open onOpenChange={vi.fn()}>
         <CommandDialogContent open>
           <Command filter={fuzzyFilter}>
             <CommandInput placeholder="Search..." />
             <CommandList>
-              <CommandItem
-                value="alpha"
-                keywords={['alpha']}
-                onSelect={onSelect}
-                onTouchStart={onTouchStart}
-              >
+              <CommandItem value="alpha" keywords={['alpha']} onSelect={onSelect}>
                 Alpha
               </CommandItem>
             </CommandList>
           </Command>
         </CommandDialogContent>
-      </Dialog>
+      </CommandDialogRoot>
     );
 
     await user.type(screen.getByPlaceholderText('Search...'), 'alp');
     const alphaItem = await screen.findByText('Alpha');
 
-    // touchstart must preventDefault (belt-and-suspenders before pointerdown).
+    // Simulate a touch tap (touchstart → touchend → synthesized click).
     fireEvent.touchStart(alphaItem);
-    expect(onTouchStart).toHaveBeenCalledTimes(1);
-    expect(onTouchStart.mock.calls[0]?.[0].defaultPrevented).toBe(true);
-
-    // Simulate the rest of a touch tap (touchend → synthesized click).
     fireEvent.touchEnd(alphaItem);
     fireEvent.click(alphaItem);
 
     await waitFor(() => {
       expect(onSelect).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('fires onSelect with controlled open state via CommandDialogRoot (no spurious dismiss)', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const onOpenChange = vi.fn();
+
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <CommandDialogRoot
+          open={open}
+          onOpenChange={(next) => {
+            onOpenChange(next);
+            setOpen(next);
+          }}
+        >
+          <CommandDialogContent open={open}>
+            <Command filter={fuzzyFilter}>
+              <CommandInput placeholder="Search..." />
+              <CommandList>
+                <CommandItem
+                  value="alpha"
+                  keywords={['alpha']}
+                  onSelect={() => {
+                    onSelect();
+                    setOpen(false);
+                  }}
+                >
+                  Alpha
+                </CommandItem>
+                <CommandItem value="beta" keywords={['beta']} onSelect={vi.fn()}>
+                  Beta
+                </CommandItem>
+              </CommandList>
+            </Command>
+          </CommandDialogContent>
+        </CommandDialogRoot>
+      );
+    }
+
+    render(<Harness />);
+    await user.type(screen.getByPlaceholderText('Search...'), 'alp');
+    await user.click(await screen.findByText('Alpha'));
+
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledTimes(1);
+    });
+    // Base UI must not spuriously dismiss before cmdk onSelect (would call onOpenChange(false) first).
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

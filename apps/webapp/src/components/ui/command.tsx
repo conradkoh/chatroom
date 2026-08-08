@@ -144,9 +144,7 @@ function CommandSeparator({
 
 function CommandItem({
   className,
-  onMouseDown,
   onPointerDown,
-  onTouchStart,
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Item>) {
   return (
@@ -157,19 +155,12 @@ function CommandItem({
         className
       )}
       onPointerDown={(event) => {
-        // Prevent input blur before selection on touch/pointer (cmdk onSelect).
+        // Prevent command input blur before cmdk onSelect on pointer/touch paths.
+        // Pointer events fire for mouse, touch, and pen in modern browsers, so a
+        // single onPointerDown suppressor covers all input modalities. Verified by
+        // unit tests and browser validation (mouse click + touch tap).
         event.preventDefault();
         onPointerDown?.(event);
-      }}
-      onTouchStart={(event) => {
-        // Belt-and-suspenders for browsers that blur on touchstart before pointerdown.
-        event.preventDefault();
-        onTouchStart?.(event);
-      }}
-      onMouseDown={(event) => {
-        // Prevent input blur before click in portaled command dialogs (cmdk onSelect).
-        event.preventDefault();
-        onMouseDown?.(event);
       }}
       {...props}
     />

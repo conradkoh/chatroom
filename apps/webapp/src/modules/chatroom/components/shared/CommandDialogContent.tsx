@@ -13,6 +13,23 @@ import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useVisualViewportOffsetTop } from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
 
+export type CommandDialogRootProps = Omit<
+  DialogPrimitive.Root.Props,
+  'modal' | 'disablePointerDismissal'
+>;
+
+/**
+ * Dialog root for command-style pickers (Cmd+K, Cmd+P, Cmd+Shift+P, output modal).
+ *
+ * CommandDialogContent bypasses Dialog.Popup for performance, so Floating UI has
+ * no registered popup and treats pointer presses as outside when modal={false}.
+ * disablePointerDismissal prevents that; backdrop dismiss is manual via
+ * CommandDialogContent's backdrop layer.
+ */
+export function CommandDialogRoot(props: CommandDialogRootProps) {
+  return <DialogPrimitive.Root {...props} modal={false} disablePointerDismissal />;
+}
+
 const COMMAND_DIALOG_INPUT_SELECTOR = '[data-slot="command-input"]';
 const COMMAND_DIALOG_TITLE_SELECTOR = '[data-slot="dialog-title"]';
 const COMMAND_DIALOG_DESCRIPTION_SELECTOR = '[data-slot="dialog-description"]';
@@ -29,8 +46,6 @@ type CommandDialogContentProps = Omit<
   open: boolean;
   children?: React.ReactNode;
   onEscapeKeyDown?: (event: KeyboardEvent) => void;
-  onPointerDownOutside?: (event: Event) => void;
-  onFocusOutside?: (event: Event) => void;
   onBackdropDismiss?: () => void;
 };
 
@@ -45,15 +60,11 @@ function readCommandDialogAriaIds(node: HTMLDivElement) {
 // fallow-ignore-next-line complexity
 function handleBackdropPointerDown(
   event: React.PointerEvent<HTMLDivElement>,
-  onPointerDownOutside: CommandDialogContentProps['onPointerDownOutside'],
   onBackdropDismiss: CommandDialogContentProps['onBackdropDismiss']
 ): void {
   if (event.button !== 0) return;
-  event.preventDefault();
-  onPointerDownOutside?.(event.nativeEvent);
-  if (!event.nativeEvent.defaultPrevented) {
-    onBackdropDismiss?.();
-  }
+  event.preventDefault(); // prevent click-through to page beneath
+  onBackdropDismiss?.();
 }
 
 /**
@@ -67,8 +78,6 @@ export function CommandDialogContent({
   className,
   style,
   onEscapeKeyDown,
-  onPointerDownOutside,
-  onFocusOutside: _onFocusOutside,
   onBackdropDismiss,
   children,
   ...props
@@ -122,9 +131,7 @@ export function CommandDialogContent({
           data-slot="command-dialog-dismiss-backdrop"
           aria-hidden="true"
           className={COMMAND_DIALOG_DISMISS_BACKDROP_CLASSES}
-          onPointerDown={(event) =>
-            handleBackdropPointerDown(event, onPointerDownOutside, onBackdropDismiss)
-          }
+          onPointerDown={(event) => handleBackdropPointerDown(event, onBackdropDismiss)}
         />
       ) : null}
       <div

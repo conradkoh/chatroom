@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { CommandOutputModal, OPEN_GRACE_MS } from './CommandOutputModal';
+import { CommandOutputModal } from './CommandOutputModal';
 
 import type { CommandPaletteOutputState } from '@/modules/chatroom/hooks/useCommandRunOutputV2';
 
@@ -36,21 +36,7 @@ function makeInlineCommand(): CommandPaletteOutputState {
   };
 }
 
-function focusOutside(): HTMLElement {
-  const outside = document.createElement('button');
-  document.body.appendChild(outside);
-  return outside;
-}
-
-describe('CommandOutputModal open-grace guard', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
+describe('CommandOutputModal', () => {
   it('renders dialog content when commandName is set', () => {
     const inlineCommand = makeInlineCommand();
     render(<CommandOutputModal inlineCommand={inlineCommand} />);
@@ -58,34 +44,24 @@ describe('CommandOutputModal open-grace guard', () => {
     expect(document.querySelector('[data-testid="output-panel"]')).not.toBeNull();
   });
 
-  it('does not dismiss on pointerdown outside within grace', () => {
+  it('dismisses from the command dialog backdrop', () => {
+    const inlineCommand = makeInlineCommand();
+    render(<CommandOutputModal inlineCommand={inlineCommand} />);
+
+    const backdrop = document.querySelector<HTMLElement>(
+      '[data-slot="command-dialog-dismiss-backdrop"]'
+    );
+    backdrop?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+
+    expect(inlineCommand.detach).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not dismiss on pointerdown outside the backdrop', () => {
     const inlineCommand = makeInlineCommand();
     render(<CommandOutputModal inlineCommand={inlineCommand} />);
 
     document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 
     expect(inlineCommand.detach).not.toHaveBeenCalled();
-  });
-
-  it('does not dismiss on focus-outside within grace', () => {
-    const inlineCommand = makeInlineCommand();
-    render(<CommandOutputModal inlineCommand={inlineCommand} />);
-
-    const outside = focusOutside();
-    outside.focus();
-
-    expect(inlineCommand.detach).not.toHaveBeenCalled();
-  });
-
-  it('dismisses on focus-outside after grace period elapses', () => {
-    const inlineCommand = makeInlineCommand();
-    render(<CommandOutputModal inlineCommand={inlineCommand} />);
-
-    vi.advanceTimersByTime(OPEN_GRACE_MS + 100);
-
-    const outside = focusOutside();
-    outside.focus();
-
-    expect(inlineCommand.detach).toHaveBeenCalledTimes(1);
   });
 });
