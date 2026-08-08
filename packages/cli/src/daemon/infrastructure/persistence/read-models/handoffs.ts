@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-file unused-export
+// fallow-ignore-file unused-file
 import type { DatabaseSync } from 'node:sqlite';
 
 export type HandoffReadModelRow = {
