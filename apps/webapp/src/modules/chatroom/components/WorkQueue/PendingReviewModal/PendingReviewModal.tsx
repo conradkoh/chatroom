@@ -7,6 +7,7 @@ import type { BacklogItem } from '../../backlog';
 import type { Task } from '../types';
 import { PendingReviewBacklogModalItem } from './PendingReviewBacklogModalItem';
 import { PendingReviewModalItem } from './PendingReviewModalItem';
+import { Z_MODAL, Z_PANEL } from '../../shared/overlayLayers';
 
 export interface PendingReviewModalProps {
   tasks?: Task[];
@@ -54,12 +55,14 @@ export function PendingReviewModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
+        className={`${Z_PANEL} fixed inset-0 bg-black/60 backdrop-blur-sm`}
         onClick={handleBackdropClick}
       />
 
       {/* Modal */}
-      <div className="fixed inset-x-2 top-16 bottom-2 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[95%] md:max-w-xl md:max-h-[70vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong z-50 flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div
+        className={`${Z_MODAL} fixed inset-x-2 top-16 bottom-2 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[95%] md:max-w-xl md:max-h-[70vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong flex flex-col animate-in fade-in zoom-in-95 duration-200`}
+      >
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
           <div className="flex items-center gap-2">

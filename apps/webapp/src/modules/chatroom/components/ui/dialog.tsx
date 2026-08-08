@@ -40,7 +40,7 @@ import {
   OverlayPortalContainerProvider,
   useOverlayPortalContainer,
 } from '../shared/overlayPortalContainer';
-import { releaseRadixBodyLock } from '../shared/releaseRadixBodyLock';
+import { releaseBodyPointerLock } from '../shared/releaseBodyPointerLock';
 
 import { useAllowTouchSelection } from '@/hooks/useAllowTouchSelection';
 import { cn } from '@/lib/utils';
@@ -51,7 +51,7 @@ function Dialog({ modal = true, onOpenChange, ...props }: DialogPrimitive.Root.P
     eventDetails: DialogPrimitive.Root.ChangeEventDetails
   ) => {
     if (!open) {
-      requestAnimationFrame(() => releaseRadixBodyLock());
+      requestAnimationFrame(() => releaseBodyPointerLock());
     }
     onOpenChange?.(open, eventDetails);
   };

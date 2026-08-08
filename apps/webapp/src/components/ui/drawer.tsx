@@ -6,12 +6,12 @@ import { Drawer as DrawerPrimitive } from 'vaul';
 import { cn } from '@/lib/utils';
 import { Z_FLOATING, Z_MODAL } from '@/modules/chatroom/components/shared/overlayLayers';
 import { useOverlayPortalContainer } from '@/modules/chatroom/components/shared/overlayPortalContainer';
-import { releaseRadixBodyLock } from '@/modules/chatroom/components/shared/releaseRadixBodyLock';
+import { releaseBodyPointerLock } from '@/modules/chatroom/components/shared/releaseBodyPointerLock';
 
 function Drawer({ onOpenChange, ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
   const handleOpenChange = (open: boolean) => {
     if (!open) {
-      requestAnimationFrame(() => releaseRadixBodyLock());
+      requestAnimationFrame(() => releaseBodyPointerLock());
     }
     onOpenChange?.(open);
   };

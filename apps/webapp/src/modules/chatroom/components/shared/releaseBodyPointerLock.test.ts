@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { releaseRadixBodyLock } from './releaseRadixBodyLock';
 
-describe('releaseRadixBodyLock', () => {
+import { releaseBodyPointerLock } from './releaseBodyPointerLock';
+
+describe('releaseBodyPointerLock', () => {
   beforeEach(() => {
     document.body.style.pointerEvents = 'none';
     document.body.style.overflow = 'hidden';
@@ -9,15 +10,15 @@ describe('releaseRadixBodyLock', () => {
   });
 
   it('clears pointer-events, overflow, and removes data-scroll-locked', () => {
-    releaseRadixBodyLock();
+    releaseBodyPointerLock();
     expect(document.body.style.pointerEvents).toBe('');
     expect(document.body.style.overflow).toBe('');
     expect(document.body.getAttribute('data-scroll-locked')).toBeNull();
   });
 
   it('is safe when called multiple times', () => {
-    releaseRadixBodyLock();
-    releaseRadixBodyLock();
+    releaseBodyPointerLock();
+    releaseBodyPointerLock();
     expect(document.body.style.pointerEvents).toBe('');
   });
 });
