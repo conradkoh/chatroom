@@ -6,9 +6,19 @@ import * as React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { releaseBodyPointerLock } from '@/modules/chatroom/components/shared/releaseBodyPointerLock';
 
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+function Dialog({ onOpenChange, ...props }: DialogPrimitive.Root.Props) {
+  const handleOpenChange = (
+    open: boolean,
+    eventDetails: DialogPrimitive.Root.ChangeEventDetails
+  ) => {
+    if (!open) {
+      requestAnimationFrame(() => releaseBodyPointerLock());
+    }
+    onOpenChange?.(open, eventDetails);
+  };
+  return <DialogPrimitive.Root data-slot="dialog" onOpenChange={handleOpenChange} {...props} />;
 }
 
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
