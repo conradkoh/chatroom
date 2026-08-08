@@ -2,6 +2,14 @@ import type { AssignedTaskSnapshotView } from '../../daemon/domain/entities/assi
 
 let rows: AssignedTaskSnapshotView[] = [];
 let hasSnapshot = false;
+let snapshotProvider: (() => AssignedTaskSnapshotView[]) | undefined;
+
+/** Point the snapshot store at an external source (e.g. P2 SQLite read models in cutover). */
+export function setAssignedTaskSnapshotProvider(
+  provider: (() => AssignedTaskSnapshotView[]) | undefined
+): void {
+  snapshotProvider = provider;
+}
 
 export function replaceAssignedTaskSnapshots(next: readonly AssignedTaskSnapshotView[]): void {
   rows = [...next];
@@ -14,10 +22,12 @@ export function clearAssignedTaskSnapshots(): void {
 }
 
 export function hasAssignedTaskSnapshot(): boolean {
+  if (snapshotProvider) return snapshotProvider().length > 0;
   return hasSnapshot;
 }
 
 export function listAssignedTaskSnapshots(): AssignedTaskSnapshotView[] {
+  if (snapshotProvider) return snapshotProvider();
   return [...rows];
 }
 
