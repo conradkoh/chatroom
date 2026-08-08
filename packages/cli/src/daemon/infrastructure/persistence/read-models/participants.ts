@@ -9,6 +9,7 @@ export type ParticipantReadModelRow = {
   updatedAt: number;
 };
 
+// fallow-ignore-next-line unused-export
 export function upsertParticipantReadModel(db: DatabaseSync, row: ParticipantReadModelRow): void {
   db.prepare(
     `INSERT INTO read_model_participants(chatroom_id, role, turn_phase, last_seen_at, updated_at)
@@ -20,6 +21,7 @@ export function upsertParticipantReadModel(db: DatabaseSync, row: ParticipantRea
   ).run(row.chatroomId, row.role, row.turnPhase ?? null, row.lastSeenAt ?? null, row.updatedAt);
 }
 
+// fallow-ignore-next-line unused-export
 export function getParticipantReadModel(
   db: DatabaseSync,
   chatroomId: string,

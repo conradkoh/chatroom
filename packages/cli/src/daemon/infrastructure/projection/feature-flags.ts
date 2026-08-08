@@ -21,3 +21,15 @@ export function isDaemonOrchestrationP2Enabled(): boolean {
 export function isDaemonOrchestrationP2CutoverEnabled(): boolean {
   return envTruthy(process.env.DAEMON_ORCHESTRATION_P2_CUTOVER);
 }
+
+/** DAEMON_ORCHESTRATION_P3 — CLI handoff routes to daemon HTTP (wired in P3 PR D) */
+// fallow-ignore-next-line unused-export
+export function isDaemonOrchestrationP3Enabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P3);
+}
+
+/** DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY — delivery from local handoff event (P3 PR D optional) */
+// fallow-ignore-next-line unused-export
+export function isDaemonOrchestrationP3LocalDeliveryEnabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY);
+}
