@@ -1,11 +1,11 @@
 import type { OutboundEvent } from '../domain/entities/outbound-event.js';
 import type { ConvexPublisherDeps } from '../infrastructure/convex/publishers/publisher-deps.js';
-import { isDaemonOrchestrationP1CutoverEnabled } from '../infrastructure/projection/feature-flags.js';
 import type { PersistenceStore } from '../infrastructure/persistence/index.js';
 import {
   createConvexPublishers,
   getConvexEventHandler,
 } from '../infrastructure/projection/convex/route-outbound-event.js';
+import { isDaemonOrchestrationP1CutoverEnabled } from '../infrastructure/projection/feature-flags.js';
 import type { StreamHub } from '../local-web/server/stream-hub.js';
 
 export type PublisherRegistryDeps = {
