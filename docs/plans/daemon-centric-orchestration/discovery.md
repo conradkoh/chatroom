@@ -3,7 +3,7 @@
 **Status:** Discovery — architectural decisions resolved (no implementation)  
 **Branch:** `docs/daemon-centric-orchestration-discovery`  
 **Related:** [Convex → Daemon incremental sync](../../../packages/cli/src/infrastructure/incremental-sync/README.md), [daemon persistence](../../../packages/cli/src/daemon/infrastructure/persistence/README.md), [local web](../../../packages/cli/src/daemon/local-web/README.md)  
-**Plan folder:** [overview.md](./overview.md) · discovery (this doc)
+**Plan folder:** [overview.md](./overview.md) · [phases/](./phases/) · discovery (this doc)
 
 ---
 
@@ -467,6 +467,8 @@ packages/cli/src/daemon/
 | **P4 — Lifecycle local**   | APM events append locally; batch `emit*`                                       | Reduce mutation churn                               |
 | **P5 — Subscriber shrink** | Keep only user-intent inbound (files, git, webapp commands)                    | Daemon no longer subscribes to self-projected state |
 | **P6 — CLI migration**     | `get-next-task`, `task read`, context reads optional local                     | Agents use daemon as SSOT                           |
+
+> **Detailed implementation plan:** See [phases/README.md](./phases/README.md) for per-phase todos and verification criteria.
 
 Each phase should be **feature-flagged**. Daemon is SSOT from the start of each migrated flow — no dual-write. Validate projection catch-up and webapp consistency before cutting legacy Convex orchestration paths.
 

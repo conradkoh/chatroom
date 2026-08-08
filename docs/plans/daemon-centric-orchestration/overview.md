@@ -2,7 +2,7 @@
 
 **Status:** Structure proposal (for review)  
 **Branch:** `docs/daemon-centric-orchestration-discovery`  
-**Sibling docs:** [discovery.md](./discovery.md) — surface-area inventory, sync tiers, migration map
+**Sibling docs:** [discovery.md](./discovery.md) · [phases/](./phases/) — implementation plan with verification criteria
 
 ---
 
@@ -277,6 +277,8 @@ application/use-cases/* → infrastructure/persistence/read-models/*
 | `infrastructure/agent-process-manager/agent-process-manager.ts` | Emits `domain/events/agent-lifecycle.ts`; projection batches `emit*` | P4                    |
 | `infrastructure/convex/subscribers/*` (orchestration)           | Removed; user-intent only in `inbound/convex/`                       | P5                    |
 | `domain/usecase/*` (orchestration)                              | `application/use-cases/*`                                            | Incremental per slice |
+
+> Per-phase todos: [phases/README.md](./phases/README.md)
 
 ---
 
