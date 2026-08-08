@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import type { DatabaseSync } from 'node:sqlite';
 
 import type { OutboundEvent } from '../../domain/entities/outbound-event.js';
@@ -27,7 +26,7 @@ export type OutboxDrainTickResult = {
   failed: number;
 };
 
-// fallow-ignore-next-line complexity
+// fallow-ignore-next-line complexity unused-export
 export async function drainOutboxOnce(deps: OutboxDrainWorkerDeps): Promise<OutboxDrainTickResult> {
   const maxAttempts = deps.maxAttempts ?? 5;
   const rows = listPendingOutbox(deps.db, deps.limit ?? 100);
