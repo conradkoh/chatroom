@@ -52,7 +52,10 @@ function makeRequest(
   };
 }
 
-type FulfillmentRequest = ReturnType<typeof makeRequest> & { storageId?: string };
+type FulfillmentRequest = ReturnType<typeof makeRequest> & {
+  storageId?: string;
+  uploadKind?: 'chatAttachment';
+};
 
 function createClaimAwareMutation(requests: FulfillmentRequest[]) {
   return vi.fn().mockImplementation(async (_apiRef: string, args: Record<string, unknown>) => {

@@ -62,6 +62,17 @@ vi.mock('./EditorModal', () => ({
   EditorModal: () => null,
 }));
 
+vi.mock('../hooks/useChatInputFileDrop', () => ({
+  useChatInputFileDrop: () => ({
+    uploadJobs: [],
+    isDragging: false,
+    handleDragEnter: vi.fn(),
+    handleDragLeave: vi.fn(),
+    handleDragOver: vi.fn(),
+    handleDrop: vi.fn(),
+  }),
+}));
+
 describe('MessageInput mobile safe-area', () => {
   beforeEach(() => {
     mockUseIsDesktop.mockReturnValue(false);

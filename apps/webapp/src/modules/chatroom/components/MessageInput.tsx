@@ -31,7 +31,9 @@ import {
   measureTextareaContentHeightPx,
 } from './messageInputAutosize';
 import { getChatroomMobileFooterHorizontalSafeAreaStyle } from './shared/chatroomMobileSafeArea';
+import { useChatInputFileDrop } from '../hooks/useChatInputFileDrop';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
+import { WorkspaceUploadProgressList } from '../workspace/components/WorkspaceUploadProgressList';
 
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 
@@ -48,6 +50,9 @@ export interface MessageInputProps {
   onAtTriggerActivate?: () => void;
   /** Called after a message is successfully sent. */
   onMessageSent?: () => void;
+  machineId?: string | null;
+  workingDir?: string | null;
+  onUploadComplete?: () => void;
 }
 
 // ── Touch detection ──────────────────────────────────────────────────────────
@@ -145,6 +150,9 @@ export function MessageInput({
   hasAutocompleteWorkspace = false,
   onAtTriggerActivate,
   onMessageSent,
+  machineId = null,
+  workingDir = null,
+  onUploadComplete,
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -296,6 +304,20 @@ export function MessageInput({
     },
   });
 
+  const { uploadJobs, isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } =
+    useChatInputFileDrop({
+      machineId,
+      workingDir,
+      message,
+      setMessage,
+      textareaRef,
+      onUploadComplete,
+    });
+
+  const hasActiveUploads = uploadJobs.some(
+    (job) => job.phase === 'uploading' || job.phase === 'finalizing'
+  );
+
   // ── Send logic ─────────────────────────────────────────────────────────────
   const doSend = useCallback(
     async (text: string) => {
@@ -380,10 +402,11 @@ export function MessageInput({
       if (isTouchDevice) return;
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
+        if (hasActiveUploads) return;
         handleSubmit();
       }
     },
-    [fileAutocomplete, handleSubmit, isTouchDevice]
+    [fileAutocomplete, handleSubmit, hasActiveUploads, isTouchDevice]
   );
 
   const handleFileSelect = fileAutocomplete.handleFileSelect;
@@ -425,14 +448,18 @@ export function MessageInput({
     [remove]
   );
 
-  const canSend = message.trim().length > 0 && !sending;
+  const canSend = message.trim().length > 0 && !sending && !hasActiveUploads;
 
   return (
     <div
       ref={formContainerRef}
       data-main-chat-composer
-      className="relative bg-chatroom-bg-surface backdrop-blur-xl"
+      className={`relative bg-chatroom-bg-surface backdrop-blur-xl${isDragging ? ' ring-2 ring-chatroom-accent/60' : ''}`}
       style={getChatroomMobileFooterHorizontalSafeAreaStyle(mobile)}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
       {/* @ file reference autocomplete dropdown */}
       <FileReferenceAutocomplete
@@ -510,6 +537,8 @@ export function MessageInput({
           </button>
         </div>
       )}
+
+      <WorkspaceUploadProgressList jobs={uploadJobs} embedded />
 
       {/* Input row */}
       <div className="flex items-center gap-1.5 px-2 py-1.5 w-full">

@@ -38,7 +38,8 @@ export function useWorkspaceFileUpload({ machineId, workingDir }: UseWorkspaceFi
     async (
       filePath: string,
       file: File,
-      onProgress?: (update: WorkspaceFileUploadProgressUpdate) => void
+      onProgress?: (update: WorkspaceFileUploadProgressUpdate) => void,
+      options?: { uploadKind?: 'chatAttachment' }
     ) => {
       if (!machineId || !workingDir) {
         throw new Error('No workspace connected');
@@ -61,6 +62,7 @@ export function useWorkspaceFileUpload({ machineId, workingDir }: UseWorkspaceFi
           filePath,
           operation: 'create',
           storageId: storageId as never,
+          ...(options?.uploadKind ? { uploadKind: options.uploadKind } : {}),
         });
 
         await waitForFileWriteRequest(convex, sessionId, result.requestId, {

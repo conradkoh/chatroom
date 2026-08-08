@@ -20,7 +20,6 @@ export function sanitizeChatAttachmentFileName(originalFileName: string): string
   return valid ? cleaned.slice(0, 120) : 'attachment';
 }
 
-// fallow-ignore-next-line unused-export
 export function buildChatAttachmentUploadPath(originalFileName: string, uniqueId: string): string {
   const safeName = sanitizeChatAttachmentFileName(originalFileName);
   const fileName = `${uniqueId}_${safeName}`;

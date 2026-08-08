@@ -52,11 +52,22 @@ function ProgressRow({ job }: { job: WorkspaceUploadJob }) {
   );
 }
 
-export function WorkspaceUploadProgressList({ jobs }: { jobs: WorkspaceUploadJob[] }) {
+export function WorkspaceUploadProgressList({
+  jobs,
+  embedded = false,
+}: {
+  jobs: WorkspaceUploadJob[];
+  embedded?: boolean;
+}) {
   if (jobs.length === 0) return null;
 
   return (
-    <div className="shrink-0 space-y-2 border-t-2 border-chatroom-border-strong px-3 py-2">
+    <div
+      className={cn(
+        'shrink-0 space-y-2 px-3 py-2',
+        !embedded && 'border-t-2 border-chatroom-border-strong'
+      )}
+    >
       {jobs.map((job) => (
         <ProgressRow key={job.id} job={job} />
       ))}

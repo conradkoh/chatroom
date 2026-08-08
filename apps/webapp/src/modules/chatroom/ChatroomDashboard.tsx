@@ -1993,6 +1993,9 @@ export function ChatroomDashboard({
                               autocompleteFiles,
                               refreshAutocompleteFiles: handleAtTriggerActivate,
                               hasAutocompleteWorkspace,
+                              machineId: activeWorkspace?.machineId ?? null,
+                              workingDir: activeWorkspace?.workingDir ?? null,
+                              onUploadComplete: handleAtTriggerActivate,
                             }}
                             selectedHarnessSessionId={selectedHarnessSessionId}
                             setSelectedHarnessSessionId={setSelectedHarnessSessionId}
@@ -2016,6 +2019,9 @@ export function ChatroomDashboard({
                               files={autocompleteFiles}
                               hasAutocompleteWorkspace={hasAutocompleteWorkspace}
                               onAtTriggerActivate={handleAtTriggerActivate}
+                              machineId={activeWorkspace?.machineId ?? null}
+                              workingDir={activeWorkspace?.workingDir ?? null}
+                              onUploadComplete={handleAtTriggerActivate}
                             />
                           </div>
                         }

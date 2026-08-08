@@ -28,6 +28,9 @@ export interface MessagesPanelProps {
   autocompleteFiles?: FileEntry[];
   refreshAutocompleteFiles?: () => void;
   hasAutocompleteWorkspace?: boolean;
+  machineId?: string | null;
+  workingDir?: string | null;
+  onUploadComplete?: () => void;
 
   workspaceId?: Id<'chatroom_workspaces'> | null;
 }
@@ -43,6 +46,9 @@ export function MessagesPanel({
   autocompleteFiles,
   refreshAutocompleteFiles,
   hasAutocompleteWorkspace,
+  machineId = null,
+  workingDir = null,
+  onUploadComplete,
 }: MessagesPanelProps) {
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
@@ -59,6 +65,9 @@ export function MessagesPanel({
               files={autocompleteFiles}
               hasAutocompleteWorkspace={hasAutocompleteWorkspace}
               onAtTriggerActivate={refreshAutocompleteFiles}
+              machineId={machineId}
+              workingDir={workingDir}
+              onUploadComplete={onUploadComplete}
             />
           </div>
         }
