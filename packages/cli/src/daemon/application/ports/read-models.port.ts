@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-file unused-export
+// fallow-ignore-file unused-file
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 import type { TaskReadModelRow } from '../../infrastructure/persistence/read-models/tasks.js';
 

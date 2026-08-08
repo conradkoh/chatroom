@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-file unused-export
+// fallow-ignore-file unused-file
 export { upsertAgentReadModel, getAgentReadModel, type AgentReadModelRow } from './agents.js';
 export {
   upsertHandoffReadModel,
