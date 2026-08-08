@@ -30,6 +30,9 @@ export function useWorkspaceFileUpload({ machineId, workingDir }: UseWorkspaceFi
   const [sessionId] = useSessionId();
   const generateUploadUrl = useSessionMutation(api.workspaceFiles.generateWorkspaceFileUploadUrl);
   const requestFileWrite = useSessionMutation(api.workspaceFiles.requestFileWrite);
+  const discardUnattachedUpload = useSessionMutation(
+    api.workspaceFiles.discardUnattachedWorkspaceUpload
+  );
 
   const uploadFile = useCallback(
     async (
@@ -51,21 +54,38 @@ export function useWorkspaceFileUpload({ machineId, workingDir }: UseWorkspaceFi
       });
 
       onProgress?.({ phase: 'finalizing', percent: 90 });
-      const result = await requestFileWrite({
-        machineId,
-        workingDir,
-        filePath,
-        operation: 'create',
-        storageId: storageId as never,
-      });
+      try {
+        const result = await requestFileWrite({
+          machineId,
+          workingDir,
+          filePath,
+          operation: 'create',
+          storageId: storageId as never,
+        });
 
-      await waitForFileWriteRequest(convex, sessionId, result.requestId, {
-        timeoutMs: FILE_WRITE_CONFIRM_TIMEOUT_MS,
-      });
+        await waitForFileWriteRequest(convex, sessionId, result.requestId, {
+          timeoutMs: FILE_WRITE_CONFIRM_TIMEOUT_MS,
+        });
+      } catch (error) {
+        await discardUnattachedUpload({
+          machineId,
+          workingDir,
+          storageId: storageId as never,
+        }).catch(() => undefined);
+        throw error;
+      }
 
       onProgress?.({ phase: 'complete', percent: 100 });
     },
-    [convex, generateUploadUrl, machineId, requestFileWrite, sessionId, workingDir]
+    [
+      convex,
+      discardUnattachedUpload,
+      generateUploadUrl,
+      machineId,
+      requestFileWrite,
+      sessionId,
+      workingDir,
+    ]
   );
 
   return { uploadFile };
