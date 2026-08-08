@@ -7,6 +7,7 @@ import Markdown from 'react-markdown';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { CopyButton } from './CopyButton';
 import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
+import { Z_MODAL, Z_PANEL } from './shared/overlayLayers';
 
 import { usePrompts } from '@/contexts/PromptsContext';
 
@@ -66,12 +67,14 @@ export const PromptModal = memo(function PromptModal({ isOpen, onClose, role }: 
     <>
       {/* Backdrop for mobile */}
       <div
-        className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
+        className={`${Z_PANEL} fixed inset-0 bg-black/60 backdrop-blur-sm`}
         onClick={handleBackdropClick}
       />
 
       {/* Side panel / Full screen viewer */}
-      <div className="chatroom-root fixed top-0 right-0 h-full w-full md:w-[500px] lg:w-[600px] bg-chatroom-bg-primary border-l-2 border-chatroom-border-strong z-50 flex flex-col animate-in slide-in-from-right duration-200">
+      <div
+        className={`${Z_MODAL} chatroom-root fixed top-0 right-0 h-full w-full md:w-[500px] lg:w-[600px] bg-chatroom-bg-primary border-l-2 border-chatroom-border-strong flex flex-col animate-in slide-in-from-right duration-200`}
+      >
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-tertiary">
           <div className="flex flex-col gap-1">
