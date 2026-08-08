@@ -143,6 +143,7 @@ import type * as web_enhancer_mutations from "../web/enhancer/mutations.js";
 import type * as web_enhancer_queries from "../web/enhancer/queries.js";
 import type * as workspaceFiles from "../workspaceFiles.js";
 import type * as workspacePathSecurity from "../workspacePathSecurity.js";
+import type * as workspaceUploadCleanup from "../workspaceUploadCleanup.js";
 import type * as workspaces from "../workspaces.js";
 
 import type {
@@ -287,6 +288,7 @@ declare const fullApi: ApiFromModules<{
   "web/enhancer/queries": typeof web_enhancer_queries;
   workspaceFiles: typeof workspaceFiles;
   workspacePathSecurity: typeof workspacePathSecurity;
+  workspaceUploadCleanup: typeof workspaceUploadCleanup;
   workspaces: typeof workspaces;
 }>;
 

@@ -109,4 +109,11 @@ crons.interval(
 // Scheduled prompts — fire due prompts every minute
 crons.interval('run scheduled prompts', { minutes: 1 }, internal.scheduledPrompts.runDue);
 
+// Workspace uploads — expire stale storage-backed write requests
+crons.interval(
+  'expire stale workspace uploads',
+  { minutes: 15 },
+  internal.workspaceUploadCleanup.expireStaleWorkspaceUploadRequests
+);
+
 export default crons;

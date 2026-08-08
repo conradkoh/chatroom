@@ -8,9 +8,12 @@
 import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
+import { getBlockedUploadTargetReason } from '@workspace/backend/src/domain/constants/workspace-upload-path-policy.js';
+import { MAX_WORKSPACE_UPLOAD_BYTES } from '@workspace/backend/src/domain/constants/workspace-upload.js';
 import { Effect } from 'effect';
 
 import { unsupportedFileWriteOperationMessage } from './file-write-errors.js';
+import { sortPendingFileWriteRequests } from './file-write-request-priority.js';
 import { api } from '../../../api.js';
 import { assertRegisteredWorkingDir } from '../../../infrastructure/services/workspace/assert-registered-working-dir.js';
 import {
@@ -20,16 +23,21 @@ import {
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
 import { formatTimestamp } from '../daemon-utils.js';
 
-/** Max file content size (512KB) — matches backend MAX_CONTENT_BYTES. */
-const MAX_CONTENT_BYTES = 512 * 1024;
+/** Max inline gzip payload (512KB) — matches backend MAX_CONTENT_BYTES. */
+const MAX_INLINE_CONTENT_BYTES = 512 * 1024;
+
+/** Max storage-backed upload size (70MB) — matches backend MAX_WORKSPACE_UPLOAD_BYTES. */
+const MAX_UPLOAD_CONTENT_BYTES = MAX_WORKSPACE_UPLOAD_BYTES;
 
 export type PendingFileWriteRequest = {
   _id: string;
+  revision: number;
   workingDir: string;
   filePath: string;
   operation: 'create' | 'update' | 'delete' | 'rename' | 'mkdir';
   targetFilePath?: string;
   data?: { compression: 'gzip'; content: string };
+  storageId?: string;
 };
 
 /** Errors that will not succeed on retry — complete request as terminal error. */
@@ -47,6 +55,7 @@ function isTerminalFileWriteError(errorMessage: string): boolean {
     'Rename target must differ from source path',
     'Directory already exists',
     'Workspace not registered for this machine',
+    'Cannot upload to this location (.git and sensitive paths are blocked)',
   ]);
   if (errorMessage.startsWith('Unsupported file write operation')) return true;
   return terminalMessages.has(errorMessage);
@@ -55,14 +64,42 @@ function isTerminalFileWriteError(errorMessage: string): boolean {
 async function completeWriteRequest(
   session: DaemonSessionServiceShape,
   requestId: string,
+  revision: number,
   result: { status: 'done' } | { status: 'error'; errorMessage: string }
 ): Promise<void> {
   await session.backend.mutation(api.workspaceFiles.completeFileWriteRequest, {
     sessionId: session.sessionId,
     requestId: requestId as never,
+    revision,
     status: result.status,
     errorMessage: result.status === 'error' ? result.errorMessage : undefined,
   });
+}
+
+type ClaimedFileWriteRequest = {
+  _id: string;
+  revision: number;
+  workingDir: string;
+  filePath: string;
+  operation: PendingFileWriteRequest['operation'];
+  targetFilePath?: string;
+  data?: { compression: 'gzip'; content: string };
+  storageId?: string;
+};
+
+async function claimWriteRequest(
+  session: DaemonSessionServiceShape,
+  request: PendingFileWriteRequest
+): Promise<{ status: 'claimed'; request: ClaimedFileWriteRequest } | { status: 'stale' }> {
+  const result = await session.backend.mutation(api.workspaceFiles.claimFileWriteRequest, {
+    sessionId: session.sessionId,
+    requestId: request._id as never,
+    expectedRevision: request.revision,
+  });
+  if (result.status !== 'claimed') {
+    return { status: 'stale' };
+  }
+  return result;
 }
 
 async function fileExistsAt(absolutePath: string): Promise<boolean> {
@@ -77,7 +114,43 @@ function decodeWritePayload(
   if (!request.data) {
     return { ok: false, errorMessage: 'Missing file data' };
   }
-  return gunzipBase64Payload(request.data.content, MAX_CONTENT_BYTES);
+  return gunzipBase64Payload(request.data.content, MAX_INLINE_CONTENT_BYTES);
+}
+
+async function fetchStoragePayload(
+  session: DaemonSessionServiceShape,
+  request: PendingFileWriteRequest
+): Promise<{ ok: true; content: Buffer } | { ok: false; errorMessage: string }> {
+  const storageUrl = await session.backend.query(api.workspaceFiles.getWriteRequestStorageUrl, {
+    sessionId: session.sessionId,
+    requestId: request._id as never,
+  });
+
+  if (!storageUrl) {
+    return { ok: false, errorMessage: 'Missing upload data' };
+  }
+
+  const response = await fetch(storageUrl);
+  if (!response.ok) {
+    return { ok: false, errorMessage: 'Failed to fetch upload' };
+  }
+
+  const content = Buffer.from(await response.arrayBuffer());
+  if (content.length > MAX_UPLOAD_CONTENT_BYTES) {
+    return { ok: false, errorMessage: 'File content too large' };
+  }
+
+  return { ok: true, content };
+}
+
+async function resolveWritePayload(
+  session: DaemonSessionServiceShape,
+  request: PendingFileWriteRequest
+): Promise<{ ok: true; content: Buffer } | { ok: false; errorMessage: string }> {
+  if (request.data?.content) {
+    return decodeWritePayload(request);
+  }
+  return fetchStoragePayload(session, request);
 }
 
 // fallow-ignore-next-line complexity
@@ -105,6 +178,8 @@ async function writePayloadToDisk(
 ): Promise<void> {
   if (operation === 'create') {
     await mkdir(dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, content, { flag: 'wx' });
+    return;
   }
   await writeFile(absolutePath, content);
 }
@@ -114,12 +189,18 @@ async function fulfillOneFileWriteRequest(
   session: DaemonSessionServiceShape,
   request: PendingFileWriteRequest
 ): Promise<void> {
+  const claim = await claimWriteRequest(session, request);
+  if (claim.status !== 'claimed') {
+    return;
+  }
+
+  const claimed = claim.request;
   const startTime = Date.now();
-  const { workingDir, filePath, operation } = request;
+  const { workingDir, filePath, operation } = claimed;
 
   const registered = await assertRegisteredWorkingDir(session, workingDir);
   if (!registered.ok) {
-    await completeWriteRequest(session, request._id, {
+    await completeWriteRequest(session, claimed._id, claimed.revision, {
       status: 'error',
       errorMessage: registered.error,
     });
@@ -128,7 +209,7 @@ async function fulfillOneFileWriteRequest(
 
   const resolved = await resolvePathWithinWorkspace(workingDir, filePath);
   if (!resolved.ok) {
-    await completeWriteRequest(session, request._id, {
+    await completeWriteRequest(session, claimed._id, claimed.revision, {
       status: 'error',
       errorMessage: resolved.error,
     });
@@ -137,24 +218,24 @@ async function fulfillOneFileWriteRequest(
 
   try {
     if (operation === 'rename') {
-      if (!request.targetFilePath) {
-        await completeWriteRequest(session, request._id, {
+      if (!claimed.targetFilePath) {
+        await completeWriteRequest(session, claimed._id, claimed.revision, {
           status: 'error',
           errorMessage: 'Target path is required for rename',
         });
         return;
       }
-      if (request.targetFilePath === filePath) {
-        await completeWriteRequest(session, request._id, {
+      if (claimed.targetFilePath === filePath) {
+        await completeWriteRequest(session, claimed._id, claimed.revision, {
           status: 'error',
           errorMessage: 'Rename target must differ from source path',
         });
         return;
       }
 
-      const targetResolved = await resolvePathWithinWorkspace(workingDir, request.targetFilePath);
+      const targetResolved = await resolvePathWithinWorkspace(workingDir, claimed.targetFilePath);
       if (!targetResolved.ok) {
-        await completeWriteRequest(session, request._id, {
+        await completeWriteRequest(session, claimed._id, claimed.revision, {
           status: 'error',
           errorMessage: targetResolved.error,
         });
@@ -163,7 +244,7 @@ async function fulfillOneFileWriteRequest(
 
       const sourceExists = await fileExistsAt(resolved.absolutePath);
       if (!sourceExists) {
-        await completeWriteRequest(session, request._id, {
+        await completeWriteRequest(session, claimed._id, claimed.revision, {
           status: 'error',
           errorMessage: 'File does not exist',
         });
@@ -172,7 +253,7 @@ async function fulfillOneFileWriteRequest(
 
       const targetExists = await fileExistsAt(targetResolved.absolutePath);
       if (targetExists) {
-        await completeWriteRequest(session, request._id, {
+        await completeWriteRequest(session, claimed._id, claimed.revision, {
           status: 'error',
           errorMessage: 'Target path already exists',
         });
@@ -182,11 +263,11 @@ async function fulfillOneFileWriteRequest(
       await mkdir(dirname(targetResolved.absolutePath), { recursive: true });
       await rename(resolved.absolutePath, targetResolved.absolutePath);
 
-      await completeWriteRequest(session, request._id, { status: 'done' });
+      await completeWriteRequest(session, claimed._id, claimed.revision, { status: 'done' });
 
       const elapsed = Date.now() - startTime;
       console.log(
-        `[${formatTimestamp()}] ✏️  File rename fulfilled: ${filePath} → ${request.targetFilePath} (${elapsed}ms)`
+        `[${formatTimestamp()}] ✏️  File rename fulfilled: ${filePath} → ${claimed.targetFilePath} (${elapsed}ms)`
       );
       return;
     }
@@ -194,7 +275,7 @@ async function fulfillOneFileWriteRequest(
     if (operation === 'mkdir') {
       const exists = await fileExistsAt(resolved.absolutePath);
       if (exists) {
-        await completeWriteRequest(session, request._id, {
+        await completeWriteRequest(session, claimed._id, claimed.revision, {
           status: 'error',
           errorMessage: 'Directory already exists',
         });
@@ -202,7 +283,7 @@ async function fulfillOneFileWriteRequest(
       }
 
       await mkdir(resolved.absolutePath, { recursive: true });
-      await completeWriteRequest(session, request._id, { status: 'done' });
+      await completeWriteRequest(session, claimed._id, claimed.revision, { status: 'done' });
 
       const elapsed = Date.now() - startTime;
       console.log(
@@ -213,7 +294,7 @@ async function fulfillOneFileWriteRequest(
 
     if (operation === 'delete') {
       if (filePath === '') {
-        await completeWriteRequest(session, request._id, {
+        await completeWriteRequest(session, claimed._id, claimed.revision, {
           status: 'error',
           errorMessage: 'Cannot delete workspace root',
         });
@@ -222,7 +303,7 @@ async function fulfillOneFileWriteRequest(
 
       const operationCheck = await validateWriteOperation(operation, resolved.absolutePath);
       if (!operationCheck.ok) {
-        await completeWriteRequest(session, request._id, {
+        await completeWriteRequest(session, claimed._id, claimed.revision, {
           status: 'error',
           errorMessage: operationCheck.errorMessage,
         });
@@ -230,7 +311,7 @@ async function fulfillOneFileWriteRequest(
       }
 
       await rm(resolved.absolutePath, { recursive: true, force: false });
-      await completeWriteRequest(session, request._id, { status: 'done' });
+      await completeWriteRequest(session, claimed._id, claimed.revision, { status: 'done' });
 
       const elapsed = Date.now() - startTime;
       console.log(`[${formatTimestamp()}] ✏️  File delete fulfilled: ${filePath} (${elapsed}ms)`);
@@ -238,25 +319,39 @@ async function fulfillOneFileWriteRequest(
     }
 
     if (operation !== 'create' && operation !== 'update') {
-      await completeWriteRequest(session, request._id, {
+      await completeWriteRequest(session, claimed._id, claimed.revision, {
         status: 'error',
         errorMessage: unsupportedFileWriteOperationMessage(operation),
       });
       return;
     }
 
-    const payload = decodeWritePayload(request);
+    if (claimed.storageId) {
+      const blockedReason = getBlockedUploadTargetReason(filePath);
+      if (blockedReason) {
+        await completeWriteRequest(session, claimed._id, claimed.revision, {
+          status: 'error',
+          errorMessage: blockedReason,
+        });
+        return;
+      }
+    }
+
+    const payload = await resolveWritePayload(session, claimed);
     if (!payload.ok) {
-      await completeWriteRequest(session, request._id, {
+      await completeWriteRequest(session, claimed._id, claimed.revision, {
         status: 'error',
         errorMessage: payload.errorMessage,
       });
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  File write failed for ${filePath}: ${payload.errorMessage}`
+      );
       return;
     }
 
     const operationCheck = await validateWriteOperation(operation, resolved.absolutePath);
     if (!operationCheck.ok) {
-      await completeWriteRequest(session, request._id, {
+      await completeWriteRequest(session, claimed._id, claimed.revision, {
         status: 'error',
         errorMessage: operationCheck.errorMessage,
       });
@@ -264,7 +359,7 @@ async function fulfillOneFileWriteRequest(
     }
 
     await writePayloadToDisk(resolved.absolutePath, operation, payload.content);
-    await completeWriteRequest(session, request._id, { status: 'done' });
+    await completeWriteRequest(session, claimed._id, claimed.revision, { status: 'done' });
 
     const elapsed = Date.now() - startTime;
     console.log(
@@ -272,19 +367,23 @@ async function fulfillOneFileWriteRequest(
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Write failed';
-    if (isTerminalFileWriteError(message)) {
-      await completeWriteRequest(session, request._id, {
+    const normalizedMessage =
+      (err as NodeJS.ErrnoException).code === 'EEXIST' ? 'File already exists' : message;
+    if (isTerminalFileWriteError(normalizedMessage)) {
+      await completeWriteRequest(session, claimed._id, claimed.revision, {
         status: 'error',
-        errorMessage: message,
+        errorMessage: normalizedMessage,
       });
-      console.warn(`[${formatTimestamp()}] ⚠️  File write failed for ${filePath}: ${message}`);
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  File write failed for ${filePath}: ${normalizedMessage}`
+      );
       return;
     }
 
     console.warn(
       `[${formatTimestamp()}] ⚠️  File write transient failure for ${filePath}: ${message} (will retry)`
     );
-    // Intentionally leave request pending — no completeWriteRequest call
+    // Intentionally leave request processing — no completeWriteRequest call
   }
 }
 
@@ -305,11 +404,13 @@ export const fulfillFileWriteRequestsEffect: Effect.Effect<void, never, DaemonSe
 
     if (requests.length === 0) return;
 
+    const sortedRequests = sortPendingFileWriteRequests(requests);
+
     console.log(
-      `[${formatTimestamp()}] ✏️  Received ${requests.length} pending file write request(s): ${requests.map((r) => r.filePath).join(', ')}`
+      `[${formatTimestamp()}] ✏️  Received ${sortedRequests.length} pending file write request(s): ${sortedRequests.map((r) => r.filePath).join(', ')}`
     );
 
-    for (const request of requests) {
+    for (const request of sortedRequests) {
       yield* Effect.catchAll(
         Effect.tryPromise(() => fulfillOneFileWriteRequest(session, request)),
         () => Effect.void

@@ -7,12 +7,17 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { formatFileWriteError, type FileWriteOperation } from './fileWriteErrorFormatting';
 
 const FILE_WRITE_POLL_INTERVAL_MS = 500;
-const FILE_WRITE_POLL_TIMEOUT_MS = 30_000;
+export const FILE_WRITE_CONFIRM_TIMEOUT_MS = 5 * 60 * 1000;
+const FILE_WRITE_POLL_TIMEOUT_MS = FILE_WRITE_CONFIRM_TIMEOUT_MS;
+
+export type WaitForFileWriteOptions = {
+  timeoutMs?: number;
+};
 
 export type { FileWriteOperation };
 
 export type FileWriteRequestStatus = {
-  status: 'pending' | 'done' | 'error';
+  status: 'pending' | 'processing' | 'done' | 'error';
   errorMessage?: string;
   operation?: FileWriteOperation;
 };
@@ -28,9 +33,11 @@ export async function pollFileWriteRequest(
   queryFn: (
     requestId: Id<'chatroom_workspaceFileWriteRequests'>
   ) => Promise<FileWriteRequestStatus | null>,
-  requestId: Id<'chatroom_workspaceFileWriteRequests'>
+  requestId: Id<'chatroom_workspaceFileWriteRequests'>,
+  options?: WaitForFileWriteOptions
 ): Promise<void> {
-  const deadline = Date.now() + FILE_WRITE_POLL_TIMEOUT_MS;
+  const timeoutMs = options?.timeoutMs ?? FILE_WRITE_POLL_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
     const result = await queryFn(requestId);
@@ -50,15 +57,20 @@ export async function pollFileWriteRequest(
 export async function waitForFileWriteRequest(
   convex: ConvexReactClient,
   sessionId: SessionId | null | undefined,
-  requestId: Id<'chatroom_workspaceFileWriteRequests'>
+  requestId: Id<'chatroom_workspaceFileWriteRequests'>,
+  options?: WaitForFileWriteOptions
 ): Promise<void> {
-  await pollFileWriteRequest(async (id) => {
-    if (!sessionId) {
-      throw new Error('Authentication required');
-    }
-    return convex.query(api.workspaceFiles.getFileWriteRequest, {
-      sessionId,
-      requestId: id,
-    });
-  }, requestId);
+  await pollFileWriteRequest(
+    async (id) => {
+      if (!sessionId) {
+        throw new Error('Authentication required');
+      }
+      return convex.query(api.workspaceFiles.getFileWriteRequest, {
+        sessionId,
+        requestId: id,
+      });
+    },
+    requestId,
+    options
+  );
 }
