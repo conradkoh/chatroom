@@ -8,6 +8,7 @@ const {
   initDaemon,
   startAllSubscribers,
   startLocalWebServer,
+  startCliHttpServer,
   createPersistenceStore,
   createDaemonDeps,
   startOutboxDrainWorker,
@@ -20,6 +21,7 @@ const {
   initDaemon: vi.fn(),
   startAllSubscribers: vi.fn(),
   startLocalWebServer: vi.fn(),
+  startCliHttpServer: vi.fn(() => ({ port: 28766, stop: vi.fn().mockResolvedValue(undefined) })),
   createPersistenceStore: vi.fn(),
   createDaemonDeps: vi.fn(),
   startOutboxDrainWorker: vi.fn(() => ({ stop: vi.fn() })),
@@ -72,6 +74,10 @@ vi.mock('./subscriber-registry.js', () => ({
 
 vi.mock('../local-web/server/create-local-web-server.js', () => ({
   startLocalWebServer,
+}));
+
+vi.mock('../infrastructure/inbound/local/cli-http-server.js', () => ({
+  startCliHttpServer,
 }));
 
 vi.mock('../infrastructure/persistence/index.js', () => ({
@@ -178,6 +184,15 @@ describe('startDaemon', () => {
     await startDaemon();
 
     expect(startOutboxDrainWorker).not.toHaveBeenCalled();
+  });
+
+  it('starts the CLI HTTP server bound to localhost', async () => {
+    await startDaemon();
+
+    expect(startCliHttpServer).toHaveBeenCalledWith(
+      { host: '127.0.0.1', port: expect.any(Number) },
+      expect.objectContaining({ dispatch: expect.any(Function) })
+    );
   });
 
   it('starts outbox drain worker when DAEMON_ORCHESTRATION_P1 is set', async () => {

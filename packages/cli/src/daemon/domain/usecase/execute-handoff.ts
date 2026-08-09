@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
