@@ -6,7 +6,7 @@
 
 ## Shippability
 
-**Shippable alone:** Yes — flag-gated validation + migration; existing multi-machine chatrooms unaffected until cutover.
+**Shippable alone:** Yes — flag-gated validation + backfill. Multi-machine chatrooms are **not supported** when P8 is enabled (no grandfathering).
 
 ### What ships
 
@@ -23,7 +23,7 @@
 ### Progressive rollout
 
 1. **P8 on (shadow):** Log violations when team configs have >1 machineId or >1 workingDir per chatroom; no reject.
-2. **P8_CUTOVER on:** Reject new mismatched configs; existing chatrooms must be migrated or grandfathered.
+2. **P8_CUTOVER on:** Reject mismatched configs. Chatrooms with agents on multiple machines/workspaces are **unsupported** — orchestration blocked until reconfigured to a single host.
 3. **P8-T5:** Daemon HTTP routes return `403 chatroom_not_hosted` when local `machineId` ≠ chatroom orchestration host.
 
 ### Ship checklist
@@ -31,7 +31,7 @@
 - [ ] Flag off: multi-machine chatrooms unchanged
 - [ ] Flag on + shadow: violation logging without reject
 - [ ] Flag on + cutover: duo team E2E on single machine (planner → builder handoff, no Convex signal round-trip)
-- [ ] Migration script/backfill documented and tested on fixture chatroom
+- [ ] Backfill sets orchestration host on single-machine chatrooms only; multi-machine chatrooms rejected (no migration path)
 - [ ] Webapp shows orchestration host binding (read-only indicator minimum)
 
 ### Toward outcome
@@ -137,19 +137,24 @@ Bind each chatroom's orchestration to exactly **one machine** and **one workspac
 | Intent single target | integration test | User message → one intent row for host machineId only                |
 | Duo E2E              | manual P8+P3+P6  | planner handoff → builder claims without cross-machine Convex signal |
 
-### P8-T6 — Migration / backfill `[new]`
+### P8-T6 — Backfill single-machine chatrooms `[new]`
+
+**Resolved decision:** Multi-machine chatrooms are **not supported**. No grandfathering or manual conflict-resolution path.
 
 **Implement:**
 
-- `services/backend/convex/migrations.ts` (or one-off mutation) — for chatrooms where all remote configs share machineId+workingDir, set `orchestrationMachineId` + `orchestrationWorkingDir`
-- Chatrooms with conflicts: leave unset; surface in admin/dev query for manual resolution
+- `services/backend/convex/migrations.ts` (or one-off mutation) — for chatrooms where all remote configs share `machineId` + `workingDir`, set `orchestrationMachineId` + `orchestrationWorkingDir`
+- Chatrooms with conflicting remote configs: leave host fields unset; `assertSingleMachineWorkspace` rejects further orchestration writes when P8_CUTOVER on; webapp surfaces "reconfigure to single machine" (P8-T3)
+
+**Do NOT implement:** Admin query for manual resolution, grandfathering, or cross-machine migration tooling.
 
 **Verify:**
 
-| Check             | Test           | Expected             |
-| ----------------- | -------------- | -------------------- |
-| Clean chatroom    | migration test | Fields populated     |
-| Conflict chatroom | migration test | Fields null; flagged |
+| Check                   | Test             | Expected                                                                     |
+| ----------------------- | ---------------- | ---------------------------------------------------------------------------- |
+| Single-machine chatroom | migration test   | Host fields populated                                                        |
+| Multi-machine chatroom  | integration test | Host fields unset; P8_CUTOVER blocks orchestration with clear error          |
+| Reconfigure path        | manual           | User moves all roles to same machine → host resolves → orchestration resumes |
 
 ---
 
@@ -158,6 +163,7 @@ Bind each chatroom's orchestration to exactly **one machine** and **one workspac
 - [ ] P8-T1 through P8-T6 complete per verification tables
 - [ ] Duo team runs entirely on one machine with one workspace
 - [ ] Cross-machine orchestration paths documented as **unsupported** for P8 chatrooms
+- [ ] Multi-machine chatrooms explicitly unsupported (no migration/grandfather path documented or implemented)
 - [ ] Flag off = unchanged behavior
 
 ## Rollback
