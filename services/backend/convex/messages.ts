@@ -11,6 +11,7 @@ import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
+import { isDaemonOrchestrationP9CutoverEnabled } from '../config/daemonOrchestrationFlags';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
@@ -24,6 +25,7 @@ import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
+import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
@@ -40,6 +42,7 @@ import {
   resolveTaskPlannerEnhancerEnabled,
   validatePlannerEnhancerHandoff,
 } from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
+import { emitDaemonOrchestrationIntentForUserMessage } from '../src/domain/usecase/machine/emit-daemon-orchestration-intent';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
 import {
   collectActiveTasks,
@@ -1028,6 +1031,103 @@ export const projectHandoffFromDaemon = mutation({
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: args.timestamp });
 
     return { success: true, replayed: false, messageId };
+  },
+});
+
+const projectUserMessageSnippetValidator = v.object({
+  reference: v.string(),
+  fileSource: v.string(),
+  selectedContent: v.string(),
+});
+
+/** P9: daemon projection of a locally-executed user message (Convex sink only). */
+export const projectUserMessageFromDaemon = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    idempotencyKey: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    localMessageId: v.string(),
+    localTaskId: v.string(),
+    content: v.string(),
+    targetRole: v.optional(v.string()),
+    assignedRole: v.string(),
+    attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
+    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+    attachedSnippets: v.optional(v.array(projectUserMessageSnippetValidator)),
+    sourcePlatform: v.optional(v.string()),
+    scheduledPromptId: v.optional(v.id('chatroom_scheduledPrompts')),
+    plannerEnhancerEnabled: v.optional(v.boolean()),
+    timestamp: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+
+    const existing = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_idempotencyKey', (q) => q.eq('idempotencyKey', args.idempotencyKey))
+      .first();
+    if (existing) {
+      return { success: true, replayed: true, messageId: existing._id, taskId: existing.taskId };
+    }
+
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) {
+      throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
+    }
+
+    const messageId = await ctx.db.insert('chatroom_messages', {
+      chatroomId: args.chatroomId,
+      senderRole: 'user',
+      content: args.content,
+      targetRole: args.targetRole,
+      type: 'message' as const,
+      idempotencyKey: args.idempotencyKey,
+      ...(args.attachedTaskIds?.length ? { attachedTaskIds: args.attachedTaskIds } : {}),
+      ...(args.attachedBacklogItemIds?.length
+        ? { attachedBacklogItemIds: args.attachedBacklogItemIds }
+        : {}),
+      ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
+      ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
+      ...(args.sourcePlatform ? { sourcePlatform: args.sourcePlatform } : {}),
+      ...(args.scheduledPromptId ? { scheduledPromptId: args.scheduledPromptId } : {}),
+    });
+
+    const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
+    const { taskId } = await createTaskUsecase(ctx, {
+      chatroomId: args.chatroomId,
+      createdBy: 'user',
+      content: args.content,
+      forceStatus: undefined,
+      assignedTo: args.assignedRole,
+      sourceMessageId: messageId,
+      queuePosition,
+      attachedTaskIds: args.attachedTaskIds,
+      ...(args.plannerEnhancerEnabled !== undefined
+        ? { plannerEnhancerEnabled: args.plannerEnhancerEnabled }
+        : {}),
+    });
+
+    await ctx.db.patch('chatroom_messages', messageId, { taskId });
+    await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: args.timestamp });
+
+    // P9 ingress path: daemon already woke locally — skip P7 intent emit on cutover.
+    if (!isDaemonOrchestrationP9CutoverEnabled()) {
+      await emitDaemonOrchestrationIntentForUserMessage(ctx, {
+        chatroomId: args.chatroomId,
+        taskId,
+        messageId,
+        assignedRole: args.assignedRole,
+        createdAt: args.timestamp,
+      });
+    }
+    await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
+
+    void args.localMessageId;
+    void args.localTaskId;
+
+    return { success: true, replayed: false, messageId, taskId };
   },
 });
 
