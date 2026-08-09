@@ -1,2 +1,28 @@
 // fallow-ignore-file unused-file
+export {
+  buildAgentNativeEndEvent,
+  buildAgentStartFailedEvent,
+  buildAgentStopTimeoutEvent,
+  buildHarnessSessionIdUpdatedEvent,
+  buildRestartCompletedEvent,
+  buildRestartLimitReachedEvent,
+  buildRestartPhaseEvent,
+  buildSessionReopenRetryEvent,
+  buildSessionResumeFailedEvent,
+  buildSessionResumeRequestedEvent,
+  buildSessionResumedEvent,
+  buildTurnEndedEvent,
+  type AgentNativeEndEvent,
+  type AgentStartFailedEvent,
+  type AgentStopTimeoutEvent,
+  type HarnessSessionIdUpdatedEvent,
+  type RestartCompletedEvent,
+  type RestartLimitReachedEvent,
+  type RestartPhaseEvent,
+  type SessionReopenRetryEvent,
+  type SessionResumeFailedEvent,
+  type SessionResumeRequestedEvent,
+  type SessionResumedEvent,
+  type TurnEndedEvent,
+} from './agent-lifecycle.js';
 export { buildHandoffCompletedEvent, type HandoffCompletedEvent } from './handoff-completed.js';

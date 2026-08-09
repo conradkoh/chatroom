@@ -3,6 +3,8 @@
  * Use cases emit OutboundEvent; publisher-registry routes to convex/publishers/.
  */
 
+import type { AgentRestartPhase } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
+
 import type { MachineCapabilities } from './machine-capabilities.js';
 
 export type OutboundEvent =
@@ -90,6 +92,127 @@ export type OutboundEvent =
         model: string;
         originUserMessageId?: string;
       };
+      timestamp: number;
+    }
+  | {
+      type: 'agent.start_failed';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      error: string;
+      timestamp: number;
+    }
+  | {
+      type: 'agent.stop_timeout';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      pid?: number;
+      durationMs: number;
+      timestamp: number;
+    }
+  | {
+      type: 'session.resume_requested';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      agentHarness: string;
+      harnessSessionId?: string;
+      timestamp: number;
+    }
+  | {
+      type: 'session.resumed';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      harnessSessionId?: string;
+      timestamp: number;
+    }
+  | {
+      type: 'session.resume_failed';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      reason: string;
+      harnessSessionId?: string;
+      timestamp: number;
+    }
+  | {
+      type: 'session.reopen_retry';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      attempt: number;
+      maxAttempts: number;
+      error?: string;
+      harnessSessionId?: string;
+      timestamp: number;
+    }
+  | {
+      type: 'harness.session_id_updated';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      correlationId: string;
+      previousResumableId?: string;
+      resumableId: string;
+      source: 'provider_allocated' | 'provider_rotated';
+      timestamp: number;
+    }
+  | {
+      type: 'restart.limit_reached';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      restartCount: number;
+      windowMs: number;
+      timestamp: number;
+    }
+  | {
+      type: 'agent.native_end';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      taskId?: string;
+      timestamp: number;
+    }
+  | {
+      type: 'turn.ended';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      taskId?: string;
+      timestamp: number;
+    }
+  | {
+      type: 'restart.phase';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      correlationId: string;
+      phase: AgentRestartPhase | 'completed' | 'failed';
+      detail?: string;
+      timestamp: number;
+    }
+  | {
+      type: 'restart.completed';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      machineId: string;
+      correlationId: string;
+      deliveredTaskIds?: string[];
       timestamp: number;
     };
 
