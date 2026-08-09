@@ -323,6 +323,10 @@ export default defineSchema({
     standingInstructions: v.optional(v.string()),
     standingInstructionsEnabled: v.optional(v.boolean()),
     standingInstructionsTitle: v.optional(v.string()),
+    // P8: single orchestration host binding — one machine + one workspace owns
+    // all remote team agent roles for this chatroom. Unset for pre-P8 chatrooms.
+    orchestrationMachineId: v.optional(v.string()),
+    orchestrationWorkingDir: v.optional(v.string()),
   })
     .index('by_status', ['status'])
     .index('by_ownerId', ['ownerId'])
