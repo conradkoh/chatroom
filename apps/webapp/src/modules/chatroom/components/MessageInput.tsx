@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { AlertTriangle, ArrowUp, Paperclip, X } from 'lucide-react';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 
@@ -141,6 +141,7 @@ function cleanupOldDrafts(currentKey: string) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
+// fallow-ignore-next-line complexity
 export function MessageInput({
   chatroomId,
   onRegisterFocus,
@@ -236,6 +237,11 @@ export function MessageInput({
   const attachedMessages = useMessageAttachments();
 
   const sendMessage = useSessionMutation(api.messages.sendMessage);
+  const submitIngressMessage = useSessionMutation(api.orchestration.submitUserMessage);
+  const chatroom = useSessionQuery(api.chatrooms.get, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+  const useOrchestrationIngress = chatroom?.useOrchestrationIngress ?? false;
 
   // ── Auto-resize textarea ───────────────────────────────────────────────────
   const lastTextareaHeightRef = useRef(0);
@@ -333,11 +339,9 @@ export function MessageInput({
           selectedContent: s.selectedContent,
         }));
 
-        await sendMessage({
+        const payload = {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          senderRole: 'user',
           content: text.trim(),
-          type: 'message',
           ...(snippets.length > 0 && { attachedSnippets: snippets }),
           ...(attachedTasks.length > 0 && {
             attachedTaskIds: attachedTasks.map((task) => task.id),
@@ -348,7 +352,13 @@ export function MessageInput({
           ...(attachedMessages.length > 0 && {
             attachedMessageIds: attachedMessages.map((msg) => msg.id),
           }),
-        });
+        };
+
+        if (useOrchestrationIngress) {
+          await submitIngressMessage(payload);
+        } else {
+          await sendMessage({ ...payload, senderRole: 'user', type: 'message' });
+        }
         setMessage('');
         setSendError(null);
         localStorage.removeItem(draftKey);
@@ -381,6 +391,8 @@ export function MessageInput({
     [
       sending,
       sendMessage,
+      submitIngressMessage,
+      useOrchestrationIngress,
       chatroomId,
       attachedTasks,
       attachedBacklogItems,

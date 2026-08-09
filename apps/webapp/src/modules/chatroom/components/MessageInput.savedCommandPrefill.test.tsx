@@ -28,12 +28,19 @@ beforeAll(() => {
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => mockSendMessage,
+  useSessionQuery: () => undefined,
 }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     messages: {
       sendMessage: 'messages:sendMessage',
+    },
+    orchestration: {
+      submitUserMessage: 'orchestration:submitUserMessage',
+    },
+    chatrooms: {
+      get: 'chatrooms:get',
     },
   },
 }));
