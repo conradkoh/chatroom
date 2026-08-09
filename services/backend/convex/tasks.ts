@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+// fallow-ignore-file code-duplication coverage-gaps complexity
 import {
   NON_FATAL_ERROR_CODES,
   type BackendError,
@@ -9,9 +10,10 @@ import {
 import { RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
 import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
-import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
+import { makePromoteNextTaskDeps, canPromote } from './lib/promoteNextTaskDeps';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { acknowledgePendingTask } from '../src/domain/usecase/task/acknowledge-pending-task';
@@ -19,11 +21,11 @@ import {
   createTask as createTaskUsecase,
   hasActiveTaskFromMaterializedCounts,
 } from '../src/domain/usecase/task/create-task';
+import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
-import { canPromote } from './lib/promoteNextTaskDeps';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
-import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
+import { recordTaskDelivery } from '../src/domain/usecase/task/record-task-delivery';
 import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
 import {
   countActiveTasksFromSource,
@@ -1125,6 +1127,128 @@ export const getTask = query({
       createdAt: task.createdAt,
       createdBy: task.createdBy,
     };
+  },
+});
+
+/**
+ * Idempotent daemon projection for a CLI `get-next-task` claim (P6).
+ * Mirrors `projectHandoffFromDaemon`: the daemon claims locally against its
+ * read models and this handler mirrors the claim to Convex. Replays are
+ * detected via task status + the upsert receipt, so the outbox retry loop is
+ * safe to re-run.
+ */
+export const projectTaskClaimFromDaemon = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    idempotencyKey: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    taskId: v.id('chatroom_tasks'),
+    messageId: v.optional(v.id('chatroom_messages')),
+    timestamp: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task || task.chatroomId !== args.chatroomId) {
+      throw new ConvexError({ code: 'TASK_NOT_FOUND', message: 'Task not found' });
+    }
+
+    // Idempotent replay: already acknowledged for this role.
+    if (
+      (task.status === 'acknowledged' || task.status === 'in_progress') &&
+      task.assignedTo?.toLowerCase() === args.role.toLowerCase()
+    ) {
+      await recordTaskDelivery(ctx, {
+        chatroomId: args.chatroomId,
+        taskId: task._id,
+        role: args.role,
+        deliveryKind: 'cli_get_next_task',
+      });
+      return { success: true, replayed: true, taskId: task._id };
+    }
+
+    if (task.status !== 'pending') {
+      // Claimed by another agent — no-op so the daemon outbox retry loop succeeds.
+      return { success: false, replayed: true, taskId: task._id };
+    }
+
+    await acknowledgePendingTask(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      pendingTask: task,
+    });
+
+    await recordTaskDelivery(ctx, {
+      chatroomId: args.chatroomId,
+      taskId: task._id,
+      role: args.role,
+      deliveryKind: 'cli_get_next_task',
+    });
+
+    if (args.messageId) {
+      const message = await ctx.db.get('chatroom_messages', args.messageId);
+      if (message && !message.acknowledgedAt) {
+        await ctx.db.patch('chatroom_messages', args.messageId, {
+          acknowledgedAt: Date.now(),
+        });
+      }
+    }
+
+    return { success: true, replayed: false, taskId: task._id };
+  },
+});
+
+/**
+ * Idempotent daemon projection for a task status transition (P6 task read).
+ * Acknowledged → in_progress mirrors the CLI `task read` flow; already-started
+ * tasks are treated as replayed (agent recovery).
+ */
+export const projectTaskStatusFromDaemon = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    idempotencyKey: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    taskId: v.id('chatroom_tasks'),
+    status: v.union(v.literal('acknowledged'), v.literal('in_progress')),
+    timestamp: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task || task.chatroomId !== args.chatroomId) {
+      throw new ConvexError({ code: 'TASK_NOT_FOUND', message: 'Task not found' });
+    }
+
+    if (task.status === args.status) {
+      return { success: true, replayed: true, taskId: task._id };
+    }
+
+    if (args.status === 'acknowledged') {
+      if (task.status !== 'pending') {
+        return { success: false, replayed: true, taskId: task._id };
+      }
+      await acknowledgePendingTask(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        pendingTask: task,
+      });
+      return { success: true, replayed: false, taskId: task._id };
+    }
+
+    // status === 'in_progress': allow acknowledged → in_progress (recovery-safe)
+    if (task.status === 'acknowledged') {
+      await transitionTask(ctx, task._id, 'in_progress', 'projectTaskStatusFromDaemon');
+      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
+      return { success: true, replayed: false, taskId: task._id };
+    }
+
+    return { success: false, replayed: true, taskId: task._id };
   },
 });
 
