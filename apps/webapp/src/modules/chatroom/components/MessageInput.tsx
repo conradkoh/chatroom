@@ -31,6 +31,10 @@ import {
 } from './messageInputAutosize';
 import { ComposerAccessoryButton } from './shared/ComposerAccessoryButton';
 import { composerAccessoryRowClassName } from './shared/composerAccessoryButtonStyles';
+import {
+  bracketTimelineScrollResize,
+  useTimelineScrollResize,
+} from '../hooks/TimelineScrollResizeContext';
 import { useChatInputFileDrop } from '../hooks/useChatInputFileDrop';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
 import { WorkspaceUploadProgressList } from '../workspace/components/WorkspaceUploadProgressList';
@@ -160,6 +164,7 @@ export function MessageInput({
   const snippetRefsRef = useRef<string[]>([]);
   const isTouchDevice = useIsTouchDevice();
   const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
+  const scrollResize = useTimelineScrollResize();
 
   // Register focus callback for external callers
   useEffect(() => {
@@ -239,15 +244,16 @@ export function MessageInput({
 
   // ── Auto-resize textarea ───────────────────────────────────────────────────
   const lastTextareaHeightRef = useRef(0);
-  const resizeFrameRef = useRef<number | null>(null);
 
   const applyTextareaHeight = useCallback(
     (textarea: HTMLTextAreaElement) => {
-      const nextHeight = measureTextareaContentHeightPx(textarea, effectiveMaxTextareaHeightPx);
-      textarea.style.height = `${nextHeight}px`;
-      lastTextareaHeightRef.current = nextHeight;
+      bracketTimelineScrollResize(scrollResize, () => {
+        const nextHeight = measureTextareaContentHeightPx(textarea, effectiveMaxTextareaHeightPx);
+        textarea.style.height = `${nextHeight}px`;
+        lastTextareaHeightRef.current = nextHeight;
+      });
     },
-    [effectiveMaxTextareaHeightPx]
+    [effectiveMaxTextareaHeightPx, scrollResize]
   );
 
   // Sync path: message changes — before paint (no rAF)
@@ -257,32 +263,22 @@ export function MessageInput({
     applyTextareaHeight(textarea);
   }, [message, applyTextareaHeight]);
 
-  // Async path: width changes via ResizeObserver only
-  const scheduleResize = useCallback(() => {
-    if (resizeFrameRef.current !== null) return;
-    resizeFrameRef.current = requestAnimationFrame(() => {
-      resizeFrameRef.current = null;
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-      applyTextareaHeight(textarea);
+  // Async path: observe the whole composer container (accessory row, attachment
+  // chips, error banner, upload progress, and textarea width reflows) and re-apply
+  // the textarea height within a scroll-resize bracket so the message feed does
+  // not snap mid-resize. Replaces the previous textarea-only observer.
+  useEffect(() => {
+    const container = formContainerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      bracketTimelineScrollResize(scrollResize, () => {
+        const textarea = textareaRef.current;
+        if (textarea) applyTextareaHeight(textarea);
+      });
     });
-  }, [applyTextareaHeight]);
-
-  useEffect(() => {
-    return () => {
-      if (resizeFrameRef.current !== null) {
-        cancelAnimationFrame(resizeFrameRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const observer = new ResizeObserver(() => scheduleResize());
-    observer.observe(textarea);
+    observer.observe(container);
     return () => observer.disconnect();
-  }, [scheduleResize]);
+  }, [scrollResize, applyTextareaHeight]);
 
   // ── Shared @ file reference autocomplete (after resize is set up) ──────
   const fileAutocomplete = useFileReferenceAutocomplete({

@@ -15,7 +15,9 @@ import type { MachineNameEntry } from '../../components/timeline/timelineRowStyl
 import {
   JUMP_TO_NEW_MESSAGES_GAP_PX,
   JUMP_TO_NEW_MESSAGES_Z_INDEX,
+  TIMELINE_PADDING_END,
 } from '../../components/timeline/timelineVirtualizerConfig';
+import { useRegisterTimelineScrollResize } from '../../hooks/TimelineScrollResizeContext';
 import { useScrollController } from '../../hooks/useScrollController';
 import type { TimelineEvent } from '../../timeline/types';
 
@@ -44,7 +46,8 @@ export function AllTabMessageList({
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
 }) {
-  const { controller, isPinned, scrollToBottom } = useScrollController();
+  const { controller, isPinned, scrollToBottom, beginResize, endResize } = useScrollController();
+  useRegisterTimelineScrollResize({ beginResize, endResize });
   const containerRef = useRef<HTMLDivElement | null>(null);
   const prevScrollHeightRef = useRef(0);
   const prevEventCountRef = useRef(0);
@@ -121,7 +124,7 @@ export function AllTabMessageList({
         ref={containerRefCallback}
         onScroll={handleScroll}
         className={`flex-1 ${TIMELINE_SCROLL_CONTAINER}`}
-        style={TIMELINE_SCROLL_CONTAINER_STYLE}
+        style={{ ...TIMELINE_SCROLL_CONTAINER_STYLE, paddingBottom: TIMELINE_PADDING_END }}
         data-testid="all-tab-message-list"
       >
         {events.map((event, index) => (

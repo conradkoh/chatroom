@@ -4,7 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { AllTabMessageList } from './AllTabMessageList';
 import { getTimelineVirtualRowZIndex } from '../../components/timeline/timelineRowStyles';
 import type { TimelineMessageHeaderNavigation } from '../../components/timeline/timelineRowStyles';
-import { JUMP_TO_NEW_MESSAGES_Z_INDEX } from '../../components/timeline/timelineVirtualizerConfig';
+import {
+  JUMP_TO_NEW_MESSAGES_Z_INDEX,
+  TIMELINE_PADDING_END,
+} from '../../components/timeline/timelineVirtualizerConfig';
+import {
+  TimelineScrollResizeProvider,
+  useTimelineScrollResize,
+  type TimelineScrollResizeApi,
+} from '../../hooks/TimelineScrollResizeContext';
 
 vi.mock('../../components/timeline/TimelineEventRow', () => ({
   TimelineEventRow: ({
@@ -175,6 +183,44 @@ describe('AllTabMessageList', () => {
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
     expect(list.className).toContain('min-h-0');
     expect(list.style.getPropertyValue('--timeline-scrollbar-width')).toBe('8px');
+  });
+
+  it('applies TIMELINE_PADDING_END bottom padding to the scroll container', () => {
+    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    expect(list.style.paddingBottom).toBe(`${TIMELINE_PADDING_END}px`);
+  });
+
+  it('registers scroll resize API so composer growth does not snap mid-resize', () => {
+    const apiHolder: { current: TimelineScrollResizeApi | null } = { current: null };
+    function Probe() {
+      apiHolder.current = useTimelineScrollResize();
+      return null;
+    }
+
+    render(
+      <TimelineScrollResizeProvider>
+        <Probe />
+        <AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />
+      </TimelineScrollResizeProvider>
+    );
+
+    const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    // Pinned at bottom: max scrollTop = 1200 - 400 = 800
+    setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 800 });
+    fireEvent.scroll(list);
+
+    expect(apiHolder.current).not.toBeNull();
+
+    // Composer grows → feed container clientHeight shrinks → new bottom = 1200 - 300 = 900
+    apiHolder.current?.beginResize();
+    setScrollMetrics(list, { clientHeight: 300, scrollHeight: 1200, scrollTop: 800 });
+    // Mid-resize: no snap — scrollTop must remain unchanged
+    expect(list.scrollTop).toBe(800);
+
+    apiHolder.current?.endResize();
+    // Post-resize: pinned feed snaps synchronously to the new bottom
+    expect(list.scrollTop).toBe(900);
   });
 
   it('calls onLoadMore when scrolled near the bottom and canLoadMore is true', () => {
