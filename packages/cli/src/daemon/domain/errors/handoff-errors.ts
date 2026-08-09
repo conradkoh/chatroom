@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 export type HandoffErrorCode =
   | 'AUTH_FAILED'
   | 'INVALID_ROLE'
@@ -15,7 +14,6 @@ export type HandoffRejectedError = {
   suggestedTargets?: string[];
 };
 
-// fallow-ignore-next-line unused-type
 export type ExecuteHandoffResult = {
   success: boolean;
   error?: HandoffRejectedError;

@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import type { DatabaseSync } from 'node:sqlite';
 
 export type HandoffReadModelRow = {
@@ -8,7 +7,6 @@ export type HandoffReadModelRow = {
   updatedAt: number;
 };
 
-// fallow-ignore-next-line unused-export
 export function upsertHandoffReadModel(db: DatabaseSync, row: HandoffReadModelRow): void {
   db.prepare(
     `INSERT INTO read_model_handoffs(chatroom_id, pending_next_role, message_id, updated_at)

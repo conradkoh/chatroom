@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import type { DatabaseSync } from 'node:sqlite';
 
 export type ParticipantReadModelRow = {
@@ -9,7 +8,6 @@ export type ParticipantReadModelRow = {
   updatedAt: number;
 };
 
-// fallow-ignore-next-line unused-export
 export function upsertParticipantReadModel(db: DatabaseSync, row: ParticipantReadModelRow): void {
   db.prepare(
     `INSERT INTO read_model_participants(chatroom_id, role, turn_phase, last_seen_at, updated_at)

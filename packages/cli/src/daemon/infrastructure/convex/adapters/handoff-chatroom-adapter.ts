@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 
 import { api } from '../../../../api.js';
@@ -36,7 +35,7 @@ type AgentStartConfig = {
   agentHarness?: string;
 } | null;
 
-// fallow-ignore-next-line unused-export complexity
+// fallow-ignore-next-line complexity
 export async function fetchHandoffChatroomContext(
   deps: HandoffChatroomAdapterDeps,
   chatroomId: string
@@ -84,7 +83,6 @@ export async function fetchHandoffChatroomContext(
   };
 }
 
-// fallow-ignore-next-line unused-export
 export async function getAgentHarnessForRole(
   deps: HandoffChatroomAdapterDeps,
   chatroomId: string,
