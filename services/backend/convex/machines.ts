@@ -3,6 +3,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+// fallow-ignore-file code-duplication
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
@@ -47,6 +48,7 @@ import {
 } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { subscribeAssignedTaskPresenceForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-presence';
 import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
+import { subscribeDaemonOrchestrationIntentsForMachine } from '../src/domain/usecase/machine/subscribe-daemon-orchestration-intents';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
@@ -2660,6 +2662,30 @@ export const subscribeAssignedTaskSignalsSince = query({
       userId: auth.userId,
       afterKey: args.afterKey,
       limit: args.limit,
+    });
+  },
+});
+
+/**
+ * Incremental daemon-orchestration intents since an exclusive revisionKey cursor
+ * (P7 user-message intent feed — daemon pulls lean wake signals).
+ */
+export const subscribeDaemonOrchestrationIntentsSince = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    afterKey: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { items: [], highKey: null, hasMore: false };
+
+    return subscribeDaemonOrchestrationIntentsForMachine(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      afterKey: args.afterKey,
+      limit: args.limit ?? 50,
     });
   },
 });

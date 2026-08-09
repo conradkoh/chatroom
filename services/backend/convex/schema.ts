@@ -702,6 +702,30 @@ export default defineSchema({
     .index('by_chatroomId_role', ['chatroomId', 'role']),
 
   /**
+   * Lean daemon-orchestration intent rows — one per (machineId, taskId).
+   * Written when a user message creates a task (P7); read by the daemon via an
+   * indexed incremental-sync cursor. A wake signal only — Convex still owns the
+   * message + task write; the daemon ingests into its local read models.
+   */
+  chatroom_daemonOrchestrationIntents: defineTable({
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    taskId: v.id('chatroom_tasks'),
+    messageId: v.id('chatroom_messages'),
+    role: v.string(),
+    intentType: v.literal('user_message'),
+    revisionKey: v.string(),
+    createdAt: v.number(),
+    status: v.union(v.literal('pending'), v.literal('claimed')),
+    claimedAt: v.optional(v.number()),
+    agentHarness: v.string(),
+    workingDir: v.optional(v.string()),
+    model: v.optional(v.string()),
+  })
+    .index('by_machineId_revisionKey', ['machineId', 'revisionKey'])
+    .index('by_machineId_taskId', ['machineId', 'taskId']),
+
+  /**
    * Backlog items for chatroom planning.
    * Long-lived planning items managed by the user, separate from active task queue.
    *

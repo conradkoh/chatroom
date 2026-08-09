@@ -3,9 +3,10 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
 import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agents-on-user-message';
+import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-planner-enhancer-enabled';
+import { emitDaemonOrchestrationIntentForUserMessage } from '../machine/emit-daemon-orchestration-intent';
 import { createTask as createTaskUsecase, shouldEnqueueMessage } from '../task/create-task';
 import { adjustTaskCount } from '../task/task-counts';
-import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-planner-enhancer-enabled';
 
 export type SendAutomatedUserMessageResult =
   | { ok: true; messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> }
@@ -37,11 +38,12 @@ export async function sendAutomatedUserMessage(
   const enqueue = await shouldEnqueueMessage(ctx, args.chatroomId);
 
   let plannerEnhancerEnabled: boolean | undefined;
-  if (args.userId) {
+  const userId = args.userId;
+  if (userId) {
     const config = await ctx.db
       .query('chatroom_enhancerConfigs')
       .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', args.userId!)
+        q.eq('chatroomId', args.chatroomId).eq('userId', userId)
       )
       .unique();
     plannerEnhancerEnabled = resolvePlannerEnhancerEnabledFromConfig(config);
@@ -99,6 +101,13 @@ export async function sendAutomatedUserMessage(
     ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
   });
   await ctx.db.patch('chatroom_messages', messageId, { taskId });
+  await emitDaemonOrchestrationIntentForUserMessage(ctx, {
+    chatroomId: args.chatroomId,
+    taskId,
+    messageId,
+    assignedRole: targetRole ?? 'planner',
+    createdAt: Date.now(),
+  });
   await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
   return { ok: true, messageId };
 }
