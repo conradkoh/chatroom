@@ -98,6 +98,8 @@ export async function startDaemon(): Promise<void> {
     }
   );
 
+  // P5: when DAEMON_ORCHESTRATION_P5 is on, startAllSubscribers registers only
+  // user-intent inbound subscribers (no assigned-task/enhancer orchestration subs).
   const subscribers = startAllSubscribers({
     wsClient,
     sessionId: init.sessionId,

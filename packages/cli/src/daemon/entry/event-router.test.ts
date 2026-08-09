@@ -209,6 +209,41 @@ describe('routeInboundEvent', () => {
     expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
+  test('P5 on: assigned-task events are no-ops (subscriber not registered)', async () => {
+    process.env.DAEMON_ORCHESTRATION_P5 = '1';
+    try {
+      const deliverInbound = vi.fn().mockResolvedValue(undefined);
+      const event: AssignedTaskInboundEvent = {
+        type: 'assigned-task.signal',
+        taskId: 'task_1',
+        role: 'builder',
+      };
+
+      await routeInboundEvent({ ...routerDeps, assignedTask: { deliverInbound } }, event);
+
+      expect(deliverInbound).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P5;
+    }
+  });
+
+  test('P5 on: enhancer.job-assigned is a no-op (enhancer is local-first)', async () => {
+    process.env.DAEMON_ORCHESTRATION_P5 = '1';
+    try {
+      const deliverInbound = vi.fn().mockResolvedValue(undefined);
+      const event: EnhancerInboundEvent = {
+        type: 'enhancer.job-assigned',
+        jobId: 'job_1',
+      };
+
+      await routeInboundEvent({ ...routerDeps, enhancer: { deliverInbound } }, event);
+
+      expect(deliverInbound).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P5;
+    }
+  });
+
   test('ignores unhandled event types', async () => {
     const deliverAssignedTaskInbound = vi.fn().mockResolvedValue(undefined);
     const deliverDirectHarnessInbound = vi.fn().mockResolvedValue(undefined);
