@@ -4,10 +4,13 @@
  * Phase 8: Migrated to Effect-TS services with typed error handling.
  */
 
+// fallow-ignore-file code-duplication
 import { Effect } from 'effect';
 
+import { getDaemonMessagesBySender, getDaemonMessagesSince } from './daemon-messages-client.js';
 import type { MessagesDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
+import { isDaemonOrchestrationP6MessagesEnabled } from '../../daemon/infrastructure/projection/feature-flags.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import type { SessionService } from '../../infrastructure/services/index.js';
@@ -122,14 +125,25 @@ export const listBySenderRoleEffect = (
       id,
     }));
 
-    const messages = yield* backend
-      .query<MessageItem[]>(api.messages.listBySenderRole, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        senderRole: options.senderRole,
-        limit: options.limit || 10,
-      })
-      .pipe(Effect.mapError((cause): MessagesError => ({ _tag: 'QueryFailed', cause })));
+    const messages = yield* isDaemonOrchestrationP6MessagesEnabled()
+      ? Effect.tryPromise({
+          try: () =>
+            getDaemonMessagesBySender({
+              chatroomId,
+              role: options.role,
+              senderRole: options.senderRole,
+              limit: options.limit || 10,
+            }),
+          catch: (cause): MessagesError => ({ _tag: 'QueryFailed', cause: cause as Error }),
+        })
+      : backend
+          .query<MessageItem[]>(api.messages.listBySenderRole, {
+            sessionId,
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            senderRole: options.senderRole,
+            limit: options.limit || 10,
+          })
+          .pipe(Effect.mapError((cause): MessagesError => ({ _tag: 'QueryFailed', cause })));
 
     // fallow-ignore-next-line complexity
     yield* Effect.sync(() => {
@@ -184,14 +198,25 @@ export const listSinceMessageEffect = (
       id,
     }));
 
-    const messages = yield* backend
-      .query<MessageItem[]>(api.messages.listSinceMessage, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        sinceMessageId: options.sinceMessageId as Id<'chatroom_messages'>,
-        limit: options.limit || 100,
-      })
-      .pipe(Effect.mapError((cause): MessagesError => ({ _tag: 'QueryFailed', cause })));
+    const messages = yield* isDaemonOrchestrationP6MessagesEnabled()
+      ? Effect.tryPromise({
+          try: () =>
+            getDaemonMessagesSince({
+              chatroomId,
+              role: options.role,
+              sinceMessageId: options.sinceMessageId,
+              limit: options.limit || 100,
+            }),
+          catch: (cause): MessagesError => ({ _tag: 'QueryFailed', cause: cause as Error }),
+        })
+      : backend
+          .query<MessageItem[]>(api.messages.listSinceMessage, {
+            sessionId,
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            sinceMessageId: options.sinceMessageId as Id<'chatroom_messages'>,
+            limit: options.limit || 100,
+          })
+          .pipe(Effect.mapError((cause): MessagesError => ({ _tag: 'QueryFailed', cause })));
 
     // fallow-ignore-next-line complexity
     yield* Effect.sync(() => {
@@ -301,6 +326,7 @@ export async function listSinceMessage(
   );
 }
 
+// fallow-ignore-next-line unused-export
 export { downloadMessages } from './download.js';
 // fallow-ignore-next-line unused-export
 export { anchorMessages, anchorMessagesEffect } from './anchor.js';

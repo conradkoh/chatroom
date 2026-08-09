@@ -9,12 +9,15 @@
  * Phase 5: Migrated to Effect-TS services with typed error handling.
  */
 
+// fallow-ignore-file code-duplication
 import { getContextViewTemplate } from '@workspace/backend/prompts/cli/context/context-template.js';
 import { Effect } from 'effect';
 
+import { getDaemonContext } from './daemon-context-client.js';
 import type { ContextDeps } from './deps.js';
 import { formatNewContextError } from './format-new-context-error.js';
 import { api, type Id } from '../../api.js';
+import { isDaemonOrchestrationP6ContextEnabled } from '../../daemon/infrastructure/projection/feature-flags.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import type { SessionService } from '../../infrastructure/services/index.js';
@@ -82,43 +85,51 @@ export const readContextEffect = (
     }));
 
     // Query context
-    const context = yield* backend
-      .query<{
-        messages: {
-          _id: string;
-          senderRole: string;
-          targetRole?: string;
-          type: string;
-          content: string;
-          taskId?: string;
-          taskStatus?: string;
-          taskContent?: string;
-          attachedTasks?: {
-            _id: string;
-            content: string;
-          }[];
-        }[];
-        currentContext?: {
-          content: string;
-          createdBy: string;
-          createdAt: number;
-        };
-        originMessage?: {
-          _id: string;
-          _creationTime: number;
-        };
-        pendingTasksForRole: number;
-      }>(api.messages.getContextForRole, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role: options.role,
-      })
-      .pipe(
-        Effect.mapError((cause): ContextError => ({
-          _tag: 'ReadContextFailed',
-          cause: cause as Error,
-        }))
-      );
+    const context = yield* isDaemonOrchestrationP6ContextEnabled()
+      ? Effect.tryPromise({
+          try: () => getDaemonContext({ chatroomId, role: options.role }),
+          catch: (cause): ContextError => ({
+            _tag: 'ReadContextFailed',
+            cause: cause as Error,
+          }),
+        })
+      : backend
+          .query<{
+            messages: {
+              _id: string;
+              senderRole: string;
+              targetRole?: string;
+              type: string;
+              content: string;
+              taskId?: string;
+              taskStatus?: string;
+              taskContent?: string;
+              attachedTasks?: {
+                _id: string;
+                content: string;
+              }[];
+            }[];
+            currentContext?: {
+              content: string;
+              createdBy: string;
+              createdAt: number;
+            };
+            originMessage?: {
+              _id: string;
+              _creationTime: number;
+            };
+            pendingTasksForRole: number;
+          }>(api.messages.getContextForRole, {
+            sessionId,
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            role: options.role,
+          })
+          .pipe(
+            Effect.mapError((cause): ContextError => ({
+              _tag: 'ReadContextFailed',
+              cause: cause as Error,
+            }))
+          );
 
     // Print context
     // fallow-ignore-next-line complexity
