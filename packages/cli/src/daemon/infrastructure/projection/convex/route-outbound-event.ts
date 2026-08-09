@@ -1,3 +1,4 @@
+import { createAgentLifecycleProjector } from './handlers/project-agent-status.js';
 import type { OutboundEvent } from '../../../domain/entities/outbound-event.js';
 import { createAssignedTaskStatusPublisher } from '../../convex/publishers/assigned-task-status.js';
 import { createCapabilitiesPublisher } from '../../convex/publishers/capabilities.js';
@@ -25,6 +26,7 @@ export function createConvexPublishers(deps: ConvexPublisherDeps) {
     commandResult: createCommandResultPublisher(deps),
     workspaceCommands: createWorkspaceCommandsPublisher(deps),
     handoffCompleted: createHandoffCompletedPublisher(deps),
+    agentLifecycle: createAgentLifecycleProjector(deps),
   };
 }
 
@@ -62,6 +64,18 @@ export function getConvexEventHandler(
       return publishers.workspaceCommands.publish.bind(publishers.workspaceCommands);
     case 'handoff.completed':
       return publishers.handoffCompleted.publish.bind(publishers.handoffCompleted);
+    case 'agent.start_failed':
+    case 'agent.stop_timeout':
+    case 'session.resume_requested':
+    case 'session.resumed':
+    case 'session.resume_failed':
+    case 'session.reopen_retry':
+    case 'harness.session_id_updated':
+    case 'restart.limit_reached':
+    case 'agent.native_end':
+    case 'restart.phase':
+    case 'restart.completed':
+      return publishers.agentLifecycle.publish.bind(publishers.agentLifecycle);
     default:
       return undefined;
   }

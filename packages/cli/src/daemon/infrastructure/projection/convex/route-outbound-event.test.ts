@@ -60,6 +60,108 @@ const handledEvents: OutboundEvent[] = [
     completedTaskIds: ['task-1'],
     timestamp: 100,
   },
+  {
+    type: 'agent.start_failed',
+    idempotencyKey: 'room-1:builder:start_failed',
+    chatroomId: 'room-1',
+    role: 'builder',
+    machineId: 'machine-1',
+    error: 'spawn failed',
+    timestamp: 100,
+  },
+  {
+    type: 'agent.stop_timeout',
+    idempotencyKey: 'room-1:builder:stop_timeout',
+    chatroomId: 'room-1',
+    role: 'builder',
+    machineId: 'machine-1',
+    durationMs: 30_000,
+    timestamp: 100,
+  },
+  {
+    type: 'session.resume_requested',
+    idempotencyKey: 'room-1:builder:resume_requested',
+    chatroomId: 'room-1',
+    role: 'builder',
+    machineId: 'machine-1',
+    agentHarness: 'opencode',
+    timestamp: 100,
+  },
+  {
+    type: 'session.resumed',
+    idempotencyKey: 'room-1:builder:resumed',
+    chatroomId: 'room-1',
+    role: 'builder',
+    machineId: 'machine-1',
+    timestamp: 100,
+  },
+  {
+    type: 'session.resume_failed',
+    idempotencyKey: 'room-1:builder:resume_failed',
+    chatroomId: 'room-1',
+    role: 'builder',
+    machineId: 'machine-1',
+    reason: 'network',
+    timestamp: 100,
+  },
+  {
+    type: 'session.reopen_retry',
+    idempotencyKey: 'room-1:builder:reopen_retry_1',
+    chatroomId: 'room-1',
+    role: 'builder',
+    machineId: 'machine-1',
+    attempt: 1,
+    maxAttempts: 3,
+    timestamp: 100,
+  },
+  {
+    type: 'harness.session_id_updated',
+    idempotencyKey: 'room-1:builder:session_id_updated',
+    chatroomId: 'room-1',
+    role: 'builder',
+    machineId: 'machine-1',
+    correlationId: 'corr-1',
+    resumableId: 'res-1',
+    source: 'provider_allocated',
+    timestamp: 100,
+  },
+  {
+    type: 'restart.limit_reached',
+    idempotencyKey: 'room-1:builder:restart_limit_reached',
+    chatroomId: 'room-1',
+    role: 'builder',
+    machineId: 'machine-1',
+    restartCount: 5,
+    windowMs: 60_000,
+    timestamp: 100,
+  },
+  {
+    type: 'agent.native_end',
+    idempotencyKey: 'room-1:builder:native_end_100',
+    chatroomId: 'room-1',
+    role: 'builder',
+    machineId: 'machine-1',
+    timestamp: 100,
+  },
+  {
+    type: 'restart.phase',
+    idempotencyKey: 'room-1:builder:restart_phase_corr-1',
+    chatroomId: 'room-1',
+    role: 'builder',
+    machineId: 'machine-1',
+    correlationId: 'corr-1',
+    phase: 'spawn',
+    timestamp: 100,
+  },
+  {
+    type: 'restart.completed',
+    idempotencyKey: 'room-1:builder:restart_completed_corr-1',
+    chatroomId: 'room-1',
+    role: 'builder',
+    machineId: 'machine-1',
+    correlationId: 'corr-1',
+    timestamp: 100,
+  },
 ];
 
 describe('routeConvexEvent', () => {
@@ -78,6 +180,19 @@ describe('routeConvexEvent', () => {
       harness: 'h1',
       stream: 'stdout',
       line: 'hello',
+      timestamp: 1,
+    });
+    expect(result).toBeUndefined();
+  });
+
+  it('returns undefined for turn.ended (T0 — local-only, not projectable)', () => {
+    const publishers = makePublishers();
+    const result = routeConvexEvent(publishers, {
+      type: 'turn.ended',
+      idempotencyKey: 'room-1:builder:turn_ended_1',
+      chatroomId: 'room-1',
+      role: 'builder',
+      machineId: 'machine-1',
       timestamp: 1,
     });
     expect(result).toBeUndefined();
