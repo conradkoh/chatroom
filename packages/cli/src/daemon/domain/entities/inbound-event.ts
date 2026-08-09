@@ -30,6 +30,21 @@ export type InboundEvent =
       workingDir?: string;
       model?: string;
       createdAt: number;
+    }
+  | {
+      type: 'orchestration.ingress';
+      ingressId: string;
+      revisionKey: string;
+      chatroomId: string;
+      content: string;
+      targetRole?: string;
+      attachedTaskIds?: string[];
+      attachedBacklogItemIds?: string[];
+      attachedMessageIds?: string[];
+      attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
+      sourcePlatform?: string;
+      scheduledPromptId?: string;
+      plannerEnhancerEnabled?: boolean;
     };
 
 /** Narrowing helper — add implementations when router grows. */

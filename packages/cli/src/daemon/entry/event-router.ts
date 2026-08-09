@@ -30,6 +30,11 @@ import {
   type HandleFileInboundDeps,
 } from '../domain/usecase/handle-file-inbound.js';
 import {
+  handleOrchestrationIngressInbound,
+  type HandleOrchestrationIngressInboundDeps,
+  type OrchestrationIngressInboundEvent,
+} from '../domain/usecase/handle-orchestration-ingress-inbound.js';
+import {
   handleUserMessageIntentInbound,
   type HandleUserMessageIntentInboundDeps,
   type UserMessageIntentInboundEvent,
@@ -51,6 +56,8 @@ export type EventRouterDeps = {
   enhancer: HandleEnhancerInboundDeps;
   /** P7 user-message intent handler deps — optional for legacy/test router fixtures. */
   userMessageIntent?: HandleUserMessageIntentInboundDeps;
+  /** P9 orchestration ingress handler deps — optional for legacy/test router fixtures. */
+  orchestrationIngress?: HandleOrchestrationIngressInboundDeps;
 };
 
 // fallow-ignore-next-line complexity
@@ -96,6 +103,14 @@ export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEve
         handleUserMessageIntentInbound(
           deps.userMessageIntent,
           event as UserMessageIntentInboundEvent
+        );
+      }
+      break;
+    case 'orchestration.ingress':
+      if (deps.orchestrationIngress) {
+        await handleOrchestrationIngressInbound(
+          deps.orchestrationIngress,
+          event as OrchestrationIngressInboundEvent
         );
       }
       break;

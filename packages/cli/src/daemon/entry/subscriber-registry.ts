@@ -16,11 +16,13 @@ import { startFileContentRequestSubscriber } from '../infrastructure/convex/subs
 import { startFileTreeRequestSubscriber } from '../infrastructure/convex/subscribers/file-tree-request.js';
 import { startFileWriteRequestSubscriber } from '../infrastructure/convex/subscribers/file-write-request.js';
 import { startGitRequestSubscriber } from '../infrastructure/convex/subscribers/git-request.js';
+import { startOrchestrationIngressSubscriber } from '../infrastructure/convex/subscribers/orchestration-ingress.js';
 import { startWorkspaceListSubscriber } from '../infrastructure/convex/subscribers/workspace-list.js';
 import { startInboundSubscribers } from '../infrastructure/inbound/convex/subscriber-registry.js';
 import {
   isDaemonOrchestrationP5Enabled,
   isDaemonOrchestrationP7Enabled,
+  isDaemonOrchestrationP9UserMessageEnabled,
 } from '../infrastructure/projection/feature-flags.js';
 
 export type SubscriberRegistryDeps = ConvexSubscriberDeps & {
@@ -59,6 +61,9 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const orchestrationIntents = isDaemonOrchestrationP7Enabled()
     ? startDaemonOrchestrationIntentsSubscriber(deps, onEvent)
     : undefined;
+  const orchestrationIngress = isDaemonOrchestrationP9UserMessageEnabled()
+    ? startOrchestrationIngressSubscriber(deps, onEvent)
+    : undefined;
 
   return {
     async stopAll() {
@@ -79,6 +84,7 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
         agenticQueryPrompt.stop(),
         enhancerJob.stop(),
         orchestrationIntents?.stop(),
+        orchestrationIngress?.stop(),
       ]);
     },
   };

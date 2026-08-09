@@ -111,6 +111,9 @@ export async function startDaemon(): Promise<void> {
     router: createDefaultEventRouterDeps({
       db: persistence.db,
       machineId: init.machineId,
+      sessionId: init.sessionId,
+      appendEvent: (event) => persistence.append(event),
+      mutate: (fn, args) => init.backend.mutation(fn, args),
     }),
   });
 
