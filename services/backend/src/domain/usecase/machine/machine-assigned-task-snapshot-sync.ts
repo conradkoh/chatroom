@@ -284,6 +284,15 @@ export async function projectAssignedTaskSnapshotsForChatroom(
     .filter((q) => q.eq(q.field('type'), 'remote'))
     .collect();
 
+  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+
+  // P8: when the chatroom is bound to a single orchestration host, scope the
+  // snapshot projection to the host machine only.
+  if (chatroom?.orchestrationMachineId) {
+    await projectAssignedTaskSnapshotsForMachine(ctx, chatroom.orchestrationMachineId);
+    return;
+  }
+
   const machineIds = new Set(
     configs.map((c) => c.machineId).filter((id): id is string => id !== undefined)
   );

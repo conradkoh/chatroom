@@ -130,4 +130,58 @@ describe('daemon-orchestration intents (P7)', () => {
     });
     expect(intentRows[0].revisionKey).toContain(':');
   });
+
+  test('P8: intent is emitted to the orchestration host machine only', async () => {
+    const { sessionId } = await createTestSession('p7-intent-host');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const hostMachineId = 'p7-intent-host-machine';
+    await registerMachineWithDaemon(sessionId, hostMachineId);
+    await registerMachineWithDaemon(sessionId, 'p7-intent-stale-machine');
+    await setupRemoteAgentConfig(sessionId, chatroomId, hostMachineId, 'builder');
+
+    // Bind the chatroom to the host machine (P8) and introduce a stale builder
+    // config on a second machine (bypassing ensureOnlyAgentForRole).
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_rooms', chatroomId, {
+        orchestrationMachineId: hostMachineId,
+        orchestrationWorkingDir: '/test/workspace',
+      });
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey: `chatroom_${chatroomId}#team_duo#role_builder#stale`,
+        chatroomId,
+        role: 'builder',
+        type: 'remote',
+        machineId: 'p7-intent-stale-machine',
+        agentHarness: 'opencode',
+        workingDir: '/test/workspace',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      type: 'message',
+      content: '## Goal\nHost-scoped intent test',
+    });
+
+    const intentRows = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_daemonOrchestrationIntents')
+        .withIndex('by_machineId_taskId', (q) => q.eq('machineId', hostMachineId))
+        .collect()
+    );
+    expect(intentRows).toHaveLength(1);
+    expect(intentRows[0].machineId).toBe(hostMachineId);
+
+    const staleRows = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_daemonOrchestrationIntents')
+        .withIndex('by_machineId_taskId', (q) => q.eq('machineId', 'p7-intent-stale-machine'))
+        .collect()
+    );
+    expect(staleRows).toHaveLength(0);
+  });
 });

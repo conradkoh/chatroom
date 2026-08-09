@@ -6,7 +6,7 @@
 
 // fallow-ignore-file coverage-gaps
 import type { DaemonOrchestrationIntentType } from './daemon-orchestration-intent-types';
-import type { Id } from '../../../../convex/_generated/dataModel';
+import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { listTeamAgentConfigsForChatroom } from '../agent/list-team-agent-configs-for-chatroom';
 
@@ -22,17 +22,27 @@ export type EmitDaemonOrchestrationIntentArgs = {
 /**
  * Insert one intent row per matching remote team-agent config for the assigned
  * role. Idempotent per (machineId, taskId) — replay-safe for retried sendMessage.
+ *
+ * P8: when the chatroom is bound to a single orchestration host, emit to the
+ * host machine only (one row max) instead of per-role machine fan-out.
  */
 export async function emitDaemonOrchestrationIntentForUserMessage(
   ctx: MutationCtx,
   args: EmitDaemonOrchestrationIntentArgs
 ): Promise<void> {
+  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
   const configs = await listTeamAgentConfigsForChatroom(ctx, args.chatroomId);
   const roleLower = args.assignedRole.toLowerCase();
 
-  for (const config of configs) {
-    if (config.role.toLowerCase() !== roleLower) continue;
-    if (config.type !== 'remote') continue;
+  const targets = chatroom?.orchestrationMachineId
+    ? [pickHostMachineConfig(configs, chatroom.orchestrationMachineId, roleLower)].filter(
+        (c): c is Doc<'chatroom_teamAgentConfigs'> => c !== undefined
+      )
+    : configs.filter(
+        (c) => c.type === 'remote' && c.role.toLowerCase() === roleLower && c.machineId
+      );
+
+  for (const config of targets) {
     const machineId = config.machineId;
     const agentHarness = config.agentHarness;
     if (!machineId || !agentHarness) continue;
@@ -60,4 +70,16 @@ export async function emitDaemonOrchestrationIntentForUserMessage(
       model: config.model,
     });
   }
+}
+
+/** For P8-bound chatrooms, pick the assigned-role remote config on the host machine. */
+function pickHostMachineConfig(
+  configs: Doc<'chatroom_teamAgentConfigs'>[],
+  hostMachineId: string,
+  roleLower: string
+): Doc<'chatroom_teamAgentConfigs'> | undefined {
+  return configs.find(
+    (c) =>
+      c.type === 'remote' && c.machineId === hostMachineId && c.role.toLowerCase() === roleLower
+  );
 }
