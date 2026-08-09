@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-export
 import type { OutboundEvent } from '../entities/outbound-event.js';
 
 export type AgentStartFailedEvent = Extract<OutboundEvent, { type: 'agent.start_failed' }>;

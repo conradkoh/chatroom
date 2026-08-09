@@ -7,6 +7,7 @@ import type { RecoverAgentStateDeps } from '../../domain/usecase/recover-agent-s
 import type { RestartAgentDeps } from '../../domain/usecase/restart-agent.js';
 import type { StartAgentDeps } from '../../domain/usecase/start-agent.js';
 import type { StopAgentDeps } from '../../domain/usecase/stop-agent.js';
+import { createAgentLifecyclePort } from '../../infrastructure/agent-process-manager/agent-lifecycle-port.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonSessionServiceShape,
@@ -102,6 +103,7 @@ export function createRestartAgentDeps(
               backend: session.backend,
             },
             agentMgr,
+            lifecycle: createAgentLifecyclePort(),
           },
           {
             chatroomId: input.chatroomId as Id<'chatroom_rooms'>,

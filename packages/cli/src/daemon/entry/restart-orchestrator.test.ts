@@ -7,6 +7,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 import { runRestartOrchestrator, setRestartOrchestratorDb } from './restart-orchestrator.js';
 import type { AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
+import type { OutboundEvent } from '../domain/entities/outbound-event.js';
 import { openDatabase } from '../infrastructure/persistence/open-database.js';
 import {
   taskReadModelFromSnapshot,
@@ -170,6 +171,39 @@ describe('runRestartOrchestrator', () => {
       delete process.env.DAEMON_ORCHESTRATION_P2_CUTOVER;
       setRestartOrchestratorDb(undefined);
       db.close();
+    }
+  });
+
+  test('P4 on: failure emits restart phase via lifecycle events, not Convex mutation', async () => {
+    const { deps, mutationLog } = createMockDeps({ spawnSuccess: false });
+    const events: OutboundEvent[] = [];
+    const lifecycle = {
+      appendLifecycleEvent: (event: OutboundEvent) => events.push(event),
+      updateAgentReadModel: () => {},
+      updateParticipantReadModel: () => {},
+    };
+    process.env.DAEMON_ORCHESTRATION_P4 = '1';
+    try {
+      await runRestartOrchestrator({ ...deps, lifecycle } as any, {
+        chatroomId: 'test-chatroom',
+        role: 'builder',
+        agentHarness: 'opencode',
+        model: 'gpt-4',
+        workingDir: '/tmp/test',
+        correlationId: 'test-correlation',
+        wantResume: true,
+      });
+
+      const phaseMutations = mutationLog.filter((call) => call.fn === 'emitRestartPhase');
+      expect(phaseMutations).toHaveLength(0);
+      const phaseEvent = events.find((e) => e.type === 'restart.phase');
+      expect(phaseEvent?.type).toBe('restart.phase');
+      if (phaseEvent?.type === 'restart.phase') {
+        expect(phaseEvent.phase).toBe('failed');
+        expect(phaseEvent.correlationId).toBe('test-correlation');
+      }
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P4;
     }
   });
 });
