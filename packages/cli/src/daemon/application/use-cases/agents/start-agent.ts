@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import type { AgentReadModelRow } from '../../../infrastructure/persistence/read-models/agents.js';
 import type { ParticipantReadModelRow } from '../../../infrastructure/persistence/read-models/participants.js';
 import type { AgentLifecyclePort } from '../../ports/agent-lifecycle.port.js';

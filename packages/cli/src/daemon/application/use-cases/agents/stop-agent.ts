@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file complexity
 import { buildAgentStopTimeoutEvent } from '../../../domain/events/agent-lifecycle.js';
 import type { AgentReadModelRow } from '../../../infrastructure/persistence/read-models/agents.js';
 import type { AgentLifecyclePort } from '../../ports/agent-lifecycle.port.js';
@@ -19,27 +18,24 @@ export interface StopAgentDeps {
   now?: () => number;
 }
 
-/**
- * Local agent-stop/exit lifecycle handling. Clears the agent read model and,
- * on a hung stop, appends the stop-timeout lifecycle event for batched
- * projection to Convex.
- */
-export function stopAgent(deps: StopAgentDeps, input: StopAgentInput): void {
-  const timestamp = deps.now?.() ?? Date.now();
+function appendStopTimeoutEvent(
+  deps: StopAgentDeps,
+  input: StopAgentInput,
+  timestamp: number
+): void {
+  deps.lifecycle.appendLifecycleEvent(
+    buildAgentStopTimeoutEvent({
+      chatroomId: input.chatroomId,
+      role: input.role,
+      machineId: deps.machineId,
+      pid: input.pid,
+      durationMs: input.durationMs ?? 0,
+      timestamp,
+    })
+  );
+}
 
-  if (input.stopTimedOut) {
-    deps.lifecycle.appendLifecycleEvent(
-      buildAgentStopTimeoutEvent({
-        chatroomId: input.chatroomId,
-        role: input.role,
-        machineId: deps.machineId,
-        pid: input.pid,
-        durationMs: input.durationMs ?? 0,
-        timestamp,
-      })
-    );
-  }
-
+function clearAgentReadModel(deps: StopAgentDeps, input: StopAgentInput, timestamp: number): void {
   const agentRow: AgentReadModelRow = {
     machineId: deps.machineId,
     role: input.role,
@@ -47,4 +43,18 @@ export function stopAgent(deps: StopAgentDeps, input: StopAgentInput): void {
     updatedAt: timestamp,
   };
   deps.lifecycle.updateAgentReadModel(agentRow);
+}
+
+/**
+ * Local agent-stop/exit lifecycle handling. Clears the agent read model and,
+ * on a hung stop, appends the stop-timeout lifecycle event for batched
+ * projection to Convex.
+ */
+// fallow-ignore-next-line complexity
+export function stopAgent(deps: StopAgentDeps, input: StopAgentInput): void {
+  const timestamp = input.timestamp ?? deps.now?.() ?? Date.now();
+  if (input.stopTimedOut) {
+    appendStopTimeoutEvent(deps, input, timestamp);
+  }
+  clearAgentReadModel(deps, input, timestamp);
 }

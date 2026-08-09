@@ -34,7 +34,6 @@ export function isDaemonOrchestrationP3LocalDeliveryEnabled(): boolean {
 }
 
 /** DAEMON_ORCHESTRATION_P4 — APM emits local lifecycle events; projection batches emit* to Convex */
-// fallow-ignore-next-line unused-export
 export function isDaemonOrchestrationP4Enabled(): boolean {
   return envTruthy(process.env.DAEMON_ORCHESTRATION_P4);
 }

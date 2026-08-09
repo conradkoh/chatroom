@@ -1,5 +1,4 @@
 import type { OutboundEvent } from '../../../domain/entities/outbound-event.js';
-// fallow-ignore-file unused-file
 import { buildTurnEndedEvent } from '../../../domain/events/agent-lifecycle.js';
 
 export interface HandleTurnEndInput {

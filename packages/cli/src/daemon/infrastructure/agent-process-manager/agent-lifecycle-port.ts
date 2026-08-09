@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-file
 import type { AgentLifecyclePort } from '../../application/ports/agent-lifecycle.port.js';
 import type { OutboundEvent } from '../../domain/entities/outbound-event.js';
 import type { PersistenceStore } from '../persistence/index.js';

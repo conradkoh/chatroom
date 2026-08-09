@@ -42,10 +42,24 @@ import {
   type StopOpts,
 } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import type { Signals } from '../../../infrastructure/types/signals.js';
+import type { AgentLifecyclePort } from '../../application/ports/agent-lifecycle.port.js';
+import { handleTurnEnd } from '../../application/use-cases/agents/handle-turn-end.js';
+import { startAgent } from '../../application/use-cases/agents/start-agent.js';
+import { stopAgent } from '../../application/use-cases/agents/stop-agent.js';
 import { resolveResumableHarnessSessionId } from '../../domain/entities/harness-session-id-pair.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 import { resolveStopReason } from '../../domain/entities/stop-reason.js';
 import type { StopReason } from '../../domain/entities/stop-reason.js';
+import {
+  buildAgentNativeEndEvent,
+  buildAgentStartFailedEvent,
+  buildHarnessSessionIdUpdatedEvent,
+  buildRestartLimitReachedEvent,
+  buildSessionReopenRetryEvent,
+  buildSessionResumeFailedEvent,
+  buildSessionResumeRequestedEvent,
+  buildSessionResumedEvent,
+} from '../../domain/events/agent-lifecycle.js';
 import { resolveNativeSpawnPolicy } from '../../domain/native-integration/spawn-policy.js';
 import { tryAbortResumeStorm } from '../../domain/usecase/abort-resume-storm.js';
 import { appendRecentLogLine } from '../../domain/usecase/append-recent-log-line.js';
@@ -97,6 +111,7 @@ import type {
   SpawnResult,
 } from '../local/harness/services/remote-agent-service.js';
 import { createSpawnPrompt } from '../local/harness/services/spawn-prompt.js';
+import { isDaemonOrchestrationP4Enabled } from '../projection/feature-flags.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -196,6 +211,8 @@ export interface AgentProcessManagerDeps {
   crashLoop: CrashLoopTracker;
   convexUrl: string;
   resumeStormTracker?: ResumeStormTracker;
+  /** P4: local lifecycle event + read model port. Required when DAEMON_ORCHESTRATION_P4 enabled. */
+  lifecycle?: AgentLifecyclePort;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -291,6 +308,44 @@ export class AgentProcessManager {
 
   private getSlotFromMirror(chatroomId: string, role: string): AgentSlot | undefined {
     return this.slots.get(agentKey(chatroomId, role));
+  }
+
+  private get lifecyclePort(): AgentLifecyclePort {
+    if (!this.deps.lifecycle) {
+      throw new Error(
+        'AgentLifecyclePort not injected — required when DAEMON_ORCHESTRATION_P4 is enabled'
+      );
+    }
+    return this.deps.lifecycle;
+  }
+
+  private createTurnBackend() {
+    return createTurnCompletedBackend({
+      ...this.deps,
+      isP4: isDaemonOrchestrationP4Enabled(),
+    });
+  }
+
+  /** P4: clear/emit agent stop lifecycle via the local use case. */
+  private stopAgentLocal(
+    chatroomId: string,
+    role: string,
+    opts?: { pid?: number; stopTimedOut?: boolean; durationMs?: number }
+  ): void {
+    stopAgent(
+      {
+        machineId: this.deps.machineId,
+        lifecycle: this.lifecyclePort,
+        now: () => this.deps.clock.now(),
+      },
+      {
+        chatroomId,
+        role,
+        pid: opts?.pid,
+        stopTimedOut: opts?.stopTimedOut,
+        durationMs: opts?.durationMs,
+      }
+    );
   }
 
   whenTurnEndsIdle(): Promise<void> {
@@ -515,7 +570,7 @@ export class AgentProcessManager {
     const result = await handleTurnCompleted(
       {
         resumeStormTracker: this.deps.resumeStormTracker,
-        backend: createTurnCompletedBackend(this.deps),
+        backend: this.createTurnBackend(),
         now: () => this.deps.clock.now(),
         killProcess: (pid) => {
           try {
@@ -561,7 +616,7 @@ export class AgentProcessManager {
       await tryAbortResumeStorm(
         {
           resumeStormTracker: this.deps.resumeStormTracker,
-          backend: createTurnCompletedBackend(this.deps),
+          backend: this.createTurnBackend(),
           now: () => this.deps.clock.now(),
           stopAgent: (args) => this.stop(args),
         },
@@ -574,6 +629,11 @@ export class AgentProcessManager {
       )
     ) {
       console.log(`[AgentProcessManager] ✅ Handled rapid resume storm for ${opts.role}`);
+      return;
+    }
+
+    if (isDaemonOrchestrationP4Enabled()) {
+      await this.handleNativeTurnEndP4(opts, slot);
       return;
     }
 
@@ -601,6 +661,65 @@ export class AgentProcessManager {
     }
   }
 
+  /**
+   * P4: native turn-end handled entirely locally — appends the `agent.native_end`
+   * lifecycle event, mirrors the participant read model, and schedules the
+   * missed-handoff reminder via handleTurnEnd (no Convex round-trip).
+   */
+  private async handleNativeTurnEndP4(
+    opts: {
+      chatroomId: string;
+      role: string;
+      pid: number;
+      harness: AgentHarness;
+    },
+    slot: AgentSlot | undefined
+  ): Promise<void> {
+    const now = this.deps.clock.now();
+    const taskId = slot?.lastInFlightTaskId;
+    this.lifecyclePort.appendLifecycleEvent(
+      buildAgentNativeEndEvent({
+        chatroomId: opts.chatroomId,
+        role: opts.role,
+        machineId: this.deps.machineId,
+        taskId,
+        timestamp: now,
+      })
+    );
+    this.lifecyclePort.updateParticipantReadModel({
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      lastSeenAt: now,
+      updatedAt: now,
+    });
+
+    const result = handleTurnEnd(
+      {
+        machineId: this.deps.machineId,
+        appendLifecycleEvent: (event) => this.lifecyclePort.appendLifecycleEvent(event),
+        injectHandoffReminder: (chatroomId, role) =>
+          void this.injectHarnessReminder(chatroomId, role, NATIVE_HANDOFF_REMINDER),
+        now: () => this.deps.clock.now(),
+      },
+      {
+        chatroomId: opts.chatroomId,
+        role: opts.role,
+        taskId,
+        hasInFlightWork: Boolean(taskId),
+      }
+    );
+
+    if (result.reminderScheduled) {
+      console.log(`[AgentProcessManager] ⏩ Handoff reminder injected for ${opts.role}`);
+    }
+    if (slot) {
+      setNativeTurnPhase(slot, defaultNativeTurnPhase());
+    }
+    notifyNativeTurnIdle({ chatroomId: opts.chatroomId, role: opts.role });
+    console.log(`[AgentProcessManager] ✅ Native agent_end handled locally for ${opts.role}`);
+  }
+
+  // fallow-ignore-next-line complexity
   async handleExit(opts: HandleExitOpts): Promise<void> {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
@@ -639,6 +758,9 @@ export class AgentProcessManager {
     );
 
     this.resetSlotAfterExit(slot);
+    if (isDaemonOrchestrationP4Enabled()) {
+      this.stopAgentLocal(opts.chatroomId, opts.role, { pid: opts.pid });
+    }
     await this.emitExitEvent(slot, opts, ctx);
     try {
       await this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
@@ -975,6 +1097,25 @@ export class AgentProcessManager {
   }
 
   private emitStartFailedEvent(role: string, chatroomId: string, error: string): void {
+    const timestamp = this.deps.clock.now();
+    if (isDaemonOrchestrationP4Enabled()) {
+      this.lifecyclePort.appendLifecycleEvent(
+        buildAgentStartFailedEvent({
+          chatroomId,
+          role,
+          machineId: this.deps.machineId,
+          error,
+          timestamp,
+        })
+      );
+      this.lifecyclePort.updateAgentReadModel({
+        machineId: this.deps.machineId,
+        role,
+        pid: undefined,
+        updatedAt: timestamp,
+      });
+      return;
+    }
     this.deps.backend
       .mutation(api.machines.emitAgentStartFailed, {
         sessionId: this.deps.sessionId,
@@ -1439,6 +1580,28 @@ export class AgentProcessManager {
     agentHarness: AgentHarness,
     harnessSessionId?: string
   ): Promise<void> {
+    const timestamp = this.deps.clock.now();
+    if (isDaemonOrchestrationP4Enabled()) {
+      this.lifecyclePort.appendLifecycleEvent(
+        buildSessionResumeRequestedEvent({
+          chatroomId,
+          role,
+          machineId: this.deps.machineId,
+          agentHarness,
+          harnessSessionId,
+          timestamp,
+        })
+      );
+      this.lifecyclePort.updateParticipantReadModel({
+        chatroomId,
+        role,
+        turnPhase: 'session.resume_requested',
+        lastSeenAt: timestamp,
+        updatedAt: timestamp,
+      });
+      console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumeRequested for ${role}`);
+      return;
+    }
     try {
       await this.deps.backend.mutation(api.machines.emitSessionResumeRequested, {
         sessionId: this.deps.sessionId,
@@ -1459,6 +1622,27 @@ export class AgentProcessManager {
     role: string,
     harnessSessionId?: string
   ): Promise<void> {
+    const timestamp = this.deps.clock.now();
+    if (isDaemonOrchestrationP4Enabled()) {
+      this.lifecyclePort.appendLifecycleEvent(
+        buildSessionResumedEvent({
+          chatroomId,
+          role,
+          machineId: this.deps.machineId,
+          harnessSessionId,
+          timestamp,
+        })
+      );
+      this.lifecyclePort.updateParticipantReadModel({
+        chatroomId,
+        role,
+        turnPhase: 'session.resumed',
+        lastSeenAt: timestamp,
+        updatedAt: timestamp,
+      });
+      console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumed for ${role}`);
+      return;
+    }
     try {
       await this.deps.backend.mutation(api.machines.emitSessionResumed, {
         sessionId: this.deps.sessionId,
@@ -1479,6 +1663,28 @@ export class AgentProcessManager {
     reason: string,
     harnessSessionId?: string
   ): Promise<void> {
+    const timestamp = this.deps.clock.now();
+    if (isDaemonOrchestrationP4Enabled()) {
+      this.lifecyclePort.appendLifecycleEvent(
+        buildSessionResumeFailedEvent({
+          chatroomId,
+          role,
+          machineId: this.deps.machineId,
+          reason,
+          harnessSessionId,
+          timestamp,
+        })
+      );
+      this.lifecyclePort.updateParticipantReadModel({
+        chatroomId,
+        role,
+        turnPhase: 'session.resume_failed',
+        lastSeenAt: timestamp,
+        updatedAt: timestamp,
+      });
+      console.log(`[AgentProcessManager] ✅ Emitted agent.sessionResumeFailed for ${role}`);
+      return;
+    }
     try {
       await this.deps.backend.mutation(api.machines.emitSessionResumeFailed, {
         sessionId: this.deps.sessionId,
@@ -1501,6 +1707,30 @@ export class AgentProcessManager {
     error?: string,
     harnessSessionId?: string
   ): Promise<void> {
+    if (isDaemonOrchestrationP4Enabled()) {
+      this.lifecyclePort.appendLifecycleEvent(
+        buildSessionReopenRetryEvent({
+          chatroomId,
+          role,
+          machineId: this.deps.machineId,
+          attempt,
+          maxAttempts: CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
+          error,
+          harnessSessionId,
+          timestamp: this.deps.clock.now(),
+        })
+      );
+      this.lifecyclePort.updateParticipantReadModel({
+        chatroomId,
+        role,
+        turnPhase: 'session.reopen_retry',
+        updatedAt: this.deps.clock.now(),
+      });
+      console.log(
+        `[AgentProcessManager] ✅ Emitted agent.sessionReopenRetry for ${role} (attempt ${attempt}/${CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS})`
+      );
+      return;
+    }
     try {
       await this.deps.backend.mutation(api.machines.emitSessionReopenRetry, {
         sessionId: this.deps.sessionId,
@@ -1546,6 +1776,21 @@ export class AgentProcessManager {
     role: string,
     info: HarnessSessionIdUpdatedInfo
   ): Promise<void> {
+    if (isDaemonOrchestrationP4Enabled()) {
+      this.lifecyclePort.appendLifecycleEvent(
+        buildHarnessSessionIdUpdatedEvent({
+          chatroomId,
+          role,
+          machineId: this.deps.machineId,
+          correlationId: info.correlationId,
+          previousResumableId: info.previousResumableId,
+          resumableId: info.resumableId,
+          source: info.source,
+          timestamp: this.deps.clock.now(),
+        })
+      );
+      return;
+    }
     try {
       await this.deps.backend.mutation(api.machines.emitHarnessSessionIdUpdated, {
         sessionId: this.deps.sessionId,
@@ -1592,18 +1837,31 @@ export class AgentProcessManager {
       return { success: false, error: 'backoff', retryAfterMs: loopCheck.waitMs };
     }
 
-    this.deps.backend
-      .mutation(api.machines.emitRestartLimitReached, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        restartCount: loopCheck.restartCount,
-        windowMs: loopCheck.windowMs,
-      })
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to emit restartLimitReached event: ${err.message}`);
-      });
+    if (isDaemonOrchestrationP4Enabled()) {
+      this.lifecyclePort.appendLifecycleEvent(
+        buildRestartLimitReachedEvent({
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          machineId: this.deps.machineId,
+          restartCount: loopCheck.restartCount,
+          windowMs: loopCheck.windowMs,
+          timestamp: this.deps.clock.now(),
+        })
+      );
+    } else {
+      this.deps.backend
+        .mutation(api.machines.emitRestartLimitReached, {
+          sessionId: this.deps.sessionId,
+          machineId: this.deps.machineId,
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          restartCount: loopCheck.restartCount,
+          windowMs: loopCheck.windowMs,
+        })
+        .catch((err: Error) => {
+          console.log(`   ⚠️  Failed to emit restartLimitReached event: ${err.message}`);
+        });
+    }
 
     this.resetSlotIdle(slot);
     return { success: false, error: 'crash_loop' };
@@ -1848,6 +2106,21 @@ export class AgentProcessManager {
     const { pid } = spawnResult;
 
     this.assignRunningSlotState(key, slot, opts, spawnResult, wantResume, pid);
+    if (isDaemonOrchestrationP4Enabled()) {
+      startAgent(
+        {
+          machineId: this.deps.machineId,
+          lifecycle: this.lifecyclePort,
+          now: () => this.deps.clock.now(),
+        },
+        {
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          pid,
+          harnessSessionId: spawnResult.harnessSessionId,
+        }
+      );
+    }
     this.emitSpawnedAgentUpdate(opts, spawnResult, pid);
 
     try {
@@ -2064,18 +2337,22 @@ export class AgentProcessManager {
     this.bumpStopGeneration(slot);
     this.clearSlotRuntimeState(slot);
 
-    void this.deps.backend
-      .mutation(api.machines.emitAgentStopTimeout, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId,
-        role,
-        pid,
-        durationMs,
-      })
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to emit agent.stopTimeout event: ${err.message}`);
-      });
+    if (isDaemonOrchestrationP4Enabled()) {
+      this.stopAgentLocal(chatroomId, role, { pid, stopTimedOut: true, durationMs });
+    } else {
+      void this.deps.backend
+        .mutation(api.machines.emitAgentStopTimeout, {
+          sessionId: this.deps.sessionId,
+          machineId: this.deps.machineId,
+          chatroomId,
+          role,
+          pid,
+          durationMs,
+        })
+        .catch((err: Error) => {
+          console.log(`   ⚠️  Failed to emit agent.stopTimeout event: ${err.message}`);
+        });
+    }
 
     if (pid) {
       try {
@@ -2117,6 +2394,7 @@ export class AgentProcessManager {
     });
   }
 
+  // fallow-ignore-next-line complexity
   private async doStop(
     key: string,
     slot: AgentSlot,
@@ -2150,6 +2428,9 @@ export class AgentProcessManager {
     }
 
     this.resetSlotAfterStop(slot);
+    if (isDaemonOrchestrationP4Enabled()) {
+      this.stopAgentLocal(opts.chatroomId, opts.role, { pid });
+    }
     this.recordStopExit(slot, pid, opts);
 
     try {

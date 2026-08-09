@@ -14,6 +14,7 @@ import { setTaskMonitorReadModelDb } from './task-monitor-runtime.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { setAssignedTaskSnapshotProvider } from '../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
+import { setAgentLifecyclePersistence } from '../infrastructure/agent-process-manager/agent-lifecycle-port.js';
 import { startCliHttpServer } from '../infrastructure/inbound/local/cli-http-server.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { hydrateReadModelsFromConvex } from '../infrastructure/persistence/read-models/hydrate-from-convex.js';
@@ -33,6 +34,7 @@ export async function startDaemon(): Promise<void> {
   const wsClient = await getConvexWsClient();
 
   const persistence = createPersistenceStore(resolvePersistenceDbPath(init.machineId));
+  setAgentLifecyclePersistence(persistence);
   const daemonDeps = createDaemonDeps({
     persistence,
     backend: init.backend,
