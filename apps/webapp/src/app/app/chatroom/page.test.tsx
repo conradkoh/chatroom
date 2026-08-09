@@ -48,6 +48,9 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
+    chatrooms: {
+      get: 'chatrooms:get',
+    },
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
       setMachineConfigFavorites: 'machineConfigFavorites:setMachineConfigFavorites',
