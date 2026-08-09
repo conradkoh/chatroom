@@ -54,12 +54,13 @@ Every phase MUST be **independently shippable**: mergeable to main with the phas
 
 Sub-flags (cutover within a phase):
 
-| Sub-flag                                 | Phase | Purpose                                                                         |
-| ---------------------------------------- | ----- | ------------------------------------------------------------------------------- |
-| `DAEMON_ORCHESTRATION_P1_CUTOVER`        | P1    | Disable direct Convex publish; outbox drain is sole write path                  |
-| `DAEMON_ORCHESTRATION_P2_CUTOVER`        | P2    | Task monitor reads local read models; disable Convex snapshot WS                |
-| `DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY` | P3    | Delivery from local handoff event (optional within P3; not required to ship P3) |
-| `DAEMON_ORCHESTRATION_P6_LEGACY_DELETE`  | P6    | Remove Convex-first CLI fallbacks (post-soak only)                              |
+| Sub-flag                                 | Phase | Purpose                                                                                  |
+| ---------------------------------------- | ----- | ---------------------------------------------------------------------------------------- |
+| `DAEMON_ORCHESTRATION_P1_CUTOVER`        | P1    | Disable direct Convex publish; outbox drain is sole write path                           |
+| `DAEMON_ORCHESTRATION_P2_CUTOVER`        | P2    | Task monitor reads local read models; disable Convex snapshot WS                         |
+| `DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY` | P3    | Delivery from local handoff event (optional within P3; not required to ship P3)          |
+| `DAEMON_ORCHESTRATION_P6_LEGACY_DELETE`  | P6    | Remove Convex-first CLI fallbacks (post-soak only)                                       |
+| `DAEMON_ORCHESTRATION_P7_CUTOVER`        | P7    | Intent feed authoritative for user-message wake; no snapshot WS dependency for discovery |
 
 ## Conventions
 

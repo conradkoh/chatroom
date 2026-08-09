@@ -58,6 +58,19 @@ Flags (both default **off**):
 
 PR A adds `domain/usecase/execute-handoff.ts` — local SQLite transaction + `handoff.completed` outbound event. HTTP server, projection handler, and CLI routing land in PR B–D.
 
+## P7 user-message intent feed
+
+Flags (both default **off**):
+
+| Flag                                                              | Effect                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DAEMON_ORCHESTRATION_P7=1`                                       | Daemon registers `daemon-orchestration-intents` user-intent subscriber; `handleUserMessageIntentInbound` upserts `read_model_tasks` + assigned-task snapshot store and calls `tryInjectNextForRole`. Convex still owns webapp message+task writes; intent is wake-only.                    |
+| `DAEMON_ORCHESTRATION_P7=1` + `DAEMON_ORCHESTRATION_P7_CUTOVER=1` | Intent feed is authoritative for user-message task discovery; snapshot WS push not required for user-message wake (see [p7-user-message-intent.md](../../../../../../docs/plans/daemon-centric-orchestration/phases/p7-user-message-intent.md) P7-T3). Requires P7-T2 for queued messages. |
+
+Wiring: `entry/start-daemon.ts` passes `persistence.db` into `createDefaultEventRouterDeps`; subscriber registered via `USER_INTENT_SUBSCRIBERS` when P7 on.
+
+Rollback: unset `DAEMON_ORCHESTRATION_P7_CUTOVER` (or both P7 flags) — daemon reverts to snapshot WS wake for user messages.
+
 ## Does not belong here
 
 | Kind                | Home instead             |
