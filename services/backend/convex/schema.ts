@@ -730,6 +730,32 @@ export default defineSchema({
     .index('by_machineId_taskId', ['machineId', 'taskId']),
 
   /**
+   * P9 ephemeral ingress relay — webapp inserts; orchestration-host daemon pulls,
+   * executes locally, then acks/deletes. Transport only, not SSOT.
+   */
+  chatroom_orchestrationIngress: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
+    revisionKey: v.string(),
+    ingressId: v.string(),
+    content: v.string(),
+    senderRole: v.literal('user'),
+    targetRole: v.optional(v.string()),
+    attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
+    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+    attachedSnippets: v.optional(v.array(attachedSnippetValidator)),
+    sourcePlatform: v.optional(v.string()),
+    scheduledPromptId: v.optional(v.id('chatroom_scheduledPrompts')),
+    plannerEnhancerEnabled: v.optional(v.boolean()),
+    userId: v.id('users'),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index('by_machineId_revisionKey', ['machineId', 'revisionKey'])
+    .index('by_ingressId', ['ingressId']),
+
+  /**
    * Backlog items for chatroom planning.
    * Long-lived planning items managed by the user, separate from active task queue.
    *

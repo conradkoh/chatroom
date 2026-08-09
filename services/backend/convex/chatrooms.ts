@@ -4,18 +4,19 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
+import { isDaemonOrchestrationP9UserMessageEnabled } from '../config/daemonOrchestrationFlags';
 import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
-import {
-  clearChatroomUnread,
-  markChatroomUnread,
-} from '../src/domain/usecase/chatroom/unread-status';
-import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
 } from '../src/domain/usecase/chatroom/lifecycle-impacts';
+import {
+  clearChatroomUnread,
+  markChatroomUnread,
+} from '../src/domain/usecase/chatroom/unread-status';
 import { listChatroomIdsWithActiveEnhancerWork } from '../src/domain/usecase/enhancer/planner-enhancing-status';
+import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({
@@ -51,7 +52,9 @@ export const get = query({
   handler: async (ctx, args) => {
     // Validate session and check chatroom access - returns chatroom directly
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    return chatroom;
+    const useOrchestrationIngress =
+      isDaemonOrchestrationP9UserMessageEnabled() && Boolean(chatroom.orchestrationMachineId);
+    return { ...chatroom, useOrchestrationIngress };
   },
 });
 
