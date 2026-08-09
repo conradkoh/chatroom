@@ -1,6 +1,6 @@
 # Phase P4 — Lifecycle Local
 
-**Status:** Not started  
+**Status:** Implemented (in review) — [PR #1355](https://github.com/conradkoh/chatroom/pull/1355)  
 **Depends on:** [P2](./p2-local-read-models.md)  
 **Feature flag:** `DAEMON_ORCHESTRATION_P4` — when off, APM uses direct Convex `emit*` mutations.
 
