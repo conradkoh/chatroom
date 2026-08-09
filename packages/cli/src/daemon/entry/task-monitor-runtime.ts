@@ -454,6 +454,10 @@ function runLocalStoreReconcilePass(params: {
   });
 }
 
+// P7: When DAEMON_ORCHESTRATION_P7 (+ optional P7_CUTOVER) is on, user-message
+// task discovery is driven by the intent feed (handleUserMessageIntentInbound →
+// tryInjectNextForRole). This WS subscription remains for task-monitor nudges,
+// signals, and non-user-message snapshot updates until P2_CUTOVER.
 function subscribeAssignedTaskSnapshotStore(
   wsClient: ConvexClient,
   args: { sessionId: string; machineId: string },

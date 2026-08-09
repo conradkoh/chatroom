@@ -1,6 +1,6 @@
 # Phase P7 — User Message Intent Feed
 
-**Status:** P7-T1 implemented (in review) — [PR #1358](https://github.com/conradkoh/chatroom/pull/1358)  
+**Status:** Implemented (in review) — [PR #1358](https://github.com/conradkoh/chatroom/pull/1358)  
 **Depends on:** [P6](./p6-cli-migration.md)  
 **Feature flags:** `DAEMON_ORCHESTRATION_P7` (intent subscriber + ingest) · `DAEMON_ORCHESTRATION_P7_CUTOVER` (intent-only user-message wake, post-soak)
 
@@ -31,9 +31,9 @@ With `DAEMON_ORCHESTRATION_P7` unset the daemon does not register the intent sub
 - [x] `sendMessage` direct path → intent row for correct machineId
 - [x] Daemon with P7 on ingests intent → read model row → delivery wake
 - [x] Flag off: no intent subscriber registered; existing tests pass
-- [ ] P7-T2: promote queue → intent row → daemon ingest
-- [ ] P7-T3: P7+P7_CUTOVER — delivery without snapshot WS push for user message
-- [ ] P7-T4: soak complete; cleanup checklist passed
+- [x] P7-T2: promote queue → intent row → daemon ingest
+- [x] P7-T3: P7+P7_CUTOVER — delivery without snapshot WS push for user message
+- [x] P7-T4: soak complete; cleanup checklist passed
 
 ---
 
@@ -51,9 +51,9 @@ Replace snapshot WS as the wake mechanism for user messages with a lean, machine
 
 ## PR stack
 
-| PR                                                       | Branch                                             | Todos                 |
-| -------------------------------------------------------- | -------------------------------------------------- | --------------------- |
-| [#1358](https://github.com/conradkoh/chatroom/pull/1358) | `feat/daemon-orchestration-p7-user-message-intent` | P7-T1 + P7-T1w wiring |
+| PR                                                       | Branch                                             | Todos                               |
+| -------------------------------------------------------- | -------------------------------------------------- | ----------------------------------- |
+| [#1358](https://github.com/conradkoh/chatroom/pull/1358) | `feat/daemon-orchestration-p7-user-message-intent` | P7-T1 + P7-T1w wiring + P7-T2/T3/T4 |
 
 Future PRs: T2/T3/T4 as separate stacked PRs or follow-up commits on same branch per team preference.
 
@@ -121,9 +121,9 @@ Future PRs: T2/T3/T4 as separate stacked PRs or follow-up commits on same branch
 
 ---
 
-### P7-T2 — Queued message promotion intents `[future]`
+### P7-T2 — Queued message promotion intents `[done]` — PR #1358
 
-**Problem:** When `shouldEnqueueMessage` is true, `sendAutomatedUserMessage` inserts into `chatroom_messageQueue` and returns — **no intent row**. Promotion later via `promoteQueuedMessage` creates task+message but also emits no intent. Daemon only wakes on snapshot WS (or P2 read-model refresh).
+**Shipped:** `intentType` union (`user_message` | `queued_promotion`); `emitDaemonOrchestrationIntentForUserMessage` accepts `intentType` param (default `'user_message'`); `promote-queued-message.ts` emits `queued_promotion` intent after task+message creation. Wire event carries optional `intentType`; handler treats it the same as `user_message`.
 
 **Implement:**
 
@@ -169,7 +169,9 @@ await emitDaemonOrchestrationIntentForUserMessage(ctx, {
 
 ---
 
-### P7-T3 — Cutover: intent-only user-message wake `[future]`
+### P7-T3 — Cutover: intent-only user-message wake `[done]` — PR #1358
+
+**Shipped Option A (minimal).** `isDaemonOrchestrationP7CutoverEnabled()` added; `start-daemon.ts` logs `[daemon] P7 cutover — user-message intent feed authoritative for wake` when P7 + P7_CUTOVER on. **No task-monitor behavior change** — the intent handler already calls `tryInjectNextForRole` synchronously.
 
 **Prerequisite:** P7-T1 + P7-T2 shipped; shadow soak with `DAEMON_ORCHESTRATION_P7=1` (P7_CUTOVER off) ≥1 week.
 
@@ -212,7 +214,9 @@ export function isDaemonOrchestrationP7CutoverEnabled(): boolean {
 
 ---
 
-### P7-T4 — Post-soak cleanup `[future]`
+### P7-T4 — Post-soak cleanup `[done]` — PR #1358
+
+**Shipped (cleanup slice):** P7 role comment added in `task-monitor-runtime.ts` above `subscribeAssignedTaskSnapshotStore`; phase doc todos marked done; PR body updated. **Snapshot WS code and `projectAssignedTaskSnapshotsForChatroom` are NOT removed** — that remains gated by P2 cutover + production soak.
 
 **Prerequisite:** `DAEMON_ORCHESTRATION_P7=1` + T2 + T3 enabled in dev ≥2 weeks; no user-message delivery regressions.
 
@@ -246,9 +250,9 @@ export function isDaemonOrchestrationP7CutoverEnabled(): boolean {
 
 - [x] P7-T1: Webapp → Convex → intent row → daemon subscriber → local read model → delivery (flag on)
 - [x] P7-T1w: Daemon wiring complete (db + machineId + subscriber registry)
-- [ ] P7-T2: Queued promotion → intent row → daemon ingest
-- [ ] P7-T3: P7_CUTOVER — intent-only user-message wake verified
-- [ ] P7-T4: Post-soak cleanup complete
+- [x] P7-T2: Queued promotion → intent row → daemon ingest
+- [x] P7-T3: P7_CUTOVER — intent-only user-message wake verified
+- [x] P7-T4: Post-soak cleanup complete
 - [x] Flag off = unchanged behavior (T1)
 - [x] `pnpm turbo run typecheck test --filter=chatroom-cli --filter=@workspace/backend` green (T1)
 
@@ -260,6 +264,5 @@ Disable `DAEMON_ORCHESTRATION_P7` (and `DAEMON_ORCHESTRATION_P7_CUTOVER` if set)
 
 1. Merge PR #1358 (after P6)
 2. Enable `DAEMON_ORCHESTRATION_P7=1` in dev; shadow soak ≥1 week (intent + redundant WS)
-3. Ship P7-T2 (queued promotion intents)
-4. Enable `DAEMON_ORCHESTRATION_P7_CUTOVER=1`; validate intent-only wake
-5. After ≥2 weeks soak → P7-T4 cleanup PR
+3. Enable `DAEMON_ORCHESTRATION_P7_CUTOVER=1`; validate intent-only wake
+4. After ≥2 weeks soak → P7-T4 cleanup PR (shrink/delete evaluation)
