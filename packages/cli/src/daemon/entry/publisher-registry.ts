@@ -5,7 +5,10 @@ import {
   createConvexPublishers,
   getConvexEventHandler,
 } from '../infrastructure/projection/convex/route-outbound-event.js';
-import { isDaemonOrchestrationP1CutoverEnabled } from '../infrastructure/projection/feature-flags.js';
+import {
+  isDaemonOrchestrationP1CutoverEnabled,
+  isDaemonOrchestrationP5Enabled,
+} from '../infrastructure/projection/feature-flags.js';
 import type { StreamHub } from '../local-web/server/stream-hub.js';
 
 export type PublisherRegistryDeps = {
@@ -36,6 +39,11 @@ export function createPublisherRegistry(deps: PublisherRegistryDeps = {}): Publi
       deps.persistence?.append(event);
       if (event.type === 'harness.stream') {
         deps.streamHub?.publish(event);
+        return;
+      }
+
+      if (isDaemonOrchestrationP5Enabled()) {
+        // P5: local event bus only — outbox drain (P1) is the sole Convex writer.
         return;
       }
 

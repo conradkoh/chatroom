@@ -121,4 +121,35 @@ describe('createPublisherRegistry', () => {
     expect(mutation).not.toHaveBeenCalled();
     expect(received).toEqual(['hello']);
   });
+
+  it('P5 on: appends to persistence and never calls direct Convex mutations', async () => {
+    const store = createPersistenceStore(tempDbPath());
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    process.env.DAEMON_ORCHESTRATION_P5 = '1';
+    try {
+      const registry = createPublisherRegistry({
+        persistence: store,
+        backend: { mutation, query: vi.fn() },
+        sessionId: 'sess-1',
+        machineId: 'machine-1',
+      });
+
+      await registry.publish({
+        type: 'agent.start_failed',
+        idempotencyKey: 'room-1:builder:start_failed',
+        chatroomId: 'room-1',
+        role: 'builder',
+        machineId: 'machine-1',
+        error: 'spawn failed',
+        timestamp: 100,
+      });
+
+      expect(mutation).not.toHaveBeenCalled();
+      const pending = store.listPendingOutbox();
+      expect(pending).toHaveLength(1);
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P5;
+      store.close();
+    }
+  });
 });
