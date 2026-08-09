@@ -468,7 +468,7 @@ packages/cli/src/daemon/
 | **P5 — Subscriber shrink**   | Keep only user-intent inbound (files, git, webapp commands)                                            | Daemon no longer subscribes to self-projected state        |
 | **P6 — CLI migration**       | `get-next-task`, `task read`, context reads optional local                                             | Agents use daemon as SSOT                                  |
 | **P7 — User-message intent** | Convex emits lean machine-routed intents on message task creation; daemon pulls as user-intent inbound | Snapshot WS no longer the wake mechanism for user messages |
-| **P8 — Single machine**      | One `machineId` + one `workingDir` per chatroom; validation + migration                                | Eliminates cross-machine orchestration complexity          |
+| **P8 — Single machine**      | One `machineId` + one `workingDir` per chatroom; validation + backfill (multi-machine unsupported)     | Eliminates cross-machine orchestration complexity          |
 | **P9 — Convex sink**         | Daemon SQLite is sole orchestration authority; Convex is projection sink + local message queue         | Completes daemon-centric orchestration                     |
 
 > **Detailed implementation plan:** See [phases/README.md](./phases/README.md) for per-phase todos and verification criteria.
@@ -500,12 +500,12 @@ Each phase should be **feature-flagged**. Daemon is SSOT from the start of each 
 | 6   | Single machine per chatroom | P8 — all remote team agents share orchestrationMachineId + orchestrationWorkingDir |
 | 7   | Convex orchestration role   | P9 — sink only; daemon SQLite is SSOT                                              |
 | 8   | Message queue authority     | P9 — daemon local queue; Convex queue is projection                                |
+| 9   | Webapp→daemon ingress       | P9-T1 — ephemeral Convex ingress relay only (transport, not SSOT)                  |
+| 10  | Multi-machine chatrooms     | Not supported — no grandfathering; conflict chatrooms blocked until reconfigured   |
 
 ### Remaining open decisions
 
-| #   | Open decision               | Status                                                                                                      |
-| --- | --------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 1   | P9-T1 webapp→daemon ingress | Option A (direct tunnel) vs Option B (Convex ingress relay) — pick at implementation (Option B recommended) |
+Not Applicable — all prior open decisions resolved (see #9–#10 above).
 
 ---
 

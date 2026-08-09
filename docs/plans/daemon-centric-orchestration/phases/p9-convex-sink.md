@@ -13,7 +13,7 @@
 - **Daemon is sole orchestration authority** — handoff, task claim, user messages, queue enqueue/promote, lifecycle all execute in SQLite
 - **Convex is event sink only** — outbox projects idempotent read-model copies for webapp; no orchestration mutation on hot path
 - **Local message queue** on daemon replaces `chatroom_messageQueue` as authority
-- Webapp ingress path for user messages routes to daemon (via Convex relay or direct tunnel — see P9-T1)
+- Webapp ingress path for user messages routes to daemon via **ephemeral Convex ingress relay** (P9-T1 — resolved)
 - P7 intent feed, assigned-task signals, snapshot WS orchestration subscribers **removed** post-cutover
 
 ### Flag-off guarantee
@@ -96,15 +96,13 @@ flowchart TD
 
 ### P9-T1 — Webapp → daemon ingress `[new]`
 
+**Resolved decision:** Ephemeral **Convex ingress relay** (transport only, not SSOT). Direct tunnel (Option A) and inverted WebSocket (Option C) are **out of scope**.
+
 **Problem:** Webapp cannot call `127.0.0.1` daemon directly when user is remote.
 
-**Options (implement Option B unless blocked):**
+**Transport:** Webapp calls thin `api.orchestration.submitUserMessage` → inserts `chatroom_orchestrationIngress` row → daemon pulls via incremental sync → executes locally → acks/deletes row.
 
-- **Option A:** Direct tunnel (ngrok/cloudflare) — webapp POST to public daemon URL. High ops burden.
-- **Option B (recommended):** Convex **ingress relay** — webapp calls thin `api.orchestration.submitUserMessage` that inserts `chatroom_orchestrationIngress` row; daemon pulls via incremental sync, executes locally, acks. Row is **not SSOT** — deleted after daemon claims. Convex table is transport only.
-- **Option C:** SSE/WebSocket from daemon to webapp — inverted; webapp still needs write path.
-
-**Implement (Option B):**
+**Implement:**
 
 - `services/backend/convex/schema.ts` — `chatroom_orchestrationIngress` (ephemeral, TTL)
 - `packages/cli/src/daemon/infrastructure/convex/subscribers/orchestration-ingress.ts`
