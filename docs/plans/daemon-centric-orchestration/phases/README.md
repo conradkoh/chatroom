@@ -17,6 +17,8 @@
 | **P5** | [p5-subscriber-shrink.md](./p5-subscriber-shrink.md)     | P3, P4     | ✅ Implemented (in review) — inbound-only subscribers + outbox-only publisher via PR [#1356](https://github.com/conradkoh/chatroom/pull/1356) | Yes — after P3+P4 soak (soak gate); removes redundant subscribers |
 | **P6** | [p6-cli-migration.md](./p6-cli-migration.md)             | P3         | ✅ Implemented (in review) — get-next-task/reads via daemon HTTP via PR [#1357](https://github.com/conradkoh/chatroom/pull/1357)              | Yes — per-command; flag off = Convex CLI paths                    |
 | **P7** | [p7-user-message-intent.md](./p7-user-message-intent.md) | P6         | ✅ Implemented (in review) — user-message intent feed via PR [#1358](https://github.com/conradkoh/chatroom/pull/1358)                         | Yes — flag off = snapshot WS wake; webapp unchanged               |
+| **P8** | [p8-single-machine.md](./p8-single-machine.md)           | P7         | Planned — single machine + workspace per chatroom                                                                                             | Yes — validation only until cutover                               |
+| **P9** | [p9-convex-sink.md](./p9-convex-sink.md)                 | P8         | Planned — daemon SSOT; Convex event sink + local queue                                                                                        | No — requires P8                                                  |
 
 ## Dependency order
 
@@ -30,6 +32,8 @@ flowchart LR
     P4 --> P5
     P3 --> P6[P6 CLI migration]
     P6 --> P7[P7 User-message intent]
+    P7 --> P8[P8 Single machine]
+    P8 --> P9[P9 Convex sink]
 ```
 
 ## How to use
@@ -54,13 +58,19 @@ Every phase MUST be **independently shippable**: mergeable to main with the phas
 
 Sub-flags (cutover within a phase):
 
-| Sub-flag                                 | Phase | Purpose                                                                                  |
-| ---------------------------------------- | ----- | ---------------------------------------------------------------------------------------- |
-| `DAEMON_ORCHESTRATION_P1_CUTOVER`        | P1    | Disable direct Convex publish; outbox drain is sole write path                           |
-| `DAEMON_ORCHESTRATION_P2_CUTOVER`        | P2    | Task monitor reads local read models; disable Convex snapshot WS                         |
-| `DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY` | P3    | Delivery from local handoff event (optional within P3; not required to ship P3)          |
-| `DAEMON_ORCHESTRATION_P6_LEGACY_DELETE`  | P6    | Remove Convex-first CLI fallbacks (post-soak only)                                       |
-| `DAEMON_ORCHESTRATION_P7_CUTOVER`        | P7    | Intent feed authoritative for user-message wake; no snapshot WS dependency for discovery |
+| Sub-flag                                 | Phase | Purpose                                                                                    |
+| ---------------------------------------- | ----- | ------------------------------------------------------------------------------------------ |
+| `DAEMON_ORCHESTRATION_P1_CUTOVER`        | P1    | Disable direct Convex publish; outbox drain is sole write path                             |
+| `DAEMON_ORCHESTRATION_P2_CUTOVER`        | P2    | Task monitor reads local read models; disable Convex snapshot WS                           |
+| `DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY` | P3    | Delivery from local handoff event (optional within P3; not required to ship P3)            |
+| `DAEMON_ORCHESTRATION_P6_LEGACY_DELETE`  | P6    | Remove Convex-first CLI fallbacks (post-soak only)                                         |
+| `DAEMON_ORCHESTRATION_P7_CUTOVER`        | P7    | Intent feed authoritative for user-message wake; no snapshot WS dependency for discovery   |
+| `DAEMON_ORCHESTRATION_P8` / `P8_CUTOVER` | P8    | Validate/reject multi-machine multi-workspace chatrooms; enforce single orchestration host |
+| `DAEMON_ORCHESTRATION_P9_USER_MESSAGE`   | P9    | User message write → daemon (ingress relay)                                                |
+| `DAEMON_ORCHESTRATION_P9_QUEUE`          | P9    | Local queue enqueue/promote replaces `chatroom_messageQueue` authority                     |
+| `DAEMON_ORCHESTRATION_P9_HANDOFF`        | P9    | Remove Convex `messages.handoff` fallback                                                  |
+| `DAEMON_ORCHESTRATION_P9_CLAIM`          | P9    | Remove Convex `tasks.claimTask` fallback                                                   |
+| `DAEMON_ORCHESTRATION_P9_CUTOVER`        | P9    | All P9 sub-flags on; delete legacy Convex orchestration paths                              |
 
 ## Conventions
 

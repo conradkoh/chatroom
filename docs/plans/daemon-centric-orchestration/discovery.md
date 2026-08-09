@@ -458,15 +458,18 @@ packages/cli/src/daemon/
 
 ## 7. Phased migration (high-level)
 
-| Phase                      | Scope                                                                          | Outcome                                             |
-| -------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------- |
-| **P0 — Discovery**         | This document                                                                  | Shared vocabulary + inventory                       |
-| **P1 — Outbox drain**      | Wire `outbox.ts` → Convex projection worker for existing `OutboundEvent` types | Proven retry/batch path                             |
-| **P2 — Local read models** | Tasks + participants in SQLite; task monitor reads local                       | Remove snapshot WS dependency for orchestration     |
-| **P3 — Handoff local**     | `chatroom handoff` → daemon; Convex projection                                 | Break largest CLI↔Convex↔daemon loop                |
-| **P4 — Lifecycle local**   | APM events append locally; batch `emit*`                                       | Reduce mutation churn                               |
-| **P5 — Subscriber shrink** | Keep only user-intent inbound (files, git, webapp commands)                    | Daemon no longer subscribes to self-projected state |
-| **P6 — CLI migration**     | `get-next-task`, `task read`, context reads optional local                     | Agents use daemon as SSOT                           |
+| Phase                        | Scope                                                                                                  | Outcome                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| **P0 — Discovery**           | This document                                                                                          | Shared vocabulary + inventory                              |
+| **P1 — Outbox drain**        | Wire `outbox.ts` → Convex projection worker for existing `OutboundEvent` types                         | Proven retry/batch path                                    |
+| **P2 — Local read models**   | Tasks + participants in SQLite; task monitor reads local                                               | Remove snapshot WS dependency for orchestration            |
+| **P3 — Handoff local**       | `chatroom handoff` → daemon; Convex projection                                                         | Break largest CLI↔Convex↔daemon loop                       |
+| **P4 — Lifecycle local**     | APM events append locally; batch `emit*`                                                               | Reduce mutation churn                                      |
+| **P5 — Subscriber shrink**   | Keep only user-intent inbound (files, git, webapp commands)                                            | Daemon no longer subscribes to self-projected state        |
+| **P6 — CLI migration**       | `get-next-task`, `task read`, context reads optional local                                             | Agents use daemon as SSOT                                  |
+| **P7 — User-message intent** | Convex emits lean machine-routed intents on message task creation; daemon pulls as user-intent inbound | Snapshot WS no longer the wake mechanism for user messages |
+| **P8 — Single machine**      | One `machineId` + one `workingDir` per chatroom; validation + migration                                | Eliminates cross-machine orchestration complexity          |
+| **P9 — Convex sink**         | Daemon SQLite is sole orchestration authority; Convex is projection sink + local message queue         | Completes daemon-centric orchestration                     |
 
 > **Detailed implementation plan:** See [phases/README.md](./phases/README.md) for per-phase todos and verification criteria.
 
@@ -481,23 +484,28 @@ Each phase should be **feature-flagged**. Daemon is SSOT from the start of each 
 | Risk                                                         | Mitigation                                                                                                                                                                    |
 | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Split-brain between daemon SQLite and Convex                 | Idempotent projections + revision keys; Convex remains authority for **webapp-visible conflict resolution across machines**, daemon is SSOT for **per-machine** orchestration |
-| Multi-machine same chatroom                                  | Convex still coordinates cross-machine; daemon owns **per-machine** orchestration                                                                                             |
+| Multi-machine same chatroom                                  | **Resolved by P8** — one machine per chatroom; multi-machine orchestration unsupported. Convex coordinates only via projection sink (P9).                                     |
 | Migration duration / dual paths                              | Feature flags per flow; incremental sync library reused for inbound user-intent only                                                                                          |
 | Handoff atomicity today (`messages.handoff` single mutation) | Local transaction in SQLite + compensating projection                                                                                                                         |
 
 ### Resolved decisions
 
-| #   | Decision              | Resolution                                                            |
-| --- | --------------------- | --------------------------------------------------------------------- |
-| 1   | CLI→daemon transport  | HTTP on localhost                                                     |
-| 2   | Handoff migration     | No dual-write; daemon-primary with eventual Convex projection         |
-| 3   | Enhancer queue        | Fully local in daemon                                                 |
-| 4   | Webapp realtime SLI   | Task status, agent status, messages = realtime (T3); others batchable |
-| 5   | Shared domain package | Not needed; separate daemon and backend domains                       |
+| #   | Decision                    | Resolution                                                                         |
+| --- | --------------------------- | ---------------------------------------------------------------------------------- |
+| 1   | CLI→daemon transport        | HTTP on localhost                                                                  |
+| 2   | Handoff migration           | No dual-write; daemon-primary with eventual Convex projection                      |
+| 3   | Enhancer queue              | Fully local in daemon                                                              |
+| 4   | Webapp realtime SLI         | Task status, agent status, messages = realtime (T3); others batchable              |
+| 5   | Shared domain package       | Not needed; separate daemon and backend domains                                    |
+| 6   | Single machine per chatroom | P8 — all remote team agents share orchestrationMachineId + orchestrationWorkingDir |
+| 7   | Convex orchestration role   | P9 — sink only; daemon SQLite is SSOT                                              |
+| 8   | Message queue authority     | P9 — daemon local queue; Convex queue is projection                                |
 
 ### Remaining open decisions
 
-Not Applicable — all prior open decisions resolved. New gaps discovered during implementation should be tracked separately.
+| #   | Open decision               | Status                                                                                                      |
+| --- | --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 1   | P9-T1 webapp→daemon ingress | Option A (direct tunnel) vs Option B (Convex ingress relay) — pick at implementation (Option B recommended) |
 
 ---
 
