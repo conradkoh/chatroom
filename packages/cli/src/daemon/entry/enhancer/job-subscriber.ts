@@ -3,8 +3,11 @@ import { writeEnhancerLog } from './enhancer-log.js';
 import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
 import { api, type Id } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
+import { processEnhancerJob } from '../../application/use-cases/enhancer/process-enhancer-job.js';
 import type { RemoteAgentService } from '../../infrastructure/local/harness/services/remote-agent-service.js';
 import { createSpawnPrompt } from '../../infrastructure/local/harness/services/spawn-prompt.js';
+import { getEnhancerQueuePort } from '../../infrastructure/persistence/enhancer-queue.js';
+import { isDaemonOrchestrationP4Enabled } from '../../infrastructure/projection/feature-flags.js';
 import {
   registerEnhancerInboundHandler,
   unregisterEnhancerInboundHandler,
@@ -168,6 +171,29 @@ function processEnhancerJobs(
   }
 }
 
+async function drainLocalEnhancerQueue(
+  sessionId: string,
+  machineId: string,
+  convexUrl: string,
+  backend: BackendOps,
+  agentServices: Map<string, RemoteAgentService>,
+  inFlight: Set<string>
+): Promise<void> {
+  const queue = getEnhancerQueuePort();
+  const jobs = queue.listPendingForMachine(machineId);
+  for (const job of jobs) {
+    if (inFlight.has(job.jobId)) continue;
+    const claimed = queue.claimPendingForMachine(machineId);
+    if (!claimed) continue;
+    inFlight.add(job.jobId);
+    void processEnhancerJob(
+      { sessionId, machineId, convexUrl, backend, agentServices },
+      claimed,
+      queue
+    ).finally(() => inFlight.delete(job.jobId));
+  }
+}
+
 async function drainPendingEnhancerJobs(
   sessionId: string,
   machineId: string,
@@ -176,6 +202,18 @@ async function drainPendingEnhancerJobs(
   agentServices: Map<string, RemoteAgentService>,
   inFlight: Set<string>
 ): Promise<void> {
+  if (isDaemonOrchestrationP4Enabled()) {
+    await drainLocalEnhancerQueue(
+      sessionId,
+      machineId,
+      convexUrl,
+      backend,
+      agentServices,
+      inFlight
+    );
+    return;
+  }
+
   const jobs = (await backend.query(api.daemon.enhancer.index.pendingForMachine, {
     sessionId: sessionId as never,
     machineId,

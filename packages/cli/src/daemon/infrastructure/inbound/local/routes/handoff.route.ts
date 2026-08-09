@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 
+import { enqueueEnhancerJob } from '../../../../application/use-cases/enhancer/enqueue-enhancer-job.js';
 import type { OutboundEvent } from '../../../../domain/entities/outbound-event.js';
 import {
   executeHandoff,
@@ -11,6 +12,7 @@ import {
   getAgentHarnessForRole,
   type HandoffChatroomAdapterDeps,
 } from '../../../convex/adapters/handoff-chatroom-adapter.js';
+import { getEnhancerQueuePort } from '../../../persistence/enhancer-queue.js';
 
 export type HandoffRouteDeps = {
   machineId: string;
@@ -93,6 +95,7 @@ export async function handleHandoffRoute(
       machineId: deps.machineId,
       chatroom,
       appendEvent: deps.appendEvent,
+      enqueueEnhancerJob: (input) => enqueueEnhancerJob({ queue: getEnhancerQueuePort() }, input),
     },
     {
       sessionId: deps.sessionId,

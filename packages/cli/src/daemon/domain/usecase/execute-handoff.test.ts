@@ -314,4 +314,59 @@ describe('executeHandoff', () => {
       vi.restoreAllMocks();
     }
   });
+
+  it('enqueues enhancer job locally when P4 enabled on planner → enhancer handoff', async () => {
+    const db = openDatabase(tempDbPath());
+    const enqueued: unknown[] = [];
+    process.env.DAEMON_ORCHESTRATION_P4 = '1';
+    try {
+      upsertTaskReadModel(db, taskReadModelFromSnapshot(makeSnapshot()));
+
+      const result = await executeHandoff(
+        {
+          db,
+          machineId: 'machine-1',
+          chatroom: makePort({
+            getContext: vi.fn(async () => ({
+              teamRoles: ['planner', 'builder'],
+              supportsNativeIntegration: false,
+              hasActiveEnhancerWork: false,
+              enhancerConfig: {
+                enabled: true,
+                machineId: 'machine-1',
+                agentHarness: 'opencode',
+                model: 'gpt-4o',
+              },
+            })),
+          }),
+          appendEvent: () => {},
+          enqueueEnhancerJob: (input) => enqueued.push(input),
+          now: () => 1000,
+        },
+        {
+          sessionId: 'session-1',
+          chatroomId: 'room-1',
+          senderRole: 'planner',
+          content: 'please review',
+          targetRole: 'enhancer',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(enqueued).toHaveLength(1);
+      expect(enqueued[0]).toMatchObject({
+        chatroomId: 'room-1',
+        machineId: 'machine-1',
+        payload: {
+          agentHarness: 'opencode',
+          model: 'gpt-4o',
+          machineId: 'machine-1',
+          content: 'please review',
+        },
+      });
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P4;
+      db.close();
+    }
+  });
 });

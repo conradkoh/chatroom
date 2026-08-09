@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const MIGRATIONS: string[] = [
   `CREATE TABLE IF NOT EXISTS schema_meta (
@@ -70,4 +70,14 @@ export const MIGRATIONS: string[] = [
     updated_at INTEGER NOT NULL,
     PRIMARY KEY (chatroom_id)
   )`,
+  `CREATE TABLE IF NOT EXISTS enhancer_queue (
+    job_id TEXT PRIMARY KEY,
+    chatroom_id TEXT NOT NULL,
+    machine_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    payload_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_enhancer_queue_machine_status ON enhancer_queue(machine_id, status)`,
 ];

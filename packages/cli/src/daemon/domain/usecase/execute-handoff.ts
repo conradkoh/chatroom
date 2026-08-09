@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
+import type { EnqueueEnhancerQueueInput } from '../../application/ports/enhancer-queue.port.js';
 import type { HandoffChatroomContext } from '../../infrastructure/convex/adapters/handoff-chatroom-adapter.js';
 import { upsertHandoffReadModel } from '../../infrastructure/persistence/read-models/handoffs.js';
 import { upsertParticipantReadModel } from '../../infrastructure/persistence/read-models/participants.js';
@@ -11,6 +12,7 @@ import {
   type TaskReadModelRow,
   upsertTaskReadModel,
 } from '../../infrastructure/persistence/read-models/tasks.js';
+import { isDaemonOrchestrationP4Enabled } from '../../infrastructure/projection/feature-flags.js';
 import type { OutboundEvent } from '../entities/outbound-event.js';
 import type { ExecuteHandoffResult, HandoffRejectedError } from '../errors/handoff-errors.js';
 import { buildHandoffCompletedEvent } from '../events/handoff-completed.js';
@@ -34,6 +36,8 @@ export type ExecuteHandoffDeps = {
   machineId: string;
   chatroom: HandoffChatroomPort;
   appendEvent: (event: OutboundEvent) => void;
+  /** P4: enqueue the enhancer job in the local queue on planner → enhancer handoff. */
+  enqueueEnhancerJob?: (input: EnqueueEnhancerQueueInput) => void;
   now?: () => number;
 };
 
@@ -331,6 +335,20 @@ export async function executeHandoff(
           model: context.enhancerConfig.model,
         }
       : undefined;
+
+  if (isDaemonOrchestrationP4Enabled() && enhancerJobPayload && deps.enqueueEnhancerJob) {
+    deps.enqueueEnhancerJob({
+      jobId: `local:${input.chatroomId}:${messageId}`,
+      chatroomId: input.chatroomId,
+      machineId: enhancerJobPayload.machineId,
+      payload: {
+        agentHarness: enhancerJobPayload.agentHarness,
+        model: enhancerJobPayload.model,
+        machineId: enhancerJobPayload.machineId,
+        content: input.content,
+      },
+    });
+  }
 
   deps.appendEvent(
     buildHandoffCompletedEvent({

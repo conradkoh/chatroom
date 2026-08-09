@@ -16,6 +16,7 @@ import { setAssignedTaskSnapshotProvider } from '../../infrastructure/stores/ass
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import { setAgentLifecyclePersistence } from '../infrastructure/agent-process-manager/agent-lifecycle-port.js';
 import { startCliHttpServer } from '../infrastructure/inbound/local/cli-http-server.js';
+import { setEnhancerQueueDb } from '../infrastructure/persistence/enhancer-queue.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { hydrateReadModelsFromConvex } from '../infrastructure/persistence/read-models/hydrate-from-convex.js';
 import { listSnapshotViewsFromReadModels } from '../infrastructure/persistence/read-models/task-snapshot-adapter.js';
@@ -35,6 +36,7 @@ export async function startDaemon(): Promise<void> {
 
   const persistence = createPersistenceStore(resolvePersistenceDbPath(init.machineId));
   setAgentLifecyclePersistence(persistence);
+  setEnhancerQueueDb(persistence.db);
   const daemonDeps = createDaemonDeps({
     persistence,
     backend: init.backend,
