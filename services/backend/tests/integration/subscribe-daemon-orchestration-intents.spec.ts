@@ -90,4 +90,44 @@ describe('daemon-orchestration intents (P7)', () => {
     expect(replay.items).toHaveLength(0);
     expect(replay.highKey).toBeNull();
   });
+
+  test('promoteNextTask creates queued_promotion intent row', async () => {
+    const { sessionId } = await createTestSession('p7-queued-promote');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const machineId = 'p7-queued-machine';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    const queuedId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_messageQueue', {
+        chatroomId,
+        senderRole: 'user',
+        targetRole: 'builder',
+        content: 'queued for P7',
+        type: 'message',
+        queuePosition: 1,
+      })
+    );
+
+    await t.mutation(api.tasks.promoteSpecificTask, {
+      sessionId,
+      queuedMessageId: queuedId,
+    });
+
+    const intentRows = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_daemonOrchestrationIntents')
+        .withIndex('by_machineId_taskId', (q) => q.eq('machineId', machineId))
+        .collect()
+    );
+    expect(intentRows).toHaveLength(1);
+    expect(intentRows[0]).toMatchObject({
+      machineId,
+      chatroomId,
+      role: 'builder',
+      intentType: 'queued_promotion',
+      status: 'pending',
+    });
+    expect(intentRows[0].revisionKey).toContain(':');
+  });
 });

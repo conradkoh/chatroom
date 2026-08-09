@@ -16,13 +16,16 @@ function tempDbPath(): string {
   return join(dir, 'events.sqlite');
 }
 
-function makeEvent(): UserMessageIntentInboundEvent {
+function makeEvent(
+  intentType?: 'user_message' | 'queued_promotion'
+): UserMessageIntentInboundEvent {
   return {
     type: 'user-message.intent',
     chatroomId: 'room-1',
     taskId: 'task-1',
     role: 'builder',
     revisionKey: '1700000000000:task-1',
+    ...(intentType ? { intentType } : {}),
     agentHarness: 'cursor-sdk',
     workingDir: '/test/workspace',
     model: 'gpt-4o',
@@ -75,5 +78,38 @@ describe('handleUserMessageIntentInbound', () => {
     const spy = vi.spyOn(coordinator, 'tryInjectNextForRole');
     handleUserMessageIntentInbound({ db: undefined, machineId: 'machine-1' }, makeEvent());
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('ingests a queued_promotion intent the same as a user_message intent', () => {
+    const db = openDatabase(tempDbPath());
+    const coordinator = getNativeTaskDeliveryCoordinator();
+    const spy = vi.spyOn(coordinator, 'tryInjectNextForRole');
+    try {
+      handleUserMessageIntentInbound({ db, machineId: 'machine-1' }, makeEvent('queued_promotion'));
+
+      const rows = listTaskReadModelsForChatroomRole(db, 'room-1', 'builder');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: 'task-1',
+        status: 'pending',
+        assignedTo: 'builder',
+        agentHarness: 'cursor-sdk',
+        machineId: 'machine-1',
+        createdAt: 1_700_000_000_000,
+      });
+
+      expect(spy).toHaveBeenCalledWith('room-1', 'builder');
+      const snapshots = listAssignedTaskSnapshotsForRole('room-1', 'builder');
+      expect(snapshots).toHaveLength(1);
+      expect(snapshots[0]).toMatchObject({
+        taskId: 'task-1',
+        status: 'pending',
+        agentConfig: { role: 'builder', machineId: 'machine-1', agentHarness: 'cursor-sdk' },
+      });
+    } finally {
+      db.close();
+    }
   });
 });
