@@ -95,3 +95,39 @@ export function isDaemonOrchestrationP8Enabled(): boolean {
 export function isDaemonOrchestrationP8CutoverEnabled(): boolean {
   return envTruthy(process.env.DAEMON_ORCHESTRATION_P8_CUTOVER);
 }
+
+/** DAEMON_ORCHESTRATION_P9 — master umbrella for P9 sink sub-flags. */
+// fallow-ignore-next-line unused-export
+export function isDaemonOrchestrationP9Enabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P9);
+}
+
+/** DAEMON_ORCHESTRATION_P9_USER_MESSAGE — user message write → daemon (ingress relay). */
+export function isDaemonOrchestrationP9UserMessageEnabled(): boolean {
+  return (
+    envTruthy(process.env.DAEMON_ORCHESTRATION_P9_USER_MESSAGE) || isDaemonOrchestrationP9Enabled()
+  );
+}
+
+/** DAEMON_ORCHESTRATION_P9_QUEUE — local queue enqueue/promote replaces Convex queue authority. */
+export function isDaemonOrchestrationP9QueueEnabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P9_QUEUE) || isDaemonOrchestrationP9Enabled();
+}
+
+/** DAEMON_ORCHESTRATION_P9_HANDOFF — remove Convex messages.handoff fallback. */
+// fallow-ignore-next-line unused-export
+export function isDaemonOrchestrationP9HandoffEnabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P9_HANDOFF) || isDaemonOrchestrationP9Enabled();
+}
+
+/** DAEMON_ORCHESTRATION_P9_CLAIM — remove Convex tasks.claimTask fallback. */
+// fallow-ignore-next-line unused-export
+export function isDaemonOrchestrationP9ClaimEnabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P9_CLAIM) || isDaemonOrchestrationP9Enabled();
+}
+
+/** DAEMON_ORCHESTRATION_P9_CUTOVER — all P9 sub-flags on; delete legacy Convex orchestration paths. */
+// fallow-ignore-next-line unused-export
+export function isDaemonOrchestrationP9CutoverEnabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P9_CUTOVER);
+}
