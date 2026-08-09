@@ -45,6 +45,7 @@ function makeDeps(db: DatabaseSync) {
     sessionId: 'session-1',
     db,
     appendEvent: vi.fn(),
+    query: vi.fn(),
   };
 }
 

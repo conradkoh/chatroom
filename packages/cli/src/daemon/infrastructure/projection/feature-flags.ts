@@ -84,3 +84,14 @@ export function isDaemonOrchestrationP7Enabled(): boolean {
 export function isDaemonOrchestrationP7CutoverEnabled(): boolean {
   return envTruthy(process.env.DAEMON_ORCHESTRATION_P7_CUTOVER);
 }
+
+/** DAEMON_ORCHESTRATION_P8 — single-machine orchestration host validation (daemon route guards). */
+export function isDaemonOrchestrationP8Enabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P8);
+}
+
+/** DAEMON_ORCHESTRATION_P8_CUTOVER — enforce single-machine binding; reject multi-machine configs. */
+// fallow-ignore-next-line unused-export
+export function isDaemonOrchestrationP8CutoverEnabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P8_CUTOVER);
+}

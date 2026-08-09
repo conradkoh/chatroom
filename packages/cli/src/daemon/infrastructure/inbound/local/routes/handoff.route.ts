@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { readJsonBody, sendJson } from './http-utils.js';
+import { createChatroomHostedGuard } from './orchestration-host-guard.js';
 import { enqueueEnhancerJob } from '../../../../application/use-cases/enhancer/enqueue-enhancer-job.js';
 import type { OutboundEvent } from '../../../../domain/entities/outbound-event.js';
 import {
@@ -61,6 +62,15 @@ export async function handleHandoffRoute(
     query: deps.query,
     sessionId: deps.sessionId,
   };
+
+  // P8: reject when this daemon does not host the chatroom's orchestration.
+  const isHosted = createChatroomHostedGuard({
+    machineId: deps.machineId,
+    sessionId: deps.sessionId,
+    query: deps.query,
+  });
+  if (!(await isHosted(chatroomId, res))) return;
+
   const chatroom: HandoffChatroomPort = {
     getContext: (chatroomIdArg) => fetchHandoffChatroomContext(adapterDeps, chatroomIdArg),
     getAgentHarness: (chatroomIdArg, role) =>

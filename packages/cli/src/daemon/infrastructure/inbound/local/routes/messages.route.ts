@@ -2,12 +2,28 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { readQueryParams, sendJson } from './http-utils.js';
+import { createChatroomHostedGuard } from './orchestration-host-guard.js';
 import { api } from '../../../../../api.js';
 
 export type MessagesRouteDeps = {
   sessionId: string;
+  machineId: string;
   query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
 };
+
+/** P8: reject when this daemon does not host the chatroom's orchestration. */
+async function isChatroomHosted(
+  deps: MessagesRouteDeps,
+  chatroomId: string,
+  res: ServerResponse
+): Promise<boolean> {
+  const isHosted = createChatroomHostedGuard({
+    machineId: deps.machineId,
+    sessionId: deps.sessionId,
+    query: deps.query,
+  });
+  return isHosted(chatroomId, res);
+}
 
 /**
  * GET /messages/list-since — messages since a given message id (P6).
@@ -34,6 +50,8 @@ export async function handleMessagesListSinceRoute(
     });
     return;
   }
+
+  if (!(await isChatroomHosted(deps, chatroomId, res))) return;
 
   try {
     const messages = await deps.query(api.messages.listSinceMessage, {
@@ -71,6 +89,8 @@ export async function handleMessagesListBySenderRoute(
     });
     return;
   }
+
+  if (!(await isChatroomHosted(deps, chatroomId, res))) return;
 
   try {
     const messages = await deps.query(api.messages.listBySenderRole, {

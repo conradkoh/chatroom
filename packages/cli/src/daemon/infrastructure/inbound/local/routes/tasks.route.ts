@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { readJsonBody, sendJson } from './http-utils.js';
+import { createChatroomHostedGuard } from './orchestration-host-guard.js';
 import {
   claimNextTask,
   type ClaimNextTaskResult,
@@ -14,6 +15,7 @@ export type TasksRouteDeps = {
   sessionId: string;
   db: DatabaseSync;
   appendEvent: (event: OutboundEvent) => void;
+  query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
 };
 
 /**
@@ -44,6 +46,14 @@ export async function handleTasksClaimNextRoute(
     });
     return;
   }
+
+  // P8: reject when this daemon does not host the chatroom's orchestration.
+  const isHosted = createChatroomHostedGuard({
+    machineId: deps.machineId,
+    sessionId: deps.sessionId,
+    query: deps.query,
+  });
+  if (!(await isHosted(chatroomId, res))) return;
 
   const result: ClaimNextTaskResult = claimNextTask(
     { db: deps.db, machineId: deps.machineId, appendEvent: deps.appendEvent },

@@ -45,7 +45,7 @@ describe('messages routes (P6)', () => {
     await handleMessagesListSinceRoute(
       makeReq('/messages/list-since?chatroomId=room-1&role=builder&sinceMessageId=msg-0&limit=100'),
       res,
-      { sessionId: 'session-1', query }
+      { sessionId: 'session-1', machineId: 'machine-1', query }
     );
 
     expect(query).toHaveBeenCalledWith(
@@ -64,7 +64,7 @@ describe('messages routes (P6)', () => {
         '/messages/list-by-sender?chatroomId=room-1&role=builder&senderRole=planner&limit=10'
       ),
       res,
-      { sessionId: 'session-1', query }
+      { sessionId: 'session-1', machineId: 'machine-1', query }
     );
 
     expect(captured.status).toBe(200);

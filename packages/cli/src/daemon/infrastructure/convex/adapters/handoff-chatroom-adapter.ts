@@ -2,6 +2,7 @@ import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/h
 
 import { api } from '../../../../api.js';
 import type { Id } from '../../../../api.js';
+import type { OrchestrationHost } from '../../../domain/value-objects/orchestration-host.js';
 
 export type HandoffChatroomContext = {
   teamRoles: string[];
@@ -22,6 +23,8 @@ export type HandoffChatroomAdapterDeps = {
 
 type ChatroomDoc = {
   teamRoles?: string[];
+  orchestrationMachineId?: string;
+  orchestrationWorkingDir?: string;
 };
 
 type EnhancerConfigDoc = {
@@ -95,4 +98,21 @@ export async function getAgentHarnessForRole(
   })) as AgentStartConfig;
 
   return config?.agentHarness;
+}
+
+/** P8: resolve the chatroom's orchestration host, or null when unbound. */
+export async function fetchChatroomOrchestrationHost(
+  deps: HandoffChatroomAdapterDeps,
+  chatroomId: string
+): Promise<OrchestrationHost | null> {
+  const chatroom = (await deps.query(api.chatrooms.get, {
+    sessionId: deps.sessionId,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  })) as ChatroomDoc | null;
+
+  if (!chatroom?.orchestrationMachineId || !chatroom.orchestrationWorkingDir) return null;
+  return {
+    machineId: chatroom.orchestrationMachineId,
+    workingDir: chatroom.orchestrationWorkingDir,
+  };
 }
