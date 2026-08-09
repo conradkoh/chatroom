@@ -115,6 +115,24 @@ export type OutboundEvent =
       timestamp: number;
     }
   | {
+      type: 'user-message.received';
+      idempotencyKey: string;
+      chatroomId: string;
+      localMessageId: string;
+      localTaskId: string;
+      content: string;
+      targetRole?: string;
+      assignedRole: string;
+      timestamp: number;
+      attachedTaskIds?: string[];
+      attachedBacklogItemIds?: string[];
+      attachedMessageIds?: string[];
+      attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
+      sourcePlatform?: string;
+      scheduledPromptId?: string;
+      plannerEnhancerEnabled?: boolean;
+    }
+  | {
       type: 'agent.start_failed';
       idempotencyKey: string;
       chatroomId: string;

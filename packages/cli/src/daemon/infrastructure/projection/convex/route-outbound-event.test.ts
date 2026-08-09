@@ -61,6 +61,16 @@ const handledEvents: OutboundEvent[] = [
     timestamp: 100,
   },
   {
+    type: 'user-message.received',
+    idempotencyKey: 'ingress-1',
+    chatroomId: 'room-1',
+    localMessageId: 'local-msg-1',
+    localTaskId: 'local-task-1',
+    content: 'hello',
+    assignedRole: 'planner',
+    timestamp: 100,
+  },
+  {
     type: 'agent.start_failed',
     idempotencyKey: 'room-1:builder:start_failed',
     chatroomId: 'room-1',
