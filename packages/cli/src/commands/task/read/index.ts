@@ -7,12 +7,15 @@
  * Phase 7: Migrated to Effect-TS services with typed error handling.
  */
 
+// fallow-ignore-file code-duplication
 import { Effect } from 'effect';
 
+import { postDaemonTaskRead } from './daemon-task-read-client.js';
 import type { TaskReadDeps } from './deps.js';
 import { renderTaskPrompt } from './render.js';
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
+import { isDaemonOrchestrationP6TaskReadEnabled } from '../../../daemon/infrastructure/projection/feature-flags.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../../infrastructure/convex/client.js';
 import type { SessionService } from '../../../infrastructure/services/index.js';
@@ -135,14 +138,19 @@ export const taskReadEffect = (
     }));
     yield* validateTaskId(taskId);
 
-    const result = yield* backend
-      .mutation<TaskReadMutationResult>(api.tasks.readTask, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        taskId: taskId as Id<'chatroom_tasks'>,
-      })
-      .pipe(Effect.mapError((cause): TaskReadError => ({ _tag: 'MutationFailed', cause })));
+    const result = yield* isDaemonOrchestrationP6TaskReadEnabled()
+      ? Effect.tryPromise({
+          try: () => postDaemonTaskRead({ chatroomId, role, taskId, sessionId }),
+          catch: (cause): TaskReadError => ({ _tag: 'MutationFailed', cause: cause as Error }),
+        })
+      : backend
+          .mutation<TaskReadMutationResult>(api.tasks.readTask, {
+            sessionId,
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            role,
+            taskId: taskId as Id<'chatroom_tasks'>,
+          })
+          .pipe(Effect.mapError((cause): TaskReadError => ({ _tag: 'MutationFailed', cause })));
 
     yield* Effect.sync(() => {
       console.log(buildTaskPromptFromReadResult(result, chatroomId, role));
