@@ -8,10 +8,21 @@
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { Cause, Effect, Layer } from 'effect';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { handoffEffect, type HandoffError, type HandoffOptions } from './index.js';
 import { BackendService, SessionService } from '../../infrastructure/services/index.js';
+
+const mockPostDaemonHandoff = vi.fn();
+
+vi.mock('./daemon-handoff-client.js', () => ({
+  postDaemonHandoff: (...args: unknown[]) => mockPostDaemonHandoff(...args),
+}));
+
+afterEach(() => {
+  delete process.env.DAEMON_ORCHESTRATION_P3;
+  mockPostDaemonHandoff.mockReset();
+});
 
 // ─── Test Helpers ──────────────────────────────────────────────────────────
 
@@ -219,5 +230,68 @@ describe('handoffEffect', () => {
     );
 
     expect(exit._tag).toBe('Success');
+  });
+
+  test('routes to daemon HTTP when DAEMON_ORCHESTRATION_P3 is enabled', async () => {
+    process.env.DAEMON_ORCHESTRATION_P3 = '1';
+    mockPostDaemonHandoff.mockResolvedValue({
+      success: true,
+      messageId: 'msg-1',
+      completedTaskIds: ['task-1'],
+      newTaskId: 'task-new',
+      promotedTaskId: null,
+    });
+    const testLayer = Layer.mergeAll(
+      makeTestBackend({
+        mutationResponse: new Error('must not be called on P3 path'),
+      }),
+      makeTestSession({ sessionId: 'test-session' })
+    );
+
+    const exit = await Effect.runPromiseExit(
+      handoffEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
+    );
+
+    expect(exit._tag).toBe('Success');
+    expect(mockPostDaemonHandoff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatroomId: validChatroomId,
+        senderRole: 'planner',
+        content: 'Handoff message',
+        targetRole: 'builder',
+      })
+    );
+  });
+
+  test('fails with HandoffRejected when daemon HTTP returns success=false', async () => {
+    process.env.DAEMON_ORCHESTRATION_P3 = '1';
+    mockPostDaemonHandoff.mockResolvedValue({
+      success: false,
+      error: {
+        code: 'INVALID_TARGET_ROLE',
+        message: 'bad target',
+        suggestedTargets: ['user', 'planner'],
+      },
+      messageId: null,
+      completedTaskIds: [],
+      newTaskId: null,
+      promotedTaskId: null,
+    });
+    const testLayer = Layer.mergeAll(
+      makeTestBackend({}),
+      makeTestSession({ sessionId: 'test-session' })
+    );
+
+    const exit = await Effect.runPromiseExit(
+      handoffEffect(validChatroomId, validOptions).pipe(Effect.provide(testLayer))
+    );
+
+    expect(exit._tag).toBe('Failure');
+    if (exit._tag === 'Failure') {
+      const error = Cause.failureOption(exit.cause).pipe((option) =>
+        option._tag === 'Some' ? option.value : null
+      ) as HandoffError | null;
+      expect(error?._tag).toBe('HandoffRejected');
+    }
   });
 });
