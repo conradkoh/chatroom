@@ -48,6 +48,18 @@ const handledEvents: OutboundEvent[] = [
   { type: 'command.result.folder-picker', requestId: 'req-1', status: 'completed' },
   { type: 'command.result.capabilities-refresh', batchId: 'batch-1', status: 'completed' },
   { type: 'workspace.commands', workingDir: '/workspace', commands: [] },
+  {
+    type: 'handoff.completed',
+    idempotencyKey: 'room-1:msg-1',
+    sessionId: 'sess-1',
+    chatroomId: 'room-1',
+    senderRole: 'planner',
+    content: 'handoff message',
+    targetRole: 'builder',
+    messageId: 'msg-1',
+    completedTaskIds: ['task-1'],
+    timestamp: 100,
+  },
 ];
 
 describe('routeConvexEvent', () => {

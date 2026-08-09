@@ -4,6 +4,7 @@ import { createCapabilitiesPublisher } from '../../convex/publishers/capabilitie
 import { createCommandResultPublisher } from '../../convex/publishers/command-result.js';
 import { createDaemonHeartbeatPublisher } from '../../convex/publishers/daemon-heartbeat.js';
 import { createGitStatePublisher } from '../../convex/publishers/git-state.js';
+import { createHandoffCompletedPublisher } from '../../convex/publishers/handoff-completed.js';
 import { createHarnessFingerprintPublisher } from '../../convex/publishers/harness-fingerprint.js';
 import { createModelsPublisher } from '../../convex/publishers/models.js';
 import type { ConvexPublisherDeps } from '../../convex/publishers/publisher-deps.js';
@@ -23,6 +24,7 @@ export function createConvexPublishers(deps: ConvexPublisherDeps) {
     harnessFingerprint: createHarnessFingerprintPublisher(deps),
     commandResult: createCommandResultPublisher(deps),
     workspaceCommands: createWorkspaceCommandsPublisher(deps),
+    handoffCompleted: createHandoffCompletedPublisher(deps),
   };
 }
 
@@ -58,6 +60,8 @@ export function getConvexEventHandler(
       return publishers.commandResult.publish.bind(publishers.commandResult);
     case 'workspace.commands':
       return publishers.workspaceCommands.publish.bind(publishers.workspaceCommands);
+    case 'handoff.completed':
+      return publishers.handoffCompleted.publish.bind(publishers.handoffCompleted);
     default:
       return undefined;
   }

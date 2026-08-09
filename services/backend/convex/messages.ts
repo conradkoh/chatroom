@@ -6,6 +6,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { requireMachineOwner } from './auth/cli/machineAccess';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { buildAvailableHandoffRoles } from './lib/handoffRoles';
 import { getRolePriority } from './lib/hierarchy';
@@ -940,6 +941,93 @@ export const handoff = mutation({
   },
   handler: async (ctx, args) => {
     return runHandoffHandler(ctx, args);
+  },
+});
+
+/** Args for the daemon projection of a locally-executed handoff (P3-T3). */
+export const projectHandoffFromDaemon = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    idempotencyKey: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    senderRole: v.string(),
+    content: v.string(),
+    targetRole: v.string(),
+    completedTaskIds: v.array(v.string()),
+    newTaskId: v.optional(v.string()),
+    promotedTaskId: v.optional(v.string()),
+    timestamp: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+
+    const existing = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_idempotencyKey', (q) => q.eq('idempotencyKey', args.idempotencyKey))
+      .first();
+    if (existing) {
+      return { success: true, replayed: true, messageId: existing._id };
+    }
+
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) {
+      throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
+    }
+
+    const messageId = await ctx.db.insert('chatroom_messages', {
+      chatroomId: args.chatroomId,
+      senderRole: args.senderRole,
+      content: args.content,
+      targetRole: args.targetRole,
+      type: 'handoff',
+      idempotencyKey: args.idempotencyKey,
+    });
+
+    for (const taskId of args.completedTaskIds) {
+      const task = await ctx.db.get('chatroom_tasks', taskId as Id<'chatroom_tasks'>);
+      if (task && task.status !== 'completed') {
+        await ctx.db.patch('chatroom_tasks', task._id, { status: 'completed' });
+      }
+    }
+
+    if (args.newTaskId) {
+      const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
+      const { taskId: createdTaskId } = await createTaskUsecase(ctx, {
+        chatroomId: args.chatroomId,
+        createdBy: args.senderRole,
+        content: args.content,
+        forceStatus: 'pending',
+        assignedTo: args.targetRole,
+        sourceMessageId: messageId,
+        queuePosition,
+      });
+      await ctx.db.patch('chatroom_messages', messageId, { taskId: createdTaskId });
+    }
+
+    if (args.promotedTaskId) {
+      const promoted = await ctx.db.get(
+        'chatroom_tasks',
+        args.promotedTaskId as Id<'chatroom_tasks'>
+      );
+      if (promoted && promoted.status !== 'completed') {
+        await ctx.db.patch('chatroom_tasks', promoted._id, { status: 'pending' });
+      }
+    }
+
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.senderRole)
+      )
+      .unique();
+    if (participant) {
+      await ctx.db.patch('chatroom_participants', participant._id, { lastSeenAt: Date.now() });
+    }
+
+    await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: args.timestamp });
+
+    return { success: true, replayed: false, messageId };
   },
 });
 
