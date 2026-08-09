@@ -21,6 +21,7 @@ import { emitDaemonOrchestrationIntentForUserMessage } from '../machine/emit-dae
  *
  * @returns { messageId, taskId } if promoted, null if queue record not found.
  */
+// fallow-ignore-next-line complexity
 export async function promoteQueuedMessage(
   ctx: MutationCtx,
   queuedMessageId: Id<'chatroom_messageQueue'>

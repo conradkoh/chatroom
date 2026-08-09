@@ -79,3 +79,8 @@ export function isDaemonOrchestrationP6TaskReadEnabled(): boolean {
 export function isDaemonOrchestrationP7Enabled(): boolean {
   return envTruthy(process.env.DAEMON_ORCHESTRATION_P7);
 }
+
+/** DAEMON_ORCHESTRATION_P7_CUTOVER — intent feed authoritative for user-message wake; no snapshot WS dependency for discovery */
+export function isDaemonOrchestrationP7CutoverEnabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P7_CUTOVER);
+}

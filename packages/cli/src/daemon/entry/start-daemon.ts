@@ -26,10 +26,13 @@ import {
   isDaemonOrchestrationP1Enabled,
   isDaemonOrchestrationP2CutoverEnabled,
   isDaemonOrchestrationP2Enabled,
+  isDaemonOrchestrationP7CutoverEnabled,
+  isDaemonOrchestrationP7Enabled,
 } from '../infrastructure/projection/feature-flags.js';
 import { startOutboxDrainWorker } from '../infrastructure/projection/outbox-drain-worker.js';
 import { startLocalWebServer } from '../local-web/server/create-local-web-server.js';
 
+// fallow-ignore-next-line complexity
 export async function startDaemon(): Promise<void> {
   const init = await initDaemon();
   const wsClient = await getConvexWsClient();
@@ -110,6 +113,10 @@ export async function startDaemon(): Promise<void> {
       machineId: init.machineId,
     }),
   });
+
+  if (isDaemonOrchestrationP7Enabled() && isDaemonOrchestrationP7CutoverEnabled()) {
+    console.log('[daemon] P7 cutover — user-message intent feed authoritative for wake');
+  }
 
   console.log(`[daemon] Local web UI: http://127.0.0.1:${localWeb.port}/health`);
   console.log(`[daemon] CLI HTTP: http://127.0.0.1:${cliHttp.port}/handoff`);
