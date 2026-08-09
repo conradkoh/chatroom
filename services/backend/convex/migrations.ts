@@ -11,6 +11,7 @@ import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,
 } from './utils/machineFavoriteScopeKey';
+import { resolveOrchestrationHost } from '../src/domain/usecase/chatroom/orchestration-host';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
 
@@ -406,6 +407,33 @@ export const setDuoBuilderWantResumeFalse = migrations.define({
 });
 
 /**
+ * Migration: Backfill P8 orchestration host fields for single-machine chatrooms.
+ *
+ * For chatrooms where all remote team configs share `machineId` + `workingDir`,
+ * sets `orchestrationMachineId` + `orchestrationWorkingDir`. Chatrooms with
+ * conflicting remote configs (or none) are left unset — multi-machine chatrooms
+ * are unsupported under P8.
+ *
+ * Idempotent: chatrooms already bound are skipped.
+ */
+export const backfillOrchestrationHost = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (ctx, chatroom) => {
+    if (chatroom.orchestrationMachineId) return;
+    const configs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+      .collect();
+    const host = resolveOrchestrationHost(configs);
+    if (!host) return;
+    return {
+      orchestrationMachineId: host.machineId,
+      orchestrationWorkingDir: host.workingDir,
+    };
+  },
+});
+
+/**
  * TEMPORARY local cleanup: delete pre-teamRoleKey machine config favorites.
  * Legacy rows stored favorites per (userId, machineId) only and block schema push.
  *
@@ -649,4 +677,6 @@ export const runAll = migrations.runner([
   // RBAC
   internal.migrations.backfillUserRoleNames,
   internal.migrations.stripManagerRoleNames,
+  // P8 orchestration host backfill
+  internal.migrations.backfillOrchestrationHost,
 ]);
