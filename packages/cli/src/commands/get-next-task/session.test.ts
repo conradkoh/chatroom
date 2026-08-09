@@ -29,6 +29,12 @@ vi.mock('@workspace/backend/prompts/cli/get-next-task/command.js', () => ({
     `${opts.cliEnvPrefix}chatroom get-next-task --chatroom-id=${opts.chatroomId} --role=${opts.role}`,
 }));
 
+// Mock the P6 daemon claim client so we can assert the claim routes through it.
+const mockPostDaemonClaimNextTask = vi.fn();
+vi.mock('./daemon-get-next-task-client.js', () => ({
+  postDaemonClaimNextTask: (...args: unknown[]) => mockPostDaemonClaimNextTask(...args),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -341,6 +347,60 @@ describe('GetNextTaskSession', () => {
       const output = getAllLogOutput();
       expect(output).toContain('📨 CHATROOM TASK received');
       expect(output).toContain('Task delivery output here');
+    });
+
+    it('P6 on: routes the claim through the daemon HTTP client, no Convex claimTask', async () => {
+      process.env.DAEMON_ORCHESTRATION_P6_GET_NEXT_TASK = '1';
+      mockPostDaemonClaimNextTask.mockResolvedValue({
+        success: true,
+        taskId: 'task_123',
+        status: 'acknowledged',
+      });
+      try {
+        const { callbacks, params } = await startSession();
+
+        params.client.query.mockResolvedValue({
+          fullCliOutput: 'P6 task delivery output',
+        });
+
+        callbacks.onUpdate({
+          type: 'tasks',
+          tasks: [
+            {
+              task: { _id: 'task_123' as any, status: 'pending' },
+              message: { _id: 'msg_456' as any },
+            },
+          ],
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        expect(exitSpy).toHaveBeenCalledWith(0);
+        expect(mockPostDaemonClaimNextTask).toHaveBeenCalledWith(
+          expect.objectContaining({
+            chatroomId: 'test_chatroom_id_12345678',
+            role: 'builder',
+            taskId: 'task_123',
+            messageId: 'msg_456',
+          })
+        );
+
+        const mutationCalls = params.client.mutation.mock.calls;
+        const claimTaskCalls = mutationCalls.filter((call: any[]) =>
+          JSON.stringify(call[0]).includes('claimTask')
+        );
+        const claimMessageCalls = mutationCalls.filter((call: any[]) =>
+          JSON.stringify(call[0]).includes('claimMessage')
+        );
+        expect(claimTaskCalls).toHaveLength(0);
+        expect(claimMessageCalls).toHaveLength(0);
+
+        const output = getAllLogOutput();
+        expect(output).toContain('📨 CHATROOM TASK received');
+        expect(output).toContain('P6 task delivery output');
+      } finally {
+        delete process.env.DAEMON_ORCHESTRATION_P6_GET_NEXT_TASK;
+      }
     });
 
     it('skips claim for acknowledged tasks', async () => {

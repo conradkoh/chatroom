@@ -151,6 +151,34 @@ export function mapAgentLifecycleEventToMutation(
           ...(event.deliveredTaskIds ? { deliveredTaskIds: event.deliveredTaskIds } : {}),
         },
       };
+    case 'task.claimed':
+      return {
+        mutation: api.tasks.projectTaskClaimFromDaemon,
+        args: {
+          sessionId,
+          machineId,
+          idempotencyKey: event.idempotencyKey,
+          chatroomId: event.chatroomId,
+          role: event.role,
+          taskId: event.taskId,
+          ...(event.messageId ? { messageId: event.messageId } : {}),
+          timestamp: event.timestamp,
+        },
+      };
+    case 'task.status_changed':
+      return {
+        mutation: api.tasks.projectTaskStatusFromDaemon,
+        args: {
+          sessionId,
+          machineId,
+          idempotencyKey: event.idempotencyKey,
+          chatroomId: event.chatroomId,
+          role: event.role,
+          taskId: event.taskId,
+          status: event.status,
+          timestamp: event.timestamp,
+        },
+      };
     default:
       return undefined;
   }

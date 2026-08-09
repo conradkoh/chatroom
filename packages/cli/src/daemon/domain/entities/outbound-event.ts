@@ -33,6 +33,26 @@ export type OutboundEvent =
       error?: string;
     }
   | {
+      type: 'task.claimed';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      taskId: string;
+      machineId: string;
+      messageId?: string;
+      timestamp: number;
+    }
+  | {
+      type: 'task.status_changed';
+      idempotencyKey: string;
+      chatroomId: string;
+      role: string;
+      taskId: string;
+      machineId: string;
+      status: 'acknowledged' | 'in_progress';
+      timestamp: number;
+    }
+  | {
       type: 'git.state';
       workingDir: string;
       payload: Record<string, unknown>;

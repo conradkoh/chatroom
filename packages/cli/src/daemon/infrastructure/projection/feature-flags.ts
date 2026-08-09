@@ -42,3 +42,35 @@ export function isDaemonOrchestrationP4Enabled(): boolean {
 export function isDaemonOrchestrationP5Enabled(): boolean {
   return envTruthy(process.env.DAEMON_ORCHESTRATION_P5);
 }
+
+/** DAEMON_ORCHESTRATION_P6 — master umbrella for CLI migration sub-flags. */
+// fallow-ignore-next-line unused-export
+export function isDaemonOrchestrationP6Enabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P6);
+}
+
+/** DAEMON_ORCHESTRATION_P6_GET_NEXT_TASK — get-next-task claim via daemon HTTP. */
+export function isDaemonOrchestrationP6GetNextTaskEnabled(): boolean {
+  return (
+    envTruthy(process.env.DAEMON_ORCHESTRATION_P6_GET_NEXT_TASK) || isDaemonOrchestrationP6Enabled()
+  );
+}
+
+/** DAEMON_ORCHESTRATION_P6_MESSAGES — messages reads via daemon HTTP. */
+export function isDaemonOrchestrationP6MessagesEnabled(): boolean {
+  return (
+    envTruthy(process.env.DAEMON_ORCHESTRATION_P6_MESSAGES) || isDaemonOrchestrationP6Enabled()
+  );
+}
+
+/** DAEMON_ORCHESTRATION_P6_CONTEXT — context read via daemon HTTP. */
+export function isDaemonOrchestrationP6ContextEnabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P6_CONTEXT) || isDaemonOrchestrationP6Enabled();
+}
+
+/** DAEMON_ORCHESTRATION_P6_TASK_READ — task read via daemon HTTP. */
+export function isDaemonOrchestrationP6TaskReadEnabled(): boolean {
+  return (
+    envTruthy(process.env.DAEMON_ORCHESTRATION_P6_TASK_READ) || isDaemonOrchestrationP6Enabled()
+  );
+}

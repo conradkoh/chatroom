@@ -162,6 +162,25 @@ const handledEvents: OutboundEvent[] = [
     correlationId: 'corr-1',
     timestamp: 100,
   },
+  {
+    type: 'task.claimed',
+    idempotencyKey: 'room-1:builder:task-1:claim',
+    chatroomId: 'room-1',
+    role: 'builder',
+    taskId: 'task-1',
+    machineId: 'machine-1',
+    timestamp: 100,
+  },
+  {
+    type: 'task.status_changed',
+    idempotencyKey: 'room-1:builder:task-1:in_progress',
+    chatroomId: 'room-1',
+    role: 'builder',
+    taskId: 'task-1',
+    machineId: 'machine-1',
+    status: 'in_progress',
+    timestamp: 100,
+  },
 ];
 
 describe('routeConvexEvent', () => {

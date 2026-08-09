@@ -5,6 +5,7 @@
  * exits with proper logging, event identification, and reconnection guidance.
  */
 
+// fallow-ignore-file code-duplication
 import {
   type BackendError,
   type BackendErrorCode,
@@ -15,7 +16,9 @@ import { GET_NEXT_TASK_STARTED_ACTION } from '@workspace/backend/src/domain/enti
 import { ConvexError } from 'convex/values';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
+import { postDaemonClaimNextTask } from './daemon-get-next-task-client.js';
 import { api, type Id } from '../../api.js';
+import { isDaemonOrchestrationP6GetNextTaskEnabled } from '../../daemon/infrastructure/projection/feature-flags.js';
 import type { getConvexClient } from '../../infrastructure/convex/client.js';
 import { getConvexUrl, getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
@@ -428,19 +431,35 @@ export class GetNextTaskSession {
     if (task.status === 'pending') {
       // Pending task — claim it (transition: pending → acknowledged)
       try {
-        await this.client.mutation(api.tasks.claimTask, {
-          sessionId: this.sessionId,
-          chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
-          role: this.role,
-          taskId: task._id,
-        });
-        await this.client.mutation(api.taskDeliveryReceipts.record, {
-          sessionId: this.sessionId,
-          chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
-          taskId: task._id,
-          role: this.role,
-          deliveryKind: 'cli_get_next_task',
-        });
+        if (isDaemonOrchestrationP6GetNextTaskEnabled()) {
+          // P6: claim against the daemon's local read models; Convex is
+          // mirrored idempotently via the task.claimed outbound projection.
+          const claim = await postDaemonClaimNextTask({
+            chatroomId: this.chatroomId,
+            role: this.role,
+            sessionId: this.sessionId,
+            taskId: task._id,
+            messageId: message?._id,
+          });
+          if (!claim.success) {
+            console.log(`🔄 Task already claimed by another agent, continuing to wait...`);
+            return;
+          }
+        } else {
+          await this.client.mutation(api.tasks.claimTask, {
+            sessionId: this.sessionId,
+            chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+            role: this.role,
+            taskId: task._id,
+          });
+          await this.client.mutation(api.taskDeliveryReceipts.record, {
+            sessionId: this.sessionId,
+            chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+            taskId: task._id,
+            role: this.role,
+            deliveryKind: 'cli_get_next_task',
+          });
+        }
       } catch (_claimError) {
         console.log(`🔄 Task already claimed by another agent, continuing to wait...`);
         return;
@@ -457,8 +476,9 @@ export class GetNextTaskSession {
     this.cleanedUp = true; // Prevent cleanup() from calling leave on exit
 
     try {
-      // Also claim the message if it exists (for compatibility)
-      if (message) {
+      // Also claim the message if it exists (for compatibility).
+      // P6: the daemon's claim-next already claims the message via projection.
+      if (message && !isDaemonOrchestrationP6GetNextTaskEnabled()) {
         await this.client.mutation(api.messages.claimMessage, {
           sessionId: this.sessionId,
           messageId: message._id,

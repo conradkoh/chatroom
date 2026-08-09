@@ -75,6 +75,8 @@ export function getConvexEventHandler(
     case 'agent.native_end':
     case 'restart.phase':
     case 'restart.completed':
+    case 'task.claimed':
+    case 'task.status_changed':
       return publishers.agentLifecycle.publish.bind(publishers.agentLifecycle);
     default:
       return undefined;

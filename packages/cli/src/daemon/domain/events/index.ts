@@ -26,3 +26,9 @@ export {
   type TurnEndedEvent,
 } from './agent-lifecycle.js';
 export { buildHandoffCompletedEvent, type HandoffCompletedEvent } from './handoff-completed.js';
+export {
+  buildTaskClaimedEvent,
+  buildTaskStatusChangedEvent,
+  type TaskClaimedEvent,
+  type TaskStatusChangedEvent,
+} from './task-events.js';
