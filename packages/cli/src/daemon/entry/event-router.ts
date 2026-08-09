@@ -30,6 +30,11 @@ import {
   type HandleFileInboundDeps,
 } from '../domain/usecase/handle-file-inbound.js';
 import {
+  handleUserMessageIntentInbound,
+  type HandleUserMessageIntentInboundDeps,
+  type UserMessageIntentInboundEvent,
+} from '../domain/usecase/handle-user-message-intent-inbound.js';
+import {
   handleWorkspaceGitInbound,
   type HandleWorkspaceGitInboundDeps,
   type WorkspaceGitInboundEvent,
@@ -44,6 +49,8 @@ export type EventRouterDeps = {
   file: HandleFileInboundDeps;
   agenticQuery: HandleAgenticQueryInboundDeps;
   enhancer: HandleEnhancerInboundDeps;
+  /** P7 user-message intent handler deps — optional for legacy/test router fixtures. */
+  userMessageIntent?: HandleUserMessageIntentInboundDeps;
 };
 
 // fallow-ignore-next-line complexity
@@ -82,6 +89,15 @@ export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEve
       // P5: enhancer jobs are local-first (P4) — guard against stale events.
       if (orchestrationDisabled) break;
       await handleEnhancerInbound(deps.enhancer, event as EnhancerInboundEvent);
+      break;
+    case 'user-message.intent':
+      // P7 user-intent inbound — NOT gated by P5 orchestration shrink.
+      if (deps.userMessageIntent) {
+        handleUserMessageIntentInbound(
+          deps.userMessageIntent,
+          event as UserMessageIntentInboundEvent
+        );
+      }
       break;
     default:
       void event;

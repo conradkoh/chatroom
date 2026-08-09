@@ -18,7 +18,18 @@ export type InboundEvent =
   | { type: 'file-content.request'; requestId: string }
   | { type: 'file-write.request'; requestId: string }
   | { type: 'workspace.list-changed'; machineId: string }
-  | { type: 'command-run.updated'; runId: string };
+  | { type: 'command-run.updated'; runId: string }
+  | {
+      type: 'user-message.intent';
+      chatroomId: string;
+      taskId: string;
+      role: string;
+      revisionKey: string;
+      agentHarness: string;
+      workingDir?: string;
+      model?: string;
+      createdAt: number;
+    };
 
 /** Narrowing helper — add implementations when router grows. */
 export function isInboundEvent(value: unknown): value is InboundEvent {

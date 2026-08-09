@@ -7,6 +7,7 @@ import { startAssignedTaskPresenceSubscriber } from '../infrastructure/convex/su
 import { startAssignedTaskSignalsSubscriber } from '../infrastructure/convex/subscribers/assigned-task-signals.js';
 import { startCommandEventsSubscriber } from '../infrastructure/convex/subscribers/command-events.js';
 import { startCommandRunSubscriber } from '../infrastructure/convex/subscribers/command-run.js';
+import { startDaemonOrchestrationIntentsSubscriber } from '../infrastructure/convex/subscribers/daemon-orchestration-intents.js';
 import { startDirectHarnessCommandSubscriber } from '../infrastructure/convex/subscribers/direct-harness-command.js';
 import { startDirectHarnessPromptSubscriber } from '../infrastructure/convex/subscribers/direct-harness-prompt.js';
 import { startDirectHarnessSessionSubscriber } from '../infrastructure/convex/subscribers/direct-harness-session.js';
@@ -17,7 +18,10 @@ import { startFileWriteRequestSubscriber } from '../infrastructure/convex/subscr
 import { startGitRequestSubscriber } from '../infrastructure/convex/subscribers/git-request.js';
 import { startWorkspaceListSubscriber } from '../infrastructure/convex/subscribers/workspace-list.js';
 import { startInboundSubscribers } from '../infrastructure/inbound/convex/subscriber-registry.js';
-import { isDaemonOrchestrationP5Enabled } from '../infrastructure/projection/feature-flags.js';
+import {
+  isDaemonOrchestrationP5Enabled,
+  isDaemonOrchestrationP7Enabled,
+} from '../infrastructure/projection/feature-flags.js';
 
 export type SubscriberRegistryDeps = ConvexSubscriberDeps & {
   router: EventRouterDeps;
@@ -52,6 +56,9 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const agenticQuerySession = startAgenticQuerySessionSubscriber(deps, onEvent);
   const agenticQueryPrompt = startAgenticQueryPromptSubscriber(deps, onEvent);
   const enhancerJob = startEnhancerJobSubscriber(deps, onEvent);
+  const orchestrationIntents = isDaemonOrchestrationP7Enabled()
+    ? startDaemonOrchestrationIntentsSubscriber(deps, onEvent)
+    : undefined;
 
   return {
     async stopAll() {
@@ -71,6 +78,7 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
         agenticQuerySession.stop(),
         agenticQueryPrompt.stop(),
         enhancerJob.stop(),
+        orchestrationIntents?.stop(),
       ]);
     },
   };

@@ -21,6 +21,7 @@ export const USER_INTENT_SUBSCRIBERS = [
   'direct-harness-command',
   'agentic-query-session',
   'agentic-query-prompt',
+  'daemon-orchestration-intents',
 ] as const;
 
 /** Orchestration subscribers NOT registered when P5 is enabled. */

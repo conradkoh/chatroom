@@ -5,6 +5,7 @@ import { startAgenticQueryPromptSubscriber } from '../../convex/subscribers/agen
 import { startAgenticQuerySessionSubscriber } from '../../convex/subscribers/agentic-query-session.js';
 import { startCommandEventsSubscriber } from '../../convex/subscribers/command-events.js';
 import { startCommandRunSubscriber } from '../../convex/subscribers/command-run.js';
+import { startDaemonOrchestrationIntentsSubscriber } from '../../convex/subscribers/daemon-orchestration-intents.js';
 import { startDirectHarnessCommandSubscriber } from '../../convex/subscribers/direct-harness-command.js';
 import { startDirectHarnessPromptSubscriber } from '../../convex/subscribers/direct-harness-prompt.js';
 import { startDirectHarnessSessionSubscriber } from '../../convex/subscribers/direct-harness-session.js';
@@ -13,6 +14,7 @@ import { startFileTreeRequestSubscriber } from '../../convex/subscribers/file-tr
 import { startFileWriteRequestSubscriber } from '../../convex/subscribers/file-write-request.js';
 import { startGitRequestSubscriber } from '../../convex/subscribers/git-request.js';
 import { startWorkspaceListSubscriber } from '../../convex/subscribers/workspace-list.js';
+import { isDaemonOrchestrationP7Enabled } from '../../projection/feature-flags.js';
 
 export function startInboundSubscribers(
   deps: ConvexSubscriberDeps,
@@ -30,6 +32,9 @@ export function startInboundSubscribers(
   const fileWrite = startFileWriteRequestSubscriber(deps, onEvent);
   const agenticQuerySession = startAgenticQuerySessionSubscriber(deps, onEvent);
   const agenticQueryPrompt = startAgenticQueryPromptSubscriber(deps, onEvent);
+  const orchestrationIntents = isDaemonOrchestrationP7Enabled()
+    ? startDaemonOrchestrationIntentsSubscriber(deps, onEvent)
+    : undefined;
 
   return {
     async stopAll() {
@@ -46,6 +51,7 @@ export function startInboundSubscribers(
         fileWrite.stop(),
         agenticQuerySession.stop(),
         agenticQueryPrompt.stop(),
+        orchestrationIntents?.stop(),
       ]);
     },
   };

@@ -100,11 +100,15 @@ export async function startDaemon(): Promise<void> {
 
   // P5: when DAEMON_ORCHESTRATION_P5 is on, startAllSubscribers registers only
   // user-intent inbound subscribers (no assigned-task/enhancer orchestration subs).
+  // P7: user-message intent subscriber + handler are wired with the persistence db.
   const subscribers = startAllSubscribers({
     wsClient,
     sessionId: init.sessionId,
     machineId: init.machineId,
-    router: createDefaultEventRouterDeps(),
+    router: createDefaultEventRouterDeps({
+      db: persistence.db,
+      machineId: init.machineId,
+    }),
   });
 
   console.log(`[daemon] Local web UI: http://127.0.0.1:${localWeb.port}/health`);

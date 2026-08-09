@@ -74,3 +74,8 @@ export function isDaemonOrchestrationP6TaskReadEnabled(): boolean {
     envTruthy(process.env.DAEMON_ORCHESTRATION_P6_TASK_READ) || isDaemonOrchestrationP6Enabled()
   );
 }
+
+/** DAEMON_ORCHESTRATION_P7 — user-message intent feed replaces snapshot WS for wake (subscriber + ingest). */
+export function isDaemonOrchestrationP7Enabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P7);
+}
