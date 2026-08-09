@@ -7,15 +7,16 @@
 
 ## Phase index
 
-| Phase  | Doc                                                  | Depends on | Outcome                                                                                                                                       | Shippable alone                                                   |
-| ------ | ---------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| **P0** | [p0-discovery.md](./p0-discovery.md)                 | —          | ✅ Complete — inventory, decisions, vocabulary                                                                                                | ✅ (docs only)                                                    |
-| **P1** | [p1-outbox-drain.md](./p1-outbox-drain.md)           | P0         | ✅ Implemented (in review) — outbox drain + shadow/cutover via PRs #1341–#1343                                                                | Yes — merged stack; flags default off                             |
-| **P2** | [p2-local-read-models.md](./p2-local-read-models.md) | P1         | ✅ Implemented (in review) — read models + shadow/cutover via PR [#1350](https://github.com/conradkoh/chatroom/pull/1350)                     | Yes — merged stack; flags default off                             |
-| **P3** | [p3-handoff-local.md](./p3-handoff-local.md)         | P2         | ✅ Implemented (in review) — handoff via daemon HTTP + projection via PR [#1351](https://github.com/conradkoh/chatroom/pull/1351)             | Yes — handoff via daemon HTTP; flag off = Convex handoff          |
-| **P4** | [p4-lifecycle-local.md](./p4-lifecycle-local.md)     | P2         | ✅ Implemented (in review) — lifecycle local via PR [#1355](https://github.com/conradkoh/chatroom/pull/1355)                                  | Yes — lifecycle local; flag off = direct emit\*; parallel with P3 |
-| **P5** | [p5-subscriber-shrink.md](./p5-subscriber-shrink.md) | P3, P4     | ✅ Implemented (in review) — inbound-only subscribers + outbox-only publisher via PR [#1356](https://github.com/conradkoh/chatroom/pull/1356) | Yes — after P3+P4 soak (soak gate); removes redundant subscribers |
-| **P6** | [p6-cli-migration.md](./p6-cli-migration.md)         | P3         | ✅ Implemented (in review) — get-next-task/reads via daemon HTTP via PR [#1357](https://github.com/conradkoh/chatroom/pull/1357)              | Yes — per-command; flag off = Convex CLI paths                    |
+| Phase  | Doc                                                      | Depends on | Outcome                                                                                                                                       | Shippable alone                                                   |
+| ------ | -------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **P0** | [p0-discovery.md](./p0-discovery.md)                     | —          | ✅ Complete — inventory, decisions, vocabulary                                                                                                | ✅ (docs only)                                                    |
+| **P1** | [p1-outbox-drain.md](./p1-outbox-drain.md)               | P0         | ✅ Implemented (in review) — outbox drain + shadow/cutover via PRs #1341–#1343                                                                | Yes — merged stack; flags default off                             |
+| **P2** | [p2-local-read-models.md](./p2-local-read-models.md)     | P1         | ✅ Implemented (in review) — read models + shadow/cutover via PR [#1350](https://github.com/conradkoh/chatroom/pull/1350)                     | Yes — merged stack; flags default off                             |
+| **P3** | [p3-handoff-local.md](./p3-handoff-local.md)             | P2         | ✅ Implemented (in review) — handoff via daemon HTTP + projection via PR [#1351](https://github.com/conradkoh/chatroom/pull/1351)             | Yes — handoff via daemon HTTP; flag off = Convex handoff          |
+| **P4** | [p4-lifecycle-local.md](./p4-lifecycle-local.md)         | P2         | ✅ Implemented (in review) — lifecycle local via PR [#1355](https://github.com/conradkoh/chatroom/pull/1355)                                  | Yes — lifecycle local; flag off = direct emit\*; parallel with P3 |
+| **P5** | [p5-subscriber-shrink.md](./p5-subscriber-shrink.md)     | P3, P4     | ✅ Implemented (in review) — inbound-only subscribers + outbox-only publisher via PR [#1356](https://github.com/conradkoh/chatroom/pull/1356) | Yes — after P3+P4 soak (soak gate); removes redundant subscribers |
+| **P6** | [p6-cli-migration.md](./p6-cli-migration.md)             | P3         | ✅ Implemented (in review) — get-next-task/reads via daemon HTTP via PR [#1357](https://github.com/conradkoh/chatroom/pull/1357)              | Yes — per-command; flag off = Convex CLI paths                    |
+| **P7** | [p7-user-message-intent.md](./p7-user-message-intent.md) | P6         | ✅ Implemented (in review) — user-message intent feed via PR [#1358](https://github.com/conradkoh/chatroom/pull/1358)                         | Yes — flag off = snapshot WS wake; webapp unchanged               |
 
 ## Dependency order
 
@@ -28,6 +29,7 @@ flowchart LR
     P3 --> P5[P5 Subscriber shrink]
     P4 --> P5
     P3 --> P6[P6 CLI migration]
+    P6 --> P7[P7 User-message intent]
 ```
 
 ## How to use
