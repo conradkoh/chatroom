@@ -4,6 +4,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
+import { emitDaemonOrchestrationIntentForUserMessage } from '../machine/emit-daemon-orchestration-intent';
 
 /**
  * Promotes a staged message from chatroom_messageQueue to chatroom_messages,
@@ -88,6 +89,17 @@ export async function promoteQueuedMessage(
 
   // Decrement the queue size counter
   await adjustTaskCount(ctx, queueRecord.chatroomId, 'queueSize', -1);
+
+  // P7: wake the daemon so it ingests the promoted task into its local read
+  // model and triggers delivery (queued_promotion intent type).
+  await emitDaemonOrchestrationIntentForUserMessage(ctx, {
+    chatroomId: queueRecord.chatroomId,
+    taskId,
+    messageId,
+    assignedRole: getTeamEntryPoint(chatroom) ?? 'planner',
+    createdAt: Date.now(),
+    intentType: 'queued_promotion',
+  });
 
   return { messageId, taskId };
 }

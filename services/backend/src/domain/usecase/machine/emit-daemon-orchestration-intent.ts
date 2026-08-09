@@ -1,10 +1,11 @@
 /**
  * Use Case: emit a daemon-orchestration intent row after a user message creates
- * a task. A lean wake signal for the target machine's daemon — Convex keeps
- * owning the message + task write.
+ * a task (direct sendMessage or queued-message promotion). A lean wake signal
+ * for the target machine's daemon — Convex keeps owning the message + task write.
  */
 
 // fallow-ignore-file coverage-gaps
+import type { DaemonOrchestrationIntentType } from './daemon-orchestration-intent-types';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { listTeamAgentConfigsForChatroom } from '../agent/list-team-agent-configs-for-chatroom';
@@ -15,6 +16,7 @@ export type EmitDaemonOrchestrationIntentArgs = {
   messageId: Id<'chatroom_messages'>;
   assignedRole: string;
   createdAt: number;
+  intentType?: DaemonOrchestrationIntentType;
 };
 
 /**
@@ -49,7 +51,7 @@ export async function emitDaemonOrchestrationIntentForUserMessage(
       taskId: args.taskId,
       messageId: args.messageId,
       role: config.role,
-      intentType: 'user_message',
+      intentType: args.intentType ?? 'user_message',
       revisionKey: `${args.createdAt}:${args.taskId}`,
       createdAt: args.createdAt,
       status: 'pending',

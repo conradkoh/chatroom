@@ -713,7 +713,7 @@ export default defineSchema({
     taskId: v.id('chatroom_tasks'),
     messageId: v.id('chatroom_messages'),
     role: v.string(),
-    intentType: v.literal('user_message'),
+    intentType: v.union(v.literal('user_message'), v.literal('queued_promotion')),
     revisionKey: v.string(),
     createdAt: v.number(),
     status: v.union(v.literal('pending'), v.literal('claimed')),

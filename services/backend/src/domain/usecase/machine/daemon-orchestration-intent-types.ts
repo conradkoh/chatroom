@@ -6,6 +6,8 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 
+export type DaemonOrchestrationIntentType = 'user_message' | 'queued_promotion';
+
 export type DaemonOrchestrationIntentSignal = {
   revisionKey: string;
   machineId: string;
@@ -13,7 +15,7 @@ export type DaemonOrchestrationIntentSignal = {
   taskId: string;
   messageId: string;
   role: string;
-  intentType: 'user_message';
+  intentType: DaemonOrchestrationIntentType;
   agentHarness: string;
   workingDir?: string;
   model?: string;

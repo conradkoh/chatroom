@@ -42,6 +42,7 @@ export function startDaemonOrchestrationIntentsSubscriber(
             taskId: item.taskId,
             role: item.role,
             revisionKey: item.revisionKey,
+            intentType: item.intentType,
             agentHarness: item.agentHarness,
             workingDir: item.workingDir,
             model: item.model,

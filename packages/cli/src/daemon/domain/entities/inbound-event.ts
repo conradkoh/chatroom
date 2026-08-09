@@ -25,6 +25,7 @@ export type InboundEvent =
       taskId: string;
       role: string;
       revisionKey: string;
+      intentType?: 'user_message' | 'queued_promotion';
       agentHarness: string;
       workingDir?: string;
       model?: string;
