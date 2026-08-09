@@ -34,6 +34,7 @@ import { ResponsivePickerShell, PickerScrollBody, PickerOptionRow } from './pick
 import { SkillsTab } from './SkillsTab';
 import { ChatroomDestructiveTextButton } from './ui/ChatroomDestructiveTextButton';
 import { useTeamConfigs } from '../hooks/use-team-configs';
+import { getMachineDisplayName } from '../types/machine';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
@@ -827,6 +828,15 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
 
   const { agents: agentStatusList } = useAgentStatuses(chatroomId, teamRoles);
 
+  // P8: single-machine orchestration host — lock agent machine pickers and show
+  // a host badge when the chatroom is bound.
+  const chatroom = useSessionQuery(api.chatrooms.get, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+  const orchestrationMachineId = chatroom?.orchestrationMachineId;
+  const orchestrationWorkingDir = chatroom?.orchestrationWorkingDir;
+  const hostMachine = connectedMachines.find((m) => m.machineId === orchestrationMachineId);
+
   // Build a status lookup map
   const statusMap = useMemo(() => {
     const map = new Map<string, (typeof agentStatusList)[number]>();
@@ -885,6 +895,25 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
         </p>
       </div>
 
+      {orchestrationMachineId && (
+        <div className="flex items-center gap-2 border border-chatroom-accent/30 bg-chatroom-accent/10 px-3 py-2 text-[11px]">
+          <span className="font-bold uppercase tracking-wider text-chatroom-accent">
+            Orchestration host
+          </span>
+          <span className="text-chatroom-text-primary">
+            {hostMachine ? getMachineDisplayName(hostMachine) : orchestrationMachineId}
+          </span>
+          {orchestrationWorkingDir && (
+            <>
+              <span className="text-chatroom-text-muted">/</span>
+              <span className="font-mono text-chatroom-text-secondary truncate max-w-[180px]">
+                {orchestrationWorkingDir}
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {agentStatusList.length === 0 ? (
         <div className="p-4 text-center text-chatroom-text-muted text-xs border border-chatroom-border bg-chatroom-bg-tertiary">
           No agents configured
@@ -912,6 +941,8 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
                 agentRoleView={agentRoleViewMap.get(agent.role.toLowerCase())}
                 restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
                 teamId={teamId}
+                lockedMachineId={orchestrationMachineId}
+                lockedWorkingDir={orchestrationWorkingDir}
               />
             );
           })}
