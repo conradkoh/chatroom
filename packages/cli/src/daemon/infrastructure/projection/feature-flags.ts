@@ -37,3 +37,8 @@ export function isDaemonOrchestrationP3LocalDeliveryEnabled(): boolean {
 export function isDaemonOrchestrationP4Enabled(): boolean {
   return envTruthy(process.env.DAEMON_ORCHESTRATION_P4);
 }
+
+/** DAEMON_ORCHESTRATION_P5 — inbound-only Convex subscribers; publisher registry outbox-only */
+export function isDaemonOrchestrationP5Enabled(): boolean {
+  return envTruthy(process.env.DAEMON_ORCHESTRATION_P5);
+}
