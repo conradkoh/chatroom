@@ -7,15 +7,15 @@
 
 ## Phase index
 
-| Phase  | Doc                                                  | Depends on | Outcome                                                                        | Shippable alone                                                   |
-| ------ | ---------------------------------------------------- | ---------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| **P0** | [p0-discovery.md](./p0-discovery.md)                 | —          | ✅ Complete — inventory, decisions, vocabulary                                 | ✅ (docs only)                                                    |
-| **P1** | [p1-outbox-drain.md](./p1-outbox-drain.md)           | P0         | ✅ Implemented (in review) — outbox drain + shadow/cutover via PRs #1341–#1343 | Yes — merged stack; flags default off                             |
-| **P2** | [p2-local-read-models.md](./p2-local-read-models.md) | P1         | Task/participant read models in SQLite; task monitor reads local               | Yes — local read models (shadow); flag off = unchanged            |
-| **P3** | [p3-handoff-local.md](./p3-handoff-local.md)         | P2         | `chatroom handoff` → daemon HTTP; Convex receives projection only              | Yes — handoff via daemon HTTP; flag off = Convex handoff          |
-| **P4** | [p4-lifecycle-local.md](./p4-lifecycle-local.md)     | P2         | APM lifecycle events local; batch `emit*` via projection                       | Yes — lifecycle local; flag off = direct emit\*; parallel with P3 |
-| **P5** | [p5-subscriber-shrink.md](./p5-subscriber-shrink.md) | P3, P4     | Remove orchestration Convex subscribers; keep user-intent inbound only         | Yes — after P3+P4 soak; removes redundant subscribers             |
-| **P6** | [p6-cli-migration.md](./p6-cli-migration.md)         | P3         | `get-next-task`, reads route through daemon HTTP                               | Yes — per-command; flag off = Convex CLI paths                    |
+| Phase  | Doc                                                  | Depends on | Outcome                                                                                                                   | Shippable alone                                                   |
+| ------ | ---------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| **P0** | [p0-discovery.md](./p0-discovery.md)                 | —          | ✅ Complete — inventory, decisions, vocabulary                                                                            | ✅ (docs only)                                                    |
+| **P1** | [p1-outbox-drain.md](./p1-outbox-drain.md)           | P0         | ✅ Implemented (in review) — outbox drain + shadow/cutover via PRs #1341–#1343                                            | Yes — merged stack; flags default off                             |
+| **P2** | [p2-local-read-models.md](./p2-local-read-models.md) | P1         | ✅ Implemented (in review) — read models + shadow/cutover via PR [#1350](https://github.com/conradkoh/chatroom/pull/1350) | Yes — merged stack; flags default off                             |
+| **P3** | [p3-handoff-local.md](./p3-handoff-local.md)         | P2         | `chatroom handoff` → daemon HTTP; Convex receives projection only                                                         | Yes — handoff via daemon HTTP; flag off = Convex handoff          |
+| **P4** | [p4-lifecycle-local.md](./p4-lifecycle-local.md)     | P2         | APM lifecycle events local; batch `emit*` via projection                                                                  | Yes — lifecycle local; flag off = direct emit\*; parallel with P3 |
+| **P5** | [p5-subscriber-shrink.md](./p5-subscriber-shrink.md) | P3, P4     | Remove orchestration Convex subscribers; keep user-intent inbound only                                                    | Yes — after P3+P4 soak; removes redundant subscribers             |
+| **P6** | [p6-cli-migration.md](./p6-cli-migration.md)         | P3         | `get-next-task`, reads route through daemon HTTP                                                                          | Yes — per-command; flag off = Convex CLI paths                    |
 
 ## Dependency order
 

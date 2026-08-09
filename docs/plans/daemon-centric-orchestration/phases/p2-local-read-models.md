@@ -1,6 +1,6 @@
 # Phase P2 — Local Read Models
 
-**Status:** Not started  
+**Status:** Implemented (in review) — combined PR [#1350](https://github.com/conradkoh/chatroom/pull/1350) on `release/v1.90.3`  
 **Depends on:** [P1](./p1-outbox-drain.md)  
 **Feature flag:** `DAEMON_ORCHESTRATION_P2` — when off, task monitor continues Convex snapshot WS.
 
@@ -29,10 +29,10 @@ Single local source for orchestration reads — removes Convex WS churn on hot p
 
 ### Ship checklist
 
-- [ ] Flag off: task monitor behavior unchanged
-- [ ] Shadow: read model rows match Convex snapshot after hydrate (parity test)
-- [ ] Cutover: nudge/delivery works without snapshot WS; webapp status via P1 projection (T3)
-- [ ] Rollback: disable P2 cutover → reverts to Convex WS without data loss
+- [x] Flag off: task monitor behavior unchanged (full CLI suite green)
+- [x] Shadow: read model rows match Convex snapshot after hydrate (parity test)
+- [x] Cutover: task monitor + restart orchestrator read read models (tests assert WS/query not used in cutover)
+- [ ] Rollback: disable P2 cutover → reverts to Convex WS without data loss (manual smoke)
 
 ---
 
@@ -49,7 +49,7 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 
 ## Todos
 
-### P2-T1 — Extend SQLite schema for read models `[modify]`
+### P2-T1 — Extend SQLite schema for read models `[done]` — PR #1350
 
 **Modify:**
 
@@ -65,7 +65,7 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 - `pnpm --filter chatroom-cli test persistence-store` passes
 - Fresh daemon start creates new tables; existing events.sqlite migrates cleanly
 
-### P2-T2 — Implement read model repositories `[new]`
+### P2-T2 — Implement read model repositories `[done]` — PR #1350
 
 **Implement:**
 
@@ -81,7 +81,7 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 - Unit tests per repository: upsert, query by chatroom/role, list pending
 - Read models updated synchronously in tests (no async projection lag for local reads)
 
-### P2-T3 — Hydrate read models from Convex (one-time bootstrap) `[new]`
+### P2-T3 — Hydrate read models from Convex (one-time bootstrap) `[done]` — PR #1350
 
 **Implement:**
 
@@ -96,7 +96,7 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 - After hydrate, local task rows match Convex snapshot for same machine
 - Re-hydrate is idempotent (upsert semantics)
 
-### P2-T4 — Task monitor reads local read models (cutover-gated) `[modify]`
+### P2-T4 — Task monitor reads local read models (cutover-gated) `[done]` — PR #1350
 
 **Modify:**
 
@@ -114,7 +114,7 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 - Manual: user message → task appears in local read model → nudge fires without Convex snapshot WS
 - `task-monitor-send-message-signal.test.ts` still passes (update mocks for local path)
 
-### P2-T5 — Project read model changes to Convex `[modify]`
+### P2-T5 — Project read model changes to Convex `[done]` — PR #1350 (via P1 task.status path; no new handler files)
 
 **Modify:**
 
@@ -130,11 +130,11 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 
 ## Definition of done
 
-- [ ] Task monitor orchestration loop runs from SQLite read models when P2 on
-- [ ] Convex snapshot WS not required for nudge/delivery decisions
-- [ ] Webapp still sees task/agent status via projection (T3)
-- [ ] `pnpm turbo run typecheck test --filter=chatroom-cli` green
-- [ ] Shadow mode (P2 on, cutover off) shippable independently
+- [x] Task monitor orchestration loop runs from SQLite read models when P2 cutover on
+- [x] Convex snapshot WS not required for nudge/delivery decisions in cutover
+- [ ] Webapp still sees task/agent status via projection (T3) — pending P1/P3 projection integration
+- [x] `pnpm turbo run typecheck test --filter=chatroom-cli` green (288 files / 2240 tests)
+- [x] Shadow mode (P2 on, cutover off) shippable independently
 
 ## Rollback
 
