@@ -1,8 +1,14 @@
 # Phase P6 — CLI Migration
 
-**Status:** Not started  
+**Status:** Implemented (in review) — [PR #1357](https://github.com/conradkoh/chatroom/pull/1357)  
 **Depends on:** [P3](./p3-handoff-local.md)  
 **Feature flag:** `DAEMON_ORCHESTRATION_P6` — per-command sub-flags optional.
+
+> **Commands that stay Convex (documented):**
+>
+> - `backlog listHistorical` — cross-machine read; stays on Convex.
+> - `context new` / `context list` / `context inspect` — context write/list ops; stays on Convex.
+> - `messages download`/`anchor` read paths route via daemon (`DAEMON_ORCHESTRATION_P6_MESSAGES`); `get-next-task` delivery prompt (`getTaskDeliveryPrompt`) stays on Convex during transition.
 
 ## Shippability
 

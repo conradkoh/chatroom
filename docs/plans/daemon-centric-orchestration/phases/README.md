@@ -15,7 +15,7 @@
 | **P3** | [p3-handoff-local.md](./p3-handoff-local.md)         | P2         | ✅ Implemented (in review) — handoff via daemon HTTP + projection via PR [#1351](https://github.com/conradkoh/chatroom/pull/1351)             | Yes — handoff via daemon HTTP; flag off = Convex handoff          |
 | **P4** | [p4-lifecycle-local.md](./p4-lifecycle-local.md)     | P2         | ✅ Implemented (in review) — lifecycle local via PR [#1355](https://github.com/conradkoh/chatroom/pull/1355)                                  | Yes — lifecycle local; flag off = direct emit\*; parallel with P3 |
 | **P5** | [p5-subscriber-shrink.md](./p5-subscriber-shrink.md) | P3, P4     | ✅ Implemented (in review) — inbound-only subscribers + outbox-only publisher via PR [#1356](https://github.com/conradkoh/chatroom/pull/1356) | Yes — after P3+P4 soak (soak gate); removes redundant subscribers |
-| **P6** | [p6-cli-migration.md](./p6-cli-migration.md)         | P3         | `get-next-task`, reads route through daemon HTTP                                                                                              | Yes — per-command; flag off = Convex CLI paths                    |
+| **P6** | [p6-cli-migration.md](./p6-cli-migration.md)         | P3         | ✅ Implemented (in review) — get-next-task/reads via daemon HTTP via PR [#1357](https://github.com/conradkoh/chatroom/pull/1357)              | Yes — per-command; flag off = Convex CLI paths                    |
 
 ## Dependency order
 
