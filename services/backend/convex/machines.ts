@@ -45,6 +45,7 @@ import {
   projectAfterTeamConfigRegistration,
   projectAssignedTaskSnapshotsForMachines,
   upsertTeamAgentConfigByTeamRoleKey,
+  validateAndSyncOrchestrationHost,
 } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { subscribeAssignedTaskPresenceForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-presence';
 import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
@@ -2085,6 +2086,7 @@ export const setWantResume = mutation({
         createdAt: now,
         updatedAt: now,
       });
+      await validateAndSyncOrchestrationHost(ctx, args.chatroomId);
     }
 
     return { success: true, wantResume: args.wantResume };

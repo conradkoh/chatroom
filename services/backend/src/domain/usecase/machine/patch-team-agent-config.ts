@@ -3,13 +3,24 @@
  * snapshot projection for the affected machine or chatroom.
  */
 
+import { ConvexError } from 'convex/values';
+
 import {
   projectAssignedTaskSnapshotsForChatroom,
   projectAssignedTaskSnapshotsForMachine,
 } from './machine-assigned-task-snapshot-sync';
+import {
+  isDaemonOrchestrationP8CutoverEnabled,
+  isDaemonOrchestrationP8Enabled,
+} from '../../../../config/daemonOrchestrationFlags';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { deleteStaleTeamAgentConfigs } from '../../../../convex/utils/teamRoleKey';
+import { listTeamAgentConfigsForChatroom } from '../agent/list-team-agent-configs-for-chatroom';
+import {
+  hasOrchestrationHostConflict,
+  resolveOrchestrationHost,
+} from '../chatroom/orchestration-host';
 
 type TeamAgentConfigPatch = Partial<
   Omit<Doc<'chatroom_teamAgentConfigs'>, '_id' | '_creationTime'>
@@ -56,6 +67,8 @@ export async function patchTeamAgentConfig(
     updatedAt: patch.updatedAt ?? now,
   });
 
+  await validateAndSyncOrchestrationHost(ctx, existing.chatroomId);
+
   if (options?.skipProject) {
     return existing;
   }
@@ -90,6 +103,7 @@ export async function upsertTeamAgentConfigByTeamRoleKey(
 
   if (existing) {
     await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, fields);
+    await validateAndSyncOrchestrationHost(ctx, args.fields.chatroomId);
     return {
       configId: existing._id,
       previousMachineId: existing.machineId,
@@ -102,6 +116,7 @@ export async function upsertTeamAgentConfigByTeamRoleKey(
     ...fields,
     createdAt: args.createdAt ?? now,
   });
+  await validateAndSyncOrchestrationHost(ctx, args.fields.chatroomId);
   return { configId, wasInsert: true };
 }
 
@@ -132,6 +147,45 @@ export async function projectAssignedTaskSnapshotsForMachines(
     }
     seen.add(machineId);
     await projectAssignedTaskSnapshotsForMachine(ctx, machineId);
+  }
+}
+
+/**
+ * P8: validate the chatroom's orchestration host after a team config write and
+ * sync `chatroom_rooms.orchestrationMachineId` / `orchestrationWorkingDir`.
+ *
+ * - P8 off: no-op (flag-off unchanged).
+ * - P8 on (shadow): conflict → log warn, clear host fields; patch succeeds.
+ * - P8_CUTOVER on: conflict → throw `ConvexError(ORCHESTRATION_HOST_CONFLICT)`;
+ *   the enclosing mutation (and this config write) roll back.
+ */
+// fallow-ignore-next-line complexity
+export async function validateAndSyncOrchestrationHost(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<void> {
+  if (!isDaemonOrchestrationP8Enabled()) return;
+
+  const configs = await listTeamAgentConfigsForChatroom(ctx, chatroomId);
+  const conflict = hasOrchestrationHostConflict(configs);
+
+  if (conflict && isDaemonOrchestrationP8CutoverEnabled()) {
+    throw new ConvexError({
+      code: 'ORCHESTRATION_HOST_CONFLICT',
+      message: 'All remote team agents must share the same machine and workspace directory',
+    });
+  }
+
+  const host = conflict ? null : resolveOrchestrationHost(configs);
+  await ctx.db.patch('chatroom_rooms', chatroomId, {
+    orchestrationMachineId: host?.machineId,
+    orchestrationWorkingDir: host?.workingDir,
+  });
+
+  if (conflict) {
+    console.warn(
+      `[p8] orchestration host conflict for chatroom ${chatroomId} — remote agents on multiple machines/workspaces`
+    );
   }
 }
 

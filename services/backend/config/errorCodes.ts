@@ -113,6 +113,7 @@ export type BackendErrorCode =
   | 'CONNECT_ERROR'
   | 'UNSAFE_DISCONNECT'
   | 'CHATROOM_NO_TEAM_ID'
+  | 'ORCHESTRATION_HOST_CONFLICT'
 
   // ── Direct Harness Sessions ──────────────────────────────────────────
   | 'HARNESS_SESSION_INVALID_AGENT'
@@ -298,6 +299,8 @@ export const BACKEND_ERROR_CODES = {
   UNSAFE_DISCONNECT: 'UNSAFE_DISCONNECT',
   /** Chatroom has no teamId — cannot build agent config key */
   CHATROOM_NO_TEAM_ID: 'CHATROOM_NO_TEAM_ID',
+  /** Remote team agents disagree on machine or workspace — single orchestration host required */
+  ORCHESTRATION_HOST_CONFLICT: 'ORCHESTRATION_HOST_CONFLICT',
 
   // ── Direct Harness Sessions ──────────────────────────────────────────
   /** Agent name is required but was empty or missing */
@@ -472,6 +475,7 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.CONFIGURATION_ERROR,
   BACKEND_ERROR_CODES.CHATROOM_NO_TEAM_ID,
   BACKEND_ERROR_CODES.TEAM_REQUIRED,
+  BACKEND_ERROR_CODES.ORCHESTRATION_HOST_CONFLICT,
 
   // Integration
   BACKEND_ERROR_CODES.WEBHOOK_REGISTRATION_FAILED,
