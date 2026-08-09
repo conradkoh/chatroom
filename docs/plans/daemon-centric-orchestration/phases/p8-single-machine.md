@@ -1,6 +1,6 @@
 # Phase P8 — Single Machine, Single Workspace
 
-**Status:** Planned  
+**Status:** Implemented (in review) — PR pending (stacked on P7)  
 **Depends on:** [P7](./p7-user-message-intent.md) (soak complete)  
 **Feature flags:** `DAEMON_ORCHESTRATION_P8` · `DAEMON_ORCHESTRATION_P8_CUTOVER` (enforce binding; reject multi-machine configs)
 
@@ -28,11 +28,11 @@
 
 ### Ship checklist
 
-- [ ] Flag off: multi-machine chatrooms unchanged
-- [ ] Flag on + shadow: violation logging without reject
-- [ ] Flag on + cutover: duo team E2E on single machine (planner → builder handoff, no Convex signal round-trip)
-- [ ] Backfill sets orchestration host on single-machine chatrooms only; multi-machine chatrooms rejected (no migration path)
-- [ ] Webapp shows orchestration host binding (read-only indicator minimum)
+- [x] Flag off: multi-machine chatrooms unchanged
+- [x] Flag on + shadow: violation logging without reject
+- [x] Flag on + cutover: duo team E2E on single machine (planner → builder handoff, no Convex signal round-trip)
+- [x] Backfill sets orchestration host on single-machine chatrooms only; multi-machine chatrooms rejected (no migration path)
+- [x] Webapp shows orchestration host binding (read-only indicator minimum)
 
 ### Toward outcome
 
@@ -160,11 +160,11 @@ Bind each chatroom's orchestration to exactly **one machine** and **one workspac
 
 ## Definition of done
 
-- [ ] P8-T1 through P8-T6 complete per verification tables
-- [ ] Duo team runs entirely on one machine with one workspace
-- [ ] Cross-machine orchestration paths documented as **unsupported** for P8 chatrooms
-- [ ] Multi-machine chatrooms explicitly unsupported (no migration/grandfather path documented or implemented)
-- [ ] Flag off = unchanged behavior
+- [x] P8-T1 through P8-T6 complete per verification tables
+- [x] Duo team runs entirely on one machine with one workspace
+- [x] Cross-machine orchestration paths documented as **unsupported** for P8 chatrooms
+- [x] Multi-machine chatrooms explicitly unsupported (no migration/grandfather path documented or implemented)
+- [x] Flag off = unchanged behavior
 
 ## Rollback
 
