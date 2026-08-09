@@ -1,6 +1,6 @@
 # Phase P8 — Single Machine, Single Workspace
 
-**Status:** Implemented (in review) — PR pending (stacked on P7)  
+**Status:** Implemented (in review) — [PR #1359](https://github.com/conradkoh/chatroom/pull/1359)  
 **Depends on:** [P7](./p7-user-message-intent.md) (soak complete)  
 **Feature flags:** `DAEMON_ORCHESTRATION_P8` · `DAEMON_ORCHESTRATION_P8_CUTOVER` (enforce binding; reject multi-machine configs)
 
