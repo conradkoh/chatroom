@@ -36,6 +36,13 @@ export const create = mutation({
     const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
     if (!workspace) throw new ConvexError({ code: 'NOT_FOUND', message: 'Workspace not found' });
 
+    if (!workspace.chatroomId) {
+      throw new ConvexError({
+        code: 'NOT_FOUND',
+        message: 'Workspace is not bound to a chatroom',
+      });
+    }
+
     const { session } = await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);
     if (!args.firstMessage.trim()) {
       throw new ConvexError({
@@ -138,6 +145,13 @@ export const renameSession = mutation({
     const workspace = await ctx.db.get('chatroom_workspaces', harnessSession.workspaceId);
     if (!workspace) {
       throw new ConvexError({ code: 'NOT_FOUND', message: 'Workspace not found' });
+    }
+
+    if (!workspace.chatroomId) {
+      throw new ConvexError({
+        code: 'NOT_FOUND',
+        message: 'Workspace is not bound to a chatroom',
+      });
     }
 
     await requireChatroomAccess(ctx, args.sessionId, workspace.chatroomId);

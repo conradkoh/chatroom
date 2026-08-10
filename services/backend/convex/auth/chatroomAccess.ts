@@ -10,9 +10,9 @@
 
 import { ConvexError } from 'convex/values';
 
+import { validateSession, type ValidatedSession } from './sessionValidation';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
-import { validateSession, type ValidatedSession } from './sessionValidation';
 
 /** Authenticated chatroom access result containing session and chatroom document. */
 export interface AuthenticatedChatroomAccess {
@@ -39,12 +39,23 @@ async function checkChatroomAccess(
   return { ok: true, chatroom };
 }
 
-/** Validates session and chatroom access, returning both session info and chatroom document. */
+/**
+ * Validates session and chatroom access, returning both session info and chatroom document.
+ * Throws when the chatroom is missing — an unassigned workspace (no chatroomId)
+ * can never grant chatroom access.
+ */
 export async function requireChatroomAccess(
   ctx: QueryCtx | MutationCtx,
   sessionId: string,
-  chatroomId: Id<'chatroom_rooms'>
+  chatroomId: Id<'chatroom_rooms'> | undefined
 ): Promise<AuthenticatedChatroomAccess> {
+  if (chatroomId === undefined) {
+    throw new ConvexError({
+      code: 'NOT_FOUND',
+      message: 'Workspace is not bound to a chatroom',
+    });
+  }
+
   // Validate session (tries CLI session, then web session)
   const sessionResult = await validateSession(ctx, sessionId);
   if (!sessionResult.ok) {

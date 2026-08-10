@@ -24,6 +24,9 @@ async function loadQueryWithAccess(
   if (!workspace) {
     throw new ConvexError({ code: 'NOT_FOUND', message: 'Workspace not found' });
   }
+  if (workspace.chatroomId === undefined) {
+    throw new ConvexError({ code: 'NOT_FOUND', message: 'Workspace is not bound to a chatroom' });
+  }
   const { session } = await requireChatroomAccess(ctx, sessionId, workspace.chatroomId);
   return { query, workspace, session, chatroomId: workspace.chatroomId };
 }

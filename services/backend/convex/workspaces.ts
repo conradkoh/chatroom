@@ -6,16 +6,18 @@
  *   2. Workspace Git — git state, diffs, commits (chatroom_workspaceGit* tables)
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { getSession, requireSession } from './auth/session';
+import { BACKEND_ERROR_CODES } from '../config/errorCodes';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
 import { str } from './utils/types';
 import { WORKSPACE_RECENCY_WINDOW_MS } from '../config/reliability';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
+import { createWorkspace as createWorkspaceUseCase } from '../src/domain/usecase/workspace/create-workspace';
 import { listAllWorkspaces as listAllWorkspacesUseCase } from '../src/domain/usecase/workspace/list-all-workspaces';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
@@ -76,6 +78,48 @@ export const registerWorkspace = mutation({
       workingDir: args.workingDir,
       hostname: args.hostname,
       registeredBy: args.registeredBy,
+    });
+  },
+});
+
+/**
+ * Creates a user-owned workspace that is not bound to any chatroom.
+ *
+ * Called by the Workspaces tab "+ New" flow. Authenticates the user, requires
+ * machine ownership, and derives hostname server-side. Rejects an active
+ * duplicate of the same machine + working directory with a structured CONFLICT.
+ */
+export const createWorkspace = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requireSession(ctx, args.sessionId);
+
+    await requireAccess(ctx, {
+      accessor: { type: 'user', id: auth.userId },
+      resource: { type: 'machine', id: args.machineId },
+      permission: 'owner',
+    });
+
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine) {
+      throw new ConvexError({
+        code: BACKEND_ERROR_CODES.NOT_FOUND,
+        message: 'Machine not found',
+      });
+    }
+
+    return createWorkspaceUseCase(ctx, {
+      userId: auth.userId,
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      hostname: machine.hostname,
     });
   },
 });
@@ -203,7 +247,8 @@ export const listAllWorkspaces = query({
 /**
  * Fetch a single workspace by its document ID.
  * Returns null if the workspace does not exist or the caller does not have access.
- * Requires the caller to have write-access to the workspace's chatroom.
+ * Chatroom-bound workspaces require write-access to the workspace's chatroom;
+ * unassigned (chatroom-free) workspaces require write-access to the machine.
  */
 export const getWorkspaceById = query({
   args: {
@@ -217,12 +262,21 @@ export const getWorkspaceById = query({
     const workspace = await ctx.db.get('chatroom_workspaces', args.workspaceId);
     if (!workspace) return null;
 
-    const hasAccess = await checkAccess(ctx, {
-      accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'chatroom', id: str(workspace.chatroomId) },
-      permission: 'write-access',
-    });
-    if (!hasAccess) return null;
+    if (workspace.chatroomId !== undefined) {
+      const hasAccess = await checkAccess(ctx, {
+        accessor: { type: 'user', id: auth.userId },
+        resource: { type: 'chatroom', id: str(workspace.chatroomId) },
+        permission: 'write-access',
+      });
+      if (!hasAccess) return null;
+    } else {
+      const hasAccess = await checkAccess(ctx, {
+        accessor: { type: 'user', id: auth.userId },
+        resource: { type: 'machine', id: workspace.machineId },
+        permission: 'write-access',
+      });
+      if (!hasAccess) return null;
+    }
 
     return workspace;
   },

@@ -2,7 +2,8 @@
  * Use Case: List All Workspaces for User
  *
  * Returns all active (non-removed) workspaces across every chatroom owned by a
- * user, enriched with machine alias.
+ * user, plus the user's own unassigned (chatroom-free) workspaces, enriched
+ * with machine alias.
  * Used by the frontend home page "Workspaces" tab.
  */
 
@@ -18,7 +19,7 @@ export interface ListAllWorkspacesInput {
 
 export interface WorkspaceForUserView {
   _id: Id<'chatroom_workspaces'>;
-  chatroomId: Id<'chatroom_rooms'>;
+  chatroomId?: Id<'chatroom_rooms'>;
   machineId: string;
   workingDir: string;
   hostname: string;
@@ -31,7 +32,7 @@ export type ListAllWorkspacesResult = WorkspaceForUserView[];
 
 interface WorkspaceRow {
   _id: Id<'chatroom_workspaces'>;
-  chatroomId: Id<'chatroom_rooms'>;
+  chatroomId?: Id<'chatroom_rooms'>;
   machineId: string;
   workingDir: string;
   hostname: string;
@@ -43,7 +44,7 @@ interface WorkspaceRow {
 
 function toWorkspaceRow(ws: {
   _id: Id<'chatroom_workspaces'>;
-  chatroomId: Id<'chatroom_rooms'>;
+  chatroomId?: Id<'chatroom_rooms'>;
   machineId: string;
   workingDir: string;
   hostname: string;
@@ -70,6 +71,9 @@ async function resolveMachineAliases(
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
 
+// Unions chatroom-bound and unassigned rows with active filtering; kept as one
+// pass so alias resolution and sorting cover the combined set.
+// fallow-ignore-next-line complexity
 export async function listAllWorkspaces(
   ctx: QueryCtx,
   input: ListAllWorkspacesInput
@@ -93,6 +97,20 @@ export async function listAllWorkspaces(
       rows.push(toWorkspaceRow(ws));
       machineIds.add(ws.machineId);
     }
+  }
+
+  // Union the user's own unassigned (chatroom-free) workspaces. Rows that carry
+  // both fields are skipped so a future attach operation can never double-list.
+  const unassigned = await ctx.db
+    .query('chatroom_workspaces')
+    .withIndex('by_userId', (q) => q.eq('userId', input.userId))
+    .collect();
+
+  for (const ws of unassigned) {
+    if (!isActiveWorkspace(ws.removedAt)) continue;
+    if (ws.chatroomId !== undefined) continue;
+    rows.push(toWorkspaceRow(ws));
+    machineIds.add(ws.machineId);
   }
 
   // Batch-resolve machine aliases (mirrors list-workspaces-for-chatroom.ts).

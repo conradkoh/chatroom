@@ -42,13 +42,17 @@ export async function removeWorkspace(
     removedAt: Date.now(),
   });
 
-  // Purge workspace-scoped data to prevent ghost machines
-  await purgeTeamAgentConfigsForMachine(
-    ctx,
-    workspace.chatroomId,
-    workspace.machineId,
-    input.workspaceId
-  );
+  // Purge workspace-scoped data to prevent ghost machines.
+  // Chatroom-bound workspaces also purge team-agent configs; unassigned rows
+  // have no chatroom, so that cleanup is skipped.
+  if (workspace.chatroomId) {
+    await purgeTeamAgentConfigsForMachine(
+      ctx,
+      workspace.chatroomId,
+      workspace.machineId,
+      input.workspaceId
+    );
+  }
   await purgeWorkspaceScopedData(ctx, workspace.machineId, workspace.workingDir);
 }
 

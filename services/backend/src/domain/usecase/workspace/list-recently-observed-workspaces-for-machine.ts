@@ -45,10 +45,18 @@ export async function listRecentlyObservedWorkspacesForMachine(
   const activeWorkspaces = workspaces.filter((ws) => isActiveWorkspace(ws.removedAt));
   if (activeWorkspaces.length === 0) return [];
 
+  // Only chatroom-bound workspaces participate in chatroom observation recency.
+  // Unassigned rows have no chatroomId and must not be turned into observations
+  // or chatroom IDs (querying `.eq('chatroomId', undefined)` would throw).
+  const chatroomBound = activeWorkspaces.filter(
+    (ws): ws is typeof ws & { chatroomId: Id<'chatroom_rooms'> } => ws.chatroomId !== undefined
+  );
+  if (chatroomBound.length === 0) return [];
+
   // Resolve recency by reading the observation for each of this machine's
   // chatrooms directly (one singleton row per chatroom via `by_chatroomId`),
   // rather than collecting every recently-observed chatroom globally.
-  const chatroomIds = [...new Set(activeWorkspaces.map((ws) => ws.chatroomId))];
+  const chatroomIds = [...new Set(chatroomBound.map((ws) => ws.chatroomId))];
   const recentlyObservedChatrooms = new Set<Id<'chatroom_rooms'>>();
   await Promise.all(
     chatroomIds.map(async (chatroomId) => {
@@ -62,16 +70,14 @@ export async function listRecentlyObservedWorkspacesForMachine(
     })
   );
 
-  return activeWorkspaces
+  return chatroomBound
     .filter((ws) => recentlyObservedChatrooms.has(ws.chatroomId))
-    .map(
-      (ws): WorkspaceForMachineView => ({
-        _id: ws._id,
-        chatroomId: ws.chatroomId,
-        workingDir: ws.workingDir,
-        hostname: ws.hostname,
-        registeredAt: ws.registeredAt,
-        registeredBy: ws.registeredBy,
-      })
-    );
+    .map((ws): WorkspaceForMachineView => ({
+      _id: ws._id,
+      chatroomId: ws.chatroomId,
+      workingDir: ws.workingDir,
+      hostname: ws.hostname,
+      registeredAt: ws.registeredAt,
+      registeredBy: ws.registeredBy,
+    }));
 }

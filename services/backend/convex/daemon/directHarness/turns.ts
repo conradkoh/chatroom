@@ -11,8 +11,8 @@ import {
   requireDirectHarnessWorkers,
   requireHarnessSessionOnOwnedMachine,
 } from '../../api/directHarnessHelpers';
-import { requireMachineOwner } from '../../auth/cli/machineAccess';
 import { aggregateAssistantChunks } from '../../api/harnessChunkAggregate';
+import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
 // ─── beginAssistantTurn ──────────────────────────────────────────────────────
 
@@ -265,6 +265,9 @@ export const getMachineHarnessSessions = query({
       }[] = [];
 
       for (const workspace of workspaces) {
+        // Unassigned workspaces have no chatroom and no harness sessions.
+        if (workspace.chatroomId === undefined) continue;
+
         // Fetch active sessions for this workspace
         const activeSessions = await ctx.db
           .query('chatroom_harnessSessions')

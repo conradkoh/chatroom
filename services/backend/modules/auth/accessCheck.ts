@@ -5,6 +5,9 @@
  * Provides a one-liner for Convex query/mutation handlers.
  */
 
+import type { Id } from '../../convex/_generated/dataModel';
+import type { QueryCtx, MutationCtx } from '../../convex/_generated/server';
+import { str } from '../../convex/utils/types';
 import {
   checkAccess as checkAccessCore,
   requireAccess as requireAccessCore,
@@ -13,9 +16,6 @@ import {
   type AccessResult,
   type Permission,
 } from '../../src/domain/usecase/auth/extensions/check-access';
-import type { Id } from '../../convex/_generated/dataModel';
-import type { QueryCtx, MutationCtx } from '../../convex/_generated/server';
-import { str } from '../../convex/utils/types';
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
 
@@ -47,6 +47,9 @@ function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckAccessDeps {
         .collect();
       return workspaces
         .filter((w) => !w.removedAt)
+        .filter(
+          (w): w is typeof w & { chatroomId: Id<'chatroom_rooms'> } => w.chatroomId !== undefined
+        )
         .map((w) => ({
           chatroomId: str(w.chatroomId),
           machineId: w.machineId,

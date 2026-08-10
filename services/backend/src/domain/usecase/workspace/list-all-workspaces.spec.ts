@@ -107,4 +107,54 @@ describe('listAllWorkspaces', () => {
     expect(result[0]!.machineAlias).toBe('Dev-Box');
     expect(result[0]).not.toHaveProperty('chatroomName');
   });
+
+  test('includes the user unassigned workspaces alongside chatroom-bound ones', async () => {
+    const { sessionId, userId } = await createSession('all-union');
+    const chatroomId = await createChatroom(sessionId);
+    await registerMachine(sessionId, 'all-union-machine');
+    await registerWorkspace(sessionId, chatroomId, 'all-union-machine', '/tmp/bound');
+    await t.mutation(api.workspaces.createWorkspace, {
+      sessionId,
+      machineId: 'all-union-machine',
+      workingDir: '/tmp/unassigned',
+    });
+
+    const result = await t.run(async (ctx) => listAllWorkspaces(ctx, { userId }));
+    expect(result.map((w) => w.workingDir).sort()).toEqual(['/tmp/bound', '/tmp/unassigned']);
+
+    const unassigned = result.find((w) => w.workingDir === '/tmp/unassigned');
+    expect(unassigned?.chatroomId).toBeUndefined();
+    const bound = result.find((w) => w.workingDir === '/tmp/bound');
+    expect(bound?.chatroomId).toBe(chatroomId);
+  });
+
+  test('includes only the user own unassigned workspaces', async () => {
+    const owner = await createSession('all-unassign-owner');
+    const other = await createSession('all-unassign-other');
+    await registerMachine(owner.sessionId, 'all-unassign-machine');
+    await t.mutation(api.workspaces.createWorkspace, {
+      sessionId: owner.sessionId,
+      machineId: 'all-unassign-machine',
+      workingDir: '/tmp/private-unassigned',
+    });
+
+    const result = await t.run(async (ctx) => listAllWorkspaces(ctx, { userId: other.userId }));
+    expect(result).toHaveLength(0);
+  });
+
+  test('does not duplicate a row that carries both chatroomId and userId', async () => {
+    const { sessionId, userId } = await createSession('all-both');
+    const chatroomId = await createChatroom(sessionId);
+    await registerMachine(sessionId, 'all-both-machine');
+    await registerWorkspace(sessionId, chatroomId, 'all-both-machine', '/tmp/both');
+
+    // Simulate a future attach: set userId on a chatroom-bound row.
+    const bound = await t.run(async (ctx) => listAllWorkspaces(ctx, { userId }));
+    await t.run(async (ctx) => {
+      await ctx.db.patch('chatroom_workspaces', bound[0]!._id, { userId });
+    });
+
+    const result = await t.run(async (ctx) => listAllWorkspaces(ctx, { userId }));
+    expect(result.filter((w) => w.workingDir === '/tmp/both')).toHaveLength(1);
+  });
 });

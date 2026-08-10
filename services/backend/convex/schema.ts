@@ -2204,7 +2204,9 @@ export default defineSchema({
   // agents operate. Unlike chatroom_teamAgentConfigs (transient), these persist
   // independently of agent lifecycle.
   chatroom_workspaces: defineTable({
-    chatroomId: v.id('chatroom_rooms'),
+    chatroomId: v.optional(v.id('chatroom_rooms')),
+    /** Owner of an unassigned (chatroom-free) workspace created by the user. */
+    userId: v.optional(v.id('users')),
     machineId: v.string(),
     workingDir: v.string(),
     hostname: v.string(),
@@ -2215,7 +2217,8 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_machine', ['machineId'])
     .index('by_machine_workingDir', ['machineId', 'workingDir'])
-    .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
+    .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir'])
+    .index('by_userId', ['userId']),
 
   // ─── Workspace File Tree ─────────────────────────────────────────────────────
   // Stores file tree snapshots and on-demand file content per workspace.
