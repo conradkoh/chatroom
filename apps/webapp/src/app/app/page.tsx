@@ -17,7 +17,7 @@ export default function AppPage() {
 
   return (
     <Tabs defaultValue="chatrooms">
-      <div className="chatroom-root bg-chatroom-bg-primary text-chatroom-text-primary border-b-2 border-chatroom-border px-6 py-4">
+      <div className="chatroom-root bg-chatroom-bg-primary text-chatroom-text-primary px-6 pt-4">
         <TabsList variant="line">
           <TabsTrigger value="chatrooms">Chatrooms</TabsTrigger>
           <TabsTrigger value="workspaces">Workspaces</TabsTrigger>
