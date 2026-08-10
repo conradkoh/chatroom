@@ -1,8 +1,9 @@
 'use client';
 
-import { Search, X } from 'lucide-react';
+import { Plus, Search, X } from 'lucide-react';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
+import { CreateWorkspaceModal } from './CreateWorkspaceModal';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
 import { formatRelativeTime } from '../workspace/components/shared';
 import { useAllWorkspaces, type AllWorkspaceRow } from '../workspace/hooks/useAllWorkspaces';
@@ -49,6 +50,7 @@ function filterWorkspaces(workspaces: AllWorkspaceRow[], query: string): AllWork
 export function WorkspaceSelector({ onSelectChatroom }: WorkspaceSelectorProps) {
   const { workspaces, isLoading } = useAllWorkspaces();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(
@@ -65,49 +67,74 @@ export function WorkspaceSelector({ onSelectChatroom }: WorkspaceSelectorProps) 
     return <WorkspaceLoadingState />;
   }
 
-  if (workspaces.length === 0) {
-    return <WorkspaceEmptyState />;
-  }
-
   return (
     <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
-      {/* Header */}
-      <div className="mb-6 border-b-2 border-chatroom-border pb-6">
-        <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Workspaces</h1>
-        <p className="text-chatroom-text-muted text-sm">
-          Every registered workspace across your chatrooms
-        </p>
-      </div>
+      <WorkspacesHeader onCreate={() => setIsCreateOpen(true)} />
 
-      {/* Search Input */}
-      <div className="mb-6">
-        <div className="relative">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted"
-          />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search workspaces..."
-            className="w-full bg-chatroom-bg-surface border-2 border-chatroom-border text-chatroom-text-primary pl-9 pr-9 py-2 text-xs font-mono placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent transition-colors"
-          />
-          {searchQuery && (
-            <button
-              onClick={handleClearSearch}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
-              title="Clear search"
-            >
-              <X size={14} />
-            </button>
-          )}
+      {workspaces.length === 0 ? (
+        <WorkspaceEmptyBody />
+      ) : (
+        <>
+          {/* Search Input */}
+          <div className="mb-6">
+            <div className="relative">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted"
+              />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search workspaces..."
+                className="w-full bg-chatroom-bg-surface border-2 border-chatroom-border text-chatroom-text-primary pl-9 pr-9 py-2 text-xs font-mono placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-accent transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  onClick={handleClearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Workspace Grid */}
+          <WorkspaceGrid workspaces={filtered} onSelectChatroom={onSelectChatroom} />
+        </>
+      )}
+
+      <CreateWorkspaceModal open={isCreateOpen} onOpenChange={setIsCreateOpen} />
+    </div>
+  );
+}
+
+/**
+ * Shared Workspaces page header, used by both the populated and empty states so
+ * first-time users always have access to the "+ New" action.
+ */
+function WorkspacesHeader({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="mb-6 border-b-2 border-chatroom-border pb-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Workspaces</h1>
+          <p className="text-chatroom-text-muted text-sm">
+            Every registered workspace on your machines
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={onCreate}
+          className="flex items-center gap-1 px-3 py-1.5 bg-chatroom-accent text-chatroom-bg-primary text-xs font-bold uppercase tracking-wider hover:opacity-90"
+        >
+          <Plus size={14} />
+          New
+        </button>
       </div>
-
-      {/* Workspace Grid */}
-      <WorkspaceGrid workspaces={filtered} onSelectChatroom={onSelectChatroom} />
     </div>
   );
 }
@@ -123,26 +150,14 @@ function WorkspaceLoadingState() {
   );
 }
 
-function WorkspaceEmptyState() {
+function WorkspaceEmptyBody() {
   return (
-    <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
-      {/* Header */}
-      <div className="mb-8 border-b-2 border-chatroom-border pb-6">
-        <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Workspaces</h1>
-        <p className="text-chatroom-text-muted text-sm">
-          All registered workspaces across your chatrooms
-        </p>
-      </div>
-      {/* Empty State */}
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <span className="text-chatroom-text-muted text-base mb-2">
-          No workspaces registered yet
-        </span>
-        <p className="text-chatroom-text-muted text-sm max-w-md">
-          Workspaces appear here when your machine daemons connect and register a working directory
-          in a chatroom.
-        </p>
-      </div>
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <span className="text-chatroom-text-muted text-base mb-2">No workspaces registered yet</span>
+      <p className="text-chatroom-text-muted text-sm max-w-md">
+        Workspaces appear here when your machine daemons connect and register a working directory in
+        a chatroom, or when you create one with “+ New”.
+      </p>
     </div>
   );
 }
@@ -176,27 +191,34 @@ interface WorkspaceCardProps {
   onSelectChatroom: (chatroomId: string) => void;
 }
 
+// Card renders both navigable (chatroom-bound) and unassigned states; the
+// branching keeps keyboard/click navigation gated on chatroom presence.
+// fallow-ignore-next-line complexity
 const WorkspaceCard = memo(function WorkspaceCard({ ws, onSelectChatroom }: WorkspaceCardProps) {
   const machineName = getWorkspaceDisplayHostname(ws);
   const workspaceName = getWorkspacePathName(ws.workingDir) || machineName;
+  const chatroomId = ws.chatroomId;
+  const canNavigate = chatroomId !== undefined;
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (chatroomId === undefined) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        onSelectChatroom(ws.chatroomId);
+        onSelectChatroom(chatroomId);
       }
     },
-    [onSelectChatroom, ws.chatroomId]
+    [onSelectChatroom, chatroomId]
   );
 
   return (
     <div
-      role="button"
-      tabIndex={0}
+      role={canNavigate ? 'button' : undefined}
+      tabIndex={canNavigate ? 0 : undefined}
+      aria-disabled={!canNavigate}
       className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer"
-      onClick={() => onSelectChatroom(ws.chatroomId)}
-      onKeyDown={handleKeyDown}
+      onClick={canNavigate ? () => onSelectChatroom(chatroomId) : undefined}
+      onKeyDown={canNavigate ? handleKeyDown : undefined}
     >
       <div className="flex justify-between items-start gap-2 mb-3">
         <span
@@ -215,8 +237,11 @@ const WorkspaceCard = memo(function WorkspaceCard({ ws, onSelectChatroom }: Work
       >
         {ws.workingDir}
       </div>
-      <div className="text-[10px] uppercase tracking-wide text-chatroom-text-muted">
-        Registered {formatRelativeTime(ws.registeredAt)}
+      <div className="flex justify-between items-center gap-2 text-[10px] uppercase tracking-wide text-chatroom-text-muted">
+        <span className="truncate">
+          {!canNavigate && <span className="text-chatroom-status-warning">Unassigned</span>}
+        </span>
+        <span className="shrink-0">Registered {formatRelativeTime(ws.registeredAt)}</span>
       </div>
     </div>
   );

@@ -26,6 +26,23 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: () => undefined,
 }));
 
+vi.mock('./CreateWorkspaceModal', () => ({
+  CreateWorkspaceModal: ({
+    open,
+    onOpenChange,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div data-testid="create-workspace-modal">
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Close modal
+        </button>
+      </div>
+    ) : null,
+}));
+
 const workspacesFixture: AllWorkspaceRow[] = [
   {
     _id: 'ws1' as Id<'chatroom_workspaces'>,
@@ -45,6 +62,14 @@ const workspacesFixture: AllWorkspaceRow[] = [
     hostname: 'host-b',
     registeredAt: 1750000000000,
     registeredBy: 'planner',
+  },
+  {
+    _id: 'ws3' as Id<'chatroom_workspaces'>,
+    machineId: 'machine-c',
+    workingDir: '/tmp/unassigned-project',
+    hostname: 'host-c',
+    registeredAt: 1750000000000,
+    registeredBy: 'user',
   },
 ];
 
@@ -80,14 +105,17 @@ describe('WorkspaceSelector', () => {
 
     expect(screen.getByText('project-a')).toBeInTheDocument();
     expect(screen.getByText('project-b')).toBeInTheDocument();
+    expect(screen.getByText('unassigned-project')).toBeInTheDocument();
 
     expect(screen.getByText('Dev-Box')).toBeInTheDocument();
     expect(screen.getByText('host-b')).toBeInTheDocument();
+    expect(screen.getByText('host-c')).toBeInTheDocument();
 
     expect(screen.getByText('/tmp/project-a')).toBeInTheDocument();
     expect(screen.getByText('/tmp/project-b')).toBeInTheDocument();
+    expect(screen.getByText('/tmp/unassigned-project')).toBeInTheDocument();
 
-    expect(screen.getAllByText(/Registered/)).toHaveLength(2);
+    expect(screen.getAllByText(/Registered/)).toHaveLength(3);
   });
 
   it('filters workspaces by machine search query', async () => {
@@ -110,7 +138,7 @@ describe('WorkspaceSelector', () => {
     expect(screen.queryByText('/tmp/project-a')).not.toBeInTheDocument();
   });
 
-  it('calls onSelectChatroom when a workspace card is clicked', async () => {
+  it('calls onSelectChatroom when an assigned workspace card is clicked', async () => {
     mockUseAllWorkspaces.mockReturnValue({ workspaces: workspacesFixture, isLoading: false });
     const onSelectChatroom = vi.fn();
     const { user } = renderWithUser(<WorkspaceSelector onSelectChatroom={onSelectChatroom} />);
@@ -118,5 +146,42 @@ describe('WorkspaceSelector', () => {
     await user.click(screen.getByText('/tmp/project-a'));
 
     expect(onSelectChatroom).toHaveBeenCalledWith('chat1');
+  });
+
+  it('renders an unassigned card as non-navigable with an Unassigned indicator', async () => {
+    mockUseAllWorkspaces.mockReturnValue({ workspaces: workspacesFixture, isLoading: false });
+    const onSelectChatroom = vi.fn();
+    const { user } = renderWithUser(<WorkspaceSelector onSelectChatroom={onSelectChatroom} />);
+
+    const unassignedCard = screen
+      .getByText('/tmp/unassigned-project')
+      .closest('div[aria-disabled]');
+    expect(unassignedCard).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByText('Unassigned')).toBeInTheDocument();
+
+    await user.click(screen.getByText('/tmp/unassigned-project'));
+
+    expect(onSelectChatroom).not.toHaveBeenCalled();
+  });
+
+  it('shows a + New action in the populated state that opens the create modal', async () => {
+    mockUseAllWorkspaces.mockReturnValue({ workspaces: workspacesFixture, isLoading: false });
+    const { user } = renderWithUser(<WorkspaceSelector onSelectChatroom={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: 'New' }));
+
+    expect(screen.getByTestId('create-workspace-modal')).toBeInTheDocument();
+  });
+
+  it('shows a + New action in the empty state that opens the create modal', async () => {
+    mockUseAllWorkspaces.mockReturnValue({ workspaces: [], isLoading: false });
+    const { user } = renderWithUser(<WorkspaceSelector onSelectChatroom={() => {}} />);
+
+    expect(screen.getByRole('button', { name: 'New' })).toBeInTheDocument();
+    expect(screen.getByText('No workspaces registered yet')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'New' }));
+
+    expect(screen.getByTestId('create-workspace-modal')).toBeInTheDocument();
   });
 });
