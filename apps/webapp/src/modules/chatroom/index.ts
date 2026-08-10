@@ -16,6 +16,7 @@ export { CreateChatroomForm } from './components/CreateChatroomForm';
 export { ErrorBoundary } from './components/ErrorBoundary';
 export { PromptModal } from './components/PromptModal';
 export { MessageInput } from './components/MessageInput';
+export { WorkspaceSelector } from './components/WorkspaceSelector';
 export { WorkingIndicator } from './components/WorkingIndicator';
 
 // Context
