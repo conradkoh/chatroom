@@ -3,8 +3,8 @@
 import { Search, X } from 'lucide-react';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
-import { formatRelativeTime } from './WorkQueue/utils';
 import { getWorkspaceDisplayHostname } from '../types/workspace';
+import { formatRelativeTime } from '../workspace/components/shared';
 import { useAllWorkspaces, type AllWorkspaceRow } from '../workspace/hooks/useAllWorkspaces';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
