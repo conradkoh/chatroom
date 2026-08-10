@@ -18,11 +18,11 @@ export type {
   HarnessCreateResult,
   HarnessSendMessageInput,
   HarnessSendMessageResult,
-} from './types.js';
+} from './types';
 
 export {
   DEFAULT_FLUSH_INTERVAL,
   DEFAULT_HARNESS_NAME,
   TERMINAL_STATUSES,
   BLOCKED_STATUSES,
-} from './constants.js';
+} from './constants';

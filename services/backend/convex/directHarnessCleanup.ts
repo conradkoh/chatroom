@@ -13,7 +13,7 @@
  *   the same mutation, so no further chunks for that messageId can arrive after finalization.
  */
 
-import { internalMutation } from './_generated/server.js';
+import { internalMutation } from './_generated/server';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -61,7 +61,7 @@ export const purgeFinalizedChunks = internalMutation({
           .collect();
 
         for (const chunk of chunks) {
-          await ctx.db.delete(chunk._id);
+          await ctx.db.delete('chatroom_harnessSessionMessages', chunk._id);
           chunksDeleted++;
         }
       }

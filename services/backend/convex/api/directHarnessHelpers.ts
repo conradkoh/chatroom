@@ -8,15 +8,12 @@
 
 import { ConvexError } from 'convex/values';
 
-import { featureFlags } from '../../config/featureFlags.js';
-import type { Doc, Id } from '../_generated/dataModel.js';
-import type { MutationCtx, QueryCtx } from '../_generated/server.js';
-import type { AuthenticatedChatroomAccess } from '../auth/chatroomAccess.js';
-import { requireChatroomAccess } from '../auth/chatroomAccess.js';
-import {
-  type MachineAuth,
-  requireMachineOwner,
-} from '../auth/cli/machineAccess.js';
+import { featureFlags } from '../../config/featureFlags';
+import type { Doc, Id } from '../_generated/dataModel';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
+import type { AuthenticatedChatroomAccess } from '../auth/chatroomAccess';
+import { requireChatroomAccess } from '../auth/chatroomAccess';
+import { type MachineAuth, requireMachineOwner } from '../auth/cli/machineAccess';
 
 // ─── Feature flag guard ──────────────────────────────────────────────────────
 

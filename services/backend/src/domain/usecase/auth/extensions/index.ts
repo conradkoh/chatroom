@@ -17,7 +17,7 @@ export {
   type CliSessionRecord,
   type WebSessionRecord,
   type UserRecord,
-} from './validate-session.js';
+} from './validate-session';
 export {
   checkAccess,
   requireAccess,
@@ -29,4 +29,4 @@ export {
   type AccessDenied,
   type AccessResult,
   type CheckAccessDeps,
-} from './check-access.js';
+} from './check-access';

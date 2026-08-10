@@ -82,7 +82,7 @@
  *   rows have not been writing seq since commit 0174d57d.
  */
 
-import { internalMutation } from './_generated/server.js';
+import { internalMutation } from './_generated/server';
 
 // ─── cleanup ──────────────────────────────────────────────────────────────────
 
