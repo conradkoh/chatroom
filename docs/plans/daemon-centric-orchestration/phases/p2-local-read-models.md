@@ -10,8 +10,8 @@
 
 ### What ships
 
-- SQLite read models for tasks, participants, agents, handoffs
-- Hydration from Convex on startup
+- SQLite read models for tasks, participants, agents (handoff repository deferred — no P2 source contract)
+- Hydration from Convex on startup (tasks + participants + agents)
 - Shadow mode: models stay in sync; task monitor still uses Convex snapshots for decisions
 
 ### Flag-off guarantee
@@ -30,15 +30,15 @@ Single local source for orchestration reads — removes Convex WS churn on hot p
 ### Ship checklist
 
 - [x] Flag off: task monitor behavior unchanged (full CLI suite green)
-- [x] Shadow: read model rows match Convex snapshot after hydrate (parity test)
+- [x] Shadow: read model rows (task + participant + agent) match Convex snapshot after hydrate (parity test + hydrate test)
 - [x] Cutover: task monitor + restart orchestrator read read models (tests assert WS/query not used in cutover)
-- [ ] Rollback: disable P2 cutover → reverts to Convex WS without data loss (manual smoke)
+- [ ] Rollback manual smoke: disable P2 cutover → reverts to Convex WS (not run manually; automated flag-off vs cutover regression covered in `task-monitor-runtime.cutover.test.ts` and `restart-orchestrator.test.ts`)
 
 ---
 
 ## Goal
 
-Materialize orchestration read models (tasks, participants, agents, handoffs) in SQLite. Task monitor, native delivery, and restart orchestrator read local state instead of `listMachineAssignedTaskSnapshots` WS/HTTP.
+Materialize orchestration read models (tasks, participants, agents — handoffs deferred until a later source contract exists) in SQLite. Task monitor, native delivery, and restart orchestrator read local state instead of `listMachineAssignedTaskSnapshots` WS/HTTP.
 
 ## Prerequisites
 
@@ -70,9 +70,9 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 **Implement:**
 
 - `packages/cli/src/daemon/infrastructure/persistence/read-models/tasks.ts`
-- `packages/cli/src/daemon/infrastructure/persistence/read-models/participants.ts`
-- `packages/cli/src/daemon/infrastructure/persistence/read-models/agents.ts`
-- `packages/cli/src/daemon/infrastructure/persistence/read-models/handoffs.ts`
+- `packages/cli/src/daemon/infrastructure/persistence/read-models/participants.ts` — snapshot-mapped (`participantReadModelFromSnapshot`), runtime caller: hydration + shadow sync
+- `packages/cli/src/daemon/infrastructure/persistence/read-models/agents.ts` — snapshot-mapped (`agentReadModelFromSnapshot`), runtime caller: hydration + shadow sync
+- `packages/cli/src/daemon/infrastructure/persistence/read-models/handoffs.ts` — deferred scaffolding; no P2 query/event contract carries handoff data, so no runtime caller writes handoff rows
 - `packages/cli/src/daemon/infrastructure/persistence/read-models/index.ts`
 - `packages/cli/src/daemon/application/ports/read-models.port.ts` — interfaces for use cases
 
@@ -80,12 +80,13 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 
 - Unit tests per repository: upsert, query by chatroom/role, list pending
 - Read models updated synchronously in tests (no async projection lag for local reads)
+- Participant/agent repos are consumed by hydration + shadow sync (no stale unused suppression)
 
 ### P2-T3 — Hydrate read models from Convex (one-time bootstrap) `[done]` — PR #1350
 
 **Implement:**
 
-- `packages/cli/src/daemon/infrastructure/persistence/read-models/hydrate-from-convex.ts` — on daemon start (P2 flag on), fetch `listMachineAssignedTaskSnapshots` + participant rows once, populate SQLite
+- `packages/cli/src/daemon/infrastructure/persistence/read-models/hydrate-from-convex.ts` — on daemon start (P2 flag on), fetch `listMachineAssignedTaskSnapshots` once, upsert task, participant, and agent read models from each snapshot
 
 **Modify:**
 
@@ -93,14 +94,14 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 
 **Verify:**
 
-- After hydrate, local task rows match Convex snapshot for same machine
+- After hydrate, local task/participant/agent rows match Convex snapshot for same machine
 - Re-hydrate is idempotent (upsert semantics)
 
 ### P2-T4 — Task monitor reads local read models (cutover-gated) `[done]` — PR #1350
 
 **Modify:**
 
-- `packages/cli/src/daemon/entry/task-monitor-runtime.ts` — when `DAEMON_ORCHESTRATION_P2_CUTOVER` on (not merely P2), replace `listMachineAssignedTaskSnapshots` WS `onUpdate` with read model queries + local event updates. When P2 on but cutover off, keep Convex WS; additionally update read models in parallel (shadow).
+- `packages/cli/src/daemon/entry/task-monitor-runtime.ts` — when `DAEMON_ORCHESTRATION_P2_CUTOVER` on (not merely P2), replace `listMachineAssignedTaskSnapshots` WS `onUpdate` with read model queries + local event updates. When P2 on but cutover off, keep Convex WS; additionally update task/participant/agent read models in parallel (shadow, via `syncSnapshotsToReadModels`).
 - `packages/cli/src/daemon/entry/task-monitor/task-monitor-snapshot.ts` — accept local row shape (or adapter from read model)
 - `packages/cli/src/daemon/entry/restart-orchestrator.ts` — read tasks from `read-models/tasks.ts` instead of Convex query
 
@@ -130,12 +131,23 @@ Materialize orchestration read models (tasks, participants, agents, handoffs) in
 
 ## Definition of done
 
+Completing P2 means the P2-owned scope below is implemented and green; the
+deferred items are explicitly **not** part of P2 completion and depend on later
+phases or contracts.
+
 - [x] Task monitor orchestration loop runs from SQLite read models when P2 cutover on
 - [x] Convex snapshot WS not required for nudge/delivery decisions in cutover
-- [ ] Webapp still sees task/agent status via projection (T3) — pending P1/P3 projection integration
-- [x] `pnpm turbo run typecheck test --filter=chatroom-cli` green (288 files / 2240 tests)
+- [x] Hydration + shadow sync maintain task, participant, and agent read models from the P2 snapshot contract (`AssignedTaskSnapshotView`)
+- [x] Automated rollback/cutover regression: flag-off vs cutover semantics asserted in `task-monitor-runtime.cutover.test.ts` and `restart-orchestrator.test.ts`
+- [x] `pnpm turbo run typecheck test --filter=chatroom-cli` green
 - [x] Shadow mode (P2 on, cutover off) shippable independently
+
+### Deferred (blocked by later contracts — not part of P2 completion)
+
+- [ ] Webapp projection of task/agent status — depends on P1/P3 projection integration, not on the P2 snapshot contract
+- [ ] Handoff read-model projection — no P2 query/event contract carries handoff data (`read-models/handoffs.ts` retained as scaffolding only; no fabricated rows)
+- [ ] Rollback manual smoke — not performed; automated flag-off/cutover regression coverage substitutes
 
 ## Rollback
 
-Disable `DAEMON_ORCHESTRATION_P2`; task monitor reverts to Convex snapshot WS.
+Disable `DAEMON_ORCHESTRATION_P2`; task monitor reverts to Convex snapshot WS. (Flag-off path is covered by the full CLI suite and the cutover regression tests.)
