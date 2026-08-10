@@ -1,5 +1,6 @@
-// fallow-ignore-file unused-file
 import type { DatabaseSync } from 'node:sqlite';
+
+import type { AssignedTaskSnapshotView } from '../../../domain/entities/assigned-task.js';
 
 export type AgentReadModelRow = {
   machineId: string;
@@ -8,6 +9,16 @@ export type AgentReadModelRow = {
   harnessSessionId?: string;
   updatedAt: number;
 };
+
+/** Maps an assigned-task snapshot's agent config to the agent read model. */
+export function agentReadModelFromSnapshot(snapshot: AssignedTaskSnapshotView): AgentReadModelRow {
+  return {
+    machineId: snapshot.agentConfig.machineId,
+    role: snapshot.agentConfig.role,
+    pid: snapshot.agentConfig.spawnedAgentPid,
+    updatedAt: snapshot.updatedAt,
+  };
+}
 
 export function upsertAgentReadModel(db: DatabaseSync, row: AgentReadModelRow): void {
   db.prepare(
@@ -20,6 +31,8 @@ export function upsertAgentReadModel(db: DatabaseSync, row: AgentReadModelRow): 
   ).run(row.machineId, row.role, row.pid ?? null, row.harnessSessionId ?? null, row.updatedAt);
 }
 
+// Test-only read helper (consumed by hydrate/shadow tests).
+// fallow-ignore-next-line unused-export
 export function getAgentReadModel(
   db: DatabaseSync,
   machineId: string,

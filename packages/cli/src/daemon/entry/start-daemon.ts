@@ -54,7 +54,7 @@ export async function startDaemon(): Promise<void> {
   }
 
   if (isDaemonOrchestrationP2Enabled()) {
-    const { taskCount } = await hydrateReadModelsFromConvex({
+    const { taskCount, participantCount, agentCount } = await hydrateReadModelsFromConvex({
       db: persistence.db,
       machineId: init.machineId,
       sessionId: init.sessionId,
@@ -68,7 +68,9 @@ export async function startDaemon(): Promise<void> {
       );
       console.log('[daemon] P2 cutover — snapshot store sourced from read models');
     }
-    console.log(`[daemon] P2 read models hydrated (${taskCount} tasks)`);
+    console.log(
+      `[daemon] P2 read models hydrated (${taskCount} tasks, ${participantCount} participants, ${agentCount} agents)`
+    );
   }
 
   const localWebPort = resolveLocalWebPort();

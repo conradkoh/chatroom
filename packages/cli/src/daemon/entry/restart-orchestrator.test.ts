@@ -143,6 +143,32 @@ describe('runRestartOrchestrator', () => {
     expect(restartCompletedCalls).toHaveLength(0);
   });
 
+  test('flag off (cutover off) discovers candidates via the Convex snapshot query', async () => {
+    const { deps, backendMock } = createMockDeps();
+    backendMock.query.mockResolvedValue({
+      tasks: [makeSnapshot({ status: 'pending' })],
+    } as never);
+
+    await runRestartOrchestrator(deps as any, {
+      chatroomId: 'test-chatroom',
+      role: 'builder',
+      agentHarness: 'opencode',
+      model: 'gpt-4',
+      workingDir: '/tmp/test',
+      correlationId: 'test-correlation',
+      wantResume: true,
+    });
+
+    expect(backendMock.query).toHaveBeenCalledWith(
+      'listMachineAssignedTaskSnapshots',
+      expect.anything()
+    );
+    expect(backendMock.mutation).toHaveBeenCalledWith(
+      'syncMachineAssignedTaskSnapshotsMutation',
+      expect.anything()
+    );
+  });
+
   test('cutover reads deliverable snapshots from read models, not Convex snapshot query', async () => {
     const db = openDatabase(tempDbPath());
     setRestartOrchestratorDb(db);
@@ -162,8 +188,14 @@ describe('runRestartOrchestrator', () => {
         wantResume: true,
       });
 
+      // Candidate discovery comes from SQLite read models — the Convex snapshot
+      // query and its sync mutation are never touched.
       expect(backendMock.query).not.toHaveBeenCalledWith(
         'listMachineAssignedTaskSnapshots',
+        expect.anything()
+      );
+      expect(backendMock.mutation).not.toHaveBeenCalledWith(
+        'syncMachineAssignedTaskSnapshotsMutation',
         expect.anything()
       );
     } finally {

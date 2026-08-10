@@ -1,5 +1,6 @@
-// fallow-ignore-file unused-file
 import type { DatabaseSync } from 'node:sqlite';
+
+import type { AssignedTaskSnapshotView } from '../../../domain/entities/assigned-task.js';
 
 export type ParticipantReadModelRow = {
   chatroomId: string;
@@ -8,6 +9,20 @@ export type ParticipantReadModelRow = {
   lastSeenAt?: number;
   updatedAt: number;
 };
+
+/** Maps an assigned-task snapshot's participant block to the participant read model. */
+// fallow-ignore-next-line complexity
+export function participantReadModelFromSnapshot(
+  snapshot: AssignedTaskSnapshotView
+): ParticipantReadModelRow {
+  return {
+    chatroomId: snapshot.chatroomId,
+    role: snapshot.agentConfig.role,
+    turnPhase: snapshot.participant?.lastStatus ?? undefined,
+    lastSeenAt: snapshot.participant?.lastSeenAt ?? undefined,
+    updatedAt: snapshot.updatedAt,
+  };
+}
 
 export function upsertParticipantReadModel(db: DatabaseSync, row: ParticipantReadModelRow): void {
   db.prepare(
@@ -20,6 +35,8 @@ export function upsertParticipantReadModel(db: DatabaseSync, row: ParticipantRea
   ).run(row.chatroomId, row.role, row.turnPhase ?? null, row.lastSeenAt ?? null, row.updatedAt);
 }
 
+// Test-only read helper (consumed by hydrate/shadow tests).
+// fallow-ignore-next-line unused-export
 export function getParticipantReadModel(
   db: DatabaseSync,
   chatroomId: string,

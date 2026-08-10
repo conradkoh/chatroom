@@ -1,3 +1,13 @@
+/**
+ * Handoff read model repository.
+ *
+ * DEFERRED SCAFFOLDING — no P2 source contract exists for handoffs. The
+ * `AssignedTaskSnapshotView` carries task/participant/agent data only; there is
+ * no P2 query or event payload that exposes pending-next-role or handoff message
+ * identity. Until a later phase introduces that contract, no runtime caller may
+ * fabricate handoff rows from snapshots. This repository is retained so the P3+
+ * cutover path has a place to project into.
+ */
 // fallow-ignore-file unused-file
 import type { DatabaseSync } from 'node:sqlite';
 

@@ -77,10 +77,7 @@ import type {
 } from '../domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
 import type { AssignedTaskInboundEvent } from '../domain/usecase/handle-assigned-task-inbound.js';
-import {
-  taskReadModelFromSnapshot,
-  upsertTaskReadModel,
-} from '../infrastructure/persistence/read-models/tasks.js';
+import { syncSnapshotsToReadModels } from '../infrastructure/persistence/read-models/snapshot-sync.js';
 import {
   isDaemonOrchestrationP2CutoverEnabled,
   isDaemonOrchestrationP2Enabled,
@@ -474,9 +471,7 @@ function subscribeAssignedTaskSnapshotStore(
         isDaemonOrchestrationP2Enabled() &&
         !isDaemonOrchestrationP2CutoverEnabled()
       ) {
-        for (const task of tasks) {
-          upsertTaskReadModel(taskMonitorReadModelDb, taskReadModelFromSnapshot(task));
-        }
+        syncSnapshotsToReadModels(taskMonitorReadModelDb, tasks);
       }
     },
     (err: unknown) => {
@@ -497,9 +492,7 @@ async function refreshAssignedTaskReadModelsFromConvex(
   })) as { tasks?: unknown };
   const tasks = mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(result.tasks ?? []));
   if (taskMonitorReadModelDb) {
-    for (const task of tasks) {
-      upsertTaskReadModel(taskMonitorReadModelDb, taskReadModelFromSnapshot(task));
-    }
+    syncSnapshotsToReadModels(taskMonitorReadModelDb, tasks);
   }
   replaceAssignedTaskSnapshots(tasks);
   return tasks;
