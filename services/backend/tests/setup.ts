@@ -1,5 +1,21 @@
 // Set test environment variable
+import { vi } from 'vitest';
+
 process.env.NODE_ENV = 'test';
+
+// Sandbox the production signup flag for the unit test suite.
+// The real runtime default is invite-only (`['invite']` in config/featureFlags.ts).
+// Most specs bootstrap sessions via `auth.loginAnon`, so they run with self-signup
+// sandboxed here; signup-gating behavior is covered explicitly by
+// config/signupMethods.spec.ts and convex/auth.signup-gating.spec.ts, which
+// override this mock locally.
+vi.mock('../config/featureFlags', () => ({
+  featureFlags: {
+    disableLogin: false,
+    directHarnessWorkers: true,
+    allowedSignupMethods: ['self'],
+  },
+}));
 
 // Suppress console logs during testing to reduce noise
 if (process.env.NODE_ENV === 'test') {
