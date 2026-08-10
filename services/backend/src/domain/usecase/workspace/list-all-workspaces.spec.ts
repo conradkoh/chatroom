@@ -95,7 +95,7 @@ describe('listAllWorkspaces', () => {
     expect(result).toHaveLength(0);
   });
 
-  test('enriches chatroom name and machine alias', async () => {
+  test('enriches machine alias', async () => {
     const { sessionId, userId } = await createSession('all-enrich');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'all-enrich-machine';
@@ -104,7 +104,7 @@ describe('listAllWorkspaces', () => {
     await t.mutation(api.machines.setMachineAlias, { sessionId, machineId, alias: 'Dev-Box' });
 
     const result = await t.run(async (ctx) => listAllWorkspaces(ctx, { userId }));
-    expect(result[0]!.chatroomName).toBe('Test Team');
     expect(result[0]!.machineAlias).toBe('Dev-Box');
+    expect(result[0]).not.toHaveProperty('chatroomName');
   });
 });

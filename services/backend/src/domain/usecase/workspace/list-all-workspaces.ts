@@ -2,7 +2,7 @@
  * Use Case: List All Workspaces for User
  *
  * Returns all active (non-removed) workspaces across every chatroom owned by a
- * user, enriched with chatroom display name and machine alias.
+ * user, enriched with machine alias.
  * Used by the frontend home page "Workspaces" tab.
  */
 
@@ -19,8 +19,6 @@ export interface ListAllWorkspacesInput {
 export interface WorkspaceForUserView {
   _id: Id<'chatroom_workspaces'>;
   chatroomId: Id<'chatroom_rooms'>;
-  /** Chatroom display name: custom name, else teamName, else 'Untitled'. */
-  chatroomName: string;
   machineId: string;
   workingDir: string;
   hostname: string;
@@ -32,7 +30,6 @@ export interface WorkspaceForUserView {
 export type ListAllWorkspacesResult = WorkspaceForUserView[];
 
 interface WorkspaceRow {
-  chatroomName: string;
   _id: Id<'chatroom_workspaces'>;
   chatroomId: Id<'chatroom_rooms'>;
   machineId: string;
@@ -44,28 +41,16 @@ interface WorkspaceRow {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function toWorkspaceRow(
-  chatroom: { _id: Id<'chatroom_rooms'>; name?: string; teamName?: string },
-  ws: {
-    _id: Id<'chatroom_workspaces'>;
-    chatroomId: Id<'chatroom_rooms'>;
-    machineId: string;
-    workingDir: string;
-    hostname: string;
-    registeredAt: number;
-    registeredBy: string;
-  }
-): WorkspaceRow {
-  return {
-    chatroomName: chatroom.name ?? chatroom.teamName ?? 'Untitled',
-    _id: ws._id,
-    chatroomId: ws.chatroomId,
-    machineId: ws.machineId,
-    workingDir: ws.workingDir,
-    hostname: ws.hostname,
-    registeredAt: ws.registeredAt,
-    registeredBy: ws.registeredBy,
-  };
+function toWorkspaceRow(ws: {
+  _id: Id<'chatroom_workspaces'>;
+  chatroomId: Id<'chatroom_rooms'>;
+  machineId: string;
+  workingDir: string;
+  hostname: string;
+  registeredAt: number;
+  registeredBy: string;
+}): WorkspaceRow {
+  return { ...ws };
 }
 
 async function resolveMachineAliases(
@@ -105,7 +90,7 @@ export async function listAllWorkspaces(
 
     for (const ws of workspaces) {
       if (!isActiveWorkspace(ws.removedAt)) continue;
-      rows.push(toWorkspaceRow(chatroom, ws));
+      rows.push(toWorkspaceRow(ws));
       machineIds.add(ws.machineId);
     }
   }

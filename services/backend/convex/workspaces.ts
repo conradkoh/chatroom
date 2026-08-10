@@ -177,7 +177,7 @@ export const listWorkspacesForChatroom = query({
 
 /**
  * Lists all active workspaces across every chatroom owned by the current user,
- * enriched with chatroom name and machine alias.
+ * enriched with machine alias.
  *
  * Called by the frontend home page "Workspaces" tab.
  */
