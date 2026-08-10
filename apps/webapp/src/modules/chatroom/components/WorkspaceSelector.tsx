@@ -33,7 +33,7 @@ export function getWorkspacePathName(workingDir: string): string {
 
 /**
  * Filters workspaces by a search query.
- * Matches against machine display hostname, working dir, and chatroom name.
+ * Matches against machine display hostname and working directory.
  */
 function filterWorkspaces(workspaces: AllWorkspaceRow[], query: string): AllWorkspaceRow[] {
   const lower = query.toLowerCase().trim();
@@ -42,8 +42,7 @@ function filterWorkspaces(workspaces: AllWorkspaceRow[], query: string): AllWork
   return workspaces.filter((ws) => {
     const hostname = getWorkspaceDisplayHostname(ws).toLowerCase();
     const workingDir = ws.workingDir.toLowerCase();
-    const chatroomName = ws.chatroomName.toLowerCase();
-    return hostname.includes(lower) || workingDir.includes(lower) || chatroomName.includes(lower);
+    return hostname.includes(lower) || workingDir.includes(lower);
   });
 }
 
@@ -216,9 +215,8 @@ const WorkspaceCard = memo(function WorkspaceCard({ ws, onSelectChatroom }: Work
       >
         {ws.workingDir}
       </div>
-      <div className="flex justify-between items-center gap-2 text-[10px] uppercase tracking-wide text-chatroom-text-muted">
-        <span className="truncate">{ws.chatroomName}</span>
-        <span className="shrink-0">Registered {formatRelativeTime(ws.registeredAt)}</span>
+      <div className="text-[10px] uppercase tracking-wide text-chatroom-text-muted">
+        Registered {formatRelativeTime(ws.registeredAt)}
       </div>
     </div>
   );

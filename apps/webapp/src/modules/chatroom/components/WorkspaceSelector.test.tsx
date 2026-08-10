@@ -1,6 +1,8 @@
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { describe, expect, it, vi } from 'vitest';
 
 import { WorkspaceSelector, getWorkspacePathName } from './WorkspaceSelector';
+import type { AllWorkspaceRow } from '../workspace/hooks/useAllWorkspaces';
 
 import { renderWithUser, screen } from '@/test-utils';
 
@@ -24,11 +26,10 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: () => undefined,
 }));
 
-const workspacesFixture = [
+const workspacesFixture: AllWorkspaceRow[] = [
   {
-    _id: 'ws1',
-    chatroomId: 'chat1',
-    chatroomName: 'Alpha Team',
+    _id: 'ws1' as Id<'chatroom_workspaces'>,
+    chatroomId: 'chat1' as Id<'chatroom_rooms'>,
     machineId: 'machine-a',
     workingDir: '/tmp/project-a',
     hostname: 'host-a',
@@ -37,9 +38,8 @@ const workspacesFixture = [
     registeredBy: 'builder',
   },
   {
-    _id: 'ws2',
-    chatroomId: 'chat2',
-    chatroomName: 'Beta Team',
+    _id: 'ws2' as Id<'chatroom_workspaces'>,
+    chatroomId: 'chat2' as Id<'chatroom_rooms'>,
     machineId: 'machine-b',
     workingDir: '/tmp/project-b',
     hostname: 'host-b',
@@ -74,7 +74,7 @@ describe('WorkspaceSelector', () => {
     expect(screen.getByText('No workspaces registered yet')).toBeInTheDocument();
   });
 
-  it('renders workspace cards with path-name title, machine tag, and chatroom name', () => {
+  it('renders workspace cards with path-name title, machine tag, and registration', () => {
     mockUseAllWorkspaces.mockReturnValue({ workspaces: workspacesFixture, isLoading: false });
     renderWithUser(<WorkspaceSelector onSelectChatroom={() => {}} />);
 
@@ -87,11 +87,10 @@ describe('WorkspaceSelector', () => {
     expect(screen.getByText('/tmp/project-a')).toBeInTheDocument();
     expect(screen.getByText('/tmp/project-b')).toBeInTheDocument();
 
-    expect(screen.getByText('Alpha Team')).toBeInTheDocument();
-    expect(screen.getByText('Beta Team')).toBeInTheDocument();
+    expect(screen.getAllByText(/Registered/)).toHaveLength(2);
   });
 
-  it('filters workspaces by search query', async () => {
+  it('filters workspaces by machine search query', async () => {
     mockUseAllWorkspaces.mockReturnValue({ workspaces: workspacesFixture, isLoading: false });
     const { user } = renderWithUser(<WorkspaceSelector onSelectChatroom={() => {}} />);
 
@@ -99,6 +98,16 @@ describe('WorkspaceSelector', () => {
 
     expect(screen.getByText('Dev-Box')).toBeInTheDocument();
     expect(screen.queryByText('/tmp/project-b')).not.toBeInTheDocument();
+  });
+
+  it('filters workspaces by working directory', async () => {
+    mockUseAllWorkspaces.mockReturnValue({ workspaces: workspacesFixture, isLoading: false });
+    const { user } = renderWithUser(<WorkspaceSelector onSelectChatroom={() => {}} />);
+
+    await user.type(screen.getByPlaceholderText('Search workspaces...'), 'project-b');
+
+    expect(screen.getByText('/tmp/project-b')).toBeInTheDocument();
+    expect(screen.queryByText('/tmp/project-a')).not.toBeInTheDocument();
   });
 
   it('calls onSelectChatroom when a workspace card is clicked', async () => {
