@@ -34,6 +34,7 @@ function createMockHarnessPort(): HarnessSpawnPort {
       | 'cursor-sdk'
       | 'claude'
       | 'claude-sdk'
+      | 'codex-sdk'
       | 'copilot'
       | 'commandcode';
     chatroomId: string;

@@ -27,6 +27,14 @@ describe('initHarnessRegistry', () => {
     expect(service?.displayName).toBe('Claude (SDK)');
   });
 
+  it('registers the codex-sdk harness with correct display name', () => {
+    initHarnessRegistry();
+    const service = getHarness('codex-sdk');
+    expect(service).toBeDefined();
+    expect(service?.id).toBe('codex-sdk');
+    expect(service?.displayName).toBe('Codex (SDK)');
+  });
+
   it('registers all expected harnesses', () => {
     initHarnessRegistry();
     const ids = getAllHarnesses()
@@ -36,6 +44,7 @@ describe('initHarnessRegistry', () => {
       [
         'claude',
         'claude-sdk',
+        'codex-sdk',
         'commandcode',
         'copilot',
         'cursor',
