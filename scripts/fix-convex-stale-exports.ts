@@ -176,7 +176,7 @@ function deleteStaleExports(db: Database, dryRun: boolean): void {
 
   const result = db.run(
     `DELETE FROM _exports WHERE state IN (${STALE_STATES.map(() => '?').join(', ')})`,
-    ...STALE_STATES
+    [...STALE_STATES]
   );
   console.log(`\nDeleted ${result.changes} stale export record(s).`);
 
