@@ -8,9 +8,9 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
-import { requireMachineOwner } from '../../auth/cli/machineAccess.js';
-import { mutation, query } from '../../_generated/server.js';
+import { mutation, query } from '../../_generated/server';
+import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
+import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
 // ─── listPendingCommands ──────────────────────────────────────────────────────
 
@@ -47,11 +47,7 @@ export const updateCommandStatus = mutation({
   args: {
     ...SessionIdArg,
     commandId: v.id('chatroom_directHarnessCommands'),
-    status: v.union(
-      v.literal('inProgress'),
-      v.literal('done'),
-      v.literal('failed')
-    ),
+    status: v.union(v.literal('inProgress'), v.literal('done'), v.literal('failed')),
     errorMessage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -79,6 +75,6 @@ export const updateCommandStatus = mutation({
       patch.errorMessage = args.errorMessage;
     }
 
-    await ctx.db.patch(args.commandId, patch);
+    await ctx.db.patch('chatroom_directHarnessCommands', args.commandId, patch);
   },
 });

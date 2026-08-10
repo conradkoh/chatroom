@@ -7,8 +7,8 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers.js';
-import { query } from '../../_generated/server.js';
+import { query } from '../../_generated/server';
+import { requireDirectHarnessWorkers } from '../../api/directHarnessHelpers';
 
 // ─── listForWorkspace ─────────────────────────────────────────────────────────
 

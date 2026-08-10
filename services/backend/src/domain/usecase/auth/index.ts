@@ -5,4 +5,4 @@
  * Custom auth extensions live in ./extensions/.
  */
 
-export * from './extensions/index.js';
+export * from './extensions/index';

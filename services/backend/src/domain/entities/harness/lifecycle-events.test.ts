@@ -4,7 +4,7 @@ import {
   HARNESS_WIRE_EVENT_SPECS,
   wireEventEmittedByRuntime,
   wireEventToLifecycle,
-} from './lifecycle-events.js';
+} from './lifecycle-events';
 
 describe('harness lifecycle wire events', () => {
   test('wire.ndjson.agent_end is CLI-only and maps to lifecycle.turn.completed', () => {
