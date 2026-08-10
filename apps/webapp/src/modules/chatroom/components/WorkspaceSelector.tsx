@@ -14,6 +14,24 @@ interface WorkspaceSelectorProps {
 }
 
 /**
+ * Returns the final path component of a working directory for card titles.
+ *
+ * Client-safe replacement for `path.basename`: handles both POSIX and Windows
+ * separators, strips trailing separators so `/tmp/project-a/` resolves to
+ * `project-a`, and falls back to the input when nothing remains (e.g. a root
+ * path or empty string).
+ */
+// Exported so WorkspaceSelector.test.tsx can cover the edge cases directly.
+// fallow-ignore-next-line unused-export
+export function getWorkspacePathName(workingDir: string): string {
+  const trimmed = workingDir.replace(/[/\\]+$/, '');
+  if (!trimmed) return workingDir;
+  return (
+    trimmed.slice(Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\')) + 1) || workingDir
+  );
+}
+
+/**
  * Filters workspaces by a search query.
  * Matches against machine display hostname, working dir, and chatroom name.
  */
@@ -160,6 +178,9 @@ interface WorkspaceCardProps {
 }
 
 const WorkspaceCard = memo(function WorkspaceCard({ ws, onSelectChatroom }: WorkspaceCardProps) {
+  const machineName = getWorkspaceDisplayHostname(ws);
+  const workspaceName = getWorkspacePathName(ws.workingDir) || machineName;
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -179,11 +200,14 @@ const WorkspaceCard = memo(function WorkspaceCard({ ws, onSelectChatroom }: Work
       onKeyDown={handleKeyDown}
     >
       <div className="flex justify-between items-start gap-2 mb-3">
-        <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate">
-          {getWorkspaceDisplayHostname(ws)}
+        <span
+          className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary truncate min-w-0"
+          title={ws.workingDir}
+        >
+          {workspaceName}
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary border-2 border-chatroom-border px-2 py-0.5 truncate">
-          {ws.chatroomName}
+        <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary border-2 border-chatroom-border px-2 py-0.5 truncate shrink-0">
+          {machineName}
         </span>
       </div>
       <div
@@ -192,8 +216,9 @@ const WorkspaceCard = memo(function WorkspaceCard({ ws, onSelectChatroom }: Work
       >
         {ws.workingDir}
       </div>
-      <div className="text-[10px] uppercase tracking-wide text-chatroom-text-muted">
-        Registered {formatRelativeTime(ws.registeredAt)}
+      <div className="flex justify-between items-center gap-2 text-[10px] uppercase tracking-wide text-chatroom-text-muted">
+        <span className="truncate">{ws.chatroomName}</span>
+        <span className="shrink-0">Registered {formatRelativeTime(ws.registeredAt)}</span>
       </div>
     </div>
   );
