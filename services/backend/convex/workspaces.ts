@@ -16,6 +16,7 @@ import { requireWorkspaceWriteAccess } from './auth/cli/workspaceAccess';
 import { str } from './utils/types';
 import { WORKSPACE_RECENCY_WINDOW_MS } from '../config/reliability';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
+import { listAllWorkspaces as listAllWorkspacesUseCase } from '../src/domain/usecase/workspace/list-all-workspaces';
 import { listRecentlyObservedWorkspacesForMachine as listRecentlyObservedWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-recently-observed-workspaces-for-machine';
 import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
@@ -171,6 +172,23 @@ export const listWorkspacesForChatroom = query({
     if (!chatroomAccessResult.ok) return [];
 
     return listWorkspacesForChatroomUseCase(ctx, { chatroomId: args.chatroomId });
+  },
+});
+
+/**
+ * Lists all active workspaces across every chatroom owned by the current user,
+ * enriched with chatroom name and machine alias.
+ *
+ * Called by the frontend home page "Workspaces" tab.
+ */
+export const listAllWorkspaces = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+    return listAllWorkspacesUseCase(ctx, { userId: auth.userId });
   },
 });
 
