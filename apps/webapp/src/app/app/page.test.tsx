@@ -53,20 +53,37 @@ describe('AppPage', () => {
     searchParamsStore.setValue(new URLSearchParams());
   });
 
-  it('renders chatrooms tab by default', () => {
+  it('renders workspaces tab by default', () => {
     renderWithUser(<AppPage />);
+    expect(screen.getByTestId('workspaces-content')).toBeInTheDocument();
+    expect(screen.queryByTestId('chatrooms-content')).not.toBeInTheDocument();
+  });
+
+  it('renders Workspaces as the first tab', () => {
+    renderWithUser(<AppPage />);
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs[0]).toHaveTextContent('Workspaces');
+    expect(tabs[1]).toHaveTextContent('Chatrooms');
+  });
+
+  it('switches to chatrooms tab on click and sets ?tab=chatrooms', async () => {
+    const { user } = renderWithUser(<AppPage />);
+
+    await user.click(screen.getByRole('tab', { name: 'Chatrooms' }));
+
+    expect(mockReplace).toHaveBeenCalledWith('/app?tab=chatrooms');
     expect(screen.getByTestId('chatrooms-content')).toBeInTheDocument();
     expect(screen.queryByTestId('workspaces-content')).not.toBeInTheDocument();
   });
 
-  it('switches to workspaces tab on click', async () => {
+  it('canonicalizes to /app when switching back to workspaces', async () => {
+    searchParamsStore.setValue(new URLSearchParams('?tab=chatrooms'));
     const { user } = renderWithUser(<AppPage />);
 
     await user.click(screen.getByRole('tab', { name: 'Workspaces' }));
 
-    expect(mockReplace).toHaveBeenCalledWith('/app?tab=workspaces');
+    expect(mockReplace).toHaveBeenCalledWith('/app');
     expect(screen.getByTestId('workspaces-content')).toBeInTheDocument();
-    expect(screen.queryByTestId('chatrooms-content')).not.toBeInTheDocument();
   });
 
   it('renders workspaces tab when URL has ?tab=workspaces', () => {
@@ -78,32 +95,27 @@ describe('AppPage', () => {
     expect(screen.queryByTestId('chatrooms-content')).not.toBeInTheDocument();
   });
 
-  it('deletes the tab param when switching back to chatrooms', async () => {
-    searchParamsStore.setValue(new URLSearchParams('?tab=workspaces'));
-    const { user } = renderWithUser(<AppPage />);
-
-    await user.click(screen.getByRole('tab', { name: 'Chatrooms' }));
-
-    expect(mockReplace).toHaveBeenCalledWith('/app');
-    expect(screen.getByTestId('chatrooms-content')).toBeInTheDocument();
-  });
-
-  it('falls back to chatrooms tab for invalid ?tab value', () => {
+  it('falls back to workspaces tab for invalid ?tab value', () => {
     searchParamsStore.setValue(new URLSearchParams('?tab=banana'));
 
     renderWithUser(<AppPage />);
 
-    expect(screen.getByTestId('chatrooms-content')).toBeInTheDocument();
-    expect(screen.queryByTestId('workspaces-content')).not.toBeInTheDocument();
+    expect(screen.getByTestId('workspaces-content')).toBeInTheDocument();
+    expect(screen.queryByTestId('chatrooms-content')).not.toBeInTheDocument();
   });
 
   it('preserves existing query params when switching tabs', async () => {
     searchParamsStore.setValue(new URLSearchParams('?create=true'));
     const { user } = renderWithUser(<AppPage />);
 
+    await user.click(screen.getByRole('tab', { name: 'Chatrooms' }));
+
+    expect(mockReplace).toHaveBeenCalledWith('/app?create=true&tab=chatrooms');
+    expect(screen.getByTestId('chatrooms-content')).toBeInTheDocument();
+
     await user.click(screen.getByRole('tab', { name: 'Workspaces' }));
 
-    expect(mockReplace).toHaveBeenCalledWith('/app?create=true&tab=workspaces');
+    expect(mockReplace).toHaveBeenCalledWith('/app?create=true');
     expect(screen.getByTestId('workspaces-content')).toBeInTheDocument();
   });
 });
