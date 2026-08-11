@@ -399,7 +399,7 @@ describe('CursorAgentService', () => {
         resolvedConvexUrl: 'http://test:3210',
       });
       result.onLogLine?.((entry) => {
-        logMessages.push(typeof entry === 'string' ? entry : entry.message);
+        logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message);
       });
 
       mockStdout.push(
