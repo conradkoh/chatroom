@@ -13,7 +13,7 @@ function writeLocalConvexConfig(repoRoot: string, config: object, subpath = 'def
 }
 
 describe('buildProcessDefinitions', () => {
-  it('uses env-file override for local backend mode', () => {
+  it('uses the backend dev entry point for local backend mode', () => {
     const repoRoot = mkdtempSync(join(tmpdir(), 'chatroom-local-'));
     writeLocalConvexConfig(repoRoot, {
       deploymentName: 'local-conradkoh-chatroom_a8c82',
@@ -28,13 +28,8 @@ describe('buildProcessDefinitions', () => {
     });
 
     const convex = defs.find((def) => def.id === 'convex');
-    expect(convex?.args).toEqual([
-      'exec',
-      'convex',
-      'dev',
-      '--env-file',
-      join(repoRoot, 'services/backend/.convex/local-dev.env'),
-    ]);
+    expect(convex?.args).toEqual(['run', 'dev']);
+    expect(convex?.cwd).toBe(join(repoRoot, 'services/backend'));
 
     const webapp = defs.find((def) => def.id === 'webapp');
     expect(webapp?.name).toBe('Webapp (production build)');
@@ -102,7 +97,7 @@ describe('buildProcessDefinitions', () => {
     const envFile = join(repoRoot, 'services/backend/.convex/local-dev.env');
     const envContents = readFileSync(envFile, 'utf8');
     expect(envContents).toContain('CONVEX_DEPLOYMENT=local:local-from-backup');
-    expect(defs.find((def) => def.id === 'convex')?.args).toContain('--env-file');
+    expect(defs.find((def) => def.id === 'convex')?.args).toEqual(['run', 'dev']);
   });
 
   it('passes hosted convex URL through for hosted backend mode', () => {

@@ -51,14 +51,27 @@ function writeConvexLocalEnvFile(
 }
 
 function buildLocalConvexDefinition(repoRoot: string, config: RuntimeConfig, convexUrl: string) {
-  const envFilePath = writeConvexLocalEnvFile(repoRoot, config, convexUrl);
+  // Keep local startup on the backend's canonical dev entry point. This is
+  // important because it pins the local Convex backend version and applies
+  // the non-interactive retention settings without duplicating that command
+  // here.
+  writeConvexLocalEnvFile(repoRoot, config, convexUrl);
+  const deployment = localConvexDeployment(repoRoot);
   return {
     id: 'convex' as const,
     name: 'Convex (local)',
     cwd: join(repoRoot, 'services/backend'),
     command: 'pnpm',
-    args: ['exec', 'convex', 'dev', '--env-file', envFilePath],
-    env: {},
+    args: ['run', 'dev'],
+    env: {
+      CONVEX_NON_INTERACTIVE: 'true',
+      DOCUMENT_RETENTION_DELAY: '1',
+      INDEX_RETENTION_DELAY: '1',
+      RETENTION_DELETE_FREQUENCY: '10',
+      VITE_CONVEX_URL: convexUrl,
+      VITE_CONVEX_SITE_URL: `http://127.0.0.1:${localConvexSitePort(repoRoot, config.convexPort)}`,
+      ...(deployment ? { CONVEX_DEPLOYMENT: deployment } : {}),
+    },
   };
 }
 
