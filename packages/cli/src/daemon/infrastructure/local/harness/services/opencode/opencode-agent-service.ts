@@ -15,6 +15,7 @@ import { type ChildProcess } from 'node:child_process';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import { createSessionLogCallbacks } from '../session-log-callbacks.js';
 
 export type OpenCodeAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -81,19 +82,20 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
 
     // Register in process registry
     const entry = this.registerProcess(pid, context);
+    const { onLogLine, emitFormatted } = createSessionLogCallbacks();
 
     // Output tracking callbacks (for external consumers) + internal timestamp update
     const outputCallbacks: (() => void)[] = [];
     if (childProcess.stdout) {
-      childProcess.stdout.pipe(process.stdout, { end: false });
-      childProcess.stdout.on('data', () => {
+      childProcess.stdout.on('data', (chunk: Buffer) => {
+        emitFormatted(chunk.toString('utf8'), 'stdout');
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
     }
     if (childProcess.stderr) {
-      childProcess.stderr.pipe(process.stderr, { end: false });
-      childProcess.stderr.on('data', () => {
+      childProcess.stderr.on('data', (chunk: Buffer) => {
+        emitFormatted(chunk.toString('utf8'), 'stderr');
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
@@ -110,6 +112,7 @@ export class OpenCodeAgentService extends BaseCLIAgentService {
       onOutput: (cb) => {
         outputCallbacks.push(cb);
       },
+      onLogLine,
     };
   }
 }
