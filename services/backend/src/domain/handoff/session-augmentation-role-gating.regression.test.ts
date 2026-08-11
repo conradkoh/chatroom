@@ -1,8 +1,8 @@
 /**
- * Regression: session augmentation must not apply to non-builder roles.
+ * Regression: session augmentation applies only to planner and builder roles.
  *
- * Current behavior: builder always gets new_session per delegation.
- * Non-builder roles (planner, enhancer, reviewer, solo) always get none.
+ * Current behavior: planner and builder always get new_session per task delivery.
+ * Other roles (enhancer, reviewer, solo) always get none.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -40,21 +40,25 @@ Follow-up fix
 // data:agent.session_augmentation=none`;
 
 describe('regression: duo roles and builder always-new-session enforcement', () => {
-  test('planner user-task ack resolves to none (no new session)', () => {
-    expect(resolveSessionAugmentationForRole(USER_TASK_ACK, 'planner')).toBe('none');
+  test('planner user-task ack resolves to new_session', () => {
+    expect(resolveSessionAugmentationForRole(USER_TASK_ACK, 'planner')).toBe('new_session');
     expect(
       sessionAugmentationNewSessionStarted(
         resolveSessionAugmentationForRole(USER_TASK_ACK, 'planner')
       )
-    ).toBe(false);
+    ).toBe(true);
     expect(
       sessionAugmentationToWantResume(resolveSessionAugmentationForRole(USER_TASK_ACK, 'planner'))
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  test('planner builder handback resolves to none even with explicit tag', () => {
-    expect(resolveSessionAugmentationForRole(BUILDER_HANDBACK_TO_PLANNER, 'planner')).toBe('none');
-    expect(resolveSessionAugmentationForRole(PLANNER_DELEGATION_WITH_NONE, 'planner')).toBe('none');
+  test('planner handback resolves to new_session even with explicit tag', () => {
+    expect(resolveSessionAugmentationForRole(BUILDER_HANDBACK_TO_PLANNER, 'planner')).toBe(
+      'new_session'
+    );
+    expect(resolveSessionAugmentationForRole(PLANNER_DELEGATION_WITH_NONE, 'planner')).toBe(
+      'new_session'
+    );
   });
 
   test('builder delegation always resolves to new_session even with explicit none tag', () => {
@@ -80,7 +84,7 @@ describe('regression: duo roles and builder always-new-session enforcement', () 
   });
 
   test('other non-augmentable roles resolve to none', () => {
-    for (const role of ['architect', 'solo', 'reviewer']) {
+    for (const role of ['architect', 'enhancer', 'solo', 'reviewer']) {
       expect(resolveSessionAugmentationForRole(PLANNER_DELEGATION_NO_SECTION, role)).toBe('none');
     }
   });

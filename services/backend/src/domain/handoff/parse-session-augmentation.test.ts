@@ -17,14 +17,14 @@ describe('resolveSessionAugmentationForRole', () => {
     ).toBe('new_session');
   });
 
-  test('planner always returns none', () => {
-    expect(resolveSessionAugmentationForRole('## Goal\nDo work', 'planner')).toBe('none');
+  test('planner always returns new_session', () => {
+    expect(resolveSessionAugmentationForRole('## Goal\nDo work', 'planner')).toBe('new_session');
     expect(
       resolveSessionAugmentationForRole(
         '## Session Augmentation\n// data:agent.session_augmentation=new_session',
         'planner'
       )
-    ).toBe('none');
+    ).toBe('new_session');
   });
 
   test('other non-augmentable roles return none', () => {
