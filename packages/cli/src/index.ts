@@ -180,6 +180,64 @@ teamCommand
     await listTeamPresets();
   });
 
+const agentCommand = program.command('agent').description('Manage agent harness and lifecycle');
+const agentConfigCommand = agentCommand.command('config').description('Agent configuration');
+
+agentConfigCommand
+  .command('get')
+  .description('Show agent configuration for a role')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Agent role')
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+    const { getAgentConfig } = await import('./commands/agent/index.js');
+    await getAgentConfig(options.chatroomId, options.role);
+  });
+
+agentConfigCommand
+  .command('set')
+  .description('Save agent harness and model configuration')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Agent role')
+  .requiredOption('--harness <harness>', 'Agent harness')
+  .requiredOption('--model <model>', 'Model identifier')
+  .option('--working-dir <dir>', 'Agent working directory')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      harness: string;
+      model: string;
+      workingDir?: string;
+    }) => {
+      await maybeRequireAuth();
+      const { setAgentConfig } = await import('./commands/agent/index.js');
+      await setAgentConfig(options.chatroomId, options);
+    }
+  );
+
+agentCommand
+  .command('start')
+  .description('Start a configured remote agent')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Agent role')
+  .option('--harness <harness>', 'Agent harness override')
+  .option('--model <model>', 'Model identifier override')
+  .option('--working-dir <dir>', 'Agent working directory override')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      harness?: string;
+      model?: string;
+      workingDir?: string;
+    }) => {
+      await maybeRequireAuth();
+      const { startAgent } = await import('./commands/agent/index.js');
+      await startAgent(options.chatroomId, options);
+    }
+  );
+
 teamCommand
   .command('get')
   .description('Show the current team configuration')
