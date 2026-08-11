@@ -2,24 +2,18 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   formatCodexSdkError,
   formatCodexSdkLoadError,
   getBundledCodexSdkVersion,
   importBundledCodexSdk,
-  resetCodexExecutablePathCacheForTests,
   resolveCodexExecutablePath,
-  setCodexExecutablePathCacheForTests,
 } from './codex-sdk-package.js';
 
 const CLI_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..');
 const NPM_PUBLISH_ROOT = join(CLI_ROOT, '.npm-publish');
-
-afterEach(() => {
-  resetCodexExecutablePathCacheForTests();
-});
 
 describe('codex-sdk-package', () => {
   it('resolves the pinned @openai/codex-sdk version from the chatroom-cli install', () => {
@@ -50,17 +44,6 @@ describe('codex-sdk-package', () => {
     const binaryPath = resolveCodexExecutablePath(pathToFileURL(distFile).href);
     expect(binaryPath).toContain('codex-darwin-arm64');
     expect(existsSync(binaryPath)).toBe(true);
-  });
-
-  it('re-resolves when a cached Codex binary path disappears after install', () => {
-    const validPath = resolveCodexExecutablePath(import.meta.url);
-    setCodexExecutablePathCacheForTests(
-      '/tmp/chatroom-cli-stale-codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex'
-    );
-
-    const resolvedPath = resolveCodexExecutablePath(import.meta.url);
-    expect(resolvedPath).toBe(validPath);
-    expect(existsSync(resolvedPath)).toBe(true);
   });
 
   it('resolveChatroomCliRoot works from the compiled dist layout', () => {

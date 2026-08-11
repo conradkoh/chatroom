@@ -199,15 +199,8 @@ function resolveNativeCodexBinary(
   return undefined;
 }
 
-let cachedExecutablePath: string | undefined;
-
 // fallow-ignore-next-line complexity
 export function resolveCodexExecutablePath(moduleRef: string = import.meta.url): string {
-  if (cachedExecutablePath && isRegularFile(cachedExecutablePath)) {
-    return cachedExecutablePath;
-  }
-  cachedExecutablePath = undefined;
-
   const chatroomCliRoot = resolveChatroomCliRoot(moduleRef);
   const require = createRequire(join(chatroomCliRoot, 'package.json'));
 
@@ -244,24 +237,13 @@ export function resolveCodexExecutablePath(moduleRef: string = import.meta.url):
     const vendorRoot = join(dirname(platformPackageJson), 'vendor');
     const binaryPath = resolveNativeCodexBinary(vendorRoot, targetTriple, codexBinaryName);
     if (binaryPath) {
-      cachedExecutablePath = binaryPath;
-      return cachedExecutablePath;
+      return binaryPath;
     }
   }
 
   throw new CodexSdkPackageError(
     `Unable to locate Codex CLI binaries for ${targetTriple}. Ensure ${CODEX_NPM_NAME} is installed with optional dependencies. ${REINSTALL_HINT}`
   );
-}
-
-/** @internal Test-only reset for cached executable path. */
-export function resetCodexExecutablePathCacheForTests(): void {
-  cachedExecutablePath = undefined;
-}
-
-/** @internal Test-only seed for cached executable path. */
-export function setCodexExecutablePathCacheForTests(path: string | undefined): void {
-  cachedExecutablePath = path;
 }
 
 /**
