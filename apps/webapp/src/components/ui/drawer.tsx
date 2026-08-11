@@ -30,10 +30,11 @@ function Drawer({
   showSwipeHandle = false,
   snapPoints,
   swipeDirection = 'down',
+  onOpenChange,
   container,
   nested: _nested,
   repositionInputs: _repositionInputs,
-  handleOnly: _handleOnly,
+  handleOnly = false,
   ...props
 }: DrawerPrimitive.Root.Props & {
   showSwipeHandle?: boolean;
@@ -42,11 +43,19 @@ function Drawer({
   nested?: boolean;
   repositionInputs?: boolean;
   handleOnly?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const hasSnapPoints = snapPoints != null && snapPoints.length > 0;
+  const effectiveShowSwipeHandle = showSwipeHandle || handleOnly;
   const contextValue = React.useMemo(
-    () => ({ hasSnapPoints, modal, showSwipeHandle, swipeDirection, container }),
-    [hasSnapPoints, modal, showSwipeHandle, swipeDirection, container]
+    () => ({
+      hasSnapPoints,
+      modal,
+      showSwipeHandle: effectiveShowSwipeHandle,
+      swipeDirection,
+      container,
+    }),
+    [hasSnapPoints, modal, effectiveShowSwipeHandle, swipeDirection, container]
   );
 
   return (
@@ -56,6 +65,7 @@ function Drawer({
         modal={modal}
         snapPoints={snapPoints}
         swipeDirection={swipeDirection}
+        onOpenChange={onOpenChange ? (open) => onOpenChange(open) : undefined}
         {...props}
       />
     </DrawerContext.Provider>
@@ -114,7 +124,7 @@ function DrawerOverlay({ className, ...props }: DrawerPrimitive.Backdrop.Props) 
 function DrawerSwipeHandle({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
-      data-slot="drawer-swipe-handle"
+      data-slot="drawer-handle"
       aria-hidden="true"
       className={cn(
         'relative z-10 flex shrink-0 cursor-grab transition-opacity duration-200 group-data-nested-drawer-open/drawer-popup:opacity-0 group-data-nested-drawer-swiping/drawer-popup:opacity-100 group-data-[swipe-axis=x]/drawer-popup:h-full group-data-[swipe-axis=x]/drawer-popup:w-3 group-data-[swipe-axis=x]/drawer-popup:items-center group-data-[swipe-axis=y]/drawer-popup:h-3 group-data-[swipe-axis=y]/drawer-popup:w-full group-data-[swipe-axis=y]/drawer-popup:justify-center group-data-[swipe-direction=down]/drawer-popup:items-end group-data-[swipe-direction=left]/drawer-popup:order-last group-data-[swipe-direction=left]/drawer-popup:justify-start group-data-[swipe-direction=right]/drawer-popup:justify-end group-data-[swipe-direction=up]/drawer-popup:order-last group-data-[swipe-direction=up]/drawer-popup:items-start after:block after:shrink-0 after:rounded-full after:bg-muted group-data-[swipe-axis=x]/drawer-popup:after:h-[100px] group-data-[swipe-axis=x]/drawer-popup:after:w-1.5 group-data-[swipe-axis=y]/drawer-popup:after:h-1.5 group-data-[swipe-axis=y]/drawer-popup:after:w-[100px] active:cursor-grabbing',
@@ -125,7 +135,7 @@ function DrawerSwipeHandle({ className, ...props }: React.ComponentProps<'div'>)
   );
 }
 
-function DrawerContent({ className, children, ...props }: DrawerPrimitive.Popup.Props) {
+function DrawerContent({ className, children, style, ...props }: DrawerPrimitive.Popup.Props) {
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection, container } = useDrawer();
   const swipeAxis = swipeDirection === 'down' || swipeDirection === 'up' ? 'y' : 'x';
 
@@ -173,8 +183,10 @@ function DrawerContent({ className, children, ...props }: DrawerPrimitive.Popup.
           {showSwipeHandle && <DrawerSwipeHandle />}
           <DrawerPrimitive.Content
             data-slot="drawer-content"
+            style={style}
             className={cn(
-              'flex min-h-0 flex-1 flex-col overflow-hidden overscroll-contain rounded-[inherit] transition-opacity duration-300 ease-[cubic-bezier(0.45,1.005,0,1.005)] select-text group-data-nested-drawer-open/drawer-popup:opacity-0 group-data-nested-drawer-swiping/drawer-popup:opacity-100 group-data-swiping/drawer-popup:select-none'
+              'flex min-h-0 flex-1 flex-col overflow-hidden overscroll-contain rounded-[inherit] transition-opacity duration-300 ease-[cubic-bezier(0.45,1.005,0,1.005)] select-text group-data-nested-drawer-open/drawer-popup:opacity-0 group-data-nested-drawer-swiping/drawer-popup:opacity-100 group-data-swiping/drawer-popup:select-none',
+              className
             )}
           >
             {children}
