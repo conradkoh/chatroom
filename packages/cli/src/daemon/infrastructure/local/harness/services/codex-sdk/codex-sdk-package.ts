@@ -219,7 +219,14 @@ export function formatCodexSdkError(err: unknown): string {
 // fallow-ignore-next-line complexity
 export function formatCodexSdkLoadError(err: unknown): string {
   if (err instanceof CodexSdkPackageError) {
-    return err.message;
+    const message = err.message;
+    if (
+      (message.includes('Codex CLI') || message.includes('optional dependencies')) &&
+      !message.includes(REINSTALL_HINT)
+    ) {
+      return `${message} ${REINSTALL_HINT}`;
+    }
+    return message;
   }
 
   const message = err instanceof Error ? err.message : String(err);
