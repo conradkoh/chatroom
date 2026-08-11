@@ -157,7 +157,13 @@ describe('HARNESS_MODEL_CATALOG', () => {
 
   test('codex catalog contains plain ids and every reasoning level per model', () => {
     const codex = HARNESS_MODEL_CATALOG['codex-sdk'];
-    for (const base of ['gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.4-mini']) {
+    for (const base of [
+      'gpt-5.6-terra',
+      'gpt-5.6-luna',
+      'gpt-5.6-sol',
+      'gpt-5.5',
+      'gpt-5.4-mini',
+    ]) {
       expect(codex).toContain(base);
       for (const level of ['none', 'low', 'medium', 'high', 'xhigh']) {
         expect(codex).toContain(`${base}[reasoning=${level}]`);
