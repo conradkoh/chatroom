@@ -88,15 +88,16 @@ describe('CodexSdkStreamAdapter', () => {
     expect(lines).toContain('[codex-sdk:builder tool] github/create_issue {"title":"x"}');
   });
 
-  it('marks a turn as failed on turn.failed and logs the error', () => {
+  it('marks provider capacity failures with a structured agent-end reason', () => {
     const { adapter } = createAdapter();
 
     adapter.handleEvent({
       type: 'turn.failed',
-      error: { message: 'model rejected request' },
+      error: { message: 'Selected model is at capacity' },
     } as unknown as ThreadEvent);
 
-    expect(getLines()).toContain('[codex-sdk:builder run-error] model rejected request');
+    expect(getLines()).toContain('[codex-sdk:builder agent_end] reason: provider_model_capacity');
+    expect(getLines()).toContain('[codex-sdk:builder run-error] Selected model is at capacity');
   });
 
   it('marks a turn as failed on fatal stream error events', () => {

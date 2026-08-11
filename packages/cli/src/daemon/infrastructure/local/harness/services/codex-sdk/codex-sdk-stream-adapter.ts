@@ -14,6 +14,10 @@ import type {
 } from '@openai/codex-sdk';
 
 import {
+  classifyProviderErrorMessage,
+  providerUnavailableAgentEndReason,
+} from '../../../../../domain/usecase/classify-provider-error.js';
+import {
   BASH_TOOL_KIND,
   formatAgentLogLine,
   formatBashRunningPayload,
@@ -43,11 +47,13 @@ export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
         break;
       case 'turn.failed':
         this.flushText();
+        this.writeProviderUnavailableMarker(event.error.message);
         this.writeLine(formatAgentLogLine(this.logPrefix, 'run-error', event.error.message));
         break;
       case 'error':
         // Fatal stream error.
         this.flushText();
+        this.writeProviderUnavailableMarker(event.message);
         this.writeLine(formatAgentLogLine(this.logPrefix, 'run-error', event.message));
         break;
       case 'thread.started':
@@ -181,6 +187,18 @@ export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
     this.flushText();
     this.writeLine(formatAgentLogLine(this.logPrefix, 'agent_end'));
     for (const cb of this.agentEndCallbacks) cb();
+  }
+
+  private writeProviderUnavailableMarker(message: string): void {
+    const classification = classifyProviderErrorMessage(message);
+    if (!classification) return;
+    this.writeLine(
+      formatAgentLogLine(
+        this.logPrefix,
+        'agent_end',
+        `reason: ${providerUnavailableAgentEndReason(classification.reason)}`
+      )
+    );
   }
 
   protected override writeLine(formatted: string): void {
