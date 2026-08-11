@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -121,6 +121,59 @@ function isRegularFile(filePath: string): boolean {
   }
 }
 
+function addPlatformPackageJsonCandidate(
+  candidates: string[],
+  candidate: string | undefined
+): void {
+  if (candidate && existsSync(candidate) && !candidates.includes(candidate)) {
+    candidates.push(candidate);
+  }
+}
+
+function resolvePlatformPackageJsonCandidates(
+  platformPkg: string,
+  chatroomCliRoot: string,
+  codexPackageJson: string,
+  chatroomRequire: NodeRequire,
+  codexRequire: NodeRequire
+): string[] {
+  const candidates: string[] = [];
+  const codexPackageDir = realpathSync(dirname(codexPackageJson));
+  const platformPkgBaseName = platformPkg.includes('/')
+    ? platformPkg.slice(platformPkg.indexOf('/') + 1)
+    : platformPkg;
+
+  try {
+    addPlatformPackageJsonCandidate(
+      candidates,
+      codexRequire.resolve(`${platformPkg}/package.json`)
+    );
+  } catch {
+    // Optional platform packages may only be linked from the CLI install root.
+  }
+  try {
+    addPlatformPackageJsonCandidate(
+      candidates,
+      chatroomRequire.resolve(`${platformPkg}/package.json`, { paths: [chatroomCliRoot] })
+    );
+  } catch {
+    // npm flat installs usually resolve from the @openai/codex package context.
+  }
+
+  // Filesystem fallbacks avoid stale require.resolve results after switching between
+  // npm registry global installs and workspace `npm install -g .` layouts.
+  addPlatformPackageJsonCandidate(
+    candidates,
+    join(codexPackageDir, '..', platformPkgBaseName, 'package.json')
+  );
+  addPlatformPackageJsonCandidate(
+    candidates,
+    join(codexPackageDir, 'node_modules', platformPkg, 'package.json')
+  );
+
+  return candidates;
+}
+
 /**
  * Locate the native Codex CLI binary under a platform package vendor tree.
  *
@@ -146,12 +199,8 @@ function resolveNativeCodexBinary(
   return undefined;
 }
 
-let cachedExecutablePath: string | undefined;
-
 // fallow-ignore-next-line complexity
 export function resolveCodexExecutablePath(moduleRef: string = import.meta.url): string {
-  if (cachedExecutablePath) return cachedExecutablePath;
-
   const chatroomCliRoot = resolveChatroomCliRoot(moduleRef);
   const require = createRequire(join(chatroomCliRoot, 'package.json'));
 
@@ -170,23 +219,13 @@ export function resolveCodexExecutablePath(moduleRef: string = import.meta.url):
   const platformPkg = resolvePlatformPackageName(targetTriple);
   const codexBinaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
   const codexRequire = createRequire(codexPackageJson);
-
-  const platformPackageJsonCandidates: string[] = [];
-  try {
-    platformPackageJsonCandidates.push(codexRequire.resolve(`${platformPkg}/package.json`));
-  } catch {
-    // Optional platform packages may only be linked from the CLI install root.
-  }
-  try {
-    const fromCliRoot = require.resolve(`${platformPkg}/package.json`, {
-      paths: [chatroomCliRoot],
-    });
-    if (!platformPackageJsonCandidates.includes(fromCliRoot)) {
-      platformPackageJsonCandidates.push(fromCliRoot);
-    }
-  } catch {
-    // npm flat installs usually resolve from the @openai/codex package context.
-  }
+  const platformPackageJsonCandidates = resolvePlatformPackageJsonCandidates(
+    platformPkg,
+    chatroomCliRoot,
+    codexPackageJson,
+    require,
+    codexRequire
+  );
 
   if (platformPackageJsonCandidates.length === 0) {
     throw new CodexSdkPackageError(
@@ -198,19 +237,13 @@ export function resolveCodexExecutablePath(moduleRef: string = import.meta.url):
     const vendorRoot = join(dirname(platformPackageJson), 'vendor');
     const binaryPath = resolveNativeCodexBinary(vendorRoot, targetTriple, codexBinaryName);
     if (binaryPath) {
-      cachedExecutablePath = binaryPath;
-      return cachedExecutablePath;
+      return binaryPath;
     }
   }
 
   throw new CodexSdkPackageError(
     `Unable to locate Codex CLI binaries for ${targetTriple}. Ensure ${CODEX_NPM_NAME} is installed with optional dependencies. ${REINSTALL_HINT}`
   );
-}
-
-/** @internal Test-only reset for cached executable path. */
-export function resetCodexExecutablePathCacheForTests(): void {
-  cachedExecutablePath = undefined;
 }
 
 /**

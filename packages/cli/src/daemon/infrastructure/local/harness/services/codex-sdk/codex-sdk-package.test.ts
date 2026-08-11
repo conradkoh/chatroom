@@ -2,23 +2,18 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   formatCodexSdkError,
   formatCodexSdkLoadError,
   getBundledCodexSdkVersion,
   importBundledCodexSdk,
-  resetCodexExecutablePathCacheForTests,
   resolveCodexExecutablePath,
 } from './codex-sdk-package.js';
 
 const CLI_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..');
 const NPM_PUBLISH_ROOT = join(CLI_ROOT, '.npm-publish');
-
-afterEach(() => {
-  resetCodexExecutablePathCacheForTests();
-});
 
 describe('codex-sdk-package', () => {
   it('resolves the pinned @openai/codex-sdk version from the chatroom-cli install', () => {
