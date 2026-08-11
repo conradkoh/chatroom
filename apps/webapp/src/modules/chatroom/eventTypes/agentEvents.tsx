@@ -13,6 +13,7 @@ import type {
   AgentRegisteredEvent,
   AgentWaitingEvent,
   AgentStartFailedEvent,
+  AgentProviderUnavailableEvent,
   AgentRestartEvent,
   AgentRestartCompletedEvent,
   AgentRestartPhaseEvent,
@@ -364,6 +365,48 @@ function renderAgentStartFailedDetails(event: AgentStartFailedEvent): React.Reac
       <DetailRow label="Role" value={event.role} />
       <MachineDetailRow machineId={event.machineId} />
       <DetailRow label="Error" value={event.error} />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent Provider Unavailable ───────────────────────────────────────────────
+
+function renderAgentProviderUnavailableCell(
+  event: AgentProviderUnavailableEvent,
+  isSelected: boolean
+): React.ReactNode {
+  const truncatedMessage =
+    event.message.length > 60 ? `${event.message.substring(0, 57)}...` : event.message;
+  return (
+    <EventRow
+      type="agent.providerUnavailable"
+      badgeText="Provider Unavailable"
+      badgeColor="warning"
+      primaryInfo={event.role}
+      secondaryInfo={`${event.reason} · ${truncatedMessage}`}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentProviderUnavailableDetails(
+  event: AgentProviderUnavailableEvent
+): React.ReactNode {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Provider Unavailable"
+      timestamp={event.timestamp}
+      type="agent.providerUnavailable"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <MachineDetailRow machineId={event.machineId} />
+      <DetailRow label="Reason" value={event.reason} />
+      <DetailRow label="Model" value={event.model} mono />
+      <DetailRow label="Message" value={event.message} />
+      <DetailRow label="Recoverable" value={event.recoverable ? 'Yes' : 'No'} />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
   );
@@ -1086,6 +1129,7 @@ export const agentEventDefinitions: Pick<
   | 'agent.registered'
   | 'agent.waiting'
   | 'agent.startFailed'
+  | 'agent.providerUnavailable'
   | 'agent.restart'
   | 'agent.restartCompleted'
   | 'agent.restartPhase'
@@ -1136,6 +1180,10 @@ export const agentEventDefinitions: Pick<
   'agent.startFailed': {
     cellRenderer: renderAgentStartFailedCell,
     detailsRenderer: renderAgentStartFailedDetails,
+  },
+  'agent.providerUnavailable': {
+    cellRenderer: renderAgentProviderUnavailableCell,
+    detailsRenderer: renderAgentProviderUnavailableDetails,
   },
   'agent.restart': {
     cellRenderer: renderAgentRestartCell,

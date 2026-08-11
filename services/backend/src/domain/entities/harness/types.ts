@@ -10,6 +10,7 @@
 import type { AgentHarness } from '../agent';
 import { claudeSdkCapabilities } from './claude-sdk.config';
 import { claudeCapabilities } from './claude.config';
+import { codexSdkCapabilities } from './codex-sdk.config';
 import { commandcodeCapabilities } from './commandcode.config';
 import { copilotCapabilities } from './copilot.config';
 import { cursorSdkCapabilities } from './cursor-sdk.config';
@@ -24,9 +25,7 @@ export type HarnessRuntimeKind = 'cli' | 'sdk';
 
 /** Canonical lifecycle events at the harness ↔ daemon boundary. */
 export type HarnessLifecycleEventKind =
-  | 'lifecycle.turn.completed'
-  | 'lifecycle.output.activity'
-  | 'lifecycle.process.exited';
+  'lifecycle.turn.completed' | 'lifecycle.output.activity' | 'lifecycle.process.exited';
 
 /**
  * Wire/protocol events before adaptation to lifecycle events.
@@ -45,7 +44,8 @@ export type HarnessWireEventKind =
   | 'sdk.opencode.session.idle'
   | 'sdk.opencode.session.event'
   | 'sdk.pi.session.event'
-  | 'sdk.claude.message';
+  | 'sdk.claude.message'
+  | 'sdk.codex.event';
 
 /** Which lifecycle callbacks a harness implements on `SpawnResult`. */
 export interface HarnessLifecycleCapabilities {
@@ -79,6 +79,7 @@ export interface HarnessCapabilities {
 const HARNESS_CAPABILITIES: Record<AgentHarness, HarnessCapabilities> = {
   claude: claudeCapabilities,
   'claude-sdk': claudeSdkCapabilities,
+  'codex-sdk': codexSdkCapabilities,
   commandcode: commandcodeCapabilities,
   copilot: copilotCapabilities,
   cursor: cursorCapabilities,

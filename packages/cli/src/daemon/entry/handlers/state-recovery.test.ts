@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { recoverAgentStateEffect } from './state-recovery.js';
 import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
+import type { ConvexClient } from '../daemon-types.js';
 import { DaemonEventBus } from '../events/event-bus.js';
 
 // ---------------------------------------------------------------------------
@@ -35,7 +36,7 @@ function makeSessionLayer(overrides?: {
     sessionId: overrides?.sessionId ?? 'test-session-id',
     machineId: overrides?.machineId ?? 'test-machine-id',
     convexUrl: 'http://test:3210',
-    client: {},
+    client: {} as ConvexClient,
     config: null,
     backend: {
       query: overrides?.backendQuery ?? defaultQuery,

@@ -124,7 +124,9 @@ describe('getHandoffReportTemplateBody', () => {
 
     // Workflow comment with anchor command.
     expect(proofs).toContain('messages anchor');
-    expect(proofs).toContain('messages download --since-message-id=<id>');
+    expect(proofs).toContain(
+      'messages download --chatroom-id="<chatroom-id>" --role="<role>" --since-message-id="<from-anchor>" --limit=100'
+    );
 
     // Terse follow-up guidance present.
     expect(proofs).toMatch(/terse/i);

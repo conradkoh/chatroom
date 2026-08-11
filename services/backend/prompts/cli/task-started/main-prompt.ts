@@ -5,6 +5,7 @@
 import { getContextRuleBlock } from '../../base/shared/context-rule';
 import { getTokenActivityInProgressNote } from '../../base/shared/token-activity-note';
 import { contextNewCommand, contextNewHint } from '../context/new';
+import { contextReadCommand } from '../context/read';
 
 /**
  * Generate the main CLI prompt for task-started command (entry point roles)
@@ -23,12 +24,13 @@ export function getTaskStartedPrompt(ctx: {
     cliEnvPrefix,
     triggerMessageId,
   });
+  const contextReadCmd = contextReadCommand({ chatroomId, role, cliEnvPrefix });
 
   return `### Start working
 
 ${getTokenActivityInProgressNote()}
 
-${getContextRuleBlock(contextNewCmd, contextNewHint({ cliEnvPrefix }))}`;
+${getContextRuleBlock(contextReadCmd, contextNewCmd, contextNewHint({ cliEnvPrefix }))}`;
 }
 
 /**

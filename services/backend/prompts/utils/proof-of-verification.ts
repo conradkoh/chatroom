@@ -49,12 +49,17 @@ const PROOF_OF_VERIFICATION_CHECKBOX =
 /** HTML comment with the entry-point proof-of-completion workflow commands. */
 function getProofOfVerificationComment(params: ProofOfVerificationParams = {}): string {
   const anchorCmd = messagesAnchorCommand(params);
+  const downloadCmd = messagesDownloadSinceCommand({
+    ...params,
+    sinceMessageId: '<from-anchor>',
+    limit: 100,
+  });
   return `<!-- Entry-point proof-of-completion workflow — run before filling this section:
 1. \`${anchorCmd}\` — locate the user's last message (and prior user messages for context)
-2. \`messages download --since-message-id=<id>\` — download grep-friendly history since anchor; read handoffs and goals
+2. \`${downloadCmd}\` — download grep-friendly history since anchor; read handoffs and goals
 3. If the user's last message was terse (e.g. "do it", "raise a PR"), review prior user messages from anchor output and widen --limit before validating
 4. Validate commits/PRs against ALL requirements — not just the last slice. Incomplete → rework; do NOT hand off to user.
-Then: ${anchorCmd} → messages download --since-message-id=<id> from anchor output -->`;
+Then: \`${anchorCmd}\` → \`${downloadCmd}\` (use the message ID from anchor output as --since-message-id) -->`;
 }
 
 /**

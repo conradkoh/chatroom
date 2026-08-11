@@ -28,6 +28,7 @@ export const SUPPORTED_EVENT_TYPES = {
   'agent.registered': { label: 'Agent Registered', badge: 'success' },
   'agent.waiting': { label: 'Agent Waiting', badge: 'success' },
   'agent.startFailed': { label: 'Agent Start Failed', badge: 'error' },
+  'agent.providerUnavailable': { label: 'Provider Unavailable', badge: 'warning' },
   'agent.sessionResumeRequested': { label: 'Session Reconnect Requested', badge: 'info' },
   'agent.sessionResumed': { label: 'Session Reconnected', badge: 'success' },
   'agent.sessionResumeFailed': { label: 'Session Reconnect Failed', badge: 'warning' },

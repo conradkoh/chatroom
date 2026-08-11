@@ -1,6 +1,7 @@
 import { installDaemonFatalErrorGuard } from '../fatal-error-guard.js';
 import { ClaudeCodeAgentService } from './services/claude/index.js';
 import { ClaudeSdkAgentService } from './services/claude-sdk/index.js';
+import { CodexSdkAgentService } from './services/codex-sdk/index.js';
 import { CommandCodeAgentService } from './services/commandcode/index.js';
 import { CopilotAgentService } from './services/copilot/index.js';
 import { CursorAgentService } from './services/cursor/index.js';
@@ -25,6 +26,7 @@ export function initHarnessRegistry(): void {
   registerHarness(new CursorSdkAgentService());
   registerHarness(new ClaudeCodeAgentService());
   registerHarness(new ClaudeSdkAgentService());
+  registerHarness(new CodexSdkAgentService());
   registerHarness(new CommandCodeAgentService());
   registerHarness(new CopilotAgentService());
   initialized = true;

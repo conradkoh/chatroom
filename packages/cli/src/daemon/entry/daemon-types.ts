@@ -6,6 +6,8 @@ import type {
   AgentStartReason,
   AgentStopReason,
 } from '@workspace/backend/src/domain/entities/agent';
+import type { ConvexHttpClient } from 'convex/browser';
+import type { SessionId as ConvexSessionId } from 'convex-helpers/server/sessions';
 
 import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
 import type { DaemonEventBus } from './events/event-bus.js';
@@ -16,13 +18,20 @@ import type { RemoteAgentService } from '../infrastructure/local/harness/service
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
 /**
- * Named type alias for the session ID passed to Convex mutations/queries.
- * The Convex SessionIdArg expects a specific branded type, but our sessionId
- * is a plain string from local storage. This alias documents intent and
- * avoids bare `any` in every function signature.
+ * Session ID passed to Convex mutations/queries. A plain string from local
+ * storage (the backend validates it as `v.string()`).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type SessionId = any;
+export type SessionId = string;
+
+/**
+ * Cast the daemon's plain-string session id to convex-helpers' branded type
+ * at the api boundary. The backend validates session ids as plain strings, so
+ * this downcast is runtime-safe; it exists only to satisfy the branded type
+ * that `SessionIdArg`-based function args carry.
+ */
+export function asConvexSessionId(sessionId: SessionId): ConvexSessionId {
+  return sessionId as ConvexSessionId;
+}
 
 export type { MachineConfig, AgentHarness };
 
@@ -87,9 +96,8 @@ export interface WorkspaceForSync {
   workingDir: string;
 }
 
-/** Convex client type used throughout the daemon. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ConvexClient = any;
+/** Convex client type used throughout the daemon (an HTTP client). */
+export type ConvexClient = ConvexHttpClient;
 
 // ─── Daemon Session Init (W10 — flat bootstrap shape) ───────────────────────
 

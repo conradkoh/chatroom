@@ -2,7 +2,7 @@ import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
 import { DaemonAgentProcessManagerService, DaemonSessionService } from './daemon-services.js';
-import type { DaemonSessionInit } from './daemon-types.js';
+import type { DaemonSessionInit, ConvexClient } from './daemon-types.js';
 import type { Id } from '../../api.js';
 import { registerEventListenersEffect } from './events/register-listeners.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
@@ -43,7 +43,7 @@ function registerListeners(
         sessionId: 'test',
         machineId: 'test',
         convexUrl: 'http://test:3210',
-        client: {},
+        client: {} as ConvexClient,
         config: null,
         backend: {} as any,
         fs: {} as any,

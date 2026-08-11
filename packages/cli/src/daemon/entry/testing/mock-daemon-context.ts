@@ -8,7 +8,7 @@
  */
 
 import { createMockDaemonDeps } from './mock-daemon-deps.js';
-import type { DaemonSessionInit } from '../daemon-types.js';
+import type { DaemonSessionInit, ConvexClient } from '../daemon-types.js';
 import { DaemonEventBus } from '../events/event-bus.js';
 
 /**
@@ -19,7 +19,7 @@ export function createMockDaemonSessionInit(
 ): DaemonSessionInit {
   const deps = createMockDaemonDeps();
   return {
-    client: {},
+    client: {} as ConvexClient,
     sessionId: 'test-session-id',
     machineId: 'test-machine-id',
     convexUrl: 'http://test:3210',

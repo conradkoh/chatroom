@@ -127,6 +127,18 @@ export type AgentStartFailedEvent = {
   timestamp: number;
 };
 
+export type AgentProviderUnavailableEvent = {
+  type: 'agent.providerUnavailable';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  reason: 'model_capacity' | 'rate_limit' | 'quota';
+  model: string;
+  message: string;
+  recoverable: boolean;
+  timestamp: number;
+};
+
 export type AgentSessionResumeRequestedEvent = {
   type: 'agent.sessionResumeRequested';
   chatroomId: Id<'chatroom_rooms'>;
@@ -337,6 +349,7 @@ export type ChatroomEvent =
   | DaemonPongEvent
   | SkillActivatedEvent
   | AgentStartFailedEvent
+  | AgentProviderUnavailableEvent
   | AgentSessionResumeRequestedEvent
   | AgentSessionResumedEvent
   | AgentSessionResumeFailedEvent

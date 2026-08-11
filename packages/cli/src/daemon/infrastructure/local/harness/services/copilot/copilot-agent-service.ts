@@ -50,24 +50,10 @@ export class CopilotAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    // GitHub Copilot CLI uses models configured via GitHub settings
-    // and doesn't expose a models list command.
-    // Return known supported models from the CLI.
-    return [
-      // Anthropic Claude models
-      'claude-3-5-sonnet-20241022',
-      'claude-3-5-haiku-20241022',
-      'claude-haiku-4.5',
-      'claude-sonnet-4-6',
-      'claude-opus-4-6',
-      // OpenAI models
-      'gpt-4o',
-      'gpt-4o-mini',
-      'gpt-4-turbo',
-      // Google models
-      'gemini-3-pro-preview',
-      'gemini-2-5-flash',
-    ];
+    // Model list moved to the server catalog (api.harnesses.copilot.listModels) —
+    // GitHub controls this set server-side, so it is no longer hard-coded here.
+    // The daemon overlays the catalog onto discovery at boot / manual refresh.
+    return [];
   }
 
   /**
