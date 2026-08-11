@@ -2,8 +2,33 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { findActiveEnhancerJob } from './jobHelpers';
+import type { Doc, Id } from '../../_generated/dataModel';
 import { query } from '../../_generated/server';
+import type { QueryCtx } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
+
+async function getAuthorizedEnhancerJob(
+  ctx: QueryCtx,
+  sessionId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  jobId: Id<'chatroom_enhancerJobs'>
+): Promise<Doc<'chatroom_enhancerJobs'> | null> {
+  await requireChatroomAccess(ctx, sessionId, chatroomId);
+  const job = await ctx.db.get('chatroom_enhancerJobs', jobId);
+  return job && job.chatroomId === chatroomId ? job : null;
+}
+
+function toEnhancerJobState(job: Doc<'chatroom_enhancerJobs'>) {
+  return {
+    status: job.status,
+    attemptCount: job.attemptCount,
+    maxAttempts: job.maxAttempts,
+    lastError: job.lastError,
+    runningSince: job.runningSince,
+    nextRetryAt: job.nextRetryAt,
+    completedAt: job.completedAt,
+  };
+}
 
 export const getActiveJob = query({
   args: {
@@ -57,19 +82,32 @@ export const getJob = query({
     jobId: v.id('chatroom_enhancerJobs'),
   },
   handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const job = await ctx.db.get('chatroom_enhancerJobs', args.jobId);
-    if (!job || job.chatroomId !== args.chatroomId) return null;
+    const job = await getAuthorizedEnhancerJob(ctx, args.sessionId, args.chatroomId, args.jobId);
+    if (!job) return null;
     return {
-      status: job.status,
-      attemptCount: job.attemptCount,
-      maxAttempts: job.maxAttempts,
-      lastError: job.lastError,
-      runningSince: job.runningSince,
-      nextRetryAt: job.nextRetryAt,
-      completedAt: job.completedAt,
+      ...toEnhancerJobState(job),
       draftContent: job.draftContent,
       enhancedContent: job.enhancedContent,
     };
+  },
+});
+
+/**
+ * Reactive lifecycle state for the daemon waiting on a single enhancer job.
+ *
+ * Keep this response separate from getJob: the daemon only needs lifecycle
+ * state, while getJob also exposes the potentially large content fields.
+ */
+// fallow-ignore-next-line code-duplication
+export const getJobOutcome = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    jobId: v.id('chatroom_enhancerJobs'),
+  },
+  handler: async (ctx, args) => {
+    const job = await getAuthorizedEnhancerJob(ctx, args.sessionId, args.chatroomId, args.jobId);
+    if (!job) return null;
+    return toEnhancerJobState(job);
   },
 });
