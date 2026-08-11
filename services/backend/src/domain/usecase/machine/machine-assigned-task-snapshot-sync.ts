@@ -2,6 +2,7 @@
  * Write-time projection sync for machine assigned-task snapshots.
  */
 
+import type { AssignedTaskPresenceDelta } from './assigned-task-monitor-contract';
 import {
   getParticipantForChatroomRole,
   loadRemoteAgentConfigsForMachine,
@@ -12,7 +13,7 @@ import {
   buildAssignedTaskRevisionKey,
   primaryAssignedTaskSignalType,
 } from './assigned-tasks-revision';
-import type { AssignedTaskPresenceSignal, AssignedTaskSignal } from './assigned-tasks-types';
+import type { AssignedTaskSignal } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import { getTeamEntryPoint } from '../../entities/team';
@@ -83,16 +84,8 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
   };
 }
 
-export function snapshotDocToPresenceSignal(doc: SnapshotDoc): AssignedTaskPresenceSignal {
-  return {
-    taskId: doc.taskId,
-    chatroomId: doc.chatroomId,
-    role: doc.role,
-    lastSeenAt: doc.lastSeenAt ?? null,
-    lastSeenAction: doc.lastSeenAction ?? null,
-    presenceUpdatedAt: doc.presenceUpdatedAt,
-    presenceKey: doc.presenceKey,
-  };
+export function snapshotDocToPresenceDelta(doc: SnapshotDoc): AssignedTaskPresenceDelta {
+  return { taskId: doc.taskId, role: doc.role, presenceKey: doc.presenceKey };
 }
 
 interface SnapshotRowInput {
@@ -292,6 +285,57 @@ export async function projectAssignedTaskSnapshotsForChatroom(
   }
 }
 
+function snapshotParticipantFields(doc: Doc<'chatroom_machineAssignedTaskSnapshots'>) {
+  return {
+    lastSeenAt: doc.lastSeenAt ?? undefined,
+    lastSeenAction: doc.lastSeenAction ?? undefined,
+    lastStatus: doc.lastStatus ?? undefined,
+  };
+}
+
+// fallow-ignore-next-line complexity
+function participantFieldsFromDoc(
+  participant: Doc<'chatroom_participants'> | null
+): ReturnType<typeof snapshotParticipantFields> {
+  return {
+    lastSeenAt: participant?.lastSeenAt ?? undefined,
+    lastSeenAction: participant?.lastSeenAction ?? undefined,
+    lastStatus: participant?.lastStatus ?? undefined,
+  };
+}
+
+function participantFieldsEqual(
+  row: Doc<'chatroom_machineAssignedTaskSnapshots'>,
+  participant: Doc<'chatroom_participants'> | null
+): boolean {
+  const a = snapshotParticipantFields(row);
+  const b = participantFieldsFromDoc(participant);
+  return (
+    a.lastSeenAt === b.lastSeenAt &&
+    a.lastSeenAction === b.lastSeenAction &&
+    a.lastStatus === b.lastStatus
+  );
+}
+
+/** Pick one row per heartbeat for presenceKey bump (daemon only needs one trigger). */
+// fallow-ignore-next-line complexity
+function pickPresenceCanonicalRow(
+  rows: Doc<'chatroom_machineAssignedTaskSnapshots'>[],
+  participant: Doc<'chatroom_participants'> | null
+): Doc<'chatroom_machineAssignedTaskSnapshots'> | undefined {
+  if (rows.length === 0) return undefined;
+  const inFlightId = participant?.lastInFlightTaskId;
+  if (inFlightId) {
+    const match = rows.find((r) => r.taskId === inFlightId);
+    if (match) return match;
+  }
+  for (const status of ['in_progress', 'acknowledged', 'pending'] as const) {
+    const match = rows.find((r) => r.taskStatus === status);
+    if (match) return match;
+  }
+  return rows[0];
+}
+
 /** After task status leaves active set, drop snapshot rows. */
 export async function projectAssignedTaskSnapshotsAfterTaskChange(
   ctx: MutationCtx,
@@ -315,28 +359,40 @@ async function patchSnapshotRowPresence(
   row: Doc<'chatroom_machineAssignedTaskSnapshots'>,
   participant: Doc<'chatroom_participants'> | null,
   now: number,
-  bumpSignal: boolean
+  bumpSignal: boolean,
+  bumpPresenceKey: boolean
 ): Promise<void> {
+  if (!bumpSignal && participantFieldsEqual(row, participant)) {
+    return;
+  }
+
+  const fields = participantFieldsFromDoc(participant);
   const revisionKey = buildAssignedTaskRevisionKey({
     taskUpdatedAt: row.taskUpdatedAt,
     configUpdatedAt: row.configUpdatedAt,
-    lastSeenAction: participant?.lastSeenAction ?? '',
-    lastStatus: participant?.lastStatus ?? '',
+    lastSeenAction: fields.lastSeenAction ?? '',
+    lastStatus: fields.lastStatus ?? '',
     taskId: row.taskId,
     role: row.role,
   });
-  const presenceKey = buildAssignedTaskPresenceKey({
-    presenceUpdatedAt: now,
-    taskId: row.taskId,
-    role: row.role,
-  });
+
+  const presencePatch = bumpPresenceKey
+    ? {
+        presenceUpdatedAt: now,
+        presenceKey: buildAssignedTaskPresenceKey({
+          presenceUpdatedAt: now,
+          taskId: row.taskId,
+          role: row.role,
+        }),
+      }
+    : {};
+
   const patch = {
-    lastSeenAt: participant?.lastSeenAt ?? undefined,
-    lastSeenAction: participant?.lastSeenAction ?? undefined,
-    lastStatus: participant?.lastStatus ?? undefined,
-    presenceUpdatedAt: now,
-    presenceKey,
+    lastSeenAt: fields.lastSeenAt,
+    lastSeenAction: fields.lastSeenAction,
+    lastStatus: fields.lastStatus,
     revisionKey,
+    ...presencePatch,
   };
 
   if (revisionKey !== row.revisionKey || bumpSignal) {
@@ -351,6 +407,7 @@ async function patchSnapshotRowPresence(
 }
 
 /** Patch presence fields on snapshot rows for a participant check-in. */
+// fallow-ignore-next-line complexity
 export async function syncParticipantPresenceOnSnapshots(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
@@ -366,8 +423,11 @@ export async function syncParticipantPresenceOnSnapshots(
 
   const now = Date.now();
   const bumpSignal = options?.actionChanged ?? false;
+  const canonical = pickPresenceCanonicalRow(rows, participant);
+
   for (const row of rows) {
-    await patchSnapshotRowPresence(ctx, row, participant, now, bumpSignal);
+    const bumpPresenceKey = canonical !== undefined && row._id === canonical._id;
+    await patchSnapshotRowPresence(ctx, row, participant, now, bumpSignal, bumpPresenceKey);
   }
 }
 

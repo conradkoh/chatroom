@@ -33,12 +33,8 @@ function makeSignalItem() {
 function makePresenceItem() {
   return {
     taskId: TASK_ID,
-    chatroomId: CHATROOM_ID,
     role: 'builder',
-    lastSeenAt: 1_000,
-    lastSeenAction: 'native.waiting',
-    presenceUpdatedAt: 1_000,
-    presenceKey: 'presence-1',
+    presenceKey: '000000000001000:nh7dh7bj63fdns9zkyasjgnga58afx3s:builder',
   };
 }
 
@@ -100,7 +96,7 @@ describe('assigned-task v2 subscribers', () => {
 
     emitUpdate({
       items: [makePresenceItem()],
-      highPresenceKey: 'presence-1',
+      highPresenceKey: makePresenceItem().presenceKey,
       highPresenceAt: 1_000,
       hasMore: false,
     });

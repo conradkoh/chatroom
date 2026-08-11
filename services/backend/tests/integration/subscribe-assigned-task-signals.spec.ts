@@ -481,11 +481,73 @@ describe('machines.subscribeAssignedTaskPresenceSince', () => {
     });
 
     expect(page.items.length).toBeGreaterThanOrEqual(1);
-    expect(page.items[0]?.lastSeenAt).toBeTruthy();
+    expect(page.items[0]).toMatchObject({
+      role: 'builder',
+      presenceKey: expect.any(String),
+    });
+    expect(page.items[0]).not.toHaveProperty('lastSeenAt');
+    expect(page.items[0]).not.toHaveProperty('chatroomId');
     expect(page.highPresenceKey).toBeTruthy();
   });
 
-  test('paginates presence rows that share the same timestamp', async () => {
+  test('one heartbeat with multiple tasks emits one presence delta', async () => {
+    const { sessionId } = await createTestSession('test-presence-fanout-1');
+    const machineId = 'machine-presence-fanout-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        content: '## Goal\nPresence fanout 1',
+        createdBy: 'user',
+        status: 'pending',
+        assignedTo: 'builder',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 1,
+      });
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        content: '## Goal\nPresence fanout 2',
+        createdBy: 'user',
+        status: 'pending',
+        assignedTo: 'builder',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 2,
+      });
+    });
+    await syncMachineSnapshots(sessionId, machineId);
+
+    const baseline = await t.query(api.machines.subscribeAssignedTaskPresenceSince, {
+      sessionId,
+      machineId,
+      afterPresenceAt: 0,
+      limit: 10,
+    });
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'get-next-task:started',
+    });
+
+    const page = await t.query(api.machines.subscribeAssignedTaskPresenceSince, {
+      sessionId,
+      machineId,
+      afterPresenceKey: baseline.highPresenceKey ?? undefined,
+      limit: 10,
+    });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.hasMore).toBe(false);
+  });
+
+  test('paginates presence across separate heartbeats', async () => {
     const { sessionId } = await createTestSession('test-presence-same-timestamp-1');
     const machineId = 'machine-presence-same-timestamp-1';
     await registerMachineWithDaemon(sessionId, machineId);
@@ -531,8 +593,27 @@ describe('machines.subscribeAssignedTaskPresenceSince', () => {
       limit: 1,
     });
     expect(first.items).toHaveLength(1);
-    expect(first.hasMore).toBe(true);
     expect(first.highPresenceKey).toBeTruthy();
+
+    await t.run(async (ctx) => {
+      const participant = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      if (!participant) throw new Error('participant not found');
+      await ctx.db.patch('chatroom_participants', participant._id, {
+        lastSeenAt: Date.now() - 60_000,
+      });
+    });
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'get-next-task:started',
+    });
 
     const second = await t.query(api.machines.subscribeAssignedTaskPresenceSince, {
       sessionId,
@@ -542,7 +623,53 @@ describe('machines.subscribeAssignedTaskPresenceSince', () => {
     });
 
     expect(second.items.length).toBeGreaterThanOrEqual(1);
-    expect(second.items[0]?.presenceUpdatedAt).toBe(first.items[0]?.presenceUpdatedAt);
+    expect(second.items[0]?.presenceKey).not.toBe(first.items[0]?.presenceKey);
+  });
+
+  test('repeated join with same action within heartbeat interval produces no new deltas', async () => {
+    const { sessionId } = await createTestSession('test-presence-noop-1');
+    const machineId = 'machine-presence-noop-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: '## Goal\nNoop presence',
+      createdBy: 'user',
+    });
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:waiting',
+    });
+
+    const baseline = await t.query(api.machines.subscribeAssignedTaskPresenceSince, {
+      sessionId,
+      machineId,
+      afterPresenceAt: 0,
+      limit: 10,
+    });
+    const cursor = baseline.highPresenceKey!;
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:waiting',
+    });
+
+    const afterRepeat = await t.query(api.machines.subscribeAssignedTaskPresenceSince, {
+      sessionId,
+      machineId,
+      afterPresenceKey: cursor,
+      limit: 10,
+    });
+
+    expect(afterRepeat.items).toHaveLength(0);
   });
 });
 

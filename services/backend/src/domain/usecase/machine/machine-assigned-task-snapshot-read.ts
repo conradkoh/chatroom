@@ -16,7 +16,7 @@ import type {
 } from './assigned-tasks-types';
 import {
   assertMachineSnapshotAccess,
-  snapshotDocToPresenceSignal,
+  snapshotDocToPresenceDelta,
   snapshotDocToSignal,
 } from './machine-assigned-task-snapshot-sync';
 import type { QueryCtx } from '../../../../convex/_generated/server';
@@ -54,12 +54,18 @@ function resolvePresenceAfterKey(input: SubscribeAssignedTaskPresenceInput): str
   return input.afterPresenceKey ?? presenceKeyAfterTimestamp(input.afterPresenceAt ?? 0);
 }
 
+function presenceKeyToUpdatedAt(presenceKey: string): number {
+  const n = Number(presenceKey.split(':')[0]);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function presenceFeedToResult(
-  feed: SnapshotFeedPage<ReturnType<typeof snapshotDocToPresenceSignal>, string>
+  feed: SnapshotFeedPage<ReturnType<typeof snapshotDocToPresenceDelta>, string>
 ): SubscribeAssignedTaskPresenceResult {
+  const lastKey = feed.items.at(-1)?.presenceKey;
   return {
     items: feed.items,
-    highPresenceAt: feed.items.at(-1)?.presenceUpdatedAt ?? null,
+    highPresenceAt: lastKey ? presenceKeyToUpdatedAt(lastKey) : null,
     highPresenceKey: feed.high,
     hasMore: feed.hasMore,
   };
@@ -127,7 +133,7 @@ export async function subscribeAssignedTaskPresenceFromSnapshots(
   const feed = sliceSnapshotFeedPage(
     page,
     input.limit,
-    snapshotDocToPresenceSignal,
+    snapshotDocToPresenceDelta,
     (item) => item.presenceKey
   );
   return presenceFeedToResult(feed);

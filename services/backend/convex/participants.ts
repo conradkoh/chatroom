@@ -88,6 +88,7 @@ export const join = mutation({
 
     let participantId;
     const now = Date.now();
+    let actionChangedForPresence = false;
 
     if (existing) {
       // connectionId is only updated when explicitly provided — never cleared by heartbeats
@@ -99,6 +100,7 @@ export const join = mutation({
       const agentTypeChanged =
         args.agentType !== undefined && args.agentType !== existing.agentType;
       const actionChanged = args.action !== undefined && args.action !== existing.lastSeenAction;
+      actionChangedForPresence = actionChanged;
       const lastSeenAtStale =
         existing.lastSeenAt === undefined ||
         now - existing.lastSeenAt >= PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS;
@@ -140,6 +142,7 @@ export const join = mutation({
       participantId = existing._id;
     } else {
       // Create new participant
+      actionChangedForPresence = args.action !== undefined;
       participantId = await ctx.db.insert('chatroom_participants', {
         chatroomId: args.chatroomId,
         role: args.role,
@@ -212,7 +215,7 @@ export const join = mutation({
       // Do not downgrade while agent has claimed work (awaiting tokens or actively working).
       if (activeTask?.status === 'acknowledged' || activeTask?.status === 'in_progress') {
         await syncParticipantPresenceOnSnapshots(ctx, args.chatroomId, args.role, {
-          actionChanged: args.action !== undefined,
+          actionChanged: actionChangedForPresence,
         });
         return participantId;
       }
@@ -246,7 +249,7 @@ export const join = mutation({
     }
 
     await syncParticipantPresenceOnSnapshots(ctx, args.chatroomId, args.role, {
-      actionChanged: args.action !== undefined,
+      actionChanged: actionChangedForPresence,
     });
 
     return participantId;

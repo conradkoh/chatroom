@@ -4,10 +4,10 @@
  * Wire shapes (signal, presence, snapshot row) are defined in
  * assigned-task-monitor-contract.ts (Zod source of truth) and re-exported here.
  */
-// fallow-ignore-file unused-type
+// fallow-ignore-file unused-type unused-export
 
 import type {
-  AssignedTaskPresenceSignal,
+  AssignedTaskPresenceDelta,
   AssignedTaskSignal,
   AssignedTaskSnapshotView,
 } from './assigned-task-monitor-contract';
@@ -19,6 +19,7 @@ export type {
   AgentDesiredState,
   AssignedTaskAgentConfigView,
   AssignedTaskParticipantView,
+  AssignedTaskPresenceDelta,
   AssignedTaskPresenceSignal,
   AssignedTaskSignal,
   AssignedTaskSignalType,
@@ -50,7 +51,7 @@ export interface SubscribeAssignedTaskSignalsResult {
 }
 
 export interface SubscribeAssignedTaskPresenceResult {
-  items: AssignedTaskPresenceSignal[];
+  items: AssignedTaskPresenceDelta[];
   highPresenceAt: number | null;
   highPresenceKey: string | null;
   hasMore: boolean;

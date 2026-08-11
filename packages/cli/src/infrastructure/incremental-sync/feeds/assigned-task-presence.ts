@@ -19,7 +19,7 @@ export const assignedTaskPresenceFeedDef: IncrementalFeedDef<
   AssignedTaskPresenceFeedArgs
 > = {
   name: 'assigned-task-presence',
-  itemKey: (item) => `${item.presenceUpdatedAt}:${item.taskId}:${item.role}`,
+  itemKey: (item) => item.presenceKey,
   parseItem: parseAssignedTaskPresenceSignal,
 };
 
