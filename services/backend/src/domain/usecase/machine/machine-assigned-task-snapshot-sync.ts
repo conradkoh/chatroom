@@ -2,6 +2,7 @@
  * Write-time projection sync for machine assigned-task snapshots.
  */
 
+import type { AssignedTaskPresenceDelta } from './assigned-task-monitor-contract';
 import {
   getParticipantForChatroomRole,
   loadRemoteAgentConfigsForMachine,
@@ -12,7 +13,7 @@ import {
   buildAssignedTaskRevisionKey,
   primaryAssignedTaskSignalType,
 } from './assigned-tasks-revision';
-import type { AssignedTaskPresenceSignal, AssignedTaskSignal } from './assigned-tasks-types';
+import type { AssignedTaskSignal } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import { getTeamEntryPoint } from '../../entities/team';
@@ -83,16 +84,8 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
   };
 }
 
-export function snapshotDocToPresenceSignal(doc: SnapshotDoc): AssignedTaskPresenceSignal {
-  return {
-    taskId: doc.taskId,
-    chatroomId: doc.chatroomId,
-    role: doc.role,
-    lastSeenAt: doc.lastSeenAt ?? null,
-    lastSeenAction: doc.lastSeenAction ?? null,
-    presenceUpdatedAt: doc.presenceUpdatedAt,
-    presenceKey: doc.presenceKey,
-  };
+export function snapshotDocToPresenceDelta(doc: SnapshotDoc): AssignedTaskPresenceDelta {
+  return { taskId: doc.taskId, role: doc.role, presenceKey: doc.presenceKey };
 }
 
 interface SnapshotRowInput {

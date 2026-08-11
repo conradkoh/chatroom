@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   assignedTaskMonitorRowSchema,
-  assignedTaskPresenceSignalSchema,
+  assignedTaskPresenceDeltaSchema,
   assignedTaskSignalBootstrapFields,
   assignedTaskSignalSchema,
   parseAssignedTaskMonitorRows,
@@ -45,13 +45,12 @@ describe('assignedTaskSignalSchema', () => {
   it('parses presence and hydrate rows with typed Convex IDs', () => {
     const presence = parseAssignedTaskPresenceSignal({
       taskId: 'task_1',
-      chatroomId: 'room_1',
       role: 'builder',
-      lastSeenAt: 1_000,
-      presenceUpdatedAt: 1_000,
-      presenceKey: 'pk',
+      presenceKey: '000000000001000:task_1:builder',
     });
-    expect(assignedTaskPresenceSignalSchema.safeParse(presence).success).toBe(true);
+    expect(presence.presenceUpdatedAt).toBe(1000);
+    expect(presence.taskId).toBe('task_1');
+    expect(presence.role).toBe('builder');
 
     const row = parseAssignedTaskMonitorRows([
       {
@@ -111,5 +110,21 @@ describe('assignedTaskSignalSchema', () => {
     for (const field of revisionKeyParticipantFields) {
       expect(schemaKeys.has(field), `signal schema missing revisionKey field: ${field}`).toBe(true);
     }
+  });
+
+  it('parses slim presence delta wire payload and expands to full signal', () => {
+    const delta = {
+      taskId: 'task_1' as AssignedTaskSignal['taskId'],
+      role: 'builder',
+      presenceKey: '000000000001500:task_1:builder',
+    };
+    expect(assignedTaskPresenceDeltaSchema.safeParse(delta).success).toBe(true);
+
+    const expanded = parseAssignedTaskPresenceSignal(delta);
+    expect(expanded.taskId).toBe('task_1');
+    expect(expanded.role).toBe('builder');
+    expect(expanded.presenceKey).toBe(delta.presenceKey);
+    expect(expanded.presenceUpdatedAt).toBe(1500);
+    expect(expanded.lastSeenAt).toBeNull();
   });
 });

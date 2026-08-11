@@ -85,6 +85,14 @@ export const assignedTaskPresenceSignalSchema = z.object({
   presenceKey: z.string(),
 });
 
+export const assignedTaskPresenceDeltaSchema = z.object({
+  taskId: chatroomTaskIdSchema,
+  role: z.string(),
+  presenceKey: z.string(),
+});
+
+export type AssignedTaskPresenceDelta = z.infer<typeof assignedTaskPresenceDeltaSchema>;
+
 export const assignedTaskMonitorRowSchema = z
   .object({
     taskId: chatroomTaskIdSchema,
@@ -121,7 +129,16 @@ export function parseAssignedTaskSignal(raw: unknown): AssignedTaskSignal {
 
 /** Parse incremental presence wire payloads; throws ZodError on mismatch. */
 export function parseAssignedTaskPresenceSignal(raw: unknown): AssignedTaskPresenceSignal {
-  return assignedTaskPresenceSignalSchema.parse(raw);
+  const delta = assignedTaskPresenceDeltaSchema.parse(raw);
+  const presenceUpdatedAt = Number(delta.presenceKey.split(':')[0]);
+  return {
+    taskId: delta.taskId,
+    chatroomId: '' as z.infer<typeof chatroomRoomIdSchema>,
+    role: delta.role,
+    lastSeenAt: null,
+    presenceUpdatedAt: Number.isFinite(presenceUpdatedAt) ? presenceUpdatedAt : 0,
+    presenceKey: delta.presenceKey,
+  };
 }
 
 /** Parse one hydrate snapshot row; throws ZodError on mismatch. */
