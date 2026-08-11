@@ -690,6 +690,20 @@ const messagesCommand = program
   .command('messages')
   .description('List and filter chatroom messages');
 
+const messageCommand = program.command('message').description('Send chatroom messages');
+
+messageCommand
+  .command('send')
+  .description('Send a user message to a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--content <text>', 'Message content')
+  .option('--target-role <role>', 'Target role (defaults to team entry point)')
+  .action(async (options: { chatroomId: string; content: string; targetRole?: string }) => {
+    await maybeRequireAuth();
+    const { sendUserMessage } = await import('./commands/messages/send.js');
+    await sendUserMessage(options.chatroomId, options);
+  });
+
 messagesCommand
   .command('list')
   .description('List messages by sender role or since a specific message')
