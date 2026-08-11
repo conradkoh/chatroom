@@ -12,7 +12,27 @@ pnpm e2e
 cd apps/webapp && pnpm e2e
 ```
 
-`pnpm e2e` is also wired into the git **pre-push** hook (alongside `test` and `typecheck`), so admin specs require the Convex env setup below before pushing.
+`pnpm e2e` is also wired into the git **pre-push** hook (alongside `test` and `typecheck`). Pre-push **always** runs e2e with suite selection by push destination — see [Pre-Push Suite Selection](#pre-push-suite-selection). Admin specs require the Convex env setup below before pushing.
+
+## Pre-Push Suite Selection
+
+The pre-push hook always invokes `scripts/run-pre-push-e2e.ts`, which runs a single Playwright invocation filtered by tag:
+
+- **Template destination** (`conradkoh/next-convex-starter-app` on `github.com`) → `@upstream` specs
+- **Fork or non-template destination** → `@downstream` specs only
+
+This does not disable the full suite: `pnpm e2e` remains available for explicit local and CI runs on every checkout.
+
+Convenience scripts (values match `support/tags.ts`):
+
+```bash
+cd apps/webapp && pnpm e2e:upstream
+cd apps/webapp && pnpm e2e:downstream
+```
+
+Forks with no `@downstream` specs will fail pre-push until they add at least one spec under `specs/downstream/`. Zero matching tests is a Playwright error, not a silent pass.
+
+Behavior is locked by `scripts/resolve-e2e-suite.spec.ts`, `scripts/run-pre-push-e2e.spec.ts`, and `scripts/template-repo.spec.ts`.
 
 ## Prerequisites
 
@@ -38,7 +58,7 @@ tests/e2e/
     auth.fixture.ts        # authenticatedPage fixture (anonymous login)
     admin.fixture.ts       # systemAdminPage fixture (anonymous login + promote + verify)
   support/
-    tags.ts                # TAG_UPSTREAM / TAG_DOWNSTREAM / TAG_AUTH / TAG_NAV / TAG_ADMIN
+    tags.ts                # TAG_UPSTREAM / TAG_DOWNSTREAM / TAG_AUTH / TAG_NAV / TAG_ADMIN / TAG_MARKDOWN
     upstream-flows.ts      # registry of upstream-owned routes (regression baseline)
     env.ts                 # shared .env.local reader
     convex-client.ts       # ConvexHttpClient wrapper (promoteSessionToSystemAdmin)
@@ -49,11 +69,13 @@ tests/e2e/
     login.page.ts          # /login
     app-dashboard.page.ts  # /app
     profile.page.ts        # /app/profile
-    admin-dashboard.page.ts      # /app/admin
+    admin-dashboard.page.ts      # /app/system-admin
     admin-users.page.ts          # /app/admin/users
-    admin-google-auth.page.ts    # /app/admin/google-auth
+    admin-google-auth.page.ts    # /app/system-admin/google-auth
+    markdown-editor.page.ts      # /test/markdown-editor
   specs/
     upstream/              # template-owned flows (tagged @upstream)
+      markdown-editor.spec.ts    # /test/markdown-editor
     downstream/            # fork-specific flows (tagged @downstream)
 ```
 
@@ -78,7 +100,10 @@ Filter with `--grep`:
 cd apps/webapp && pnpm exec playwright test --config=tests/e2e/playwright.config.ts --grep @upstream
 cd apps/webapp && pnpm exec playwright test --config=tests/e2e/playwright.config.ts --grep @downstream
 cd apps/webapp && pnpm exec playwright test --config=tests/e2e/playwright.config.ts --grep @admin
+cd apps/webapp && pnpm exec playwright test --config=tests/e2e/playwright.config.ts --grep @markdown
 ```
+
+`TAG_MARKDOWN` (`@markdown`) — markdown editor/viewer demo flows.
 
 ## `support/upstream-flows.ts` Registry
 
@@ -117,7 +142,7 @@ test('shows dashboard when authenticated', async ({ authenticatedPage }) => {
 });
 ```
 
-`fixtures/admin.fixture.ts` provides `systemAdminPage` — anonymous login, promotion to `system_admin` (via the seeding mutation), a page reload, and a verification that `/app/admin` shows the `Admin Dashboard` heading before the test body runs:
+`fixtures/admin.fixture.ts` provides `systemAdminPage` — anonymous login, promotion to `system_admin` (via the seeding mutation), a page reload, and a verification that `/app/system-admin` shows the `Admin Dashboard` heading before the test body runs:
 
 ```typescript
 import { test } from '../../fixtures/admin.fixture';
@@ -129,7 +154,7 @@ test('shows the admin dashboard', async ({ systemAdminPage }) => {
 
 ## Excluded Pages
 
-`/test/*` demo pages are explicitly **excluded** from e2e coverage by policy. Login code (`/login/code`) and account recovery (`/recover`) flows are also excluded for now (phased for later slices).
+`/test/markdown-editor` is covered by e2e (it demos a template-owned reusable component). Other `/test/*` demo pages remain explicitly **excluded** from e2e coverage by policy. Login code (`/login/code`) and account recovery (`/recover`) flows are also excluded for now (phased for later slices).
 
 ## Standing Policy
 

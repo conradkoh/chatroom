@@ -38,11 +38,11 @@ Permissions flow to the client via `auth.getState`, which includes `permissions:
 
 **Authorization gates must use permission keys**, not role names (`system_admin`, `manager`, etc.) or `accessLevel`. Roles are how grants are grouped; permissions are what you enforce.
 
-| Do                                                                      | Don't                                                 |
-| ----------------------------------------------------------------------- | ----------------------------------------------------- |
-| `requireAuthenticatedPermission(user, AUTH_PROVIDER_MANAGE_PERMISSION)` | `if (getRolesForUser(user).includes('system_admin'))` |
-| `useHasPermission(SYSTEM_ADMIN_ACCESS_PERMISSION)`                      | `authState.accessLevel === 'system_admin'`            |
-| Import constants from `permissions.ts`                                  | Hard-code role strings in handlers or UI              |
+| Do                                                 | Don't                                                 |
+| -------------------------------------------------- | ----------------------------------------------------- |
+| `requireSystemAdminAccess(user)`                   | `if (getRolesForUser(user).includes('system_admin'))` |
+| `useHasPermission(SYSTEM_ADMIN_ACCESS_PERMISSION)` | `authState.accessLevel === 'system_admin'`            |
+| Import constants from `permissions.ts`             | Hard-code role strings in handlers or UI              |
 
 `getRolesForUser` and `accessLevel` exist only for **assignment** during Phase 1 (legacy field → built-in roles). They are not part of the public webapp auth API.
 
@@ -65,13 +65,12 @@ The route `/app/admin` is historical URL naming for the **system admin portal**;
 
 Use `resource:action` with a colon separator:
 
-| Example                | Meaning                                                            |
-| ---------------------- | ------------------------------------------------------------------ |
-| `users:list`           | List users                                                         |
-| `users:read`           | View a user                                                        |
-| `settings:write`       | Update settings                                                    |
-| `auth:provider:manage` | Configure auth providers (nested resource segments are fine)       |
-| `system_admin:access`  | Enter platform system administration UI (`system_admin` role only) |
+| Example               | Meaning                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| `users:list`          | List users                                                         |
+| `users:read`          | View a user                                                        |
+| `settings:write`      | Update settings                                                    |
+| `system_admin:access` | Enter platform system administration UI (`system_admin` role only) |
 
 **Wildcards** (in role grants only, not in the permission registry):
 
@@ -165,7 +164,7 @@ await requirePermission(ctx, userId, 'reports:read');
 
 On failure, callers receive a `ConvexError` with `code: 'FORBIDDEN'` or `'UNAUTHORIZED'`.
 
-**Reference:** `services/backend/convex/system/auth/google.ts` — all handlers require `auth:provider:manage`.
+**Reference:** `services/backend/convex/system/auth/google.ts` — all handlers require `system_admin:access` via `requireSystemAdminAccess`.
 
 ### 4. Expose or hide UI on the frontend
 

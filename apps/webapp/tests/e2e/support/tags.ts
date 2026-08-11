@@ -12,3 +12,6 @@ export const TAG_NAV = '@nav';
 
 /** Admin/system-administrator flows. */
 export const TAG_ADMIN = '@admin';
+
+/** Markdown editor / viewer demo flows. */
+export const TAG_MARKDOWN = '@markdown';

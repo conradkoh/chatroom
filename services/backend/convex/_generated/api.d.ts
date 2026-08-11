@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as admin_invites from "../admin/invites.js";
+import type * as admin_users from "../admin/users.js";
 import type * as agentResumeStorm from "../agentResumeStorm.js";
 import type * as agenticQueryCleanup from "../agenticQueryCleanup.js";
 import type * as allTabConversation from "../allTabConversation.js";
@@ -118,8 +120,6 @@ import type * as skills from "../skills.js";
 import type * as standingInstructions from "../standingInstructions.js";
 import type * as storageCleanup from "../storageCleanup.js";
 import type * as system_auth_google from "../system/auth/google.js";
-import type * as system_invites from "../system/invites.js";
-import type * as system_users from "../system/users.js";
 import type * as taskDeliveryReceipts from "../taskDeliveryReceipts.js";
 import type * as tasks from "../tasks.js";
 import type * as utils_machineFavoriteScopeKey from "../utils/machineFavoriteScopeKey.js";
@@ -157,6 +157,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "admin/invites": typeof admin_invites;
+  "admin/users": typeof admin_users;
   agentResumeStorm: typeof agentResumeStorm;
   agenticQueryCleanup: typeof agenticQueryCleanup;
   allTabConversation: typeof allTabConversation;
@@ -267,8 +269,6 @@ declare const fullApi: ApiFromModules<{
   standingInstructions: typeof standingInstructions;
   storageCleanup: typeof storageCleanup;
   "system/auth/google": typeof system_auth_google;
-  "system/invites": typeof system_invites;
-  "system/users": typeof system_users;
   taskDeliveryReceipts: typeof taskDeliveryReceipts;
   tasks: typeof tasks;
   "utils/machineFavoriteScopeKey": typeof utils_machineFavoriteScopeKey;

@@ -1,6 +1,7 @@
 import { ConvexError } from 'convex/values';
 
 import type { Permission } from './permissions';
+import { SYSTEM_ADMIN_ACCESS_PERMISSION } from './permissions';
 import { hasPermission } from './resolve';
 import type { UserForPermissions } from './resolve';
 import type { Id } from '../../convex/_generated/dataModel';
@@ -50,4 +51,15 @@ export function requireAuthenticatedPermission<T extends UserForPermissions>(
     });
   }
   requirePermissionForUser(user, permission);
+}
+
+/**
+ * Requires an authenticated user with system administrator access.
+ * Use for platform system-admin endpoints (e.g. Google Auth config).
+ */
+export function requireSystemAdminAccess<T extends UserForPermissions>(
+  user: T | null | undefined,
+  options?: { unauthorizedMessage?: string }
+): asserts user is T {
+  requireAuthenticatedPermission(user, SYSTEM_ADMIN_ACCESS_PERMISSION, options);
 }

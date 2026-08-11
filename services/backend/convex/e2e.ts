@@ -6,12 +6,14 @@ import { mutation } from './_generated/server';
 /**
  * E2E-only seeding mutation — dev tooling, not a real feature.
  *
- * Promotes the user bound to the given session to `system_admin` so e2e
- * specs can exercise the admin UI. It is gated by the deployment environment
- * variable `E2E_SEEDING_ENABLED` (must be `"true"`), which is only ever set on
- * local/dev deployments — never on production.
+ * Deliberately outside `convex/system/` because `promoteSessionToSystemAdmin`
+ * bootstraps the first system admin for e2e tests and must NOT require
+ * `system_admin:access` (env-gated via E2E_SEEDING_ENABLED instead).
+ * Consumer: apps/webapp/tests/e2e/support/convex-client.ts
  *
- * When the gate is off (the safe default), the mutation throws FORBIDDEN.
+ * Promotes the user bound to the given session to `system_admin` so e2e
+ * specs can exercise the admin UI. Gated by E2E_SEEDING_ENABLED (must be "true").
+ * When the gate is off, the mutation throws FORBIDDEN.
  */
 export const promoteSessionToSystemAdmin = mutation({
   args: { ...SessionIdArg },

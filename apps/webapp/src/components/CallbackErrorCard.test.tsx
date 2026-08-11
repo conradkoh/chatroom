@@ -8,6 +8,6 @@ describe('CallbackErrorCard', () => {
     render(<CallbackErrorCard error="token expired" flowType="login" />);
     expect(screen.getByText('Sign In Failed')).toBeInTheDocument();
     expect(screen.getByText(/authentication request has expired/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /close window/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /go back/i })).toBeInTheDocument();
   });
 });

@@ -7,7 +7,7 @@ import { formatCodeInputValue } from '@/modules/auth/formatCodeInput';
 type PageState = 'entry' | 'validating' | 'success' | 'error';
 
 export function useInviteSignupFlow() {
-  const validateInviteCode = useSessionMutation(api.system.invites.validateInviteCode);
+  const validateInviteCode = useSessionMutation(api.admin.invites.validateInviteCode);
   const [code, setCode] = useState('');
   const [pageState, setPageState] = useState<PageState>('entry');
   const [error, setError] = useState<string | null>(null);

@@ -29,7 +29,7 @@ Append to `roleDefinitions` in both `roles.ts` files. **Assignment:** `users.rol
 
 ### Naming
 
-Use `resource:action` (e.g. `users:list`, `auth:provider:manage`). Avoid bare `admin` — use `system_admin` for platform operators; reserve other prefixes (e.g. `org_admin`) for future business admins. See `docs/features/rbac/define-new-role.md`.
+Use `resource:action` (e.g. `users:list`, `system_admin:access`). Avoid bare `admin` — use `system_admin` for platform operators; reserve other prefixes (e.g. `org_admin`) for future business admins. See `docs/features/rbac/define-new-role.md`.
 
 ### Sync
 

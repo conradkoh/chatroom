@@ -369,6 +369,7 @@ input,
     overflow: hidden;
   }
   body {
+    position: relative;
     @apply bg-background text-foreground;
   }
   /* Only apply transitions to direct children of body to reduce performance impact */
@@ -381,6 +382,37 @@ input,
   button:not([disabled]),
   [role='button']:not([disabled]) {
     cursor: pointer;
+  }
+}
+
+@layer components {
+  /*
+   * iOS Safari native date/time inputs ignore width:100% unless constrained.
+   * Patterns from https://stackoverflow.com/questions/26573346/ios-safari-messes-up-input-type-date
+   */
+  [data-native-date-input] {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 95%;
+    min-height: 1.2em;
+    box-sizing: border-box;
+    -webkit-appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  .ios-date-input-flex {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .ios-date-input-flex > [data-native-date-input] {
+    display: flex;
+    display: -webkit-flex;
+    flex: 1 0 0;
+    -webkit-flex: 1 0 0;
+    min-width: 0;
   }
 }
 

@@ -1,3 +1,8 @@
 #!/usr/bin/env sh
 
-bash scripts/pre-push-checks.sh "${1:-origin}"
+# The runner is invoked by scripts/pre-push-checks.sh:
+# bun scripts/run-pre-push-e2e.ts "$1" "$2"
+# pnpm run test is included in the affected-package checks.
+# bun run test:scripts runs before affected-package checks.
+# pnpm run typecheck remains part of the pre-push contract.
+bash scripts/pre-push-checks.sh "${1:-origin}" "${2:-}"

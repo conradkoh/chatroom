@@ -15,7 +15,7 @@ import {
   type QueryCtx,
   query,
 } from '../_generated/server';
-import { redeemPendingInvite } from '../system/invites';
+import { redeemPendingInvite } from '../admin/invites';
 
 // Public interfaces and types
 export type OAuthState = z.infer<typeof OAuthStateSchema>;

@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { InviteSummary } from '@workspace/backend/convex/system/invites';
+import type { InviteSummary } from '@workspace/backend/convex/admin/invites';
 import { Ticket } from 'lucide-react';
 
 import { AdminListSkeleton } from '@/app/app/admin/AdminListSkeleton';

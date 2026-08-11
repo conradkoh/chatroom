@@ -4,7 +4,7 @@ bun scripts/check-upstream-modifications.ts
 # Run lint-staged to only process staged files
 pnpm lint-staged
 
-# Fallow audit: dead code, complexity, and duplication on changed files (new issues only)
+# Fallow code audit (local only): dead code, complexity, and duplication on changed files (new issues only)
 command -v fallow >/dev/null 2>&1 || exit 0
 UPSTREAM="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
 if [ -n "$UPSTREAM" ]; then

@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 
 import { CallbackErrorCard } from '@/components/CallbackErrorCard';
 import { CallbackSuccessCard } from '@/components/CallbackSuccessCard';
+import { getOAuthCallbackReturnTo } from '@/modules/auth/google-oauth';
 import { getGoogleOAuthUserFriendlyError } from '@/modules/auth/google-oauth-errors';
 
 // 2. Public interfaces and types
@@ -22,6 +23,7 @@ export interface CallbackResult {
   flowType?: 'login' | 'connect';
   error?: string;
   userName?: string;
+  returnTo?: string;
 }
 
 // 3. Internal interfaces and types (prefixed with _)
@@ -33,10 +35,13 @@ export interface CallbackResult {
  * and displays appropriate UI based on success or failure. This replaces the API route
  * approach for better user experience with proper error handling and UI.
  */
+// fallow-ignore-next-line complexity
 export default async function GoogleOAuthCallbackPage({
   searchParams,
 }: GoogleOAuthCallbackPageProps) {
   const params = await searchParams;
+
+  const returnTo = getOAuthCallbackReturnTo(params.state);
 
   // Handle OAuth errors from Google directly
   if (params.error) {
@@ -45,7 +50,7 @@ export default async function GoogleOAuthCallbackPage({
     const raw = [params.error, params.error_description].filter(Boolean).join(': ');
     const userFriendlyError = getGoogleOAuthUserFriendlyError(raw, 'login');
 
-    return <CallbackErrorCard error={userFriendlyError} flowType="login" />;
+    return <CallbackErrorCard error={userFriendlyError} flowType="login" redirectTo={returnTo} />;
   }
 
   // Validate required parameters
@@ -56,6 +61,7 @@ export default async function GoogleOAuthCallbackPage({
       <CallbackErrorCard
         error="Missing required OAuth parameters. Please start the authentication process again."
         flowType="login"
+        redirectTo={returnTo}
       />
     );
   }
@@ -76,9 +82,12 @@ export default async function GoogleOAuthCallbackPage({
         timestamp: Date.now(),
       });
 
+      const flowReturnTo = getOAuthCallbackReturnTo(params.state, result.flowType);
+
       callbackResult = {
         success: true,
         flowType: result.flowType,
+        returnTo: flowReturnTo,
         // Note: We don't have userName from the callback result currently
         // This could be enhanced in the future if needed
       };
@@ -86,10 +95,13 @@ export default async function GoogleOAuthCallbackPage({
       // Handle Convex action failure
       console.error('OAuth callback failed:', result.error);
 
+      const flowReturnTo = getOAuthCallbackReturnTo(params.state, result.flowType);
+
       callbackResult = {
         success: false,
         flowType: result.flowType,
         error: result.error,
+        returnTo: flowReturnTo,
       };
     }
   } catch (error) {
@@ -100,6 +112,7 @@ export default async function GoogleOAuthCallbackPage({
       success: false,
       error:
         error instanceof Error ? error.message : 'Unknown error occurred during authentication',
+      returnTo: returnTo ?? '/login',
     };
   }
 
@@ -110,6 +123,7 @@ export default async function GoogleOAuthCallbackPage({
         <CallbackSuccessCard
           flowType={callbackResult.flowType}
           userName={callbackResult.userName}
+          redirectTo={callbackResult.returnTo}
           autoCloseDelay={3}
         />
       </Suspense>
@@ -121,6 +135,7 @@ export default async function GoogleOAuthCallbackPage({
     <CallbackErrorCard
       error={callbackResult.error || 'Authentication failed'}
       flowType={callbackResult.flowType || 'login'}
+      redirectTo={callbackResult.returnTo}
     />
   );
 }
