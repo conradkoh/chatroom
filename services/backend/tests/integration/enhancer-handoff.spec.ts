@@ -138,8 +138,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(enhancerTasks.length).toBe(1);
     expect(enhancerTasks[0]!._id).toBe(job!.taskId);
 
-    const { shouldEnqueueMessage } =
-      await import('../../../src/domain/usecase/task/create-task');
+    const { shouldEnqueueMessage } = await import('../../../src/domain/usecase/task/create-task');
     const shouldQueue = await t.run(async (ctx) => shouldEnqueueMessage(ctx, chatroomId));
     expect(shouldQueue).toBe(true);
   });
@@ -369,6 +368,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(deliveryMsg!.targetRole).toBe('planner');
     expect(deliveryMsg!.enhancerJobId).toBe(jobId);
     expect(deliveryMsg!.content).toContain('Planning feedback');
+    expect(deliveryMsg!.content).toContain('## Original Handoff');
     expect(deliveryMsg!.visibleInAllTabOnly).toBe(true);
 
     const draftMsg = handoffMessages.find(
@@ -376,6 +376,16 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     );
     expect(draftMsg).toBeDefined();
     expect(draftMsg!.content).toContain('Original draft');
+    expect(plannerTask!.content).toContain(`--chatroom-id="${chatroomId}"`);
+    expect(plannerTask!.content).toContain(`--since-message-id="${draftMsg!._id}"`);
+    expect(plannerTask!.content).toContain('--role="planner"');
+    expect(plannerTask!.content).toContain('--limit=1');
+    expect(plannerTask!.content).toContain(
+      '--output-dir=".chatroom/downloads/messages/linear/original-planner-handoff"'
+    );
+    expect(plannerTask!.content).toContain(
+      'cat ".chatroom/downloads/messages/linear/original-planner-handoff/"*.md'
+    );
   });
 
   test('cancelActiveJob delivers planning-review-outcome envelope and marks job cancelled', async () => {
