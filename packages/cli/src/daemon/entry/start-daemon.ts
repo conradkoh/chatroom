@@ -9,12 +9,20 @@ import { resolvePersistenceDbPath } from './persistence-path.js';
 import { resolveLocalWebPort } from './resolve-local-web-port.js';
 import { startAllSubscribers } from './subscriber-registry.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
+import { createLogServer, resolveLogsDbPath } from '../../infrastructure/log-server/index.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { startLocalWebServer } from '../local-web/server/create-local-web-server.js';
 
 export async function startDaemon(): Promise<void> {
-  const init = await initDaemon();
+  const logServer = createLogServer(resolveLogsDbPath());
+  let init: Awaited<ReturnType<typeof initDaemon>>;
+  try {
+    init = await initDaemon({ logSink: logServer });
+  } catch (error) {
+    logServer.close();
+    throw error;
+  }
   const wsClient = await getConvexWsClient();
 
   const persistence = createPersistenceStore(resolvePersistenceDbPath(init.machineId));
@@ -54,5 +62,7 @@ export async function startDaemon(): Promise<void> {
     await subscribers.stopAll();
     await localWeb.stop();
     persistence.close();
+    logServer.flush();
+    logServer.close();
   }
 }
