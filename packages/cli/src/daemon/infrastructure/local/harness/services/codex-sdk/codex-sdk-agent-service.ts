@@ -39,6 +39,7 @@ import {
   importBundledCodexSdk,
 } from './codex-sdk-package.js';
 import { CodexSdkStreamAdapter } from './codex-sdk-stream-adapter.js';
+import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
@@ -132,6 +133,9 @@ function buildThreadOptions(workingDir: string, variant?: CodexModelVariant): Th
   const options: ThreadOptions = {
     workingDirectory: workingDir,
     skipGitRepoCheck: true,
+    // Chatroom agents must be able to call the Chatroom CLI, which reaches the
+    // Convex deployment over the network.
+    networkAccessEnabled: true,
   };
   if (!variant) return options;
 
@@ -145,6 +149,14 @@ function buildThreadOptions(workingDir: string, variant?: CodexModelVariant): Th
     options.modelReasoningEffort = reasoning;
   }
   return options;
+}
+
+function buildCodexEnv(resolvedConvexUrl: string): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(buildAgentSpawnEnv(resolvedConvexUrl)).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined
+    )
+  );
 }
 
 function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
@@ -701,7 +713,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     let thread: Thread;
     try {
       const { Codex } = await loadSdk();
-      codex = new Codex();
+      codex = new Codex({ env: buildCodexEnv(options.resolvedConvexUrl) });
       thread = codex.startThread(buildThreadOptions(options.workingDir, variant));
     } catch (err) {
       writeSpawnError(buildAgentLogPrefix('codex-sdk', context), err);
@@ -735,7 +747,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
 
       const variant = decodeCodexVariant(options.model ?? stored.model);
       const { Codex } = await loadSdk();
-      const codex = new Codex();
+      const codex = new Codex({ env: buildCodexEnv(options.resolvedConvexUrl) });
       const thread = codex.resumeThread(
         stored.harnessSessionId,
         buildThreadOptions(stored.workingDir, variant)

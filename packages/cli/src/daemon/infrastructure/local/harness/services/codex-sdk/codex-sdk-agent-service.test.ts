@@ -188,7 +188,13 @@ describe('CodexSdkAgentService', () => {
       expect(mockStartThread).toHaveBeenCalledWith({
         workingDirectory: '/tmp/work',
         skipGitRepoCheck: true,
+        networkAccessEnabled: true,
       });
+      expect(mockCodex).toHaveBeenCalledWith(
+        expect.objectContaining({
+          env: expect.objectContaining({ CHATROOM_CONVEX_URL: 'http://test:3210' }),
+        })
+      );
       expect(mockRunStreamed).toHaveBeenCalledWith(
         expect.stringContaining('you are helpful'),
         expect.objectContaining({ signal: expect.any(AbortSignal) })
@@ -215,6 +221,7 @@ describe('CodexSdkAgentService', () => {
       expect(mockStartThread).toHaveBeenCalledWith({
         workingDirectory: '/tmp/work',
         skipGitRepoCheck: true,
+        networkAccessEnabled: true,
         model: 'gpt-5.6',
       });
     });
@@ -317,6 +324,7 @@ describe('CodexSdkAgentService', () => {
       expect(mockStartThread).toHaveBeenCalledWith({
         workingDirectory: '/tmp/work',
         skipGitRepoCheck: true,
+        networkAccessEnabled: true,
         model: 'gpt-5.6-sol',
         modelReasoningEffort: 'high',
       });
@@ -342,6 +350,7 @@ describe('CodexSdkAgentService', () => {
       expect(mockStartThread).toHaveBeenCalledWith({
         workingDirectory: '/tmp/work',
         skipGitRepoCheck: true,
+        networkAccessEnabled: true,
         model: 'gpt-5.6-sol',
       });
     });
@@ -439,6 +448,7 @@ describe('CodexSdkAgentService', () => {
       expect(mockResumeThread).toHaveBeenCalledWith(THREAD_ID, {
         workingDirectory: '/tmp/resume-wd',
         skipGitRepoCheck: true,
+        networkAccessEnabled: true,
         model: 'gpt-5.6',
       });
       expect(mockStartThread).not.toHaveBeenCalled();
@@ -473,6 +483,7 @@ describe('CodexSdkAgentService', () => {
       expect(mockResumeThread).toHaveBeenCalledWith(THREAD_ID, {
         workingDirectory: '/tmp/resume-wd',
         skipGitRepoCheck: true,
+        networkAccessEnabled: true,
         model: 'gpt-5.6-sol',
         modelReasoningEffort: 'low',
       });
