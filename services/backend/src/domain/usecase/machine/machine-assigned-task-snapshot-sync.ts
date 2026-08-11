@@ -292,6 +292,38 @@ export async function projectAssignedTaskSnapshotsForChatroom(
   }
 }
 
+function snapshotParticipantFields(doc: Doc<'chatroom_machineAssignedTaskSnapshots'>) {
+  return {
+    lastSeenAt: doc.lastSeenAt ?? undefined,
+    lastSeenAction: doc.lastSeenAction ?? undefined,
+    lastStatus: doc.lastStatus ?? undefined,
+  };
+}
+
+// fallow-ignore-next-line complexity
+function participantFieldsFromDoc(
+  participant: Doc<'chatroom_participants'> | null
+): ReturnType<typeof snapshotParticipantFields> {
+  return {
+    lastSeenAt: participant?.lastSeenAt ?? undefined,
+    lastSeenAction: participant?.lastSeenAction ?? undefined,
+    lastStatus: participant?.lastStatus ?? undefined,
+  };
+}
+
+function participantFieldsEqual(
+  row: Doc<'chatroom_machineAssignedTaskSnapshots'>,
+  participant: Doc<'chatroom_participants'> | null
+): boolean {
+  const a = snapshotParticipantFields(row);
+  const b = participantFieldsFromDoc(participant);
+  return (
+    a.lastSeenAt === b.lastSeenAt &&
+    a.lastSeenAction === b.lastSeenAction &&
+    a.lastStatus === b.lastStatus
+  );
+}
+
 /** After task status leaves active set, drop snapshot rows. */
 export async function projectAssignedTaskSnapshotsAfterTaskChange(
   ctx: MutationCtx,
@@ -317,6 +349,10 @@ async function patchSnapshotRowPresence(
   now: number,
   bumpSignal: boolean
 ): Promise<void> {
+  if (!bumpSignal && participantFieldsEqual(row, participant)) {
+    return;
+  }
+
   const revisionKey = buildAssignedTaskRevisionKey({
     taskUpdatedAt: row.taskUpdatedAt,
     configUpdatedAt: row.configUpdatedAt,
