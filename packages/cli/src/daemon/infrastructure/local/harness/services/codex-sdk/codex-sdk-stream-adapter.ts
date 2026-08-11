@@ -202,7 +202,7 @@ export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
   }
 
   protected override writeLine(formatted: string): void {
-    process.stdout.write(`${formatted}\n`);
+    this.emitLogLine?.(formatted);
     this.emitLogLine?.(formatted);
   }
 }
