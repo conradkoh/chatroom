@@ -36,6 +36,7 @@ export const AGENT_HARNESSES = [
   'cursor-sdk',
   'claude',
   'claude-sdk',
+  'codex-sdk',
   'copilot',
   'commandcode',
 ] as const;

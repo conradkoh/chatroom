@@ -30,7 +30,7 @@ function resolveNativeTaskIntakeContent(
     return getNativeTaskStartedPromptForHandoffRecipient();
   }
   if (message?.senderRole.toLowerCase() === 'enhancer') {
-    return getNativeEnhancerReviewTaskIntake();
+    return getNativeEnhancerReviewTaskIntake({ chatroomId, role, cliEnvPrefix });
   }
   return getNativeTaskStartedPrompt({
     chatroomId,

@@ -4,8 +4,6 @@ import {
   ArrowLeft,
   ChevronDown,
   Loader2,
-  Settings,
-  Shield,
   ShieldX,
   Ticket,
   Users,
@@ -15,7 +13,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
-import { RequirePermission, SYSTEM_ADMIN_ACCESS_PERMISSION } from '@/application/auth';
+import { ADMIN_ACCESS_PERMISSION, RequirePermission } from '@/application/auth';
+import { ScrollableRegion } from '@/components/ScrollableRegion';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -29,34 +28,31 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 
-interface SystemAdminModule {
+interface AdminModule {
   href: string;
   label: string;
   icon: LucideIcon;
 }
 
-const SYSTEM_ADMIN_MODULES: SystemAdminModule[] = [
-  { href: '/app/admin', label: 'Dashboard', icon: Settings },
+const ADMIN_MODULES: AdminModule[] = [
   { href: '/app/admin/users', label: 'User Roles', icon: Users },
   { href: '/app/admin/invites', label: 'Invites', icon: Ticket },
-  { href: '/app/admin/google-auth', label: 'Google Auth Config', icon: Shield },
 ];
 
-function getActiveAdminModule(pathname: string): SystemAdminModule {
+function getActiveAdminModule(pathname: string, modules: AdminModule[]): AdminModule {
   return (
-    [...SYSTEM_ADMIN_MODULES]
+    [...modules]
       .sort((a, b) => b.href.length - a.href.length)
-      .find((m) => pathname === m.href || pathname.startsWith(`${m.href}/`)) ??
-    SYSTEM_ADMIN_MODULES[0]
+      .find((m) => pathname === m.href || pathname.startsWith(`${m.href}/`)) ?? modules[0]
   );
 }
 
-interface SystemAdminLayoutProps {
+interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
-/** Layout for `/app/admin` — platform system administration (not business/org admin). */
-export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) {
+/** Layout for `/app/admin` — business administration portal. */
+export default function AdminLayout({ children }: AdminLayoutProps) {
   const authState = useAuthState();
   const router = useRouter();
   const pathname = usePathname();
@@ -76,14 +72,11 @@ export default function SystemAdminLayout({ children }: SystemAdminLayoutProps) 
   }
 
   return (
-    <RequirePermission
-      permission={SYSTEM_ADMIN_ACCESS_PERMISSION}
-      fallback={_renderSystemAdminAccessDenied()}
-    >
+    <RequirePermission permission={ADMIN_ACCESS_PERMISSION} fallback={_renderAdminAccessDenied()}>
       <div className="flex min-h-0 flex-1">
-        {_renderDesktopSidebar(pathname)}
+        {_renderDesktopSidebar(pathname, ADMIN_MODULES)}
         <div className="flex min-h-0 flex-1 flex-col">
-          {_renderMobileHeader(pathname)}
+          {_renderMobileHeader(pathname, ADMIN_MODULES)}
           {_renderMainContent(children)}
         </div>
       </div>
@@ -102,7 +95,7 @@ function _renderAuthLoading(message: string) {
   );
 }
 
-function _renderSystemAdminAccessDenied() {
+function _renderAdminAccessDenied() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -111,8 +104,8 @@ function _renderSystemAdminAccessDenied() {
             <ShieldX className="mx-auto h-16 w-16 text-destructive/60" />
             <h1 className="text-2xl font-semibold">Access Denied</h1>
             <p className="text-muted-foreground">
-              You need <span className="font-medium">system administrator</span> access (
-              <span className="font-medium">{SYSTEM_ADMIN_ACCESS_PERMISSION}</span>).
+              You need <span className="font-medium">administrator</span> access (
+              <span className="font-medium">{ADMIN_ACCESS_PERMISSION}</span>).
             </p>
             <Link href="/app">
               <Button variant="outline" className="w-full">
@@ -127,8 +120,8 @@ function _renderSystemAdminAccessDenied() {
   );
 }
 
-function _renderMobileHeader(pathname: string) {
-  const activeModule = getActiveAdminModule(pathname);
+function _renderMobileHeader(pathname: string, visibleModules: AdminModule[]) {
+  const activeModule = getActiveAdminModule(pathname, visibleModules);
   const ActiveIcon = activeModule.icon;
 
   return (
@@ -144,8 +137,8 @@ function _renderMobileHeader(pathname: string) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>System Admin</DropdownMenuLabel>
-              {SYSTEM_ADMIN_MODULES.map((module) => {
+              <DropdownMenuLabel>Admin</DropdownMenuLabel>
+              {visibleModules.map((module) => {
                 const Icon = module.icon;
                 const isActive = module.href === activeModule.href;
                 return (
@@ -172,24 +165,27 @@ function _renderMobileHeader(pathname: string) {
   );
 }
 
-function _renderDesktopSidebar(pathname: string) {
+function _renderDesktopSidebar(pathname: string, visibleModules: AdminModule[]) {
   return (
     <div className="hidden lg:block w-64 border-r bg-muted/10 p-4">
-      {_renderSidebarContent(pathname)}
+      {_renderSidebarContent(pathname, visibleModules)}
     </div>
   );
 }
 
 function _renderMainContent(children: React.ReactNode) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+    <ScrollableRegion
+      regionId="content"
+      className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+    >
       <div className="p-4 lg:p-6">{children}</div>
-    </div>
+    </ScrollableRegion>
   );
 }
 
-function _renderSidebarContent(pathname: string) {
-  const activeModule = getActiveAdminModule(pathname);
+function _renderSidebarContent(pathname: string, visibleModules: AdminModule[]) {
+  const activeModule = getActiveAdminModule(pathname, visibleModules);
 
   return (
     <div className="space-y-4 h-full">
@@ -201,13 +197,13 @@ function _renderSidebarContent(pathname: string) {
           </Button>
         </Link>
         <div className="border-b pb-2">
-          <h2 className="text-lg font-semibold">System Admin</h2>
-          <p className="text-sm text-muted-foreground">Platform administration</p>
+          <h2 className="text-lg font-semibold">Admin</h2>
+          <p className="text-sm text-muted-foreground">Application administration</p>
         </div>
       </div>
 
       <nav className="space-y-2">
-        {SYSTEM_ADMIN_MODULES.map((module) => {
+        {visibleModules.map((module) => {
           const Icon = module.icon;
           const isActive = module.href === activeModule.href;
           return (
@@ -229,8 +225,8 @@ function _renderSidebarContent(pathname: string) {
       <div className="mt-8">
         <Card className="p-3">
           <div className="text-xs text-muted-foreground">
-            <p className="font-medium">System Administrator</p>
-            <p className="mt-1">You have full system access</p>
+            <p className="font-medium">Administrator</p>
+            <p className="mt-1">You have admin access</p>
           </div>
         </Card>
       </div>

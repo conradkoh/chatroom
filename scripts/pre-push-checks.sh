@@ -4,6 +4,9 @@
 set -euo pipefail
 
 REMOTE="${1:-origin}"
+REMOTE_URL="${2:-}"
+
+bun run test:scripts
 
 resolve_base_ref() {
   local branch upstream fallback
@@ -37,5 +40,7 @@ FILTER="...[${BASE}]"
 echo "Running pre-push checks (affected since ${BASE})..."
 echo "→ pnpm turbo run typecheck test --filter=${FILTER}"
 pnpm turbo run typecheck test --filter="${FILTER}"
+
+bun scripts/run-pre-push-e2e.ts "$REMOTE" "$REMOTE_URL"
 
 echo "All pre-push checks passed. Proceeding with push."

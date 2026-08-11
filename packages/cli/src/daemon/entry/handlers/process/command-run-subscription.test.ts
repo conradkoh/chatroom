@@ -5,7 +5,7 @@
  * while deduplicating runs already dispatched.
  */
 
-import type { ConvexClient } from 'convex/browser';
+import type { ConvexHttpClient } from 'convex/browser';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect } from 'effect';
 import type { Runtime } from 'effect';
@@ -55,7 +55,7 @@ function makeSession(): DaemonSessionServiceShape {
     sessionId: 'test-session-id',
     machineId: 'test-machine-id',
     convexUrl: 'http://test-convex-url',
-    client: {} as ConvexClient,
+    client: {} as ConvexHttpClient,
     config: null,
     backend: {
       query: vi.fn(),

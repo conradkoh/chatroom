@@ -112,6 +112,7 @@ export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
   'cursor-sdk': 'Cursor (SDK)',
   claude: 'Claude Code',
   'claude-sdk': 'Claude (SDK)',
+  'codex-sdk': 'Codex (SDK)',
   commandcode: 'CommandCode',
 };
 

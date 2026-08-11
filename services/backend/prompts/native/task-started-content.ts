@@ -5,6 +5,7 @@
 import { getContextRuleBlock } from '../base/shared/context-rule';
 import { getNativeTokenActivityInProgressNote } from '../base/shared/token-activity-note';
 import { contextNewCommand, contextNewHint } from '../cli/context/new';
+import { contextReadCommand } from '../cli/context/read';
 
 export function getNativeTaskStartedPrompt(ctx: {
   chatroomId: string;
@@ -18,12 +19,21 @@ export function getNativeTaskStartedPrompt(ctx: {
     cliEnvPrefix: ctx.cliEnvPrefix,
     triggerMessageId: ctx.triggerMessageId,
   });
+  const contextReadCmd = contextReadCommand({
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    cliEnvPrefix: ctx.cliEnvPrefix,
+  });
 
   return `### Start working
 
 Entry-point roles receive user messages directly. ${getNativeTokenActivityInProgressNote()}
 
-${getContextRuleBlock(contextNewCmd, contextNewHint({ cliEnvPrefix: ctx.cliEnvPrefix }))}`;
+${getContextRuleBlock(
+  contextReadCmd,
+  contextNewCmd,
+  contextNewHint({ cliEnvPrefix: ctx.cliEnvPrefix })
+)}`;
 }
 
 export function getNativeTaskStartedPromptForHandoffRecipient(): string {

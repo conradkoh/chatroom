@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication complexity
 /** Convex functions for machine registration, agent config, and remote command dispatch. */
 
 import { ConvexError, v } from 'convex/values';
@@ -2200,6 +2201,7 @@ export const listRemoteAgentRunningStatus = query({
 
     const userMachines = await ctx.db
       .query('chatroom_machines')
+      // fallow-ignore-next-line code-duplication
       .withIndex('by_userId', (q) => q.eq('userId', auth.userId))
       .collect();
     const userMachineIds = new Set(userMachines.map((m) => m.machineId));
@@ -2764,6 +2766,69 @@ export const emitAgentStartFailed = mutation({
         .first();
       if (failedConfig) {
         await patchTeamAgentConfig(ctx, failedConfig._id, { desiredState: 'stopped' });
+      }
+    }
+
+    return { success: true };
+  },
+});
+
+/** Emits an agent.providerUnavailable event for recoverable provider failures. */
+export const emitAgentProviderUnavailable = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    reason: v.union(v.literal('model_capacity'), v.literal('rate_limit'), v.literal('quota')),
+    model: v.string(),
+    message: v.string(),
+    recoverable: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: args.role,
+      allowNewMachine: false,
+    });
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.providerUnavailable',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      reason: args.reason,
+      model: args.model,
+      message: args.message,
+      recoverable: args.recoverable,
+      timestamp: Date.now(),
+    });
+
+    await transitionAgentStatus(
+      ctx,
+      args.chatroomId,
+      args.role,
+      'agent.providerUnavailable',
+      'stopped'
+    );
+
+    if (!args.recoverable) {
+      const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+      if (chatroom?.teamId) {
+        // fallow-ignore-next-line code-duplication
+        const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
+        const config = await ctx.db
+          .query('chatroom_teamAgentConfigs')
+          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+          .first();
+        if (config) {
+          await patchTeamAgentConfig(ctx, config._id, { desiredState: 'stopped' });
+        }
       }
     }
 

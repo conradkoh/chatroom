@@ -96,7 +96,6 @@ describe('hasPermission', () => {
     for (const permission of systemAdminPermissions) {
       expect(hasPermission(user, permission)).toBe(true);
     }
-    expect(hasPermission(user, 'auth:provider:manage')).toBe(true);
     expect(hasPermission(user, 'system_admin:access')).toBe(true);
   });
 });
@@ -138,5 +137,23 @@ describe('getPermissionsForUser', () => {
     expect(hasPermission({ accessLevel: 'system_admin' }, 'settings:write' as Permission)).toBe(
       true
     );
+  });
+});
+
+describe('admin role', () => {
+  const adminUser = { accessLevel: 'user' as const, roleNames: ['admin'] };
+
+  it('has admin:access, users:list, and invites:manage', () => {
+    expect(hasPermission(adminUser, 'admin:access')).toBe(true);
+    expect(hasPermission(adminUser, 'users:list')).toBe(true);
+    expect(hasPermission(adminUser, 'invites:manage')).toBe(true);
+  });
+
+  it('lacks system_admin:access', () => {
+    expect(hasPermission(adminUser, 'system_admin:access')).toBe(false);
+  });
+
+  it('resolves roleNames admin via getRolesForUser', () => {
+    expect(getRolesForUser({ accessLevel: 'user', roleNames: ['admin'] })).toEqual(['admin']);
   });
 });

@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import Script from 'next/script';
 
 import './globals.css';
+import { AppMain } from '@/app/AppMain';
 import { ConvexClientProvider } from '@/app/ConvexClientProvider';
 import { Navigation } from '@/components/Navigation';
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration';
@@ -83,10 +84,10 @@ export default function RootLayout({
                       <HeaderPortalProvider>
                         <div className="flex h-dvh flex-col overflow-hidden bg-background dark:bg-zinc-950">
                           <Navigation />
-                          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
+                          <AppMain>
                             <InstallAppMobileBanner />
                             {children}
-                          </main>
+                          </AppMain>
                         </div>
                       </HeaderPortalProvider>
                     </PwaInstallProvider>

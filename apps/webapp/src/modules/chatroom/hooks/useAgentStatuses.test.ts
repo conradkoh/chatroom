@@ -35,6 +35,7 @@ describe('deriveAgentIsWorking', () => {
     expectAligned('agent.exited', 'running', true, 'error');
     expectAligned('agent.circuitOpen', null, true, 'error');
     expectAligned('agent.startFailed', null, true, 'error');
+    expectAligned('agent.providerUnavailable', null, true, 'transitioning');
     expectAligned('agent.resumeStormAborted', null, true, 'error');
   });
 

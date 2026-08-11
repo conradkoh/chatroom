@@ -46,10 +46,35 @@ async function loginAsStandardUser(): Promise<{ sessionId: SessionId; userId: Id
   return { sessionId, userId };
 }
 
+async function loginAsBusinessAdmin(): Promise<{ sessionId: SessionId; userId: Id<'users'> }> {
+  const sessionId = `biz-admin-${Math.random().toString(36).slice(2)}` as SessionId;
+  const login = await t.mutation(api.auth.loginAnon, { sessionId });
+  expect(login.success).toBe(true);
+  const userId = login.userId as Id<'users'>;
+  await t.run(async (ctx) => {
+    await ctx.db.patch('users', userId, { accessLevel: 'user', roleNames: ['admin'] });
+  });
+  return { sessionId, userId };
+}
+
+test('business admin with invites:manage can create and list invites', async () => {
+  const { sessionId } = await loginAsBusinessAdmin();
+
+  const invite = await t.mutation(api.admin.invites.createInvite, {
+    sessionId,
+    inviteeName: 'Biz Admin Invite',
+    inviteeEmail: 'bizadmin-invite@example.com',
+  });
+  expect(invite.inviteeEmail).toBe('bizadmin-invite@example.com');
+
+  const invites = await t.query(api.admin.invites.listInvites, { sessionId });
+  expect(invites.some((i) => i._id === invite._id)).toBe(true);
+});
+
 test('createInvite applies 30-day default expiry', async () => {
   const { sessionId } = await loginAsSystemAdmin();
 
-  const invite = await t.mutation(api.system.invites.createInvite, {
+  const invite = await t.mutation(api.admin.invites.createInvite, {
     sessionId,
     inviteeName: 'Jane Doe',
     inviteeEmail: 'jane@example.com',
@@ -65,7 +90,7 @@ test('createInvite applies 30-day default expiry', async () => {
 test('createInvite supports indefinite expiry', async () => {
   const { sessionId } = await loginAsSystemAdmin();
 
-  const invite = await t.mutation(api.system.invites.createInvite, {
+  const invite = await t.mutation(api.admin.invites.createInvite, {
     sessionId,
     inviteeName: 'Jane Doe',
     inviteeEmail: 'jane@example.com',
@@ -79,7 +104,7 @@ test('createInvite rejects empty name, empty email, and invalid email', async ()
   const { sessionId } = await loginAsSystemAdmin();
 
   await expect(
-    t.mutation(api.system.invites.createInvite, {
+    t.mutation(api.admin.invites.createInvite, {
       sessionId,
       inviteeName: '   ',
       inviteeEmail: 'jane@example.com',
@@ -89,7 +114,7 @@ test('createInvite rejects empty name, empty email, and invalid email', async ()
   });
 
   await expect(
-    t.mutation(api.system.invites.createInvite, {
+    t.mutation(api.admin.invites.createInvite, {
       sessionId,
       inviteeName: 'Jane Doe',
       inviteeEmail: '   ',
@@ -99,7 +124,7 @@ test('createInvite rejects empty name, empty email, and invalid email', async ()
   });
 
   await expect(
-    t.mutation(api.system.invites.createInvite, {
+    t.mutation(api.admin.invites.createInvite, {
       sessionId,
       inviteeName: 'Jane Doe',
       inviteeEmail: 'not-an-email',
@@ -112,20 +137,20 @@ test('createInvite rejects empty name, empty email, and invalid email', async ()
 test('disableInvite and enableInvite toggle disabled', async () => {
   const { sessionId } = await loginAsSystemAdmin();
 
-  const invite = await t.mutation(api.system.invites.createInvite, {
+  const invite = await t.mutation(api.admin.invites.createInvite, {
     sessionId,
     inviteeName: 'Jane Doe',
     inviteeEmail: 'jane@example.com',
   });
 
-  const disabled = await t.mutation(api.system.invites.disableInvite, {
+  const disabled = await t.mutation(api.admin.invites.disableInvite, {
     sessionId,
     inviteId: invite._id,
   });
   expect(disabled.disabled).toBe(true);
   expect(disabled.status).toBe('disabled');
 
-  const enabled = await t.mutation(api.system.invites.enableInvite, {
+  const enabled = await t.mutation(api.admin.invites.enableInvite, {
     sessionId,
     inviteId: invite._id,
   });
@@ -136,13 +161,13 @@ test('disableInvite and enableInvite toggle disabled', async () => {
 test('deleteInvite hard deletes the invite record', async () => {
   const { sessionId } = await loginAsSystemAdmin();
 
-  const invite = await t.mutation(api.system.invites.createInvite, {
+  const invite = await t.mutation(api.admin.invites.createInvite, {
     sessionId,
     inviteeName: 'Jane Doe',
     inviteeEmail: 'jane@example.com',
   });
 
-  await t.mutation(api.system.invites.deleteInvite, {
+  await t.mutation(api.admin.invites.deleteInvite, {
     sessionId,
     inviteId: invite._id,
   });
@@ -155,13 +180,13 @@ test('validateInviteCode returns invite details for a valid code', async () => {
   const { sessionId: adminSessionId } = await loginAsSystemAdmin();
   const validationSessionId = `validate-${Math.random().toString(36).slice(2)}` as SessionId;
 
-  const invite = await t.mutation(api.system.invites.createInvite, {
+  const invite = await t.mutation(api.admin.invites.createInvite, {
     sessionId: adminSessionId,
     inviteeName: 'Jane Doe',
     inviteeEmail: 'jane@example.com',
   });
 
-  const result = await t.mutation(api.system.invites.validateInviteCode, {
+  const result = await t.mutation(api.admin.invites.validateInviteCode, {
     sessionId: validationSessionId,
     code: invite.code,
   });
@@ -177,23 +202,23 @@ test('validateInviteCode rejects disabled, expired, and used invites', async () 
   const { sessionId: adminSessionId } = await loginAsSystemAdmin();
   const validationSessionId = `validate-${Math.random().toString(36).slice(2)}` as SessionId;
 
-  const disabledInvite = await t.mutation(api.system.invites.createInvite, {
+  const disabledInvite = await t.mutation(api.admin.invites.createInvite, {
     sessionId: adminSessionId,
     inviteeName: 'Disabled User',
     inviteeEmail: 'disabled@example.com',
   });
-  await t.mutation(api.system.invites.disableInvite, {
+  await t.mutation(api.admin.invites.disableInvite, {
     sessionId: adminSessionId,
     inviteId: disabledInvite._id,
   });
 
-  const disabledResult = await t.mutation(api.system.invites.validateInviteCode, {
+  const disabledResult = await t.mutation(api.admin.invites.validateInviteCode, {
     sessionId: validationSessionId,
     code: disabledInvite.code,
   });
   expect(disabledResult).toMatchObject({ valid: false, reason: 'disabled' });
 
-  const expiredInvite = await t.mutation(api.system.invites.createInvite, {
+  const expiredInvite = await t.mutation(api.admin.invites.createInvite, {
     sessionId: adminSessionId,
     inviteeName: 'Expired User',
     inviteeEmail: 'expired@example.com',
@@ -205,13 +230,13 @@ test('validateInviteCode rejects disabled, expired, and used invites', async () 
     });
   });
 
-  const expiredResult = await t.mutation(api.system.invites.validateInviteCode, {
+  const expiredResult = await t.mutation(api.admin.invites.validateInviteCode, {
     sessionId: `${validationSessionId}-expired` as SessionId,
     code: expiredInvite.code,
   });
   expect(expiredResult).toMatchObject({ valid: false, reason: 'expired' });
 
-  const usedInvite = await t.mutation(api.system.invites.createInvite, {
+  const usedInvite = await t.mutation(api.admin.invites.createInvite, {
     sessionId: adminSessionId,
     inviteeName: 'Used User',
     inviteeEmail: 'used@example.com',
@@ -222,7 +247,7 @@ test('validateInviteCode rejects disabled, expired, and used invites', async () 
     });
   });
 
-  const usedResult = await t.mutation(api.system.invites.validateInviteCode, {
+  const usedResult = await t.mutation(api.admin.invites.validateInviteCode, {
     sessionId: `${validationSessionId}-used` as SessionId,
     code: usedInvite.code,
   });
@@ -233,14 +258,14 @@ test('validateInviteCode records failed attempts and rate limits after 5 failure
   const sessionId = `rate-limit-${Math.random().toString(36).slice(2)}` as SessionId;
 
   for (let i = 0; i < 5; i++) {
-    const result = await t.mutation(api.system.invites.validateInviteCode, {
+    const result = await t.mutation(api.admin.invites.validateInviteCode, {
       sessionId,
       code: 'INVALID1',
     });
     expect(result).toMatchObject({ valid: false, reason: 'invalid_code' });
   }
 
-  const rateLimited = await t.mutation(api.system.invites.validateInviteCode, {
+  const rateLimited = await t.mutation(api.admin.invites.validateInviteCode, {
     sessionId,
     code: 'INVALID1',
   });
@@ -254,7 +279,7 @@ test('createInvite requires invites:manage permission', async () => {
   const { sessionId } = await loginAsStandardUser();
 
   await expect(
-    t.mutation(api.system.invites.createInvite, {
+    t.mutation(api.admin.invites.createInvite, {
       sessionId,
       inviteeName: 'Jane Doe',
       inviteeEmail: 'jane@example.com',
@@ -271,13 +296,13 @@ test('validateInviteCode writes pendingInviteId to session on success', async ()
   const { sessionId: adminSessionId } = await loginAsSystemAdmin();
   const validationSessionId = `pending-${Math.random().toString(36).slice(2)}` as SessionId;
 
-  const invite = await t.mutation(api.system.invites.createInvite, {
+  const invite = await t.mutation(api.admin.invites.createInvite, {
     sessionId: adminSessionId,
     inviteeName: 'Jane Doe',
     inviteeEmail: 'jane@example.com',
   });
 
-  const result = await t.mutation(api.system.invites.validateInviteCode, {
+  const result = await t.mutation(api.admin.invites.validateInviteCode, {
     sessionId: validationSessionId,
     code: invite.code,
   });
@@ -303,7 +328,7 @@ test('validateInviteCode accepts dashed input when stored without dashes', async
   const { sessionId: adminSessionId } = await loginAsSystemAdmin();
   const validationSessionId = `normalize-${Math.random().toString(36).slice(2)}` as SessionId;
 
-  const invite = await t.mutation(api.system.invites.createInvite, {
+  const invite = await t.mutation(api.admin.invites.createInvite, {
     sessionId: adminSessionId,
     inviteeName: 'Jane Doe',
     inviteeEmail: 'jane@example.com',
@@ -313,7 +338,7 @@ test('validateInviteCode accepts dashed input when stored without dashes', async
     await ctx.db.patch('invites', invite._id, { code: 'ABCD1234' });
   });
 
-  const result = await t.mutation(api.system.invites.validateInviteCode, {
+  const result = await t.mutation(api.admin.invites.validateInviteCode, {
     sessionId: validationSessionId,
     code: 'abcd-1234',
   });

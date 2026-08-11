@@ -4,7 +4,7 @@ import { BasePage } from './base.page';
 
 /**
  * Page object for the shared system-admin layout (sidebar + header).
- * The layout wraps every /app/admin page, so nav/back-link assertions live here.
+ * The layout wraps every /app/system-admin page, so nav/back-link assertions live here.
  */
 export class AdminLayoutPage extends BasePage {
   constructor(page: Page) {
@@ -38,11 +38,8 @@ export class AdminLayoutPage extends BasePage {
 
   async verifySidebarNavigation(): Promise<void> {
     await expect(this.dashboardNavLink).toBeVisible();
-    await expect(this.userRolesNavLink).toBeVisible();
     await expect(this.googleAuthNavLink).toBeVisible();
-
-    await this.userRolesNavLink.click();
-    await expect(this.page.getByRole('heading', { name: 'User Roles' })).toBeVisible();
+    await expect(this.userRolesNavLink).toBeHidden();
 
     await this.googleAuthNavLink.click();
     await expect(
@@ -50,6 +47,6 @@ export class AdminLayoutPage extends BasePage {
     ).toBeVisible();
 
     await this.dashboardNavLink.click();
-    await expect(this.page.getByRole('heading', { name: 'Admin Dashboard' })).toBeVisible();
+    await expect(this.page.getByRole('heading', { name: 'System Admin', level: 1 })).toBeVisible();
   }
 }

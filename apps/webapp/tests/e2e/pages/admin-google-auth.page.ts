@@ -43,7 +43,7 @@ export class AdminGoogleAuthPage extends BasePage {
     return this.page.getByRole('button', { name: /Show password|Hide password/i });
   }
 
-  override async navigate(path = '/app/admin/google-auth'): Promise<void> {
+  override async navigate(path = '/app/system-admin/google-auth'): Promise<void> {
     await this.page.goto(path);
     await expect(this.heading).toBeVisible();
     await expect(this.loadedSignal).toBeVisible();

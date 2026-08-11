@@ -1,11 +1,10 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { ChevronDown, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -27,17 +26,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuthState, useCurrentUser } from '@/modules/auth/AuthProvider';
 import { ConnectButton } from '@/modules/auth/ConnectButton';
+import {
+  buildGoogleOAuthUrl,
+  createOAuthState,
+  redirectToGoogleOAuth,
+} from '@/modules/auth/google-oauth';
 import { GoogleIcon } from '@/modules/auth/GoogleIcon';
-
-// Helper function to create OAuth state for connect flow
-function createConnectOAuthState(connectRequestId: string): string {
-  const state = {
-    flowType: 'connect' as const,
-    requestId: connectRequestId,
-    version: 'v1' as const,
-  };
-  return encodeURIComponent(JSON.stringify(state));
-}
 
 interface _DisconnectDialogState {
   isOpen: boolean;
@@ -68,6 +62,7 @@ interface _GoogleAccountContext {
  * Name edit form component allowing users to update their display name.
  * Supports different user types (Google, anonymous, full account) with appropriate messaging.
  */
+// fallow-ignore-next-line complexity
 export function NameEditForm() {
   const currentUser = useCurrentUser();
   const authState = useAuthState();
@@ -85,7 +80,6 @@ export function NameEditForm() {
 
   // State for Google connection
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
-  const [connectLoginRequestId, setConnectLoginRequestId] = useState<string | null>(null);
 
   // State for disconnect confirmation dialog
   const [disconnectDialog, setDisconnectDialog] = useState<_DisconnectDialogState>({
@@ -95,47 +89,10 @@ export function NameEditForm() {
     isDisconnecting: false,
   });
 
-  // Refs for popup poll interval and timeout cleanup
-  const popupPollRef = useRef<NodeJS.Timeout | null>(null);
-  const popupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (popupPollRef.current) clearInterval(popupPollRef.current);
-      if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
-    };
-  }, []);
-
   // Convex mutations
   const updateUserName = useSessionMutation(api.auth.updateUserName);
   const disconnectGoogle = useSessionMutation(api.auth.google.disconnectGoogle);
   const createConnectRequest = useSessionMutation(api.auth.google.createConnectRequest);
-
-  // Query to poll connect request status for connect flow
-  const connectRequest = useQuery(
-    api.auth.google.getConnectRequest,
-    connectLoginRequestId
-      ? { connectRequestId: connectLoginRequestId as Id<'auth_connectRequests'> }
-      : 'skip'
-  );
-
-  const prevConnectRequestRef = useRef(connectRequest);
-  if (prevConnectRequestRef.current !== connectRequest) {
-    prevConnectRequestRef.current = connectRequest;
-    if (connectRequest && isConnectingGoogle) {
-      if (connectRequest.status === 'completed') {
-        queueMicrotask(() => toast.success('Google account connected successfully!'));
-        setIsConnectingGoogle(false);
-        setConnectLoginRequestId(null);
-      } else if (connectRequest.status === 'failed') {
-        queueMicrotask(() =>
-          toast.error(connectRequest.error || 'Failed to connect Google account')
-        );
-        setIsConnectingGoogle(false);
-        setConnectLoginRequestId(null);
-      }
-    }
-  }
 
   const prevUserNameRef = useRef(currentUser?.name);
   if (prevUserNameRef.current !== currentUser?.name) {
@@ -202,68 +159,17 @@ export function NameEditForm() {
       // Create a connect request in the backend for connect flow
       const result = await createConnectRequest({ redirectUri });
 
-      // Set the connect request ID for polling
-      setConnectLoginRequestId(result.connectId);
+      const state = createOAuthState('connect', result.connectId, '/app/profile');
+      const authUrl = buildGoogleOAuthUrl({
+        clientId: googleAuthAvailable?.clientId || '',
+        redirectUri,
+        state,
+      });
 
-      // Generate the Google OAuth URL using the structured state parameter
-      const state = createConnectOAuthState(result.connectId);
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
-        client_id: googleAuthAvailable?.clientId || '',
-        redirect_uri: redirectUri,
-        response_type: 'code',
-        scope: 'openid email profile',
-        state: state,
-        access_type: 'offline',
-        prompt: 'consent',
-      })}`;
-
-      // Open popup window instead of redirecting current page
-      const popup = window.open(
-        authUrl,
-        'google-oauth-connect',
-        'width=500,height=600,scrollbars=yes,resizable=yes,status=yes,location=yes,toolbar=no,menubar=no'
-      );
-
-      if (!popup) {
-        toast.error('Failed to open popup. Please enable popups and try again.');
-        setIsConnectingGoogle(false);
-        setConnectLoginRequestId(null);
-        return;
-      }
-
-      // Clear any previous timers
-      if (popupPollRef.current) clearInterval(popupPollRef.current);
-      if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
-
-      // Poll for popup closure
-      popupPollRef.current = setInterval(() => {
-        if (popup.closed) {
-          if (popupPollRef.current) clearInterval(popupPollRef.current);
-          popupPollRef.current = null;
-        }
-      }, 1000);
-
-      // Cleanup on timeout
-      popupTimeoutRef.current = setTimeout(
-        () => {
-          if (popupPollRef.current) {
-            clearInterval(popupPollRef.current);
-            popupPollRef.current = null;
-          }
-          popupTimeoutRef.current = null;
-          if (!popup.closed) {
-            popup.close();
-          }
-          toast.error('Connection timeout. Please try again.');
-          setIsConnectingGoogle(false);
-          setConnectLoginRequestId(null);
-        },
-        15 * 60 * 1000
-      );
+      redirectToGoogleOAuth(authUrl);
     } catch (_error) {
       toast.error('Failed to connect Google account');
       setIsConnectingGoogle(false);
-      setConnectLoginRequestId(null);
     }
   }, [googleAuthAvailable?.clientId, createConnectRequest]);
 

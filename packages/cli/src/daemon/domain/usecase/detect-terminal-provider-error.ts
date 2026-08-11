@@ -99,7 +99,7 @@ export function isTerminalProviderFailureInLogs(logLines: readonly string[]): bo
 }
 
 // fallow-ignore-next-line complexity
-function isClassifiableHarnessLogLine(line: string): boolean {
+export function isClassifiableHarnessLogLine(line: string): boolean {
   if (/\b(?:text|thinking)\]/.test(line)) return false;
   if (/\btool:/.test(line)) return false;
   if (line.includes('agent_end]')) return true;

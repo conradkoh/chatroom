@@ -76,7 +76,9 @@ describe('native task-started content', () => {
       plannerEnhancerEnabled: true,
     });
 
-    expect(output).toContain('Do not run `context new`');
+    expect(output).toContain(
+      'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="room-id" --role="planner"'
+    );
     expect(output).not.toContain('--trigger-message-id="enh-msg-id"');
     expect(output).not.toContain('Handoff to `enhancer`');
     expect(output).toContain('<enhancer-review>');

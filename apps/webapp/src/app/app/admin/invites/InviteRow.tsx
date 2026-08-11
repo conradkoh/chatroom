@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { InviteStatus, InviteSummary } from '@workspace/backend/convex/system/invites';
+import type { InviteStatus, InviteSummary } from '@workspace/backend/convex/admin/invites';
 import { formatLoginCode } from '@workspace/backend/modules/auth/codeUtils';
 import { Trash2 } from 'lucide-react';
 

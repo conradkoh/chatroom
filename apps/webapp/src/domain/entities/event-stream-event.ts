@@ -105,6 +105,17 @@ export interface AgentStartFailedEvent extends EventStreamEventBase {
   chatroomId: string;
 }
 
+export interface AgentProviderUnavailableEvent extends EventStreamEventBase {
+  type: 'agent.providerUnavailable';
+  role: string;
+  machineId: string;
+  reason: 'model_capacity' | 'rate_limit' | 'quota';
+  model: string;
+  message: string;
+  recoverable: boolean;
+  chatroomId: string;
+}
+
 export interface AgentSessionResumeRequestedEvent extends EventStreamEventBase {
   type: 'agent.sessionResumeRequested';
   role: string;
@@ -522,6 +533,7 @@ export type EventStreamEvent =
   | AgentRegisteredEvent
   | AgentWaitingEvent
   | AgentStartFailedEvent
+  | AgentProviderUnavailableEvent
   | AgentSessionResumeRequestedEvent
   | AgentSessionResumedEvent
   | AgentSessionResumeFailedEvent

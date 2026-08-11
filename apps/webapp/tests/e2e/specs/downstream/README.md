@@ -2,6 +2,8 @@
 
 Add fork-specific UI tests here. Do **not** modify `specs/upstream/` unless contributing back to the template.
 
+Pre-push on fork remotes runs only `@downstream` specs; at least one downstream spec is required before the first push (zero matches fails).
+
 ## Conventions
 
 1. Create specs in this folder with Playwright native tag `TAG_DOWNSTREAM` from `support/tags.ts`.

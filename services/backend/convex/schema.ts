@@ -1378,6 +1378,18 @@ export default defineSchema({
         error: v.string(),
         timestamp: v.number(),
       }),
+      // Upstream provider cannot currently serve the configured model.
+      v.object({
+        type: v.literal('agent.providerUnavailable'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        reason: v.union(v.literal('model_capacity'), v.literal('rate_limit'), v.literal('quota')),
+        model: v.string(),
+        message: v.string(),
+        recoverable: v.boolean(),
+        timestamp: v.number(),
+      }),
       // Daemon-memory reconnect attempted on stop→start (wantResume + stored snapshot)
       v.object({
         type: v.literal('agent.sessionResumeRequested'),

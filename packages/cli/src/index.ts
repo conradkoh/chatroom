@@ -169,6 +169,96 @@ const handoffCommandGroup = program
   .command('handoff')
   .description('Complete your task and hand off to the next role');
 
+const teamCommand = program.command('team').description('Manage chatroom team configuration');
+
+teamCommand
+  .command('list')
+  .description('List available team presets')
+  .action(async () => {
+    await maybeRequireAuth();
+    const { listTeamPresets } = await import('./commands/team/index.js');
+    await listTeamPresets();
+  });
+
+const agentCommand = program.command('agent').description('Manage agent harness and lifecycle');
+const agentConfigCommand = agentCommand.command('config').description('Agent configuration');
+
+agentConfigCommand
+  .command('get')
+  .description('Show agent configuration for a role')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Agent role')
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+    const { getAgentConfig } = await import('./commands/agent/index.js');
+    await getAgentConfig(options.chatroomId, options.role);
+  });
+
+agentConfigCommand
+  .command('set')
+  .description('Save agent harness and model configuration')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Agent role')
+  .requiredOption('--harness <harness>', 'Agent harness')
+  .requiredOption('--model <model>', 'Model identifier')
+  .option('--working-dir <dir>', 'Agent working directory')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      harness: string;
+      model: string;
+      workingDir?: string;
+    }) => {
+      await maybeRequireAuth();
+      const { setAgentConfig } = await import('./commands/agent/index.js');
+      await setAgentConfig(options.chatroomId, options);
+    }
+  );
+
+agentCommand
+  .command('start')
+  .description('Start a configured remote agent')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Agent role')
+  .option('--harness <harness>', 'Agent harness override')
+  .option('--model <model>', 'Model identifier override')
+  .option('--working-dir <dir>', 'Agent working directory override')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      harness?: string;
+      model?: string;
+      workingDir?: string;
+    }) => {
+      await maybeRequireAuth();
+      const { startAgent } = await import('./commands/agent/index.js');
+      await startAgent(options.chatroomId, options);
+    }
+  );
+
+teamCommand
+  .command('get')
+  .description('Show the current team configuration')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .action(async (options: { chatroomId: string }) => {
+    await maybeRequireAuth();
+    const { getTeam } = await import('./commands/team/index.js');
+    await getTeam(options.chatroomId);
+  });
+
+teamCommand
+  .command('set')
+  .description('Set the team preset for a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--team <id>', 'Team preset (duo|solo)')
+  .action(async (options: { chatroomId: string; team: string }) => {
+    await maybeRequireAuth();
+    const { setTeam } = await import('./commands/team/index.js');
+    await setTeam(options.chatroomId, options.team);
+  });
+
 handoffCommandGroup
   .command('view-template')
   .description('Print the handoff message template for a role pair')
@@ -600,6 +690,20 @@ const messagesCommand = program
   .command('messages')
   .description('List and filter chatroom messages');
 
+const messageCommand = program.command('message').description('Send chatroom messages');
+
+messageCommand
+  .command('send')
+  .description('Send a user message to a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--content <text>', 'Message content')
+  .option('--target-role <role>', 'Target role (defaults to team entry point)')
+  .action(async (options: { chatroomId: string; content: string; targetRole?: string }) => {
+    await maybeRequireAuth();
+    const { sendUserMessage } = await import('./commands/messages/send.js');
+    await sendUserMessage(options.chatroomId, options);
+  });
+
 messagesCommand
   .command('list')
   .description('List messages by sender role or since a specific message')
@@ -671,6 +775,18 @@ messagesCommand
       role: options.role,
       priorLimit: parsedPriorLimit,
     });
+  });
+
+messagesCommand
+  .command('send')
+  .description('Send a user message to a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--content <text>', 'Message content')
+  .option('--target-role <role>', 'Target role (defaults to team entry point)')
+  .action(async (options: { chatroomId: string; content: string; targetRole?: string }) => {
+    await maybeRequireAuth();
+    const { sendUserMessage } = await import('./commands/messages/send.js');
+    await sendUserMessage(options.chatroomId, options);
   });
 
 messagesCommand

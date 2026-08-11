@@ -29,7 +29,7 @@ End-to-end steps for adding a new message attachment type to Chatroom.
 ```xml
 <task task-id="..." origin-message-id="..." sender="user">
   <context>
-    <hint>(read if needed) → `chatroom context read ...`</hint>
+    <hint>(read if needed) → `chatroom context read --chatroom-id="&lt;chatroom-id&gt;" --role="&lt;role&gt;"`</hint>
     <staleness-warning>⚠️ Context is 1d old.</staleness-warning>
   </context>
   <instruction>

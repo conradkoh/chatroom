@@ -437,6 +437,7 @@
     "packages/cli/src/daemon/local-web/server/routes.ts:handleHarnessStreamSse",
     "packages/cli/src/daemon/local-web/server/routes.ts:routeRequest",
     "packages/cli/src/daemon/local-web/server/stream-hub.ts:createStreamHub",
+    "apps/webapp/src/application/auth/roles.ts:systemAdminPermissions",
     "services/backend/application/auth/index.ts:getPermissionsForRole",
     "services/backend/application/auth/index.ts:getResolvedPermissionsForUser",
     "services/backend/application/auth/index.ts:roleDefinitions",
@@ -640,7 +641,11 @@
     "packages/cli/src/daemon/entry/native-delivery/native-harness-session-exit.ts:isNativeHarnessSessionDiscardedOnExit",
     "packages/cli/src/daemon/entry/native-delivery/native-turn-phase.ts:isNativeSlotIdleForDelivery",
     "packages/cli/src/daemon/domain/entities/machine-command.ts:isStartAgentCommand",
-    "packages/cli/src/daemon/domain/entities/machine-command.ts:isStopAgentCommand"
+    "packages/cli/src/daemon/domain/entities/machine-command.ts:isStopAgentCommand",
+    "services/backend/application/auth/roles.ts:systemAdminPermissions",
+    "services/backend/config/signupMethods.ts:SignupMethod",
+    "services/backend/config/signupMethods.ts:SIGNUP_METHODS",
+    "services/backend/config/signupMethods.ts:getAllowedSignupMethods"
   ],
   "unused_types": [
     "apps/webapp/src/application/auth/index.ts:Permission",

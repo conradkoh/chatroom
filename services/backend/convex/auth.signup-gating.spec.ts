@@ -136,14 +136,14 @@ test('Google new user succeeds with pending invite and matching email', async ()
   const admin = await seedSystemAdmin();
   await enableGoogleAuth(admin.userId);
 
-  const invite = await t.mutation(api.system.invites.createInvite, {
+  const invite = await t.mutation(api.admin.invites.createInvite, {
     sessionId: admin.sessionId,
     inviteeName: 'Jane Doe',
     inviteeEmail: 'jane@example.com',
   });
 
   const sessionId = `google-invite-${Math.random().toString(36).slice(2)}` as SessionId;
-  const validation = await t.mutation(api.system.invites.validateInviteCode, {
+  const validation = await t.mutation(api.admin.invites.validateInviteCode, {
     sessionId,
     code: invite.code,
   });
@@ -171,14 +171,14 @@ test('Google new user fails when email does not match invite', async () => {
   const admin = await seedSystemAdmin();
   await enableGoogleAuth(admin.userId);
 
-  const invite = await t.mutation(api.system.invites.createInvite, {
+  const invite = await t.mutation(api.admin.invites.createInvite, {
     sessionId: admin.sessionId,
     inviteeName: 'Jane Doe',
     inviteeEmail: 'jane@example.com',
   });
 
   const sessionId = `google-mismatch-${Math.random().toString(36).slice(2)}` as SessionId;
-  await t.mutation(api.system.invites.validateInviteCode, {
+  await t.mutation(api.admin.invites.validateInviteCode, {
     sessionId,
     code: invite.code,
   });

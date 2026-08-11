@@ -139,8 +139,21 @@
       // Intentional parallel stdin delimiter decoders (CLI + Convex backend)
       "packages/cli/src/utils/serialization/decode/index.ts",
       "services/backend/convex/lib/stdinDecoder.ts",
+      // Intentional per-harness SDK service scaffolding (keeper PID, resume
+      // queue, spawn-error formatting) — see HARNESS_GUIDE.md §4
+      "packages/cli/src/daemon/infrastructure/local/harness/services/codex-sdk/**",
+      "packages/cli/src/daemon/infrastructure/local/harness/services/claude-sdk/**",
+      "packages/cli/src/daemon/infrastructure/local/harness/services/cursor-sdk/**",
+      "packages/cli/src/daemon/infrastructure/local/harness/services/pi-sdk/**",
       // Shared opencode CLI binary harness base used by opencode-sdk
       "packages/cli/src/daemon/infrastructure/local/harness/services/opencode/binary-agent-service.ts",
+      "services/backend/convex/auth.ts",
+      "services/backend/convex/auth/**",
+      // Transitional: /app/system-admin is an intentional copy of /app/admin
+      // while the route migration is in progress. Remove when /app/admin is deleted.
+      "apps/webapp/src/app/app/system-admin/**",
+      // Markdown viewer mirrors mdx-components.tsx styling intentionally (not shared to avoid MDX hook coupling)
+      "apps/webapp/src/components/markdown-editor/markdown-components.tsx",
     ],
   },
   "health": {
@@ -150,6 +163,11 @@
       "**/*.test.{ts,tsx}",
       "**/*.spec.{ts,tsx}",
       "**/tests/**",
+      "scripts/start-convex-dev.ts",
+      "services/backend/convex/auth.ts",
+      "services/backend/convex/auth/**",
+      // Transitional: mirror of /app/admin during route migration
+      "apps/webapp/src/app/app/system-admin/**",
     ],
   },
   "audit": {

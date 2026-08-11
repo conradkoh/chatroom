@@ -9,6 +9,7 @@ import {
   ENHANCER_DELEGATION_ROUND_WORKFLOW,
   ENHANCER_ENABLED_USER_WORKFLOW,
 } from '../../src/domain/usecase/enhancer/enhancer-workflow';
+import { contextReadCommand } from '../cli/context/read';
 
 export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
   lines.push('');
@@ -116,7 +117,11 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
 }
 
 /** Guidance when planner receives planning feedback from the enhancer. */
-export function appendTaskDeliveryEnhancerReviewGuidance(lines: string[]): void {
+export function appendTaskDeliveryEnhancerReviewGuidance(
+  lines: string[],
+  ctx: { chatroomId: string; role: string; cliEnvPrefix: string }
+): void {
+  const contextReadCmd = contextReadCommand(ctx);
   lines.push('');
   lines.push('<enhancer-review>');
   lines.push('## Enhancer Planning Feedback');
@@ -128,7 +133,7 @@ export function appendTaskDeliveryEnhancerReviewGuidance(lines: string[]): void 
   lines.push('**Your job:**');
   lines.push('- Read each feedback section (user intent, knowledge gaps, reasoning, alignment).');
   lines.push(
-    '- **Do not run `context new`** — continue the user task context (`context read` only if needed).'
+    `- **Do not run context new** — continue the user task context (run \`${contextReadCmd}\` only if needed).`
   );
   lines.push(
     '- Update your understanding, research, or builder handoff draft based on valid critiques.'

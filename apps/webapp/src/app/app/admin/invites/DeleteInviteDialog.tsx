@@ -1,6 +1,6 @@
 'use client';
 
-import type { InviteSummary } from '@workspace/backend/convex/system/invites';
+import type { InviteSummary } from '@workspace/backend/convex/admin/invites';
 
 import {
   AlertDialog,

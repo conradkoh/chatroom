@@ -1,0 +1,5 @@
+/* Minimal MDXEditor dark-mode bridge: `dark-theme` flips the Radix palette,
+   but --basePageBg must be overridden or the editor surface stays light. */
+.dark-theme.markdown-editor-theme {
+  --basePageBg: transparent;
+}

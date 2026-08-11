@@ -4,6 +4,7 @@
  * CLI command reference (handoff, get-next-task).
  */
 
+import { contextReadCommand } from '../cli/context/read';
 import { getNextTaskCommand } from '../cli/get-next-task/command';
 import { getNextTaskReminder } from '../cli/get-next-task/reminder';
 import { handoffCommand } from '../cli/handoff/command';
@@ -11,6 +12,7 @@ import { roleGuidanceCommand } from '../cli/role-guidance/command';
 import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
+import { messagesDownloadSinceCommand } from '../utils/proof-of-verification';
 
 const HANDOFF_BODY_GUIDANCE = `Fill in the message using the matching template from \`<handoff-templates>\` in your task delivery output. Replace \`[Your message here]\` with that template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).`;
 
@@ -25,6 +27,18 @@ export interface CommandsReferenceParams {
  */
 export function getCommandsReferenceSection(params: CommandsReferenceParams): PromptSection {
   const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
+  const contextReadCmd = contextReadCommand({
+    chatroomId: params.chatroomId,
+    role: params.role,
+    cliEnvPrefix,
+  });
+  const messagesDownloadCmd = messagesDownloadSinceCommand({
+    chatroomId: params.chatroomId,
+    role: params.role,
+    cliEnvPrefix,
+    sinceMessageId: '<from-anchor>',
+    limit: 100,
+  });
 
   const handoffCmd = handoffCommand({
     chatroomId: params.chatroomId,
@@ -56,7 +70,7 @@ ${waitCmd}
 
 ${getNextTaskReminder()}
 
-**History retrieval:** Use \`context read\` for current-task grounding; use \`messages download\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+**History retrieval:** Run \`${contextReadCmd}\` for current-task grounding; run \`${messagesDownloadCmd}\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
 **Reference commands:**
 - Download message history: \`${cliEnvPrefix}chatroom messages download --chatroom-id="${params.chatroomId}" --role="${params.role}" --format=linear --limit=10\`
@@ -75,6 +89,18 @@ ${getNextTaskReminder()}
 /** ... */
 export function getNativeCommandsReferenceSection(params: CommandsReferenceParams): PromptSection {
   const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
+  const contextReadCmd = contextReadCommand({
+    chatroomId: params.chatroomId,
+    role: params.role,
+    cliEnvPrefix,
+  });
+  const messagesDownloadCmd = messagesDownloadSinceCommand({
+    chatroomId: params.chatroomId,
+    role: params.role,
+    cliEnvPrefix,
+    sinceMessageId: '<from-anchor>',
+    limit: 100,
+  });
 
   const handoffCmd = handoffCommand({
     chatroomId: params.chatroomId,
@@ -95,7 +121,7 @@ ${HANDOFF_BODY_GUIDANCE}
 
 **Do not run \`register-agent\`** — your session was registered when the harness started.
 
-**History retrieval:** Use \`context read\` for current-task grounding; use \`messages download\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
+**History retrieval:** Run \`${contextReadCmd}\` for current-task grounding; run \`${messagesDownloadCmd}\` for searchable history (required for cross-task summaries). Use the absolute path printed by the CLI.
 
 // Mirrors the CLI commands reference above (native harness variant).
 // fallow-ignore-next-line code-duplication

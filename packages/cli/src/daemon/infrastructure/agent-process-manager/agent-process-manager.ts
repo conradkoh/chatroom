@@ -1,3 +1,4 @@
+// fallow-ignore-file complexity
 /**
  * AgentProcessManager — single authority for agent lifecycle management.
  *
@@ -49,6 +50,10 @@ import type { StopReason } from '../../domain/entities/stop-reason.js';
 import { resolveNativeSpawnPolicy } from '../../domain/native-integration/spawn-policy.js';
 import { tryAbortResumeStorm } from '../../domain/usecase/abort-resume-storm.js';
 import { appendRecentLogLine } from '../../domain/usecase/append-recent-log-line.js';
+import {
+  classifyProviderErrorFromLogs,
+  providerUnavailableRecoverable,
+} from '../../domain/usecase/classify-provider-error.js';
 import {
   classifyResumeStormReason,
   formatPermanentHarnessFailureMessage,
@@ -144,6 +149,8 @@ export interface AgentSlot {
   wantResume?: boolean;
   /** Turn-end already emitted startFailed for a terminal provider error. */
   terminalProviderFailureHandled?: boolean;
+  /** Provider-unavailable event already emitted for this spawn. */
+  providerUnavailableEmitted?: boolean;
   /** Task last delivered to this native harness slot — sent on agent_end. */
   lastInFlightTaskId?: string;
   /** Native harness turn lifecycle — delivery control plane (not UI participant state). */
@@ -557,6 +564,7 @@ export class AgentProcessManager {
     },
     slot: AgentSlot | undefined
   ): Promise<void> {
+    this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
     if (
       await tryAbortResumeStorm(
         {
@@ -612,6 +620,7 @@ export class AgentProcessManager {
     const stopReason: StopReason = resolveStopReason(opts.code, opts.signal);
 
     const ctx = this.captureExitContext(slot, opts, stopReason);
+    this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
     notifyNativeHarnessSessionLostOnExit({
       chatroomId: opts.chatroomId,
       role: opts.role,
@@ -774,6 +783,30 @@ export class AgentProcessManager {
       `[AgentProcessManager] cursor-sdk run-error detected: ${formatCursorSdkRunErrorMessage(recentLogLines)}`
     );
     return true;
+  }
+
+  private maybeEmitProviderUnavailable(
+    chatroomId: string,
+    role: string,
+    slot: AgentSlot | undefined
+  ): void {
+    if (!slot || slot.harness !== 'codex-sdk' || slot.providerUnavailableEmitted) return;
+    const classification = classifyProviderErrorFromLogs(slot.recentLogLines ?? []);
+    if (!classification) return;
+
+    slot.providerUnavailableEmitted = true;
+    this.deps.backend
+      .mutation(api.machines.emitAgentProviderUnavailable, {
+        sessionId: this.deps.sessionId,
+        machineId: this.deps.machineId,
+        chatroomId,
+        role,
+        reason: classification.reason,
+        model: slot.model ?? '',
+        message: classification.message,
+        recoverable: providerUnavailableRecoverable(classification.reason),
+      })
+      .catch(() => {});
   }
 
   private maybeRestartAgent(opts: HandleExitOpts, ctx: ExitContext): void {
@@ -1764,6 +1797,7 @@ export class AgentProcessManager {
     slot.startedAt = this.deps.clock.now();
     slot.pendingOperation = undefined;
     slot.recentLogLines = [];
+    slot.providerUnavailableEmitted = false;
     this.deps.resumeStormTracker.reset(opts.chatroomId, opts.role);
   }
 
