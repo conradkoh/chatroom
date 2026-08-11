@@ -24,7 +24,8 @@ export type CatalogBackedHarness = Extract<AgentHarness, 'codex-sdk' | 'copilot'
  * Codex model ids offered in the catalog.
  * Source: the Codex CLI's model catalog (cache: `~/.codex/models_cache.json`).
  */
-export type CodexModelId = 'gpt-5.6-terra' | 'gpt-5.6-luna' | 'gpt-5.5' | 'gpt-5.4-mini';
+export type CodexModelId =
+  'gpt-5.6-terra' | 'gpt-5.6-luna' | 'gpt-5.6-sol' | 'gpt-5.5' | 'gpt-5.4-mini';
 
 /** Every valid codex variant string: plain id, or id with a reasoning level. */
 export type CodexModelVariantString =
@@ -33,6 +34,7 @@ export type CodexModelVariantString =
 const CODEX_MODEL_IDS: readonly CodexModelId[] = [
   'gpt-5.6-terra',
   'gpt-5.6-luna',
+  'gpt-5.6-sol',
   'gpt-5.5',
   'gpt-5.4-mini',
 ];
