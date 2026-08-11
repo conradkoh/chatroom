@@ -122,8 +122,11 @@ export function resolveCodexExecutablePath(moduleRef: string = import.meta.url):
   const chatroomCliRoot = resolveChatroomCliRoot(moduleRef);
   const require = createRequire(join(chatroomCliRoot, 'package.json'));
 
+  let codexPackageDir: string;
   try {
-    require.resolve(`${CODEX_NPM_NAME}/package.json`, { paths: [chatroomCliRoot] });
+    codexPackageDir = dirname(
+      require.resolve(`${CODEX_NPM_NAME}/package.json`, { paths: [chatroomCliRoot] })
+    );
   } catch {
     throw new CodexSdkPackageError(
       `${CODEX_NPM_NAME} is not installed. Ensure chatroom-cli was installed with optional dependencies. ${REINSTALL_HINT}`
@@ -136,9 +139,23 @@ export function resolveCodexExecutablePath(moduleRef: string = import.meta.url):
 
   let platformPkgDir: string;
   try {
-    platformPkgDir = dirname(
-      require.resolve(`${platformPkg}/package.json`, { paths: [chatroomCliRoot] })
-    );
+    // pnpm keeps optional platform packages nested under @openai/codex, while
+    // npm's flattened global installs expose them from the CLI root. Resolve
+    // from both locations so workspace-linked and published installs work.
+    const platformPackageJson = [codexPackageDir, chatroomCliRoot]
+      .map((resolveFrom) => {
+        try {
+          return require.resolve(`${platformPkg}/package.json`, { paths: [resolveFrom] });
+        } catch {
+          return undefined;
+        }
+      })
+      .find((resolved) => resolved !== undefined);
+
+    if (!platformPackageJson) {
+      throw new Error(`Unable to resolve ${platformPkg}`);
+    }
+    platformPkgDir = dirname(platformPackageJson);
   } catch {
     throw new CodexSdkPackageError(
       `Native Codex CLI package ${platformPkg} is not installed. Ensure ${CODEX_NPM_NAME} is installed with optional dependencies. ${REINSTALL_HINT}`
