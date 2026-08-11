@@ -11,6 +11,7 @@ import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../../api.js';
 import { getErrorMessage } from '../../../../utils/convex-error.js';
 import type { SessionId } from '../../daemon-types.js';
+import { asConvexSessionId } from '../../daemon-types.js';
 import { formatTimestamp } from '../../daemon-utils.js';
 
 type ObservedRuns = FunctionReturnType<typeof api.daemon.commands.listRunsWithLogObservers>;
@@ -84,7 +85,7 @@ export function startLogObserverSubscription(
   wsClient: ConvexClient
 ): { stop: () => void } {
   const queryArgs = {
-    sessionId: session.sessionId,
+    sessionId: asConvexSessionId(session.sessionId),
     machineId: session.machineId,
   };
 

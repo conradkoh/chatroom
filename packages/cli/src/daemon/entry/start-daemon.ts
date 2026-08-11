@@ -1,6 +1,7 @@
 import { createStartBackgroundCapabilitiesDiscoveryDeps } from './bridge/capabilities-bridge.js';
 import { daemonSessionToLayers } from './daemon-layers.js';
 import { createDaemonRuntime } from './daemon-runtime.js';
+import { asConvexSessionId } from './daemon-types.js';
 import { createDefaultEventRouterDeps } from './default-router-deps.js';
 import { createDaemonDeps } from './deps.js';
 import { initDaemon } from './init-daemon.js';
@@ -32,7 +33,7 @@ export async function startDaemon(): Promise<void> {
 
   const subscribers = startAllSubscribers({
     wsClient,
-    sessionId: init.sessionId,
+    sessionId: asConvexSessionId(init.sessionId),
     machineId: init.machineId,
     router: createDefaultEventRouterDeps(),
   });

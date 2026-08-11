@@ -15,7 +15,7 @@ import { handleStatusEffect } from './status.js';
 import { executeStopAgentEffect, handleStopAgentEffect } from './stop-agent.js';
 import { daemonSessionToLayers } from '../daemon-layers.js';
 import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
-import type { DaemonSessionInit, MachineConfig } from '../daemon-types.js';
+import type { DaemonSessionInit, MachineConfig, ConvexClient } from '../daemon-types.js';
 import { DaemonEventBus } from '../events/event-bus.js';
 import { createMockDaemonSessionInit } from '../testing/index.js';
 import { createMockDaemonDeps } from '../testing/mock-daemon-deps.js';
@@ -54,7 +54,7 @@ function makeSessionLayer(config: MachineConfig | null = null): Layer.Layer<Daem
     sessionId: 'test-session-id',
     machineId: 'test-machine-id',
     convexUrl: 'http://test:3210',
-    client: {},
+    client: {} as ConvexClient,
     config,
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),

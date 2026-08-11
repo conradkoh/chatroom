@@ -4,6 +4,8 @@
  */
 
 import type { CatalogBackedHarness } from '@workspace/backend/src/domain/entities/harness/model-catalog.js';
+import type { ConvexHttpClient } from 'convex/browser';
+import type { FunctionReference } from 'convex/server';
 import { Effect, Ref } from 'effect';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
@@ -54,14 +56,30 @@ function hasEntries(map: Record<string, string[]>): boolean {
  * Resolved lazily: `api` may be partially mocked in tests, and accessing a
  * missing module at import time would crash the daemon entry module.
  */
-function getCatalogEndpoints(): Record<CatalogBackedHarness, { listModels: unknown } | undefined> {
-  // `api` may be partially mocked in tests; missing modules yield undefined
-  // endpoints that the fetch loop skips (same catch-and-skip as query failures).
+/** A `listModels` catalog endpoint as invoked by the daemon (plain-string session id). */
+type CatalogListModelsQuery = FunctionReference<'query', 'public', { sessionId: string }, string[]>;
+
+/**
+ * Catalog-backed harnesses and their `api.harnesses.<harness>.listModels`
+ * endpoints. The server catalog is the source of truth for these harnesses'
+ * model lists — the daemon never embeds the lists themselves.
+ *
+ * Resolved lazily: `api` may be partially mocked in tests, and accessing a
+ * missing module at import time would crash the daemon entry module. The
+ * generated refs carry convex-helpers' branded session args; the daemon passes
+ * plain strings (server validators are `v.string()`), so the refs are narrowed
+ * to the daemon's calling convention here.
+ */
+function getCatalogEndpoints(): Record<
+  CatalogBackedHarness,
+  { listModels: CatalogListModelsQuery } | undefined
+> {
+  const harnesses = api.harnesses;
   return {
-    'codex-sdk': api.harnesses?.codexSdk,
-    copilot: api.harnesses?.copilot,
-    cursor: api.harnesses?.cursor,
-  };
+    'codex-sdk': harnesses?.codexSdk,
+    copilot: harnesses?.copilot,
+    cursor: harnesses?.cursor,
+  } as unknown as Record<CatalogBackedHarness, { listModels: CatalogListModelsQuery } | undefined>;
 }
 
 /**
@@ -71,17 +89,17 @@ function getCatalogEndpoints(): Record<CatalogBackedHarness, { listModels: unkno
  */
 // fallow-ignore-next-line unused-export
 export async function fetchHarnessCatalog(
-  client: { query: (endpoint: unknown, args: { sessionId: string }) => Promise<string[]> },
+  client: Pick<ConvexHttpClient, 'query'>,
   sessionId: string
 ): Promise<Record<string, string[]>> {
   const endpoints = getCatalogEndpoints();
   const entries = await Promise.all(
     (Object.keys(endpoints) as CatalogBackedHarness[]).map(async (harness) => {
+      const endpoint = endpoints[harness]?.listModels;
+      // Missing endpoint (partially mocked api) — same catch-and-skip as query failures.
+      if (!endpoint) return undefined;
       try {
-        return [
-          harness,
-          await client.query(endpoints[harness]?.listModels, { sessionId }),
-        ] as const;
+        return [harness, await client.query(endpoint, { sessionId })] as const;
       } catch (error) {
         console.warn(
           `[${formatTimestamp()}] ⚠️  Server model catalog fetch failed for ${harness}: ${getErrorMessage(error)}`

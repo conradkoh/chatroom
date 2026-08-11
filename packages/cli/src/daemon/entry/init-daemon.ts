@@ -10,6 +10,7 @@ import { Cause, Effect, Ref, Schedule, Duration } from 'effect';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import type { DaemonDeps } from './daemon-deps.js';
 import { daemonSessionToLayers } from './daemon-layers.js';
+import { asConvexSessionId } from './daemon-types.js';
 import type { DaemonSessionInit, SessionId } from './daemon-types.js';
 import { formatTimestamp } from './daemon-utils.js';
 import { api } from '../../api.js';
@@ -221,7 +222,8 @@ const validateSessionEffect = (
 ): Effect.Effect<SessionId, unknown, never> =>
   Effect.gen(function* () {
     const validation = yield* Effect.tryPromise({
-      try: () => client.query(api.cliAuth.validateSession, { sessionId }),
+      try: () =>
+        client.query(api.cliAuth.validateSession, { sessionId: asConvexSessionId(sessionId) }),
       catch: (e) => e,
     });
 
@@ -237,7 +239,10 @@ const validateSessionEffect = (
     const typedNewSession = newSessionId as SessionId;
 
     const revalidation = yield* Effect.tryPromise({
-      try: () => client.query(api.cliAuth.validateSession, { sessionId: typedNewSession }),
+      try: () =>
+        client.query(api.cliAuth.validateSession, {
+          sessionId: asConvexSessionId(typedNewSession),
+        }),
       catch: (e) => e,
     });
 
@@ -283,7 +288,7 @@ const registerMachineEffect = (
   Effect.catchAll(
     Effect.tryPromise(() =>
       client.mutation(api.machines.register, {
-        sessionId,
+        sessionId: asConvexSessionId(sessionId),
         machineId: config.machineId,
         hostname: config.hostname,
         os: config.os,
@@ -303,7 +308,11 @@ const fetchCachedMachineModelsEffect = (
   machineId: string
 ): Effect.Effect<Record<string, string[]>, never, never> =>
   Effect.tryPromise({
-    try: () => client.query(api.machines.getMachineModels, { sessionId, machineId }),
+    try: () =>
+      client.query(api.machines.getMachineModels, {
+        sessionId: asConvexSessionId(sessionId),
+        machineId,
+      }),
     catch: (e) => e,
   }).pipe(
     Effect.map((result) => result?.availableModels ?? {}),
@@ -409,7 +418,7 @@ const connectDaemonEffect = (
   Effect.tryPromise({
     try: () =>
       client.mutation(api.machines.updateDaemonStatus, {
-        sessionId,
+        sessionId: asConvexSessionId(sessionId),
         machineId,
         connected: true,
       }),

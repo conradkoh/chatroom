@@ -24,6 +24,7 @@ import {
   DaemonSpawningService,
   DaemonSpawningServiceLive,
 } from './daemon-services.js';
+import type { ConvexClient } from './daemon-types.js';
 import { createMockDaemonSessionInit } from './testing/index.js';
 import { createMockDaemonDeps } from './testing/mock-daemon-deps.js';
 
@@ -181,7 +182,7 @@ describe('DaemonSessionService', () => {
       sessionId: 'sess-e1',
       machineId: 'machine-e1',
       convexUrl: 'http://test:3210',
-      client: {},
+      client: {} as ConvexClient,
       config: null,
       backend: { mutation: vi.fn(), query: vi.fn() } as any,
       fs: { stat: vi.fn() } as any,
@@ -211,7 +212,7 @@ describe('DaemonSessionService', () => {
       sessionId: 'sess-e3',
       machineId: 'machine-e3',
       convexUrl: 'http://test:3210',
-      client: {},
+      client: {} as ConvexClient,
       config: null,
       backend: backendMock,
       fs: fsMock,
@@ -241,7 +242,7 @@ describe('DaemonSessionService', () => {
       sessionId: 'sess-e3b',
       machineId: 'machine-e3b',
       convexUrl: 'http://test:3210',
-      client: {},
+      client: {} as ConvexClient,
       config: null,
       backend: { mutation: vi.fn(), query: vi.fn() } as any,
       fs: { stat: vi.fn() } as any,
