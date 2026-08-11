@@ -169,6 +169,38 @@ const handoffCommandGroup = program
   .command('handoff')
   .description('Complete your task and hand off to the next role');
 
+const teamCommand = program.command('team').description('Manage chatroom team configuration');
+
+teamCommand
+  .command('list')
+  .description('List available team presets')
+  .action(async () => {
+    await maybeRequireAuth();
+    const { listTeamPresets } = await import('./commands/team/index.js');
+    await listTeamPresets();
+  });
+
+teamCommand
+  .command('get')
+  .description('Show the current team configuration')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .action(async (options: { chatroomId: string }) => {
+    await maybeRequireAuth();
+    const { getTeam } = await import('./commands/team/index.js');
+    await getTeam(options.chatroomId);
+  });
+
+teamCommand
+  .command('set')
+  .description('Set the team preset for a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--team <id>', 'Team preset (duo|solo)')
+  .action(async (options: { chatroomId: string; team: string }) => {
+    await maybeRequireAuth();
+    const { setTeam } = await import('./commands/team/index.js');
+    await setTeam(options.chatroomId, options.team);
+  });
+
 handoffCommandGroup
   .command('view-template')
   .description('Print the handoff message template for a role pair')
