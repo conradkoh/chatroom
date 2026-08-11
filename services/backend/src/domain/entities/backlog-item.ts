@@ -11,7 +11,8 @@ import { canTransition as fsmCanTransition } from '../../../convex/lib/backlogSt
 
 /**
  * Backlog item statuses that indicate active work (not closed).
- * Used for filtering active items in queries and guards.
+ * Used for filtering active items in queries and guards. Deleted items are
+ * intentionally excluded because soft deletion is a terminal state.
  */
 export const ACTIVE_BACKLOG_STATUSES: ReadonlySet<BacklogItemStatus> = new Set([
   'backlog',

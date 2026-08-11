@@ -95,7 +95,7 @@ async function enrichMessageAttachments(
       msg.attachedBacklogItemIds.map((itemId) => ctx.db.get('chatroom_backlog', itemId))
     );
     attachedBacklogItems = items
-      .filter((i): i is NonNullable<typeof i> => i !== null)
+      .filter((i): i is NonNullable<typeof i> => i !== null && i.status !== 'deleted')
       .map((i) => ({ id: i._id, content: i.content, status: i.status }));
   }
 
@@ -347,10 +347,10 @@ async function _sendMessageHandler(
           message: 'Invalid backlog item reference: item belongs to different chatroom.',
         });
       }
-      if (item.status === 'closed') {
+      if (item.status === 'closed' || item.status === 'deleted') {
         throw new ConvexError({
           code: 'INVALID_ITEM_STATUS',
-          message: 'Cannot attach closed backlog items.',
+          message: 'Cannot attach closed or deleted backlog items.',
         });
       }
     }

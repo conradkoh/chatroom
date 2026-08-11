@@ -6,4 +6,4 @@
  * but are declared here to avoid cross-package imports.
  */
 
-export type BacklogItemStatus = 'backlog' | 'pending_user_review' | 'closed';
+export type BacklogItemStatus = 'backlog' | 'pending_user_review' | 'closed' | 'deleted';
