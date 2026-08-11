@@ -1,7 +1,8 @@
-import { ENHANCER_AGENT_END_GRACE_MS, ENHANCER_JOB_POLL_INTERVAL_MS } from './constants.js';
+import type { ConvexClient } from 'convex/browser';
+
+import { ENHANCER_AGENT_END_GRACE_MS } from './constants.js';
 import { writeEnhancerLog } from './enhancer-log.js';
-import { api } from '../../../api.js';
-import type { BackendOps } from '../../../infrastructure/deps/index.js';
+import { subscribeToEnhancerJobOutcome } from './job-outcome-subscription.js';
 
 export type EnhancerJobResolution = 'complete' | 'failed';
 
@@ -9,7 +10,7 @@ export interface WaitForEnhancerJobParams {
   sessionId: string;
   chatroomId: string;
   jobId: string;
-  backend: BackendOps;
+  wsClient: ConvexClient;
   onAssistantText?: (cb: (text: string) => void) => void;
   onAgentEnd?: (cb: () => void) => void;
   onExit: (cb: () => void) => void;
@@ -21,28 +22,50 @@ export interface WaitForEnhancerJobParams {
 export async function waitForEnhancerJobResolution(
   params: WaitForEnhancerJobParams
 ): Promise<EnhancerJobResolution> {
-  const { sessionId, chatroomId, jobId, backend, onFailure, onSalvageComplete } = params;
+  const { sessionId, chatroomId, jobId, wsClient, onFailure, onSalvageComplete } = params;
 
   let outcome: EnhancerJobResolution | null = null;
   let salvagedText = '';
+  let agentEndTimer: ReturnType<typeof setTimeout> | null = null;
+  let resolveWait: (() => void) | null = null;
+  const waitPromise = new Promise<void>((resolve) => {
+    resolveWait = resolve;
+  });
+  const subscription = subscribeToEnhancerJobOutcome({
+    wsClient,
+    sessionId,
+    chatroomId,
+    jobId,
+  });
 
-  const pollInterval = setInterval(async () => {
+  const finish = (resolution: EnhancerJobResolution): void => {
     if (outcome) return;
-    try {
-      const status = (await backend.query(api.web.enhancer.index.getJob, {
-        sessionId,
-        chatroomId,
-        jobId,
-      })) as { status: string } | null;
+    outcome = resolution;
+    resolveWait?.();
+    resolveWait = null;
+  };
 
-      if (status?.status === 'complete') {
-        outcome = 'complete';
-        writeEnhancerLog(`completed job=${jobId}`);
-      }
-    } catch {
-      // Transient errors are swallowed — poll continues
-    }
-  }, ENHANCER_JOB_POLL_INTERVAL_MS);
+  const failAfterAgentEnd = (): void => {
+    writeEnhancerLog('agent_end: turn ended without complete — failing terminal');
+    void onFailure('Agent exited without completing enhancer job', true);
+    finish('failed');
+  };
+
+  void subscription.outcome
+    .then((state) => {
+      if (outcome) return;
+      const resolution = state.status === 'complete' ? 'complete' : 'failed';
+      if (resolution === 'complete') writeEnhancerLog(`completed job=${jobId}`);
+      finish(resolution);
+    })
+    .catch((error: unknown) => {
+      if (outcome) return;
+      writeEnhancerLog(
+        `enhancer outcome subscription failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+      void onFailure('Enhancer job outcome subscription failed', false);
+      finish('failed');
+    });
 
   params.onAssistantText?.((text) => {
     salvagedText += text;
@@ -50,76 +73,40 @@ export async function waitForEnhancerJobResolution(
 
   params.onAgentEnd?.(() => {
     if (outcome) return;
-    const check = () => {
+    agentEndTimer = setTimeout(() => {
       if (outcome) return;
-      backend
-        .query(api.web.enhancer.index.getJob, {
-          sessionId,
-          chatroomId,
-          jobId,
-        })
-        .then((status: any) => {
-          if (outcome) return;
-          if (status?.status === 'complete') {
-            outcome = 'complete';
-            return;
-          }
-          if (status?.status === 'running') {
-            const trimmed = salvagedText.trim();
-            if (trimmed && onSalvageComplete) {
-              onSalvageComplete(trimmed)
-                .then(() => {
-                  if (outcome) return;
-                  backend
-                    .query(api.web.enhancer.index.getJob, {
-                      sessionId,
-                      chatroomId,
-                      jobId,
-                    })
-                    .then((afterSalvage: any) => {
-                      if (afterSalvage?.status === 'complete') {
-                        outcome = 'complete';
-                        writeEnhancerLog('agent_end: salvaged assistant text via complete');
-                        return;
-                      }
-                      outcome = 'failed';
-                      writeEnhancerLog('agent_end: turn ended without complete — failing terminal');
-                      void onFailure('Agent exited without completing enhancer job', true);
-                    });
-                })
-                .catch(() => {
-                  outcome = 'failed';
-                  writeEnhancerLog('agent_end: turn ended without complete — failing terminal');
-                  void onFailure('Agent exited without completing enhancer job', true);
-                });
-            } else {
-              outcome = 'failed';
-              writeEnhancerLog('agent_end: turn ended without complete — failing terminal');
-              void onFailure('Agent exited without completing enhancer job', true);
-            }
-          }
-        });
-    };
-    setTimeout(check, ENHANCER_AGENT_END_GRACE_MS);
+      const state = subscription.getCurrentState();
+      if (state?.status === 'complete') {
+        finish('complete');
+        return;
+      }
+      if (state?.status !== 'running') {
+        failAfterAgentEnd();
+        return;
+      }
+
+      const trimmed = salvagedText.trim();
+      if (!trimmed || !onSalvageComplete) {
+        failAfterAgentEnd();
+        return;
+      }
+
+      onSalvageComplete(trimmed).catch(() => {
+        failAfterAgentEnd();
+      });
+    }, ENHANCER_AGENT_END_GRACE_MS);
   });
 
   params.onExit(() => {
     if (outcome) return;
-    outcome = 'failed';
     void onFailure('Agent process exited without completing enhancer job', false);
+    finish('failed');
   });
 
-  // Wait for outcome
-  await new Promise<void>((resolve) => {
-    const check = setInterval(() => {
-      if (outcome) {
-        clearInterval(check);
-        resolve();
-      }
-    }, 100);
-  });
+  await waitPromise;
 
-  clearInterval(pollInterval);
+  if (agentEndTimer) clearTimeout(agentEndTimer);
+  subscription.stop();
 
   return outcome ?? 'failed';
 }

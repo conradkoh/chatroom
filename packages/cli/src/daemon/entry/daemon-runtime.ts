@@ -295,6 +295,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
         session.sessionId,
         session.machineId,
         session.convexUrl,
+        deps.wsClient,
         session.backend,
         session.agentServices
       );
