@@ -49,13 +49,13 @@ describe('NativeOrchestrationSimulator', () => {
     const prompt = await sim.inject({ task, deliveryOutput: PLANNER_DELIVERY });
 
     expect(prompt).toContain('hello');
-    expect(prompt).not.toContain('Starting a new agent session');
+    expect(prompt).toContain('Starting a new agent session');
     expect(prompt).not.toContain('Context was compacted');
     expect(sim.harness.injections).toHaveLength(1);
     expect(sim.harness.lastInjection()?.role).toBe('planner');
   });
 
-  test('regression: planner builder handback has no session augmentation preamble', async () => {
+  test('regression: planner handback gets a new-session preamble', async () => {
     const sim = new NativeOrchestrationSimulator();
     const handbackContent = `## Summary
 Implemented dark mode toggle.
@@ -72,7 +72,7 @@ Implemented dark mode toggle.
     });
 
     expect(prompt).toContain('hello');
-    expect(prompt).not.toContain('Starting a new agent session');
+    expect(prompt).toContain('Starting a new agent session');
     expect(prompt).not.toContain('Context was compacted');
   });
 
