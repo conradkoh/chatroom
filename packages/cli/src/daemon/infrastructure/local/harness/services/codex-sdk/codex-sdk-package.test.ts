@@ -11,6 +11,7 @@ import {
   importBundledCodexSdk,
   resetCodexExecutablePathCacheForTests,
   resolveCodexExecutablePath,
+  setCodexExecutablePathCacheForTests,
 } from './codex-sdk-package.js';
 
 const CLI_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..');
@@ -49,6 +50,17 @@ describe('codex-sdk-package', () => {
     const binaryPath = resolveCodexExecutablePath(pathToFileURL(distFile).href);
     expect(binaryPath).toContain('codex-darwin-arm64');
     expect(existsSync(binaryPath)).toBe(true);
+  });
+
+  it('re-resolves when a cached Codex binary path disappears after install', () => {
+    const validPath = resolveCodexExecutablePath(import.meta.url);
+    setCodexExecutablePathCacheForTests(
+      '/tmp/chatroom-cli-stale-codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex'
+    );
+
+    const resolvedPath = resolveCodexExecutablePath(import.meta.url);
+    expect(resolvedPath).toBe(validPath);
+    expect(existsSync(resolvedPath)).toBe(true);
   });
 
   it('resolveChatroomCliRoot works from the compiled dist layout', () => {
