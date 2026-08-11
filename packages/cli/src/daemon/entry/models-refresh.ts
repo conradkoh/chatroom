@@ -3,6 +3,7 @@
  * the backend when the set has changed.
  */
 
+import type { CatalogBackedHarness } from '@workspace/backend/src/domain/entities/harness/model-catalog.js';
 import { Effect, Ref } from 'effect';
 
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
@@ -41,6 +42,73 @@ interface ModelDiff {
 /** Whether a per-harness model map has at least one harness entry. */
 function hasEntries(map: Record<string, string[]>): boolean {
   return Object.keys(map).length > 0;
+}
+
+// ─── Server model catalog ────────────────────────────────────────────────────
+
+/**
+ * Catalog-backed harnesses and their `api.harnesses.<harness>.listModels`
+ * endpoints. The server catalog is the source of truth for these harnesses'
+ * model lists — the daemon never embeds the lists themselves.
+ *
+ * Resolved lazily: `api` may be partially mocked in tests, and accessing a
+ * missing module at import time would crash the daemon entry module.
+ */
+function getCatalogEndpoints(): Record<CatalogBackedHarness, { listModels: unknown } | undefined> {
+  // `api` may be partially mocked in tests; missing modules yield undefined
+  // endpoints that the fetch loop skips (same catch-and-skip as query failures).
+  return {
+    'codex-sdk': api.harnesses?.codexSdk,
+    copilot: api.harnesses?.copilot,
+    cursor: api.harnesses?.cursor,
+  };
+}
+
+/**
+ * Fetch the server model catalog — one query per catalog-backed harness, run
+ * concurrently. A failed query skips that harness so a backend hiccup never
+ * blocks discovery; the harness then keeps its local (stub) result.
+ */
+// fallow-ignore-next-line unused-export
+export async function fetchHarnessCatalog(
+  client: { query: (endpoint: unknown, args: { sessionId: string }) => Promise<string[]> },
+  sessionId: string
+): Promise<Record<string, string[]>> {
+  const endpoints = getCatalogEndpoints();
+  const entries = await Promise.all(
+    (Object.keys(endpoints) as CatalogBackedHarness[]).map(async (harness) => {
+      try {
+        return [
+          harness,
+          await client.query(endpoints[harness]?.listModels, { sessionId }),
+        ] as const;
+      } catch (error) {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Server model catalog fetch failed for ${harness}: ${getErrorMessage(error)}`
+        );
+        return undefined;
+      }
+    })
+  );
+  return Object.fromEntries(
+    entries.filter((entry): entry is [CatalogBackedHarness, string[]] => entry !== undefined)
+  );
+}
+
+/**
+ * Overlay the server catalog onto locally discovered models: for catalog-backed
+ * harnesses the server list (which can grow new variants without a CLI release)
+ * replaces the local result (empty stub / previously hard-coded list).
+ */
+// fallow-ignore-next-line unused-export
+export function applyCatalogOverlay(
+  discovered: Record<string, string[]>,
+  catalog: Record<string, string[]>
+): Record<string, string[]> {
+  for (const [harness, models] of Object.entries(catalog)) {
+    discovered[harness] = models;
+  }
+  return discovered;
 }
 
 /** Set difference `a \ b` over model id lists, preserving the order of `a`. */
@@ -258,10 +326,14 @@ export const refreshModelsEffect: Effect.Effect<
   const ctxConfig = session.config;
 
   const outcome = yield* Effect.gen(function* () {
+    const catalog = yield* Effect.promise(() =>
+      fetchHarnessCatalog(session.client, session.sessionId)
+    );
     const models = yield* Effect.tryPromise({
       try: async () => discoverModels(session.agentServices),
       catch: (e) => e,
     });
+    applyCatalogOverlay(models, catalog);
 
     const freshConfig = yield* Effect.tryPromise({
       try: async () => ensureMachineRegistered(),
@@ -300,22 +372,40 @@ export const refreshModelsEffect: Effect.Effect<
   return outcome satisfies RefreshModelsOutcome;
 });
 
+/**
+ * Merge one harness's discovery result into the previous snapshot, applying
+ * the server catalog overlay for catalog-backed harnesses.
+ */
+function nextSnapshotAfterHarness(
+  current: Record<string, string[]> | null,
+  harness: string,
+  result: { installed: boolean; models: string[] },
+  catalog: Record<string, string[]>
+): Record<string, string[]> {
+  const next = { ...(current ?? {}) };
+  if (result.installed) {
+    next[harness] = catalog[harness] ?? result.models;
+  } else {
+    delete next[harness];
+  }
+  return next;
+}
+
 const discoverAndPushHarnessModelsEffect = (
   harness: string,
-  service: RemoteAgentService
+  service: RemoteAgentService,
+  catalog: Record<string, string[]>
 ): Effect.Effect<void, never, DaemonSessionService | DaemonMutableStateService> =>
   Effect.gen(function* () {
     const mutable = yield* DaemonMutableStateService;
     const result = yield* Effect.promise(() => discoverModelsForHarness(harness, service));
 
-    const current = (yield* Ref.get(mutable.lastPushedModels)) ?? {};
-    const next: Record<string, string[]> = { ...current };
-
-    if (result.installed) {
-      next[harness] = result.models;
-    } else {
-      delete next[harness];
-    }
+    const next = nextSnapshotAfterHarness(
+      yield* Ref.get(mutable.lastPushedModels),
+      harness,
+      result,
+      catalog
+    );
 
     const pushOutcome = yield* pushModelsSnapshotIfChangedEffect(next, {
       logPrefix: `${harness} models updated`,
@@ -344,9 +434,13 @@ export const startBackgroundModelDiscoveryEffect: Effect.Effect<
 
   if (!session.config) return;
 
+  const catalog = yield* Effect.promise(() =>
+    fetchHarnessCatalog(session.client, session.sessionId)
+  );
+
   yield* Effect.forEach(
     Array.from(session.agentServices.entries()),
-    ([harness, service]) => discoverAndPushHarnessModelsEffect(harness, service),
+    ([harness, service]) => discoverAndPushHarnessModelsEffect(harness, service, catalog),
     { concurrency: 'unbounded' }
   );
 });

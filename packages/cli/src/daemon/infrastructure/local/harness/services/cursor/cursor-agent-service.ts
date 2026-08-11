@@ -45,71 +45,6 @@ const CURSOR_PROVIDER = 'cursor';
  */
 const NO_SUBAGENT_DIRECTIVE = 'NEVER spawn subagents. Follow the chatroom instructions strictly.';
 
-const CURSOR_MODELS: string[] = [
-  // Anthropic Claude
-  'claude-4.6-opus-high',
-  'claude-4.6-opus-high-thinking',
-  'claude-4.6-opus-max',
-  'claude-4.6-opus-max-thinking',
-  'claude-4.5-opus-high',
-  'claude-4.5-opus-high-thinking',
-  'claude-4.6-sonnet-medium',
-  'claude-4.6-sonnet-medium-thinking',
-  'claude-4.5-sonnet',
-  'claude-4.5-sonnet-thinking',
-  'claude-4-sonnet',
-  'claude-4-sonnet-thinking',
-  'claude-4-sonnet-1m',
-  'claude-4-sonnet-1m-thinking',
-  // OpenAI GPT-5.4
-  'gpt-5.4-low',
-  'gpt-5.4-medium',
-  'gpt-5.4-medium-fast',
-  'gpt-5.4-high',
-  'gpt-5.4-high-fast',
-  'gpt-5.4-xhigh',
-  'gpt-5.4-xhigh-fast',
-  // OpenAI GPT-5.3 Codex
-  'gpt-5.3-codex-low',
-  'gpt-5.3-codex-low-fast',
-  'gpt-5.3-codex',
-  'gpt-5.3-codex-fast',
-  'gpt-5.3-codex-high',
-  'gpt-5.3-codex-high-fast',
-  'gpt-5.3-codex-xhigh',
-  'gpt-5.3-codex-xhigh-fast',
-  'gpt-5.3-codex-spark-preview',
-  // OpenAI GPT-5.2
-  'gpt-5.2',
-  'gpt-5.2-high',
-  'gpt-5.2-codex-low',
-  'gpt-5.2-codex-low-fast',
-  'gpt-5.2-codex',
-  'gpt-5.2-codex-fast',
-  'gpt-5.2-codex-high',
-  'gpt-5.2-codex-high-fast',
-  'gpt-5.2-codex-xhigh',
-  'gpt-5.2-codex-xhigh-fast',
-  // OpenAI GPT-5.1
-  'gpt-5.1-high',
-  'gpt-5.1-codex-max',
-  'gpt-5.1-codex-max-high',
-  'gpt-5.1-codex-mini',
-  // Google Gemini
-  'gemini-3.1-pro',
-  'gemini-3-pro',
-  'gemini-3-flash',
-  // Other
-  'grok',
-  'kimi-k2.5',
-  // Cursor built-in
-  'auto',
-  'composer-2.5',
-  'composer-2',
-  'composer-1.5',
-  'composer-1',
-];
-
 /** Strip `cursor/` prefix so the CLI receives a bare slug. Bare slugs pass through unchanged. */
 export function resolveCursorCliModel(model: string): string {
   const prefix = `${CURSOR_PROVIDER}/`;
@@ -136,7 +71,9 @@ export class CursorAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    return CURSOR_MODELS;
+    // Model list moved to the server catalog (api.harnesses.cursor.listModels).
+    // The daemon overlays the catalog onto discovery at boot / manual refresh.
+    return [];
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {

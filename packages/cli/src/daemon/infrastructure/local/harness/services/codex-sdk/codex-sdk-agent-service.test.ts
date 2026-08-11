@@ -296,6 +296,112 @@ describe('CodexSdkAgentService', () => {
     });
   });
 
+  describe('model variants', () => {
+    it('decodes a reasoning variant into model + SDK reasoning option', async () => {
+      stubStream(completedTurnEvents());
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CodexSdkAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        model: 'gpt-5.6-sol[reasoning=high]',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      await vi.waitFor(() => expect(mockStartThread).toHaveBeenCalled());
+      expect(mockStartThread).toHaveBeenCalledWith({
+        workingDirectory: '/tmp/work',
+        skipGitRepoCheck: true,
+        model: 'gpt-5.6-sol',
+        modelReasoningEffort: 'high',
+      });
+    });
+
+    it('omits the SDK reasoning option for reasoning=none', async () => {
+      stubStream(completedTurnEvents());
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CodexSdkAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/work',
+        prompt: createSpawnPrompt('do work'),
+        systemPrompt: 'you are helpful',
+        model: 'gpt-5.6-sol[reasoning=none]',
+        context: SPAWN_CONTEXT,
+        resolvedConvexUrl: 'http://test:3210',
+      });
+
+      await vi.waitFor(() => expect(mockStartThread).toHaveBeenCalled());
+      expect(mockStartThread).toHaveBeenCalledWith({
+        workingDirectory: '/tmp/work',
+        skipGitRepoCheck: true,
+        model: 'gpt-5.6-sol',
+      });
+    });
+
+    it('refuses to start on a malformed variant', async () => {
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CodexSdkAgentService(deps);
+
+      await expect(
+        service.spawn({
+          workingDir: '/tmp/work',
+          prompt: createSpawnPrompt('do work'),
+          systemPrompt: 'you are helpful',
+          model: 'gpt-5.6-sol[reasoning',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+        })
+      ).rejects.toThrow('malformed model variant');
+      // Refusal happens before any side effects (no keeper process spawned).
+      expect(deps.spawn).not.toHaveBeenCalled();
+    });
+
+    it('refuses to start on an unknown variant param', async () => {
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CodexSdkAgentService(deps);
+
+      await expect(
+        service.spawn({
+          workingDir: '/tmp/work',
+          prompt: createSpawnPrompt('do work'),
+          systemPrompt: 'you are helpful',
+          model: 'gpt-5.6-sol[thinking=high]',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+        })
+      ).rejects.toThrow('unsupported variant params');
+      expect(deps.spawn).not.toHaveBeenCalled();
+    });
+
+    it('refuses to start on a disallowed reasoning value', async () => {
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CodexSdkAgentService(deps);
+
+      await expect(
+        service.spawn({
+          workingDir: '/tmp/work',
+          prompt: createSpawnPrompt('do work'),
+          systemPrompt: 'you are helpful',
+          model: 'gpt-5.6-sol[reasoning=ultra]',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+        })
+      ).rejects.toThrow('unsupported variant params');
+      expect(deps.spawn).not.toHaveBeenCalled();
+    });
+  });
+
   describe('resumeFromDaemonMemory', () => {
     const SAMPLE_DAEMON_SESSION = {
       harnessSessionId: THREAD_ID,
@@ -344,6 +450,33 @@ describe('CodexSdkAgentService', () => {
 
       await vi.waitFor(() => expect(mockRunStreamed).toHaveBeenCalledTimes(1));
       expect(mockRunStreamed.mock.calls[0][0]).toBe('resume hello');
+    });
+
+    it('decodes a stored variant on resume', async () => {
+      stubStream(completedTurnEvents());
+
+      const child = makeFakeChild();
+      const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
+      const service = new CodexSdkAgentService(deps);
+
+      await service.resumeFromDaemonMemory(
+        {
+          workingDir: '/tmp/resume-wd',
+          prompt: createSpawnPrompt('resume hello'),
+          systemPrompt: 'sys',
+          context: SPAWN_CONTEXT,
+          resolvedConvexUrl: 'http://test:3210',
+        },
+        { ...SAMPLE_DAEMON_SESSION, model: 'gpt-5.6-sol[reasoning=low]' }
+      );
+
+      expect(mockResumeThread).toHaveBeenCalledWith(THREAD_ID, {
+        workingDirectory: '/tmp/resume-wd',
+        skipGitRepoCheck: true,
+        model: 'gpt-5.6-sol',
+        modelReasoningEffort: 'low',
+      });
+      expect(mockStartThread).not.toHaveBeenCalled();
     });
 
     it('falls back to spawn when resume setup fails', async () => {

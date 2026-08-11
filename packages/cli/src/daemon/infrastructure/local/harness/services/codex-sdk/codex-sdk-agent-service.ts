@@ -24,6 +24,12 @@ import type { ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
 import type { Codex, Thread, ThreadOptions } from '@openai/codex-sdk';
+import { CODEX_MODEL_VARIANT_COMBINATIONS } from '@workspace/backend/src/domain/entities/harness/codex-sdk.model-variants.js';
+import {
+  decodeModelVariant,
+  validateModelVariantParams,
+  type ValidatedModelVariant,
+} from '@workspace/backend/src/domain/entities/harness/model-variant.js';
 import { Effect } from 'effect';
 
 import {
@@ -105,12 +111,40 @@ function buildAgentName(context: SpawnContext): string {
   return `${context.role}@${context.chatroomId.slice(-6)}`;
 }
 
-function buildThreadOptions(workingDir: string, model?: string): ThreadOptions {
-  return {
+/** A codex variant validated against the codex schema (literal param types). */
+type CodexModelVariant = ValidatedModelVariant<typeof CODEX_MODEL_VARIANT_COMBINATIONS>;
+
+/**
+ * Strict decode + schema validation of a codex model variant string.
+ *
+ * Throws ModelVariantParseError / ModelVariantValidationError on any
+ * malformed or unknown input — spawn refuses to start rather than silently
+ * misconfiguring the model. Grammar + vocabulary live in the shared domain
+ * (`model-variant.ts`); the catalog (server-side) is validated by the same
+ * code, so any failure here is a genuine mismatch.
+ */
+function decodeCodexVariant(encoded: string | undefined): CodexModelVariant | undefined {
+  if (encoded === undefined) return undefined;
+  return validateModelVariantParams(decodeModelVariant(encoded), CODEX_MODEL_VARIANT_COMBINATIONS);
+}
+
+function buildThreadOptions(workingDir: string, variant?: CodexModelVariant): ThreadOptions {
+  const options: ThreadOptions = {
     workingDirectory: workingDir,
     skipGitRepoCheck: true,
-    ...(model ? { model } : {}),
   };
+  if (!variant) return options;
+
+  options.model = variant.model;
+  const reasoning = variant.params.reasoning;
+  if (reasoning !== undefined && reasoning !== 'none') {
+    // The Codex SDK names this option "modelReasoningEffort"; our vocabulary
+    // is the neutral reasoning level (see model-variant.ts — thinking and
+    // effort mean different things across harnesses). "none" leaves the
+    // SDK default untouched.
+    options.modelReasoningEffort = reasoning;
+  }
+  return options;
 }
 
 function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
@@ -655,6 +689,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
+    const variant = decodeCodexVariant(options.model); // strict — refuses malformed variants before any side effects
     const deferInitialTurn = options.deferInitialTurn ?? false;
     const keeper = this.spawnKeeper(options.workingDir);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
@@ -667,7 +702,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     try {
       const { Codex } = await loadSdk();
       codex = new Codex();
-      thread = codex.startThread(buildThreadOptions(options.workingDir, options.model));
+      thread = codex.startThread(buildThreadOptions(options.workingDir, variant));
     } catch (err) {
       writeSpawnError(buildAgentLogPrefix('codex-sdk', context), err);
       keeper.kill();
@@ -698,11 +733,12 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
       const pid = keeper.pid!;
 
+      const variant = decodeCodexVariant(options.model ?? stored.model);
       const { Codex } = await loadSdk();
       const codex = new Codex();
       const thread = codex.resumeThread(
         stored.harnessSessionId,
-        buildThreadOptions(stored.workingDir, options.model ?? stored.model)
+        buildThreadOptions(stored.workingDir, variant)
       );
 
       return this.startRunningSession({
