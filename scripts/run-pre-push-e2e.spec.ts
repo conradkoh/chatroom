@@ -14,6 +14,7 @@ describe('playwrightArgs', () => {
       '--config=tests/e2e/playwright.config.ts',
       '--grep',
       TAG_UPSTREAM,
+      '--pass-with-no-tests',
     ]);
   });
 
@@ -26,6 +27,7 @@ describe('playwrightArgs', () => {
       '--config=tests/e2e/playwright.config.ts',
       '--grep',
       TAG_DOWNSTREAM,
+      '--pass-with-no-tests',
     ]);
   });
 });

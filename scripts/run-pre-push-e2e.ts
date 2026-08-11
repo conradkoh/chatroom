@@ -12,7 +12,16 @@ export type SpawnSyncFn = typeof Bun.spawnSync;
 
 /** Build argv for a tagged Playwright run (pure — testable without subprocess). */
 export function playwrightArgs(tag: E2eSuiteTag): string[] {
-  return ['pnpm', 'exec', 'playwright', 'test', `--config=${PLAYWRIGHT_CONFIG}`, '--grep', tag];
+  return [
+    'pnpm',
+    'exec',
+    'playwright',
+    'test',
+    `--config=${PLAYWRIGHT_CONFIG}`,
+    '--grep',
+    tag,
+    '--pass-with-no-tests',
+  ];
 }
 
 /** Run pre-push e2e with injectable spawn for unit tests. */
