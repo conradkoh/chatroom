@@ -6,4 +6,4 @@ export {
   complete,
   cancelActiveJob,
 } from './mutations';
-export { getConfig, getJob, getActiveJob } from './queries';
+export { getConfig, getJob, getJobOutcome, getActiveJob } from './queries';

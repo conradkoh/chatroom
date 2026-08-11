@@ -18,11 +18,27 @@ vi.mock('../../../api.js', () => {
   setPath(api, ['web', 'enhancer', 'index', 'recordAttemptFailure'], 'recordAttemptFailure');
   setPath(api, ['web', 'enhancer', 'index', 'complete'], 'complete');
   setPath(api, ['web', 'enhancer', 'index', 'getJob'], 'getJob');
+  setPath(api, ['web', 'enhancer', 'index', 'getJobOutcome'], 'getJobOutcome');
   setPath(api, ['daemon', 'enhancer', 'index', 'pendingForMachine'], 'pendingForMachine');
   setPath(api, ['participants', 'join'], 'participantsJoin');
   setPath(api, ['participants', 'updateTokenActivity'], 'updateTokenActivity');
   return { api };
 });
+
+function createWsClient() {
+  let outcomeCallback: ((state: unknown) => void) | undefined;
+  const wsClient = {
+    onUpdate: vi.fn((_query, _args, onUpdate) => {
+      outcomeCallback = onUpdate;
+      onUpdate({ status: 'running', attemptCount: 1, maxAttempts: 3 });
+      return vi.fn();
+    }),
+  };
+  return {
+    wsClient,
+    emitOutcome: (state: unknown) => outcomeCallback?.(state),
+  };
+}
 
 describe('startEnhancerJobSubscriber', () => {
   it('records attempt failure when harness exits without completing job', async () => {
@@ -67,11 +83,13 @@ describe('startEnhancerJobSubscriber', () => {
       pid: 123,
     });
     const agentServices = new Map([['opencode', { spawn, stop: vi.fn() }]]);
+    const { wsClient } = createWsClient();
 
     const handles = startEnhancerJobSubscriber(
       'session',
       'machine',
       'http://localhost',
+      wsClient as any,
       backend as any,
       agentServices as any
     );
@@ -137,11 +155,13 @@ describe('startEnhancerJobSubscriber', () => {
       pid: 123,
     });
     const agentServices = new Map([['opencode', { spawn, stop: vi.fn() }]]);
+    const { wsClient } = createWsClient();
 
     const handles = startEnhancerJobSubscriber(
       'session',
       'machine',
       'http://localhost',
+      wsClient as any,
       backend as any,
       agentServices as any
     );
@@ -166,9 +186,9 @@ describe('startEnhancerJobSubscriber', () => {
   it('agent_end with assistant text salvages via complete mutation', async () => {
     vi.useFakeTimers();
 
-    let salvaged = false;
+    const { wsClient, emitOutcome } = createWsClient();
     const completeFn = vi.fn().mockImplementation(async () => {
-      salvaged = true;
+      emitOutcome({ status: 'complete', attemptCount: 1, maxAttempts: 3 });
     });
     const recordFailure = vi.fn();
     const mutationFn = vi.fn().mockImplementation((endpoint: string, args: unknown) => {
@@ -192,7 +212,7 @@ describe('startEnhancerJobSubscriber', () => {
           taskEnvelope: 'task',
         });
       }
-      return Promise.resolve({ status: salvaged ? 'complete' : 'running' });
+      return Promise.resolve(null);
     });
 
     const backend = {
@@ -219,6 +239,7 @@ describe('startEnhancerJobSubscriber', () => {
       'session',
       'machine',
       'http://localhost',
+      wsClient as any,
       backend as any,
       agentServices as any
     );
@@ -285,11 +306,13 @@ describe('startEnhancerJobSubscriber', () => {
       pid: 123,
     });
     const agentServices = new Map([['opencode-sdk', { spawn, stop: vi.fn() }]]);
+    const { wsClient } = createWsClient();
 
     const handles = startEnhancerJobSubscriber(
       'session',
       'machine',
       'http://localhost',
+      wsClient as any,
       backend as any,
       agentServices as any
     );
