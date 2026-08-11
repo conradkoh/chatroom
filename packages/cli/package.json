@@ -24,6 +24,7 @@
     "@earendil-works/pi-coding-agent": "0.74.2",
     "@llamaindex/liteparse": "^1.4.2",
     "@opencode-ai/sdk": "^1.14.22",
+    "@openai/codex": "0.147.0",
     "@openai/codex-sdk": "0.147.0",
     "chokidar": "^5.0.0",
     "commander": "^14.0.0",

@@ -367,6 +367,9 @@ importers:
       '@llamaindex/liteparse':
         specifier: ^1.4.2
         version: 1.5.3
+      '@openai/codex':
+        specifier: 0.147.0
+        version: 0.147.0
       '@openai/codex-sdk':
         specifier: 0.147.0
         version: 0.147.0
