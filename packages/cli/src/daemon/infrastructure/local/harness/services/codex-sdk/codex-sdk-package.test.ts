@@ -14,6 +14,7 @@ import {
 } from './codex-sdk-package.js';
 
 const CLI_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..');
+const NPM_PUBLISH_ROOT = join(CLI_ROOT, '.npm-publish');
 
 afterEach(() => {
   resetCodexExecutablePathCacheForTests();
@@ -33,6 +34,20 @@ describe('codex-sdk-package', () => {
   it('resolves the Codex CLI binary from a workspace-linked pnpm install', () => {
     const binaryPath = resolveCodexExecutablePath(import.meta.url);
     expect(binaryPath).toContain('codex');
+    expect(existsSync(binaryPath)).toBe(true);
+  });
+
+  it('resolves the Codex CLI binary from npm publish staging layout', () => {
+    if (process.platform !== 'darwin' || process.arch !== 'arm64') {
+      return;
+    }
+    if (!existsSync(join(NPM_PUBLISH_ROOT, 'package.json'))) {
+      return;
+    }
+
+    const distFile = join(NPM_PUBLISH_ROOT, 'dist', 'index.js');
+    const binaryPath = resolveCodexExecutablePath(pathToFileURL(distFile).href);
+    expect(binaryPath).toContain('codex-darwin-arm64');
     expect(existsSync(binaryPath)).toBe(true);
   });
 

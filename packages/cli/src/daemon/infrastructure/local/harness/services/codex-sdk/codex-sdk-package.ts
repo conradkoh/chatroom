@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -113,6 +113,39 @@ function resolvePlatformPackageName(targetTriple: string): string {
   return pkg;
 }
 
+function isRegularFile(filePath: string): boolean {
+  try {
+    return statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Locate the native Codex CLI binary under a platform package vendor tree.
+ *
+ * Mirrors @openai/codex-sdk's resolveNativePackage so codexPathOverride points at
+ * the same executable the SDK would spawn when no override is supplied.
+ */
+function resolveNativeCodexBinary(
+  vendorRoot: string,
+  targetTriple: string,
+  codexBinaryName: string
+): string | undefined {
+  const packageRoot = join(vendorRoot, targetTriple);
+  const packageBinaryPath = join(packageRoot, 'bin', codexBinaryName);
+  if (isRegularFile(packageBinaryPath) && isRegularFile(join(packageRoot, 'codex-package.json'))) {
+    return packageBinaryPath;
+  }
+
+  const legacyBinaryPath = join(packageRoot, 'codex', codexBinaryName);
+  if (isRegularFile(legacyBinaryPath)) {
+    return legacyBinaryPath;
+  }
+
+  return undefined;
+}
+
 let cachedExecutablePath: string | undefined;
 
 // fallow-ignore-next-line complexity
@@ -122,11 +155,11 @@ export function resolveCodexExecutablePath(moduleRef: string = import.meta.url):
   const chatroomCliRoot = resolveChatroomCliRoot(moduleRef);
   const require = createRequire(join(chatroomCliRoot, 'package.json'));
 
-  let codexPackageDir: string;
+  let codexPackageJson: string;
   try {
-    codexPackageDir = dirname(
-      require.resolve(`${CODEX_NPM_NAME}/package.json`, { paths: [chatroomCliRoot] })
-    );
+    codexPackageJson = require.resolve(`${CODEX_NPM_NAME}/package.json`, {
+      paths: [chatroomCliRoot],
+    });
   } catch {
     throw new CodexSdkPackageError(
       `${CODEX_NPM_NAME} is not installed. Ensure chatroom-cli was installed with optional dependencies. ${REINSTALL_HINT}`
@@ -136,42 +169,38 @@ export function resolveCodexExecutablePath(moduleRef: string = import.meta.url):
   const targetTriple = resolveTargetTriple();
   const platformPkg = resolvePlatformPackageName(targetTriple);
   const codexBinaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+  const codexRequire = createRequire(codexPackageJson);
 
-  let platformPkgDir: string;
+  const platformPackageJsonCandidates: string[] = [];
   try {
-    // pnpm keeps optional platform packages nested under @openai/codex, while
-    // npm's flattened global installs expose them from the CLI root. Resolve
-    // from both locations so workspace-linked and published installs work.
-    const platformPackageJson = [codexPackageDir, chatroomCliRoot]
-      .map((resolveFrom) => {
-        try {
-          return require.resolve(`${platformPkg}/package.json`, { paths: [resolveFrom] });
-        } catch {
-          return undefined;
-        }
-      })
-      .find((resolved) => resolved !== undefined);
-
-    if (!platformPackageJson) {
-      throw new Error(`Unable to resolve ${platformPkg}`);
-    }
-    platformPkgDir = dirname(platformPackageJson);
+    platformPackageJsonCandidates.push(codexRequire.resolve(`${platformPkg}/package.json`));
   } catch {
+    // Optional platform packages may only be linked from the CLI install root.
+  }
+  try {
+    const fromCliRoot = require.resolve(`${platformPkg}/package.json`, {
+      paths: [chatroomCliRoot],
+    });
+    if (!platformPackageJsonCandidates.includes(fromCliRoot)) {
+      platformPackageJsonCandidates.push(fromCliRoot);
+    }
+  } catch {
+    // npm flat installs usually resolve from the @openai/codex package context.
+  }
+
+  if (platformPackageJsonCandidates.length === 0) {
     throw new CodexSdkPackageError(
       `Native Codex CLI package ${platformPkg} is not installed. Ensure ${CODEX_NPM_NAME} is installed with optional dependencies. ${REINSTALL_HINT}`
     );
   }
 
-  const packageBinaryPath = join(platformPkgDir, 'vendor', targetTriple, 'bin', codexBinaryName);
-  const legacyBinaryPath = join(platformPkgDir, 'vendor', targetTriple, 'codex', codexBinaryName);
-
-  if (existsSync(packageBinaryPath)) {
-    cachedExecutablePath = packageBinaryPath;
-    return cachedExecutablePath;
-  }
-  if (existsSync(legacyBinaryPath)) {
-    cachedExecutablePath = legacyBinaryPath;
-    return cachedExecutablePath;
+  for (const platformPackageJson of platformPackageJsonCandidates) {
+    const vendorRoot = join(dirname(platformPackageJson), 'vendor');
+    const binaryPath = resolveNativeCodexBinary(vendorRoot, targetTriple, codexBinaryName);
+    if (binaryPath) {
+      cachedExecutablePath = binaryPath;
+      return cachedExecutablePath;
+    }
   }
 
   throw new CodexSdkPackageError(
