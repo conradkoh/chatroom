@@ -188,6 +188,7 @@ describe('CodexSdkAgentService', () => {
       expect(mockStartThread).toHaveBeenCalledWith({
         workingDirectory: '/tmp/work',
         skipGitRepoCheck: true,
+        sandboxMode: 'danger-full-access',
         networkAccessEnabled: true,
       });
       expect(mockCodex).toHaveBeenCalledWith(
@@ -221,6 +222,7 @@ describe('CodexSdkAgentService', () => {
       expect(mockStartThread).toHaveBeenCalledWith({
         workingDirectory: '/tmp/work',
         skipGitRepoCheck: true,
+        sandboxMode: 'danger-full-access',
         networkAccessEnabled: true,
         model: 'gpt-5.6',
       });
@@ -324,6 +326,7 @@ describe('CodexSdkAgentService', () => {
       expect(mockStartThread).toHaveBeenCalledWith({
         workingDirectory: '/tmp/work',
         skipGitRepoCheck: true,
+        sandboxMode: 'danger-full-access',
         networkAccessEnabled: true,
         model: 'gpt-5.6-sol',
         modelReasoningEffort: 'high',
@@ -350,6 +353,7 @@ describe('CodexSdkAgentService', () => {
       expect(mockStartThread).toHaveBeenCalledWith({
         workingDirectory: '/tmp/work',
         skipGitRepoCheck: true,
+        sandboxMode: 'danger-full-access',
         networkAccessEnabled: true,
         model: 'gpt-5.6-sol',
       });
@@ -448,6 +452,7 @@ describe('CodexSdkAgentService', () => {
       expect(mockResumeThread).toHaveBeenCalledWith(THREAD_ID, {
         workingDirectory: '/tmp/resume-wd',
         skipGitRepoCheck: true,
+        sandboxMode: 'danger-full-access',
         networkAccessEnabled: true,
         model: 'gpt-5.6',
       });
@@ -483,6 +488,7 @@ describe('CodexSdkAgentService', () => {
       expect(mockResumeThread).toHaveBeenCalledWith(THREAD_ID, {
         workingDirectory: '/tmp/resume-wd',
         skipGitRepoCheck: true,
+        sandboxMode: 'danger-full-access',
         networkAccessEnabled: true,
         model: 'gpt-5.6-sol',
         modelReasoningEffort: 'low',

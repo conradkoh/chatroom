@@ -133,6 +133,8 @@ function buildThreadOptions(workingDir: string, variant?: CodexModelVariant): Th
   const options: ThreadOptions = {
     workingDirectory: workingDir,
     skipGitRepoCheck: true,
+    // The agent must be able to reach the Convex deployment from shell tools.
+    sandboxMode: 'danger-full-access',
     // Chatroom agents must be able to call the Chatroom CLI, which reaches the
     // Convex deployment over the network.
     networkAccessEnabled: true,
