@@ -1,7 +1,8 @@
+import { emitEnhancerEvent } from './internal';
+import { buildOriginalHandoffRecoveryInstructions } from '../../../src/domain/usecase/enhancer/original-handoff-recovery';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { performHandoffFromEnhancer } from '../../messages';
-import { emitEnhancerEvent } from './internal';
 
 export interface ApplyEnhancerCompleteParams {
   jobId: Id<'chatroom_enhancerJobs'>;
@@ -42,12 +43,18 @@ export async function applyEnhancerComplete(
     return { ok: false, reason: 'invalid_status', message: 'Job missing pendingHandoffArgs' };
   }
 
+  const recoveryInstructions = buildOriginalHandoffRecoveryInstructions({
+    chatroomId: job.chatroomId,
+    handoffMessageId: job.handoffMessageId,
+  });
+  const deliveredContent = `${enhancedContent}${recoveryInstructions}`;
+
   const handoffResult = await performHandoffFromEnhancer(ctx, {
     sessionId: params.sessionId,
     chatroomId: job.chatroomId,
     senderRole: handoffArgs.senderRole,
     targetRole: handoffArgs.targetRole,
-    content: enhancedContent,
+    content: deliveredContent,
     attachedArtifactIds: handoffArgs.attachedArtifactIds,
     jobId: params.jobId,
   });
