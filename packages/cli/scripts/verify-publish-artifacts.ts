@@ -8,6 +8,7 @@
  * - **SDK ESM entry** — @cursor/sdk ships dist/esm/index.js
  * - **@connectrpc/connect-node** — SDK dynamically imports this for agent streams
  * - **Scoped resolution** — same require.resolve paths importBundledCursorSdk uses
+ * - **Codex CLI binary** — @openai/codex platform package must resolve from staging root
  *
  * @see publish-common.ts for the full pipeline rationale
  */
@@ -48,6 +49,51 @@ function readJson(path: string): PublishPackageJson {
   return JSON.parse(readFileSync(path, 'utf8')) as PublishPackageJson;
 }
 
+const CODEX_PLATFORM_PACKAGE_BY_TARGET: Record<string, string> = {
+  'x86_64-unknown-linux-musl': '@openai/codex-linux-x64',
+  'aarch64-unknown-linux-musl': '@openai/codex-linux-arm64',
+  'x86_64-apple-darwin': '@openai/codex-darwin-x64',
+  'aarch64-apple-darwin': '@openai/codex-darwin-arm64',
+  'x86_64-pc-windows-msvc': '@openai/codex-win32-x64',
+  'aarch64-pc-windows-msvc': '@openai/codex-win32-arm64',
+};
+
+// fallow-ignore-next-line complexity
+function resolveCodexTargetTriple(): string {
+  const { platform, arch } = process;
+
+  switch (platform) {
+    case 'linux':
+    case 'android':
+      if (arch === 'x64') return 'x86_64-unknown-linux-musl';
+      if (arch === 'arm64') return 'aarch64-unknown-linux-musl';
+      break;
+    case 'darwin':
+      if (arch === 'x64') return 'x86_64-apple-darwin';
+      if (arch === 'arm64') return 'aarch64-apple-darwin';
+      break;
+    case 'win32':
+      if (arch === 'x64') return 'x86_64-pc-windows-msvc';
+      if (arch === 'arm64') return 'aarch64-pc-windows-msvc';
+      break;
+    default:
+      break;
+  }
+
+  throw new Error(`Unsupported platform for Codex CLI verification: ${platform} (${arch})`);
+}
+
+function resolveCodexVendorBinary(dir: string): string {
+  const require = createRequire(join(dir, 'package.json'));
+  const targetTriple = resolveCodexTargetTriple();
+  const platformPkg = CODEX_PLATFORM_PACKAGE_BY_TARGET[targetTriple];
+  assert(platformPkg, `Unsupported Codex target triple: ${targetTriple}`);
+
+  const platformPkgJson = require.resolve(`${platformPkg}/package.json`, { paths: [dir] });
+  const codexBinaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+  return join(dirname(platformPkgJson), 'vendor', targetTriple, 'bin', codexBinaryName);
+}
+
 function verifyStagingDir(dir: string): void {
   const pkgPath = join(dir, 'package.json');
   assert(existsSync(pkgPath), `Missing package.json in ${dir}`);
@@ -84,10 +130,24 @@ function verifyStagingDir(dir: string): void {
     `@cursor/sdk@${installedSdkPkg.version} does not match pin (${pinnedVersion})`
   );
 
+  const codexSpecifier = pkg.dependencies?.['@openai/codex'];
+  assert(typeof codexSpecifier === 'string', '@openai/codex must be listed in dependencies');
+  assert(
+    !/^[\^~]/.test(codexSpecifier),
+    `@openai/codex must be exact-pinned (found "${codexSpecifier}")`
+  );
+
+  const codexVendorBinary = resolveCodexVendorBinary(dir);
+  assert(
+    existsSync(codexVendorBinary),
+    `Codex CLI binary missing in publish staging: ${codexVendorBinary}`
+  );
+
   console.log(`Publish artifacts OK (${dir})`);
   console.log(`  @cursor/sdk entry: ${sdkEntry}`);
   console.log(`  @connectrpc/connect-node entry: ${connectNodeEntry}`);
   console.log('  dist/esm/index.js: present');
+  console.log(`  Codex CLI binary: ${codexVendorBinary}`);
 }
 
 function verifyTarball(tarball: string): void {
@@ -108,6 +168,10 @@ function verifyTarball(tarball: string): void {
   assert(
     pkg.dependencies?.['@connectrpc/connect-node'],
     'Tarball package.json missing @connectrpc/connect-node dependency'
+  );
+  assert(
+    pkg.dependencies?.['@openai/codex'],
+    'Tarball package.json missing @openai/codex dependency'
   );
 
   console.log(`Tarball OK (${tarball})`);
