@@ -324,6 +324,25 @@ function participantFieldsEqual(
   );
 }
 
+/** Pick one row per heartbeat for presenceKey bump (daemon only needs one trigger). */
+// fallow-ignore-next-line complexity
+function pickPresenceCanonicalRow(
+  rows: Doc<'chatroom_machineAssignedTaskSnapshots'>[],
+  participant: Doc<'chatroom_participants'> | null
+): Doc<'chatroom_machineAssignedTaskSnapshots'> | undefined {
+  if (rows.length === 0) return undefined;
+  const inFlightId = participant?.lastInFlightTaskId;
+  if (inFlightId) {
+    const match = rows.find((r) => r.taskId === inFlightId);
+    if (match) return match;
+  }
+  for (const status of ['in_progress', 'acknowledged', 'pending'] as const) {
+    const match = rows.find((r) => r.taskStatus === status);
+    if (match) return match;
+  }
+  return rows[0];
+}
+
 /** After task status leaves active set, drop snapshot rows. */
 export async function projectAssignedTaskSnapshotsAfterTaskChange(
   ctx: MutationCtx,
@@ -347,32 +366,40 @@ async function patchSnapshotRowPresence(
   row: Doc<'chatroom_machineAssignedTaskSnapshots'>,
   participant: Doc<'chatroom_participants'> | null,
   now: number,
-  bumpSignal: boolean
+  bumpSignal: boolean,
+  bumpPresenceKey: boolean
 ): Promise<void> {
   if (!bumpSignal && participantFieldsEqual(row, participant)) {
     return;
   }
 
+  const fields = participantFieldsFromDoc(participant);
   const revisionKey = buildAssignedTaskRevisionKey({
     taskUpdatedAt: row.taskUpdatedAt,
     configUpdatedAt: row.configUpdatedAt,
-    lastSeenAction: participant?.lastSeenAction ?? '',
-    lastStatus: participant?.lastStatus ?? '',
+    lastSeenAction: fields.lastSeenAction ?? '',
+    lastStatus: fields.lastStatus ?? '',
     taskId: row.taskId,
     role: row.role,
   });
-  const presenceKey = buildAssignedTaskPresenceKey({
-    presenceUpdatedAt: now,
-    taskId: row.taskId,
-    role: row.role,
-  });
+
+  const presencePatch = bumpPresenceKey
+    ? {
+        presenceUpdatedAt: now,
+        presenceKey: buildAssignedTaskPresenceKey({
+          presenceUpdatedAt: now,
+          taskId: row.taskId,
+          role: row.role,
+        }),
+      }
+    : {};
+
   const patch = {
-    lastSeenAt: participant?.lastSeenAt ?? undefined,
-    lastSeenAction: participant?.lastSeenAction ?? undefined,
-    lastStatus: participant?.lastStatus ?? undefined,
-    presenceUpdatedAt: now,
-    presenceKey,
+    lastSeenAt: fields.lastSeenAt,
+    lastSeenAction: fields.lastSeenAction,
+    lastStatus: fields.lastStatus,
     revisionKey,
+    ...presencePatch,
   };
 
   if (revisionKey !== row.revisionKey || bumpSignal) {
@@ -387,6 +414,7 @@ async function patchSnapshotRowPresence(
 }
 
 /** Patch presence fields on snapshot rows for a participant check-in. */
+// fallow-ignore-next-line complexity
 export async function syncParticipantPresenceOnSnapshots(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
@@ -402,8 +430,11 @@ export async function syncParticipantPresenceOnSnapshots(
 
   const now = Date.now();
   const bumpSignal = options?.actionChanged ?? false;
+  const canonical = pickPresenceCanonicalRow(rows, participant);
+
   for (const row of rows) {
-    await patchSnapshotRowPresence(ctx, row, participant, now, bumpSignal);
+    const bumpPresenceKey = canonical !== undefined && row._id === canonical._id;
+    await patchSnapshotRowPresence(ctx, row, participant, now, bumpSignal, bumpPresenceKey);
   }
 }
 
