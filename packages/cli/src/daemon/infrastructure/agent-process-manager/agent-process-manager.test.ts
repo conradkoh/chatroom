@@ -243,6 +243,44 @@ describe('AgentProcessManager', () => {
       }
     );
 
+    test('codex-sdk turn-end emits provider unavailable without start failure', async () => {
+      const { service, onAgentEndRegistrar } = createNativeSdkService(
+        'codex-sdk' as NativeSdkHarness
+      );
+      deps.agentServices = new Map([['codex-sdk', service]]);
+      manager = new AgentProcessManager(deps);
+
+      await manager.ensureRunning(
+        createOpts({
+          agentHarness: 'codex-sdk',
+          model: 'gpt-5.6-luna[reasoning=low]',
+        })
+      );
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      manager.getSlot(CHATROOM_ID, ROLE)!.recentLogLines = [
+        '[codex-sdk:builder run-error] Selected model is at capacity',
+      ];
+      const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
+      await triggerAgentEnd(manager, agentEndCb);
+
+      const providerCalls = getMutationCallsByArgs(
+        deps,
+        (args) => args.reason === 'model_capacity'
+      );
+      expect(providerCalls).toHaveLength(1);
+      expect(providerCalls[0]).toMatchObject({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        model: 'gpt-5.6-luna[reasoning=low]',
+        message: '[codex-sdk:builder run-error] Selected model is at capacity',
+        recoverable: true,
+      });
+      expect(getMutationCallsByArgs(deps, (args) => typeof args.error === 'string')).toHaveLength(
+        0
+      );
+    });
+
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
       'turn-end for %s calls handleNativeAgentEnd without resumeTurn when idle',
       async (harness) => {
