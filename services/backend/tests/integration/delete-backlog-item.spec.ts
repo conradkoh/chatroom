@@ -1,12 +1,11 @@
 /**
  * Delete Backlog Item — Integration Tests
  *
- * Tests hard-delete of a backlog item from any status, including scrubbing
- * `attachedBacklogItemIds` references on `chatroom_messages` and
- * `chatroom_messageQueue` in the same chatroom.
+ * Tests soft-delete of a backlog item while preserving
+ * `attachedBacklogItemIds` references on messages.
  */
 
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Doc, Id } from '../../convex/_generated/dataModel';
@@ -30,10 +29,10 @@ async function createAndFetchBacklogItem(
   });
 }
 
-// ─── Hard delete ─────────────────────────────────────────────────────────────
+// ─── Soft delete ─────────────────────────────────────────────────────────────
 
 describe('backlog.deleteBacklogItem', () => {
-  test('hard-deletes the item and excludes it from the backlog list', async () => {
+  test('marks the item deleted and excludes it from the backlog list', async () => {
     const { sessionId } = await createTestSession('test-delete-backlog-1');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const item = await createAndFetchBacklogItem(chatroomId);
@@ -46,7 +45,7 @@ describe('backlog.deleteBacklogItem', () => {
     expect(result.success).toBe(true);
 
     const fetched = await t.run(async (ctx) => ctx.db.get('chatroom_backlog', item._id));
-    expect(fetched).toBeNull();
+    expect(fetched?.status).toBe('deleted');
 
     const items = await t.query(api.backlog.listBacklogItems, {
       sessionId: sessionId as any,
@@ -56,82 +55,44 @@ describe('backlog.deleteBacklogItem', () => {
     expect(items.some((i) => i._id === item._id)).toBe(false);
   });
 
-  test('scrubs attachedBacklogItemIds from messages and queued messages', async () => {
-    vi.useFakeTimers();
-    try {
-      const { sessionId } = await createTestSession('test-delete-backlog-scrub-1');
-      const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
-      const item = await createAndFetchBacklogItem(chatroomId);
-
-      const msgId = await t.run(async (ctx) =>
-        ctx.db.insert('chatroom_messages', {
-          chatroomId,
-          senderRole: 'user',
-          content: 'test message',
-          type: 'message' as const,
-          attachedBacklogItemIds: [item._id],
-        })
-      );
-      const queuedId = await t.run(async (ctx) =>
-        ctx.db.insert('chatroom_messageQueue', {
-          chatroomId,
-          senderRole: 'user',
-          content: 'test queued',
-          type: 'message' as const,
-          queuePosition: 1,
-          attachedBacklogItemIds: [item._id],
-        })
-      );
-
-      await t.mutation(api.backlog.deleteBacklogItem, {
-        sessionId: sessionId as any,
-        chatroomId,
-        itemId: item._id,
-      });
-      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
-
-      const msg = await t.run(async (ctx) =>
-        ctx.db.get('chatroom_messages', msgId as Id<'chatroom_messages'>)
-      );
-      expect(msg?.attachedBacklogItemIds).toBeUndefined();
-
-      const queued = await t.run(async (ctx) =>
-        ctx.db.get('chatroom_messageQueue', queuedId as Id<'chatroom_messageQueue'>)
-      );
-      expect(queued?.attachedBacklogItemIds).toBeUndefined();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  test('does not read unrelated large messages while scrubbing', async () => {
-    const { sessionId } = await createTestSession('test-delete-backlog-index-1');
+  test('preserves attachedBacklogItemIds on messages and queued messages', async () => {
+    const { sessionId } = await createTestSession('test-delete-backlog-scrub-1');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId as any);
     const item = await createAndFetchBacklogItem(chatroomId);
-    const largeContent = 'x'.repeat(1024 * 1024);
 
-    await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_messages', {
+    const msgId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_messages', {
         chatroomId,
         senderRole: 'user',
-        content: largeContent,
+        content: 'test message',
         type: 'message' as const,
-      });
-      await ctx.db.insert('chatroom_messageQueue', {
+        attachedBacklogItemIds: [item._id],
+      })
+    );
+    const queuedId = await t.run(async (ctx) =>
+      ctx.db.insert('chatroom_messageQueue', {
         chatroomId,
         senderRole: 'user',
-        content: largeContent,
+        content: 'test queued',
         type: 'message' as const,
         queuePosition: 1,
-      });
-    });
+        attachedBacklogItemIds: [item._id],
+      })
+    );
 
-    const result = await t.mutation(api.backlog.deleteBacklogItem, {
+    await t.mutation(api.backlog.deleteBacklogItem, {
       sessionId: sessionId as any,
       chatroomId,
       itemId: item._id,
     });
+    const msg = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_messages', msgId as Id<'chatroom_messages'>)
+    );
+    expect(msg?.attachedBacklogItemIds).toEqual([item._id]);
 
-    expect(result.success).toBe(true);
+    const queued = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_messageQueue', queuedId as Id<'chatroom_messageQueue'>)
+    );
+    expect(queued?.attachedBacklogItemIds).toEqual([item._id]);
   });
 });

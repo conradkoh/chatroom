@@ -1,9 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalMutation, mutation, query, type MutationCtx } from './_generated/server';
+import { mutation, query, type MutationCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { closeBacklogItem as closeBacklogItemUseCase } from '../src/domain/usecase/backlog/close-backlog-item';
 import { completeAllPendingReviewBacklogItems as completeAllPendingReviewBacklogItemsUseCase } from '../src/domain/usecase/backlog/complete-all-pending-review-backlog-items';
@@ -110,7 +109,7 @@ export const closeBacklogItem = mutation({
   },
 });
 
-/** Permanently deletes a backlog item (hard delete) from any status. Cannot be undone. */
+/** Soft-deletes a backlog item from any status. Deleted items cannot be reopened. */
 export const deleteBacklogItem = mutation({
   args: {
     ...SessionIdArg,
@@ -122,62 +121,8 @@ export const deleteBacklogItem = mutation({
     if (!item)
       throw new ConvexError({ code: 'BACKLOG_ITEM_NOT_FOUND', message: 'Backlog item not found' });
     await requireBacklogItemForChatroom(ctx, args.sessionId, args.chatroomId, item);
-    // Scrubbing can span an arbitrarily large chatroom. Run it separately in
-    // bounded pages so this user-facing mutation never reads the whole room.
-    await ctx.scheduler.runAfter(0, internal.backlog.scrubDeletedBacklogItemRefs, {
-      chatroomId: args.chatroomId,
-      itemId: args.itemId,
-      table: 'messages',
-      cursor: null,
-    });
     await deleteBacklogItemUseCase(ctx, item);
     return { success: true };
-  },
-});
-
-const SCRUB_BATCH_SIZE = 10;
-
-/** Scrubs references left on large chatrooms without an unbounded read. */
-export const scrubDeletedBacklogItemRefs = internalMutation({
-  args: {
-    chatroomId: v.id('chatroom_rooms'),
-    itemId: v.id('chatroom_backlog'),
-    table: v.union(v.literal('messages'), v.literal('queue')),
-    cursor: v.union(v.string(), v.null()),
-  },
-  handler: async (ctx, args) => {
-    const table = args.table === 'messages' ? 'chatroom_messages' : 'chatroom_messageQueue';
-    const page = await ctx.db
-      .query(table)
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .paginate({ cursor: args.cursor, numItems: SCRUB_BATCH_SIZE });
-
-    for (const message of page.page) {
-      if (message.attachedBacklogItemIds?.includes(args.itemId)) {
-        const attachedBacklogItemIds = message.attachedBacklogItemIds.filter(
-          (id) => id !== args.itemId
-        );
-        await ctx.db.patch(table, message._id, {
-          attachedBacklogItemIds: attachedBacklogItemIds.length
-            ? attachedBacklogItemIds
-            : undefined,
-        });
-      }
-    }
-
-    if (!page.isDone) {
-      await ctx.scheduler.runAfter(0, internal.backlog.scrubDeletedBacklogItemRefs, {
-        ...args,
-        cursor: page.continueCursor,
-      });
-    } else if (args.table === 'messages') {
-      await ctx.scheduler.runAfter(0, internal.backlog.scrubDeletedBacklogItemRefs, {
-        chatroomId: args.chatroomId,
-        itemId: args.itemId,
-        table: 'queue',
-        cursor: null,
-      });
-    }
   },
 });
 

@@ -117,8 +117,8 @@ Agents must NEVER close backlog items autonomously. If an item looks stale or al
 Give a concise, factual reason (e.g. \`User confirmed: shipped in PR #119\`).
 
 ### Delete
-Permanently removes an item from any status (backlog / pending_user_review / closed). NOT a lifecycle
-transition — the row is hard-deleted and cannot be reopened. Use for mistakes or items that must not persist.
+Soft-deletes an item from any status (backlog / pending_user_review / closed). The row is retained for
+referential integrity, excluded from normal backlog lists, and cannot be reopened.
 
 \`\`\`
 ${cliEnvPrefix}chatroom backlog delete --chatroom-id=<id> --role=<role> --backlog-item-id=<id>

@@ -1,10 +1,9 @@
 /**
  * delete-backlog-item usecase
  *
- * Permanently hard-deletes a backlog item from any status. NOT an FSM
- * transition and NOT a new `deleted` status — the row is removed and cannot be
- * reopened. References on messages are scrubbed asynchronously by the
- * Convex handler in bounded batches before this use case is invoked.
+ * Soft-deletes a backlog item from any status. The row is retained so existing
+ * message attachment references remain valid, but deleted items are excluded
+ * from normal backlog status queries and cannot be reopened.
  *
  * Expects a pre-fetched item to avoid redundant DB reads (the Convex handler
  * already fetches the item for access control).
@@ -16,5 +15,8 @@ export async function deleteBacklogItem(
   ctx: MutationCtx,
   item: Doc<'chatroom_backlog'>
 ): Promise<void> {
-  await ctx.db.delete('chatroom_backlog', item._id);
+  await ctx.db.patch('chatroom_backlog', item._id, {
+    status: 'deleted',
+    updatedAt: Date.now(),
+  });
 }
