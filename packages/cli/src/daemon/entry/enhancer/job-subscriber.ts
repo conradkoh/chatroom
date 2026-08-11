@@ -1,3 +1,5 @@
+import type { ConvexClient } from 'convex/browser';
+
 import { ENHANCER_AGENT_ROLE } from './constants.js';
 import { writeEnhancerLog } from './enhancer-log.js';
 import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
@@ -24,6 +26,7 @@ async function processEnhancerJobForSpawn(
   sessionId: string,
   machineId: string,
   convexUrl: string,
+  wsClient: ConvexClient,
   backend: BackendOps,
   agentServices: Map<string, RemoteAgentService>,
   job: PendingEnhancerJob,
@@ -100,7 +103,7 @@ async function processEnhancerJobForSpawn(
       sessionId,
       chatroomId: payload.chatroomId,
       jobId: payload.jobId,
-      backend,
+      wsClient,
       onAssistantText: spawned.onAssistantText ? (cb) => spawned.onAssistantText?.(cb) : undefined,
       onAgentEnd: spawned.onAgentEnd ? (cb) => spawned.onAgentEnd?.(cb) : undefined,
       onExit: (cb) => spawned.onExit(() => cb()),
@@ -150,6 +153,7 @@ function processEnhancerJobs(
   sessionId: string,
   machineId: string,
   convexUrl: string,
+  wsClient: ConvexClient,
   backend: BackendOps,
   agentServices: Map<string, RemoteAgentService>,
   jobs: PendingEnhancerJob[] | null | undefined,
@@ -160,6 +164,7 @@ function processEnhancerJobs(
       sessionId,
       machineId,
       convexUrl,
+      wsClient,
       backend,
       agentServices,
       job,
@@ -172,6 +177,7 @@ async function drainPendingEnhancerJobs(
   sessionId: string,
   machineId: string,
   convexUrl: string,
+  wsClient: ConvexClient,
   backend: BackendOps,
   agentServices: Map<string, RemoteAgentService>,
   inFlight: Set<string>
@@ -182,13 +188,23 @@ async function drainPendingEnhancerJobs(
   })) as PendingEnhancerJob[] | null;
 
   if (!jobs?.length) return;
-  processEnhancerJobs(sessionId, machineId, convexUrl, backend, agentServices, jobs, inFlight);
+  processEnhancerJobs(
+    sessionId,
+    machineId,
+    convexUrl,
+    wsClient,
+    backend,
+    agentServices,
+    jobs,
+    inFlight
+  );
 }
 
 export function startEnhancerJobSubscriber(
   sessionId: string,
   machineId: string,
   convexUrl: string,
+  wsClient: ConvexClient,
   backend: BackendOps,
   agentServices: Map<string, RemoteAgentService>
 ): EnhancerJobSubscriberHandles {
@@ -199,6 +215,7 @@ export function startEnhancerJobSubscriber(
       sessionId,
       machineId,
       convexUrl,
+      wsClient,
       backend,
       agentServices,
       inFlight
@@ -210,6 +227,14 @@ export function startEnhancerJobSubscriber(
       unregisterEnhancerInboundHandler();
     },
     drainPendingEnhancerJobs: () =>
-      drainPendingEnhancerJobs(sessionId, machineId, convexUrl, backend, agentServices, inFlight),
+      drainPendingEnhancerJobs(
+        sessionId,
+        machineId,
+        convexUrl,
+        wsClient,
+        backend,
+        agentServices,
+        inFlight
+      ),
   };
 }
