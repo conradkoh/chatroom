@@ -30,7 +30,7 @@ describe('codex-sdk-package', () => {
     expect(typeof sdk.Codex).toBe('function');
   });
 
-  it('resolves the Codex CLI binary from the chatroom-cli install root', () => {
+  it('resolves the Codex CLI binary from a workspace-linked pnpm install', () => {
     const binaryPath = resolveCodexExecutablePath(import.meta.url);
     expect(binaryPath).toContain('codex');
     expect(existsSync(binaryPath)).toBe(true);
