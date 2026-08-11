@@ -74,16 +74,16 @@ Do **not** add `armTurnEnd` to `RemoteAgentService`.
 
 Regression coverage: unit tests titled `native multi-turn invariant: two resumeTurns each emit onAgentEnd` in `cursor-sdk` and `claude-sdk` agent-service tests; OpenCode covered by `session-event-forwarder` multi-turn `armTurnEnd` tests.
 
-### Builder delegation: always a fresh session
+### Planner and builder delegation: always a fresh session
 
-Builder role **always** starts a new session per delegation regardless of handoff body content. The planner→builder brief no longer carries a `## Session Augmentation` section. Non-builder roles (planner, enhancer, reviewer) continue to run in their existing session (`none` mode — `wantResume=true`).
+Planner and builder roles **always** start a new session per task delivery regardless of handoff body content. This applies after every handoff path, including planner → enhancer → planner. The planner→builder brief no longer carries a `## Session Augmentation` section. Reviewer and enhancer continue to run in their existing session (`none` mode — `wantResume=true`).
 
-| Role     | Resolved mode | Behavior                                      |
-| -------- | ------------- | --------------------------------------------- |
-| builder  | `new_session` | Fresh session; new-session preamble injected  |
-| planner  | `none`        | Continue existing session (`wantResume=true`) |
-| reviewer | `none`        | Continue existing session                     |
-| enhancer | `none`        | Continue existing session                     |
+| Role     | Resolved mode | Behavior                                     |
+| -------- | ------------- | -------------------------------------------- |
+| builder  | `new_session` | Fresh session; new-session preamble injected |
+| planner  | `new_session` | Fresh session; new-session preamble injected |
+| reviewer | `none`        | Continue existing session                    |
+| enhancer | `none`        | Continue existing session                    |
 
 | Mode          | Native (`cursor-sdk`, `opencode-sdk`, `claude-sdk`)           | CLI harnesses                                      |
 | ------------- | ------------------------------------------------------------- | -------------------------------------------------- |

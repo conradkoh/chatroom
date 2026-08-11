@@ -1,7 +1,8 @@
 /**
- * Planner → builder session augmentation (integration).
+ * Planner and builder session augmentation (integration).
  *
- * Builder always gets a new session on delegation, regardless of handoff body content.
+ * Planner and builder always get a new session on task delivery, regardless of handoff body
+ * content or handoff path.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -97,5 +98,26 @@ describe('Planner → builder session_augmentation (duo, native harness)', () =>
       taskContent
     );
     assertNativeInjectionCompaction(injection, 'new_session');
+  });
+
+  test('planner gets new_session after a handoff back from an enhancement path', async () => {
+    const scenario = await setupPlannerBuilderScenario('augment-planner-after-enhancer');
+
+    await scenario.handoff('planner', 'builder', '## Goal\nEnhance this implementation');
+    const builderTaskId = await scenario.pendingTaskFor('builder');
+    await scenario.startTask('builder', builderTaskId);
+    await scenario.handoff('builder', 'planner', '## Summary\nEnhanced handoff');
+
+    const nextPlannerTaskId = await scenario.pendingTaskFor('planner');
+    const taskContent = await scenario.taskContent(nextPlannerTaskId);
+    const injection = await scenario.nativeInjectionPromptFor(
+      'planner',
+      nextPlannerTaskId,
+      taskContent
+    );
+
+    expectNewSessionFromTaskContent(taskContent);
+    assertNativeInjectionCompaction(injection, 'new_session');
+    expect(injection).toContain('Enhanced handoff');
   });
 });

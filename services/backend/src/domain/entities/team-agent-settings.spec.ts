@@ -9,12 +9,11 @@ describe('team-agent-settings', () => {
   });
 
   test('other roles do not support session augmentation', () => {
-    expect(roleSupportsSessionAugmentation('planner')).toBe(false);
     expect(roleSupportsSessionAugmentation('architect')).toBe(false);
     expect(roleSupportsSessionAugmentation('solo')).toBe(false);
   });
 
-  test('SESSION_AUGMENTATION_ROLES includes builder only', () => {
-    expect([...SESSION_AUGMENTATION_ROLES]).toEqual(['builder']);
+  test('SESSION_AUGMENTATION_ROLES includes builder and planner', () => {
+    expect([...SESSION_AUGMENTATION_ROLES]).toEqual(['builder', 'planner']);
   });
 });

@@ -114,23 +114,23 @@ describe('nudge wantResume from task content', () => {
     expect(resolveWantResume(content)).toBe(false);
   });
 
-  test('planner missing section → wantResume true (augmentation gated to none)', () => {
-    expect(resolveWantResume('## Goal\nAck user task', 'planner')).toBe(true);
+  test('planner ordinary task → new_session (wantResume false)', () => {
+    expect(resolveWantResume('## Goal\nAck user task', 'planner')).toBe(false);
   });
 
-  test('regression: planner builder handback → wantResume true (must not cold-restart)', () => {
+  test('planner handback → new_session (wantResume false)', () => {
     const handback = `## Summary
 Implemented feature.
 
 ## Changes Made
 - Done`;
-    expect(resolveWantResume(handback, 'planner')).toBe(true);
+    expect(resolveWantResume(handback, 'planner')).toBe(false);
   });
 
-  test('regression: planner must not get wantResume=false from missing section default', () => {
-    const userTask = `## Goal
-Acknowledge user message`;
-    expect(resolveWantResume(userTask, 'planner')).toBe(true);
+  test('planner matching is case-insensitive and unrelated roles resume', () => {
+    expect(resolveWantResume('## Goal\nAck user task', 'PLANNER')).toBe(false);
+    expect(resolveWantResume('## Goal\nEnhance this', 'enhancer')).toBe(true);
+    expect(resolveWantResume('## Goal\nReview this', 'reviewer')).toBe(true);
   });
 });
 
