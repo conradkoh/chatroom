@@ -22,6 +22,6 @@ describe('getHistoryRetrievalGuidance', () => {
       cliEnvPrefix: '',
     });
     expect(text).toContain('messages anchor');
-    expect(text).toContain('--since-message-id=<id-from-anchor>');
+    expect(text).toContain('--since-message-id="<id-from-anchor>" --limit=100');
   });
 });

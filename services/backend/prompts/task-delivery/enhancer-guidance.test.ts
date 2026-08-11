@@ -50,12 +50,18 @@ describe('appendTaskDeliveryEnhancerGuidance', () => {
 describe('appendTaskDeliveryEnhancerReviewGuidance', () => {
   test('includes review and builder handoff instructions', () => {
     const lines: string[] = [];
-    appendTaskDeliveryEnhancerReviewGuidance(lines);
+    appendTaskDeliveryEnhancerReviewGuidance(lines, {
+      chatroomId: 'room_1',
+      role: 'planner',
+      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+    });
     const output = lines.join('\n');
 
     expect(output).toContain('<enhancer-review>');
     expect(output).toContain('Enhancer Planning Feedback');
-    expect(output).toContain('Do not run `context new`');
+    expect(output).toContain(
+      'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="room_1" --role="planner"'
+    );
     expect(output).toContain('already delegated to builder');
     expect(output).toContain('delegate to `builder`');
     expect(output).toContain('advisory');
