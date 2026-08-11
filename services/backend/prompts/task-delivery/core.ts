@@ -34,6 +34,7 @@ export interface TaskDeliveryParams {
 function appendPlannerEnhancerGuidanceForMessage(
   lines: string[],
   message: { senderRole: string; content?: string } | null | undefined,
+  ctx: Pick<TaskDeliveryParams, 'chatroomId' | 'role' | 'cliEnvPrefix'>,
   taskContent?: string,
   plannerEnhancerEnabled?: boolean
 ): void {
@@ -43,7 +44,7 @@ function appendPlannerEnhancerGuidanceForMessage(
     if (isPlanningReviewOutcomeContent(body)) {
       appendPlanningReviewOutcomeGuidance(lines);
     } else {
-      appendTaskDeliveryEnhancerReviewGuidance(lines);
+      appendTaskDeliveryEnhancerReviewGuidance(lines, ctx);
     }
     return;
   }
@@ -54,13 +55,17 @@ function appendPlannerEnhancerGuidanceForMessage(
 
 function appendTaskDeliveryEnhancerGuidanceIfEnabled(
   lines: string[],
-  params: Pick<TaskDeliveryParams, 'role' | 'plannerEnhancerEnabled' | 'message' | 'task'>
+  params: Pick<
+    TaskDeliveryParams,
+    'chatroomId' | 'role' | 'cliEnvPrefix' | 'plannerEnhancerEnabled' | 'message' | 'task'
+  >
 ): void {
   if (params.role.toLowerCase() !== 'planner') return;
   if (params.plannerEnhancerEnabled) {
     appendPlannerEnhancerGuidanceForMessage(
       lines,
       params.message,
+      params,
       params.task?.content,
       params.plannerEnhancerEnabled
     );
@@ -195,7 +200,9 @@ export function appendTaskDeliveryHandoffSections(
     plannerEnhancerEnabled,
   });
   appendTaskDeliveryEnhancerGuidanceIfEnabled(lines, {
+    chatroomId,
     role,
+    cliEnvPrefix,
     plannerEnhancerEnabled,
     message,
     task,
