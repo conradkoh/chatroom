@@ -1833,7 +1833,7 @@ export class AgentProcessManager {
   ): void {
     if (spawnResult.onLogLine) {
       spawnResult.onLogLine((line) => {
-        const entry: AgentLogLine = typeof line === 'string' ? { stream: 'stdout', message: line } : line;
+        const entry: AgentLogLine = { stream: 'stdout', message: line };
         appendRecentLogLine(slot, entry.message);
         this.deps.logSink?.write({
           timestamp: this.deps.clock.now(),
