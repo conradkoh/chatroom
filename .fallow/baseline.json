@@ -822,7 +822,8 @@
     "apps/webapp/package.json:radix-ui",
     "apps/webapp/package.json:react-resizable-panels",
     "apps/webapp/package.json:vaul",
-    "packages/cli/package.json:@connectrpc/connect-node"
+    "packages/cli/package.json:@connectrpc/connect-node",
+    "packages/cli/package.json:@openai/codex"
   ],
   "unused_dev_dependencies": ["apps/local/package.json:react-grab"],
   "circular_dependencies": [

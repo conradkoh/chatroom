@@ -9,6 +9,17 @@ type LoadedCodexSdk = typeof CodexSdkModule;
 
 const REINSTALL_HINT = 'Reinstall chatroom-cli: npm install -g chatroom-cli@latest';
 
+const CODEX_NPM_NAME = '@openai/codex';
+
+const PLATFORM_PACKAGE_BY_TARGET: Record<string, string> = {
+  'x86_64-unknown-linux-musl': '@openai/codex-linux-x64',
+  'aarch64-unknown-linux-musl': '@openai/codex-linux-arm64',
+  'x86_64-apple-darwin': '@openai/codex-darwin-x64',
+  'aarch64-apple-darwin': '@openai/codex-darwin-arm64',
+  'x86_64-pc-windows-msvc': '@openai/codex-win32-x64',
+  'aarch64-pc-windows-msvc': '@openai/codex-win32-arm64',
+};
+
 class CodexSdkPackageError extends Error {
   readonly code = 'CODEX_SDK_PACKAGE_INCOMPLETE' as const;
 
@@ -62,14 +73,6 @@ function readInstalledSdkVersion(packageJsonPath: string): string {
   return pkg.version;
 }
 
-/**
- * Locate @openai/codex-sdk/package.json from the chatroom-cli install.
- *
- * The SDK's exports map only exposes the `import` condition (no `./package.json`
- * subpath), so `require.resolve` subpath resolution throws. Fall back to the
- * direct `node_modules/@openai/codex-sdk` layout (npm and pnpm both symlink it
- * into the package's own node_modules).
- */
 function resolveCodexSdkPackageJson(chatroomCliRoot: string): string {
   const require = createRequire(join(chatroomCliRoot, 'package.json'));
   try {
@@ -85,12 +88,92 @@ function resolveCodexSdkPackageJson(chatroomCliRoot: string): string {
   }
 }
 
+// fallow-ignore-next-line complexity
+function resolveTargetTriple(): string {
+  const { platform, arch } = process;
+  if (platform === 'linux' && arch === 'x64') return 'x86_64-unknown-linux-musl';
+  if (platform === 'linux' && arch === 'arm64') return 'aarch64-unknown-linux-musl';
+  if (platform === 'darwin' && arch === 'x64') return 'x86_64-apple-darwin';
+  if (platform === 'darwin' && arch === 'arm64') return 'aarch64-apple-darwin';
+  if (platform === 'win32' && arch === 'x64') return 'x86_64-pc-windows-msvc';
+  if (platform === 'win32' && arch === 'arm64') return 'aarch64-pc-windows-msvc';
+
+  throw new CodexSdkPackageError(
+    `Unsupported platform for ${CODEX_NPM_NAME}: ${platform}-${arch}. ${REINSTALL_HINT}`
+  );
+}
+
+function resolvePlatformPackageName(targetTriple: string): string {
+  const pkg = PLATFORM_PACKAGE_BY_TARGET[targetTriple];
+  if (!pkg) {
+    throw new CodexSdkPackageError(
+      `Unsupported platform for ${CODEX_NPM_NAME}: ${targetTriple}. ${REINSTALL_HINT}`
+    );
+  }
+  return pkg;
+}
+
+let cachedExecutablePath: string | undefined;
+
+// fallow-ignore-next-line complexity
+export function resolveCodexExecutablePath(moduleRef: string = import.meta.url): string {
+  if (cachedExecutablePath) return cachedExecutablePath;
+
+  const chatroomCliRoot = resolveChatroomCliRoot(moduleRef);
+  const require = createRequire(join(chatroomCliRoot, 'package.json'));
+
+  try {
+    require.resolve(`${CODEX_NPM_NAME}/package.json`, { paths: [chatroomCliRoot] });
+  } catch {
+    throw new CodexSdkPackageError(
+      `${CODEX_NPM_NAME} is not installed. Ensure chatroom-cli was installed with optional dependencies. ${REINSTALL_HINT}`
+    );
+  }
+
+  const targetTriple = resolveTargetTriple();
+  const platformPkg = resolvePlatformPackageName(targetTriple);
+  const codexBinaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+
+  let platformPkgDir: string;
+  try {
+    platformPkgDir = dirname(
+      require.resolve(`${platformPkg}/package.json`, { paths: [chatroomCliRoot] })
+    );
+  } catch {
+    throw new CodexSdkPackageError(
+      `Native Codex CLI package ${platformPkg} is not installed. Ensure ${CODEX_NPM_NAME} is installed with optional dependencies. ${REINSTALL_HINT}`
+    );
+  }
+
+  const packageBinaryPath = join(platformPkgDir, 'vendor', targetTriple, 'bin', codexBinaryName);
+  const legacyBinaryPath = join(platformPkgDir, 'vendor', targetTriple, 'codex', codexBinaryName);
+
+  if (existsSync(packageBinaryPath)) {
+    cachedExecutablePath = packageBinaryPath;
+    return cachedExecutablePath;
+  }
+  if (existsSync(legacyBinaryPath)) {
+    cachedExecutablePath = legacyBinaryPath;
+    return cachedExecutablePath;
+  }
+
+  throw new CodexSdkPackageError(
+    `Unable to locate Codex CLI binaries for ${targetTriple}. Ensure ${CODEX_NPM_NAME} is installed with optional dependencies. ${REINSTALL_HINT}`
+  );
+}
+
+/** @internal Test-only reset for cached executable path. */
+export function resetCodexExecutablePathCacheForTests(): void {
+  cachedExecutablePath = undefined;
+}
+
 /**
  * Resolve and import @openai/codex-sdk from this chatroom-cli install.
  *
- * The SDK is ESM-only and bundles its Codex CLI runtime via `@openai/codex`,
- * so the import is deferred to call sites (isInstalled / spawn) and load
- * failures hide the harness instead of crashing the daemon.
+ * Uses require.resolve(..., { paths: [chatroomCliRoot] }) so npm global installs
+ * use the copy installed with chatroom-cli, not a separately hoisted global package.
+ * The SDK is ESM-only; import is deferred to call sites (isInstalled / spawn) and
+ * load failures hide the harness instead of crashing the daemon.
  */
 // fallow-ignore-next-line complexity
 export async function importBundledCodexSdk(
@@ -107,14 +190,14 @@ export async function importBundledCodexSdk(
     );
   }
 
-  const entryPath = join(dirname(packageJsonPath), 'dist', 'index.js');
-  if (!existsSync(entryPath)) {
+  const distEntryPath = join(dirname(packageJsonPath), 'dist', 'index.js');
+  if (!existsSync(distEntryPath)) {
     throw new CodexSdkPackageError(
-      `@openai/codex-sdk entry file is missing: ${entryPath}. ${REINSTALL_HINT}`
+      `@openai/codex-sdk entry file is missing: ${distEntryPath}. ${REINSTALL_HINT}`
     );
   }
 
-  return import(pathToFileURL(entryPath).href);
+  return import(pathToFileURL(distEntryPath).href);
 }
 
 export function getBundledCodexSdkVersion(moduleRef: string = import.meta.url): string {
@@ -133,9 +216,23 @@ export function formatCodexSdkError(err: unknown): string {
   return String(err);
 }
 
+// fallow-ignore-next-line complexity
 export function formatCodexSdkLoadError(err: unknown): string {
   if (err instanceof CodexSdkPackageError) {
-    return err.message;
+    const message = err.message;
+    if (
+      (message.includes('Codex CLI') || message.includes('optional dependencies')) &&
+      !message.includes(REINSTALL_HINT)
+    ) {
+      return `${message} ${REINSTALL_HINT}`;
+    }
+    return message;
   }
+
+  const message = err instanceof Error ? err.message : String(err);
+  if (message.includes('Codex CLI') || message.includes('optional dependencies')) {
+    return `${message} ${REINSTALL_HINT}`;
+  }
+
   return formatCodexSdkError(err);
 }
