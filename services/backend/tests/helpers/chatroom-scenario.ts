@@ -62,8 +62,9 @@ async function createTeamChatroom(
 export function buildNativeInjectionPrompt(params: {
   taskDeliveryOutput: string;
   taskContent: string;
+  role: string;
 }): string {
-  const augmentationMode = resolveSessionAugmentationForRole(params.taskContent, 'builder');
+  const augmentationMode = resolveSessionAugmentationForRole(params.taskContent, params.role);
   if (augmentationMode === 'new_session') {
     return [
       '⚠️ Starting a new agent session. Run `chatroom get-system-prompt` to reload role instructions if needed.',
@@ -179,7 +180,7 @@ export class ChatroomScenario {
     taskContent: string
   ): Promise<string> {
     const delivery = await this.deliveryPromptFor(role, taskId);
-    return buildNativeInjectionPrompt({ taskDeliveryOutput: delivery, taskContent });
+    return buildNativeInjectionPrompt({ taskDeliveryOutput: delivery, taskContent, role });
   }
 
   /** Claim + read a task so handoff preconditions are met. */
