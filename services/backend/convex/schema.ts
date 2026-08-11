@@ -715,7 +715,8 @@ export default defineSchema({
     status: v.union(
       v.literal('backlog'), // Sitting in the backlog, awaiting pickup
       v.literal('pending_user_review'), // Agent completed work, awaiting user confirmation
-      v.literal('closed') // User closed without completing
+      v.literal('closed'), // User closed without completing
+      v.literal('deleted') // Soft-deleted; retained for referential integrity
     ),
 
     // Assignment (when an agent is working on this item)

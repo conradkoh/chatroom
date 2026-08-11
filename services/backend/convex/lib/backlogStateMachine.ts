@@ -13,7 +13,8 @@ import type { MutationCtx } from '../_generated/server';
 export type BacklogItemStatus =
   | 'backlog' // Sitting in backlog, awaiting pickup
   | 'pending_user_review' // Agent completed work, awaiting user confirmation
-  | 'closed'; // User closed without completing
+  | 'closed' // User closed without completing
+  | 'deleted'; // Soft-deleted; retained for referential integrity
 
 export type BacklogItem = Doc<'chatroom_backlog'>;
 
@@ -35,9 +36,7 @@ export interface BacklogTransitionRule {
  */
 export interface BacklogTransitionError {
   code:
-    | 'BACKLOG_INVALID_TRANSITION'
-    | 'BACKLOG_VALIDATION_FAILED'
-    | 'BACKLOG_MISSING_REQUIRED_FIELD';
+    'BACKLOG_INVALID_TRANSITION' | 'BACKLOG_VALIDATION_FAILED' | 'BACKLOG_MISSING_REQUIRED_FIELD';
   message: string;
   variables: {
     backlogItemId: string;

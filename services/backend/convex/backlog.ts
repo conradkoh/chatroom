@@ -109,7 +109,7 @@ export const closeBacklogItem = mutation({
   },
 });
 
-/** Permanently deletes a backlog item (hard delete) from any status. Cannot be undone. */
+/** Soft-deletes a backlog item from any status. Deleted items cannot be reopened. */
 export const deleteBacklogItem = mutation({
   args: {
     ...SessionIdArg,
