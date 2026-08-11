@@ -37,6 +37,7 @@ import {
   formatCodexSdkLoadError,
   getBundledCodexSdkVersion,
   importBundledCodexSdk,
+  resolveCodexExecutablePath,
 } from './codex-sdk-package.js';
 import { CodexSdkStreamAdapter } from './codex-sdk-stream-adapter.js';
 import { buildAgentSpawnEnv } from '../../../../../../infrastructure/convex/spawn-env.js';
@@ -236,6 +237,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
   async isInstalled(): Promise<boolean> {
     try {
       await loadSdk();
+      resolveCodexExecutablePath();
       return true;
     } catch (err) {
       console.warn(`[codex-sdk] unavailable: ${formatCodexSdkLoadError(err)}`);
@@ -715,7 +717,11 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
     let thread: Thread;
     try {
       const { Codex } = await loadSdk();
-      codex = new Codex({ env: buildCodexEnv(options.resolvedConvexUrl) });
+      const codexPath = resolveCodexExecutablePath();
+      codex = new Codex({
+        codexPathOverride: codexPath,
+        env: buildCodexEnv(options.resolvedConvexUrl),
+      });
       thread = codex.startThread(buildThreadOptions(options.workingDir, variant));
     } catch (err) {
       writeSpawnError(buildAgentLogPrefix('codex-sdk', context), err);
@@ -749,7 +755,11 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
 
       const variant = decodeCodexVariant(options.model ?? stored.model);
       const { Codex } = await loadSdk();
-      const codex = new Codex({ env: buildCodexEnv(options.resolvedConvexUrl) });
+      const codexPath = resolveCodexExecutablePath();
+      const codex = new Codex({
+        codexPathOverride: codexPath,
+        env: buildCodexEnv(options.resolvedConvexUrl),
+      });
       const thread = codex.resumeThread(
         stored.harnessSessionId,
         buildThreadOptions(stored.workingDir, variant)

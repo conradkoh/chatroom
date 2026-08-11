@@ -23,6 +23,7 @@ vi.mock('./codex-sdk-package.js', () => ({
     Codex: mockCodex,
   })),
   getBundledCodexSdkVersion: vi.fn(() => '0.147.0'),
+  resolveCodexExecutablePath: vi.fn(() => '/tmp/codex'),
   formatCodexSdkError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
   formatCodexSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
 }));
