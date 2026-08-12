@@ -10,9 +10,11 @@ import {
   type ChangeEvent,
   type DragEvent,
   type RefObject,
+  type ClipboardEvent,
 } from 'react';
 import { toast } from 'sonner';
 
+import { getImageFilesFromClipboard } from './clipboardImageFiles';
 import { formatFileReferenceFinal } from '../triggers/fileReferenceQuery';
 import { insertMultipleAtCaret } from '../utils/insertTextAtCaret';
 import { useWorkspaceUploadJobs } from '../workspace/hooks/useWorkspaceUploadJobs';
@@ -136,6 +138,16 @@ export function useChatInputFileDrop({
     [attachFiles]
   );
 
+  const handlePaste = useCallback(
+    (event: ClipboardEvent<HTMLTextAreaElement>) => {
+      const images = getImageFilesFromClipboard(event.clipboardData);
+      if (images.length === 0) return;
+      event.preventDefault();
+      attachFiles(images);
+    },
+    [attachFiles]
+  );
+
   return {
     uploadJobs: jobs,
     isDragging,
@@ -146,5 +158,6 @@ export function useChatInputFileDrop({
     fileInputRef,
     handleAttachClick,
     handleFileInputChange,
+    handlePaste,
   };
 }
