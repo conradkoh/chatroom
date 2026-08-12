@@ -13,17 +13,23 @@
  */
 
 import type { AgentHarness } from '../agent';
-import { CODEX_REASONING_LEVEL_VALUES, type CodexReasoningLevel } from './codex-sdk.model-variants';
+import {
+  CLAUDE_CATALOG_BASE_MODEL_IDS,
+  CLAUDE_MODEL_VARIANT_COMBINATIONS,
+} from './claude.model-variants';
+import {
+  CODEX_MODEL_VARIANT_COMBINATIONS,
+  type CodexReasoningLevel,
+} from './codex-sdk.model-variants';
+import { expandModelVariantCatalog } from './model-variant';
 
 /** Harness ids with a server-curated catalog. */
-export type CatalogBackedHarness = Extract<AgentHarness, 'codex-sdk' | 'copilot' | 'cursor' | 'claude' | 'claude-sdk'>;
-import { CLAUDE_CATALOG_BASE_MODEL_IDS, CLAUDE_EFFORT_VALUES } from './claude.model-variants';
-import { encodeModelVariant } from './model-variant';
+export type CatalogBackedHarness = Extract<
+  AgentHarness,
+  'codex-sdk' | 'copilot' | 'cursor' | 'claude' | 'claude-sdk'
+>;
 const claudeModelVariants = () =>
-  CLAUDE_CATALOG_BASE_MODEL_IDS.flatMap((id) => [
-    id,
-    ...CLAUDE_EFFORT_VALUES.filter((effort) => effort !== 'none').map((effort) => encodeModelVariant(id, { effort })),
-  ]);
+  expandModelVariantCatalog(CLAUDE_CATALOG_BASE_MODEL_IDS, CLAUDE_MODEL_VARIANT_COMBINATIONS);
 
 // ─── Codex variants (typed template strings — catalog entries are compile-checked) ───
 
@@ -51,12 +57,10 @@ const CODEX_MODEL_IDS: readonly CodexModelId[] = [
  * `reasoning=none` for explicitly opting out of a reasoning level.
  */
 function codexModelVariants(): CodexModelVariantString[] {
-  return CODEX_MODEL_IDS.flatMap<CodexModelVariantString>((id) => [
-    id,
-    ...CODEX_REASONING_LEVEL_VALUES.filter((level) => level !== 'none').map(
-      (level): CodexModelVariantString => `${id}[reasoning=${level}]`
-    ),
-  ]);
+  return expandModelVariantCatalog(
+    CODEX_MODEL_IDS,
+    CODEX_MODEL_VARIANT_COMBINATIONS
+  ) as CodexModelVariantString[];
 }
 
 // ─── Catalog ────────────────────────────────────────────────────────────────

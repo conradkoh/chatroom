@@ -4,8 +4,8 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { CODEX_MODEL_VARIANT_COMBINATIONS } from './codex-sdk.model-variants';
 import { CLAUDE_MODEL_VARIANT_COMBINATIONS, CLAUDE_SPAWN_ALIASES } from './claude.model-variants';
+import { CODEX_MODEL_VARIANT_COMBINATIONS } from './codex-sdk.model-variants';
 import { HARNESS_MODEL_CATALOG, type CatalogBackedHarness } from './model-catalog';
 import {
   ModelVariantParseError,
@@ -13,6 +13,8 @@ import {
   PLAIN_MODEL_SCHEMA,
   decodeModelVariant,
   encodeModelVariant,
+  expandModelVariantCatalog,
+  formatModelVariantParamsSuffix,
   validateModelVariantParams,
 } from './model-variant';
 
@@ -168,10 +170,19 @@ describe('HARNESS_MODEL_CATALOG', () => {
       'gpt-5.4-mini',
     ]) {
       expect(codex).toContain(base);
-      for (const level of ['low', 'medium', 'high', 'xhigh']) {
+      for (const level of ['none', 'low', 'medium', 'high', 'xhigh']) {
         expect(codex).toContain(`${base}[reasoning=${level}]`);
       }
     }
+  });
+
+  test('formats suffixes and expands catalogs', () => {
+    expect(formatModelVariantParamsSuffix({ effort: 'none' })).toBe('[effort=none]');
+    expect(formatModelVariantParamsSuffix({})).toBe('');
+    expect(expandModelVariantCatalog(['model'], [{}, { effort: 'none' }])).toEqual([
+      'model',
+      'model[effort=none]',
+    ]);
   });
 
   test('copilot and cursor entries are plain ids (no variants)', () => {
