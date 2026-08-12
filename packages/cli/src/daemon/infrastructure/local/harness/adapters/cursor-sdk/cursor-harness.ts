@@ -3,6 +3,7 @@
  */
 
 import { CursorSdkSession } from './cursor-session.js';
+import { HARNESS_MODEL_CATALOG } from '@workspace/backend/src/domain/entities/harness/model-catalog.js';
 import type {
   BoundHarness,
   BoundHarnessFactory,
@@ -17,8 +18,7 @@ import type {
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
 import {
-  normalizeCursorSdkListedModels,
-  resolveCursorSdkModel,
+  resolveCursorSdkSpawnModelId,
 } from '../../services/cursor-sdk/cursor-models.js';
 import {
   formatCursorSdkLoadError,
@@ -27,7 +27,6 @@ import {
 import { withTimeout } from '../../services/with-timeout.js';
 
 const DEFAULT_MODEL = 'composer-2.5';
-const MODELS_LIST_TIMEOUT_MS = 60_000;
 const AGENT_CREATE_TIMEOUT_MS = 60_000;
 
 type LoadedCursorSdk = Awaited<ReturnType<typeof importBundledCursorSdk>>;
@@ -79,18 +78,7 @@ export class CursorSdkHarness implements BoundHarness {
   }
 
   async listProviders(): Promise<readonly PublishedProvider[]> {
-    const apiKey = process.env.CURSOR_API_KEY?.trim();
-    if (!apiKey) return [];
-
-    const { Cursor } = await loadSdk();
-    const listed = await withTimeout(
-      Cursor.models.list({ apiKey }),
-      MODELS_LIST_TIMEOUT_MS,
-      'Cursor.models.list'
-    );
-    const modelIds = normalizeCursorSdkListedModels(
-      listed.map((m) => m.id).filter((id) => id.length > 0)
-    );
+    const modelIds = HARNESS_MODEL_CATALOG['cursor-sdk'];
 
     return [
       {
@@ -108,7 +96,7 @@ export class CursorSdkHarness implements BoundHarness {
     const apiKey = process.env.CURSOR_API_KEY?.trim();
     if (!apiKey) throw new Error('CURSOR_API_KEY is not set');
 
-    const modelId = resolveCursorSdkModel(config.model ?? DEFAULT_MODEL);
+    const modelId = resolveCursorSdkSpawnModelId(config.model ?? DEFAULT_MODEL);
     const { Agent } = await loadSdk();
     const agent = await withTimeout(
       Agent.create({
