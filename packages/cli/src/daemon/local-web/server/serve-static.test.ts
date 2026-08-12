@@ -1,15 +1,24 @@
 import { existsSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { resolveClientDistDir, tryServeStatic } from './serve-static.js';
+import { clientDistCandidates, resolveClientDistDir, tryServeStatic } from './serve-static.js';
 
 describe('resolveClientDistDir', () => {
   it('resolves to a directory containing index.html', () => {
     const dir = resolveClientDistDir();
     expect(existsSync(join(dir, 'index.html'))).toBe(true);
+  });
+
+  it('resolves from bundled dist/index.js layout', () => {
+    const cliRoot = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
+    const distDir = join(cliRoot, 'dist');
+    const candidates = clientDistCandidates(distDir);
+    const match = candidates.find((dir) => existsSync(join(dir, 'index.html')));
+    expect(match).toBe(join(cliRoot, 'src/daemon/local-web/client/build'));
   });
 });
 

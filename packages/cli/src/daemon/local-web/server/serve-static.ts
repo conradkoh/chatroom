@@ -13,12 +13,16 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-export function resolveClientDistDir(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
+export function clientDistCandidates(here: string): string[] {
+  return [
     join(here, '../client/build'),
+    join(here, '../src/daemon/local-web/client/build'),
     join(here, '../../../src/daemon/local-web/client/build'),
   ];
+}
+
+export function resolveClientDistDir(): string {
+  const candidates = clientDistCandidates(dirname(fileURLToPath(import.meta.url)));
   for (const dir of candidates) {
     if (existsSync(join(dir, 'index.html'))) return dir;
   }
