@@ -14,8 +14,11 @@ export function decodeCursorVariant(encoded: string | undefined): { cliSlug: str
     validateCursorVariantForBase(decoded.model, decoded.params);
     return { cliSlug: cursorVariantToCliSlug(decoded.model, decoded.params), params: decoded.params };
   } catch (error) {
-    const legacy = cursorLegacySlugToVariant(encoded);
-    if (legacy) return { cliSlug: cursorVariantToCliSlug(legacy.base, legacy.params), params: legacy.params };
+    if (!encoded.includes('[')) {
+      const legacy = cursorLegacySlugToVariant(encoded);
+      if (legacy) return { cliSlug: cursorVariantToCliSlug(legacy.base, legacy.params), params: legacy.params };
+      return { cliSlug: encoded, params: {} };
+    }
     throw error;
   }
 }
