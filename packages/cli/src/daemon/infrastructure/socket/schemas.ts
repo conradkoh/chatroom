@@ -5,6 +5,8 @@ import type { LogHistoryQuery } from '../../domain/entities/log-history-query.js
 
 export const harnessHistoryInputSchema = z.object({
   harness: z.string().optional(),
+  fromTimestamp: z.number().int().nonnegative().optional(),
+  toTimestamp: z.number().int().nonnegative().optional(),
   limit: z.number().int().positive().max(5000).optional(),
 }) satisfies z.ZodType<HarnessHistoryQuery>;
 export const logHistoryInputSchema = z.object({

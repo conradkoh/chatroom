@@ -21,6 +21,17 @@ describe('log store', () => {
     db.close();
   });
 
+  it('filters history by timestamp bounds', () => {
+    const db = openLogDatabase(join(tmpdir(), `logs-${randomUUID()}.sqlite`));
+    appendBatch(db, [
+      { timestamp: 100, level: 'info', source: 'test', message: 'before' },
+      { timestamp: 200, level: 'info', source: 'test', message: 'inside' },
+      { timestamp: 300, level: 'info', source: 'test', message: 'after' },
+    ]);
+    expect(queryHistory(db, undefined, 100, undefined, undefined, undefined, undefined, 150, 250).map((x) => x.message)).toEqual(['inside']);
+    db.close();
+  });
+
   it('filters by metadata dimensions and lists distinct dimensions', () => {
     const db = openLogDatabase(join(tmpdir(), `logs-${randomUUID()}.sqlite`));
     appendBatch(db, [

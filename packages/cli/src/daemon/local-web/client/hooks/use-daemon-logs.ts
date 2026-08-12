@@ -32,7 +32,7 @@ function useDaemonLogsImpl(filters: LogFilters) {
         if (d.ok) setDimensions(d.data);
         const range=resolveTimeRange(filters); const h = await fetchLogHistory({ ...filters, fromTimestamp:range.fromMs, toTimestamp:range.toMs, limit: 500 });
         if (!h.ok) throw new Error(h.error.message);
-        setLines(h.data.entries);
+        setLines(h.data.entries.filter((line) => matches(line, filters)));
         unsub = subscribeLogStream((l) => {
           if (matches(l, filters)) setLines((p) => [...p, l]);
         });
