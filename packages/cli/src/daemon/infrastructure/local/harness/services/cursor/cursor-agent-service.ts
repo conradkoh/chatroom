@@ -82,7 +82,8 @@ export class CursorAgentService extends BaseCLIAgentService {
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const args: string[] = ['-p', '--force', '--output-format', 'stream-json'];
     if (options.model) {
-      args.push('--model', resolveCursorCliModel(decodeCursorVariant(options.model)?.cliSlug ?? options.model));
+      const model = resolveCursorCliModel(options.model);
+      args.push('--model', decodeCursorVariant(model)?.cliSlug ?? model);
     }
 
     const systemPrompt = options.systemPrompt

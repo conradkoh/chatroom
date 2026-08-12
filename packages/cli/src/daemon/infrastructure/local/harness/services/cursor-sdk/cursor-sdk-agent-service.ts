@@ -150,7 +150,9 @@ function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
 }
 
 function resolveModelId(model?: string): string {
-  return model ? resolveCursorSdkModel(decodeCursorVariant(model)?.cliSlug ?? model) : DEFAULT_MODEL;
+  if (!model) return DEFAULT_MODEL;
+  const bare = resolveCursorSdkModel(model);
+  return resolveCursorSdkModel(decodeCursorVariant(bare)?.cliSlug ?? bare);
 }
 
 function buildLocalAgentOptions(cwd: string) {
