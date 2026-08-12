@@ -330,7 +330,6 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       );
     } catch (err) {
       writeSpawnError(logPrefix, err);
-      console.error(`[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${formatCursorSdkError(err)} — cold spawning`);
       keeper.kill();
       this.deleteProcess(pid);
       return this.spawn(options);

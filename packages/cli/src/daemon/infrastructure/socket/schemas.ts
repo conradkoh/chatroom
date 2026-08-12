@@ -16,6 +16,8 @@ export const logHistoryInputSchema = z.object({
   chatroomId: z.string().optional(),
   role: z.string().optional(),
   harness: z.string().optional(),
+  fromTimestamp: z.number().int().nonnegative().optional(),
+  toTimestamp: z.number().int().nonnegative().optional(),
   limit: z.number().int().positive().max(1000).optional(),
 }) satisfies z.ZodType<LogHistoryQuery>;
 export const logSourcesInputSchema = z.object({
