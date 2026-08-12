@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
+import { HARNESS_MODEL_CATALOG } from '@workspace/backend/src/domain/entities/harness/model-catalog';
+
 import {
   titleCaseProvider,
   getProviderDisplayName,
@@ -68,6 +70,16 @@ describe('groupFlatModels', () => {
     expect(groups[0].providerKey).toBe('sonnet');
     expect(groups[0].options).toHaveLength(2);
     expect(groups[0].options[1].label).toBe('SONNET (HIGH EFFORT)');
+  });
+
+  it('groups claude catalog without duplicate base model provider keys', () => {
+    const models = HARNESS_MODEL_CATALOG.claude;
+    const groups = groupFlatModels(models);
+    const keys = groups.map((g) => g.providerKey);
+    expect(keys).toEqual([...new Set(keys)]);
+    expect(keys).not.toContain('sonnet');
+    expect(keys).not.toContain('haiku');
+    expect(keys).not.toContain('opus');
   });
 
   it('returns empty array for empty input', () => {

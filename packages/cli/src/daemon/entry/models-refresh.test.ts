@@ -36,8 +36,8 @@ describe('fetchHarnessCatalog', () => {
       ['gpt-5.6-terra', 'gpt-5.6-terra[reasoning=high]'],
       ['claude-sonnet-4-6'],
       ['auto', 'composer-2.5'],
-      ['sonnet', 'sonnet[effort=high]'],
-      ['sonnet', 'sonnet[effort=high]'],
+      ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
+      ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
     ]);
 
     const catalog = await fetchHarnessCatalog(client, SESSION_ID);
@@ -46,8 +46,8 @@ describe('fetchHarnessCatalog', () => {
       'codex-sdk': ['gpt-5.6-terra', 'gpt-5.6-terra[reasoning=high]'],
       copilot: ['claude-sonnet-4-6'],
       cursor: ['auto', 'composer-2.5'],
-      claude: ['sonnet', 'sonnet[effort=high]'],
-      'claude-sdk': ['sonnet', 'sonnet[effort=high]'],
+      claude: ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
+      'claude-sdk': ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
     });
     expect(client.query).toHaveBeenCalledTimes(5);
     for (const call of client.query.mock.calls) {
