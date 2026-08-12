@@ -182,6 +182,19 @@ describe('applyAssignedTaskPresence', () => {
     expect(merged?.participant?.lastSeenAt).toBe(2_000);
     expect(merged?.participant?.lastStatus).toBe('agent.waiting');
   });
+
+  it('preserves existing lastSeenAt when presence omits it', () => {
+    const existing = makeExistingRow();
+    const merged = applyAssignedTaskPresence(existing, {
+      taskId: existing.taskId,
+      chatroomId: existing.chatroomId,
+      role: existing.agentConfig.role,
+      lastSeenAt: null,
+      presenceUpdatedAt: 2_000,
+      presenceKey: 'pk-2',
+    });
+    expect(merged?.participant?.lastSeenAt).toBe(existing.participant?.lastSeenAt);
+  });
 });
 
 describe('doc → signal → apply round-trip', () => {
