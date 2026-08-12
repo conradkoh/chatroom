@@ -14,6 +14,8 @@
 
 import type { AgentHarness } from '../agent';
 import { CODEX_REASONING_LEVEL_VALUES, type CodexReasoningLevel } from './codex-sdk.model-variants';
+import { cursorLegacySlugToVariant, type CursorBaseModelId } from './cursor.model-variants';
+import { encodeModelVariant } from './model-variant';
 
 /** Harness ids with a server-curated catalog. */
 export type CatalogBackedHarness = Extract<AgentHarness, 'codex-sdk' | 'copilot' | 'cursor'>;
@@ -52,6 +54,74 @@ function codexModelVariants(): CodexModelVariantString[] {
   ]);
 }
 
+export type CursorModelVariantString = CursorBaseModelId | `${CursorBaseModelId}[${string}]`;
+
+const CURSOR_LEGACY_MODEL_SLUGS = [
+  'claude-4.6-opus-high',
+  'claude-4.6-opus-high-thinking',
+  'claude-4.6-opus-max',
+  'claude-4.6-opus-max-thinking',
+  'claude-4.5-opus-high',
+  'claude-4.5-opus-high-thinking',
+  'claude-4.6-sonnet-medium',
+  'claude-4.6-sonnet-medium-thinking',
+  'claude-4.5-sonnet',
+  'claude-4.5-sonnet-thinking',
+  'claude-4-sonnet',
+  'claude-4-sonnet-thinking',
+  'claude-4-sonnet-1m',
+  'claude-4-sonnet-1m-thinking',
+  'gpt-5.4-low',
+  'gpt-5.4-medium',
+  'gpt-5.4-medium-fast',
+  'gpt-5.4-high',
+  'gpt-5.4-high-fast',
+  'gpt-5.4-xhigh',
+  'gpt-5.4-xhigh-fast',
+  'gpt-5.3-codex-low',
+  'gpt-5.3-codex-low-fast',
+  'gpt-5.3-codex',
+  'gpt-5.3-codex-fast',
+  'gpt-5.3-codex-high',
+  'gpt-5.3-codex-high-fast',
+  'gpt-5.3-codex-xhigh',
+  'gpt-5.3-codex-xhigh-fast',
+  'gpt-5.3-codex-spark-preview',
+  'gpt-5.2',
+  'gpt-5.2-high',
+  'gpt-5.2-codex-low',
+  'gpt-5.2-codex-low-fast',
+  'gpt-5.2-codex',
+  'gpt-5.2-codex-fast',
+  'gpt-5.2-codex-high',
+  'gpt-5.2-codex-high-fast',
+  'gpt-5.2-codex-xhigh',
+  'gpt-5.2-codex-xhigh-fast',
+  'gpt-5.1-high',
+  'gpt-5.1-codex-max',
+  'gpt-5.1-codex-max-high',
+  'gpt-5.1-codex-mini',
+  'gemini-3.1-pro',
+  'gemini-3-pro',
+  'gemini-3-flash',
+  'grok',
+  'kimi-k2.5',
+  'auto',
+  'composer-2.5',
+  'composer-2',
+  'composer-1.5',
+  'composer-1',
+] as const;
+
+function cursorModelVariants(): CursorModelVariantString[] {
+  return CURSOR_LEGACY_MODEL_SLUGS.map((slug) => {
+    const variant = cursorLegacySlugToVariant(slug);
+    return variant
+      ? (encodeModelVariant(variant.base, variant.params) as CursorModelVariantString)
+      : slug;
+  });
+}
+
 // ─── Catalog ────────────────────────────────────────────────────────────────
 
 export const HARNESS_MODEL_CATALOG: Record<CatalogBackedHarness, readonly string[]> = {
@@ -71,7 +141,8 @@ export const HARNESS_MODEL_CATALOG: Record<CatalogBackedHarness, readonly string
     'gemini-3-pro-preview',
     'gemini-2-5-flash',
   ],
-  cursor: [
+  cursor: cursorModelVariants(),
+  /* cursor: [
     // Moved from packages/cli cursor-agent-service.ts CURSOR_MODELS.
     // Anthropic Claude
     'claude-4.6-opus-high',
@@ -135,5 +206,5 @@ export const HARNESS_MODEL_CATALOG: Record<CatalogBackedHarness, readonly string
     'composer-2',
     'composer-1.5',
     'composer-1',
-  ],
+  ], */
 };
