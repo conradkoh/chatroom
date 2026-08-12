@@ -75,6 +75,24 @@ describe('classifyProviderErrorLogLine', () => {
       classifyProviderErrorLogLine('[codex-sdk:builder run-error] rate limit exceeded')
     ).toMatchObject({ reason: 'rate_limit', recoverable: true });
   });
+
+  it('ignores pi tool_result containing embedded spawn-error from test output', () => {
+    expect(
+      classifyProviderErrorLogLine(
+        '[pi:builder tool_result] bash result: rate limited: returns failure\n[codex-sdk:builder spawn-error] Error'
+      )
+    ).toBeNull();
+  });
+
+  it('ignores bare tool invocation lines with embedded harness markers', () => {
+    expect(classifyProviderErrorLogLine('[pi:builder tool] bash with spawn-error] echo')).toBeNull();
+  });
+
+  it('ignores claude tool_result rate-limit payloads', () => {
+    expect(
+      classifyProviderErrorLogLine('[claude-sdk:builder tool_result] tool result: rate limit exceeded')
+    ).toBeNull();
+  });
 });
 
 describe('classifyProviderErrorFromLogs', () => {
