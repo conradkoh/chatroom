@@ -30,24 +30,6 @@ export function resolveCursorSdkModel(model: string): string {
   return bare === DEFAULT_AUTO_MODEL_ID ? UI_AUTO_MODEL_ID : bare;
 }
 
-/**
- * Normalize Cursor.models.list ids for daemon → Convex → UI.
- * Maps SDK `default` to UI-centric `auto` and dedupes aliases.
- */
-export function normalizeCursorSdkListedModels(listedModelIds: string[]): string[] {
-  const seen = new Set<string>();
-  const normalized: string[] = [];
-
-  for (const id of listedModelIds) {
-    const modelId = id === DEFAULT_AUTO_MODEL_ID ? UI_AUTO_MODEL_ID : id;
-    if (seen.has(modelId)) continue;
-    seen.add(modelId);
-    normalized.push(modelId);
-  }
-
-  return normalized;
-}
-
 export function resolveCursorSdkSpawnModelId(model?: string, defaultModel = 'composer-2.5'): string {
   if (!model) return defaultModel;
   const bare = resolveCursorSdkModel(model);

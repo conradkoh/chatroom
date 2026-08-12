@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { decodeCursorVariant, normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
+import { decodeCursorVariant, resolveCursorSdkModel, resolveCursorSdkSpawnModelId } from './cursor-models.js';
 
 describe('decodeCursorVariant', () => {
   it('decodes canonical effort variant to CLI slug', () => {
@@ -35,18 +35,9 @@ describe('resolveCursorSdkModel', () => {
   });
 });
 
-describe('normalizeCursorSdkListedModels', () => {
-  it('maps default to auto for daemon model discovery', () => {
-    expect(normalizeCursorSdkListedModels(['default', 'composer-2.5'])).toEqual([
-      'auto',
-      'composer-2.5',
-    ]);
-  });
-
-  it('dedupes when API returns both default and auto', () => {
-    expect(normalizeCursorSdkListedModels(['default', 'auto', 'composer-2.5'])).toEqual([
-      'auto',
-      'composer-2.5',
-    ]);
+describe('resolveCursorSdkSpawnModelId', () => {
+  it('decodes variants and prefixes', () => {
+    expect(resolveCursorSdkSpawnModelId('gpt-5.4[effort=high]')).toBe('gpt-5.4-high');
+    expect(resolveCursorSdkSpawnModelId('cursor/default')).toBe('auto');
   });
 });
