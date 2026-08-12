@@ -66,6 +66,7 @@ function codexModelVariants(): CodexModelVariantString[] {
 
 export type CursorModelVariantString = CursorBaseModelId | `${CursorBaseModelId}[${string}]`;
 
+/* removed stale legacy slug block */
 /*
   'claude-4.6-opus-high',
   'claude-4.6-opus-high-thinking',
@@ -120,8 +121,6 @@ export type CursorModelVariantString = CursorBaseModelId | `${CursorBaseModelId}
   'composer-2.5',
   'composer-2',
   'composer-1.5',
-  'composer-1',
-*/
 
 function cursorModelVariants(): CursorModelVariantString[] {
   return expandCursorModelVariantCatalog() as CursorModelVariantString[];
@@ -212,6 +211,7 @@ export const HARNESS_MODEL_CATALOG: Record<CatalogBackedHarness, readonly string
     'composer-2.5',
     'composer-2',
     'composer-1.5',
-    'composer-1',
+  'composer-1',
+*/
   ] */
 };

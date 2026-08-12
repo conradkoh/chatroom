@@ -110,6 +110,11 @@ export class CursorAgentService extends BaseCLIAgentService {
     const logPrefix = buildAgentLogPrefix('cursor', context);
 
     const outputCallbacks: (() => void)[] = [];
+    const logLineCallbacks: ((line: string) => void)[] = [];
+    const emitLog = (line: string) => {
+      process.stdout.write(`${line}\n`);
+      for (const cb of logLineCallbacks) cb(line);
+    };
 
     if (childProcess.stdout) {
       const reader = new CursorStreamReader(childProcess.stdout);
@@ -118,7 +123,7 @@ export class CursorAgentService extends BaseCLIAgentService {
       const flushText = () => {
         if (!textBuffer) return;
         for (const line of textBuffer.split('\n')) {
-          if (line) process.stdout.write(`${formatAgentLogLine(logPrefix, 'text', line)}\n`);
+          if (line) emitLog(formatAgentLogLine(logPrefix, 'text', line));
         }
         textBuffer = '';
       };
@@ -144,14 +149,10 @@ export class CursorAgentService extends BaseCLIAgentService {
         flushText();
         const bashCmd = extractBashCommandFromCursorToolCall(toolCall);
         if (bashCmd !== null) {
-          process.stdout.write(
-            `${formatAgentLogLine(logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd))}\n`
-          );
+          emitLog(formatAgentLogLine(logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd)));
           return;
         }
-        process.stdout.write(
-          `${formatAgentLogLine(logPrefix, 'tool', `${callId} ${JSON.stringify(toolCall)}`)}\n`
-        );
+        emitLog(formatAgentLogLine(logPrefix, 'tool', `${callId} ${JSON.stringify(toolCall)}`));
       });
 
       reader.onToolResult((callId) => {
@@ -181,6 +182,7 @@ export class CursorAgentService extends BaseCLIAgentService {
         onAgentEnd: (cb) => {
           reader.onAgentEnd(cb);
         },
+        onLogLine: (cb) => logLineCallbacks.push(cb),
       };
     }
 
