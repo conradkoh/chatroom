@@ -1,30 +1,28 @@
 # Local web client (v2 daemon)
 
-React SPA (future) served by `local-web/server/`.
+React SPA served by `local-web/server/` — embedded daemon UI.
 
-## Belongs here (future)
+## Stack
 
-- Harness log viewer (stdout/stderr tabs, timestamps)
-- Session / task status dashboard
-- Static assets built into daemon package or served from dev middleware
+- Vite + React 19
+- shadcn (Base UI) + Tailwind v4
+- TanStack React Query
+- Socket.IO client (see `ERROR_CONVENTIONS.md`)
 
-## Does not belong here
+## Modules
 
-| Kind                     | Home instead                            |
-| ------------------------ | --------------------------------------- |
-| Direct `domain/` imports | Use HTTP/WebSocket API from server only |
-| Convex client            | `apps/webapp/`                          |
+| Module | Path                   | Status      |
+| ------ | ---------------------- | ----------- |
+| Logs   | `client/modules/logs/` | Placeholder |
 
-## Scaffold status
+## Build
 
-**README only** — no client implementation in this slice.
+```bash
+cd packages/cli && bun run build:local-web
+```
 
-## API contract (planned)
+Output: `client/build/` — served as static assets by the daemon HTTP server.
 
-- REST: daemon health, active sessions, machine id
-- WebSocket: subscribe to `harness.stream` events (same shape as `OutboundEvent`)
+## Dev
 
-## Not the same as
-
-- **`apps/local`** — local dev stack manager
-- **`apps/webapp`** — remote Convex-backed chatroom UI
+Run `bun run build:local-web` after UI changes; the daemon serves the built bundle from `client/dist/`.
