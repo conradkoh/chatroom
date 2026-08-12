@@ -1,4 +1,9 @@
-import { ModelVariantValidationError, type ModelVariantSchema } from './model-variant';
+import {
+  ModelVariantValidationError,
+  decodeModelVariant,
+  expandModelVariantCatalog,
+  type ModelVariantSchema,
+} from './model-variant';
 
 export const CURSOR_THINKING_VALUES = ['none', 'enabled'] as const;
 export const CURSOR_EFFORT_VALUES = ['none', 'low', 'medium', 'high', 'xhigh'] as const;
@@ -29,7 +34,7 @@ export const CURSOR_MODEL_VARIANT_COMBINATIONS = [
   { effort: 'xhigh', fast: 'enabled', thinking: 'enabled' },
 ] as const satisfies ModelVariantSchema;
 
-const LEGACY_SLUGS = [
+export const CURSOR_LEGACY_MODEL_SLUGS = [
   'claude-4.6-opus-high',
   'claude-4.6-opus-high-thinking',
   'claude-4.6-opus-max',
@@ -86,10 +91,37 @@ const LEGACY_SLUGS = [
   'composer-1',
 ] as const;
 
-export type CursorBaseModelId = (typeof LEGACY_SLUGS)[number] | string;
+export const CURSOR_CATALOG_BASE_MODEL_IDS = [
+  'claude-4.6-opus',
+  'claude-4.5-opus',
+  'claude-4.6-sonnet',
+  'claude-4.5-sonnet',
+  'claude-4-sonnet',
+  'claude-4-sonnet-1m',
+  'gpt-5.4',
+  'gpt-5.3-codex',
+  'gpt-5.3-codex-spark-preview',
+  'gpt-5.2',
+  'gpt-5.2-codex',
+  'gpt-5.1',
+  'gpt-5.1-codex-max',
+  'gpt-5.1-codex-mini',
+  'gemini-3.1-pro',
+  'gemini-3-pro',
+  'gemini-3-flash',
+  'grok',
+  'kimi-k2.5',
+  'auto',
+  'composer-2.5',
+  'composer-2',
+  'composer-1.5',
+  'composer-1',
+] as const;
+export type CursorBaseModelId = (typeof CURSOR_CATALOG_BASE_MODEL_IDS)[number] | string;
 
 export function cursorLegacySlugToVariant(flatSlug: string) {
-  if (!LEGACY_SLUGS.includes(flatSlug as (typeof LEGACY_SLUGS)[number])) return undefined;
+  if (!CURSOR_LEGACY_MODEL_SLUGS.includes(flatSlug as (typeof CURSOR_LEGACY_MODEL_SLUGS)[number]))
+    return undefined;
   let base = flatSlug;
   const params: Record<string, string> = {};
   if (/-thinking$/.test(base)) {
@@ -106,6 +138,21 @@ export function cursorLegacySlugToVariant(flatSlug: string) {
     base = base.slice(0, -(effort.length + 1));
   }
   return { base, params };
+}
+
+export function expandCursorModelVariantCatalog(): string[] {
+  return expandModelVariantCatalog(
+    CURSOR_CATALOG_BASE_MODEL_IDS,
+    CURSOR_MODEL_VARIANT_COMBINATIONS
+  ).filter((entry) => {
+    const { model, params } = decodeModelVariant(entry);
+    try {
+      validateCursorVariantForBase(model, params);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 export function cursorVariantToCliSlug(base: string, params: Record<string, string>): string {

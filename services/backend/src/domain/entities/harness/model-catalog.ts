@@ -21,9 +21,8 @@ import {
   CODEX_MODEL_VARIANT_COMBINATIONS,
   type CodexReasoningLevel,
 } from './codex-sdk.model-variants';
+import { expandCursorModelVariantCatalog, type CursorBaseModelId } from './cursor.model-variants';
 import { expandModelVariantCatalog } from './model-variant';
-import { cursorLegacySlugToVariant, type CursorBaseModelId } from './cursor.model-variants';
-import { encodeModelVariant } from './model-variant';
 
 /** Harness ids with a server-curated catalog. */
 export type CatalogBackedHarness = Extract<
@@ -67,7 +66,7 @@ function codexModelVariants(): CodexModelVariantString[] {
 
 export type CursorModelVariantString = CursorBaseModelId | `${CursorBaseModelId}[${string}]`;
 
-const CURSOR_LEGACY_MODEL_SLUGS = [
+/* const CURSOR_LEGACY_MODEL_SLUGS = [
   'claude-4.6-opus-high',
   'claude-4.6-opus-high-thinking',
   'claude-4.6-opus-max',
@@ -125,12 +124,12 @@ const CURSOR_LEGACY_MODEL_SLUGS = [
 ] as const;
 
 function cursorModelVariants(): CursorModelVariantString[] {
-  return CURSOR_LEGACY_MODEL_SLUGS.map((slug) => {
-    const variant = cursorLegacySlugToVariant(slug);
-    return variant
-      ? (encodeModelVariant(variant.base, variant.params) as CursorModelVariantString)
-      : slug;
-  });
+  return expandCursorModelVariantCatalog() as CursorModelVariantString[];
+}
+*/
+
+function cursorModelVariants(): CursorModelVariantString[] {
+  return expandCursorModelVariantCatalog() as CursorModelVariantString[];
 }
 
 // ─── Catalog ────────────────────────────────────────────────────────────────
