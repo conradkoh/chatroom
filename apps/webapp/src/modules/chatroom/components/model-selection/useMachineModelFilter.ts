@@ -4,7 +4,8 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback } from 'react';
 
-import { isModelHidden } from '../../utils/modelSelection';
+import { isModelHidden, normalizeModelFilter } from '../../utils/modelSelection';
+import type { AgentHarness } from '@workspace/backend/src/domain/entities/agent';
 
 export interface MachineModelFilter {
   hiddenModels: string[];
@@ -17,8 +18,6 @@ export interface UseMachineModelFilterResult {
   isHidden: (modelKeyOrId: string) => boolean;
   enabled: boolean;
 }
-
-type AgentHarness = 'opencode' | 'opencode-sdk' | 'pi' | 'cursor' | 'claude' | 'copilot';
 
 export function useMachineModelFilter(
   machineId: string | null | undefined,
@@ -48,13 +47,14 @@ export function useMachineModelFilter(
     [enabled, machineId, harnessName, upsertMachineModelFilters]
   );
 
+  const normalizedFilter = normalizeModelFilter(filterDoc ?? null);
   const isHidden = useCallback(
     (modelKeyOrId: string): boolean => {
       const normalized = modelKeyOrId.replace('::', '/');
-      return isModelHidden(normalized, filterDoc ?? null);
+      return isModelHidden(normalized, normalizedFilter);
     },
-    [filterDoc]
+    [normalizedFilter]
   );
 
-  return { filter: filterDoc, setFilter, isHidden, enabled };
+  return { filter: normalizedFilter, setFilter, isHidden, enabled };
 }

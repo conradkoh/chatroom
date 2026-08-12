@@ -36,6 +36,14 @@ export interface ModelSelectionInput {
 /** Sentinel key for legacy filters that hid the unprefixed "Models" bucket. */
 export const UNPREFIXED_PROVIDER_KEY = '__unprefixed__';
 
+export function normalizeModelFilter(filter: ModelFilter | null | undefined): ModelFilter | null {
+  if (!filter) return null;
+  return {
+    hiddenModels: filter.hiddenModels,
+    hiddenProviders: filter.hiddenProviders.filter((p) => p !== UNPREFIXED_PROVIDER_KEY),
+  };
+}
+
 /** Strip variant suffix for grouping/filtering; returns input on parse failure. */
 export function getBaseModelId(modelId: string): string {
   try {
