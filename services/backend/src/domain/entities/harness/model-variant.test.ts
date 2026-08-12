@@ -144,6 +144,7 @@ describe('HARNESS_MODEL_CATALOG', () => {
     copilot: PLAIN_MODEL_SCHEMA,
     cursor: PLAIN_MODEL_SCHEMA,
     claude: CLAUDE_MODEL_VARIANT_COMBINATIONS,
+    'claude-sdk': CLAUDE_MODEL_VARIANT_COMBINATIONS,
   };
 
   test('every catalog entry decodes and validates against its harness schema', () => {
