@@ -41,7 +41,7 @@ describe('getProviderDisplayName', () => {
 describe('groupFlatModels', () => {
   it('groups flat model IDs by provider key', () => {
     const models = ['openai/gpt-4o', 'openai/gpt-4-turbo', 'anthropic/claude-3'];
-    const groups = groupFlatModels(models);
+    const groups = groupFlatModels([...models]);
 
     expect(groups).toHaveLength(2);
 
@@ -74,7 +74,7 @@ describe('groupFlatModels', () => {
   });
 
   it('groups claude catalog without duplicate base model provider keys', () => {
-    const models = HARNESS_MODEL_CATALOG.claude;
+    const models = [...HARNESS_MODEL_CATALOG.claude];
     const groups = groupFlatModels(models);
     const keys = groups.map((g) => g.providerKey);
     expect(keys).toEqual([...new Set(keys)]);
