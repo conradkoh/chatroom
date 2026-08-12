@@ -47,3 +47,9 @@ export function normalizeCursorSdkListedModels(listedModelIds: string[]): string
 
   return normalized;
 }
+
+export function resolveCursorSdkSpawnModelId(model?: string, defaultModel = 'composer-2.5'): string {
+  if (!model) return defaultModel;
+  const bare = resolveCursorSdkModel(model);
+  return resolveCursorSdkModel(decodeCursorVariant(bare)?.cliSlug ?? bare);
+}
