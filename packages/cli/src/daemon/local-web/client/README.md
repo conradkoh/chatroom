@@ -17,11 +17,14 @@ React SPA served by `local-web/server/` — embedded daemon UI.
 
 ## Components
 
-| Area   | Path                        |
-| ------ | --------------------------- |
-| Layout | `client/components/layout/` |
-| Logs   | `client/components/logs/`   |
-| UI     | `client/components/ui/`     |
+| Area               | Path                                            |
+| ------------------ | ----------------------------------------------- |
+| Layout             | `client/components/layout/`                     |
+| Logs               | `client/components/logs/`                       |
+| LogFiltersBar      | `client/components/logs/LogFiltersBar.tsx`      |
+| LogDetailPanel     | `client/components/logs/LogDetailPanel.tsx`     |
+| LogDimensionBadges | `client/components/logs/LogDimensionBadges.tsx` |
+| UI                 | `client/components/ui/`                         |
 
 ## Build
 
