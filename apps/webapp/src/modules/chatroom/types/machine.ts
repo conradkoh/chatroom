@@ -17,7 +17,10 @@ import type {
   AgentStopReason,
   HarnessVersionInfo,
 } from '@workspace/backend/src/domain/entities/agent';
-import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant';
+import {
+  decodeModelVariant,
+  formatModelVariantParamsSuffix,
+} from '@workspace/backend/src/domain/entities/harness/model-variant';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types';
 
 import { getBaseModelId } from '../utils/modelSelection';
@@ -201,16 +204,6 @@ function parseModelId(modelId: string): { provider: string; model: string } {
   };
 }
 
-function formatVariantParams(params: Record<string, string>): string | undefined {
-  const effort = params.effort;
-  if (effort && effort !== 'none') return `${effort.toUpperCase()} EFFORT`;
-  const reasoning = params.reasoning;
-  if (reasoning && reasoning !== 'none') return `${reasoning.toUpperCase()} REASONING`;
-  const entries = Object.entries(params).filter(([, value]) => value && value !== 'none');
-  if (entries.length === 0) return undefined;
-  return entries.map(([key, value]) => `${key.toUpperCase()} ${value.toUpperCase()}`).join(', ');
-}
-
 /**
  * Get the full display label for a model, including its provider.
  * Returns an UPPERCASE label using slug-to-label normalization.
@@ -222,11 +215,9 @@ export function getModelDisplayLabel(modelId: string): string {
   try {
     const { model, params } = decodeModelVariant(modelId);
     const { provider, model: modelPart } = parseModelId(model);
-    const variant = formatVariantParams(params);
-    if (!provider) {
-      return variant ? `${modelPart} (${variant})` : modelPart;
-    }
-    return variant ? `${provider} / ${modelPart} (${variant})` : `${provider} / ${modelPart}`;
+    const suffix = formatModelVariantParamsSuffix(params);
+    const base = !provider ? modelPart : `${provider} / ${modelPart}`;
+    return suffix ? `${base} ${suffix}` : base;
   } catch {
     const { provider, model } = parseModelId(modelId);
     if (!provider) return model;
