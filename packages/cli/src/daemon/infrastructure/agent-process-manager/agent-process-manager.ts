@@ -53,6 +53,7 @@ import { tryAbortResumeStorm } from '../../domain/usecase/abort-resume-storm.js'
 import { appendRecentLogLine } from '../../domain/usecase/append-recent-log-line.js';
 import {
   classifyProviderErrorFromLogs,
+  hasHarnessOutputStalled,
   providerUnavailableRecoverable,
 } from '../../domain/usecase/classify-provider-error.js';
 import {
@@ -153,6 +154,7 @@ export interface AgentSlot {
   terminalProviderFailureHandled?: boolean;
   /** Provider-unavailable event already emitted for this spawn. */
   providerUnavailableEmitted?: boolean;
+  lastOutputAt?: number;
   /** Task last delivered to this native harness slot — sent on agent_end. */
   lastInFlightTaskId?: string;
   /** Native harness turn lifecycle — delivery control plane (not UI participant state). */
@@ -794,6 +796,7 @@ export class AgentProcessManager {
     slot: AgentSlot | undefined
   ): void {
     if (!slot || slot.harness !== 'codex-sdk' || slot.providerUnavailableEmitted) return;
+    if (!hasHarnessOutputStalled(slot.lastOutputAt, this.deps.clock.now())) return;
     const classification = classifyProviderErrorFromLogs(slot.recentLogLines ?? []);
     if (!classification) return;
 
@@ -1798,6 +1801,7 @@ export class AgentProcessManager {
     slot.wantResume = wantResume;
     slot.workingDir = opts.workingDir;
     slot.startedAt = this.deps.clock.now();
+    slot.lastOutputAt = slot.startedAt;
     slot.pendingOperation = undefined;
     slot.recentLogLines = [];
     slot.providerUnavailableEmitted = false;
@@ -1833,6 +1837,7 @@ export class AgentProcessManager {
   ): void {
     if (spawnResult.onLogLine) {
       spawnResult.onLogLine((line) => {
+        slot.lastOutputAt = this.deps.clock.now();
         const entry: AgentLogLine = { stream: 'stdout', message: line };
         appendRecentLogLine(slot, entry.message);
         this.deps.logSink?.write({
@@ -1850,6 +1855,9 @@ export class AgentProcessManager {
         });
       });
     }
+    spawnResult.onOutput(() => {
+      slot.lastOutputAt = this.deps.clock.now();
+    });
 
     spawnResult.onExit(({ code, signal }) => {
       void this.handleExit({

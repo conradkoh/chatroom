@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { dispatchAgenticQueryInboundEvent } from '../agentic-query-inbound-registry.js';
-import { startAgenticQuerySubscriptions } from './start-subscriptions.js';
 import { drainPendingAgenticQueryMessages } from './prompt-drain.js';
 import { processPendingAgenticQuerySessions } from './session-processor.js';
+import { startAgenticQuerySubscriptions } from './start-subscriptions.js';
 
 vi.mock('./prompt-drain.js', () => ({
   drainPendingAgenticQueryMessages: vi.fn(async () => undefined),
@@ -30,8 +31,12 @@ describe('startAgenticQuerySubscriptions', () => {
 
   it('opens sessions then drains prompts on session-opened events', async () => {
     const order: string[] = [];
-    process.mockImplementationOnce(async () => { order.push('process'); });
-    drain.mockImplementationOnce(async () => { order.push('drain'); });
+    process.mockImplementationOnce(async () => {
+      order.push('process');
+    });
+    drain.mockImplementationOnce(async () => {
+      order.push('drain');
+    });
     const handles = startAgenticQuerySubscriptions({} as never, new Map(), new Map());
     await dispatchAgenticQueryInboundEvent({ type: 'agentic-query.session-opened' } as never);
     expect(order).toEqual(['process', 'drain']);
