@@ -128,17 +128,24 @@ export function parseAssignedTaskSignal(raw: unknown): AssignedTaskSignal {
 }
 
 /** Parse incremental presence wire payloads; throws ZodError on mismatch. */
+// fallow-ignore-next-line complexity
 export function parseAssignedTaskPresenceSignal(raw: unknown): AssignedTaskPresenceSignal {
-  const delta = assignedTaskPresenceDeltaSchema.parse(raw);
-  const presenceUpdatedAt = Number(delta.presenceKey.split(':')[0]);
-  return {
-    taskId: delta.taskId,
-    chatroomId: '' as z.infer<typeof chatroomRoomIdSchema>,
-    role: delta.role,
-    lastSeenAt: null,
-    presenceUpdatedAt: Number.isFinite(presenceUpdatedAt) ? presenceUpdatedAt : 0,
-    presenceKey: delta.presenceKey,
-  };
+  const delta = assignedTaskPresenceDeltaSchema.safeParse(raw);
+  const hasFullWireFields =
+    typeof raw === 'object' && raw !== null && 'chatroomId' in raw && 'presenceUpdatedAt' in raw;
+  if (delta.success && !hasFullWireFields) {
+    const presenceUpdatedAt = Number(delta.data.presenceKey.split(':')[0]);
+    const resolvedAt = Number.isFinite(presenceUpdatedAt) ? presenceUpdatedAt : 0;
+    return {
+      taskId: delta.data.taskId,
+      chatroomId: '' as z.infer<typeof chatroomRoomIdSchema>,
+      role: delta.data.role,
+      lastSeenAt: resolvedAt,
+      presenceUpdatedAt: resolvedAt,
+      presenceKey: delta.data.presenceKey,
+    };
+  }
+  return assignedTaskPresenceSignalSchema.parse(raw);
 }
 
 /** Parse one hydrate snapshot row; throws ZodError on mismatch. */
