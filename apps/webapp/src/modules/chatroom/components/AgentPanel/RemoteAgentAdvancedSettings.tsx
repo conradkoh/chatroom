@@ -17,6 +17,9 @@ export interface RemoteAgentAdvancedSettingsProps {
   disabled?: boolean;
   isSavingWantResume?: boolean;
   onResumeSessionChange: (enabled: boolean) => void;
+  plannerRestartOnHandoffToUser?: boolean;
+  isSavingPlannerRestart?: boolean;
+  onPlannerRestartOnHandoffToUserChange?: (enabled: boolean) => void;
 }
 
 export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSettings({
@@ -27,6 +30,9 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
   disabled = false,
   isSavingWantResume = false,
   onResumeSessionChange,
+  plannerRestartOnHandoffToUser = true,
+  isSavingPlannerRestart = false,
+  onPlannerRestartOnHandoffToUserChange,
 }: RemoteAgentAdvancedSettingsProps) {
   const showResumeSessionSetting = shouldShowResumeSessionToggle(teamId, role, agentHarness);
 
@@ -72,6 +78,18 @@ export const RemoteAgentAdvancedSettings = memo(function RemoteAgentAdvancedSett
             />
           </div>
         </li>
+        {role.toLowerCase() === 'planner' && (
+          <li className="flex items-center justify-between gap-3">
+            <TooltipProvider><Tooltip><TooltipTrigger render={<div className="min-w-0 cursor-default" />}>
+              <p className="text-[11px] font-medium leading-snug text-chatroom-text-primary">Restart session after user handoff</p>
+              <p className="text-[10px] text-chatroom-text-secondary mt-0.5">Experimental — start a fresh planner session each time you deliver to the user</p>
+            </TooltipTrigger><TooltipContent side="top" className="max-w-[240px] text-xs">Experimental — enabled by default; disable if context preservation works better for you</TooltipContent></Tooltip></TooltipProvider>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {isSavingPlannerRestart && <Loader2 className="h-3.5 w-3.5 animate-spin text-chatroom-text-muted" />}
+              <Switch checked={plannerRestartOnHandoffToUser} disabled={disabled || isSavingPlannerRestart} onCheckedChange={onPlannerRestartOnHandoffToUserChange} aria-label="Restart session after user handoff" />
+            </div>
+          </li>
+        )}
       </ul>
     </section>
   );
