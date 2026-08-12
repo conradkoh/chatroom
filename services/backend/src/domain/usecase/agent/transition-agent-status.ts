@@ -16,6 +16,13 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 
+/** Statuses that routine waiting heartbeats must not mask. */
+const STICKY_ERROR_STATUSES = new Set([
+  'agent.providerUnavailable',
+  'agent.circuitOpen',
+  'agent.startFailed',
+]);
+
 /**
  * Transition the agent's status across all state sources.
  *
@@ -38,6 +45,16 @@ export async function transitionAgentStatus(
   // 1. Update participant record (denormalized — deprecated as primary source)
   const participant = await getParticipantForChatroomRole(ctx, chatroomId, role);
   if (participant) {
+    if (
+      lastStatus === 'agent.waiting' &&
+      participant.lastStatus &&
+      STICKY_ERROR_STATUSES.has(participant.lastStatus)
+    ) {
+      if (lastDesiredState !== undefined) {
+        await ctx.db.patch('chatroom_participants', participant._id, { lastDesiredState });
+      }
+      return;
+    }
     const patch: Record<string, string> = { lastStatus };
     if (lastDesiredState !== undefined) {
       patch.lastDesiredState = lastDesiredState;
