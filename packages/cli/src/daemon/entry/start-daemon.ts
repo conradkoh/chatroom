@@ -38,7 +38,7 @@ export async function startDaemon(): Promise<void> {
     router: createDefaultEventRouterDeps(),
   });
 
-  console.log(`[daemon] Local web UI: http://127.0.0.1:${localWeb.port}/health`);
+  console.log(`[daemon] Local web UI: http://127.0.0.1:${localWeb.port}/`);
 
   const layers = daemonSessionToLayers(init);
   startBackgroundMachineCapabilitiesDiscovery(
