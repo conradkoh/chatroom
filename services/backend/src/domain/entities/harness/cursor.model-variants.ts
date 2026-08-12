@@ -2,6 +2,7 @@ import {
   ModelVariantValidationError,
   decodeModelVariant,
   expandModelVariantCatalog,
+  encodeModelVariant,
   type ModelVariantSchema,
 } from './model-variant';
 
@@ -91,32 +92,7 @@ export const CURSOR_LEGACY_MODEL_SLUGS = [
   'composer-1',
 ] as const;
 
-export const CURSOR_CATALOG_BASE_MODEL_IDS = [
-  'claude-4.6-opus',
-  'claude-4.5-opus',
-  'claude-4.6-sonnet',
-  'claude-4.5-sonnet',
-  'claude-4-sonnet',
-  'claude-4-sonnet-1m',
-  'gpt-5.4',
-  'gpt-5.3-codex',
-  'gpt-5.3-codex-spark-preview',
-  'gpt-5.2',
-  'gpt-5.2-codex',
-  'gpt-5.1',
-  'gpt-5.1-codex-max',
-  'gpt-5.1-codex-mini',
-  'gemini-3.1-pro',
-  'gemini-3-pro',
-  'gemini-3-flash',
-  'grok',
-  'kimi-k2.5',
-  'auto',
-  'composer-2.5',
-  'composer-2',
-  'composer-1.5',
-  'composer-1',
-] as const;
+export const CURSOR_CATALOG_BASE_MODEL_IDS = [...new Set(CURSOR_LEGACY_MODEL_SLUGS.map((slug) => cursorLegacySlugToVariant(slug)?.base).filter((base): base is string => base !== undefined))] as const;
 export type CursorBaseModelId = (typeof CURSOR_CATALOG_BASE_MODEL_IDS)[number] | string;
 
 export function cursorLegacySlugToVariant(flatSlug: string) {
@@ -141,17 +117,9 @@ export function cursorLegacySlugToVariant(flatSlug: string) {
 }
 
 export function expandCursorModelVariantCatalog(): string[] {
-  return expandModelVariantCatalog(
-    CURSOR_CATALOG_BASE_MODEL_IDS,
-    CURSOR_MODEL_VARIANT_COMBINATIONS
-  ).filter((entry) => {
-    const { model, params } = decodeModelVariant(entry);
-    try {
-      validateCursorVariantForBase(model, params);
-      return true;
-    } catch {
-      return false;
-    }
+  return CURSOR_LEGACY_MODEL_SLUGS.map((slug) => {
+    const variant = cursorLegacySlugToVariant(slug);
+    return variant ? encodeModelVariant(variant.base, variant.params) : slug;
   });
 }
 
@@ -167,7 +135,9 @@ export function cursorVariantToCliSlug(base: string, params: Record<string, stri
 export function validateCursorVariantForBase(base: string, params: Record<string, string>): void {
   const slug = cursorVariantToCliSlug(base, params);
   const parsed = cursorLegacySlugToVariant(slug);
-  if (!parsed || parsed.base !== base || JSON.stringify(parsed.params) !== JSON.stringify(params)) {
+  const keys = Object.keys(params);
+  const paramsEqual = keys.length === Object.keys(parsed?.params ?? {}).length && keys.every((key) => parsed?.params[key] === params[key]);
+  if (!parsed || parsed.base !== base || !paramsEqual) {
     throw new ModelVariantValidationError(`unsupported cursor variant for model "${base}"`);
   }
 }
