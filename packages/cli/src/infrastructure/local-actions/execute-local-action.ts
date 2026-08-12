@@ -10,6 +10,7 @@ import { access } from 'node:fs/promises';
 
 import type { LocalActionType } from '@workspace/backend/config/localActions.js';
 
+import { resolveLocalWebPort } from '../../daemon/entry/resolve-local-web-port.js';
 import {
   discardFile as gitDiscardFile,
   discardAllChanges as gitDiscardAll,
@@ -22,6 +23,7 @@ import {
 
 /** Re-export from the canonical backend config definition. */
 export type { LocalActionType };
+export type LocalActionOptions = { chatroomId?: string };
 
 /** Result of executing a local action. */
 export type LocalActionResult =
@@ -95,6 +97,9 @@ function resolveOpenCommand(platform: string): string {
       return 'xdg-open';
   }
 }
+function resolveOpenUrlCommand(platform: string): string {
+  return platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
+}
 
 // ─── Executor ─────────────────────────────────────────────────────────────────
 
@@ -136,6 +141,15 @@ async function openGithubDesktop(workingDir: string): Promise<LocalActionResult>
     return { success: false, error: 'GitHub Desktop CLI not found' };
   }
   execFireAndForget(`github ${escapeShellArg(workingDir)}`, 'open-github-desktop');
+  return { success: true };
+}
+async function openDaemonLogs(_workingDir: string, options?: LocalActionOptions): Promise<LocalActionResult> {
+  const params = new URLSearchParams(); if (options?.chatroomId) params.set('chatroomId', options.chatroomId);
+  const qs = params.toString(); const url = `http://127.0.0.1:${resolveLocalWebPort()}/${qs ? `?${qs}` : ''}`;
+  execFireAndForget(
+    `${resolveOpenUrlCommand(process.platform)} ${escapeShellArg(url)}`,
+    'open-daemon-logs'
+  );
   return { success: true };
 }
 
@@ -199,6 +213,7 @@ const actionHandlers: Record<string, (dir: string) => Promise<LocalActionResult>
   'open-finder': openFinder,
   'open-cursor': openCursor,
   'open-github-desktop': openGithubDesktop,
+  'open-daemon-logs': openDaemonLogs,
   'git-discard-file': gitDiscardFileAction,
   'git-discard-all': gitDiscardAllAction,
   'git-pull': gitPullAction,
@@ -208,8 +223,10 @@ const actionHandlers: Record<string, (dir: string) => Promise<LocalActionResult>
 
 export async function executeLocalAction(
   action: LocalActionType,
-  workingDir: string
+  workingDir: string,
+  options?: LocalActionOptions
 ): Promise<LocalActionResult> {
+  if (action === 'open-daemon-logs') return openDaemonLogs(workingDir, options);
   try {
     await access(workingDir);
   } catch {

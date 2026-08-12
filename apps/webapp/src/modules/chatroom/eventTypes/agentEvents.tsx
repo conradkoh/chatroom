@@ -67,7 +67,7 @@ function renderAgentStartedDetails(event: AgentStartedEvent): React.ReactNode {
       {event.harnessSessionId && (
         <DetailRow label="Harness Session ID" value={event.harnessSessionId} mono />
       )}
-      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+      {event.chatroomId && <DetailRow label="Chatroom ID" value={event.chatroomId} mono />}
     </EventDetails>
   );
 }

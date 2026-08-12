@@ -231,8 +231,4 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
     for (const cb of this.agentEndCallbacks) cb();
   }
 
-  protected override writeLine(formatted: string): void {
-    process.stdout.write(`${formatted}\n`);
-    this.emitLogLine?.(formatted);
-  }
 }

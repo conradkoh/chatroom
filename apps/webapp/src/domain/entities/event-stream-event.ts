@@ -30,10 +30,10 @@ export interface AgentStartedEvent extends EventStreamEventBase {
   agentHarness: string;
   model: string;
   workingDir: string;
+  chatroomId?: string;
   pid: number;
   reason?: string;
   harnessSessionId?: string;
-  chatroomId: string;
 }
 
 export interface AgentExitedEvent extends EventStreamEventBase {
@@ -464,6 +464,7 @@ export interface DaemonLocalActionEvent extends EventStreamEventBase {
   machineId: string;
   action: string;
   workingDir: string;
+  chatroomId?: string;
 }
 
 // ─── Command Event Types ─────────────────────────────────────────────────────

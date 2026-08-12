@@ -19,7 +19,6 @@ import { createOpencodeClient } from '@opencode-ai/sdk';
 import { type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { withTimeout } from '../with-timeout.js';
 import { composeSystemPrompt } from './compose-system-prompt.js';
-import { forwardFiltered } from './node-streams.js';
 import { waitForListeningUrl } from './parse-listening-url.js';
 import { isInfoLine, parseModelId } from './pure.js';
 import { selectAgent } from './select-agent.js';
@@ -204,8 +203,6 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     emitLogLine: (line: string) => void,
     outputCallbacks: (() => void)[]
   ): void {
-    forwardFiltered(childProcess.stdout ?? undefined, process.stdout, isInfoLine);
-    forwardFiltered(childProcess.stderr ?? undefined, process.stderr, isInfoLine);
 
     if (childProcess.stdout) {
       childProcess.stdout.on('data', () => {

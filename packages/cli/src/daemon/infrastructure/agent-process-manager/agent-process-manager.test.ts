@@ -261,6 +261,7 @@ describe('AgentProcessManager', () => {
       manager.getSlot(CHATROOM_ID, ROLE)!.recentLogLines = [
         '[codex-sdk:builder run-error] Selected model is at capacity',
       ];
+      manager.getSlot(CHATROOM_ID, ROLE)!.lastOutputAt = deps.clock.now() - 31_000;
       const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
       await triggerAgentEnd(manager, agentEndCb);
 
@@ -279,6 +280,50 @@ describe('AgentProcessManager', () => {
       expect(getMutationCallsByArgs(deps, (args) => typeof args.error === 'string')).toHaveLength(
         0
       );
+    });
+
+    test('codex-sdk turn-end skips provider unavailable when output is recent', async () => {
+      const { service, onAgentEndRegistrar } = createNativeSdkService(
+        'codex-sdk' as NativeSdkHarness
+      );
+      deps.agentServices = new Map([['codex-sdk', service]]);
+      manager = new AgentProcessManager(deps);
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'codex-sdk', model: 'gpt-5.6-luna[reasoning=low]' })
+      );
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.recentLogLines = ['[codex-sdk:builder run-error] Selected model is at capacity'];
+      slot.lastOutputAt = deps.clock.now();
+      const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
+      await triggerAgentEnd(manager, agentEndCb);
+      expect(getMutationCallsByArgs(deps, (args) => args.reason === 'model_capacity')).toHaveLength(
+        0
+      );
+    });
+
+    test('codex-sdk turn-end ignores vitest tool-output false positives', async () => {
+      const { service, onAgentEndRegistrar } = createNativeSdkService(
+        'codex-sdk' as NativeSdkHarness
+      );
+      deps.agentServices = new Map([['codex-sdk', service]]);
+      manager = new AgentProcessManager(deps);
+      await manager.ensureRunning(
+        createOpts({ agentHarness: 'codex-sdk', model: 'gpt-5.6-luna[reasoning=low]' })
+      );
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      manager.getSlot(CHATROOM_ID, ROLE)!.recentLogLines = [
+        '[codex-sdk:builder@7z81x2 tool-output] chatroom-cli:test: rate limited: returns failure\n[codex-sdk:builder@c1 spawn-error] Error\n⚠️ [RateLimiter] Agent spawn rate-limited',
+        '[codex-sdk:builder agent_end]',
+      ];
+      const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
+      await triggerAgentEnd(manager, agentEndCb);
+      expect(
+        getMutationCallsByArgs(
+          deps,
+          (args) => args.reason === 'rate_limit' || args.reason === 'model_capacity'
+        )
+      ).toHaveLength(0);
     });
 
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(

@@ -15,6 +15,25 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+
+const OPERATIONAL_STATUSES = new Set([
+  'agent.waiting', 'agent.enhancing', 'agent.started', 'agent.awaitingHandoff',
+  'task.acknowledged', 'task.inProgress', 'task.completed',
+]);
+
+async function resolveLastDesiredState(
+  ctx: MutationCtx, chatroomId: Id<'chatroom_rooms'>, role: string,
+  lastStatus: string, explicit?: string
+): Promise<string | undefined> {
+  if (explicit !== undefined || !OPERATIONAL_STATUSES.has(lastStatus)) return explicit;
+  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  if (!chatroom?.teamId) return undefined;
+  const config = await ctx.db.query('chatroom_teamAgentConfigs')
+    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', buildTeamRoleKey(chatroom._id, chatroom.teamId!, role)))
+    .first();
+  return config?.desiredState;
+}
 
 /**
  * Transition the agent's status across all state sources.
@@ -38,9 +57,10 @@ export async function transitionAgentStatus(
   // 1. Update participant record (denormalized — deprecated as primary source)
   const participant = await getParticipantForChatroomRole(ctx, chatroomId, role);
   if (participant) {
+    const resolvedDesiredState = await resolveLastDesiredState(ctx, chatroomId, role, lastStatus, lastDesiredState);
     const patch: Record<string, string> = { lastStatus };
-    if (lastDesiredState !== undefined) {
-      patch.lastDesiredState = lastDesiredState;
+    if (resolvedDesiredState !== undefined) {
+      patch.lastDesiredState = resolvedDesiredState;
     }
     await ctx.db.patch('chatroom_participants', participant._id, patch);
   }

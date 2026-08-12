@@ -25,6 +25,7 @@ import { type ChildProcess } from 'node:child_process';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnContext, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CommandCodeStreamReader } from './command-code-stream-reader.js';
+import { createSessionLogCallbacks } from '../session-log-callbacks.js';
 
 export type CommandCodeAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -169,6 +170,7 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
     const roleTag = context.role ?? 'unknown';
     const chatroomSuffix = context.chatroomId ? `@${context.chatroomId.slice(-6)}` : '';
     const logPrefix = `[commandcode:${roleTag}${chatroomSuffix}`;
+    const { onLogLine, emitFormatted } = createSessionLogCallbacks();
 
     const outputCallbacks: (() => void)[] = [];
 
@@ -179,7 +181,7 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
       const flushText = () => {
         if (!textBuffer) return;
         for (const line of textBuffer.split('\n')) {
-          if (line) process.stdout.write(`${logPrefix} text] ${line}\n`);
+          if (line) emitFormatted(`${logPrefix} text] ${line}`);
         }
         textBuffer = '';
       };
@@ -198,12 +200,12 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
 
       reader.onAgentEnd(() => {
         flushText();
-        process.stdout.write(`${logPrefix} agent_end]\n`);
+        emitFormatted(`${logPrefix} agent_end]`);
       });
 
       if (childProcess.stderr) {
-        childProcess.stderr.pipe(process.stderr, { end: false });
-        childProcess.stderr.on('data', () => {
+        childProcess.stderr.on('data', (chunk: Buffer) => {
+          emitFormatted(chunk.toString('utf8'), 'stderr');
           entry.lastOutputAt = Date.now();
           for (const cb of outputCallbacks) cb();
         });
@@ -220,14 +222,15 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
         onAgentEnd: (cb) => {
           reader.onAgentEnd(cb);
         },
+        onLogLine,
       };
     }
 
     const onExit = this.createExitSubscription(childProcess, pid, context);
 
     if (childProcess.stderr) {
-      childProcess.stderr.pipe(process.stderr, { end: false });
-      childProcess.stderr.on('data', () => {
+      childProcess.stderr.on('data', (chunk: Buffer) => {
+        emitFormatted(chunk.toString('utf8'), 'stderr');
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
@@ -239,6 +242,7 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
       onOutput: (cb) => {
         outputCallbacks.push(cb);
       },
+      onLogLine,
     };
   }
 }

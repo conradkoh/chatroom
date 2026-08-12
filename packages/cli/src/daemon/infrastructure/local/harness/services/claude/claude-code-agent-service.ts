@@ -30,6 +30,7 @@ import {
 } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import { createSessionLogCallbacks } from '../session-log-callbacks.js';
 
 export type ClaudeCodeAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -110,6 +111,7 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
     // Build a log prefix from spawn context for easier debugging.
     // Format: [claude:role] or [claude:role@short-id] when chatroomId is available.
     const logPrefix = buildAgentLogPrefix('claude', context);
+    const { onLogLine, emitFormatted } = createSessionLogCallbacks();
 
     // Output tracking callbacks (for external consumers) + internal timestamp update
     const outputCallbacks: (() => void)[] = [];
@@ -123,7 +125,7 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
       const flushText = () => {
         if (!textBuffer) return;
         for (const line of textBuffer.split('\n')) {
-          if (line) process.stdout.write(`${formatAgentLogLine(logPrefix, 'text', line)}\n`);
+          if (line) emitFormatted(formatAgentLogLine(logPrefix, 'text', line));
         }
         textBuffer = '';
       };
@@ -131,7 +133,7 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
       const flushThinking = () => {
         if (!thinkingBuffer) return;
         for (const line of thinkingBuffer.split('\n')) {
-          if (line) process.stdout.write(`${formatAgentLogLine(logPrefix, 'thinking', line)}\n`);
+          if (line) emitFormatted(formatAgentLogLine(logPrefix, 'thinking', line));
         }
         thinkingBuffer = '';
       };
@@ -163,16 +165,12 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
         entry.lastOutputAt = Date.now();
         const bashCmd = extractBashCommandFromToolInput(name, input);
         if (bashCmd !== null) {
-          process.stdout.write(
-            `${formatAgentLogLine(logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd))}\n`
-          );
+          emitFormatted(formatAgentLogLine(logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd)));
           for (const cb of outputCallbacks) cb();
           return;
         }
         const inputStr = JSON.stringify(input);
-        process.stdout.write(
-          `${formatAgentLogLine(logPrefix, 'tool', `${name}(${inputStr.slice(0, 100)}${inputStr.length > 100 ? '...' : ''})`)}\n`
-        );
+        emitFormatted(formatAgentLogLine(logPrefix, 'tool', `${name}(${inputStr.slice(0, 100)}${inputStr.length > 100 ? '...' : ''})`));
         for (const cb of outputCallbacks) cb();
       });
 
@@ -185,8 +183,8 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
       });
     }
     if (childProcess.stderr) {
-      childProcess.stderr.pipe(process.stderr, { end: false });
-      childProcess.stderr.on('data', () => {
+      childProcess.stderr.on('data', (chunk: Buffer) => {
+        emitFormatted(chunk.toString('utf8'), 'stderr');
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
@@ -203,6 +201,7 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
       onOutput: (cb) => {
         outputCallbacks.push(cb);
       },
+      onLogLine,
     };
   }
 }

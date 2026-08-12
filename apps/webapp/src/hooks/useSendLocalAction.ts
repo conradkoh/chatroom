@@ -12,20 +12,18 @@
 
 'use client';
 
+import type { LocalActionType } from '@workspace/backend/config/localActions';
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback } from 'react';
 
-import type { LocalActionType } from '@workspace/backend/config/localActions';
 export type { LocalActionType };
+export type SendLocalActionOptions = { chatroomId?: string };
 
 // Extended type that includes additional git actions
 // The actual type in Convex will be updated when the backend is deployed
 export type ExtendedLocalActionType =
-  | LocalActionType
-  | 'git-discard-file'
-  | 'git-discard-all'
-  | 'git-pull';
+  LocalActionType | 'git-discard-file' | 'git-discard-all' | 'git-pull' | 'open-daemon-logs';
 
 /**
  * Returns a callback to send a local action to a machine's daemon via Convex.
@@ -42,9 +40,9 @@ export function useSendLocalAction() {
   const mutation = useSessionMutation(api.machines.sendLocalAction);
 
   return useCallback(
-    async (machineId: string, action: LocalActionType, workingDir: string) => {
+    async (machineId: string, action: LocalActionType, workingDir: string, options?: SendLocalActionOptions) => {
       try {
-        await mutation({ machineId, action, workingDir });
+        await mutation({ machineId, action, workingDir, ...(options?.chatroomId !== undefined ? { chatroomId: options.chatroomId } : {}) });
       } catch (err) {
         console.warn(`[sendLocalAction] ${action} failed:`, err);
       }

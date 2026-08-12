@@ -152,8 +152,8 @@ export function startSessionEventForwarder(
 
   function logLine(targetStream: Writable, kind: string, payload?: string): void {
     const line = formatLogLine(options, kind, payload);
-    targetStream.write(`${line}\n`);
-    options.onLogLine?.(line);
+    if (options.onLogLine) options.onLogLine(line);
+    else targetStream.write(`${line}\n`);
     recordRecentLogLine(line);
     if (isAgentActivityKind(kind)) {
       options.onActivity?.();

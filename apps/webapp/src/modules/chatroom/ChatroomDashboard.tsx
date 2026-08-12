@@ -56,6 +56,10 @@ import { NotificationSoundToggleButton } from './components/NotificationSoundTog
 import { PanelLoadingSpinner } from './components/PanelLoadingSpinner';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
+import {
+  Z_AGENT_SIDEBAR_MOBILE_BACKDROP,
+  Z_AGENT_SIDEBAR_MOBILE_PANEL,
+} from './components/shared/overlayLayers';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
 import { WorkQueue } from './components/WorkQueue';
@@ -1333,6 +1337,14 @@ export function ChatroomDashboard({
       sendAction(activeWorkspace.machineId, 'open-github-desktop', activeWorkspace.workingDir);
     }
   }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, sendAction]);
+  const handleOpenDaemonLogs = useCallback(() => {
+    if (activeWorkspace?.machineId && activeWorkspace?.workingDir)
+      sendAction(
+        activeWorkspace.machineId,
+        'open-daemon-logs' as Parameters<typeof sendAction>[1],
+        activeWorkspace.workingDir
+      );
+  }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, sendAction]);
 
   const handleOpenPROnGitHub = useCallback(() => {
     if (prUrl) openExternalUrl(prUrl);
@@ -1666,6 +1678,7 @@ export function ChatroomDashboard({
     onOpenFileSelector: handleOpenFileSelector,
     onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
+    onOpenDaemonLogs: isLocalWorkspace ? handleOpenDaemonLogs : null,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
     onViewGitHubPullRequests: gitHubRepoUrl ? handleViewGitHubPullRequests : null,
     onViewGitHubRepository: gitHubRepoUrl ? handleViewGitHubRepository : null,
@@ -2072,7 +2085,7 @@ export function ChatroomDashboard({
                   {/* Sidebar Overlay for mobile - below app header */}
                   {sidebarVisible && isSmallScreen && (
                     <div
-                      className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
+                      className={`fixed inset-0 top-14 bg-black/50 ${Z_AGENT_SIDEBAR_MOBILE_BACKDROP} md:hidden`}
                       onClick={toggleSidebar}
                     />
                   )}
@@ -2082,7 +2095,7 @@ export function ChatroomDashboard({
                   {/* On mobile: uses fixed positioning with translate for overlay effect */}
                   <div
                     className={`
-                ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
+                ${isSmallScreen ? `fixed right-0 top-14 bottom-0 ${Z_AGENT_SIDEBAR_MOBILE_PANEL} overscroll-contain w-80` : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
                 grid grid-rows-[auto_1fr] border-l-2 border-chatroom-border-strong
@@ -2189,6 +2202,7 @@ export function ChatroomDashboard({
                 inlineCommand={inlineCommand}
               />
               <WorkspaceCommandsAggregator
+                chatroomId={chatroomId}
                 workspaces={chatroomWorkspaces}
                 callbacks={workspaceCommandCallbacks}
                 onCommandsChange={setWorkspaceCommands}

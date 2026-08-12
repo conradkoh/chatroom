@@ -125,6 +125,19 @@ describe('assignedTaskSignalSchema', () => {
     expect(expanded.role).toBe('builder');
     expect(expanded.presenceKey).toBe(delta.presenceKey);
     expect(expanded.presenceUpdatedAt).toBe(1500);
-    expect(expanded.lastSeenAt).toBeNull();
+    expect(expanded.lastSeenAt).toBe(1500);
+  });
+
+  it('falls back to full presence wire payload when delta fields are absent', () => {
+    const full = {
+      taskId: 'task_1' as AssignedTaskSignal['taskId'],
+      chatroomId: 'room_1' as AssignedTaskSignal['chatroomId'],
+      role: 'builder',
+      lastSeenAt: 1_200,
+      presenceUpdatedAt: 1_500,
+      presenceKey: '000000000001500:task_1:builder',
+    };
+    const parsed = parseAssignedTaskPresenceSignal(full);
+    expect(parsed).toEqual(full);
   });
 });

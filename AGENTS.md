@@ -13,6 +13,17 @@ A quick reference for working with the Next.js + Convex monorepo.
 - **docs** — Project documentation
   - `application/` — App-specific documentation (see [README](docs/application/README.md))
 
+### Memory (OKF)
+
+Agent memory is stored as an [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf) bundle in **`memory/`**.
+
+- **Bundle root:** [memory/index.md](memory/index.md)
+- **Taxonomy (folders &amp; document types):** [memory/architecture/okf-document-taxonomy.md](memory/architecture/okf-document-taxonomy.md)
+- **What is OKF?:** [memory/development/what-is-okf.md](memory/development/what-is-okf.md)
+
+Allowed folders: `architecture`, `product`, `testing`, `development`.  
+Allowed document types (`type` frontmatter): `decision-log`, `best-practice`, `guide`, `tech-debt`.
+
 ---
 
 ## Frontend (apps/webapp)
@@ -83,10 +94,6 @@ export const myQuery = query({
   },
 });
 ```
-
-### Error Handling
-
-All backend errors must use structured `ConvexError({ code, message, fields? })` with codes registered in `services/backend/config/errorCodes.ts`. Bare-string throws (`throw new ConvexError('msg')`) are forbidden — enforced by a unit test. See `docs/developer/error-handling.md` for the full convention, including the return-union pattern for expected business outcomes.
 
 ### Feature Flags
 
@@ -185,30 +192,17 @@ turbo run test --filter=webapp --filter=backend
 ## Project Structure
 
 ```
-chatroom/
-├── apps/webapp/           # Next.js frontend application
+next-convex-starter-app/
+├── apps/webapp/           # Next.js frontend
 │   └── src/application/   # App-specific frontend code
-├── packages/cli/          # CLI package (chatroom-cli on npm)
 ├── services/backend/      # Convex backend
 │   └── application/       # App-specific backend code
 ├── docs/                  # Documentation
 │   └── application/       # App-specific documentation
-├── guides/                # Guides and tutorials
+├── memory/                # OKF agent memory bundle
+│   ├── architecture/
+│   ├── product/
+│   ├── testing/
+│   └── development/
 └── scripts/               # Utility scripts
 ```
-
----
-
-<chatroom>
-## CHATROOM INTEGRATION
-
-**Native harnesses** (`cursor-sdk`, `opencode-sdk`): tasks are injected by the daemon. Do NOT run `get-next-task`. After handoff, wait for injection.
-
-**CLI harnesses**: use the foreground listen loop:
-
-```
-get-next-task → do work → handoff → get-next-task → repeat
-```
-
-If your system prompt describes native task injection, follow those instructions — they override this section.
-</chatroom>

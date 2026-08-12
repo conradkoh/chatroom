@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 
 import { Button } from './button';
 import {
@@ -40,5 +41,20 @@ describe('DropdownMenu', () => {
     );
     expect(screen.getByText('Section')).toBeInTheDocument();
     expect(screen.getByText('Item')).toBeInTheDocument();
+  });
+
+  it('calls onSelect when menu item is clicked', async () => {
+    const onSelect = vi.fn();
+    render(
+      <DropdownMenu open>
+        <DropdownMenuTrigger render={<Button />}>Open</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onSelect={onSelect}>Edit</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+
+    await userEvent.click(screen.getByText('Edit'));
+    expect(onSelect).toHaveBeenCalledTimes(1);
   });
 });
