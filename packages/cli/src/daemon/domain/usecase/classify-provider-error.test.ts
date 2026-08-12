@@ -5,7 +5,21 @@ import {
   classifyProviderErrorLogLine,
   classifyProviderErrorMessage,
   providerUnavailableRecoverable,
+  hasHarnessOutputStalled,
+  PROVIDER_ERROR_CLASSIFICATION_STALL_MS,
 } from './classify-provider-error.js';
+
+describe('hasHarnessOutputStalled', () => {
+  const now = 100_000;
+  it('returns false when last output is unknown or recent', () => {
+    expect(hasHarnessOutputStalled(undefined, now)).toBe(false);
+    expect(hasHarnessOutputStalled(now - 5_000, now)).toBe(false);
+  });
+  it('returns true at and beyond the threshold', () => {
+    expect(hasHarnessOutputStalled(now - PROVIDER_ERROR_CLASSIFICATION_STALL_MS, now)).toBe(true);
+    expect(hasHarnessOutputStalled(now - PROVIDER_ERROR_CLASSIFICATION_STALL_MS - 1, now)).toBe(true);
+  });
+});
 
 describe('classifyProviderErrorMessage', () => {
   it('classifies model capacity', () => {
