@@ -23,6 +23,12 @@ export interface SpawnContext {
   role: string;
 }
 
+export type AgentLogLine = {
+  stream: 'stdout' | 'stderr';
+  message: string;
+  level?: 'debug' | 'info' | 'warn' | 'error';
+};
+
 export interface SpawnOptions {
   workingDir: string;
   /**

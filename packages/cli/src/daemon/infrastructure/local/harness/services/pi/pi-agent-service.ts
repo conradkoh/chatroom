@@ -256,7 +256,7 @@ export class PiAgentService extends BaseCLIAgentService {
       onLogLine,
     };
 
-    const log = createAgentLogWriter(logPrefix, { emitLogLine });
+    const log = createAgentLogWriter(logPrefix, { emitLogLine, suppressConsole: true });
 
     const onStderrData = (chunk: Buffer | string) => {
       entry.lastOutputAt = Date.now();
@@ -266,7 +266,6 @@ export class PiAgentService extends BaseCLIAgentService {
 
     const attachStderr = (stream: NodeJS.ReadableStream | null | undefined) => {
       if (!stream) return;
-      stream.pipe(process.stderr, { end: false });
       stream.on('data', onStderrData);
     };
 

@@ -168,9 +168,8 @@ function writeSpawnError(
   emitLogLine?: (line: string) => void
 ): void {
   const line = formatAgentLogLine(logPrefix, 'spawn-error', formatCursorSdkError(err));
-  process.stderr.write(`${line}\n`);
-  emitLogLine?.(line);
-  console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
+  if (emitLogLine) emitLogLine(line);
+  else console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
 }
 
 export class CursorSdkAgentService extends BaseCLIAgentService {
@@ -333,9 +332,6 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       );
     } catch (err) {
       writeSpawnError(logPrefix, err);
-      process.stderr.write(
-        `[${new Date().toISOString()}] role:${context.role} daemon-resume-fallback] ${formatCursorSdkError(err)} — cold spawning\n`
-      );
       keeper.kill();
       this.deleteProcess(pid);
       return this.spawn(options);
@@ -613,7 +609,6 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
                   'run-error',
                   `run ${result.id} failed: ${detail}`
                 );
-                process.stderr.write(`${runErrorLine}\n`);
                 emitLogLine(runErrorLine);
                 break;
               }

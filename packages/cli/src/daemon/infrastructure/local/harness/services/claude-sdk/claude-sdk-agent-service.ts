@@ -23,7 +23,6 @@ import {
 import { ClaudeSdkStreamAdapter } from './claude-sdk-stream-adapter.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from '../claude/claude-models.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
   AgentStopOptions,
@@ -120,9 +119,8 @@ function writeSpawnError(
   emitLogLine?: (line: string) => void
 ): void {
   const line = formatAgentLogLine(logPrefix, 'spawn-error', formatClaudeSdkLoadError(err));
-  process.stderr.write(`${line}\n`);
-  emitLogLine?.(line);
-  console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
+  if (emitLogLine) emitLogLine(line);
+  else console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
 }
 
 // fallow-ignore-next-line complexity
@@ -191,9 +189,8 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    const dynamic = await fetchClaudeModels();
-    if (dynamic) return dynamic;
-    return [...CLAUDE_FALLBACK_MODELS];
+    // The Claude SDK exposes no model enumeration API. The server catalog overlay supplies models.
+    return [];
   }
 
   async resumeTurn(pid: number, prompt: string): Promise<void> {
@@ -652,9 +649,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
         resumedProviderSessionId: stored.harnessSessionId,
       });
     } catch (err) {
-      writeSpawnError(buildAgentLogPrefix('claude-sdk', options.context), err, (line) =>
-        process.stderr.write(`${line}\n`)
-      );
+      writeSpawnError(buildAgentLogPrefix('claude-sdk', options.context), err);
       return this.spawn(options);
     }
   }

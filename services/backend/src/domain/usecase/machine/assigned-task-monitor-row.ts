@@ -117,7 +117,7 @@ export function applyAssignedTaskPresence(
     ...existing,
     participant: {
       lastSeenAction: presence.lastSeenAction ?? existing.participant?.lastSeenAction ?? null,
-      lastSeenAt: presence.lastSeenAt,
+      lastSeenAt: presence.lastSeenAt ?? existing.participant?.lastSeenAt ?? null,
       lastStatus: existing.participant?.lastStatus ?? null,
     },
   };

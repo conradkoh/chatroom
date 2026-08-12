@@ -1712,12 +1712,14 @@ export default defineSchema({
       // in config/localActions.ts (LocalActionType).
       v.object({
         type: v.literal('daemon.localAction'),
+        chatroomId: v.optional(v.string()),
         machineId: v.string(),
         action: v.union(
           v.literal('open-vscode'),
           v.literal('open-finder'),
           v.literal('open-github-desktop'),
           v.literal('open-cursor'),
+          v.literal('open-daemon-logs'),
           v.literal('git-discard-file'),
           v.literal('git-discard-all'),
           v.literal('git-pull'),

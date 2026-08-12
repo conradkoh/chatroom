@@ -5,6 +5,8 @@
  * and deriving the best model to auto-select.
  */
 
+import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant';
+
 // ─── Types ──────────────────────────────────────────────────────────
 
 export interface ModelFilter {
@@ -31,17 +33,27 @@ export interface ModelSelectionInput {
 
 // ─── Provider grouping ─────────────────────────────────────────────
 
-/** Sentinel key for models without a `provider/model` prefix (e.g. Cursor CLI bare slugs). */
+/** Sentinel key for legacy filters that hid the unprefixed "Models" bucket. */
 export const UNPREFIXED_PROVIDER_KEY = '__unprefixed__';
+
+/** Strip variant suffix for grouping/filtering; returns input on parse failure. */
+export function getBaseModelId(modelId: string): string {
+  try {
+    return decodeModelVariant(modelId).model;
+  } catch {
+    return modelId;
+  }
+}
 
 /**
  * Provider key used for filter grouping and hide-all semantics.
- * Models without `/` share one group; prefixed models use the segment before `/`.
+ * Variant models group under their base model id; prefixed models use the segment before `/`.
  */
 export function getModelProviderKey(modelId: string): string {
-  const slashIndex = modelId.indexOf('/');
-  if (slashIndex === -1) return UNPREFIXED_PROVIDER_KEY;
-  return modelId.slice(0, slashIndex);
+  const base = getBaseModelId(modelId);
+  const slashIndex = base.indexOf('/');
+  if (slashIndex === -1) return base;
+  return base.slice(0, slashIndex);
 }
 
 // ─── isModelHidden ──────────────────────────────────────────────────
@@ -56,9 +68,14 @@ export function getModelProviderKey(modelId: string): string {
  */
 export function isModelHidden(modelId: string, filter: ModelFilter | null | undefined): boolean {
   if (!filter) return false;
+  const baseId = getBaseModelId(modelId);
   const provider = getModelProviderKey(modelId);
-  const providerHidden = filter.hiddenProviders.includes(provider);
-  const hasExplicitOverride = filter.hiddenModels.includes(modelId);
+  const unprefixedBucketHidden =
+    baseId.indexOf('/') === -1 && filter.hiddenProviders.includes(UNPREFIXED_PROVIDER_KEY);
+  const providerHidden = filter.hiddenProviders.includes(provider) || unprefixedBucketHidden;
+  const hasExplicitOverride =
+    filter.hiddenModels.includes(modelId) ||
+    (baseId !== modelId && filter.hiddenModels.includes(baseId));
 
   if (providerHidden) {
     // Provider is hidden; hiddenModels contains exceptions (models to UN-hide)

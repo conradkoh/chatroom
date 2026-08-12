@@ -13,12 +13,25 @@
  */
 
 import type { AgentHarness } from '../agent';
-import { CODEX_REASONING_LEVEL_VALUES, type CodexReasoningLevel } from './codex-sdk.model-variants';
+import {
+  CLAUDE_CATALOG_BASE_MODEL_IDS,
+  CLAUDE_MODEL_VARIANT_COMBINATIONS,
+} from './claude.model-variants';
+import {
+  CODEX_MODEL_VARIANT_COMBINATIONS,
+  type CodexReasoningLevel,
+} from './codex-sdk.model-variants';
+import { expandModelVariantCatalog } from './model-variant';
 import { cursorLegacySlugToVariant, type CursorBaseModelId } from './cursor.model-variants';
 import { encodeModelVariant } from './model-variant';
 
 /** Harness ids with a server-curated catalog. */
-export type CatalogBackedHarness = Extract<AgentHarness, 'codex-sdk' | 'copilot' | 'cursor'>;
+export type CatalogBackedHarness = Extract<
+  AgentHarness,
+  'codex-sdk' | 'copilot' | 'cursor' | 'claude' | 'claude-sdk'
+>;
+const claudeModelVariants = () =>
+  expandModelVariantCatalog(CLAUDE_CATALOG_BASE_MODEL_IDS, CLAUDE_MODEL_VARIANT_COMBINATIONS);
 
 // ─── Codex variants (typed template strings — catalog entries are compile-checked) ───
 
@@ -46,12 +59,10 @@ const CODEX_MODEL_IDS: readonly CodexModelId[] = [
  * `reasoning=none` for explicitly opting out of a reasoning level.
  */
 function codexModelVariants(): CodexModelVariantString[] {
-  return CODEX_MODEL_IDS.flatMap<CodexModelVariantString>((id) => [
-    id,
-    ...CODEX_REASONING_LEVEL_VALUES.map(
-      (level): CodexModelVariantString => `${id}[reasoning=${level}]`
-    ),
-  ]);
+  return expandModelVariantCatalog(
+    CODEX_MODEL_IDS,
+    CODEX_MODEL_VARIANT_COMBINATIONS
+  ) as CodexModelVariantString[];
 }
 
 export type CursorModelVariantString = CursorBaseModelId | `${CursorBaseModelId}[${string}]`;
@@ -142,6 +153,8 @@ export const HARNESS_MODEL_CATALOG: Record<CatalogBackedHarness, readonly string
     'gemini-2-5-flash',
   ],
   cursor: cursorModelVariants(),
+  claude: claudeModelVariants(),
+  'claude-sdk': claudeModelVariants(),
   /* cursor: [
     // Moved from packages/cli cursor-agent-service.ts CURSOR_MODELS.
     // Anthropic Claude

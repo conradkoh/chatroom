@@ -167,7 +167,7 @@ function handleLocalActionCommandEffect(
       `[${formatTimestamp()}] 🖥️  Local action: ${typedEvent.action} → ${typedEvent.workingDir}`
     );
     const result = yield* Effect.promise(() =>
-      executeLocalAction(typedEvent.action, typedEvent.workingDir)
+      executeLocalAction(typedEvent.action, typedEvent.workingDir, { chatroomId: typedEvent.chatroomId })
     );
     if (!result.success) {
       console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);

@@ -54,6 +54,7 @@
     "**/test-utils.{ts,tsx}",
     "**/vitest.config.{ts,mts}",
     "packages/cli/src/testing/**",
+    "packages/cli/src/daemon/local-web/client/**",
     "**/next.config.{ts,js,mjs}",
     "**/playwright.config.{ts,js}",
     "**/eslint.config.{ts,js,mjs}",
@@ -120,6 +121,18 @@
       "exports": ["SetupPanel"],
     },
     {
+      "file": "packages/cli/src/daemon/local-web/client/App.tsx",
+      "exports": ["App"],
+    },
+    {
+      "file": "packages/cli/src/daemon/local-web/client/lib/utils.ts",
+      "exports": ["cn"],
+    },
+    {
+      "file": "packages/cli/src/daemon/local-web/client/modules/logs/LogsPage.tsx",
+      "exports": ["LogsPage"],
+    },
+    {
       "file": "**/WorkspaceFileExplorerVirtualizedTree.tsx",
       "exports": ["EXPLORER_TREE_ROW_HEIGHT"],
     },
@@ -164,6 +177,7 @@
       "**/*.spec.{ts,tsx}",
       "**/tests/**",
       "scripts/start-convex-dev.ts",
+      "packages/cli/src/daemon/local-web/client/**",
       "services/backend/convex/auth.ts",
       "services/backend/convex/auth/**",
       // Transitional: mirror of /app/admin during route migration

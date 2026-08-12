@@ -28,6 +28,7 @@ import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
+import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
 import type { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
@@ -52,6 +53,7 @@ import { tryAbortResumeStorm } from '../../domain/usecase/abort-resume-storm.js'
 import { appendRecentLogLine } from '../../domain/usecase/append-recent-log-line.js';
 import {
   classifyProviderErrorFromLogs,
+  hasHarnessOutputStalled,
   providerUnavailableRecoverable,
 } from '../../domain/usecase/classify-provider-error.js';
 import {
@@ -96,6 +98,7 @@ import {
   wireThrottledTokenActivityOnOutput,
 } from '../local/harness/services/native-spawn-presence.js';
 import type {
+  AgentLogLine,
   HarnessReconnectMetadata,
   HarnessSessionIdUpdatedInfo,
   RemoteAgentService,
@@ -151,6 +154,7 @@ export interface AgentSlot {
   terminalProviderFailureHandled?: boolean;
   /** Provider-unavailable event already emitted for this spawn. */
   providerUnavailableEmitted?: boolean;
+  lastOutputAt?: number;
   /** Task last delivered to this native harness slot — sent on agent_end. */
   lastInFlightTaskId?: string;
   /** Native harness turn lifecycle — delivery control plane (not UI participant state). */
@@ -162,6 +166,7 @@ export interface AgentSlot {
 }
 
 export interface AgentProcessManagerDeps {
+  logSink?: AgentLogSink;
   agentServices: Map<string, RemoteAgentService>;
   /**
    * Backend client for Convex queries/mutations.
@@ -791,6 +796,7 @@ export class AgentProcessManager {
     slot: AgentSlot | undefined
   ): void {
     if (!slot || slot.harness !== 'codex-sdk' || slot.providerUnavailableEmitted) return;
+    if (!hasHarnessOutputStalled(slot.lastOutputAt, this.deps.clock.now())) return;
     const classification = classifyProviderErrorFromLogs(slot.recentLogLines ?? []);
     if (!classification) return;
 
@@ -1795,6 +1801,7 @@ export class AgentProcessManager {
     slot.wantResume = wantResume;
     slot.workingDir = opts.workingDir;
     slot.startedAt = this.deps.clock.now();
+    slot.lastOutputAt = slot.startedAt;
     slot.pendingOperation = undefined;
     slot.recentLogLines = [];
     slot.providerUnavailableEmitted = false;
@@ -1829,8 +1836,28 @@ export class AgentProcessManager {
     pid: number
   ): void {
     if (spawnResult.onLogLine) {
-      spawnResult.onLogLine((line) => appendRecentLogLine(slot, line));
+      spawnResult.onLogLine((line) => {
+        slot.lastOutputAt = this.deps.clock.now();
+        const entry: AgentLogLine = { stream: 'stdout', message: line };
+        appendRecentLogLine(slot, entry.message);
+        this.deps.logSink?.write({
+          timestamp: this.deps.clock.now(),
+          level: 'info',
+          source: `harness:${opts.agentHarness}`,
+          stream: entry.stream,
+          message: entry.message,
+          metadata: {
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            pid,
+            harness: opts.agentHarness,
+          },
+        });
+      });
     }
+    spawnResult.onOutput(() => {
+      slot.lastOutputAt = this.deps.clock.now();
+    });
 
     spawnResult.onExit(({ code, signal }) => {
       void this.handleExit({

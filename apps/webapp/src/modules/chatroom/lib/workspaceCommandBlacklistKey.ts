@@ -3,6 +3,7 @@ export const WORKSPACE_COMMAND_ACTIONS = [
   'open-vscode',
   'open-finder',
   'open-cursor',
+  'view-daemon-logs',
   'copy-workspace-path',
   'view-github-prs',
   'view-current-pr',

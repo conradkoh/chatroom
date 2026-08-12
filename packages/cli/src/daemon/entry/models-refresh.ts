@@ -79,6 +79,8 @@ function getCatalogEndpoints(): Record<
     'codex-sdk': harnesses?.codexSdk,
     copilot: harnesses?.copilot,
     cursor: harnesses?.cursor,
+    claude: harnesses?.claude,
+    'claude-sdk': harnesses?.claudeSdk,
   } as unknown as Record<CatalogBackedHarness, { listModels: CatalogListModelsQuery } | undefined>;
 }
 
