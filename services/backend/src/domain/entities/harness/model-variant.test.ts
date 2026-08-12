@@ -5,6 +5,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { CODEX_MODEL_VARIANT_COMBINATIONS } from './codex-sdk.model-variants';
+import { CURSOR_MODEL_VARIANT_COMBINATIONS } from './cursor.model-variants';
 import { HARNESS_MODEL_CATALOG, type CatalogBackedHarness } from './model-catalog';
 import {
   ModelVariantParseError,
@@ -137,11 +138,10 @@ describe('validateModelVariantParams', () => {
 });
 
 describe('HARNESS_MODEL_CATALOG', () => {
-  /** Per-harness schemas: codex has its own vocabulary; others are plain ids only. */
   const HARNESS_SCHEMAS: Record<CatalogBackedHarness, typeof PLAIN_MODEL_SCHEMA> = {
     'codex-sdk': CODEX_MODEL_VARIANT_COMBINATIONS,
     copilot: PLAIN_MODEL_SCHEMA,
-    cursor: PLAIN_MODEL_SCHEMA,
+    cursor: CURSOR_MODEL_VARIANT_COMBINATIONS,
   };
 
   test('every catalog entry decodes and validates against its harness schema', () => {
@@ -171,11 +171,17 @@ describe('HARNESS_MODEL_CATALOG', () => {
     }
   });
 
-  test('copilot and cursor entries are plain ids (no variants)', () => {
-    for (const harness of ['copilot', 'cursor'] as const) {
-      for (const entry of HARNESS_MODEL_CATALOG[harness]) {
-        expect(decodeModelVariant(entry).params).toEqual({});
-      }
+  test('copilot entries are plain ids (no variants)', () => {
+    for (const entry of HARNESS_MODEL_CATALOG.copilot) {
+      expect(decodeModelVariant(entry).params).toEqual({});
+    }
+  });
+
+  test('cursor entries contain valid canonical variants', () => {
+    expect(HARNESS_MODEL_CATALOG.cursor.some((entry) => decodeModelVariant(entry).params.effort)).toBe(true);
+    for (const entry of HARNESS_MODEL_CATALOG.cursor) {
+      const decoded = decodeModelVariant(entry);
+      expect(encodeModelVariant(decoded.model, decoded.params)).toBe(entry);
     }
   });
 });
