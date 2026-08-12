@@ -22,6 +22,10 @@ HTTP server for the embedded daemon UI — **127.0.0.1 only**, `node:http` (no `
 
 See [ERROR_CONVENTIONS.md](../ERROR_CONVENTIONS.md) for ack/error patterns.
 
+## Canonical log viewer data path
+
+The Logs module uses SQLite-backed `logs.history`, `logs.stream`, `logs.dimensions`, and `chatrooms.list` socket events. Harness output flows through `onLogLine` → `AgentProcessManager.logSink` → `createLogServer` → SQLite. The older `harness.stream` stack remains legacy and has no current producers feeding the log viewer.
+
 Additional events: `logs.history` accepts `chatroomId`, `role`, and `harness` filters; `logs.dimensions` returns available dimension values; `chatrooms.list` returns owned chatrooms for filtering.
 
 ## Routes

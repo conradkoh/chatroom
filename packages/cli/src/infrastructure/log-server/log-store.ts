@@ -1,4 +1,15 @@
 import type { DatabaseSync } from 'node:sqlite';
+type LogEntryRow = {
+  id: number | bigint;
+  timestamp: number | bigint;
+  level: string;
+  source: string;
+  stream?: string | null;
+  message: string;
+  metadata_json?: string | null;
+};
+type StringValueRow = { v: string | null };
+type SourceRow = { source: string };
 
 export type LogEntry = {
   timestamp: number;
@@ -16,17 +27,18 @@ export type LogQuery = {
   chatroomId?: string;
   role?: string;
   harness?: string;
-  fromTimestamp?: number; toTimestamp?: number;
+  fromTimestamp?: number;
+  toTimestamp?: number;
   limit?: number;
 };
 export type LogDimensions = { chatroomIds: string[]; roles: string[]; harnesses: string[] };
 const clamp = (n = 100) => Math.max(1, Math.min(1000, Math.floor(n)));
-const map = (row: any): StoredLogEntry => ({
+const map = (row: LogEntryRow): StoredLogEntry => ({
   id: Number(row.id),
   timestamp: Number(row.timestamp),
-  level: row.level,
+  level: row.level as LogEntry['level'],
   source: row.source,
-  ...(row.stream ? { stream: row.stream } : {}),
+  ...(row.stream ? { stream: row.stream as LogEntry['stream'] } : {}),
   message: row.message,
   ...(row.metadata_json ? { metadata: JSON.parse(row.metadata_json) } : {}),
 });
@@ -59,14 +71,17 @@ export function queryAfterId(
   source?: string,
   chatroomId?: string,
   role?: string,
-  harness?: string, fromTimestamp?: number, toTimestamp?: number
+  harness?: string,
+  fromTimestamp?: number,
+  toTimestamp?: number
 ): StoredLogEntry[] {
   const filters = [
     source ? 'AND source = ?' : '',
     chatroomId ? "AND json_extract(metadata_json, '$.chatroomId') = ?" : '',
     role ? "AND json_extract(metadata_json, '$.role') = ?" : '',
     harness ? "AND (json_extract(metadata_json, '$.harness') = ? OR source = ?)" : '',
-    fromTimestamp !== undefined ? 'AND timestamp >= ?' : '', toTimestamp !== undefined ? 'AND timestamp <= ?' : '',
+    fromTimestamp !== undefined ? 'AND timestamp >= ?' : '',
+    toTimestamp !== undefined ? 'AND timestamp <= ?' : '',
   ].join(' ');
   const values = [
     afterId,
@@ -74,13 +89,14 @@ export function queryAfterId(
     ...(chatroomId ? [chatroomId] : []),
     ...(role ? [role] : []),
     ...(harness ? [harness, `harness:${harness}`] : []),
-    ...(fromTimestamp !== undefined ? [fromTimestamp] : []), ...(toTimestamp !== undefined ? [toTimestamp] : []),
+    ...(fromTimestamp !== undefined ? [fromTimestamp] : []),
+    ...(toTimestamp !== undefined ? [toTimestamp] : []),
     clamp(limit),
   ];
   const rows = db
     .prepare(`SELECT * FROM log_entries WHERE id > ? ${filters} ORDER BY id ASC LIMIT ?`)
     .all(...values);
-  return rows.map(map);
+  return (rows as LogEntryRow[]).map(map);
 }
 export function queryHistory(
   db: DatabaseSync,
@@ -89,7 +105,9 @@ export function queryHistory(
   source?: string,
   chatroomId?: string,
   role?: string,
-  harness?: string, fromTimestamp?: number, toTimestamp?: number
+  harness?: string,
+  fromTimestamp?: number,
+  toTimestamp?: number
 ): StoredLogEntry[] {
   const filters = [
     beforeId ? 'AND id < ?' : '',
@@ -97,7 +115,8 @@ export function queryHistory(
     chatroomId ? "AND json_extract(metadata_json, '$.chatroomId') = ?" : '',
     role ? "AND json_extract(metadata_json, '$.role') = ?" : '',
     harness ? "AND (json_extract(metadata_json, '$.harness') = ? OR source = ?)" : '',
-    fromTimestamp !== undefined ? 'AND timestamp >= ?' : '', toTimestamp !== undefined ? 'AND timestamp <= ?' : '',
+    fromTimestamp !== undefined ? 'AND timestamp >= ?' : '',
+    toTimestamp !== undefined ? 'AND timestamp <= ?' : '',
   ].join(' ');
   const values = [
     ...(beforeId ? [beforeId] : []),
@@ -105,21 +124,19 @@ export function queryHistory(
     ...(chatroomId ? [chatroomId] : []),
     ...(role ? [role] : []),
     ...(harness ? [harness, `harness:${harness}`] : []),
-    ...(fromTimestamp !== undefined ? [fromTimestamp] : []), ...(toTimestamp !== undefined ? [toTimestamp] : []),
+    ...(fromTimestamp !== undefined ? [fromTimestamp] : []),
+    ...(toTimestamp !== undefined ? [toTimestamp] : []),
     clamp(limit),
   ];
   const rows = db
     .prepare(`SELECT * FROM log_entries WHERE 1=1 ${filters} ORDER BY id DESC LIMIT ?`)
     .all(...values);
-  return rows.map(map).reverse();
+  return (rows as LogEntryRow[]).map(map).reverse();
 }
 export function listLogDimensions(db: DatabaseSync, limit = 100): LogDimensions {
   const clamped = clamp(limit);
   const values = (sql: string) =>
-    db
-      .prepare(sql)
-      .all(clamped)
-      .map((r: any) => r.v as string);
+    (db.prepare(sql).all(clamped) as StringValueRow[]).map((r) => r.v as string);
   const chatroomIds = values(
     "SELECT DISTINCT json_extract(metadata_json, '$.chatroomId') AS v FROM log_entries WHERE json_extract(metadata_json, '$.chatroomId') IS NOT NULL ORDER BY v LIMIT ?"
   );
@@ -135,8 +152,9 @@ export function listLogDimensions(db: DatabaseSync, limit = 100): LogDimensions 
   return { chatroomIds, roles, harnesses: [...new Set([...meta, ...source])].sort() };
 }
 export function listDistinctSources(db: DatabaseSync, limit = 100): string[] {
-  return db
-    .prepare('SELECT DISTINCT source FROM log_entries ORDER BY source LIMIT ?')
-    .all(clamp(limit))
-    .map((r: any) => r.source);
+  return (
+    db
+      .prepare('SELECT DISTINCT source FROM log_entries ORDER BY source LIMIT ?')
+      .all(clamp(limit)) as SourceRow[]
+  ).map((r) => r.source);
 }
