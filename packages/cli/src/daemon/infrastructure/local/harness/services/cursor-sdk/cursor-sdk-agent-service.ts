@@ -21,7 +21,7 @@ import { randomUUID } from 'node:crypto';
 import type * as CursorSdkModule from '@cursor/sdk';
 import { Effect } from 'effect';
 
-import { normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
+import { decodeCursorVariant, normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
 import {
   formatCursorSdkError,
   formatCursorSdkLoadError,
@@ -150,7 +150,7 @@ function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
 }
 
 function resolveModelId(model?: string): string {
-  return model ? resolveCursorSdkModel(model) : DEFAULT_MODEL;
+  return model ? resolveCursorSdkModel(decodeCursorVariant(model)?.cliSlug ?? model) : DEFAULT_MODEL;
 }
 
 function buildLocalAgentOptions(cwd: string) {

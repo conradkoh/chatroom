@@ -28,6 +28,7 @@ import {
 } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import { decodeCursorVariant } from '../cursor-sdk/cursor-models.js';
 
 export type CursorAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -50,6 +51,8 @@ export function resolveCursorCliModel(model: string): string {
   const prefix = `${CURSOR_PROVIDER}/`;
   return model.startsWith(prefix) ? model.slice(prefix.length) : model;
 }
+
+export { decodeCursorVariant };
 
 // ─── Implementation ──────────────────────────────────────────────────────────
 
@@ -79,7 +82,7 @@ export class CursorAgentService extends BaseCLIAgentService {
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const args: string[] = ['-p', '--force', '--output-format', 'stream-json'];
     if (options.model) {
-      args.push('--model', resolveCursorCliModel(options.model));
+      args.push('--model', resolveCursorCliModel(decodeCursorVariant(options.model)?.cliSlug ?? options.model));
     }
 
     const systemPrompt = options.systemPrompt
