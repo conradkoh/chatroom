@@ -9,7 +9,16 @@ export type LogEntry = {
   metadata?: Record<string, unknown>;
 };
 export type StoredLogEntry = LogEntry & { id: number };
-export type LogQuery = { afterId?: number; beforeId?: number; source?: string; limit?: number };
+export type LogQuery = {
+  afterId?: number;
+  beforeId?: number;
+  source?: string;
+  chatroomId?: string;
+  role?: string;
+  harness?: string;
+  limit?: number;
+};
+export type LogDimensions = { chatroomIds: string[]; roles: string[]; harnesses: string[] };
 const clamp = (n = 100) => Math.max(1, Math.min(1000, Math.floor(n)));
 const map = (row: any): StoredLogEntry => ({
   id: Number(row.id),
@@ -46,27 +55,79 @@ export function queryAfterId(
   db: DatabaseSync,
   afterId = 0,
   limit = 100,
-  source?: string
+  source?: string,
+  chatroomId?: string,
+  role?: string,
+  harness?: string
 ): StoredLogEntry[] {
+  const filters = [
+    source ? 'AND source = ?' : '',
+    chatroomId ? "AND json_extract(metadata_json, '$.chatroomId') = ?" : '',
+    role ? "AND json_extract(metadata_json, '$.role') = ?" : '',
+    harness ? "AND (json_extract(metadata_json, '$.harness') = ? OR source = ?)" : '',
+  ].join(' ');
+  const values = [
+    afterId,
+    ...(source ? [source] : []),
+    ...(chatroomId ? [chatroomId] : []),
+    ...(role ? [role] : []),
+    ...(harness ? [harness, `harness:${harness}`] : []),
+    clamp(limit),
+  ];
   const rows = db
-    .prepare(
-      `SELECT * FROM log_entries WHERE id > ? ${source ? 'AND source = ?' : ''} ORDER BY id ASC LIMIT ?`
-    )
-    .all(...(source ? [afterId, source, clamp(limit)] : [afterId, clamp(limit)]));
+    .prepare(`SELECT * FROM log_entries WHERE id > ? ${filters} ORDER BY id ASC LIMIT ?`)
+    .all(...values);
   return rows.map(map);
 }
 export function queryHistory(
   db: DatabaseSync,
   beforeId?: number,
   limit = 100,
-  source?: string
+  source?: string,
+  chatroomId?: string,
+  role?: string,
+  harness?: string
 ): StoredLogEntry[] {
+  const filters = [
+    beforeId ? 'AND id < ?' : '',
+    source ? 'AND source = ?' : '',
+    chatroomId ? "AND json_extract(metadata_json, '$.chatroomId') = ?" : '',
+    role ? "AND json_extract(metadata_json, '$.role') = ?" : '',
+    harness ? "AND (json_extract(metadata_json, '$.harness') = ? OR source = ?)" : '',
+  ].join(' ');
+  const values = [
+    ...(beforeId ? [beforeId] : []),
+    ...(source ? [source] : []),
+    ...(chatroomId ? [chatroomId] : []),
+    ...(role ? [role] : []),
+    ...(harness ? [harness, `harness:${harness}`] : []),
+    clamp(limit),
+  ];
   const rows = db
-    .prepare(
-      `SELECT * FROM log_entries WHERE 1=1 ${beforeId ? 'AND id < ?' : ''} ${source ? 'AND source = ?' : ''} ORDER BY id DESC LIMIT ?`
-    )
-    .all(...[...(beforeId ? [beforeId] : []), ...(source ? [source] : []), clamp(limit)]);
+    .prepare(`SELECT * FROM log_entries WHERE 1=1 ${filters} ORDER BY id DESC LIMIT ?`)
+    .all(...values);
   return rows.map(map).reverse();
+}
+export function listLogDimensions(db: DatabaseSync, limit = 100): LogDimensions {
+  const clamped = clamp(limit);
+  const values = (sql: string) =>
+    db
+      .prepare(sql)
+      .all(clamped)
+      .map((r: any) => r.v as string);
+  const chatroomIds = values(
+    "SELECT DISTINCT json_extract(metadata_json, '$.chatroomId') AS v FROM log_entries WHERE json_extract(metadata_json, '$.chatroomId') IS NOT NULL ORDER BY v LIMIT ?"
+  );
+  const roles = values(
+    "SELECT DISTINCT json_extract(metadata_json, '$.role') AS v FROM log_entries WHERE json_extract(metadata_json, '$.role') IS NOT NULL ORDER BY v LIMIT ?"
+  );
+  const meta = values(
+    "SELECT DISTINCT json_extract(metadata_json, '$.harness') AS v FROM log_entries WHERE json_extract(metadata_json, '$.harness') IS NOT NULL ORDER BY v LIMIT ?"
+  );
+  const source = values(
+    "SELECT DISTINCT substr(source, 9) AS v FROM log_entries WHERE source LIKE 'harness:%' ORDER BY v LIMIT ?"
+  );
+  return { chatroomIds, roles, harnesses: [...new Set([...meta, ...source])].sort() };
 }
 export function listDistinctSources(db: DatabaseSync, limit = 100): string[] {
   return db

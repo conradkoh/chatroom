@@ -22,6 +22,8 @@ HTTP server for the embedded daemon UI — **127.0.0.1 only**, `node:http` (no `
 
 See [ERROR_CONVENTIONS.md](../ERROR_CONVENTIONS.md) for ack/error patterns.
 
+Additional events: `logs.history` accepts `chatroomId`, `role`, and `harness` filters; `logs.dimensions` returns available dimension values; `chatrooms.list` returns owned chatrooms for filtering.
+
 ## Routes
 
 | Method | Path                                   | Description                                               |

@@ -3,17 +3,18 @@ import type { AddressInfo } from 'node:net';
 
 import { Server as SocketIOServer } from 'socket.io';
 
+import type { LogStreamHub } from './log-stream-hub.js';
 import { routeRequest } from './routes.js';
 import { resolveClientDistDir, tryServeStatic } from './serve-static.js';
 import { createStreamHub, type StreamHub } from './stream-hub.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import type { PersistenceStore } from '../../infrastructure/persistence/index.js';
 import {
   createHarnessStreamRepository,
   createEmptyHarnessStreamRepository,
 } from '../../infrastructure/repository/index.js';
-import { registerSocketHandlers } from '../../infrastructure/socket/register-handlers.js';
 import type { LogRepository } from '../../infrastructure/repository/log-repository.js';
-import { createLogStreamHub, type LogStreamHub } from './log-stream-hub.js';
+import { registerSocketHandlers } from '../../infrastructure/socket/register-handlers.js';
 
 export type LocalWebServerConfig = {
   host: '127.0.0.1';
@@ -25,6 +26,8 @@ export type LocalWebServerDeps = {
   streamHub?: StreamHub;
   logRepo?: LogRepository;
   logStreamHub?: LogStreamHub;
+  backend?: BackendOps;
+  sessionId?: string;
 };
 
 export type LocalWebServerHandle = {
@@ -78,6 +81,8 @@ export async function startLocalWebServer(
     streamHub,
     logRepo: deps.logRepo,
     logStreamHub: deps.logStreamHub,
+    backend: deps.backend,
+    sessionId: deps.sessionId,
   });
 
   return {

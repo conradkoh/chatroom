@@ -1841,7 +1841,12 @@ export class AgentProcessManager {
           source: `harness:${opts.agentHarness}`,
           stream: entry.stream,
           message: entry.message,
-          metadata: { chatroomId: opts.chatroomId, role: opts.role, pid },
+          metadata: {
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            pid,
+            harness: opts.agentHarness,
+          },
         });
       });
     }

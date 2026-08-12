@@ -8,7 +8,14 @@ export const harnessHistoryInputSchema = z.object({
   limit: z.number().int().positive().max(5000).optional(),
 }) satisfies z.ZodType<HarnessHistoryQuery>;
 export const logHistoryInputSchema = z.object({
-  afterId: z.number().int().nonnegative().optional(), beforeId: z.number().int().positive().optional(),
-  source: z.string().optional(), limit: z.number().int().positive().max(1000).optional(),
+  afterId: z.number().int().nonnegative().optional(),
+  beforeId: z.number().int().positive().optional(),
+  source: z.string().optional(),
+  chatroomId: z.string().optional(),
+  role: z.string().optional(),
+  harness: z.string().optional(),
+  limit: z.number().int().positive().max(1000).optional(),
 }) satisfies z.ZodType<LogHistoryQuery>;
-export const logSourcesInputSchema = z.object({ limit: z.number().int().positive().max(1000).optional() });
+export const logSourcesInputSchema = z.object({
+  limit: z.number().int().positive().max(1000).optional(),
+});

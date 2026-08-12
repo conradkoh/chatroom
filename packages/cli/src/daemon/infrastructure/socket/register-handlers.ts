@@ -1,15 +1,26 @@
 import type { Server, Socket } from 'socket.io';
 
 import { normalizeError } from './normalize-error.js';
-import { harnessHistoryInputSchema, logHistoryInputSchema, logSourcesInputSchema } from './schemas.js';
+import {
+  harnessHistoryInputSchema,
+  logHistoryInputSchema,
+  logSourcesInputSchema,
+} from './schemas.js';
+import { api } from '../../../api.js';
+import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import type { SocketAck } from '../../domain/entities/socket-ack.js';
 import { getLocalWebHealth } from '../../domain/usecase/get-local-web-health.js';
 import { listHarnessHistory } from '../../domain/usecase/list-harness-history.js';
+import {
+  listLogHistory,
+  listLogSources,
+  listLogDimensions,
+} from '../../domain/usecase/list-log-history.js';
+import { asConvexSessionId } from '../../entry/daemon-types.js';
+import type { LogStreamEvent, LogStreamHub } from '../../local-web/server/log-stream-hub.js';
 import type { HarnessStreamEvent, StreamHub } from '../../local-web/server/stream-hub.js';
 import type { HarnessStreamRepository } from '../repository/harness-stream-repository.js';
 import type { LogRepository } from '../repository/log-repository.js';
-import { listLogHistory, listLogSources } from '../../domain/usecase/list-log-history.js';
-import type { LogStreamEvent, LogStreamHub } from '../../local-web/server/log-stream-hub.js';
 
 export type RegisterSocketHandlersDeps = {
   port: number;
@@ -17,6 +28,8 @@ export type RegisterSocketHandlersDeps = {
   streamHub: StreamHub;
   logRepo?: LogRepository;
   logStreamHub?: LogStreamHub;
+  backend?: BackendOps;
+  sessionId?: string;
 };
 
 type AckFn = (response: SocketAck<unknown>) => void;
@@ -78,8 +91,13 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
       const { payload, ack } = extractAck(args);
       try {
         if (!deps.logRepo) throw new Error('log repository not configured');
-        callAck(ack, { ok: true, data: listLogHistory(deps.logRepo, logHistoryInputSchema.parse(payload ?? {})) });
-      } catch (err) { callAck(ack, { ok: false, error: normalizeError(err) }); }
+        callAck(ack, {
+          ok: true,
+          data: listLogHistory(deps.logRepo, logHistoryInputSchema.parse(payload ?? {})),
+        });
+      } catch (err) {
+        callAck(ack, { ok: false, error: normalizeError(err) });
+      }
     });
     socket.on('logs.sources', (...args) => {
       const { payload, ack } = extractAck(args);
@@ -87,16 +105,52 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
         if (!deps.logRepo) throw new Error('log repository not configured');
         const parsed = logSourcesInputSchema.parse(payload ?? {});
         callAck(ack, { ok: true, data: listLogSources(deps.logRepo, parsed.limit) });
-      } catch (err) { callAck(ack, { ok: false, error: normalizeError(err) }); }
+      } catch (err) {
+        callAck(ack, { ok: false, error: normalizeError(err) });
+      }
+    });
+    socket.on('logs.dimensions', (...args) => {
+      const { payload, ack } = extractAck(args);
+      try {
+        if (!deps.logRepo) throw new Error('log repository not configured');
+        const parsed = logSourcesInputSchema.parse(payload ?? {});
+        callAck(ack, { ok: true, data: listLogDimensions(deps.logRepo, parsed.limit) });
+      } catch (err) {
+        callAck(ack, { ok: false, error: normalizeError(err) });
+      }
+    });
+    socket.on('chatrooms.list', async (...args) => {
+      const { ack } = extractAck(args);
+      try {
+        if (!deps.backend || !deps.sessionId) throw new Error('backend session not configured');
+        const chatrooms = (await deps.backend.query(api.chatrooms.listByUser, {
+          sessionId: asConvexSessionId(deps.sessionId),
+        })) as { _id: string; name?: string; teamName?: string }[];
+        callAck(ack, {
+          ok: true,
+          data: {
+            chatrooms: chatrooms.map((c) => ({
+              id: c._id,
+              displayName: c.name?.trim() || c.teamName?.trim() || c._id,
+            })),
+          },
+        });
+      } catch (err) {
+        callAck(ack, { ok: false, error: normalizeError(err) });
+      }
     });
     socket.on('logs.stream.subscribe', (...args) => {
       const { ack } = extractAck(args);
       try {
         if (!deps.logStreamHub) throw new Error('log stream hub not configured');
-        const unsub = deps.logStreamHub.subscribe((event: LogStreamEvent) => socket.emit('logs.stream', event));
+        const unsub = deps.logStreamHub.subscribe((event: LogStreamEvent) =>
+          socket.emit('logs.stream', event)
+        );
         streamUnsubs.push(unsub);
         callAck(ack, { ok: true, data: { subscribed: true } });
-      } catch (err) { callAck(ack, { ok: false, error: normalizeError(err) }); }
+      } catch (err) {
+        callAck(ack, { ok: false, error: normalizeError(err) });
+      }
     });
 
     socket.on('disconnect', () => {
