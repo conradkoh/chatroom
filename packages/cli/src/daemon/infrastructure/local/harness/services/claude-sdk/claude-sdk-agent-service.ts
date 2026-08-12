@@ -120,8 +120,8 @@ function writeSpawnError(
   emitLogLine?: (line: string) => void
 ): void {
   const line = formatAgentLogLine(logPrefix, 'spawn-error', formatClaudeSdkLoadError(err));
-  emitLogLine?.(line);
-  console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
+  if (emitLogLine) emitLogLine(line);
+  else console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
 }
 
 // fallow-ignore-next-line complexity

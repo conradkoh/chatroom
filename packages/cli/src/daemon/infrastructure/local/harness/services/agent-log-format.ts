@@ -102,7 +102,7 @@ export function createAgentLogWriter(
   prefix: string,
   options?: { emitLogLine?: (line: string) => void; target?: Writable; suppressConsole?: boolean }
 ): AgentLogWriter {
-  const target: Writable | null = options?.suppressConsole
+  const target: Writable | null = options?.suppressConsole || options?.emitLogLine
     ? null
     : (options?.target ?? process.stdout);
   const emitLogLine = options?.emitLogLine;
