@@ -10,6 +10,7 @@ export type CursorFast = (typeof CURSOR_FAST_VALUES)[number];
 export const CURSOR_MODEL_VARIANT_COMBINATIONS = [
   {},
   { thinking: 'enabled' },
+  { fast: 'enabled' },
   { effort: 'low' },
   { effort: 'medium' },
   { effort: 'high' },
