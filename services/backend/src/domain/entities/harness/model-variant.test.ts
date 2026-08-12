@@ -5,6 +5,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { CODEX_MODEL_VARIANT_COMBINATIONS } from './codex-sdk.model-variants';
+import { CLAUDE_MODEL_VARIANT_COMBINATIONS } from './claude.model-variants';
 import { HARNESS_MODEL_CATALOG, type CatalogBackedHarness } from './model-catalog';
 import {
   ModelVariantParseError,
@@ -142,6 +143,7 @@ describe('HARNESS_MODEL_CATALOG', () => {
     'codex-sdk': CODEX_MODEL_VARIANT_COMBINATIONS,
     copilot: PLAIN_MODEL_SCHEMA,
     cursor: PLAIN_MODEL_SCHEMA,
+    claude: CLAUDE_MODEL_VARIANT_COMBINATIONS,
   };
 
   test('every catalog entry decodes and validates against its harness schema', () => {

@@ -20,6 +20,7 @@ test.each([
   ['codexSdk', 'codex-sdk'],
   ['copilot', 'copilot'],
   ['cursor', 'cursor'],
+  ['claude', 'claude'],
 ] as const)(
   'listModels(%s) serves the catalog to an authenticated session',
   async (endpoint, harness) => {

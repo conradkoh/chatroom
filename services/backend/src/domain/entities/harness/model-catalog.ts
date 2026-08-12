@@ -16,7 +16,10 @@ import type { AgentHarness } from '../agent';
 import { CODEX_REASONING_LEVEL_VALUES, type CodexReasoningLevel } from './codex-sdk.model-variants';
 
 /** Harness ids with a server-curated catalog. */
-export type CatalogBackedHarness = Extract<AgentHarness, 'codex-sdk' | 'copilot' | 'cursor'>;
+export type CatalogBackedHarness = Extract<AgentHarness, 'codex-sdk' | 'copilot' | 'cursor' | 'claude'>;
+import { CLAUDE_BASE_MODEL_IDS, CLAUDE_EFFORT_VALUES } from './claude.model-variants';
+import { encodeModelVariant } from './model-variant';
+const claudeModelVariants = () => CLAUDE_BASE_MODEL_IDS.flatMap((id) => [id, ...CLAUDE_EFFORT_VALUES.map((effort) => encodeModelVariant(id, { effort }))]);
 
 // ─── Codex variants (typed template strings — catalog entries are compile-checked) ───
 
@@ -71,6 +74,7 @@ export const HARNESS_MODEL_CATALOG: Record<CatalogBackedHarness, readonly string
     'gemini-3-pro-preview',
     'gemini-2-5-flash',
   ],
+  claude: claudeModelVariants(),
   cursor: [
     // Moved from packages/cli cursor-agent-service.ts CURSOR_MODELS.
     // Anthropic Claude
