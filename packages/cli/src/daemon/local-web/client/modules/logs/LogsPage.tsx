@@ -32,6 +32,7 @@ export function LogsPage() {
           <LogFiltersBar
             chatrooms={chatrooms}
             chatroomsLoading={chatroomsQuery.isLoading}
+            chatroomsError={chatroomsQuery.isError}
             roles={dimensions.roles}
             harnesses={dimensions.harnesses}
             values={filters}

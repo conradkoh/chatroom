@@ -7,6 +7,7 @@ export type LogFilterValues = { chatroomId?: string; role?: string; harness?: st
 type Props = {
   chatrooms: ChatroomListItem[];
   chatroomsLoading?: boolean;
+  chatroomsError?: boolean;
   roles: string[];
   harnesses: string[];
   values: LogFilterValues;
@@ -16,6 +17,7 @@ type Props = {
 export function LogFiltersBar({
   chatrooms,
   chatroomsLoading,
+  chatroomsError,
   roles,
   harnesses,
   values,
@@ -30,6 +32,7 @@ export function LogFiltersBar({
         onChange={(chatroomId) => onChange({ ...values, chatroomId })}
         disabled={disabled}
         isLoading={chatroomsLoading}
+        isError={chatroomsError}
       />
       <DimensionSelect
         label="Role"
