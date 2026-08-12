@@ -23,7 +23,6 @@ import {
 import { ClaudeSdkStreamAdapter } from './claude-sdk-stream-adapter.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from '../claude/claude-models.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
   AgentStopOptions,
@@ -190,9 +189,8 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    const dynamic = await fetchClaudeModels();
-    if (dynamic) return dynamic;
-    return [...CLAUDE_FALLBACK_MODELS];
+    // The Claude SDK exposes no model enumeration API. The server catalog overlay supplies models.
+    return [];
   }
 
   async resumeTurn(pid: number, prompt: string): Promise<void> {

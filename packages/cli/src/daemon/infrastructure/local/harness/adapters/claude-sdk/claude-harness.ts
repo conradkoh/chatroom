@@ -18,7 +18,7 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
-import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from '../../services/claude/claude-models.js';
+import { HARNESS_MODEL_CATALOG } from '@workspace/backend/src/domain/entities/harness/model-catalog.js';
 import {
   formatClaudeSdkLoadError,
   importBundledClaudeSdk,
@@ -88,8 +88,7 @@ export class ClaudeSdkHarness implements BoundHarness {
   }
 
   async listProviders(): Promise<readonly PublishedProvider[]> {
-    const dynamic = await fetchClaudeModels();
-    const modelIds = dynamic ?? [...CLAUDE_FALLBACK_MODELS];
+    const modelIds = HARNESS_MODEL_CATALOG['claude-sdk'];
 
     return [
       {
