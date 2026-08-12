@@ -18,7 +18,7 @@
 
 import { type ChildProcess } from 'node:child_process';
 
-import { CursorStreamReader } from './cursor-stream-reader.js';
+import { fetchCursorSdkModelCatalog } from '../cursor-sdk/cursor-sdk-model-catalog.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,
@@ -74,9 +74,7 @@ export class CursorAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    // Model list moved to the server catalog (api.harnesses.cursor.listModels).
-    // The daemon overlays the catalog onto discovery at boot / manual refresh.
-    return [];
+    return fetchCursorSdkModelCatalog();
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {

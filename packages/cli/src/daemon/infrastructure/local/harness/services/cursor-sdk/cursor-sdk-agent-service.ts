@@ -21,7 +21,8 @@ import { randomUUID } from 'node:crypto';
 import type * as CursorSdkModule from '@cursor/sdk';
 import { Effect } from 'effect';
 
-import { resolveCursorSdkSpawnModelId } from './cursor-models.js';
+import { fetchCursorSdkModelCatalog } from './cursor-sdk-model-catalog.js';
+import { resolveCursorSdkSpawnModelSelection } from './cursor-models.js';
 import {
   formatCursorSdkError,
   formatCursorSdkLoadError,
@@ -211,7 +212,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    return [];
+    return fetchCursorSdkModelCatalog();
   }
 
   async resumeTurn(pid: number, prompt: string): Promise<void> {
@@ -287,7 +288,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const context = options.context;
     const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
     const agentName = stored.agentName;
-    const modelId = resolveCursorSdkSpawnModelId(options.model ?? stored.model);
+    const modelSelection = resolveCursorSdkSpawnModelSelection(options.model ?? stored.model);
     const systemPrompt = options.systemPrompt
       ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
       : NO_SUBAGENT_DIRECTIVE;
@@ -299,7 +300,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       agent = await withTimeout(
         Agent.resume(stored.harnessSessionId, {
           apiKey,
-          model: { id: modelId },
+          model: modelSelection,
           local: buildLocalAgentOptions(stored.workingDir),
         }),
         AGENT_CREATE_TIMEOUT_MS,
@@ -645,7 +646,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const context = options.context;
     const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
     const agentName = buildAgentName(context);
-    const modelId = resolveCursorSdkSpawnModelId(options.model);
+    const modelSelection = resolveCursorSdkSpawnModelSelection(options.model);
     const systemPrompt = options.systemPrompt
       ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
       : NO_SUBAGENT_DIRECTIVE;
@@ -658,7 +659,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         Agent.create({
           apiKey,
           name: agentName,
-          model: { id: modelId, params: [{ id: 'fast', value: 'false' }] },
+          model: modelSelection,
           local: buildLocalAgentOptions(options.workingDir),
         }),
         AGENT_CREATE_TIMEOUT_MS,

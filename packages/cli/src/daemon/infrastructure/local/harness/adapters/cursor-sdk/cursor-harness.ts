@@ -3,7 +3,6 @@
  */
 
 import { CursorSdkSession } from './cursor-session.js';
-import { HARNESS_MODEL_CATALOG } from '@workspace/backend/src/domain/entities/harness/model-catalog.js';
 import type {
   BoundHarness,
   BoundHarnessFactory,
@@ -17,9 +16,8 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
-import {
-  resolveCursorSdkSpawnModelId,
-} from '../../services/cursor-sdk/cursor-models.js';
+import { fetchCursorSdkModelCatalog } from '../../services/cursor-sdk/cursor-sdk-model-catalog.js';
+import { resolveCursorSdkSpawnModelSelection } from '../../services/cursor-sdk/cursor-models.js';
 import {
   formatCursorSdkLoadError,
   importBundledCursorSdk,
@@ -78,7 +76,7 @@ export class CursorSdkHarness implements BoundHarness {
   }
 
   async listProviders(): Promise<readonly PublishedProvider[]> {
-    const modelIds = HARNESS_MODEL_CATALOG['cursor-sdk'];
+    const modelIds = await fetchCursorSdkModelCatalog();
 
     return [
       {
@@ -96,12 +94,12 @@ export class CursorSdkHarness implements BoundHarness {
     const apiKey = process.env.CURSOR_API_KEY?.trim();
     if (!apiKey) throw new Error('CURSOR_API_KEY is not set');
 
-    const modelId = resolveCursorSdkSpawnModelId(config.model ?? DEFAULT_MODEL);
+    const modelSelection = resolveCursorSdkSpawnModelSelection(config.model ?? DEFAULT_MODEL);
     const { Agent } = await loadSdk();
     const agent = await withTimeout(
       Agent.create({
         apiKey,
-        model: { id: modelId },
+        model: modelSelection,
         local: { cwd: this.cwd, settingSources: [] },
       }),
       AGENT_CREATE_TIMEOUT_MS,
@@ -134,7 +132,7 @@ export class CursorSdkHarness implements BoundHarness {
     const agent = await withTimeout(
       Agent.resume(sessionId, {
         apiKey,
-        model: { id: DEFAULT_MODEL },
+        model: resolveCursorSdkSpawnModelSelection(DEFAULT_MODEL),
         local: { cwd: this.cwd, settingSources: [] },
       }),
       AGENT_CREATE_TIMEOUT_MS,
