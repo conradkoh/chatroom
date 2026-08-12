@@ -195,7 +195,6 @@ function writeSpawnError(
   emitLogLine?: (line: string) => void
 ): void {
   const line = formatAgentLogLine(logPrefix, 'spawn-error', formatCodexSdkError(err));
-  process.stderr.write(`${line}\n`);
   emitLogLine?.(line);
   console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
 }
@@ -778,9 +777,7 @@ export class CodexSdkAgentService extends BaseCLIAgentService {
         resumedThreadId: stored.harnessSessionId,
       });
     } catch (err) {
-      writeSpawnError(buildAgentLogPrefix('codex-sdk', options.context), err, (line) =>
-        process.stderr.write(`${line}\n`)
-      );
+      writeSpawnError(buildAgentLogPrefix('codex-sdk', options.context), err);
       return this.spawn(options);
     }
   }

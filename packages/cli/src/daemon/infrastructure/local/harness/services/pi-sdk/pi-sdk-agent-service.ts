@@ -129,7 +129,6 @@ function writeSpawnError(
   emitLogLine?: (line: string) => void
 ): void {
   const line = formatAgentLogLine(logPrefix, 'spawn-error', formatPiSdkLoadError(err));
-  process.stderr.write(`${line}\n`);
   emitLogLine?.(line);
   console.error(`[${new Date().toISOString()}] ${logPrefix} spawn-error]`, err);
 }
