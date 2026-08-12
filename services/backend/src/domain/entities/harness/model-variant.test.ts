@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest';
 
 import { CLAUDE_MODEL_VARIANT_COMBINATIONS, CLAUDE_SPAWN_ALIASES } from './claude.model-variants';
 import { CODEX_MODEL_VARIANT_COMBINATIONS } from './codex-sdk.model-variants';
-import { CURSOR_MODEL_VARIANT_COMBINATIONS, CURSOR_CATALOG_BASE_MODEL_IDS, CURSOR_LEGACY_MODEL_SLUGS, cursorLegacySlugToVariant, expandCursorModelVariantCatalog } from './cursor.model-variants';
+import { cursorLegacySlugToVariant } from './cursor.model-variants';
 import { HARNESS_MODEL_CATALOG, type CatalogBackedHarness } from './model-catalog';
 import {
   ModelVariantParseError,
@@ -144,8 +144,6 @@ describe('HARNESS_MODEL_CATALOG', () => {
   const HARNESS_SCHEMAS: Record<CatalogBackedHarness, typeof PLAIN_MODEL_SCHEMA> = {
     'codex-sdk': CODEX_MODEL_VARIANT_COMBINATIONS,
     copilot: PLAIN_MODEL_SCHEMA,
-    cursor: CURSOR_MODEL_VARIANT_COMBINATIONS,
-    'cursor-sdk': CURSOR_MODEL_VARIANT_COMBINATIONS,
     claude: CLAUDE_MODEL_VARIANT_COMBINATIONS,
     'claude-sdk': CLAUDE_MODEL_VARIANT_COMBINATIONS,
   };
@@ -183,32 +181,16 @@ describe('HARNESS_MODEL_CATALOG', () => {
     }
   });
 
-  test('cursor catalog matches legacy slug encoding (no regression)', () => {
-    const legacyEncoded = CURSOR_LEGACY_MODEL_SLUGS.map((slug) => {
-      const variant = cursorLegacySlugToVariant(slug);
-      return variant ? encodeModelVariant(variant.base, variant.params) : slug;
+  test('cursorLegacySlugToVariant parses CLI slugs', () => {
+    expect(cursorLegacySlugToVariant('gpt-5.4-high')).toEqual({
+      base: 'gpt-5.4',
+      params: { effort: 'high' },
     });
-    const expanded = expandCursorModelVariantCatalog();
-    expect(new Set(expanded)).toEqual(new Set(legacyEncoded));
-    expect(expanded.length).toBe(legacyEncoded.length);
-    expect(expanded.length).toBe(54);
-  });
-
-  test('cursor catalog lists canonical base ids only', () => {
-    const baseIds = [...new Set(HARNESS_MODEL_CATALOG.cursor.map((entry) => decodeModelVariant(entry).model))].sort();
-    expect(baseIds).toEqual([...CURSOR_CATALOG_BASE_MODEL_IDS].sort());
-  });
-
-  test('cursor entries contain valid canonical variants', () => {
-    expect(HARNESS_MODEL_CATALOG.cursor.some((entry) => decodeModelVariant(entry).params.effort)).toBe(true);
-    for (const entry of HARNESS_MODEL_CATALOG.cursor) {
-      const decoded = decodeModelVariant(entry);
-      expect(encodeModelVariant(decoded.model, decoded.params)).toBe(entry);
-    }
-  });
-
-  test('cursor-sdk catalog matches cursor catalog', () => {
-    expect(HARNESS_MODEL_CATALOG['cursor-sdk']).toEqual(HARNESS_MODEL_CATALOG.cursor);
+    expect(cursorLegacySlugToVariant('claude-4.6-opus-max-thinking')).toEqual({
+      base: 'claude-4.6-opus',
+      params: { effort: 'xhigh', thinking: 'enabled' },
+    });
+    expect(cursorLegacySlugToVariant('composer-2.5')).toBeUndefined();
   });
 
   test('formats suffixes and expands catalogs', () => {

@@ -17,9 +17,8 @@
  */
 
 import { type ChildProcess } from 'node:child_process';
-import { CursorStreamReader } from './cursor-stream-reader.js';
 
-import { fetchCursorSdkModelCatalog } from '../cursor-sdk/cursor-sdk-model-catalog.js';
+import { CursorStreamReader } from './cursor-stream-reader.js';
 import {
   BASH_TOOL_KIND,
   buildAgentLogPrefix,
@@ -28,8 +27,9 @@ import {
   formatBashRunningPayload,
 } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
-import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { decodeCursorVariant } from '../cursor-sdk/cursor-models.js';
+import { fetchCursorSdkModelCatalog } from '../cursor-sdk/cursor-sdk-model-catalog.js';
+import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 
 export type CursorAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -52,8 +52,6 @@ export function resolveCursorCliModel(model: string): string {
   const prefix = `${CURSOR_PROVIDER}/`;
   return model.startsWith(prefix) ? model.slice(prefix.length) : model;
 }
-
-export { decodeCursorVariant };
 
 // ─── Implementation ──────────────────────────────────────────────────────────
 

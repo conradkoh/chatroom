@@ -1,5 +1,6 @@
 import { EventEmitter, Readable } from 'node:stream';
 
+import { Cursor } from '@cursor/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -9,6 +10,18 @@ import {
 } from './cursor-agent-service.js';
 import { TEST_MODEL_CURSOR } from '../../../../../../testing/test-models.js';
 import { createSpawnPrompt } from '../spawn-prompt.js';
+
+vi.mock('@cursor/sdk', () => ({
+  Cursor: {
+    models: {
+      list: vi.fn(),
+    },
+  },
+}));
+
+vi.mock('../cursor-sdk/cursor-sdk-package.js', () => ({
+  importBundledCursorSdk: vi.fn(async () => import('@cursor/sdk')),
+}));
 
 function createMockDeps(overrides?: Partial<CursorAgentServiceDeps>): CursorAgentServiceDeps {
   return {
@@ -81,9 +94,16 @@ describe('CursorAgentService', () => {
   });
 
   describe('listModels', () => {
-    it('returns [] — the model list moved to the server catalog', async () => {
+    it('returns expanded catalog from Cursor.models.list', async () => {
+      vi.mocked(Cursor.models.list).mockResolvedValue([
+        {
+          id: 'gpt-5.6-terra',
+          displayName: 'GPT 5.6 Terra',
+          variants: [{ params: [], displayName: 'Default', isDefault: true }],
+        },
+      ]);
       const service = new CursorAgentService(createMockDeps());
-      expect(await service.listModels()).toEqual([]);
+      expect(await service.listModels()).toEqual(['gpt-5.6-terra']);
     });
   });
 
@@ -399,7 +419,9 @@ describe('CursorAgentService', () => {
         resolvedConvexUrl: 'http://test:3210',
       });
       result.onLogLine?.((entry) => {
-        logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message);
+        logMessages.push(
+          typeof entry === 'string' ? entry : (entry as { message: string }).message
+        );
       });
 
       mockStdout.push(
@@ -417,7 +439,6 @@ describe('CursorAgentService', () => {
       expect(bashLine).toBeDefined();
       expect(bashLine).toContain('git status');
       expect(bashLine).toContain('[cursor:builder');
-
     });
   });
 });
