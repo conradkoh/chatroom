@@ -121,7 +121,7 @@ export type CursorModelVariantString = CursorBaseModelId | `${CursorBaseModelId}
   'composer-2.5',
   'composer-2',
   'composer-1.5',
-
+*/
 function cursorModelVariants(): CursorModelVariantString[] {
   return expandCursorModelVariantCatalog() as CursorModelVariantString[];
 }
