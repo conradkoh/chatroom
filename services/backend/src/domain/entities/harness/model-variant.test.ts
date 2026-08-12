@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { CLAUDE_MODEL_VARIANT_COMBINATIONS, CLAUDE_SPAWN_ALIASES } from './claude.model-variants';
 import { CODEX_MODEL_VARIANT_COMBINATIONS } from './codex-sdk.model-variants';
 import { HARNESS_MODEL_CATALOG, type CatalogBackedHarness } from './model-catalog';
 import {
@@ -12,6 +13,8 @@ import {
   PLAIN_MODEL_SCHEMA,
   decodeModelVariant,
   encodeModelVariant,
+  expandModelVariantCatalog,
+  formatModelVariantParamsSuffix,
   validateModelVariantParams,
 } from './model-variant';
 
@@ -142,6 +145,8 @@ describe('HARNESS_MODEL_CATALOG', () => {
     'codex-sdk': CODEX_MODEL_VARIANT_COMBINATIONS,
     copilot: PLAIN_MODEL_SCHEMA,
     cursor: PLAIN_MODEL_SCHEMA,
+    claude: CLAUDE_MODEL_VARIANT_COMBINATIONS,
+    'claude-sdk': CLAUDE_MODEL_VARIANT_COMBINATIONS,
   };
 
   test('every catalog entry decodes and validates against its harness schema', () => {
@@ -171,11 +176,33 @@ describe('HARNESS_MODEL_CATALOG', () => {
     }
   });
 
+  test('formats suffixes and expands catalogs', () => {
+    expect(formatModelVariantParamsSuffix({ effort: 'none' })).toBe('[effort=none]');
+    expect(formatModelVariantParamsSuffix({})).toBe('');
+    expect(expandModelVariantCatalog(['model'], [{}, { effort: 'none' }])).toEqual([
+      'model',
+      'model[effort=none]',
+    ]);
+  });
+
   test('copilot and cursor entries are plain ids (no variants)', () => {
     for (const harness of ['copilot', 'cursor'] as const) {
       for (const entry of HARNESS_MODEL_CATALOG[harness]) {
         expect(decodeModelVariant(entry).params).toEqual({});
       }
+    }
+  });
+
+  test('claude catalog lists canonical base ids only (no spawn aliases)', () => {
+    for (const harness of ['claude', 'claude-sdk'] as const) {
+      const catalog = HARNESS_MODEL_CATALOG[harness];
+      const baseIds = catalog.map((entry) => decodeModelVariant(entry).model);
+      expect(new Set(baseIds).size).toBe(4);
+      for (const alias of CLAUDE_SPAWN_ALIASES) {
+        expect(baseIds).not.toContain(alias);
+      }
+      expect(baseIds).toContain('claude-sonnet-4-6');
+      expect(baseIds).toContain('claude-haiku-4-5');
     }
   });
 });

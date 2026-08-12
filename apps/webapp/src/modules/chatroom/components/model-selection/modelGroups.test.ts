@@ -1,3 +1,4 @@
+import { HARNESS_MODEL_CATALOG } from '@workspace/backend/src/domain/entities/harness/model-catalog';
 import { describe, it, expect } from 'vitest';
 
 import {
@@ -38,7 +39,7 @@ describe('getProviderDisplayName', () => {
 describe('groupFlatModels', () => {
   it('groups flat model IDs by provider key', () => {
     const models = ['openai/gpt-4o', 'openai/gpt-4-turbo', 'anthropic/claude-3'];
-    const groups = groupFlatModels(models);
+    const groups = groupFlatModels([...models]);
 
     expect(groups).toHaveLength(2);
 
@@ -54,10 +55,43 @@ describe('groupFlatModels', () => {
     const models = ['gpt-4o', 'claude-3'];
     const groups = groupFlatModels(models);
 
+    expect(groups).toHaveLength(2);
+    expect(groups.map((g) => g.providerKey)).toEqual(['gpt-4o', 'claude-3']);
+    expect(groups[0].options).toHaveLength(1);
+    expect(groups[1].options).toHaveLength(1);
+  });
+
+  it('groups variant models under base model provider key', () => {
+    const models = ['sonnet', 'sonnet[effort=high]'];
+    const groups = groupFlatModels(models);
+
     expect(groups).toHaveLength(1);
-    expect(groups[0].providerKey).toBe('__unprefixed__');
-    expect(groups[0].providerLabel).toBe('Models');
+    expect(groups[0].providerKey).toBe('sonnet');
     expect(groups[0].options).toHaveLength(2);
+    expect(groups[0].options[1].label).toBe('SONNET [effort=high]');
+  });
+
+  it('groups claude catalog without duplicate base model provider keys', () => {
+    const models = [...HARNESS_MODEL_CATALOG.claude];
+    const groups = groupFlatModels(models);
+    const keys = groups.map((g) => g.providerKey);
+    expect(keys).toEqual([...new Set(keys)]);
+    expect(keys).not.toContain('sonnet');
+    expect(keys).not.toContain('haiku');
+    expect(keys).not.toContain('opus');
+  });
+
+  it('shows distinct labels for base model and effort=none variant', () => {
+    const groups = groupFlatModels([
+      'claude-opus-4-8',
+      'claude-opus-4-8[effort=none]',
+      'claude-opus-4-8[effort=high]',
+    ]);
+    const labels = groups.flatMap((group) => group.options.map((option) => option.label));
+    expect(labels).toContain('CLAUDE OPUS 4 8');
+    expect(labels).toContain('CLAUDE OPUS 4 8 [effort=none]');
+    expect(labels).toContain('CLAUDE OPUS 4 8 [effort=high]');
+    expect(new Set(labels).size).toBe(3);
   });
 
   it('returns empty array for empty input', () => {

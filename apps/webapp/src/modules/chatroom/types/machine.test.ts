@@ -124,6 +124,22 @@ describe('getModelDisplayLabel', () => {
   it('shows Auto for legacy default id until daemon refresh', () => {
     expect(getModelDisplayLabel('default')).toBe('Auto');
   });
+
+  it('shows effort variant labels for claude models', () => {
+    expect(getModelDisplayLabel('sonnet[effort=high]')).toBe('SONNET [effort=high]');
+    expect(getModelDisplayLabel('sonnet')).toBe('SONNET');
+    expect(getModelDisplayLabel('sonnet[effort=none]')).toBe('SONNET [effort=none]');
+  });
+
+  it('shows reasoning variant labels for codex models', () => {
+    expect(getModelDisplayLabel('gpt-5.6-terra')).toBe('GPT 5.6 TERRA');
+    expect(getModelDisplayLabel('gpt-5.6-terra[reasoning=none]')).toBe(
+      'GPT 5.6 TERRA [reasoning=none]'
+    );
+    expect(getModelDisplayLabel('gpt-5.6-terra[reasoning=high]')).toBe(
+      'GPT 5.6 TERRA [reasoning=high]'
+    );
+  });
 });
 
 describe('getCompactModelId', () => {

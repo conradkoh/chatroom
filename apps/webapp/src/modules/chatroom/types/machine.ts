@@ -17,7 +17,13 @@ import type {
   AgentStopReason,
   HarnessVersionInfo,
 } from '@workspace/backend/src/domain/entities/agent';
+import {
+  decodeModelVariant,
+  formatModelVariantParamsSuffix,
+} from '@workspace/backend/src/domain/entities/harness/model-variant';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types';
+
+import { getBaseModelId } from '../utils/modelSelection';
 
 export type { AgentHarness, AgentStopReason, HarnessVersionInfo };
 
@@ -203,17 +209,24 @@ function parseModelId(modelId: string): { provider: string; model: string } {
  * Returns an UPPERCASE label using slug-to-label normalization.
  * e.g. "github-copilot/gpt-4o" → "GITHUB COPILOT / GPT 4O"
  *
- * Uses algorithmic transformation — no hardcoded model name mappings.
- * This handles the OpenCode "provider/model-slug" format.
+ * Variant params (effort, reasoning) are appended when present.
  */
 export function getModelDisplayLabel(modelId: string): string {
-  const { provider, model } = parseModelId(modelId);
-  if (!provider) return model;
-  return `${provider} / ${model}`;
+  try {
+    const { model, params } = decodeModelVariant(modelId);
+    const { provider, model: modelPart } = parseModelId(model);
+    const suffix = formatModelVariantParamsSuffix(params);
+    const base = !provider ? modelPart : `${provider} / ${modelPart}`;
+    return suffix ? `${base} ${suffix}` : base;
+  } catch {
+    const { provider, model } = parseModelId(modelId);
+    if (!provider) return model;
+    return `${provider} / ${model}`;
+  }
 }
 
 /** Last segment of a provider/model path for compact agent sidebar display. */
 export function getCompactModelId(modelId: string): string {
-  const parts = modelId.split('/').filter(Boolean);
+  const parts = getBaseModelId(modelId).split('/').filter(Boolean);
   return parts.at(-1) ?? modelId;
 }

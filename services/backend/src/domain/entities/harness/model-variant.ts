@@ -139,6 +139,21 @@ export function encodeModelVariant(model: string, params: Record<string, string>
   return `${model}[${paramsPart}]`;
 }
 
+/** Bracket suffix for non-empty params, e.g. `[effort=none]`. */
+export function formatModelVariantParamsSuffix(params: Record<string, string>): string {
+  const entries = Object.entries(params);
+  if (entries.length === 0) return '';
+  return `[${entries.map(([key, value]) => `${key}=${value}`).join(',')}]`;
+}
+
+/** Expand base model ids × schema combinations into canonical variant strings. */
+export function expandModelVariantCatalog(
+  baseModelIds: readonly string[],
+  combinations: ModelVariantSchema
+): string[] {
+  return baseModelIds.flatMap((id) => combinations.map((combo) => encodeModelVariant(id, combo)));
+}
+
 // ─── Schema validation ──────────────────────────────────────────────────────
 
 /** Keys appearing on any allowed combination (distributive — skips the `{}` member). */
