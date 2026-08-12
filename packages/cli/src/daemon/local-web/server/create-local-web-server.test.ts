@@ -30,6 +30,18 @@ function httpGet(url: string): Promise<{ status: number; body: string }> {
 }
 
 describe('startLocalWebServer', () => {
+  it('serves the SPA at GET /', async () => {
+    const server = await startLocalWebServer({ host: '127.0.0.1' });
+    try {
+      const { status, body } = await httpGet(`http://127.0.0.1:${server.port}/`);
+      expect(status).toBe(200);
+      expect(body).toContain('<div id="root">');
+      expect(body).not.toContain('"error":"not_found"');
+    } finally {
+      await server.stop();
+    }
+  });
+
   it('binds 127.0.0.1 and serves /health', async () => {
     const server = await startLocalWebServer({ host: '127.0.0.1' });
     try {
