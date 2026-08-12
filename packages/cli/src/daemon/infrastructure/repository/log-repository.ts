@@ -19,9 +19,9 @@ export function createLogRepository(db: DatabaseSync): LogRepository {
       source?: string,
       chatroomId?: string,
       role?: string,
-      harness?: string
+      harness?: string, fromTimestamp?: number, toTimestamp?: number
     ): StoredLogEntry[] {
-      return queryAfterId(db, afterId, limit, source, chatroomId, role, harness);
+      return queryAfterId(db, afterId, limit, source, chatroomId, role, harness, fromTimestamp, toTimestamp);
     },
     queryHistory(
       beforeId?: number,
@@ -29,9 +29,9 @@ export function createLogRepository(db: DatabaseSync): LogRepository {
       source?: string,
       chatroomId?: string,
       role?: string,
-      harness?: string
+      harness?: string, fromTimestamp?: number, toTimestamp?: number
     ): StoredLogEntry[] {
-      return queryHistory(db, beforeId, limit, source, chatroomId, role, harness);
+      return queryHistory(db, beforeId, limit, source, chatroomId, role, harness, fromTimestamp, toTimestamp);
     },
     listSources(limit = 100): string[] {
       return listDistinctSources(db, limit);

@@ -2,8 +2,9 @@ import { ChatroomSelect } from './ChatroomSelect';
 import { DimensionSelect } from './DimensionSelect';
 
 import type { ChatroomListItem } from '@/api/types';
+import type { LogTimePreset } from '@/lib/log-time-range';
 
-export type LogFilterValues = { chatroomId?: string; role?: string; harness?: string };
+export type LogFilterValues = { chatroomId?: string; role?: string; harness?: string; timeRange?: LogTimePreset; fromMs?: number; toMs?: number };
 type Props = {
   chatrooms: ChatroomListItem[];
   chatroomsLoading?: boolean;

@@ -11,7 +11,7 @@ export type LogHistoryReader = {
     source?: string,
     chatroomId?: string,
     role?: string,
-    harness?: string
+    harness?: string, fromTimestamp?: number, toTimestamp?: number
   ): StoredLogEntry[];
   queryHistory(
     beforeId?: number,
@@ -19,7 +19,7 @@ export type LogHistoryReader = {
     source?: string,
     chatroomId?: string,
     role?: string,
-    harness?: string
+    harness?: string, fromTimestamp?: number, toTimestamp?: number
   ): StoredLogEntry[];
   listSources(limit?: number): string[];
 };
@@ -37,7 +37,7 @@ export function listLogHistory(
           input.source,
           input.chatroomId,
           input.role,
-          input.harness
+          input.harness, input.fromTimestamp, input.toTimestamp
         )
       : reader.queryHistory(
           input.beforeId,
@@ -45,7 +45,7 @@ export function listLogHistory(
           input.source,
           input.chatroomId,
           input.role,
-          input.harness
+          input.harness, input.fromTimestamp, input.toTimestamp
         );
   return { entries };
 }

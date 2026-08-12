@@ -5,5 +5,7 @@ export type LogHistoryQuery = {
   chatroomId?: string;
   role?: string;
   harness?: string;
+  fromTimestamp?: number;
+  toTimestamp?: number;
   limit?: number;
 };

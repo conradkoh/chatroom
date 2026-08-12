@@ -16,6 +16,7 @@ export type LogQuery = {
   chatroomId?: string;
   role?: string;
   harness?: string;
+  fromTimestamp?: number; toTimestamp?: number;
   limit?: number;
 };
 export type LogDimensions = { chatroomIds: string[]; roles: string[]; harnesses: string[] };
@@ -58,13 +59,14 @@ export function queryAfterId(
   source?: string,
   chatroomId?: string,
   role?: string,
-  harness?: string
+  harness?: string, fromTimestamp?: number, toTimestamp?: number
 ): StoredLogEntry[] {
   const filters = [
     source ? 'AND source = ?' : '',
     chatroomId ? "AND json_extract(metadata_json, '$.chatroomId') = ?" : '',
     role ? "AND json_extract(metadata_json, '$.role') = ?" : '',
     harness ? "AND (json_extract(metadata_json, '$.harness') = ? OR source = ?)" : '',
+    fromTimestamp !== undefined ? 'AND timestamp >= ?' : '', toTimestamp !== undefined ? 'AND timestamp <= ?' : '',
   ].join(' ');
   const values = [
     afterId,
@@ -72,6 +74,7 @@ export function queryAfterId(
     ...(chatroomId ? [chatroomId] : []),
     ...(role ? [role] : []),
     ...(harness ? [harness, `harness:${harness}`] : []),
+    ...(fromTimestamp !== undefined ? [fromTimestamp] : []), ...(toTimestamp !== undefined ? [toTimestamp] : []),
     clamp(limit),
   ];
   const rows = db
@@ -86,7 +89,7 @@ export function queryHistory(
   source?: string,
   chatroomId?: string,
   role?: string,
-  harness?: string
+  harness?: string, fromTimestamp?: number, toTimestamp?: number
 ): StoredLogEntry[] {
   const filters = [
     beforeId ? 'AND id < ?' : '',
@@ -94,6 +97,7 @@ export function queryHistory(
     chatroomId ? "AND json_extract(metadata_json, '$.chatroomId') = ?" : '',
     role ? "AND json_extract(metadata_json, '$.role') = ?" : '',
     harness ? "AND (json_extract(metadata_json, '$.harness') = ? OR source = ?)" : '',
+    fromTimestamp !== undefined ? 'AND timestamp >= ?' : '', toTimestamp !== undefined ? 'AND timestamp <= ?' : '',
   ].join(' ');
   const values = [
     ...(beforeId ? [beforeId] : []),
@@ -101,6 +105,7 @@ export function queryHistory(
     ...(chatroomId ? [chatroomId] : []),
     ...(role ? [role] : []),
     ...(harness ? [harness, `harness:${harness}`] : []),
+    ...(fromTimestamp !== undefined ? [fromTimestamp] : []), ...(toTimestamp !== undefined ? [toTimestamp] : []),
     clamp(limit),
   ];
   const rows = db

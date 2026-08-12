@@ -35,6 +35,8 @@ export type LogHistoryInput = {
   chatroomId?: string;
   role?: string;
   harness?: string;
+  fromTimestamp?: number;
+  toTimestamp?: number;
   limit?: number;
 };
 export type ChatroomListItem = { id: string; displayName: string };
