@@ -1,7 +1,5 @@
 import {
   ModelVariantValidationError,
-  decodeModelVariant,
-  expandModelVariantCatalog,
   encodeModelVariant,
   type ModelVariantSchema,
 } from './model-variant';
