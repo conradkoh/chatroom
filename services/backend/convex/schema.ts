@@ -1718,6 +1718,7 @@ export default defineSchema({
           v.literal('open-finder'),
           v.literal('open-github-desktop'),
           v.literal('open-cursor'),
+          v.literal('open-daemon-logs'),
           v.literal('git-discard-file'),
           v.literal('git-discard-all'),
           v.literal('git-pull'),

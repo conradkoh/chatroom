@@ -10,6 +10,7 @@ import { access } from 'node:fs/promises';
 
 import type { LocalActionType } from '@workspace/backend/config/localActions.js';
 
+import { resolveLocalWebPort } from '../../daemon/entry/resolve-local-web-port.js';
 import {
   discardFile as gitDiscardFile,
   discardAllChanges as gitDiscardAll,
@@ -95,6 +96,9 @@ function resolveOpenCommand(platform: string): string {
       return 'xdg-open';
   }
 }
+function resolveOpenUrlCommand(platform: string): string {
+  return platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
+}
 
 // ─── Executor ─────────────────────────────────────────────────────────────────
 
@@ -136,6 +140,14 @@ async function openGithubDesktop(workingDir: string): Promise<LocalActionResult>
     return { success: false, error: 'GitHub Desktop CLI not found' };
   }
   execFireAndForget(`github ${escapeShellArg(workingDir)}`, 'open-github-desktop');
+  return { success: true };
+}
+async function openDaemonLogs(_workingDir: string): Promise<LocalActionResult> {
+  const url = `http://127.0.0.1:${resolveLocalWebPort()}/`;
+  execFireAndForget(
+    `${resolveOpenUrlCommand(process.platform)} ${escapeShellArg(url)}`,
+    'open-daemon-logs'
+  );
   return { success: true };
 }
 
@@ -199,6 +211,7 @@ const actionHandlers: Record<string, (dir: string) => Promise<LocalActionResult>
   'open-finder': openFinder,
   'open-cursor': openCursor,
   'open-github-desktop': openGithubDesktop,
+  'open-daemon-logs': openDaemonLogs,
   'git-discard-file': gitDiscardFileAction,
   'git-discard-all': gitDiscardAllAction,
   'git-pull': gitPullAction,
@@ -210,6 +223,7 @@ export async function executeLocalAction(
   action: LocalActionType,
   workingDir: string
 ): Promise<LocalActionResult> {
+  if (action === 'open-daemon-logs') return actionHandlers[action](workingDir);
   try {
     await access(workingDir);
   } catch {
