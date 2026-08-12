@@ -162,6 +162,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     teamConfigHarness: agentRoleView?.agentHarness,
     teamConfigMachineId: agentRoleView?.machineId,
     teamWantResume: agentRoleView?.wantResume,
+    teamPlannerRestartOnHandoffToUser: agentRoleView?.plannerRestartOnHandoffToUser,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
     lockedMachineId,
