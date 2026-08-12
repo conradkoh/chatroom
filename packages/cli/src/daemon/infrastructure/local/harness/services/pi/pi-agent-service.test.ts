@@ -545,15 +545,16 @@ describe('PiAgentService', () => {
       const deps = createMockDeps({ spawn: spawnFn as any });
       const service = new PiAgentService(deps);
 
-      const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      const logMessages: string[] = [];
 
-      await service.spawn({
+      const result = await service.spawn({
         workingDir: '/tmp',
         systemPrompt: 'system',
         prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
         resolvedConvexUrl: 'http://test:3210',
       });
+      result.onLogLine?.((entry) => logMessages.push(typeof entry === 'string' ? entry : entry.message));
 
       child.stdout.push(
         JSON.stringify({
@@ -565,13 +566,11 @@ describe('PiAgentService', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      const writtenCalls = stdoutWrite.mock.calls.map((call) => call[0] as string);
-      const bashLine = writtenCalls.find((line) => line.includes('tool: bash] running:'));
+      const bashLine = logMessages.find((line) => line.includes('tool: bash] running:'));
       expect(bashLine).toBeDefined();
       expect(bashLine).toContain('git status');
       expect(bashLine).toContain('[pi:builder');
 
-      stdoutWrite.mockRestore();
     });
 
     it('logs shell tool calls with "running:" format', async () => {
@@ -580,15 +579,16 @@ describe('PiAgentService', () => {
       const deps = createMockDeps({ spawn: spawnFn as any });
       const service = new PiAgentService(deps);
 
-      const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      const logMessages: string[] = [];
 
-      await service.spawn({
+      const result = await service.spawn({
         workingDir: '/tmp',
         systemPrompt: 'system',
         prompt: createSpawnPrompt('prompt'),
         context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
         resolvedConvexUrl: 'http://test:3210',
       });
+      result.onLogLine?.((entry) => logMessages.push(typeof entry === 'string' ? entry : entry.message));
 
       child.stdout.push(
         JSON.stringify({
@@ -600,12 +600,10 @@ describe('PiAgentService', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      const writtenCalls = stdoutWrite.mock.calls.map((call) => call[0] as string);
-      const bashLine = writtenCalls.find((line) => line.includes('tool: bash] running:'));
+      const bashLine = logMessages.find((line) => line.includes('tool: bash] running:'));
       expect(bashLine).toBeDefined();
       expect(bashLine).toContain('npm run build');
 
-      stdoutWrite.mockRestore();
     });
   });
 });

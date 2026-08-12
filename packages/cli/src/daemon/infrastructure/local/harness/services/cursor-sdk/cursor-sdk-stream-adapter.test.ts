@@ -95,43 +95,45 @@ function toolCallDeltaWithNestedText(text: string): InteractionUpdate {
 }
 
 describe('CursorSdkStreamAdapter', () => {
-  let stdoutWriteSpy: MockInstance<typeof process.stdout.write>;
   let warnSpy: MockInstance<typeof console.warn>;
 
+  function createAdapter() {
+    const onLogLine = vi.fn();
+    return { adapter: new CursorSdkStreamAdapter(LOG_PREFIX, onLogLine), onLogLine };
+  }
+
   beforeEach(() => {
-    stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    stdoutWriteSpy.mockRestore();
     warnSpy.mockRestore();
   });
 
   it('writes assistant text to stdout with log prefix', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter } = createAdapter();
     adapter.handleMessage(assistantMessage('Hello world\n'));
 
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} text] Hello world\n`);
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} text] Hello world`);
   });
 
   it.each(['FINISHED', 'ERROR', 'CANCELLED'] as const)(
     'logs terminal status %s without emitting agent_end (finish() owns turn end)',
     (status) => {
       let count = 0;
-      const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+      const { adapter, onLogLine } = createAdapter();
       adapter.onAgentEnd(() => count++);
       adapter.handleMessage(statusMessage(status));
 
       expect(count).toBe(0);
-      expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} status] ${status}\n`);
-      expect(stdoutWriteSpy).not.toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]\n`);
+      expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} status] ${status}`);
+      expect(onLogLine).not.toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]`);
     }
   );
 
   it('invokes onOutput for tool_call messages', () => {
     let count = 0;
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter } = createAdapter();
     adapter.onOutput(() => count++);
     adapter.handleMessage(toolCallMessage());
 
@@ -139,37 +141,37 @@ describe('CursorSdkStreamAdapter', () => {
   });
 
   it('writes bash/shell tool_call as a clean running: <command> line', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter } = createAdapter();
     adapter.handleMessage(bashToolCallMessage());
 
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} tool: bash] running: git status\n`);
-    expect(stdoutWriteSpy).not.toHaveBeenCalledWith(expect.stringContaining('tool: call-2 shell'));
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} tool: bash] running: git status`);
+    expect(onLogLine).not.toHaveBeenCalledWith(expect.stringContaining('tool: call-2 shell'));
   });
 
   it('still logs non-bash tool_call as JSON (unchanged behavior)', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleMessage(toolCallMessage());
 
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(
+    expect(onLogLine).toHaveBeenCalledWith(
       expect.stringContaining(`${LOG_PREFIX} tool: call-1 read_file`)
     );
   });
 
   it('finish() flushes buffered text and emits agent-end', () => {
     let count = 0;
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.onAgentEnd(() => count++);
     adapter.handleMessage(assistantMessage('line without newline'));
     adapter.finish();
 
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} text] line without newline\n`);
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]\n`);
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} text] line without newline`);
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]`);
     expect(count).toBe(1);
   });
 
   it('calls onAgentEnd only once when finish() is invoked twice', () => {
     let count = 0;
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.onAgentEnd(() => count++);
     adapter.finish();
     adapter.finish();
@@ -179,7 +181,7 @@ describe('CursorSdkStreamAdapter', () => {
 
   it('does not emit agent_end for duplicate terminal status messages before finish()', () => {
     let count = 0;
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.onAgentEnd(() => count++);
     adapter.handleMessage(statusMessage('FINISHED'));
     adapter.handleMessage(statusMessage('FINISHED'));
@@ -189,12 +191,12 @@ describe('CursorSdkStreamAdapter', () => {
 
   it('does not emit agent-end for non-terminal status', () => {
     let count = 0;
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.onAgentEnd(() => count++);
     adapter.handleMessage(statusMessage('RUNNING'));
 
     expect(count).toBe(0);
-    expect(stdoutWriteSpy).not.toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]\n`);
+    expect(onLogLine).not.toHaveBeenCalledWith(`${LOG_PREFIX} agent_end]`);
   });
 
   it('invokes onLogLine for formatted stdout lines', () => {
@@ -272,56 +274,56 @@ describe('CursorSdkStreamAdapter', () => {
   });
 
   it('logs thinking-delta interaction updates', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleInteractionDelta(thinkingDelta('planning step'));
 
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} thinking] planning step\n`);
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} thinking] planning step`);
   });
 
   it('does not duplicate thinking when both thinking-delta and thinking SDKMessage fire', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleInteractionDelta(thinkingDelta('working directory is'));
     adapter.handleMessage(thinkingMessage('working directory is'));
 
-    expect(stdoutWriteSpy).toHaveBeenCalledTimes(1);
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} thinking] working directory is\n`);
+    expect(onLogLine).toHaveBeenCalledTimes(1);
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} thinking] working directory is`);
   });
 
   it('silently ignores thinking SDKMessage alone (delta path is canonical)', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleMessage(thinkingMessage('orphan thinking'));
 
-    expect(stdoutWriteSpy).not.toHaveBeenCalled();
+    expect(onLogLine).not.toHaveBeenCalled();
   });
 
   it('handles text-delta interaction updates as buffered stdout text', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleInteractionDelta(textDelta('Hello delta\n'));
 
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} text] Hello delta\n`);
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} text] Hello delta`);
   });
 
   it('writes tool-call-started shell as a clean bash running line', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleInteractionDelta(shellToolCallStarted('pnpm test'));
 
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} tool: bash] running: pnpm test\n`);
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} tool: bash] running: pnpm test`);
   });
 
   it('writes non-shell tool-call-started as a tool line with JSON args', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleInteractionDelta(nonShellToolCallStarted());
 
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(
-      `${LOG_PREFIX} tool: call-4 read] {"path":"README.md"}\n`
+    expect(onLogLine).toHaveBeenCalledWith(
+      `${LOG_PREFIX} tool: call-4 read] {"path":"README.md"}`
     );
   });
 
   it('handles tool-call-delta with a nested text-delta as buffered stdout text', () => {
-    const adapter = new CursorSdkStreamAdapter(LOG_PREFIX);
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleInteractionDelta(toolCallDeltaWithNestedText('Nested delta\n'));
 
-    expect(stdoutWriteSpy).toHaveBeenCalledWith(`${LOG_PREFIX} text] Nested delta\n`);
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} text] Nested delta`);
   });
 
   it('logs unknown InteractionUpdate types as delta:unhandled without throwing', () => {
