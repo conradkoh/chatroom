@@ -51,6 +51,30 @@ describe('classifyProviderErrorLogLine', () => {
       )
     ).toBeNull();
   });
+
+  // Backlog ps75vz5ayhwpva808dkdvw2z818cbd4m: pre-push vitest output can echo
+  // harness-looking strings inside a Codex tool-output payload.
+  it('ignores vitest tool-output containing embedded provider-error prose', () => {
+    const line =
+      '[codex-sdk:builder@7z81x2 tool-output] chatroom-cli:test: rate limited: returns failure\n' +
+      '[codex-sdk:builder@c1 spawn-error] Error: spawn keeper failed\n' +
+      '⚠️ [RateLimiter] Agent spawn rate-limited for chatroom room-1';
+    expect(classifyProviderErrorLogLine(line)).toBeNull();
+  });
+
+  it('ignores tool-output containing an embedded agent_end marker', () => {
+    expect(
+      classifyProviderErrorLogLine(
+        '[codex-sdk:builder@7z81x2 tool-output] handoff example\n[codex-sdk:builder agent_end] reason: provider_rate_limit'
+      )
+    ).toBeNull();
+  });
+
+  it('still classifies real run-error lines', () => {
+    expect(
+      classifyProviderErrorLogLine('[codex-sdk:builder run-error] rate limit exceeded')
+    ).toMatchObject({ reason: 'rate_limit', recoverable: true });
+  });
 });
 
 describe('classifyProviderErrorFromLogs', () => {
@@ -65,5 +89,14 @@ describe('classifyProviderErrorFromLogs', () => {
 
   it('marks quota as non-recoverable', () => {
     expect(providerUnavailableRecoverable('quota')).toBe(false);
+  });
+
+  it('ignores tool-output false positives when scanning recent logs', () => {
+    expect(
+      classifyProviderErrorFromLogs([
+        '[codex-sdk:builder@7z81x2 tool-output] vitest stderr with rate limited: returns failure and spawn-error] echo',
+        '[codex-sdk:builder agent_end]',
+      ])
+    ).toBeNull();
   });
 });
