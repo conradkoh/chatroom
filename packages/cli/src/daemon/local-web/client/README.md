@@ -11,9 +11,17 @@ React SPA served by `local-web/server/` — embedded daemon UI.
 
 ## Modules
 
-| Module | Path                   | Status      |
-| ------ | ---------------------- | ----------- |
-| Logs   | `client/modules/logs/` | Placeholder |
+| Module | Path                   | Status                                               |
+| ------ | ---------------------- | ---------------------------------------------------- |
+| Logs   | `client/modules/logs/` | Implemented — thin page wiring to `components/logs/` |
+
+## Components
+
+| Area   | Path                        |
+| ------ | --------------------------- |
+| Layout | `client/components/layout/` |
+| Logs   | `client/components/logs/`   |
+| UI     | `client/components/ui/`     |
 
 ## Build
 
