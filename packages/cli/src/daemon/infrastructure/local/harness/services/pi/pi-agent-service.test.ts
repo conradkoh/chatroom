@@ -554,7 +554,7 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
         resolvedConvexUrl: 'http://test:3210',
       });
-      result.onLogLine?.((entry) => logMessages.push(typeof entry === 'string' ? entry : entry.message));
+      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
 
       child.stdout.push(
         JSON.stringify({
@@ -588,7 +588,7 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
         resolvedConvexUrl: 'http://test:3210',
       });
-      result.onLogLine?.((entry) => logMessages.push(typeof entry === 'string' ? entry : entry.message));
+      result.onLogLine?.((entry) => logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message));
 
       child.stdout.push(
         JSON.stringify({

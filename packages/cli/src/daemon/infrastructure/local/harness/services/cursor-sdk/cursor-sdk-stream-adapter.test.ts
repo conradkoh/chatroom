@@ -111,7 +111,7 @@ describe('CursorSdkStreamAdapter', () => {
   });
 
   it('writes assistant text to stdout with log prefix', () => {
-    const { adapter } = createAdapter();
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleMessage(assistantMessage('Hello world\n'));
 
     expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} text] Hello world`);
@@ -141,7 +141,7 @@ describe('CursorSdkStreamAdapter', () => {
   });
 
   it('writes bash/shell tool_call as a clean running: <command> line', () => {
-    const { adapter } = createAdapter();
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleMessage(bashToolCallMessage());
 
     expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} tool: bash] running: git status`);

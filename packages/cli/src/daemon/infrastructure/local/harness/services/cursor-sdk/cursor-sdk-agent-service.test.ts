@@ -262,7 +262,7 @@ describe('CursorSdkAgentService', () => {
 
       // Wait until the turn loop has created the adapter (finish() emits agent_end),
       // so the onDelta closure below observes a non-undefined adapter.
-      result.onLogLine?.((line) => logMessages.push(typeof line === 'string' ? line : line.message));
+      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
       await vi.waitFor(() => expect(logMessages.some((l) => l.endsWith('agent_end]'))).toBe(true));
 
       sendOptions.onDelta?.({ update: { type: 'text-delta', text: 'streamed delta\n' } });
@@ -364,8 +364,7 @@ describe('CursorSdkAgentService', () => {
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
-      const logMessages: string[] = [];
-      result.onLogLine?.((line) => logMessages.push(typeof line === 'string' ? line : line.message));
+      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalled());
@@ -597,7 +596,7 @@ describe('CursorSdkAgentService', () => {
         resolvedConvexUrl: 'http://test:3210',
       });
       const logMessages: string[] = [];
-      result.onLogLine?.((line) => logMessages.push(typeof line === 'string' ? line : line.message));
+      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(1));
@@ -649,6 +648,7 @@ describe('CursorSdkAgentService', () => {
       const service = new CursorSdkAgentService(deps);
 
       const exitInfo = vi.fn();
+      const logMessages: string[] = [];
       const result = await service.spawn({
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
@@ -656,7 +656,7 @@ describe('CursorSdkAgentService', () => {
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
-      result.onLogLine?.((line) => logMessages.push(typeof line === 'string' ? line : line.message));
+      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
@@ -705,7 +705,7 @@ describe('CursorSdkAgentService', () => {
         resolvedConvexUrl: 'http://test:3210',
       });
       const logMessages: string[] = [];
-      result.onLogLine?.((line) => logMessages.push(typeof line === 'string' ? line : line.message));
+      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
