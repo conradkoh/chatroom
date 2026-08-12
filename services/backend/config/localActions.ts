@@ -12,6 +12,7 @@ export type LocalActionType =
   | 'open-finder'
   | 'open-github-desktop'
   | 'open-cursor'
+  | 'open-daemon-logs'
   | 'git-discard-file'
   | 'git-discard-all'
   | 'git-pull'

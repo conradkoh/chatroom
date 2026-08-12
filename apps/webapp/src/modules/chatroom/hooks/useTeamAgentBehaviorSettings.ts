@@ -18,23 +18,36 @@ export interface UseTeamAgentBehaviorSettingsOptions {
   role: string;
   /** Restored from getAgentStatus / AgentRoleView (defaults to true when absent). */
   teamWantResume?: boolean;
+  plannerRestartOnHandoffToUser?: boolean;
 }
 
 export function useTeamAgentBehaviorSettings({
   chatroomId,
   role,
   teamWantResume,
+  plannerRestartOnHandoffToUser: teamPlannerRestart,
 }: UseTeamAgentBehaviorSettingsOptions) {
   const setWantResumeMutation = useSessionMutation(api.machines.setWantResume);
+  const setPlannerRestartMutation = useSessionMutation(api.machines.setPlannerRestartOnHandoffToUser);
 
   const [wantResume, setWantResume] = useState(teamWantResume ?? true);
   const [isSavingWantResume, setIsSavingWantResume] = useState(false);
+  const [plannerRestartOnHandoffToUser, setPlannerRestart] = useState(teamPlannerRestart ?? true);
+  const [isSavingPlannerRestart, setIsSavingPlannerRestart] = useState(false);
 
   useEffect(() => {
     if (!isSavingWantResume && teamWantResume !== undefined) {
       setWantResume(teamWantResume);
     }
   }, [teamWantResume, isSavingWantResume]);
+  useEffect(() => { if (!isSavingPlannerRestart && teamPlannerRestart !== undefined) setPlannerRestart(teamPlannerRestart); }, [teamPlannerRestart, isSavingPlannerRestart]);
+
+  const updatePlannerRestartOnHandoffToUser = useCallback(async (checked: boolean) => {
+    setPlannerRestart(checked); setIsSavingPlannerRestart(true);
+    try { await setPlannerRestartMutation({ chatroomId: chatroomId as Id<'chatroom_rooms'>, role, plannerRestartOnHandoffToUser: checked }); }
+    catch (err) { setPlannerRestart(teamPlannerRestart ?? true); toast.error(err instanceof Error ? err.message : 'Failed to update planner restart setting'); }
+    finally { setIsSavingPlannerRestart(false); }
+  }, [chatroomId, role, setPlannerRestartMutation, teamPlannerRestart]);
 
   const seedFromTeamConfig = useCallback(
     (values?: { wantResume?: boolean }) => {
@@ -74,5 +87,8 @@ export function useTeamAgentBehaviorSettings({
     updateWantResume,
     syncWantResume,
     isSavingWantResume,
+    plannerRestartOnHandoffToUser: teamPlannerRestart ?? plannerRestartOnHandoffToUser,
+    updatePlannerRestartOnHandoffToUser,
+    isSavingPlannerRestart,
   };
 }

@@ -100,13 +100,15 @@ export interface AgentLogWriter {
 
 export function createAgentLogWriter(
   prefix: string,
-  options?: { emitLogLine?: (line: string) => void; target?: Writable }
+  options?: { emitLogLine?: (line: string) => void; target?: Writable; suppressConsole?: boolean }
 ): AgentLogWriter {
-  const target: Writable = options?.target ?? process.stdout;
+  const target: Writable | null = options?.suppressConsole || options?.emitLogLine
+    ? null
+    : (options?.target ?? process.stdout);
   const emitLogLine = options?.emitLogLine;
 
   const writeLine = (formatted: string) => {
-    target.write(`${formatted}\n`, 'utf8');
+    target?.write(`${formatted}\n`, 'utf8');
     emitLogLine?.(formatted);
   };
 

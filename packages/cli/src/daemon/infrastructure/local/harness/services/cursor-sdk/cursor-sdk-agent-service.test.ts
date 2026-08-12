@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 
 import { Cursor } from '@cursor/sdk';
-import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import {
   CursorSdkAgentService,
@@ -81,14 +81,11 @@ function stubSdkAgent() {
 }
 
 const SPAWN_CONTEXT = { machineId: 'm1', chatroomId: 'c1', role: 'builder' };
-const SPAWN_PREFIX = '[cursor-sdk:builder@c1';
 
 describe('CursorSdkAgentService', () => {
-  let stderrWriteSpy: MockInstance<typeof process.stderr.write>;
   const originalApiKey = process.env.CURSOR_API_KEY;
 
   beforeEach(() => {
-    stderrWriteSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     sharedAgentCreateFn.mockReset();
     sharedAgentResumeFn.mockReset();
     sharedAgentSendFn.mockReset();
@@ -98,7 +95,6 @@ describe('CursorSdkAgentService', () => {
   });
 
   afterEach(() => {
-    stderrWriteSpy.mockRestore();
     if (originalApiKey === undefined) {
       delete process.env.CURSOR_API_KEY;
     } else {
@@ -143,6 +139,7 @@ describe('CursorSdkAgentService', () => {
     });
 
     it('writes spawn-error to stderr when Agent.create fails', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const child = makeFakeChild();
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       const service = new CursorSdkAgentService(deps);
@@ -161,12 +158,11 @@ describe('CursorSdkAgentService', () => {
         })
       ).rejects.toThrow('sandbox not supported: bubblewrap missing');
 
-      expect(stderrWriteSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          '[cursor-sdk:builder@c1 spawn-error] ConfigurationError: sandbox not supported: bubblewrap missing'
-        )
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[cursor-sdk:builder@c1 spawn-error]'), createError
       );
       expect(child.kill).toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
     });
 
     it('calls agent.send with combined system and user prompt', async () => {
@@ -248,9 +244,9 @@ describe('CursorSdkAgentService', () => {
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       const service = new CursorSdkAgentService(deps);
 
-      const stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      const logMessages: string[] = [];
 
-      await service.spawn({
+      const result = await service.spawn({
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
         systemPrompt: 'you are helpful',
@@ -266,16 +262,12 @@ describe('CursorSdkAgentService', () => {
 
       // Wait until the turn loop has created the adapter (finish() emits agent_end),
       // so the onDelta closure below observes a non-undefined adapter.
-      await vi.waitFor(() =>
-        expect(stdoutWriteSpy).toHaveBeenCalledWith(`${SPAWN_PREFIX} agent_end]\n`)
-      );
+      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
+      await vi.waitFor(() => expect(logMessages.some((l) => l.endsWith('agent_end]'))).toBe(true));
 
       sendOptions.onDelta?.({ update: { type: 'text-delta', text: 'streamed delta\n' } });
 
-      await vi.waitFor(() =>
-        expect(stdoutWriteSpy).toHaveBeenCalledWith(`${SPAWN_PREFIX} text] streamed delta\n`)
-      );
-      stdoutWriteSpy.mockRestore();
+      await vi.waitFor(() => expect(logMessages.some((l) => l.includes('text] streamed delta'))).toBe(true));
     });
   });
 
@@ -364,6 +356,7 @@ describe('CursorSdkAgentService', () => {
       const service = new CursorSdkAgentService(deps);
 
       const exitInfo = vi.fn();
+      const logMessages: string[] = [];
       const result = await service.spawn({
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
@@ -371,6 +364,7 @@ describe('CursorSdkAgentService', () => {
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
+      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalled());
@@ -601,6 +595,8 @@ describe('CursorSdkAgentService', () => {
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
+      const logMessages: string[] = [];
+      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(1));
@@ -652,6 +648,7 @@ describe('CursorSdkAgentService', () => {
       const service = new CursorSdkAgentService(deps);
 
       const exitInfo = vi.fn();
+      const logMessages: string[] = [];
       const result = await service.spawn({
         workingDir: '/tmp/work',
         prompt: createSpawnPrompt('do work'),
@@ -659,14 +656,11 @@ describe('CursorSdkAgentService', () => {
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
+      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
-      expect(stderrWriteSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          '[cursor-sdk:builder@c1 spawn-error] ConnectError: [16] [unauthenticated] Error'
-        )
-      );
+      expect(logMessages.some((line) => line.includes('[cursor-sdk:builder@c1 spawn-error]'))).toBe(true);
       expect(run.wait).not.toHaveBeenCalled();
       expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
       expect(sharedAgentCloseFn).toHaveBeenCalled();
@@ -710,14 +704,12 @@ describe('CursorSdkAgentService', () => {
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
+      const logMessages: string[] = [];
+      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
-      expect(stderrWriteSpy).toHaveBeenCalledWith(
-        expect.stringContaining(
-          '[cursor-sdk:builder@c1 spawn-error] ConnectError: [16] [unauthenticated] Error'
-        )
-      );
+      expect(logMessages.some((line) => line.includes('[cursor-sdk:builder@c1 spawn-error]'))).toBe(true);
       expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
       expect(sharedAgentCloseFn).toHaveBeenCalled();
     });

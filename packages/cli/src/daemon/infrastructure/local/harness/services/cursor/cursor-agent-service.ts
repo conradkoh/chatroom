@@ -28,6 +28,7 @@ import {
 } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import { createSessionLogCallbacks } from '../session-log-callbacks.js';
 
 export type CursorAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -104,6 +105,7 @@ export class CursorAgentService extends BaseCLIAgentService {
     const entry = this.registerProcess(pid, context);
 
     const logPrefix = buildAgentLogPrefix('cursor', context);
+    const { onLogLine, emitFormatted } = createSessionLogCallbacks();
 
     const outputCallbacks: (() => void)[] = [];
 
@@ -114,7 +116,7 @@ export class CursorAgentService extends BaseCLIAgentService {
       const flushText = () => {
         if (!textBuffer) return;
         for (const line of textBuffer.split('\n')) {
-          if (line) process.stdout.write(`${formatAgentLogLine(logPrefix, 'text', line)}\n`);
+          if (line) emitFormatted(formatAgentLogLine(logPrefix, 'text', line));
         }
         textBuffer = '';
       };
@@ -133,31 +135,27 @@ export class CursorAgentService extends BaseCLIAgentService {
 
       reader.onAgentEnd(() => {
         flushText();
-        process.stdout.write(`${formatAgentLogLine(logPrefix, 'agent_end')}\n`);
+        emitFormatted(formatAgentLogLine(logPrefix, 'agent_end'));
       });
 
       reader.onToolCall((callId, toolCall) => {
         flushText();
         const bashCmd = extractBashCommandFromCursorToolCall(toolCall);
         if (bashCmd !== null) {
-          process.stdout.write(
-            `${formatAgentLogLine(logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd))}\n`
-          );
+          emitFormatted(formatAgentLogLine(logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd)));
           return;
         }
-        process.stdout.write(
-          `${formatAgentLogLine(logPrefix, 'tool', `${callId} ${JSON.stringify(toolCall)}`)}\n`
-        );
+        emitFormatted(formatAgentLogLine(logPrefix, 'tool', `${callId} ${JSON.stringify(toolCall)}`));
       });
 
       reader.onToolResult((callId) => {
         flushText();
-        process.stdout.write(`${formatAgentLogLine(logPrefix, 'tool_result', callId)}\n`);
+        emitFormatted(formatAgentLogLine(logPrefix, 'tool_result', callId));
       });
 
       if (childProcess.stderr) {
-        childProcess.stderr.pipe(process.stderr, { end: false });
-        childProcess.stderr.on('data', () => {
+        childProcess.stderr.on('data', (chunk: Buffer) => {
+          emitFormatted(chunk.toString('utf8'), 'stderr');
           entry.lastOutputAt = Date.now();
           for (const cb of outputCallbacks) cb();
         });
@@ -177,12 +175,13 @@ export class CursorAgentService extends BaseCLIAgentService {
         onAgentEnd: (cb) => {
           reader.onAgentEnd(cb);
         },
+        onLogLine,
       };
     }
 
     if (childProcess.stderr) {
-      childProcess.stderr.pipe(process.stderr, { end: false });
-      childProcess.stderr.on('data', () => {
+      childProcess.stderr.on('data', (chunk: Buffer) => {
+        emitFormatted(chunk.toString('utf8'), 'stderr');
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
@@ -199,6 +198,7 @@ export class CursorAgentService extends BaseCLIAgentService {
       onOutput: (cb) => {
         outputCallbacks.push(cb);
       },
+      onLogLine,
     };
   }
 }

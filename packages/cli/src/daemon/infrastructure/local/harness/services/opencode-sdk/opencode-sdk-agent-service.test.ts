@@ -1060,42 +1060,29 @@ describe('OpenCodeSdkAgentService', () => {
       expect(sdk.promptAsync.mock.calls[0][0].body.model).toBeUndefined();
     });
 
-    it('filters out INFO-prefixed lines from forwarded serve output, keeps the rest', async () => {
+    it('routes non-INFO child stderr to onLogLine and filters INFO lines', async () => {
       const child = makeFakeChild(4321);
       const deps = createMockDeps({ spawn: vi.fn().mockReturnValue(child) });
       stubSdkClient();
       const service = new OpenCodeSdkAgentService(deps);
+      const logLines: string[] = [];
 
-      // Reuse the outer stderrWriteSpy installed in beforeEach; spy stdout locally
-      // because no other test in this file needs to inspect stdout writes.
-      const stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      const spawnPromise = service.spawn(spawnOptions());
+      child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
+      const result = await spawnPromise;
+      result.onLogLine?.((line) => logLines.push(line));
 
-      try {
-        const spawnPromise = service.spawn(spawnOptions());
-        child.stdout.emit('data', Buffer.from('opencode server listening on http://127.0.0.1:1\n'));
-        await spawnPromise;
+      child.stdout.emit(
+        'data',
+        Buffer.from('INFO  2026-04-25T04:13:56 service=bus type=file.watcher.updated publishing\n')
+      );
+      child.stderr.emit(
+        'data',
+        Buffer.from('WARN  2026-04-25T04:13:57 service=foo something interesting\n')
+      );
 
-        child.stdout.emit(
-          'data',
-          Buffer.from(
-            'INFO  2026-04-25T04:13:56 service=bus type=file.watcher.updated publishing\n'
-          )
-        );
-        child.stderr.emit(
-          'data',
-          Buffer.from('WARN  2026-04-25T04:13:57 service=foo something interesting\n')
-        );
-
-        const allWrites = [
-          ...stdoutWriteSpy.mock.calls.map((c) => String(c[0])),
-          ...stderrWriteSpy.mock.calls.map((c) => String(c[0])),
-        ];
-
-        expect(allWrites.some((w) => w.includes('file.watcher.updated'))).toBe(false);
-        expect(allWrites.some((w) => w.includes('something interesting'))).toBe(true);
-      } finally {
-        stdoutWriteSpy.mockRestore();
-      }
+      expect(logLines.some((line) => line.includes('file.watcher.updated'))).toBe(false);
+      expect(logLines.some((line) => line.includes('something interesting'))).toBe(true);
     });
   });
 

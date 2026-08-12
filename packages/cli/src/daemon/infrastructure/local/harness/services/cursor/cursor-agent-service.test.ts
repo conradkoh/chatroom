@@ -390,14 +390,16 @@ describe('CursorAgentService', () => {
       const deps = createMockDeps({ spawn: spawnFn as any });
       const service = new CursorAgentService(deps);
 
-      const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-
-      await service.spawn({
+      const logMessages: string[] = [];
+      const result = await service.spawn({
         workingDir: '/tmp',
         prompt: createSpawnPrompt('hello'),
         systemPrompt: 'system',
         context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
         resolvedConvexUrl: 'http://test:3210',
+      });
+      result.onLogLine?.((entry) => {
+        logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message);
       });
 
       mockStdout.push(
@@ -411,13 +413,11 @@ describe('CursorAgentService', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      const writtenCalls = stdoutWrite.mock.calls.map((call) => call[0] as string);
-      const bashLine = writtenCalls.find((line) => line.includes('tool: bash] running:'));
+      const bashLine = logMessages.find((line) => line.includes('tool: bash] running:'));
       expect(bashLine).toBeDefined();
       expect(bashLine).toContain('git status');
       expect(bashLine).toContain('[cursor:builder');
 
-      stdoutWrite.mockRestore();
     });
   });
 });
