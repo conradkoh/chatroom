@@ -18,6 +18,7 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback } from 'react';
 
 export type { LocalActionType };
+export type SendLocalActionOptions = { chatroomId?: string };
 
 // Extended type that includes additional git actions
 // The actual type in Convex will be updated when the backend is deployed
@@ -39,9 +40,9 @@ export function useSendLocalAction() {
   const mutation = useSessionMutation(api.machines.sendLocalAction);
 
   return useCallback(
-    async (machineId: string, action: LocalActionType, workingDir: string) => {
+    async (machineId: string, action: LocalActionType, workingDir: string, options?: SendLocalActionOptions) => {
       try {
-        await mutation({ machineId, action, workingDir });
+        await mutation({ machineId, action, workingDir, ...(options?.chatroomId !== undefined ? { chatroomId: options.chatroomId } : {}) });
       } catch (err) {
         console.warn(`[sendLocalAction] ${action} failed:`, err);
       }

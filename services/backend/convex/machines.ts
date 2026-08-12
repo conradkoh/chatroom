@@ -1201,6 +1201,7 @@ export const sendLocalAction = mutation({
       v.literal('git-sync')
     ),
     workingDir: v.string(),
+    chatroomId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -1217,6 +1218,7 @@ export const sendLocalAction = mutation({
       machineId: args.machineId,
       action: args.action,
       workingDir: args.workingDir,
+      ...(args.chatroomId !== undefined ? { chatroomId: args.chatroomId } : {}),
       timestamp: Date.now(),
     });
 

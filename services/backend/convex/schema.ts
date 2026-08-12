@@ -1712,6 +1712,7 @@ export default defineSchema({
       // in config/localActions.ts (LocalActionType).
       v.object({
         type: v.literal('daemon.localAction'),
+        chatroomId: v.optional(v.string()),
         machineId: v.string(),
         action: v.union(
           v.literal('open-vscode'),

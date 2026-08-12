@@ -23,6 +23,7 @@ import {
 
 /** Re-export from the canonical backend config definition. */
 export type { LocalActionType };
+export type LocalActionOptions = { chatroomId?: string };
 
 /** Result of executing a local action. */
 export type LocalActionResult =
@@ -142,8 +143,9 @@ async function openGithubDesktop(workingDir: string): Promise<LocalActionResult>
   execFireAndForget(`github ${escapeShellArg(workingDir)}`, 'open-github-desktop');
   return { success: true };
 }
-async function openDaemonLogs(_workingDir: string): Promise<LocalActionResult> {
-  const url = `http://127.0.0.1:${resolveLocalWebPort()}/`;
+async function openDaemonLogs(_workingDir: string, options?: LocalActionOptions): Promise<LocalActionResult> {
+  const params = new URLSearchParams(); if (options?.chatroomId) params.set('chatroomId', options.chatroomId);
+  const qs = params.toString(); const url = `http://127.0.0.1:${resolveLocalWebPort()}/${qs ? `?${qs}` : ''}`;
   execFireAndForget(
     `${resolveOpenUrlCommand(process.platform)} ${escapeShellArg(url)}`,
     'open-daemon-logs'
@@ -221,9 +223,10 @@ const actionHandlers: Record<string, (dir: string) => Promise<LocalActionResult>
 
 export async function executeLocalAction(
   action: LocalActionType,
-  workingDir: string
+  workingDir: string,
+  options?: LocalActionOptions
 ): Promise<LocalActionResult> {
-  if (action === 'open-daemon-logs') return actionHandlers[action](workingDir);
+  if (action === 'open-daemon-logs') return openDaemonLogs(workingDir, options);
   try {
     await access(workingDir);
   } catch {

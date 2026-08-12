@@ -2198,6 +2198,7 @@ export function ChatroomDashboard({
                 inlineCommand={inlineCommand}
               />
               <WorkspaceCommandsAggregator
+                chatroomId={chatroomId}
                 workspaces={chatroomWorkspaces}
                 callbacks={workspaceCommandCallbacks}
                 onCommandsChange={setWorkspaceCommands}
