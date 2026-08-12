@@ -44,6 +44,14 @@ function makeChangeEvent(files: File[]): React.ChangeEvent<HTMLInputElement> {
   return { target: input } as unknown as React.ChangeEvent<HTMLInputElement>;
 }
 
+function makePasteEvent(files: File[]): React.ClipboardEvent<HTMLTextAreaElement> {
+  const items = files.map((file) => ({ kind: 'file', type: file.type, getAsFile: () => file }));
+  return {
+    preventDefault: vi.fn(),
+    clipboardData: { items },
+  } as unknown as React.ClipboardEvent<HTMLTextAreaElement>;
+}
+
 describe('useChatInputFileDrop', () => {
   beforeEach(() => {
     mockStartUpload.mockReset();
@@ -146,5 +154,43 @@ describe('useChatInputFileDrop', () => {
     expect(mockToastError).toHaveBeenCalledWith('Connect a workspace to attach files');
     expect(setMessage).not.toHaveBeenCalled();
     expect(mockStartUpload).not.toHaveBeenCalled();
+  });
+
+  it('inserts pasted image path at caret and starts upload', () => {
+    const setMessage = vi.fn();
+    const textareaRef = { current: { selectionStart: 3 } as HTMLTextAreaElement };
+    const { result } = renderHook(() =>
+      useChatInputFileDrop({
+        machineId: 'm',
+        workingDir: '/w',
+        message: 'hey',
+        setMessage,
+        textareaRef,
+      })
+    );
+    const event = makePasteEvent([new File(['x'], 'blob', { type: 'image/png' })]);
+    act(() => result.current.handlePaste(event));
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(setMessage.mock.calls[0]?.[0]).toContain('pasted-image.png');
+    expect(mockStartUpload).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not preventDefault when clipboard has no images', () => {
+    const event = makePasteEvent([new File(['x'], 'note.txt', { type: 'text/plain' })]);
+    const { result } = renderHook(() =>
+      useChatInputFileDrop({ message: 'hey', setMessage: vi.fn(), textareaRef: { current: null } })
+    );
+    act(() => result.current.handlePaste(event));
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('shows toast when pasting image without workspace', () => {
+    const event = makePasteEvent([new File(['x'], 'blob', { type: 'image/png' })]);
+    const { result } = renderHook(() =>
+      useChatInputFileDrop({ message: 'hey', setMessage: vi.fn(), textareaRef: { current: null } })
+    );
+    act(() => result.current.handlePaste(event));
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith('Connect a workspace to attach files');
   });
 });

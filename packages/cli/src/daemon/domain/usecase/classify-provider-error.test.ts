@@ -5,7 +5,23 @@ import {
   classifyProviderErrorLogLine,
   classifyProviderErrorMessage,
   providerUnavailableRecoverable,
+  hasHarnessOutputStalled,
+  PROVIDER_ERROR_CLASSIFICATION_STALL_MS,
 } from './classify-provider-error.js';
+
+describe('hasHarnessOutputStalled', () => {
+  const now = 100_000;
+  it('returns false when last output is unknown or recent', () => {
+    expect(hasHarnessOutputStalled(undefined, now)).toBe(false);
+    expect(hasHarnessOutputStalled(now - 5_000, now)).toBe(false);
+  });
+  it('returns true at and beyond the threshold', () => {
+    expect(hasHarnessOutputStalled(now - PROVIDER_ERROR_CLASSIFICATION_STALL_MS, now)).toBe(true);
+    expect(hasHarnessOutputStalled(now - PROVIDER_ERROR_CLASSIFICATION_STALL_MS - 1, now)).toBe(
+      true
+    );
+  });
+});
 
 describe('classifyProviderErrorMessage', () => {
   it('classifies model capacity', () => {
@@ -74,6 +90,28 @@ describe('classifyProviderErrorLogLine', () => {
     expect(
       classifyProviderErrorLogLine('[codex-sdk:builder run-error] rate limit exceeded')
     ).toMatchObject({ reason: 'rate_limit', recoverable: true });
+  });
+
+  it('ignores pi tool_result containing embedded spawn-error from test output', () => {
+    expect(
+      classifyProviderErrorLogLine(
+        '[pi:builder tool_result] bash result: rate limited: returns failure\n[codex-sdk:builder spawn-error] Error'
+      )
+    ).toBeNull();
+  });
+
+  it('ignores bare tool invocation lines with embedded harness markers', () => {
+    expect(
+      classifyProviderErrorLogLine('[pi:builder tool] bash with spawn-error] echo')
+    ).toBeNull();
+  });
+
+  it('ignores claude tool_result rate-limit payloads', () => {
+    expect(
+      classifyProviderErrorLogLine(
+        '[claude-sdk:builder tool_result] tool result: rate limit exceeded'
+      )
+    ).toBeNull();
   });
 });
 

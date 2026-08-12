@@ -308,6 +308,7 @@ export function MessageInput({
     fileInputRef,
     handleAttachClick,
     handleFileInputChange,
+    handlePaste,
   } = useChatInputFileDrop({
     machineId,
     workingDir,
@@ -555,6 +556,7 @@ export function MessageInput({
             value={message}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder="Type a message..."
             disabled={sending}
             rows={1}

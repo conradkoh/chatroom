@@ -102,7 +102,8 @@ export function isTerminalProviderFailureInLogs(logLines: readonly string[]): bo
 export function isClassifiableHarnessLogLine(line: string): boolean {
   if (/\b(?:text|thinking)\]/.test(line)) return false;
   if (/\btool:/.test(line)) return false;
-  if (/\b(?:tool-output|tool-error|file)\]/.test(line)) return false;
+  if (/\[[^\]]*\s+tool(?:[_-](?:output|error|result)|:[^\]]*)?\]/.test(line)) return false;
+  if (/\bfile\]/.test(line)) return false;
   if (line.includes('agent_end]')) return true;
   if (line.includes('spawn-error]')) return true;
   if (line.includes(' error]')) return true;
