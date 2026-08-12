@@ -17,9 +17,13 @@ import { CODEX_REASONING_LEVEL_VALUES, type CodexReasoningLevel } from './codex-
 
 /** Harness ids with a server-curated catalog. */
 export type CatalogBackedHarness = Extract<AgentHarness, 'codex-sdk' | 'copilot' | 'cursor' | 'claude' | 'claude-sdk'>;
-import { CLAUDE_BASE_MODEL_IDS, CLAUDE_EFFORT_VALUES } from './claude.model-variants';
+import { CLAUDE_CATALOG_BASE_MODEL_IDS, CLAUDE_EFFORT_VALUES } from './claude.model-variants';
 import { encodeModelVariant } from './model-variant';
-const claudeModelVariants = () => CLAUDE_BASE_MODEL_IDS.flatMap((id) => [id, ...CLAUDE_EFFORT_VALUES.map((effort) => encodeModelVariant(id, { effort }))]);
+const claudeModelVariants = () =>
+  CLAUDE_CATALOG_BASE_MODEL_IDS.flatMap((id) => [
+    id,
+    ...CLAUDE_EFFORT_VALUES.map((effort) => encodeModelVariant(id, { effort })),
+  ]);
 
 // ─── Codex variants (typed template strings — catalog entries are compile-checked) ───
 
