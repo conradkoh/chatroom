@@ -1,6 +1,6 @@
 import { io, type Socket } from 'socket.io-client';
 
-import type { HealthGetAck } from '../api/types.js';
+import type { HealthGetAck, LogLine, LogsHistoryAck, LogsSourcesAck } from '../api/types.js';
 
 let socket: Socket | null = null;
 
@@ -13,6 +13,10 @@ export function getSocket(): Socket {
 
 export async function fetchHealth(): Promise<HealthGetAck> {
   const s = getSocket();
+  await ensureConnected(s);
+  return s.emitWithAck('health.get') as Promise<HealthGetAck>;
+}
+async function ensureConnected(s: Socket): Promise<void> {
   if (!s.connected) {
     await new Promise<void>((resolve, reject) => {
       const onConnect = () => {
@@ -32,5 +36,13 @@ export async function fetchHealth(): Promise<HealthGetAck> {
       s.connect();
     });
   }
-  return s.emitWithAck('health.get') as Promise<HealthGetAck>;
+}
+export async function fetchLogHistory(input?: { afterId?: number; beforeId?: number; source?: string; limit?: number }): Promise<LogsHistoryAck> {
+  const s = getSocket(); await ensureConnected(s); return s.emitWithAck('logs.history', input ?? {}) as Promise<LogsHistoryAck>;
+}
+export async function fetchLogSources(limit?: number): Promise<LogsSourcesAck> {
+  const s = getSocket(); await ensureConnected(s); return s.emitWithAck('logs.sources', { limit }) as Promise<LogsSourcesAck>;
+}
+export function subscribeLogStream(onLine: (line: LogLine) => void): () => void {
+  const s = getSocket(); s.connect(); s.emit('logs.stream.subscribe'); s.on('logs.stream', onLine); return () => s.off('logs.stream', onLine);
 }

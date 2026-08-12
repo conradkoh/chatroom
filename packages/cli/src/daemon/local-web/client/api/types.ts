@@ -17,3 +17,9 @@ export type LocalWebHealth = {
 };
 
 export type HealthGetAck = SocketAck<LocalWebHealth>;
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLine = { id?: number; timestamp: number; level: LogLevel; source: string; stream?: 'stdout' | 'stderr'; message: string; metadata?: Record<string, unknown> };
+export type LogHistoryResult = { entries: LogLine[] };
+export type LogSourcesResult = { sources: string[] };
+export type LogsHistoryAck = SocketAck<LogHistoryResult>;
+export type LogsSourcesAck = SocketAck<LogSourcesResult>;

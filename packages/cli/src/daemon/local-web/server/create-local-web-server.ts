@@ -12,6 +12,8 @@ import {
   createEmptyHarnessStreamRepository,
 } from '../../infrastructure/repository/index.js';
 import { registerSocketHandlers } from '../../infrastructure/socket/register-handlers.js';
+import type { LogRepository } from '../../infrastructure/repository/log-repository.js';
+import { createLogStreamHub, type LogStreamHub } from './log-stream-hub.js';
 
 export type LocalWebServerConfig = {
   host: '127.0.0.1';
@@ -21,6 +23,8 @@ export type LocalWebServerConfig = {
 export type LocalWebServerDeps = {
   persistence?: PersistenceStore;
   streamHub?: StreamHub;
+  logRepo?: LogRepository;
+  logStreamHub?: LogStreamHub;
 };
 
 export type LocalWebServerHandle = {
@@ -72,6 +76,8 @@ export async function startLocalWebServer(
     port: boundPort,
     harnessStreamRepo,
     streamHub,
+    logRepo: deps.logRepo,
+    logStreamHub: deps.logStreamHub,
   });
 
   return {

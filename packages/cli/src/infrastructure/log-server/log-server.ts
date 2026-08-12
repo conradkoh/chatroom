@@ -7,7 +7,7 @@ export interface AgentLogSink {
   write(entry: LogEntry): void;
 }
 export type LogServer = AgentLogSink & { flush(): void; close(): void; db: DatabaseSync };
-export function createLogServer(dbPath: string): LogServer {
+export function createLogServer(dbPath: string, opts: { onWrite?: (entry: LogEntry) => void } = {}): LogServer {
   const db = openLogDatabase(dbPath);
   let pending: LogEntry[] = [];
   let retries = 0;
@@ -34,6 +34,7 @@ export function createLogServer(dbPath: string): LogServer {
   return {
     db,
     write(e) {
+      opts.onWrite?.(e);
       pending.push(e);
       if (pending.length >= 50) flush();
       else schedule();
