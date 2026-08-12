@@ -213,4 +213,5 @@ export const HARNESS_MODEL_CATALOG: Record<CatalogBackedHarness, readonly string
     'composer-2',
     'composer-1.5',
     'composer-1',
+  ] */
 };
