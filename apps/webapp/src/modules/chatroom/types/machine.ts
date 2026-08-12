@@ -17,6 +17,7 @@ import type {
   AgentStopReason,
   HarnessVersionInfo,
 } from '@workspace/backend/src/domain/entities/agent';
+import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types';
 
 export type { AgentHarness, AgentStopReason, HarnessVersionInfo };
@@ -198,18 +199,37 @@ function parseModelId(modelId: string): { provider: string; model: string } {
   };
 }
 
+function formatVariantParams(params: Record<string, string>): string | undefined {
+  const effort = params.effort;
+  if (effort && effort !== 'none') return `${effort.toUpperCase()} EFFORT`;
+  const reasoning = params.reasoning;
+  if (reasoning && reasoning !== 'none') return `${reasoning.toUpperCase()} REASONING`;
+  const entries = Object.entries(params).filter(([, value]) => value && value !== 'none');
+  if (entries.length === 0) return undefined;
+  return entries.map(([key, value]) => `${key.toUpperCase()} ${value.toUpperCase()}`).join(', ');
+}
+
 /**
  * Get the full display label for a model, including its provider.
  * Returns an UPPERCASE label using slug-to-label normalization.
  * e.g. "github-copilot/gpt-4o" → "GITHUB COPILOT / GPT 4O"
  *
- * Uses algorithmic transformation — no hardcoded model name mappings.
- * This handles the OpenCode "provider/model-slug" format.
+ * Variant params (effort, reasoning) are appended when present.
  */
 export function getModelDisplayLabel(modelId: string): string {
-  const { provider, model } = parseModelId(modelId);
-  if (!provider) return model;
-  return `${provider} / ${model}`;
+  try {
+    const { model, params } = decodeModelVariant(modelId);
+    const { provider, model: modelPart } = parseModelId(model);
+    const variant = formatVariantParams(params);
+    if (!provider) {
+      return variant ? `${modelPart} (${variant})` : modelPart;
+    }
+    return variant ? `${provider} / ${modelPart} (${variant})` : `${provider} / ${modelPart}`;
+  } catch {
+    const { provider, model } = parseModelId(modelId);
+    if (!provider) return model;
+    return `${provider} / ${model}`;
+  }
 }
 
 /** Last segment of a provider/model path for compact agent sidebar display. */

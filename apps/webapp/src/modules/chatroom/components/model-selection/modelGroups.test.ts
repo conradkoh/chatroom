@@ -54,10 +54,20 @@ describe('groupFlatModels', () => {
     const models = ['gpt-4o', 'claude-3'];
     const groups = groupFlatModels(models);
 
+    expect(groups).toHaveLength(2);
+    expect(groups.map((g) => g.providerKey)).toEqual(['gpt-4o', 'claude-3']);
+    expect(groups[0].options).toHaveLength(1);
+    expect(groups[1].options).toHaveLength(1);
+  });
+
+  it('groups variant models under base model provider key', () => {
+    const models = ['sonnet', 'sonnet[effort=high]'];
+    const groups = groupFlatModels(models);
+
     expect(groups).toHaveLength(1);
-    expect(groups[0].providerKey).toBe('__unprefixed__');
-    expect(groups[0].providerLabel).toBe('Models');
+    expect(groups[0].providerKey).toBe('sonnet');
     expect(groups[0].options).toHaveLength(2);
+    expect(groups[0].options[1].label).toBe('SONNET (HIGH EFFORT)');
   });
 
   it('returns empty array for empty input', () => {
