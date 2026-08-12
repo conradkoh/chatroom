@@ -9,9 +9,10 @@ import { LogViewer } from '@/components/logs/LogViewer';
 import { useChatrooms } from '@/hooks/use-chatrooms';
 import { useDaemonLogs } from '@/hooks/use-daemon-logs';
 import { getLogChatroomId } from '@/lib/log-line';
+import { useLogFiltersFromUrl } from '@/hooks/use-log-filters-url';
 
 export function LogsPage() {
-  const [filters, setFilters] = useState<LogFilterValues>({});
+  const { filters, setFilters } = useLogFiltersFromUrl();
   const [selectedLine, setSelectedLine] = useState<LogLine | null>(null);
   const chatroomsQuery = useChatrooms();
   const chatrooms = chatroomsQuery.data ?? [];

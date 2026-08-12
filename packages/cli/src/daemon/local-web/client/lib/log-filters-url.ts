@@ -1,0 +1,4 @@
+import type { LogFilterValues } from '../components/logs/LogFiltersBar';
+export function readLogFiltersFromSearch(search: string): LogFilterValues { const sp=new URLSearchParams(search.startsWith('?')?search.slice(1):search); return { ...(sp.get('chatroomId')?{chatroomId:sp.get('chatroomId')!}:{}), ...(sp.get('role')?{role:sp.get('role')!}:{}), ...(sp.get('harness')?{harness:sp.get('harness')!}:{}) }; }
+export function writeLogFiltersToSearch(filters: LogFilterValues): string { const sp=new URLSearchParams(); if(filters.chatroomId)sp.set('chatroomId',filters.chatroomId);if(filters.role)sp.set('role',filters.role);if(filters.harness)sp.set('harness',filters.harness);return sp.toString(); }
+export function replaceLogFiltersInUrl(filters: LogFilterValues): void { const qs=writeLogFiltersToSearch(filters); window.history.replaceState(null,'',`${window.location.pathname}${qs?`?${qs}`:''}`); }
