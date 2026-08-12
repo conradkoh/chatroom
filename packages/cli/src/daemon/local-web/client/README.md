@@ -36,4 +36,4 @@ Output: `client/build/` — served as static assets by the daemon HTTP server.
 
 ## Dev
 
-Run `bun run build:local-web` after UI changes; the daemon serves the built bundle from `client/dist/`.
+Run `bun run build:local-web` after UI changes; the daemon serves the built bundle from `client/build/`.

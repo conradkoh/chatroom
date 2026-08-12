@@ -1,3 +1,37 @@
-import type { ChatroomListItem } from '@/api/types'; import { SearchableSelect } from '@/components/picker';
-type Props={chatrooms:ChatroomListItem[];value?:string;onChange:(id:string|undefined)=>void;disabled?:boolean;isLoading?:boolean;isError?:boolean};
-export function ChatroomSelect({chatrooms,value,onChange,disabled,isLoading,isError}:Props){return <label className="flex items-center gap-2 text-xs"><span className="text-chatroom-text-muted">Chatroom</span><SearchableSelect options={chatrooms.map(c=>({value:c.id,label:c.displayName}))} value={value} onChange={onChange} disabled={disabled} isLoading={isLoading} isError={isError} placeholder="All chatrooms" allLabel="All chatrooms" searchPlaceholder="Search chatrooms…" ariaLabel="Filter by chatroom" triggerClassName="min-w-[10rem]"/></label>}
+import type { ChatroomListItem } from '@/api/types';
+import { SearchableSelect } from '@/components/picker';
+type Props = {
+  chatrooms: ChatroomListItem[];
+  value?: string;
+  onChange: (id: string | undefined) => void;
+  disabled?: boolean;
+  isLoading?: boolean;
+  isError?: boolean;
+};
+export function ChatroomSelect({
+  chatrooms,
+  value,
+  onChange,
+  disabled,
+  isLoading,
+  isError,
+}: Props) {
+  return (
+    <label className="flex items-center gap-2 text-xs">
+      <span className="text-chatroom-text-muted">Chatroom</span>
+      <SearchableSelect
+        options={chatrooms.map((c) => ({ value: c.id, label: c.displayName }))}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        isLoading={isLoading}
+        isError={isError}
+        placeholder="All chatrooms"
+        allLabel="All chatrooms"
+        searchPlaceholder="Search chatrooms…"
+        ariaLabel="Filter by chatroom"
+        triggerClassName="min-w-[10rem]"
+      />
+    </label>
+  );
+}

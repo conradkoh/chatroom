@@ -5,7 +5,14 @@ import type { ChatroomListItem } from '@/api/types';
 import type { LogTimePreset } from '@/lib/log-time-range';
 import { TimeRangeFilter } from './TimeRangeFilter';
 
-export type LogFilterValues = { chatroomId?: string; role?: string; harness?: string; timeRange?: LogTimePreset; fromMs?: number; toMs?: number };
+export type LogFilterValues = {
+  chatroomId?: string;
+  role?: string;
+  harness?: string;
+  timeRange?: LogTimePreset;
+  fromMs?: number;
+  toMs?: number;
+};
 type Props = {
   chatrooms: ChatroomListItem[];
   chatroomsLoading?: boolean;
@@ -28,7 +35,11 @@ export function LogFiltersBar({
 }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <TimeRangeFilter value={{timeRange: values.timeRange, fromMs: values.fromMs, toMs: values.toMs}} onChange={(time)=>onChange({...values,...time})} disabled={disabled}/>
+      <TimeRangeFilter
+        value={{ timeRange: values.timeRange, fromMs: values.fromMs, toMs: values.toMs }}
+        onChange={(time) => onChange({ ...values, ...time })}
+        disabled={disabled}
+      />
       <ChatroomSelect
         chatrooms={chatrooms}
         value={values.chatroomId}
