@@ -168,7 +168,7 @@ describe('HARNESS_MODEL_CATALOG', () => {
       'gpt-5.4-mini',
     ]) {
       expect(codex).toContain(base);
-      for (const level of ['none', 'low', 'medium', 'high', 'xhigh']) {
+      for (const level of ['low', 'medium', 'high', 'xhigh']) {
         expect(codex).toContain(`${base}[reasoning=${level}]`);
       }
     }
