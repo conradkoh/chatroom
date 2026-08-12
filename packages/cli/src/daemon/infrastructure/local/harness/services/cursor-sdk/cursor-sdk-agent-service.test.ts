@@ -819,32 +819,10 @@ describe('CursorSdkAgentService', () => {
   });
 
   describe('listModels', () => {
-    it('maps SDK default to UI-centric auto', async () => {
-      vi.mocked(Cursor.models.list).mockResolvedValue([
-        { id: 'default' },
-        { id: 'composer-2.5' },
-      ] as Awaited<ReturnType<typeof Cursor.models.list>>);
-
-      const service = new CursorSdkAgentService(createMockDeps());
-      await expect(service.listModels()).resolves.toEqual(['auto', 'composer-2.5']);
-    });
-
-    it('returns empty list when CURSOR_API_KEY is unset', async () => {
-      process.env.CURSOR_API_KEY = '';
+    it('returns [] — the server catalog overlay supplies models', async () => {
       const service = new CursorSdkAgentService(createMockDeps());
       await expect(service.listModels()).resolves.toEqual([]);
       expect(Cursor.models.list).not.toHaveBeenCalled();
-    });
-
-    it('returns [] when Cursor.models.list fails', async () => {
-      vi.mocked(Cursor.models.list).mockRejectedValue(new Error('network down'));
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      const service = new CursorSdkAgentService(createMockDeps());
-      await expect(service.listModels()).resolves.toEqual([]);
-      expect(warnSpy).toHaveBeenCalled();
-
-      warnSpy.mockRestore();
     });
   });
 });

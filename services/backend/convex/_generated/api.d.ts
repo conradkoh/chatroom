@@ -83,6 +83,7 @@ import type * as harnesses_claudeSdk from "../harnesses/claudeSdk.js";
 import type * as harnesses_codexSdk from "../harnesses/codexSdk.js";
 import type * as harnesses_copilot from "../harnesses/copilot.js";
 import type * as harnesses_cursor from "../harnesses/cursor.js";
+import type * as harnesses_cursorSdk from "../harnesses/cursorSdk.js";
 import type * as harnesses_lib from "../harnesses/lib.js";
 import type * as http from "../http.js";
 import type * as integrations from "../integrations.js";
@@ -234,6 +235,7 @@ declare const fullApi: ApiFromModules<{
   "harnesses/codexSdk": typeof harnesses_codexSdk;
   "harnesses/copilot": typeof harnesses_copilot;
   "harnesses/cursor": typeof harnesses_cursor;
+  "harnesses/cursorSdk": typeof harnesses_cursorSdk;
   "harnesses/lib": typeof harnesses_lib;
   http: typeof http;
   integrations: typeof integrations;

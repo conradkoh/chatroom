@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 import { CursorSdkHarness, startCursorSdkHarness } from './index.js';
+import { HARNESS_MODEL_CATALOG } from '@workspace/backend/src/domain/entities/harness/model-catalog.js';
 
 const mockAgentCreate = vi.fn();
 const mockAgentResume = vi.fn();
@@ -63,6 +64,15 @@ describe('CursorSdkHarness', () => {
     const harness = new CursorSdkHarness('/tmp/work');
     const agents = await harness.listAgents();
     expect(agents).toEqual([{ name: 'builder', mode: 'primary' }]);
+  });
+
+  it('listProviders returns backend catalog without calling Cursor.models.list', async () => {
+    const harness = new CursorSdkHarness('/tmp/work');
+    const providers = await harness.listProviders();
+    expect(providers[0].models.map((model) => model.modelID)).toEqual([
+      ...HARNESS_MODEL_CATALOG['cursor-sdk'],
+    ]);
+    expect(mockModelsList).not.toHaveBeenCalled();
   });
 
   it('creates a session via Agent.create', async () => {

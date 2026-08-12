@@ -207,6 +207,10 @@ describe('HARNESS_MODEL_CATALOG', () => {
     }
   });
 
+  test('cursor-sdk catalog matches cursor catalog', () => {
+    expect(HARNESS_MODEL_CATALOG['cursor-sdk']).toEqual(HARNESS_MODEL_CATALOG.cursor);
+  });
+
   test('formats suffixes and expands catalogs', () => {
     expect(formatModelVariantParamsSuffix({ effort: 'none' })).toBe('[effort=none]');
     expect(formatModelVariantParamsSuffix({})).toBe('');
