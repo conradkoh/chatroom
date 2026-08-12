@@ -2868,7 +2868,7 @@ export const emitAgentProviderUnavailable = mutation({
       args.chatroomId,
       args.role,
       'agent.providerUnavailable',
-      'stopped'
+      args.recoverable ? undefined : 'stopped'
     );
 
     if (!args.recoverable) {

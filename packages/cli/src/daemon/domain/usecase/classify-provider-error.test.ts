@@ -17,7 +17,9 @@ describe('hasHarnessOutputStalled', () => {
   });
   it('returns true at and beyond the threshold', () => {
     expect(hasHarnessOutputStalled(now - PROVIDER_ERROR_CLASSIFICATION_STALL_MS, now)).toBe(true);
-    expect(hasHarnessOutputStalled(now - PROVIDER_ERROR_CLASSIFICATION_STALL_MS - 1, now)).toBe(true);
+    expect(hasHarnessOutputStalled(now - PROVIDER_ERROR_CLASSIFICATION_STALL_MS - 1, now)).toBe(
+      true
+    );
   });
 });
 
@@ -99,12 +101,16 @@ describe('classifyProviderErrorLogLine', () => {
   });
 
   it('ignores bare tool invocation lines with embedded harness markers', () => {
-    expect(classifyProviderErrorLogLine('[pi:builder tool] bash with spawn-error] echo')).toBeNull();
+    expect(
+      classifyProviderErrorLogLine('[pi:builder tool] bash with spawn-error] echo')
+    ).toBeNull();
   });
 
   it('ignores claude tool_result rate-limit payloads', () => {
     expect(
-      classifyProviderErrorLogLine('[claude-sdk:builder tool_result] tool result: rate limit exceeded')
+      classifyProviderErrorLogLine(
+        '[claude-sdk:builder tool_result] tool result: rate limit exceeded'
+      )
     ).toBeNull();
   });
 });

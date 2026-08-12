@@ -2,7 +2,11 @@ import { isClassifiableHarnessLogLine } from './detect-terminal-provider-error.j
 
 export const PROVIDER_ERROR_CLASSIFICATION_STALL_MS = 30_000;
 
-export function hasHarnessOutputStalled(lastOutputAt: number | undefined, now: number, stallMs = PROVIDER_ERROR_CLASSIFICATION_STALL_MS): boolean {
+export function hasHarnessOutputStalled(
+  lastOutputAt: number | undefined,
+  now: number,
+  stallMs = PROVIDER_ERROR_CLASSIFICATION_STALL_MS
+): boolean {
   return lastOutputAt !== undefined && now - lastOutputAt >= stallMs;
 }
 
