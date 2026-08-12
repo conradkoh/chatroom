@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html',
@@ -13,7 +14,15 @@ const MIME: Record<string, string> = {
 };
 
 export function resolveClientDistDir(): string {
-  return join(import.meta.dirname, '../../client/build');
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(here, '../client/build'),
+    join(here, '../../../src/daemon/local-web/client/build'),
+  ];
+  for (const dir of candidates) {
+    if (existsSync(join(dir, 'index.html'))) return dir;
+  }
+  return candidates[0];
 }
 
 // fallow-ignore-next-line complexity
