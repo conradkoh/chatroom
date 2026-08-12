@@ -18,6 +18,10 @@ export function decodeCursorVariant(
   encoded: string | undefined
 ): { cliSlug: string; params: Record<string, string> } | undefined {
   if (encoded === undefined) return undefined;
+  if (!encoded.includes('[')) {
+    const legacy = cursorLegacySlugToVariant(encoded);
+    if (legacy) return { cliSlug: cursorVariantToCliSlug(legacy.base, legacy.params), params: legacy.params };
+  }
   try {
     const decoded = decodeModelVariant(encoded);
     return {

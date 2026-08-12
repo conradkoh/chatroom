@@ -17,6 +17,7 @@
  */
 
 import { type ChildProcess } from 'node:child_process';
+import { CursorStreamReader } from './cursor-stream-reader.js';
 
 import { fetchCursorSdkModelCatalog } from '../cursor-sdk/cursor-sdk-model-catalog.js';
 import {
