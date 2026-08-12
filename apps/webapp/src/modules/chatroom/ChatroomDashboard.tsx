@@ -1333,6 +1333,14 @@ export function ChatroomDashboard({
       sendAction(activeWorkspace.machineId, 'open-github-desktop', activeWorkspace.workingDir);
     }
   }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, sendAction]);
+  const handleOpenDaemonLogs = useCallback(() => {
+    if (activeWorkspace?.machineId && activeWorkspace?.workingDir)
+      sendAction(
+        activeWorkspace.machineId,
+        'open-daemon-logs' as Parameters<typeof sendAction>[1],
+        activeWorkspace.workingDir
+      );
+  }, [activeWorkspace?.machineId, activeWorkspace?.workingDir, sendAction]);
 
   const handleOpenPROnGitHub = useCallback(() => {
     if (prUrl) openExternalUrl(prUrl);
@@ -1666,6 +1674,7 @@ export function ChatroomDashboard({
     onOpenFileSelector: handleOpenFileSelector,
     onOpenInVSCode: isLocalWorkspace ? handleOpenInVSCode : null,
     onOpenInGitHubDesktop: isLocalWorkspace ? handleOpenInGitHubDesktop : null,
+    onOpenDaemonLogs: isLocalWorkspace ? handleOpenDaemonLogs : null,
     onOpenPROnGitHub: prUrl ? handleOpenPROnGitHub : null,
     onViewGitHubPullRequests: gitHubRepoUrl ? handleViewGitHubPullRequests : null,
     onViewGitHubRepository: gitHubRepoUrl ? handleViewGitHubRepository : null,

@@ -8,6 +8,7 @@ import {
   GitPullRequest,
   PanelBottomOpen,
   Terminal,
+  ScrollText,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { SiGithub } from 'react-icons/si';
@@ -137,6 +138,16 @@ export function useWorkspaceCommandItems(
         category: 'Actions',
         keywords: ['cursor', 'editor', hostname, workingDirBasename],
         action: () => sendAction(machineId, 'open-cursor', workingDir),
+      });
+      items.push({
+        id: `ws-${wsKey}-view-daemon-logs`,
+        blacklistKey: workspaceCommandBlacklistKey('view-daemon-logs'),
+        label: 'Machine: View Daemon Logs',
+        detail,
+        icon: <ScrollText size={14} />,
+        category: 'Actions',
+        keywords: ['daemon', 'logs', 'local web', hostname, workingDirBasename],
+        action: () => sendAction(machineId, 'open-daemon-logs' as LocalActionType, workingDir),
       });
     }
 

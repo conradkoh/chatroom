@@ -22,6 +22,7 @@ import {
   Search,
   Settings,
   StopCircle,
+  ScrollText,
   Terminal,
   Trash2,
 } from 'lucide-react';
@@ -58,6 +59,7 @@ interface UseCommandPaletteCommandsProps {
   /** Workspace action callbacks — conditionally available (legacy single-workspace) */
   onOpenInVSCode?: (() => void) | null;
   onOpenInGitHubDesktop?: (() => void) | null;
+  onOpenDaemonLogs?: (() => void) | null;
   onOpenPROnGitHub?: (() => void) | null;
   /** @deprecated Use onSwitchToPullRequests instead. */
   onOpenPRReview?: (() => void) | null;
@@ -134,6 +136,7 @@ export function useCommandPaletteCommands({
   onOpenFileSelector,
   onOpenInVSCode,
   onOpenInGitHubDesktop,
+  onOpenDaemonLogs,
   onOpenPROnGitHub,
   onOpenPRReview,
   onViewGitHubPullRequests,
@@ -324,6 +327,15 @@ export function useCommandPaletteCommands({
           action: onOpenInGitHubDesktop,
         });
       }
+      if (onOpenDaemonLogs)
+        commands.push({
+          id: 'action-open-daemon-logs',
+          label: 'Machine: View Daemon Logs',
+          icon: <ScrollText size={14} />,
+          category: 'Actions',
+          keywords: ['daemon', 'logs', 'local web', 'viewer'],
+          action: onOpenDaemonLogs,
+        });
 
       if (onViewGitHubPullRequests) {
         commands.push({
@@ -576,6 +588,7 @@ export function useCommandPaletteCommands({
     onOpenFileSelector,
     onOpenInVSCode,
     onOpenInGitHubDesktop,
+    onOpenDaemonLogs,
     onOpenPROnGitHub,
     onOpenPRReview,
     onViewGitHubPullRequests,
