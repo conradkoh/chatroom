@@ -79,6 +79,7 @@ import type * as eventCleanup from "../eventCleanup.js";
 import type * as events from "../events.js";
 import type * as guidelines from "../guidelines.js";
 import type * as harnesses_claude from "../harnesses/claude.js";
+import type * as harnesses_claudeSdk from "../harnesses/claudeSdk.js";
 import type * as harnesses_codexSdk from "../harnesses/codexSdk.js";
 import type * as harnesses_copilot from "../harnesses/copilot.js";
 import type * as harnesses_cursor from "../harnesses/cursor.js";
@@ -229,6 +230,7 @@ declare const fullApi: ApiFromModules<{
   events: typeof events;
   guidelines: typeof guidelines;
   "harnesses/claude": typeof harnesses_claude;
+  "harnesses/claudeSdk": typeof harnesses_claudeSdk;
   "harnesses/codexSdk": typeof harnesses_codexSdk;
   "harnesses/copilot": typeof harnesses_copilot;
   "harnesses/cursor": typeof harnesses_cursor;
