@@ -20,6 +20,8 @@ import type {
 import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant';
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types';
 
+import { getBaseModelId } from '../utils/modelSelection';
+
 export type { AgentHarness, AgentStopReason, HarnessVersionInfo };
 
 export interface MachineInfo {
@@ -234,6 +236,6 @@ export function getModelDisplayLabel(modelId: string): string {
 
 /** Last segment of a provider/model path for compact agent sidebar display. */
 export function getCompactModelId(modelId: string): string {
-  const parts = modelId.split('/').filter(Boolean);
+  const parts = getBaseModelId(modelId).split('/').filter(Boolean);
   return parts.at(-1) ?? modelId;
 }
