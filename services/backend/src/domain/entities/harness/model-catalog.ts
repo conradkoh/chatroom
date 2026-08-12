@@ -22,7 +22,7 @@ import { encodeModelVariant } from './model-variant';
 const claudeModelVariants = () =>
   CLAUDE_CATALOG_BASE_MODEL_IDS.flatMap((id) => [
     id,
-    ...CLAUDE_EFFORT_VALUES.map((effort) => encodeModelVariant(id, { effort })),
+    ...CLAUDE_EFFORT_VALUES.filter((effort) => effort !== 'none').map((effort) => encodeModelVariant(id, { effort })),
   ]);
 
 // ─── Codex variants (typed template strings — catalog entries are compile-checked) ───
@@ -53,7 +53,7 @@ const CODEX_MODEL_IDS: readonly CodexModelId[] = [
 function codexModelVariants(): CodexModelVariantString[] {
   return CODEX_MODEL_IDS.flatMap<CodexModelVariantString>((id) => [
     id,
-    ...CODEX_REASONING_LEVEL_VALUES.map(
+    ...CODEX_REASONING_LEVEL_VALUES.filter((level) => level !== 'none').map(
       (level): CodexModelVariantString => `${id}[reasoning=${level}]`
     ),
   ]);
