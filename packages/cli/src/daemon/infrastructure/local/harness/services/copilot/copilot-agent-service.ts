@@ -21,6 +21,7 @@ import { type ChildProcess } from 'node:child_process';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CopilotStreamReader } from './copilot-stream-reader.js';
+import { createSessionLogCallbacks } from '../session-log-callbacks.js';
 
 export type CopilotAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -112,6 +113,7 @@ export class CopilotAgentService extends BaseCLIAgentService {
     const roleTag = context.role ?? 'unknown';
     const chatroomSuffix = context.chatroomId ? `@${context.chatroomId.slice(-6)}` : '';
     const logPrefix = `[copilot:${roleTag}${chatroomSuffix}]`;
+    const { onLogLine, emitFormatted } = createSessionLogCallbacks();
 
     // Output tracking callbacks
     const outputCallbacks: (() => void)[] = [];
@@ -121,7 +123,7 @@ export class CopilotAgentService extends BaseCLIAgentService {
 
       // Handle text output
       reader.onText((text) => {
-        process.stdout.write(`${logPrefix} ${text}\n`);
+        emitFormatted(`${logPrefix} ${text}`);
       });
 
       // Handle any event (for activity tracking)
@@ -132,13 +134,13 @@ export class CopilotAgentService extends BaseCLIAgentService {
 
       // Handle agent end
       reader.onAgentEnd(() => {
-        process.stdout.write(`${logPrefix} agent_end\n`);
+        emitFormatted(`${logPrefix} agent_end`);
       });
     }
 
     if (childProcess.stderr) {
-      childProcess.stderr.pipe(process.stderr, { end: false });
-      childProcess.stderr.on('data', () => {
+      childProcess.stderr.on('data', (chunk: Buffer) => {
+        emitFormatted(chunk.toString('utf8'), 'stderr');
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
@@ -155,6 +157,7 @@ export class CopilotAgentService extends BaseCLIAgentService {
       onOutput: (cb) => {
         outputCallbacks.push(cb);
       },
+      onLogLine,
     };
   }
 }

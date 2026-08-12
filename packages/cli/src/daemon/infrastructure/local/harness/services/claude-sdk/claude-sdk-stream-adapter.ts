@@ -164,8 +164,4 @@ export class ClaudeSdkStreamAdapter extends NativeStreamAdapterBase {
     this.thinkingBuffer = remaining;
   }
 
-  protected override writeLine(line: string): void {
-    process.stderr.write(`${line}\n`);
-    this.emitLogLine?.(line);
-  }
 }

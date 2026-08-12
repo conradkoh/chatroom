@@ -28,6 +28,7 @@ import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
+import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
 import type { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
@@ -96,6 +97,7 @@ import {
   wireThrottledTokenActivityOnOutput,
 } from '../local/harness/services/native-spawn-presence.js';
 import type {
+  AgentLogLine,
   HarnessReconnectMetadata,
   HarnessSessionIdUpdatedInfo,
   RemoteAgentService,
@@ -162,6 +164,7 @@ export interface AgentSlot {
 }
 
 export interface AgentProcessManagerDeps {
+  logSink?: AgentLogSink;
   agentServices: Map<string, RemoteAgentService>;
   /**
    * Backend client for Convex queries/mutations.
@@ -1829,7 +1832,23 @@ export class AgentProcessManager {
     pid: number
   ): void {
     if (spawnResult.onLogLine) {
-      spawnResult.onLogLine((line) => appendRecentLogLine(slot, line));
+      spawnResult.onLogLine((line) => {
+        const entry: AgentLogLine = { stream: 'stdout', message: line };
+        appendRecentLogLine(slot, entry.message);
+        this.deps.logSink?.write({
+          timestamp: this.deps.clock.now(),
+          level: 'info',
+          source: `harness:${opts.agentHarness}`,
+          stream: entry.stream,
+          message: entry.message,
+          metadata: {
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            pid,
+            harness: opts.agentHarness,
+          },
+        });
+      });
     }
 
     spawnResult.onExit(({ code, signal }) => {

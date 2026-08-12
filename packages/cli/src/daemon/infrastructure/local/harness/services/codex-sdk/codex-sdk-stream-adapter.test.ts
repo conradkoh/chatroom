@@ -1,17 +1,10 @@
 import type { ThreadEvent } from '@openai/codex-sdk';
-import { describe, expect, it, vi, afterEach, type MockInstance } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { CodexSdkStreamAdapter } from './codex-sdk-stream-adapter.js';
 
 describe('CodexSdkStreamAdapter', () => {
-  let stdoutWriteSpy: MockInstance<typeof process.stdout.write>;
-
-  afterEach(() => {
-    stdoutWriteSpy.mockRestore();
-  });
-
   function createAdapter() {
-    stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     const onLogLine = vi.fn();
     const adapter = new CodexSdkStreamAdapter('[codex-sdk:builder', onLogLine);
     return { adapter, onLogLine };
@@ -24,25 +17,25 @@ describe('CodexSdkStreamAdapter', () => {
     return { type, item } as unknown as ThreadEvent;
   }
 
-  function getLines(): string[] {
-    return stdoutWriteSpy.mock.calls.map((c) => String(c[0]).trim());
+  function getLines(onLogLine: ReturnType<typeof vi.fn>): string[] {
+    return onLogLine.mock.calls.map((c) => String(c[0]));
   }
 
   it('logs agent message text and reasoning', () => {
-    const { adapter } = createAdapter();
+    const { adapter, onLogLine } = createAdapter();
 
     adapter.handleEvent(
       itemEvent('item.completed', { id: 'i1', type: 'agent_message', text: 'hello\nworld' })
     );
     adapter.handleEvent(itemEvent('item.completed', { id: 'i2', type: 'reasoning', text: 'hmm' }));
 
-    expect(getLines()).toContain('[codex-sdk:builder text] hello');
-    expect(getLines()).toContain('[codex-sdk:builder text] world');
-    expect(getLines()).toContain('[codex-sdk:builder thinking] hmm');
+    expect(getLines(onLogLine)).toContain('[codex-sdk:builder text] hello');
+    expect(getLines(onLogLine)).toContain('[codex-sdk:builder text] world');
+    expect(getLines(onLogLine)).toContain('[codex-sdk:builder thinking] hmm');
   });
 
   it('logs bash command executions and aggregated output', () => {
-    const { adapter } = createAdapter();
+    const { adapter, onLogLine } = createAdapter();
 
     adapter.handleEvent(
       itemEvent('item.completed', {
@@ -54,12 +47,12 @@ describe('CodexSdkStreamAdapter', () => {
       })
     );
 
-    expect(getLines()).toContain('[codex-sdk:builder tool: bash] running: npm test');
-    expect(getLines()).toContain('[codex-sdk:builder tool-output] PASS');
+    expect(getLines(onLogLine)).toContain('[codex-sdk:builder tool: bash] running: npm test');
+    expect(getLines(onLogLine)).toContain('[codex-sdk:builder tool-output] PASS');
   });
 
   it('logs file changes and mcp tool calls', () => {
-    const { adapter } = createAdapter();
+    const { adapter, onLogLine } = createAdapter();
 
     adapter.handleEvent(
       itemEvent('item.completed', {
@@ -83,29 +76,29 @@ describe('CodexSdkStreamAdapter', () => {
       })
     );
 
-    const lines = getLines();
+    const lines = getLines(onLogLine);
     expect(lines).toContain('[codex-sdk:builder file] update src/a.ts, add src/b.ts');
     expect(lines).toContain('[codex-sdk:builder tool] github/create_issue {"title":"x"}');
   });
 
   it('marks provider capacity failures with a structured agent-end reason', () => {
-    const { adapter } = createAdapter();
+    const { adapter, onLogLine } = createAdapter();
 
     adapter.handleEvent({
       type: 'turn.failed',
       error: { message: 'Selected model is at capacity' },
     } as unknown as ThreadEvent);
 
-    expect(getLines()).toContain('[codex-sdk:builder agent_end] reason: provider_model_capacity');
-    expect(getLines()).toContain('[codex-sdk:builder run-error] Selected model is at capacity');
+    expect(getLines(onLogLine)).toContain('[codex-sdk:builder agent_end] reason: provider_model_capacity');
+    expect(getLines(onLogLine)).toContain('[codex-sdk:builder run-error] Selected model is at capacity');
   });
 
   it('marks a turn as failed on fatal stream error events', () => {
-    const { adapter } = createAdapter();
+    const { adapter, onLogLine } = createAdapter();
 
     adapter.handleEvent({ type: 'error', message: 'boom' } as unknown as ThreadEvent);
 
-    expect(getLines()).toContain('[codex-sdk:builder run-error] boom');
+    expect(getLines(onLogLine)).toContain('[codex-sdk:builder run-error] boom');
   });
 
   it('finish emits agent_end exactly once', () => {

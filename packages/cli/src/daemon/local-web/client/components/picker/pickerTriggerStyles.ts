@@ -1,0 +1,3 @@
+export const filterSelectTriggerClassName =
+  'min-w-[8rem] max-w-[14rem] border border-chatroom-border bg-chatroom-bg-secondary text-xs text-chatroom-text-primary px-2 py-1.5 h-[28px] cursor-pointer hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between gap-1';
+export const filterSelectTriggerChevronClassName = 'shrink-0 text-chatroom-text-muted';

@@ -13,6 +13,7 @@ interface WorkspaceCommandsAggregatorProps {
   workspaces: Workspace[];
   callbacks: WorkspaceCommandCallbacks;
   onCommandsChange: (commands: CommandItem[]) => void;
+  chatroomId?: string;
 }
 
 // ─── Per-Workspace Watcher (invisible) ────────────────────────────────────────
@@ -22,6 +23,7 @@ interface WorkspaceWatcherProps {
   isMulti: boolean;
   callbacks: WorkspaceCommandCallbacks;
   onUpdate: (workspaceId: string, items: CommandItem[]) => void;
+  chatroomId?: string;
 }
 
 const WorkspaceWatcher = memo(function WorkspaceWatcher({
@@ -29,8 +31,9 @@ const WorkspaceWatcher = memo(function WorkspaceWatcher({
   isMulti,
   callbacks,
   onUpdate,
+  chatroomId,
 }: WorkspaceWatcherProps) {
-  const items = useWorkspaceCommandItems(workspace, isMulti, callbacks);
+  const items = useWorkspaceCommandItems(workspace, isMulti, callbacks, chatroomId);
 
   useEffect(() => {
     onUpdate(workspace.id, items);
@@ -52,6 +55,7 @@ export const WorkspaceCommandsAggregator = memo(function WorkspaceCommandsAggreg
   workspaces,
   callbacks,
   onCommandsChange,
+  chatroomId,
 }: WorkspaceCommandsAggregatorProps) {
   // Store per-workspace command items in a ref-backed map
   const itemsMapRef = useRef<Map<string, CommandItem[]>>(new Map());
@@ -99,6 +103,7 @@ export const WorkspaceCommandsAggregator = memo(function WorkspaceCommandsAggreg
           isMulti={isMulti}
           callbacks={callbacks}
           onUpdate={handleUpdate}
+          chatroomId={chatroomId}
         />
       ))}
     </>

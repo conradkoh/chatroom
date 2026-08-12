@@ -3,13 +3,18 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "baseUrl": ".",
     "lib": ["ESNext", "DOM"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
-    "types": ["node"]
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "paths": {
+      "@/*": ["./src/daemon/local-web/client/*"]
+    }
   },
   "include": [
     "src/**/*",

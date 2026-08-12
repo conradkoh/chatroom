@@ -3,6 +3,7 @@ import { get } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { io as ioClient } from 'socket.io-client';
 import { describe, expect, it } from 'vitest';
 
 import { startLocalWebServer } from './create-local-web-server.js';
@@ -29,6 +30,18 @@ function httpGet(url: string): Promise<{ status: number; body: string }> {
 }
 
 describe('startLocalWebServer', () => {
+  it('serves the SPA at GET /', async () => {
+    const server = await startLocalWebServer({ host: '127.0.0.1' });
+    try {
+      const { status, body } = await httpGet(`http://127.0.0.1:${server.port}/`);
+      expect(status).toBe(200);
+      expect(body).toContain('<div id="root">');
+      expect(body).not.toContain('"error":"not_found"');
+    } finally {
+      await server.stop();
+    }
+  });
+
   it('binds 127.0.0.1 and serves /health', async () => {
     const server = await startLocalWebServer({ host: '127.0.0.1' });
     try {
@@ -102,5 +115,26 @@ describe('startLocalWebServer', () => {
     await server.stop();
 
     expect(received).toContain(`data: ${JSON.stringify(event)}`);
+  });
+
+  it('responds to health.get over socket.io', async () => {
+    const server = await startLocalWebServer({ host: '127.0.0.1' });
+    const client = ioClient(`http://127.0.0.1:${server.port}`, {
+      transports: ['websocket'],
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        client.on('connect', () => resolve());
+        client.on('connect_error', reject);
+      });
+      const ack = await client.emitWithAck('health.get');
+      expect(ack).toEqual({
+        ok: true,
+        data: { status: 'ok', service: 'v2-local-web', port: server.port },
+      });
+    } finally {
+      client.close();
+      await server.stop();
+    }
   });
 });
