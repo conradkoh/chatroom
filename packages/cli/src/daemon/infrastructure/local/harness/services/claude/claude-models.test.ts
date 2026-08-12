@@ -1,6 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from './claude-models.js';
+import { CLAUDE_FALLBACK_MODELS, decodeClaudeVariant, fetchClaudeModels } from './claude-models.js';
+
+describe('decodeClaudeVariant', () => {
+  it('decodes canonical effort variant', () => expect(decodeClaudeVariant('claude-sonnet-4-6[effort=high]')).toEqual({ model: 'claude-sonnet-4-6', effort: 'high' }));
+  it('accepts plain legacy model ids', () => {
+    expect(decodeClaudeVariant('sonnet')).toEqual({ model: 'sonnet' });
+    expect(decodeClaudeVariant('claude-sonnet-4-6')).toEqual({ model: 'claude-sonnet-4-6' });
+  });
+  it('omits none effort', () => expect(decodeClaudeVariant('sonnet[effort=none]')).toEqual({ model: 'sonnet' }));
+  it('rejects malformed and unknown variants', () => {
+    expect(() => decodeClaudeVariant('sonnet[effort')).toThrow();
+    expect(() => decodeClaudeVariant('sonnet[effort=ultra]')).toThrow();
+  });
+});
 
 describe('CLAUDE_FALLBACK_MODELS', () => {
   it('includes claude-opus-4-8, aliases, and previous pinned models', () => {

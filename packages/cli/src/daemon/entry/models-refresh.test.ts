@@ -10,7 +10,7 @@ const SESSION_ID = 'session-1';
 
 /**
  * Client stub returning one canned result per call, in catalog order
- * (codex-sdk, copilot, cursor). An Error entry rejects that call.
+ * (codex-sdk, copilot, cursor, claude). An Error entry rejects that call.
  */
 function clientWith(sequence: (string[] | Error)[]) {
   const query = vi.fn();
@@ -36,6 +36,7 @@ describe('fetchHarnessCatalog', () => {
       ['gpt-5.6-terra', 'gpt-5.6-terra[reasoning=high]'],
       ['claude-sonnet-4-6'],
       ['auto', 'composer-2.5'],
+      ['sonnet', 'sonnet[effort=high]'],
     ]);
 
     const catalog = await fetchHarnessCatalog(client, SESSION_ID);
@@ -44,8 +45,9 @@ describe('fetchHarnessCatalog', () => {
       'codex-sdk': ['gpt-5.6-terra', 'gpt-5.6-terra[reasoning=high]'],
       copilot: ['claude-sonnet-4-6'],
       cursor: ['auto', 'composer-2.5'],
+      claude: ['sonnet', 'sonnet[effort=high]'],
     });
-    expect(client.query).toHaveBeenCalledTimes(3);
+    expect(client.query).toHaveBeenCalledTimes(4);
     for (const call of client.query.mock.calls) {
       expect(call[1]).toEqual({ sessionId: SESSION_ID });
     }
