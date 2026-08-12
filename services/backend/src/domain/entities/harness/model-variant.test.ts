@@ -5,7 +5,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { CODEX_MODEL_VARIANT_COMBINATIONS } from './codex-sdk.model-variants';
-import { CLAUDE_MODEL_VARIANT_COMBINATIONS } from './claude.model-variants';
+import { CLAUDE_MODEL_VARIANT_COMBINATIONS, CLAUDE_SPAWN_ALIASES } from './claude.model-variants';
 import { HARNESS_MODEL_CATALOG, type CatalogBackedHarness } from './model-catalog';
 import {
   ModelVariantParseError,
@@ -179,6 +179,19 @@ describe('HARNESS_MODEL_CATALOG', () => {
       for (const entry of HARNESS_MODEL_CATALOG[harness]) {
         expect(decodeModelVariant(entry).params).toEqual({});
       }
+    }
+  });
+
+  test('claude catalog lists canonical base ids only (no spawn aliases)', () => {
+    for (const harness of ['claude', 'claude-sdk'] as const) {
+      const catalog = HARNESS_MODEL_CATALOG[harness];
+      const baseIds = catalog.map((entry) => decodeModelVariant(entry).model);
+      expect(new Set(baseIds).size).toBe(4);
+      for (const alias of CLAUDE_SPAWN_ALIASES) {
+        expect(baseIds).not.toContain(alias);
+      }
+      expect(baseIds).toContain('claude-sonnet-4-6');
+      expect(baseIds).toContain('claude-haiku-4-5');
     }
   });
 });
