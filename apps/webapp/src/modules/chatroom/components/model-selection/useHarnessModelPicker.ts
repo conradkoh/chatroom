@@ -3,7 +3,6 @@
 import { useMemo } from 'react';
 
 import { groupFlatModels } from './modelGroups';
-import { normalizePickerModelIds } from './normalizePickerModelIds';
 import type { ModelGroup } from './types';
 import { useMachineModelFilter } from './useMachineModelFilter';
 import type { UseMachineModelFilterResult } from './useMachineModelFilter';
@@ -30,8 +29,10 @@ export function useHarnessModelPicker({
 }: UseHarnessModelPickerParams): UseHarnessModelPickerResult {
   const modelFilter = useMachineModelFilter(machineId, harness);
 
-  const normalizedModels = useMemo(() => normalizePickerModelIds(availableModels), [availableModels]);
-  const visibleModels = useMemo(() => normalizedModels.filter((m) => !modelFilter.isHidden(m)), [normalizedModels, modelFilter.isHidden]);
+  const visibleModels = useMemo(
+    () => availableModels.filter((m) => !modelFilter.isHidden(m)),
+    [availableModels, modelFilter.isHidden]
+  );
 
   const modelGroups = useMemo(() => groupFlatModels(visibleModels), [visibleModels]);
 
@@ -39,10 +40,10 @@ export function useHarnessModelPicker({
     () =>
       !!(
         selectedModel &&
-        normalizedModels.includes(selectedModel) &&
+        availableModels.includes(selectedModel) &&
         modelFilter.isHidden(selectedModel)
       ),
-    [selectedModel, normalizedModels, modelFilter.isHidden]
+    [selectedModel, availableModels, modelFilter.isHidden]
   );
 
   return {

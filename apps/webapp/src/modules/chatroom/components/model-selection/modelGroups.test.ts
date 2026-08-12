@@ -1,7 +1,5 @@
-import { describe, it, expect } from 'vitest';
-
 import { HARNESS_MODEL_CATALOG } from '@workspace/backend/src/domain/entities/harness/model-catalog';
-import { normalizePickerModelIds } from './normalizePickerModelIds';
+import { describe, it, expect } from 'vitest';
 
 import {
   titleCaseProvider,
@@ -70,7 +68,7 @@ describe('groupFlatModels', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].providerKey).toBe('sonnet');
     expect(groups[0].options).toHaveLength(2);
-    expect(groups[0].options[1].label).toBe('SONNET (HIGH EFFORT)');
+    expect(groups[0].options[1].label).toBe('SONNET [effort=high]');
   });
 
   it('groups claude catalog without duplicate base model provider keys', () => {
@@ -83,10 +81,17 @@ describe('groupFlatModels', () => {
     expect(keys).not.toContain('opus');
   });
 
-  it('groups normalized Claude catalog without duplicate labels', () => {
-    const groups = groupFlatModels([...normalizePickerModelIds(HARNESS_MODEL_CATALOG.claude)]);
+  it('shows distinct labels for base model and effort=none variant', () => {
+    const groups = groupFlatModels([
+      'claude-opus-4-8',
+      'claude-opus-4-8[effort=none]',
+      'claude-opus-4-8[effort=high]',
+    ]);
     const labels = groups.flatMap((group) => group.options.map((option) => option.label));
-    expect(labels).toEqual([...new Set(labels)]);
+    expect(labels).toContain('CLAUDE OPUS 4 8');
+    expect(labels).toContain('CLAUDE OPUS 4 8 [effort=none]');
+    expect(labels).toContain('CLAUDE OPUS 4 8 [effort=high]');
+    expect(new Set(labels).size).toBe(3);
   });
 
   it('returns empty array for empty input', () => {
