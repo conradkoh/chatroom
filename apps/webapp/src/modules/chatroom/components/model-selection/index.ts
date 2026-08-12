@@ -16,6 +16,7 @@ export type {
   UseHarnessModelPickerResult,
 } from './useHarnessModelPicker';
 export { ModelPickerField } from './ModelPickerField';
+export { normalizePickerModelIds } from './normalizePickerModelIds';
 export type { ModelPickerFieldProps } from './ModelPickerField';
 export {
   titleCaseProvider,

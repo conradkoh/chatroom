@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { HARNESS_MODEL_CATALOG } from '@workspace/backend/src/domain/entities/harness/model-catalog';
+import { normalizePickerModelIds } from './normalizePickerModelIds';
 
 import {
   titleCaseProvider,
@@ -80,6 +81,12 @@ describe('groupFlatModels', () => {
     expect(keys).not.toContain('sonnet');
     expect(keys).not.toContain('haiku');
     expect(keys).not.toContain('opus');
+  });
+
+  it('groups normalized Claude catalog without duplicate labels', () => {
+    const groups = groupFlatModels([...normalizePickerModelIds(HARNESS_MODEL_CATALOG.claude)]);
+    const labels = groups.flatMap((group) => group.options.map((option) => option.label));
+    expect(labels).toEqual([...new Set(labels)]);
   });
 
   it('returns empty array for empty input', () => {
