@@ -18,7 +18,30 @@ export type LocalWebHealth = {
 
 export type HealthGetAck = SocketAck<LocalWebHealth>;
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-export type LogLine = { id?: number; timestamp: number; level: LogLevel; source: string; stream?: 'stdout' | 'stderr'; message: string; metadata?: Record<string, unknown> };
+export type LogMetadata = { chatroomId?: string; role?: string; pid?: number; harness?: string };
+export type LogLine = {
+  id?: number;
+  timestamp: number;
+  level: LogLevel;
+  source: string;
+  stream?: 'stdout' | 'stderr';
+  message: string;
+  metadata?: LogMetadata;
+};
+export type LogHistoryInput = {
+  afterId?: number;
+  beforeId?: number;
+  source?: string;
+  chatroomId?: string;
+  role?: string;
+  harness?: string;
+  limit?: number;
+};
+export type ChatroomListItem = { id: string; displayName: string };
+export type ChatroomsListResult = { chatrooms: ChatroomListItem[] };
+export type ChatroomsListAck = SocketAck<ChatroomsListResult>;
+export type LogDimensionsResult = { chatroomIds: string[]; roles: string[]; harnesses: string[] };
+export type LogsDimensionsAck = SocketAck<LogDimensionsResult>;
 export type LogHistoryResult = { entries: LogLine[] };
 export type LogSourcesResult = { sources: string[] };
 export type LogsHistoryAck = SocketAck<LogHistoryResult>;

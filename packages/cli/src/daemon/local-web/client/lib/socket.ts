@@ -1,6 +1,14 @@
 import { io, type Socket } from 'socket.io-client';
 
-import type { HealthGetAck, LogLine, LogsHistoryAck, LogsSourcesAck } from '../api/types.js';
+import type {
+  ChatroomsListAck,
+  HealthGetAck,
+  LogLine,
+  LogsDimensionsAck,
+  LogsHistoryAck,
+  LogsSourcesAck,
+  LogHistoryInput,
+} from '../api/types.js';
 
 let socket: Socket | null = null;
 
@@ -37,12 +45,30 @@ async function ensureConnected(s: Socket): Promise<void> {
     });
   }
 }
-export async function fetchLogHistory(input?: { afterId?: number; beforeId?: number; source?: string; limit?: number }): Promise<LogsHistoryAck> {
-  const s = getSocket(); await ensureConnected(s); return s.emitWithAck('logs.history', input ?? {}) as Promise<LogsHistoryAck>;
+export async function fetchLogHistory(input?: LogHistoryInput): Promise<LogsHistoryAck> {
+  const s = getSocket();
+  await ensureConnected(s);
+  return s.emitWithAck('logs.history', input ?? {}) as Promise<LogsHistoryAck>;
+}
+export async function fetchLogDimensions(limit?: number): Promise<LogsDimensionsAck> {
+  const s = getSocket();
+  await ensureConnected(s);
+  return s.emitWithAck('logs.dimensions', { limit }) as Promise<LogsDimensionsAck>;
+}
+export async function fetchChatrooms(): Promise<ChatroomsListAck> {
+  const s = getSocket();
+  await ensureConnected(s);
+  return s.emitWithAck('chatrooms.list') as Promise<ChatroomsListAck>;
 }
 export async function fetchLogSources(limit?: number): Promise<LogsSourcesAck> {
-  const s = getSocket(); await ensureConnected(s); return s.emitWithAck('logs.sources', { limit }) as Promise<LogsSourcesAck>;
+  const s = getSocket();
+  await ensureConnected(s);
+  return s.emitWithAck('logs.sources', { limit }) as Promise<LogsSourcesAck>;
 }
 export function subscribeLogStream(onLine: (line: LogLine) => void): () => void {
-  const s = getSocket(); s.connect(); s.emit('logs.stream.subscribe'); s.on('logs.stream', onLine); return () => s.off('logs.stream', onLine);
+  const s = getSocket();
+  s.connect();
+  s.emit('logs.stream.subscribe');
+  s.on('logs.stream', onLine);
+  return () => s.off('logs.stream', onLine);
 }
