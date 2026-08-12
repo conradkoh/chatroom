@@ -44,6 +44,7 @@ export function startAgenticQuerySubscriptions(
         break;
       case 'agentic-query.session-opened':
         await processPendingAgenticQuerySessions(session, deps);
+        await drainPendingAgenticQueryMessages(session, deps);
         break;
     }
   });

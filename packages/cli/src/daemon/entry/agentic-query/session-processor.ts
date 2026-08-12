@@ -19,16 +19,12 @@ export type AgenticQuerySessionSubscriberDeps = {
 async function processPendingAgenticQuerySessionRows(
   daemonSession: AgenticQuerySubscriptionSession,
   deps: AgenticQuerySessionSubscriberDeps,
-  pendingSessions: AgenticPendingOpenSession[] | null,
-  inFlight?: Set<string>
+  pendingSessions: AgenticPendingOpenSession[] | null
 ): Promise<void> {
   if (!pendingSessions || pendingSessions.length === 0) return;
 
   for (const session of pendingSessions) {
-    const rowId = session.runId;
-    if (inFlight?.has(rowId)) continue;
-    if (inFlight) inFlight.add(rowId);
-    void openPendingHarnessSession(
+    await openPendingHarnessSession(
       daemonSession,
       deps,
       {
@@ -38,9 +34,7 @@ async function processPendingAgenticQuerySessionRows(
         lastUsedConfig: session.lastUsedConfig,
       },
       { logPrefix: '[agentic-query]', handleProviderIdEvents: false }
-    ).finally(() => {
-      if (inFlight) inFlight.delete(rowId);
-    });
+    );
   }
 }
 

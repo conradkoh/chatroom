@@ -1,5 +1,15 @@
 import { isClassifiableHarnessLogLine } from './detect-terminal-provider-error.js';
 
+export const PROVIDER_ERROR_CLASSIFICATION_STALL_MS = 30_000;
+
+export function hasHarnessOutputStalled(
+  lastOutputAt: number | undefined,
+  now: number,
+  stallMs = PROVIDER_ERROR_CLASSIFICATION_STALL_MS
+): boolean {
+  return lastOutputAt !== undefined && now - lastOutputAt >= stallMs;
+}
+
 export type ProviderUnavailableReason = 'model_capacity' | 'rate_limit' | 'quota';
 
 export interface ProviderUnavailableClassification {
