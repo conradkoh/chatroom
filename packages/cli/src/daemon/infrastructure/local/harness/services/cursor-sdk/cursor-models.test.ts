@@ -1,6 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
+import { decodeCursorVariant, normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
+
+describe('decodeCursorVariant', () => {
+  it('decodes canonical effort variant to CLI slug', () => {
+    expect(decodeCursorVariant('gpt-5.4[effort=high]')).toEqual({ cliSlug: 'gpt-5.4-high', params: { effort: 'high' } });
+  });
+  it('accepts plain legacy slugs', () => {
+    expect(decodeCursorVariant('gpt-5.4-high')).toEqual({ cliSlug: 'gpt-5.4-high', params: { effort: 'high' } });
+    expect(decodeCursorVariant('auto')).toEqual({ cliSlug: 'auto', params: {} });
+  });
+  it('decodes thinking + effort regardless of param order', () => {
+    expect(decodeCursorVariant('claude-4.6-opus[thinking=enabled,effort=high]')).toEqual({ cliSlug: 'claude-4.6-opus-high-thinking', params: { thinking: 'enabled', effort: 'high' } });
+    expect(decodeCursorVariant('claude-4.6-opus[effort=high,thinking=enabled]')).toEqual({ cliSlug: 'claude-4.6-opus-high-thinking', params: { effort: 'high', thinking: 'enabled' } });
+  });
+  it('rejects malformed and unknown variants', () => {
+    expect(() => decodeCursorVariant('gpt-5.4[effort')).toThrow();
+    expect(() => decodeCursorVariant('gpt-5.4[effort=ultra]')).toThrow();
+  });
+});
 
 describe('resolveCursorSdkModel', () => {
   it('strips cursor/ prefix for SDK', () => {
