@@ -47,8 +47,6 @@ describe('drainOutboxOnce', () => {
     const result = await drainOutboxOnce({
       db,
       projectEvent: vi.fn(),
-      validateProjectable: vi.fn(),
-      isCutoverEnabled: () => false,
     });
 
     expect(result).toEqual({ processed: 0, failed: 0 });
@@ -57,18 +55,14 @@ describe('drainOutboxOnce', () => {
   it('shadow mode validates but does not project, then marks done', async () => {
     enqueue(db, { type: 'heartbeat', machineId: 'm-1' });
     const projectEvent = vi.fn();
-    const validateProjectable = vi.fn();
 
     const result = await drainOutboxOnce({
       db,
       projectEvent,
-      validateProjectable,
-      isCutoverEnabled: () => false,
     });
 
     expect(result).toEqual({ processed: 1, failed: 0 });
-    expect(projectEvent).not.toHaveBeenCalled();
-    expect(validateProjectable).toHaveBeenCalledWith({ type: 'heartbeat', machineId: 'm-1' });
+    expect(projectEvent).toHaveBeenCalledWith({ type: 'heartbeat', machineId: 'm-1' });
     expect(outboxStatuses(db)[0]?.status).toBe('done');
   });
 
@@ -79,8 +73,6 @@ describe('drainOutboxOnce', () => {
     const result = await drainOutboxOnce({
       db,
       projectEvent,
-      validateProjectable: vi.fn(),
-      isCutoverEnabled: () => true,
     });
 
     expect(result).toEqual({ processed: 1, failed: 0 });
@@ -94,8 +86,6 @@ describe('drainOutboxOnce', () => {
     const deps = {
       db,
       projectEvent,
-      validateProjectable: vi.fn(),
-      isCutoverEnabled: () => true,
       maxAttempts: 3,
     };
 
@@ -126,8 +116,6 @@ describe('drainOutboxOnce', () => {
     const result = await drainOutboxOnce({
       db,
       projectEvent: vi.fn(),
-      validateProjectable: vi.fn(),
-      isCutoverEnabled: () => true,
     });
 
     expect(result).toEqual({ processed: 0, failed: 1 });

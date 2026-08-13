@@ -34,7 +34,6 @@ import {
   type HandleWorkspaceGitInboundDeps,
   type WorkspaceGitInboundEvent,
 } from '../domain/usecase/handle-workspace-git-inbound.js';
-import { isDaemonOrchestrationP5Enabled } from '../infrastructure/projection/feature-flags.js';
 import { handleUserMessageInbound, type HandleUserMessageInboundDeps } from '../domain/usecase/handle-user-message-inbound.js';
 
 export type EventRouterDeps = {
@@ -50,7 +49,6 @@ export type EventRouterDeps = {
 
 // fallow-ignore-next-line complexity
 export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEvent): Promise<void> {
-  const orchestrationDisabled = isDaemonOrchestrationP5Enabled();
   switch (event.type) {
     case 'user-message.received':
       if (deps.userMessage) await handleUserMessageInbound(deps.userMessage, event);
@@ -58,8 +56,7 @@ export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEve
     case 'assigned-task.signal':
     case 'assigned-task.presence':
       // P5: subscribers are not registered — guard against stale/delivered events.
-      if (orchestrationDisabled) break;
-      await handleAssignedTaskInbound(deps.assignedTask, event as AssignedTaskInboundEvent);
+      return;
       break;
     case 'direct-harness.session-opened':
     case 'direct-harness.prompt':
@@ -85,8 +82,7 @@ export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEve
       break;
     case 'enhancer.job-assigned':
       // P5: enhancer jobs are local-first (P4) — guard against stale events.
-      if (orchestrationDisabled) break;
-      await handleEnhancerInbound(deps.enhancer, event as EnhancerInboundEvent);
+      return;
       break;
     default:
       void event;

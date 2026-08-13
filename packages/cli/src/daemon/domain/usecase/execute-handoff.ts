@@ -12,10 +12,6 @@ import {
   type TaskReadModelRow,
   upsertTaskReadModel,
 } from '../../infrastructure/persistence/read-models/tasks.js';
-import {
-  isDaemonOrchestrationP3LocalDeliveryEnabled,
-  isDaemonOrchestrationP4Enabled,
-} from '../../infrastructure/projection/feature-flags.js';
 import type { OutboundEvent } from '../entities/outbound-event.js';
 import type { ExecuteHandoffResult, HandoffRejectedError } from '../errors/handoff-errors.js';
 import { buildHandoffCompletedEvent } from '../events/handoff-completed.js';
@@ -348,7 +344,7 @@ export async function executeHandoff(
         }
       : undefined;
 
-  if (isDaemonOrchestrationP4Enabled() && enhancerJobPayload && deps.enqueueEnhancerJob) {
+  if (enhancerJobPayload && deps.enqueueEnhancerJob) {
     deps.enqueueEnhancerJob({
       jobId: `local:${input.chatroomId}:${messageId}`,
       chatroomId: input.chatroomId,
@@ -362,7 +358,7 @@ export async function executeHandoff(
     });
   }
 
-  if (isDaemonOrchestrationP3LocalDeliveryEnabled()) {
+  {
     if (newTaskId)
       deps.emitOrchestrationEvent?.({
         chatroomId: input.chatroomId,

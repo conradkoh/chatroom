@@ -20,21 +20,12 @@ import { startCliHttpServer } from '../infrastructure/inbound/local/cli-http-ser
 import { setEnhancerQueueDb } from '../infrastructure/persistence/enhancer-queue.js';
 import { loadUserIntentCursor, saveUserIntentCursor } from '../infrastructure/persistence/user-intent-cursor.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
-import { hydrateReadModelsFromConvex } from '../infrastructure/persistence/read-models/hydrate-from-convex.js';
 import { listSnapshotViewsFromReadModels } from '../infrastructure/persistence/read-models/task-snapshot-adapter.js';
 import { createConvexProjectionAdapter } from '../infrastructure/projection/convex/convex-projection-adapter.js';
-import {
-  assertOrchestrationFlagCompatibility,
-  isDaemonOrchestrationP1CutoverEnabled,
-  isDaemonOrchestrationP1Enabled,
-  isDaemonOrchestrationP2CutoverEnabled,
-  isDaemonOrchestrationP2Enabled,
-} from '../infrastructure/projection/feature-flags.js';
 import { startOutboxDrainWorker } from '../infrastructure/projection/outbox-drain-worker.js';
 import { startLocalWebServer } from '../local-web/server/create-local-web-server.js';
 
 export async function startDaemon(): Promise<void> {
-  assertOrchestrationFlagCompatibility();
   const init = await initDaemon();
   const wsClient = await getConvexWsClient();
 
@@ -50,7 +41,7 @@ export async function startDaemon(): Promise<void> {
   });
 
   let drainWorker: ReturnType<typeof startOutboxDrainWorker> | undefined;
-  if (isDaemonOrchestrationP1Enabled()) {
+  {
     const adapter = createConvexProjectionAdapter({
       backend: init.backend,
       sessionId: init.sessionId,
@@ -59,29 +50,13 @@ export async function startDaemon(): Promise<void> {
     drainWorker = startOutboxDrainWorker({
       db: persistence.db,
       projectEvent: (event) => adapter.project(event),
-      validateProjectable: (event) => adapter.validateProjectable(event),
-      isCutoverEnabled: isDaemonOrchestrationP1CutoverEnabled,
     });
     console.log('[daemon] Outbox drain worker started (P1)');
   }
 
-  if (isDaemonOrchestrationP2Enabled()) {
-    const { taskCount } = await hydrateReadModelsFromConvex({
-      db: persistence.db,
-      machineId: init.machineId,
-      sessionId: init.sessionId,
-      query: (fn, args) => init.backend.query(fn, args),
-    });
-    setTaskMonitorReadModelDb(persistence.db);
-    setRestartOrchestratorDb(persistence.db);
-    if (isDaemonOrchestrationP2CutoverEnabled()) {
-      setAssignedTaskSnapshotProvider(() =>
-        listSnapshotViewsFromReadModels(persistence.db, init.machineId)
-      );
-      console.log('[daemon] P2 cutover — snapshot store sourced from read models');
-    }
-    console.log(`[daemon] P2 read models hydrated (${taskCount} tasks)`);
-  }
+  setTaskMonitorReadModelDb(persistence.db);
+  setRestartOrchestratorDb(persistence.db);
+  setAssignedTaskSnapshotProvider(() => listSnapshotViewsFromReadModels(persistence.db, init.machineId));
 
   const localWebPort = resolveLocalWebPort();
   const localWeb = await startLocalWebServer(

@@ -5,7 +5,6 @@ import type { OrchestrationTaskReadyEvent } from '../../../domain/usecase/execut
 import type { OutboundEvent } from '../../../domain/entities/outbound-event.js';
 import { runInTransaction } from '../../../infrastructure/persistence/transaction.js';
 import { upsertTaskReadModel } from '../../../infrastructure/persistence/read-models/tasks.js';
-import { isDaemonOrchestrationP3LocalDeliveryEnabled } from '../../../infrastructure/projection/feature-flags.js';
 import { appendOutboundEventWithOutbox } from '../../../infrastructure/persistence/event-store.js';
 import { getProcessedInboundTaskId, hasProcessedInboundMessage, markInboundMessageProcessed } from '../../../infrastructure/persistence/processed-inbound-messages.js';
 
@@ -57,7 +56,7 @@ export async function ingestUserMessage(
     created = true;
   });
   void created;
-  if (isDaemonOrchestrationP3LocalDeliveryEnabled()) {
+  {
     deps.emitOrchestrationEvent?.({ chatroomId: input.chatroomId, role: input.entryPointRole, taskId, source: 'user-message' });
   }
   return { newTaskId: taskId };

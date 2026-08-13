@@ -21,7 +21,6 @@ import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigne
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { claimTaskReadModelLocally, getTaskContentFromReadModel, listDeliverableSnapshotsForRole } from '../../infrastructure/persistence/read-models/tasks.js';
-import { isDaemonOrchestrationP2CutoverEnabled, isDaemonOrchestrationP3LocalDeliveryEnabled } from '../../infrastructure/projection/feature-flags.js';
 
 let readModelDb: DatabaseSync | undefined;
 export function setNativeDeliveryReadModelDb(db: DatabaseSync): void { readModelDb = db; }
@@ -75,7 +74,7 @@ export class NativeTaskDeliveryCoordinator {
     if (!session) return;
 
     const { runtime, effectContext, agentMgr, sessionDeps, machineId } = session;
-    const tasks = isDaemonOrchestrationP3LocalDeliveryEnabled() && isDaemonOrchestrationP2CutoverEnabled() && readModelDb
+    const tasks = readModelDb
       ? listDeliverableSnapshotsForRole(readModelDb, chatroomId, role)
       : listAssignedTaskSnapshotsForRole(chatroomId, role);
     if (tasks.length === 0) {
@@ -163,7 +162,7 @@ export class NativeTaskDeliveryCoordinator {
 
       Runtime.runFork(runtime)(
         Effect.gen(function* () {
-          if (isDaemonOrchestrationP3LocalDeliveryEnabled() && isDaemonOrchestrationP2CutoverEnabled() && readModelDb) {
+          if (readModelDb) {
             const taskContent = getTaskContentFromReadModel(readModelDb, row.chatroomId, role, row.taskId);
             if (taskContent) {
               claimTaskReadModelLocally(readModelDb, row.chatroomId, role, row.taskId, Date.now(), sessionDeps.sessionId, sessionDeps.machineId);

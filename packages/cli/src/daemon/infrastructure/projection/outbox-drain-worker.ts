@@ -12,8 +12,6 @@ import {
 export type OutboxDrainWorkerDeps = {
   db: DatabaseSync;
   projectEvent: (event: OutboundEvent) => Promise<void>;
-  validateProjectable: (event: OutboundEvent) => void;
-  isCutoverEnabled: () => boolean;
   pollIntervalMs?: number;
   maxAttempts?: number; // default 5
   limit?: number; // default 100 rows per tick
@@ -42,11 +40,7 @@ export async function drainOutboxOnce(deps: OutboxDrainWorkerDeps): Promise<Outb
     }
 
     try {
-      if (deps.isCutoverEnabled()) {
-        await deps.projectEvent(event);
-      } else {
-        deps.validateProjectable(event);
-      }
+      await deps.projectEvent(event);
       markOutboxDone(deps.db, row.id);
       processed += 1;
     } catch (error) {
