@@ -17,6 +17,7 @@ import {
   createTestSession,
   joinParticipant,
   setupRemoteAgentConfig,
+  simulateDaemonUserMessageProjection,
 } from '../helpers/integration';
 import { TEST_MODEL_CURSOR_SDK, TEST_MODEL_OPENCODE } from '../helpers/test-models';
 
@@ -202,13 +203,14 @@ describe('Resume session token activity', () => {
     });
     await joinParticipant(sessionId, chatroomId, 'builder');
 
-    await t.mutation(api.messages.sendMessage, {
+    const messageId = await t.mutation(api.messages.sendMessage, {
       sessionId,
       chatroomId,
       senderRole: 'user',
       content: 'Native harness work in progress',
       type: 'message',
     });
+    await simulateDaemonUserMessageProjection(sessionId, machineId, chatroomId, messageId, 'Native harness work in progress');
 
     const claimResult = await t.mutation(api.tasks.claimTask, {
       sessionId,
@@ -303,13 +305,14 @@ describe('Resume session token activity', () => {
     });
     await joinParticipant(sessionId, chatroomId, 'planner');
 
-    await t.mutation(api.messages.sendMessage, {
+    const messageId = await t.mutation(api.messages.sendMessage, {
       sessionId,
       chatroomId,
       senderRole: 'user',
       content: 'Planner work before manual restart',
       type: 'message',
     });
+    await simulateDaemonUserMessageProjection(sessionId, machineId, chatroomId, messageId, 'Planner work before manual restart');
 
     const claimResult = await t.mutation(api.tasks.claimTask, {
       sessionId,
@@ -395,13 +398,14 @@ describe('Resume session token activity', () => {
     });
     await joinParticipant(sessionId, chatroomId, 'builder');
 
-    await t.mutation(api.messages.sendMessage, {
+    const messageId = await t.mutation(api.messages.sendMessage, {
       sessionId,
       chatroomId,
       senderRole: 'user',
       content: 'Native harness work released with stale participant',
       type: 'message',
     });
+    await simulateDaemonUserMessageProjection(sessionId, machineId, chatroomId, messageId, 'Native harness work released with stale participant');
 
     const claimResult = await t.mutation(api.tasks.claimTask, {
       sessionId,
@@ -482,13 +486,14 @@ describe('Resume session token activity', () => {
     });
     await joinParticipant(sessionId, chatroomId, 'planner');
 
-    await t.mutation(api.messages.sendMessage, {
+    const messageId = await t.mutation(api.messages.sendMessage, {
       sessionId,
       chatroomId,
       senderRole: 'user',
       content: 'Planner work released after manual restart',
       type: 'message',
     });
+    await simulateDaemonUserMessageProjection(sessionId, machineId, chatroomId, messageId, 'Planner work released after manual restart');
 
     const claimResult = await t.mutation(api.tasks.claimTask, {
       sessionId,

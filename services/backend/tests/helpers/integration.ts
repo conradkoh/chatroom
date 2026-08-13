@@ -7,6 +7,7 @@
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
+import { randomUUID } from 'node:crypto';
 import { expect } from 'vitest';
 
 import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from './test-models';
@@ -27,6 +28,20 @@ export async function createTestSession(sessionId: string): Promise<{ sessionId:
   });
   expect(login.success).toBe(true);
   return { sessionId: sessionId as SessionId };
+}
+
+export async function simulateDaemonUserMessageProjection(
+  sessionId: SessionId,
+  machineId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  messageId: Id<'chatroom_messages'>,
+  content: string
+): Promise<Id<'chatroom_tasks'>> {
+  const result = await t.mutation(api.messages.projectUserMessageFromDaemon, {
+    sessionId, machineId, chatroomId, messageId, content, senderRole: 'user',
+    newTaskId: randomUUID(), idempotencyKey: `${chatroomId}:${messageId}`, timestamp: Date.now(),
+  });
+  return result.taskId;
 }
 
 /**
