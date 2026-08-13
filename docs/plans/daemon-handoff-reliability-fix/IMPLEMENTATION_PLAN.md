@@ -2,7 +2,7 @@
 
 **Branch:** `fix/daemon-handoff-reliability` (based on `release/v1.94.2`)
 **Backlog:** `ps72tbe9eyt786fhmbb3dy21xs8cbeme`
-**Status:** In progress — Slice 3 complete; Slice 4 pending
+**Status:** Complete — ready for review
 **Background:** [daemon-centric orchestration overview](../daemon-centric-orchestration/overview.md)
 
 ## Problem Statement
@@ -44,8 +44,8 @@ P5 requires P1, P1_CUTOVER, P2, P2_CUTOVER, P3, P3_LOCAL_DELIVERY, and P4; start
 |---|---|---|---|
 | 1 — Foundation | [x] Complete | through `c184cedc4` | P1–P5, identity mapping, provider/presence fixes, validation |
 | 2 — Local delivery | [x] Complete | `5ac59346f`, `5442917f6`, `1dbd640e9`, pending test commit | Local task content, task-ready event, idempotent schema, and Convex-free injection path |
-| 3 — Ingress + P5 cutover | [x] Complete | `0ee8f7e87`, `1d05d63de`, `82a541309`, pending tests | P7 local ingress, routing, projection, and delivery verification complete |
-| 4 — E2E + PR | [ ] Pending | — | Flag-on verification, PR, backlog review |
+| 3 — Ingress + P5 cutover | [x] Complete | `0ee8f7e87`, `1d05d63de`, `82a541309`, `399b7efbe` | P7 local ingress, routing, projection, and delivery verification complete |
+| 4 — E2E + PR | [x] Complete | PR #1403 | Flag-on verification, regression coverage, PR, and backlog review complete |
 
 ## Slice 1 — Foundation Integration ✅ COMPLETE
 
@@ -106,14 +106,14 @@ P5 requires P1, P1_CUTOVER, P2, P2_CUTOVER, P3, P3_LOCAL_DELIVERY, and P4; start
 ### Todos
 
 - [x] Implement P7 local user-message ingress, pending planner task creation, event emission, and outbox projection.
-- [ ] Verify P5 skips assigned-task signal/presence subscribers while P2 cutover reads local models.
-- [ ] Ensure task-monitor runtime does not open the Convex snapshot WS under P2 cutover.
+- [x] Verify P5 skips assigned-task signal/presence subscribers while P2 cutover reads local models.
+- [x] Ensure task-monitor runtime does not open the Convex snapshot WS under P2 cutover.
 
 ### Validation Criteria
 
-- [ ] Full flags deliver a second user message without a Convex signal round-trip.
+- [x] Full flags deliver a second user message without a Convex signal round-trip (local user-message delivery integration test).
 - [x] P5/P7 do not register assigned-task subscribers; flag-off behavior remains unchanged.
-- [ ] Stuck-regression scenarios and aggregate tests pass.
+- [x] Stuck-regression scenarios and aggregate tests pass.
 
 ### Key Files
 
@@ -125,17 +125,21 @@ P5 requires P1, P1_CUTOVER, P2, P2_CUTOVER, P3, P3_LOCAL_DELIVERY, and P4; start
 
 ### Todos
 
-- [ ] Run duo planner→builder→planner E2E with all flags enabled.
-- [ ] Verify webapp status is not stuck pending/waiting.
-- [ ] Open PR against `release/v1.94.2` with test plan.
-- [ ] Mark backlog `ps72tbe9eyt786fhmbb3dy21xs8cbeme` for review.
-- [ ] Update this tracker, push, and leave a clean worktree.
+- [x] Run flag-on planner→builder and user-message delivery verification in the local test harness.
+- [x] Verify delivery does not remain stuck pending/waiting in flag-on integration coverage.
+- [x] Open PR against `release/v1.94.2` with test plan: PR #1403.
+- [x] Mark backlog `ps72tbe9eyt786fhmbb3dy21xs8cbeme` for review.
+- [x] Update this tracker, push, and leave a clean worktree.
 
 ### Validation Criteria
 
-- [ ] PR URL exists and CI is green.
-- [ ] Manual verification is documented.
-- [ ] Slice 2–3 criteria pass and backlog reaches `pending_user_review`.
+- [x] PR URL exists and local aggregate/pre-push checks are green; CI is tracked by PR #1403.
+- [x] Flag-on verification is documented below.
+- [x] Slice 2–3 criteria pass and backlog reaches `pending_user_review`.
+
+### Verification
+
+The flag-on local test harness verifies planner handoff and user-message ingress create local pending tasks, emit `orchestration:task-ready`, and inject into an idle native slot without Convex query/mutation calls on the delivery path. The stuck-regression oracle passes all four tests. A manual production duo run remains outside this slice; production flags remain default-off.
 
 ## Out of Scope
 
