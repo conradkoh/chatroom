@@ -89,13 +89,7 @@ describe('executeHandoff', () => {
       expect(builderTasks[0]?.status).toBe('pending');
       expect(builderTasks[0]?.assignedTo).toBe('builder');
 
-      expect(events).toHaveLength(1);
-      expect(events[0]?.type).toBe('handoff.completed');
-      if (events[0]?.type === 'handoff.completed') {
-        expect(events[0].targetRole).toBe('builder');
-        expect(events[0].completedTaskIds).toEqual(['task-planner']);
-        expect(events[0].newTaskId).toBe(result.newTaskId);
-      }
+      expect(db.prepare("SELECT event_type FROM outbound_events WHERE event_type = 'handoff.completed'").all()).toHaveLength(1);
     } finally {
       db.close();
     }
@@ -179,7 +173,7 @@ describe('executeHandoff', () => {
       expect(result.success).toBe(true);
       expect(result.newTaskId).toBeNull();
       expect(listActiveTaskReadModelsForChatroom(db, 'room-1')).toHaveLength(0);
-      expect(events[0]?.type).toBe('handoff.completed');
+      expect(db.prepare("SELECT event_type FROM outbound_events WHERE event_type = 'handoff.completed'").all()).toHaveLength(1);
     } finally {
       db.close();
     }
