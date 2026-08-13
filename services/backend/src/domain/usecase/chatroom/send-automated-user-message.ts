@@ -34,7 +34,7 @@ export async function sendAutomatedUserMessage(
   if (!trimmed) return { ok: false, reason: 'empty_content' };
 
   const targetRole = getTeamEntryPoint(chatroom) ?? undefined;
-  const daemonOwned = await isDaemonOrchestrationChatroom(ctx, args.chatroomId);
+  const daemonOwned = false;
   const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
   const enqueue = await shouldEnqueueMessage(ctx, args.chatroomId);
 
