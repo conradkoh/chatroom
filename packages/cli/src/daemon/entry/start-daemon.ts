@@ -86,8 +86,9 @@ export async function startDaemon(): Promise<void> {
     sessionId: init.sessionId as never,
     machineId: init.machineId,
     chatroomId: process.env.CHATROOM_ID,
-    loadUserIntentCursor: () => loadUserIntentCursor(persistence.db),
-    saveUserIntentCursor: (cursor) => saveUserIntentCursor(persistence.db, cursor, Date.now()),
+    loadUserIntentCursor: (chatroomId) => loadUserIntentCursor(persistence.db, chatroomId),
+    saveUserIntentCursor: (chatroomId, cursor) =>
+      saveUserIntentCursor(persistence.db, chatroomId, cursor, Date.now()),
     router: createDefaultEventRouterDeps({
       db: persistence.db,
       machineId: init.machineId,
