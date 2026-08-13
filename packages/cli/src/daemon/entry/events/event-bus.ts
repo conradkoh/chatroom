@@ -16,6 +16,7 @@ import type { StopReason } from '../../../infrastructure/machine/stop-reason.js'
 // ─── Event Definitions ──────────────────────────────────────────────────────
 
 export interface DaemonEventMap {
+  'orchestration:task-ready': { chatroomId: Id<'chatroom_rooms'>; role: string; taskId: string; source: 'handoff' | 'promotion' | 'user-message' };
   /**
    * Fired after an agent process is successfully spawned.
    * Listeners may persist PIDs, update backend, etc.

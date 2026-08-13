@@ -1,4 +1,5 @@
 import { Effect, Runtime, type Context } from 'effect';
+import type { DatabaseSync } from 'node:sqlite';
 
 import { getNativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
@@ -19,6 +20,11 @@ import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/a
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
+import { claimTaskReadModelLocally, getTaskContentFromReadModel, listDeliverableSnapshotsForRole } from '../../infrastructure/persistence/read-models/tasks.js';
+import { isDaemonOrchestrationP2CutoverEnabled, isDaemonOrchestrationP3LocalDeliveryEnabled } from '../../infrastructure/projection/feature-flags.js';
+
+let readModelDb: DatabaseSync | undefined;
+export function setNativeDeliveryReadModelDb(db: DatabaseSync): void { readModelDb = db; }
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
@@ -69,7 +75,9 @@ export class NativeTaskDeliveryCoordinator {
     if (!session) return;
 
     const { runtime, effectContext, agentMgr, sessionDeps, machineId } = session;
-    const tasks = listAssignedTaskSnapshotsForRole(chatroomId, role);
+    const tasks = isDaemonOrchestrationP3LocalDeliveryEnabled() && isDaemonOrchestrationP2CutoverEnabled() && readModelDb
+      ? listDeliverableSnapshotsForRole(readModelDb, chatroomId, role)
+      : listAssignedTaskSnapshotsForRole(chatroomId, role);
     if (tasks.length === 0) {
       logNativeDeliveryNoTasks(role, chatroomId);
       return;
@@ -155,6 +163,19 @@ export class NativeTaskDeliveryCoordinator {
 
       Runtime.runFork(runtime)(
         Effect.gen(function* () {
+          if (isDaemonOrchestrationP3LocalDeliveryEnabled() && isDaemonOrchestrationP2CutoverEnabled() && readModelDb) {
+            const taskContent = getTaskContentFromReadModel(readModelDb, row.chatroomId, role, row.taskId);
+            if (taskContent) {
+              claimTaskReadModelLocally(readModelDb, row.chatroomId, role, row.taskId, Date.now());
+              yield* runNativeInjectionEffect({ ...row, status: 'in_progress', taskContent }, harnessSessionId, {
+                sessionId: sessionDeps.sessionId, machineId: sessionDeps.machineId, backend: sessionDeps.backend,
+                localDelivery: true,
+                agentMgr: { resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)) },
+                onTaskDelivered: ({ chatroomId, role, taskId: deliveredTaskId }) => { deliveredToHarness = true; ledger.markDelivered(deliveredTaskId, harnessSessionId); Effect.runSync(agentMgr.setLastInFlightTask(chatroomId, role, deliveredTaskId)); },
+              });
+              return;
+            }
+          }
           const backend = (yield* Effect.tryPromise(() =>
             sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
               sessionId: sessionDeps.sessionId,

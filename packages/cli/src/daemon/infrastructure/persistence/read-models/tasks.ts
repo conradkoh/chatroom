@@ -11,6 +11,7 @@ import type {
 export type TaskReadModelStatus = ActiveTaskStatus | 'completed' | 'queued';
 
 export type TaskReadModelRow = {
+  taskContent?: string;
   chatroomId: string;
   role: string;
   taskId: string;
@@ -30,7 +31,7 @@ export type TaskReadModelRow = {
   updatedAt: number;
 };
 
-const TASK_COLUMNS = `chatroom_id as chatroomId, role, task_id as taskId, status, assigned_to as assignedTo,
+const TASK_COLUMNS = `chatroom_id as chatroomId, role, task_id as taskId, status, task_content as taskContent, assigned_to as assignedTo,
   agent_harness as agentHarness, machine_id as machineId, model, working_dir as workingDir,
   spawned_agent_pid as spawnedAgentPid, desired_state as desiredState, circuit_state as circuitState,
   participant_last_seen_action as participantLastSeenAction, participant_last_seen_at as participantLastSeenAt,
@@ -42,6 +43,7 @@ function readTaskRow(row: {
   role: string;
   taskId: string;
   status: string;
+  taskContent: string | null;
   assignedTo: string | null;
   agentHarness: string;
   machineId: string;
@@ -65,6 +67,7 @@ function readTaskRow(row: {
     role: row.role,
     taskId: row.taskId,
     status: row.status as TaskReadModelStatus,
+    taskContent: row.taskContent ?? undefined,
     assignedTo: row.assignedTo ?? undefined,
     agentHarness: row.agentHarness,
     machineId: row.machineId,
@@ -92,13 +95,14 @@ function readTaskRow(row: {
 export function upsertTaskReadModel(db: DatabaseSync, row: TaskReadModelRow): void {
   db.prepare(
     `INSERT INTO read_model_tasks(
-       chatroom_id, role, task_id, status, assigned_to, agent_harness, machine_id, model,
+       chatroom_id, role, task_id, status, task_content, assigned_to, agent_harness, machine_id, model,
        working_dir, spawned_agent_pid, desired_state, circuit_state,
        participant_last_seen_action, participant_last_seen_at, participant_last_status,
        created_at, updated_at
-     ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(chatroom_id, role, task_id) DO UPDATE SET
        status = excluded.status,
+       task_content = excluded.task_content,
        assigned_to = excluded.assigned_to,
        agent_harness = excluded.agent_harness,
        machine_id = excluded.machine_id,
@@ -116,6 +120,7 @@ export function upsertTaskReadModel(db: DatabaseSync, row: TaskReadModelRow): vo
     row.role,
     row.taskId,
     row.status,
+    row.taskContent ?? null,
     row.assignedTo ?? null,
     row.agentHarness,
     row.machineId,
@@ -234,6 +239,25 @@ export function taskReadModelFromSnapshot(snapshot: AssignedTaskSnapshotView): T
     createdAt: snapshot.createdAt,
     updatedAt: snapshot.updatedAt,
   };
+}
+
+export function claimTaskReadModelLocally(db: DatabaseSync, chatroomId: string, role: string, taskId: string, now: number): TaskReadModelRow | null {
+  const row = db.prepare(`SELECT ${TASK_COLUMNS} FROM read_model_tasks WHERE chatroom_id = ? AND role = ? AND task_id = ? AND status = 'pending'`).get(chatroomId, role, taskId) as Parameters<typeof readTaskRow>[0] | undefined;
+  if (!row) return null;
+  const claimed = { ...readTaskRow(row), status: 'in_progress' as const, updatedAt: now };
+  upsertTaskReadModel(db, claimed);
+  return claimed;
+}
+
+export function listDeliverableSnapshotsForRole(db: DatabaseSync, chatroomId: string, role: string): AssignedTaskSnapshotView[] {
+  return listTaskReadModelsForChatroomRole(db, chatroomId, role)
+    .filter((row) => row.status === 'pending' || row.status === 'acknowledged' || row.status === 'in_progress')
+    .map(taskReadModelToSnapshot);
+}
+
+export function getTaskContentFromReadModel(db: DatabaseSync, chatroomId: string, role: string, taskId: string): string | undefined {
+  const row = db.prepare(`SELECT task_content as taskContent FROM read_model_tasks WHERE chatroom_id = ? AND role = ? AND task_id = ?`).get(chatroomId, role, taskId) as { taskContent: string | null } | undefined;
+  return row?.taskContent ?? undefined;
 }
 
 // fallow-ignore-next-line complexity

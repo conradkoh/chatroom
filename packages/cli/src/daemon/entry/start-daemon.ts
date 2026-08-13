@@ -11,6 +11,7 @@ import { resolveLocalWebPort } from './resolve-local-web-port.js';
 import { setRestartOrchestratorDb } from './restart-orchestrator.js';
 import { startAllSubscribers } from './subscriber-registry.js';
 import { setTaskMonitorReadModelDb } from './task-monitor-runtime.js';
+import { setNativeDeliveryReadModelDb } from './native-delivery/native-task-delivery-coordinator.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { setAssignedTaskSnapshotProvider } from '../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
@@ -39,6 +40,7 @@ export async function startDaemon(): Promise<void> {
   const persistence = createPersistenceStore(resolvePersistenceDbPath(init.machineId));
   setAgentLifecyclePersistence(persistence);
   setEnhancerQueueDb(persistence.db);
+  setNativeDeliveryReadModelDb(persistence.db);
   const daemonDeps = createDaemonDeps({
     persistence,
     backend: init.backend,
@@ -96,6 +98,7 @@ export async function startDaemon(): Promise<void> {
           db: persistence.db,
           appendEvent: (event) => persistence.append(event),
           query: (fn, args) => init.backend.query(fn, args),
+          emitOrchestrationEvent: (event) => init.events.emit('orchestration:task-ready', { ...event, chatroomId: event.chatroomId as never }),
         }),
     }
   );

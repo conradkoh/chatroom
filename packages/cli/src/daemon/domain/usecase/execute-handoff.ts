@@ -12,7 +12,7 @@ import {
   type TaskReadModelRow,
   upsertTaskReadModel,
 } from '../../infrastructure/persistence/read-models/tasks.js';
-import { isDaemonOrchestrationP4Enabled } from '../../infrastructure/projection/feature-flags.js';
+import { isDaemonOrchestrationP3LocalDeliveryEnabled, isDaemonOrchestrationP4Enabled } from '../../infrastructure/projection/feature-flags.js';
 import type { OutboundEvent } from '../entities/outbound-event.js';
 import type { ExecuteHandoffResult, HandoffRejectedError } from '../errors/handoff-errors.js';
 import { buildHandoffCompletedEvent } from '../events/handoff-completed.js';
@@ -32,6 +32,7 @@ export type ExecuteHandoffInput = {
 };
 
 export type ExecuteHandoffDeps = {
+  emitOrchestrationEvent?: (event: OrchestrationTaskReadyEvent) => void;
   db: DatabaseSync;
   machineId: string;
   chatroom: HandoffChatroomPort;
@@ -40,6 +41,7 @@ export type ExecuteHandoffDeps = {
   enqueueEnhancerJob?: (input: EnqueueEnhancerQueueInput) => void;
   now?: () => number;
 };
+export type OrchestrationTaskReadyEvent = { chatroomId: string; role: string; taskId: string; source: 'handoff' | 'promotion' };
 
 type NormalizedHandoff = {
   normalizedSenderRole: string;
@@ -264,6 +266,7 @@ function applyHandoffInTransaction(
         role: handoff.normalizedTargetRole,
         taskId: newTaskId,
         status: 'pending',
+        taskContent: input.content,
         assignedTo: handoff.normalizedTargetRole,
         agentHarness: targetHarness,
         machineId: deps.machineId,
@@ -366,6 +369,11 @@ export async function executeHandoff(
       timestamp: now,
     })
   );
+
+  if (isDaemonOrchestrationP3LocalDeliveryEnabled()) {
+    if (newTaskId) deps.emitOrchestrationEvent?.({ chatroomId: input.chatroomId, role: handoff.normalizedTargetRole, taskId: newTaskId, source: 'handoff' });
+    if (promotedTaskId) deps.emitOrchestrationEvent?.({ chatroomId: input.chatroomId, role: handoff.normalizedTargetRole, taskId: promotedTaskId, source: 'promotion' });
+  }
 
   return {
     success: true,

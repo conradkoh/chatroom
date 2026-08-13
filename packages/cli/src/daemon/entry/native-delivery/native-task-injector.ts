@@ -12,6 +12,7 @@ import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/as
 import { getErrorMessage } from '../../../utils/convex-error.js';
 
 export interface NativeInjectorDeps {
+  localDelivery?: boolean;
   sessionId: string;
   machineId: string;
   backend: {
@@ -61,7 +62,7 @@ export function runNativeInjectionEffect(
     const { chatroomId, taskId, taskContent, agentConfig, status } = task;
     const { role } = agentConfig;
 
-    if (status === 'pending') {
+    if (!deps.localDelivery && status === 'pending') {
       const claimResult = yield* Effect.tryPromise({
         try: () =>
           deps.backend.mutation(api.tasks.claimTask, {
@@ -88,7 +89,7 @@ export function runNativeInjectionEffect(
       }
     }
 
-    const deliveryResult = yield* Effect.tryPromise({
+    const deliveryResult = deps.localDelivery ? null : yield* Effect.tryPromise({
       try: () =>
         deps.backend.query(api.messages.getTaskDeliveryPrompt, {
           sessionId: deps.sessionId,
@@ -100,7 +101,7 @@ export function runNativeInjectionEffect(
       catch: (err) => err,
     }).pipe(Effect.either);
 
-    if (deliveryResult._tag === 'Left') {
+    if (deliveryResult && deliveryResult._tag === 'Left') {
       yield* Effect.tryPromise({
         try: () =>
           emitTaskDeliveryFailed(deps, {
@@ -114,14 +115,14 @@ export function runNativeInjectionEffect(
       return yield* Effect.fail(deliveryResult.left);
     }
 
-    const delivery = deliveryResult.right;
+    const delivery = deliveryResult && deliveryResult._tag === 'Right' ? deliveryResult.right : { fullCliOutput: taskContent ?? '' };
     const augmentationMode = resolveSessionAugmentationForRole(taskContent, role);
     const prompt = buildNativeInjectionPrompt({
       taskDeliveryOutput: delivery.fullCliOutput,
       augmentationMode,
     });
 
-    yield* Effect.tryPromise({
+    if (!deps.localDelivery) yield* Effect.tryPromise({
       try: () =>
         deps.backend.mutation(api.participants.join, {
           sessionId: deps.sessionId,
@@ -133,7 +134,7 @@ export function runNativeInjectionEffect(
       catch: (err) => err,
     });
 
-    yield* Effect.tryPromise({
+    if (!deps.localDelivery) yield* Effect.tryPromise({
       try: () =>
         deps.backend.mutation(api.taskDeliveryReceipts.record, {
           sessionId: deps.sessionId,
@@ -146,7 +147,7 @@ export function runNativeInjectionEffect(
       catch: (err) => err,
     });
 
-    if (roleSupportsSessionAugmentation(role)) {
+    if (!deps.localDelivery && roleSupportsSessionAugmentation(role)) {
       yield* Effect.tryPromise({
         try: () =>
           deps.backend.mutation(api.machines.emitSessionAugmented, {

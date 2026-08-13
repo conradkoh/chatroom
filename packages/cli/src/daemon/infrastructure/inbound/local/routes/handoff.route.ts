@@ -5,6 +5,7 @@ import { enqueueEnhancerJob } from '../../../../application/use-cases/enhancer/e
 import type { OutboundEvent } from '../../../../domain/entities/outbound-event.js';
 import {
   executeHandoff,
+  type OrchestrationTaskReadyEvent,
   type HandoffChatroomPort,
 } from '../../../../domain/usecase/execute-handoff.js';
 import {
@@ -20,6 +21,7 @@ export type HandoffRouteDeps = {
   db: DatabaseSync;
   appendEvent: (event: OutboundEvent) => void;
   query: HandoffChatroomAdapterDeps['query'];
+  emitOrchestrationEvent?: (event: OrchestrationTaskReadyEvent) => void;
 };
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -96,6 +98,7 @@ export async function handleHandoffRoute(
       chatroom,
       appendEvent: deps.appendEvent,
       enqueueEnhancerJob: (input) => enqueueEnhancerJob({ queue: getEnhancerQueuePort() }, input),
+      emitOrchestrationEvent: deps.emitOrchestrationEvent,
     },
     {
       sessionId: deps.sessionId,

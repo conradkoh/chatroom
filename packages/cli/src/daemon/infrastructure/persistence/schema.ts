@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const MIGRATIONS: string[] = [
   `CREATE TABLE IF NOT EXISTS schema_meta (
@@ -80,4 +80,5 @@ export const MIGRATIONS: string[] = [
     updated_at INTEGER NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_enhancer_queue_machine_status ON enhancer_queue(machine_id, status)`,
+  `ALTER TABLE read_model_tasks ADD COLUMN task_content TEXT`,
 ];
