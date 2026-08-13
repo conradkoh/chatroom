@@ -37,7 +37,7 @@ describe('routeInboundEvent', () => {
     try {
       const deps = { ...routerDeps, userMessage: { db, machineId: '', sessionId: '', appendEvent, emitOrchestrationEvent: vi.fn(), query: vi.fn(), getEntryPointRole: vi.fn().mockResolvedValue('planner'), getAgentHarness: vi.fn().mockResolvedValue('opencode') } };
       await routeInboundEvent(deps, { type: 'user-message.received', chatroomId: 'room', messageId: 'msg', content: 'hello', senderRole: 'user' });
-      expect(appendEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'user-message.received' }));
+      expect(db.prepare("SELECT event_type FROM outbound_events WHERE event_type = 'user-message.received'").all()).toHaveLength(1);
     } finally { db.close(); }
   });
   test('dispatches assigned-task.signal to handler', async () => {
