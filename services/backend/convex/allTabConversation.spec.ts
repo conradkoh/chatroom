@@ -186,7 +186,44 @@ describe('listAllTabSlicePaginated', () => {
     expect(contents).not.toContain('follow up');
   });
 
-  test('bounded slice via explicit sliceUpperBoundExclusive arg', async () => {
+  test('paginates with a stable cursor across load-more requests', async () => {
+    const { sessionId } = await createTestSession('alltab-slice-paginate');
+    const chatroomId = await createChatroom(sessionId);
+    const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
+
+    for (let i = 0; i < 30; i++) {
+      await insertTimelineMessage(chatroomId, 'builder', `reply ${i}`, { type: 'message' });
+      await insertTimelineMessage(chatroomId, 'builder', `join ${i}`, { type: 'join' });
+    }
+
+    const firstPage = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId as Id<'chatroom_messages'>,
+      sliceUpperBoundExclusive: null,
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    expect(firstPage.page.length).toBeGreaterThan(0);
+    expect(firstPage.isDone).toBe(false);
+    expect(firstPage.continueCursor).not.toBeNull();
+
+    const secondPage = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId as Id<'chatroom_messages'>,
+      sliceUpperBoundExclusive: null,
+      paginationOpts: { numItems: 10, cursor: firstPage.continueCursor },
+    });
+
+    expect(secondPage.page.length).toBeGreaterThan(0);
+    const firstIds = new Set(firstPage.page.map((m) => m._id));
+    for (const msg of secondPage.page) {
+      expect(firstIds.has(msg._id)).toBe(false);
+    }
+  });
+
+  test('accepts explicit null sliceUpperBoundExclusive without recomputing bound', async () => {
     const { sessionId } = await createTestSession('alltab-slice-explicit');
     const chatroomId = await createChatroom(sessionId);
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');

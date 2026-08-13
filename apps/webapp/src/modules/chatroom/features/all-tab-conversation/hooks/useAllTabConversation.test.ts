@@ -79,7 +79,16 @@ describe('useAllTabConversation', () => {
     expect(mockUseSessionQuery).toHaveBeenCalledWith('getAllTabAnchorNavigation', {
       chatroomId: 'room-1',
     });
-    expect(mockUsePaginatedQuery).toHaveBeenCalled();
+    expect(mockUsePaginatedQuery).toHaveBeenCalledWith(
+      'listAllTabSlicePaginated',
+      {
+        chatroomId: 'room-1',
+        sessionId: 'session-1',
+        anchorMessageId: 'anchor-1',
+        sliceUpperBoundExclusive: null,
+      },
+      { initialNumItems: 50 }
+    );
     expect(result.current.events).toHaveLength(2);
     expect(result.current.isOnLatestAnchor).toBe(true);
     expect(result.current.hasPrev).toBe(false);

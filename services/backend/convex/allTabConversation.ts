@@ -136,7 +136,7 @@ export const listAllTabSlicePaginated = query({
     chatroomId: v.id('chatroom_rooms'),
     anchorMessageId: v.id('chatroom_messages'),
     paginationOpts: paginationOptsValidator,
-    sliceUpperBoundExclusive: v.optional(v.number()),
+    sliceUpperBoundExclusive: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -148,39 +148,24 @@ export const listAllTabSlicePaginated = query({
         : ((await findNextUserMessageAfter(ctx, args.chatroomId, anchor._creationTime))
             ?._creationTime ?? null);
 
-    let cursor = args.paginationOpts.cursor;
-    let isDone = false;
-    const collected: Doc<'chatroom_messages'>[] = [];
-    const numItems = args.paginationOpts.numItems;
+    const batch = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) =>
+        q
+          .eq('chatroomId', args.chatroomId)
+          .gte('_creationTime', anchor._creationTime)
+          .lt('_creationTime', upperBoundExclusive ?? 999999999999999)
+      )
+      .order('asc')
+      .paginate(args.paginationOpts);
 
-    while (collected.length < numItems && !isDone) {
-      const batch = await ctx.db
-        .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) =>
-          q
-            .eq('chatroomId', args.chatroomId)
-            .gte('_creationTime', anchor._creationTime)
-            .lt('_creationTime', upperBoundExclusive ?? 999999999999999)
-        )
-        .order('asc')
-        .paginate({ ...args.paginationOpts, cursor, numItems: numItems * 2 });
+    const filtered = batch.page.filter(isTimelineMessage);
+    const page = await enrichMessages(ctx, filtered);
 
-      for (const msg of batch.page) {
-        if (!isTimelineMessage(msg)) continue;
-        collected.push(msg);
-        if (collected.length >= numItems) break;
-      }
-
-      cursor = batch.continueCursor;
-      isDone = isDone || batch.isDone;
-      if (batch.page.length === 0) break;
-    }
-
-    const page = await enrichMessages(ctx, collected.slice(0, numItems));
     return {
       page,
-      isDone,
-      continueCursor: cursor,
+      isDone: batch.isDone,
+      continueCursor: batch.continueCursor,
       sliceMetadata: {
         anchorMessageId: anchor._id,
         nextUserMessageId: null,
