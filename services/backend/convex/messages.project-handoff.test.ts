@@ -35,10 +35,12 @@ function makeCtx(overrides?: Record<string, unknown>) {
         unique: vi.fn().mockResolvedValue(undefined),
       }),
     }),
-    get: vi.fn().mockImplementation(async (table: string, id: string) => {
+    get: vi.fn().mockImplementation(async (table: string, id?: string) => {
+      if (!id) return null;
       if (table === 'chatroom_rooms' && id === 'room-1') {
         return { _id: 'room-1', nextQueuePosition: 5 };
       }
+      if (table === 'chatroom_tasks' && id === 'daemon-uuid-abc') return null;
       if (table === 'chatroom_tasks') return { _id: id, status: 'in_progress' };
       return null;
     }),
