@@ -42,7 +42,7 @@ P5 requires P1, P1_CUTOVER, P2, P2_CUTOVER, P3, P3_LOCAL_DELIVERY, and P4; start
 | Slice | Status | Commit(s) | Notes |
 |---|---|---|---|
 | 1 — Foundation | [x] Complete | through `c184cedc4` | P1–P5, identity mapping, provider/presence fixes, validation |
-| 2 — Local delivery | [ ] Pending | — | Atomic transaction, task-ready event, Convex-free injection |
+| 2 — Local delivery | [x] Implemented | `5ac59346f` | Local task content, task-ready event, and Convex-free injection path; verification pending |
 | 3 — Ingress + P5 cutover | [ ] Pending | — | P7 user-message ingress and subscriber removal |
 | 4 — E2E + PR | [ ] Pending | — | Flag-on verification, PR, backlog review |
 
