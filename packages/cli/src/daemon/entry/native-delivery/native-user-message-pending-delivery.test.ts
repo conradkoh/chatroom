@@ -198,7 +198,7 @@ describe('user message pending delivery path', () => {
       shouldDeliverNativeTask(row!, {
         slot: makeIdleNativeSlot({ nativeTurnPhase: 'turn_in_flight' }),
       })
-    ).toBe(true);
+    ).toBe(false);
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
