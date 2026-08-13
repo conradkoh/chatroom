@@ -97,10 +97,10 @@ describe('subscriber-registry duplicate guard (G4)', () => {
     expect(USER_INTENT_SUBSCRIBERS).not.toContain('enhancer-job');
   });
 
-  it('P5 entry registry delegates to inbound registry behind the flag', () => {
+  it('entry registry always delegates to inbound subscribers', () => {
     const registrySource = readRepoFile('src/daemon/entry/subscriber-registry.ts');
-    expect(registrySource).toContain('unconditionalCutover');
     expect(registrySource).toContain('startInboundSubscribers');
+    expect(registrySource).not.toContain('unconditionalCutover');
   });
 
   it('legacy daemon-start does not onUpdate migrated Convex queries', () => {

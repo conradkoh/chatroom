@@ -2536,7 +2536,7 @@ describe('AgentProcessManager', () => {
         const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
         await triggerAgentEnd(manager, agentEndCb);
 
-        expect(slot.nativeTurnPhase).toBe('idle');
+        expect(slot.nativeTurnPhase).toBe('turn_in_flight');
         expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
           chatroomId: CHATROOM_ID,
           role: ROLE,
@@ -2566,7 +2566,7 @@ describe('AgentProcessManager', () => {
         await triggerAgentEnd(manager, agentEndCb);
 
         // After handoff reminder, phase should be turn_in_flight (reminder injected, harness working)
-        expect(slot.nativeTurnPhase).toBe('idle');
+        expect(slot.nativeTurnPhase).toBe('turn_in_flight');
         expect(mockNotifyNativeTurnIdle).toHaveBeenCalled();
       }
     );
