@@ -2,8 +2,16 @@
 
 **Branch:** `fix/daemon-handoff-reliability` (based on `release/v1.94.2`)
 **Backlog:** `ps72tbe9eyt786fhmbb3dy21xs8cbeme`
-**Status:** Complete — ready for review
+**Status:** In progress — projection/ingress correctness before unconditional cutover
 **Background:** [daemon-centric orchestration overview](../daemon-centric-orchestration/overview.md)
+
+## Remaining Phases (unconditional cutover)
+
+- [ ] Remove every `DAEMON_ORCHESTRATION_P*` runtime branch
+- [ ] Project task creation/update, task-status transitions, and agent-status transitions exclusively through outbox
+- [ ] Remove remaining direct Convex workflow writers and stale hydration/subscriber paths
+- [ ] Verify handoff and user-message processing end to end with no orchestration flags
+- [ ] Push final branch, update PR, record green aggregate validation
 
 ## Problem Statement
 
