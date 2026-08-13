@@ -6,6 +6,6 @@ export function decodeClaudeVariant(encoded: string | undefined): { model: strin
   if (encoded === undefined) return undefined;
   const stripped = stripProviderPrefix('anthropic', encoded);
   try { const d = validateModelVariantParams(decodeModelVariant(stripped), CLAUDE_MODEL_VARIANT_COMBINATIONS); const effort = d.params.effort; return { model: d.model, ...(effort && effort !== 'none' ? { effort } : {}) }; }
-  catch (error) { if (!encoded.includes('[')) return { model: encoded }; throw error; }
+  catch (error) { if (!stripped.includes('[')) return { model: stripped }; throw error; }
 }
 // { data: Array<{ id: string, display_name: string, created_at: string }> }
