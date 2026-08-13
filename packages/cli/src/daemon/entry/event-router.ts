@@ -35,6 +35,7 @@ import {
   type WorkspaceGitInboundEvent,
 } from '../domain/usecase/handle-workspace-git-inbound.js';
 import { isDaemonOrchestrationP5Enabled } from '../infrastructure/projection/feature-flags.js';
+import { handleUserMessageInbound, type HandleUserMessageInboundDeps } from '../domain/usecase/handle-user-message-inbound.js';
 
 export type EventRouterDeps = {
   assignedTask: HandleAssignedTaskInboundDeps;
@@ -44,12 +45,16 @@ export type EventRouterDeps = {
   file: HandleFileInboundDeps;
   agenticQuery: HandleAgenticQueryInboundDeps;
   enhancer: HandleEnhancerInboundDeps;
+  userMessage?: HandleUserMessageInboundDeps;
 };
 
 // fallow-ignore-next-line complexity
 export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEvent): Promise<void> {
   const orchestrationDisabled = isDaemonOrchestrationP5Enabled();
   switch (event.type) {
+    case 'user-message.received':
+      if (deps.userMessage) await handleUserMessageInbound(deps.userMessage, event);
+      break;
     case 'assigned-task.signal':
     case 'assigned-task.presence':
       // P5: subscribers are not registered — guard against stale/delivered events.

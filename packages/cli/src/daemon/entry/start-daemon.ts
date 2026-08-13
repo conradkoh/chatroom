@@ -109,7 +109,17 @@ export async function startDaemon(): Promise<void> {
     wsClient,
     sessionId: init.sessionId as never,
     machineId: init.machineId,
-    router: createDefaultEventRouterDeps(),
+    chatroomId: process.env.CHATROOM_ID,
+    router: createDefaultEventRouterDeps({
+      db: persistence.db,
+      machineId: init.machineId,
+      sessionId: init.sessionId,
+      appendEvent: (event) => persistence.append(event),
+      emitOrchestrationEvent: (event) => init.events.emit('orchestration:task-ready', { ...event, chatroomId: event.chatroomId as never }),
+      query: (fn, args) => init.backend.query(fn, args),
+      getEntryPointRole: async () => 'planner',
+      getAgentHarness: async () => 'opencode',
+    }),
   });
 
   console.log(`[daemon] Local web UI: http://127.0.0.1:${localWeb.port}/health`);

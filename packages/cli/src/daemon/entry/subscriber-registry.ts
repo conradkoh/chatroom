@@ -18,6 +18,8 @@ import { startGitRequestSubscriber } from '../infrastructure/convex/subscribers/
 import { startWorkspaceListSubscriber } from '../infrastructure/convex/subscribers/workspace-list.js';
 import { startInboundSubscribers } from '../infrastructure/inbound/convex/subscriber-registry.js';
 import { isDaemonOrchestrationP5Enabled } from '../infrastructure/projection/feature-flags.js';
+import { isDaemonOrchestrationP7Enabled } from '../infrastructure/projection/feature-flags.js';
+import { startUserMessageSubscriber } from '../infrastructure/convex/subscribers/user-message.js';
 
 export type SubscriberRegistryDeps = ConvexSubscriberDeps & {
   router: EventRouterDeps;
@@ -52,6 +54,7 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const agenticQuerySession = startAgenticQuerySessionSubscriber(deps, onEvent);
   const agenticQueryPrompt = startAgenticQueryPromptSubscriber(deps, onEvent);
   const enhancerJob = startEnhancerJobSubscriber(deps, onEvent);
+  const userMessage = isDaemonOrchestrationP7Enabled() ? startUserMessageSubscriber(deps, onEvent) : { async stop() {} };
 
   return {
     async stopAll() {
@@ -71,6 +74,7 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
         agenticQuerySession.stop(),
         agenticQueryPrompt.stop(),
         enhancerJob.stop(),
+        userMessage.stop(),
       ]);
     },
   };

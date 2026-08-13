@@ -6,8 +6,9 @@ import { createEnhancerRouterDeps } from './bridge/enhancer-bridge.js';
 import { createFileRouterDeps } from './bridge/file-bridge.js';
 import { createWorkspaceGitRouterDeps } from './bridge/workspace-git-bridge.js';
 import type { EventRouterDeps } from './event-router.js';
+import type { HandleUserMessageInboundDeps } from '../domain/usecase/handle-user-message-inbound.js';
 
-export function createDefaultEventRouterDeps(): EventRouterDeps {
+export function createDefaultEventRouterDeps(userMessage?: HandleUserMessageInboundDeps): EventRouterDeps {
   return {
     assignedTask: createAssignedTaskRouterDeps(),
     directHarness: createDirectHarnessRouterDeps(),
@@ -16,5 +17,6 @@ export function createDefaultEventRouterDeps(): EventRouterDeps {
     file: createFileRouterDeps(),
     agenticQuery: createAgenticQueryRouterDeps(),
     enhancer: createEnhancerRouterDeps(),
+    userMessage,
   };
 }
