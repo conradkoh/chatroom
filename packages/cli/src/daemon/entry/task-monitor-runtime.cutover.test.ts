@@ -66,7 +66,7 @@ function makeLayers() {
 }
 
 async function runAndStop(layer: ReturnType<typeof makeLayers>['layer']) {
-  const effect = Effect.provide(startTaskMonitorEffect({ onUpdate: vi.fn() } as never), layer);
+  const effect = Effect.provide(startTaskMonitorEffect({ onUpdate: vi.fn(() => vi.fn()) } as never), layer);
   const handle = await Effect.runPromise(effect);
   handle.stop();
 }

@@ -41,6 +41,7 @@ const MACHINE_ID = 'machine-user-message-pending';
 const SESSION_ID = 'session-user-message-pending';
 const SPAWNED_PID = 42_424;
 const MESSAGE_CONTENT = '## Goal\nPlease fix the pending delivery bug';
+const DAEMON_TASK_ID = 'a1b2c3d4-e5f6-4789-a012-3456789abcde';
 
 function makeUserMessagePendingSnapshotDoc(
   overrides: Partial<Doc<'chatroom_machineAssignedTaskSnapshots'>> = {}
@@ -51,6 +52,7 @@ function makeUserMessagePendingSnapshotDoc(
     _creationTime: now,
     machineId: MACHINE_ID,
     taskId: 'task_user_msg' as Id<'chatroom_tasks'>,
+    daemonTaskId: DAEMON_TASK_ID,
     chatroomId: 'room_1' as Id<'chatroom_rooms'>,
     role: 'builder',
     taskStatus: 'pending',

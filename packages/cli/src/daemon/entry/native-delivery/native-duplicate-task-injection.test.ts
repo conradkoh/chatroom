@@ -24,13 +24,14 @@ import {
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
-const TASK_ID = 'task_dup_1';
+const TASK_ID = 'a1b2c3d4-e5f6-4789-a012-3456789abcde';
 const CHATROOM_ID = 'room_dup';
 const ROLE = 'planner';
 
 function makeAcknowledgedRow() {
   return {
     taskId: TASK_ID as never,
+    daemonTaskId: TASK_ID,
     chatroomId: CHATROOM_ID as never,
     status: 'acknowledged' as const,
     assignedTo: ROLE,

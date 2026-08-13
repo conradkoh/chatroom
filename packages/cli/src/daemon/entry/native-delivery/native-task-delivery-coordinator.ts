@@ -18,7 +18,7 @@ import {
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
-import { isDaemonTaskId } from '../../domain/entities/daemon-task-id.js';
+import { isDaemonTaskId, resolveCanonicalTaskId } from '../../domain/entities/daemon-task-id.js';
 import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import {
@@ -163,6 +163,7 @@ export class NativeTaskDeliveryCoordinator {
     });
 
     for (const row of pendingFirst) {
+      const deliveryTaskId = resolveCanonicalTaskId({ _id: row.taskId, daemonTaskId: row.daemonTaskId });
       const { role } = row.agentConfig;
       const slot = agentMgr.getSlot(row.chatroomId, role);
       const blockReason = explainNativeDeliveryBlock(row, { slot });
@@ -184,12 +185,12 @@ export class NativeTaskDeliveryCoordinator {
         continue;
       }
 
-      const ledgerBlock = explainLedgerDeliveryBlock(row.taskId, harnessSessionId, ledger);
+      const ledgerBlock = explainLedgerDeliveryBlock(deliveryTaskId, harnessSessionId, ledger);
       if (ledgerBlock) {
         logNativeDeliverySkip(role, row.chatroomId, row.taskId, ledgerBlock);
         continue;
       }
-      if (!ledger.tryAcquire(row.taskId, harnessSessionId)) {
+      if (!ledger.tryAcquire(deliveryTaskId, harnessSessionId)) {
         logNativeDeliverySkip(
           role,
           row.chatroomId,
@@ -200,12 +201,12 @@ export class NativeTaskDeliveryCoordinator {
       }
 
       if (!deliveryState.tryAcquireDelivery(row.chatroomId, role)) {
-        ledger.clearDelivery(row.taskId, harnessSessionId);
+        ledger.clearDelivery(deliveryTaskId, harnessSessionId);
         logNativeDeliveryMutexSkip(role, row.chatroomId, row.taskId);
         continue;
       }
 
-      logNativeDeliveryInjecting(role, row.chatroomId, row.taskId);
+      logNativeDeliveryInjecting(role, row.chatroomId, deliveryTaskId);
 
       const taskId = row.taskId;
       let deliveredToHarness = false;
@@ -216,7 +217,7 @@ export class NativeTaskDeliveryCoordinator {
             ? getTaskContentFromReadModel(readModelDb, row.chatroomId, role, row.taskId)
             : undefined;
           const useLocalDelivery = Boolean(
-            readModelDb && taskContent && isDaemonTaskId(row.taskId)
+            readModelDb && taskContent && isDaemonTaskId(deliveryTaskId)
           );
 
           if (useLocalDelivery && readModelDb) {
@@ -224,7 +225,7 @@ export class NativeTaskDeliveryCoordinator {
               readModelDb,
               row.chatroomId,
               role,
-              row.taskId,
+              deliveryTaskId,
               Date.now(),
               sessionDeps.sessionId,
               sessionDeps.machineId
@@ -232,7 +233,7 @@ export class NativeTaskDeliveryCoordinator {
           }
 
           yield* runNativeInjectionEffect(
-            { ...row, status: useLocalDelivery ? 'in_progress' : row.status, taskContent: taskContent ?? '' },
+            { ...row, taskId: deliveryTaskId, status: useLocalDelivery ? 'in_progress' : row.status, taskContent: taskContent ?? '' },
             harnessSessionId,
             {
               sessionId: sessionDeps.sessionId,

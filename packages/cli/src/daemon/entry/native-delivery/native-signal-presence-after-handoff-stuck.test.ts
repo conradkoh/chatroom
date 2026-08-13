@@ -49,7 +49,7 @@ import { listTasksReadyForNudge, NudgeCooldown } from '../task-monitor/task-moni
 import { createTaskMonitorSnapshot } from '../task-monitor/task-monitor-snapshot.js';
 
 const CHATROOM_ID = 'n57ctdnfvd0avh0ghx6p4szk8x8aa69a' as Id<'chatroom_rooms'>;
-const TASK_ID = 'nh7dh7bj63fdns9zkyasjgnga58afx3s' as Id<'chatroom_tasks'>;
+const TASK_ID = 'a1b2c3d4-e5f6-4789-a012-3456789abcde' as Id<'chatroom_tasks'>;
 const MACHINE_ID = 'machine-planner-handoff-stuck';
 const SESSION_ID = 'session-planner-handoff-stuck';
 const SPAWNED_PID = 42_424;
@@ -64,6 +64,7 @@ function makePostHandoffPendingSnapshotDoc(
     _creationTime: now,
     machineId: MACHINE_ID,
     taskId: TASK_ID,
+    daemonTaskId: TASK_ID,
     chatroomId: CHATROOM_ID,
     role: 'planner',
     taskStatus: 'pending',

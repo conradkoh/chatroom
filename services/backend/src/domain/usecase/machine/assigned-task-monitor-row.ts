@@ -33,6 +33,7 @@ export function monitorRowFromSnapshotDoc(doc: SnapshotDoc): AssignedTaskSnapsho
   };
   return {
     taskId: doc.taskId,
+    ...(doc.daemonTaskId ? { daemonTaskId: doc.daemonTaskId } : {}),
     chatroomId: doc.chatroomId,
     status: doc.taskStatus,
     assignedTo: doc.taskAssignedTo,

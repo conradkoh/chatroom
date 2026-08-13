@@ -110,11 +110,11 @@ describe('startDaemon', () => {
     delete process.env.CHATROOM_CONVEX_URL;
     delete process.env.CHATROOM_LOCAL_WEB_PORT;
 
-    const mockWsClient = { onUpdate: vi.fn() };
+    const mockWsClient = { onUpdate: vi.fn(() => vi.fn()) };
     getConvexWsClient.mockResolvedValue(mockWsClient);
 
     initDaemon.mockResolvedValue({
-      client: {},
+      backend: { query: vi.fn().mockResolvedValue([]), mutation: vi.fn().mockResolvedValue(undefined) },
       sessionId: 'session-1',
       machineId: 'machine-1',
     });

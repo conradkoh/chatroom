@@ -8,6 +8,7 @@ import { setNativeDeliveryReadModelDb } from './native-task-delivery-coordinator
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { openDatabase } from '../../infrastructure/persistence/open-database.js';
 import { upsertTaskReadModel } from '../../infrastructure/persistence/read-models/tasks.js';
+import { resolveCanonicalTaskId } from '../../../daemon/domain/entities/daemon-task-id.js';
 
 export function openNativeDeliveryTestDb(): DatabaseSync {
   return openDatabase(join(mkdtempSync(join(tmpdir(), 'native-delivery-test-')), 'events.sqlite'));
@@ -21,7 +22,7 @@ export function seedNativeDeliveryReadModel(
   upsertTaskReadModel(db, {
     chatroomId: row.chatroomId,
     role: row.agentConfig.role,
-    taskId: row.taskId,
+    taskId: resolveCanonicalTaskId({ _id: row.taskId, daemonTaskId: row.daemonTaskId }),
     status: row.status,
     taskContent: content,
     assignedTo: row.assignedTo,
