@@ -113,7 +113,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     lifecycle: {
       appendLifecycleEvent: vi.fn((event: OutboundEvent) => {
         const { machineId: _machineId, ...args } = event as OutboundEvent & { machineId?: string };
-        void backend.mutation('lifecycle', args);
+        void backend.mutation('lifecycle', { sessionId: 'test-session', ...args });
       }),
       updateAgentReadModel: vi.fn(),
       updateParticipantReadModel: vi.fn(),

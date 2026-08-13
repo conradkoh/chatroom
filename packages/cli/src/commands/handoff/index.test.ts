@@ -11,6 +11,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HandoffDeps } from './deps.js';
 import { handoff, type HandoffOptions } from './index.js';
 
+const mockPostDaemonHandoff = vi.fn();
+vi.mock('./daemon-handoff-client.js', () => ({
+  postDaemonHandoff: (...args: unknown[]) => mockPostDaemonHandoff(...args),
+}));
+
 // ---------------------------------------------------------------------------
 // Mock modules
 // ---------------------------------------------------------------------------
@@ -71,12 +76,14 @@ let logSpy: any;
 let errorSpy: any;
 
 beforeEach(() => {
+  mockPostDaemonHandoff.mockResolvedValue({ success: true, supportsNativeIntegration: false });
   exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
   logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => {
+  mockPostDaemonHandoff.mockReset();
   vi.restoreAllMocks();
 });
 
@@ -117,7 +124,8 @@ describe('handoff', () => {
 
       expect(exitSpy).not.toHaveBeenCalled();
       // handoff only (heartbeat now fired by preAction hook, not handler)
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
+      expect(mockPostDaemonHandoff).toHaveBeenCalled();
+      expect(deps.backend.mutation).not.toHaveBeenCalled();
 
       const output = getAllLogOutput();
       expect(output).toContain('Chatroom task completed and handed off to builder');
@@ -128,7 +136,7 @@ describe('handoff', () => {
 
     it('omits get-next-task when mutation reports native integration', async () => {
       const deps = createMockDeps();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
+      mockPostDaemonHandoff.mockResolvedValue({
         success: true,
         supportsNativeIntegration: true,
       });

@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { startEnhancerJobSubscriber } from './job-subscriber.js';
 import {
@@ -50,6 +50,17 @@ function createWsClient() {
 }
 
 describe('startEnhancerJobSubscriber', () => {
+  let testQueueDb: ReturnType<typeof openDatabase> | undefined;
+  beforeEach(() => {
+    testQueueDb = openDatabase(
+      join(mkdtempSync(join(tmpdir(), 'enhancer-test-')), 'events.sqlite')
+    );
+    setEnhancerQueueDb(testQueueDb);
+  });
+  afterEach(() => {
+    setEnhancerQueueDb(undefined);
+    testQueueDb?.close();
+  });
   it('records attempt failure when harness exits without completing job', async () => {
     vi.useFakeTimers();
 
