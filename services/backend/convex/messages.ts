@@ -1065,7 +1065,7 @@ export const projectUserMessageFromDaemon = mutation({
     machineId: v.string(),
     idempotencyKey: v.string(),
     chatroomId: v.id('chatroom_rooms'),
-    messageId: v.string(),
+    messageId: v.id('chatroom_messages'),
     content: v.string(),
     senderRole: v.string(),
     newTaskId: v.string(),
@@ -1073,17 +1073,12 @@ export const projectUserMessageFromDaemon = mutation({
   },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    const existing = await ctx.db.query('chatroom_messages').withIndex('by_idempotencyKey', (q) => q.eq('idempotencyKey', args.idempotencyKey)).first();
-    if (existing) return { success: true, replayed: true, messageId: existing._id };
+    const message = await ctx.db.get('chatroom_messages', args.messageId);
+    if (!message || message.chatroomId !== args.chatroomId) throw new ConvexError({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' });
+    const existingTask = await ctx.db.query('chatroom_tasks').withIndex('by_daemonTaskId', (q) => q.eq('daemonTaskId', args.newTaskId)).first();
+    if (existingTask) return { success: true, replayed: true, messageId: message._id, taskId: existingTask._id };
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom) throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
-    const messageId = await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: args.senderRole,
-      content: args.content,
-      type: 'message',
-      idempotencyKey: args.idempotencyKey,
-    });
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
     const { taskId } = await createTaskUsecase(ctx, {
       chatroomId: args.chatroomId,
@@ -1091,11 +1086,12 @@ export const projectUserMessageFromDaemon = mutation({
       content: args.content,
       forceStatus: 'pending',
       assignedTo: 'planner',
-      sourceMessageId: messageId,
+      sourceMessageId: message._id,
       queuePosition,
     });
     await ctx.db.patch('chatroom_tasks', taskId, { daemonTaskId: args.newTaskId });
-    return { success: true, replayed: false, messageId, taskId };
+    if (!message.taskId) await ctx.db.patch('chatroom_messages', message._id, { taskId });
+    return { success: true, replayed: false, messageId: message._id, taskId };
   },
 });
 

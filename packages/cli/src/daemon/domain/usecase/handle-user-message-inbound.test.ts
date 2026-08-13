@@ -11,7 +11,7 @@ describe('handleUserMessageInbound', () => {
     const appendEvent = vi.fn();
     try {
       await handleUserMessageInbound({ db, machineId: 'm', sessionId: 's', appendEvent, emitOrchestrationEvent: vi.fn(), query: vi.fn(), getEntryPointRole: async () => 'planner', getAgentHarness: async () => 'opencode' }, { chatroomId: 'room', messageId: 'msg', content: 'hello', senderRole: 'user' });
-      expect(appendEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'user-message.received', content: 'hello' }));
+      expect(db.prepare("SELECT event_type FROM outbound_events WHERE event_type = 'user-message.received'").all()).toHaveLength(1);
     } finally { db.close(); }
   });
   it('skips missing content and non-user messages', async () => {

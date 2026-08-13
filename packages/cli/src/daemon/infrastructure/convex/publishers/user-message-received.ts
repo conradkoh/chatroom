@@ -12,7 +12,7 @@ export function createUserMessageReceivedPublisher(deps: ConvexPublisherDeps): P
         machineId: deps.machineId,
         idempotencyKey: event.idempotencyKey,
         chatroomId: event.chatroomId,
-        messageId: event.messageId,
+        messageId: event.messageId as never,
         content: event.content,
         senderRole: event.senderRole,
         newTaskId: event.newTaskId,

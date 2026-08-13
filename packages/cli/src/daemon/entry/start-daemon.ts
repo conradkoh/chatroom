@@ -18,6 +18,7 @@ import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/r
 import { setAgentLifecyclePersistence } from '../infrastructure/agent-process-manager/agent-lifecycle-port.js';
 import { startCliHttpServer } from '../infrastructure/inbound/local/cli-http-server.js';
 import { setEnhancerQueueDb } from '../infrastructure/persistence/enhancer-queue.js';
+import { loadUserIntentCursor, saveUserIntentCursor } from '../infrastructure/persistence/user-intent-cursor.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { hydrateReadModelsFromConvex } from '../infrastructure/persistence/read-models/hydrate-from-convex.js';
 import { listSnapshotViewsFromReadModels } from '../infrastructure/persistence/read-models/task-snapshot-adapter.js';
@@ -110,6 +111,8 @@ export async function startDaemon(): Promise<void> {
     sessionId: init.sessionId as never,
     machineId: init.machineId,
     chatroomId: process.env.CHATROOM_ID,
+    loadUserIntentCursor: () => loadUserIntentCursor(persistence.db),
+    saveUserIntentCursor: (cursor) => saveUserIntentCursor(persistence.db, cursor, Date.now()),
     router: createDefaultEventRouterDeps({
       db: persistence.db,
       machineId: init.machineId,

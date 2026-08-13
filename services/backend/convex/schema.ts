@@ -573,6 +573,12 @@ export default defineSchema({
    *
    * Task workflow: pending → acknowledged → in_progress → completed
    */
+  daemon_projection_receipts: defineTable({
+    idempotencyKey: v.string(),
+    machineId: v.string(),
+    createdAt: v.number(),
+  }).index('by_idempotencyKey', ['idempotencyKey']),
+
   chatroom_tasks: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     createdBy: v.string(), // 'user' or role name that created the task

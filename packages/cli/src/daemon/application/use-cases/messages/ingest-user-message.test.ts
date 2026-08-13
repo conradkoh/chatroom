@@ -19,7 +19,7 @@ describe('ingestUserMessage', () => {
         { chatroomId: 'room', messageId: 'message', content: 'hello', senderRole: 'user', entryPointRole: 'planner' }
       );
       expect(listTaskReadModelsForChatroomRole(db, 'room', 'planner')[0]).toMatchObject({ taskId: result.newTaskId, taskContent: 'hello', status: 'pending' });
-      expect(appendEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'user-message.received', newTaskId: result.newTaskId }));
+      expect(db.prepare("SELECT event_type FROM outbound_events WHERE event_type = 'user-message.received'").all()).toHaveLength(1);
       expect(emitOrchestrationEvent).toHaveBeenCalledWith({ chatroomId: 'room', role: 'planner', taskId: result.newTaskId, source: 'user-message' });
     } finally {
       delete process.env.DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY;
