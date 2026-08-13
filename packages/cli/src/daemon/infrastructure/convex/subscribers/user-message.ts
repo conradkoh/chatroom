@@ -3,22 +3,59 @@ import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
 import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
 import type { SubscriberHandle } from './workspace-list.js';
 
-/** P7 message tail. The daemon supplies a chatroom cursor through subscriber deps. */
 export function startUserMessageSubscriber(
   deps: ConvexSubscriberDeps,
-  onEvent: (event: InboundEvent) => void
+  onEvent: (event: InboundEvent) => void | Promise<void>
 ): SubscriberHandle {
   if (!deps.chatroomId) return { async stop() {} };
-  const afterCreationTime = Number(deps.loadUserIntentCursor?.() ?? Date.now());
-  const unsub = deps.wsClient.onUpdate(
-    api.messageList.subscribeNewMessages,
-    { sessionId: deps.sessionId, chatroomId: deps.chatroomId as never, afterCreationTime },
-    (messages: Array<{ _id: string; senderRole?: string; content?: string }> | null) => {
-      for (const message of messages ?? []) {
-        if (message.senderRole === 'user') { onEvent({ type: 'user-message.received', chatroomId: deps.chatroomId!, messageId: message._id, content: message.content, senderRole: message.senderRole }); deps.saveUserIntentCursor?.(String((message as { _creationTime?: number })._creationTime ?? afterCreationTime)); }
-      }
+  const chatroomId = deps.chatroomId;
+  let cursor = Number(deps.loadUserIntentCursor?.() ?? Date.now());
+  let stopped = false;
+  let unsubscribe = () => {};
+  let processing = Promise.resolve();
+  const subscribe = () => {
+    unsubscribe = deps.wsClient.onUpdate(
+      api.messageList.subscribeNewMessages,
+      { sessionId: deps.sessionId, chatroomId: chatroomId as never, afterCreationTime: cursor },
+      (
+        messages:
+          { _id: string; _creationTime: number; senderRole?: string; content?: string }[] | null
+      ) => {
+        // fallow-ignore-next-line complexity
+        processing = processing
+          .then(async () => {
+            for (const message of messages ?? []) {
+              if (message._creationTime <= cursor) continue;
+              if (message.senderRole === 'user') {
+                await onEvent({
+                  type: 'user-message.received',
+                  chatroomId,
+                  messageId: message._id,
+                  content: message.content,
+                  senderRole: message.senderRole,
+                });
+              }
+              cursor = message._creationTime;
+              deps.saveUserIntentCursor?.(String(cursor));
+            }
+            if (!stopped && (messages?.length ?? 0) > 0) {
+              unsubscribe();
+              subscribe();
+            }
+          })
+          .catch((error) =>
+            console.warn(`[daemon] user-message processing error: ${String(error)}`)
+          );
+      },
+      (error: unknown) => console.warn(`[daemon] user-message subscriber error: ${String(error)}`)
+    );
+  };
+  subscribe();
+  return {
+    async stop() {
+      stopped = true;
+      unsubscribe();
+      await processing;
     },
-    (error: unknown) => console.warn(`[daemon] user-message subscriber error: ${String(error)}`)
-  );
-  return { async stop() { unsub(); } };
+  };
 }

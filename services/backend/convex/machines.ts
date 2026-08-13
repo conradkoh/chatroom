@@ -39,7 +39,10 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
-import { projectAssignedTaskSnapshotsForMachine } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
+import {
+  projectAssignedTaskSnapshotsAfterTaskChange,
+  projectAssignedTaskSnapshotsForMachine,
+} from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
   patchTeamAgentConfig,
   projectAfterTeamConfigRegistration,
@@ -48,6 +51,8 @@ import {
 } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { subscribeAssignedTaskPresenceForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-presence';
 import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
+import { adjustTaskCountsForTransition } from '../src/domain/usecase/task/task-counts';
+import { writeTimelineTaskStatusSignal } from '../src/domain/usecase/task/write-timeline-task-status-signal';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
@@ -3317,15 +3322,54 @@ export const emitHarnessSessionTimeout = mutation({
 
 /** Emits agent.taskDelivered after native prompt injection succeeds. */
 export const projectTaskStatusFromDaemon = mutation({
-  args: { ...SessionIdArg, machineId: v.string(), idempotencyKey: v.string(), daemonTaskId: v.string(), status: v.union(v.literal('pending'), v.literal('in_progress'), v.literal('completed')), timestamp: v.number() },
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    idempotencyKey: v.string(),
+    daemonTaskId: v.string(),
+    status: v.union(v.literal('pending'), v.literal('in_progress'), v.literal('completed')),
+    timestamp: v.number(),
+  },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    const receipt = await ctx.db.query('daemon_projection_receipts').withIndex('by_idempotencyKey', (q) => q.eq('idempotencyKey', args.idempotencyKey)).first();
+    const receipt = await ctx.db
+      .query('daemon_projection_receipts')
+      .withIndex('by_idempotencyKey', (q) => q.eq('idempotencyKey', args.idempotencyKey))
+      .first();
     if (receipt) return { replayed: true };
-    const task = await ctx.db.query('chatroom_tasks').withIndex('by_daemonTaskId', (q) => q.eq('daemonTaskId', args.daemonTaskId)).unique();
+    const task = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_daemonTaskId', (q) => q.eq('daemonTaskId', args.daemonTaskId))
+      .unique();
     if (!task) throw new ConvexError(`Unknown daemon task ${args.daemonTaskId}`);
-    if (task.status !== args.status) await ctx.db.patch('chatroom_tasks', task._id, { status: args.status });
-    await ctx.db.insert('daemon_projection_receipts', { idempotencyKey: args.idempotencyKey, machineId: args.machineId, createdAt: args.timestamp });
+    if (!task.assignedTo)
+      throw new ConvexError({
+        code: 'PROJECTED_TASK_ROLE_MISSING',
+        message: 'Projected task has no assigned role',
+      });
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: task.chatroomId,
+      machineId: args.machineId,
+      role: task.assignedTo,
+      allowNewMachine: false,
+    });
+    if (task.status !== args.status) {
+      await ctx.db.patch('chatroom_tasks', task._id, {
+        status: args.status,
+        updatedAt: args.timestamp,
+        ...(args.status === 'in_progress' ? { startedAt: args.timestamp } : {}),
+        ...(args.status === 'completed' ? { completedAt: args.timestamp } : {}),
+      });
+      await adjustTaskCountsForTransition(ctx, task.chatroomId, task.status, args.status);
+      const projected = await ctx.db.get('chatroom_tasks', task._id);
+      if (projected) await writeTimelineTaskStatusSignal(ctx, projected);
+      await projectAssignedTaskSnapshotsAfterTaskChange(ctx, task._id);
+    }
+    await ctx.db.insert('daemon_projection_receipts', {
+      idempotencyKey: args.idempotencyKey,
+      machineId: args.machineId,
+      createdAt: args.timestamp,
+    });
     return { replayed: false };
   },
 });

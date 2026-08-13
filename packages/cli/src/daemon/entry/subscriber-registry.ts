@@ -15,11 +15,13 @@ import { startFileContentRequestSubscriber } from '../infrastructure/convex/subs
 import { startFileTreeRequestSubscriber } from '../infrastructure/convex/subscribers/file-tree-request.js';
 import { startFileWriteRequestSubscriber } from '../infrastructure/convex/subscribers/file-write-request.js';
 import { startGitRequestSubscriber } from '../infrastructure/convex/subscribers/git-request.js';
+import { startUserMessageSubscriber } from '../infrastructure/convex/subscribers/user-message.js';
 import { startWorkspaceListSubscriber } from '../infrastructure/convex/subscribers/workspace-list.js';
 import { startInboundSubscribers } from '../infrastructure/inbound/convex/subscriber-registry.js';
-import { isDaemonOrchestrationP5Enabled } from '../infrastructure/projection/feature-flags.js';
-import { isDaemonOrchestrationP7Enabled } from '../infrastructure/projection/feature-flags.js';
-import { startUserMessageSubscriber } from '../infrastructure/convex/subscribers/user-message.js';
+import {
+  isDaemonOrchestrationP5Enabled,
+  isDaemonOrchestrationP7Enabled,
+} from '../infrastructure/projection/feature-flags.js';
 
 export type SubscriberRegistryDeps = ConvexSubscriberDeps & {
   router: EventRouterDeps;
@@ -28,9 +30,7 @@ export type SubscriberRegistryDeps = ConvexSubscriberDeps & {
 export type SubscriberRegistryHandle = { stopAll(): Promise<void> };
 
 export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberRegistryHandle {
-  const onEvent = (event: InboundEvent): void => {
-    void routeInboundEvent(deps.router, event);
-  };
+  const onEvent = (event: InboundEvent): Promise<void> => routeInboundEvent(deps.router, event);
 
   // P5: inbound-only Convex subscription — orchestration subscribers
   // (assigned-task signals/presence, enhancer-job) are not registered because
@@ -54,7 +54,9 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const agenticQuerySession = startAgenticQuerySessionSubscriber(deps, onEvent);
   const agenticQueryPrompt = startAgenticQueryPromptSubscriber(deps, onEvent);
   const enhancerJob = startEnhancerJobSubscriber(deps, onEvent);
-  const userMessage = isDaemonOrchestrationP7Enabled() ? startUserMessageSubscriber(deps, onEvent) : { async stop() {} };
+  const userMessage = isDaemonOrchestrationP7Enabled()
+    ? startUserMessageSubscriber(deps, onEvent)
+    : { async stop() {} };
 
   return {
     async stopAll() {

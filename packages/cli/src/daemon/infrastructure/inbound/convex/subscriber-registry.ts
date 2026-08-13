@@ -1,5 +1,6 @@
 // fallow-ignore-file code-duplication
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
+import { isDaemonOrchestrationP7Enabled } from '../../../infrastructure/projection/feature-flags.js';
 import type { ConvexSubscriberDeps } from '../../convex/subscriber-deps.js';
 import { startAgenticQueryPromptSubscriber } from '../../convex/subscribers/agentic-query-prompt.js';
 import { startAgenticQuerySessionSubscriber } from '../../convex/subscribers/agentic-query-session.js';
@@ -12,13 +13,12 @@ import { startFileContentRequestSubscriber } from '../../convex/subscribers/file
 import { startFileTreeRequestSubscriber } from '../../convex/subscribers/file-tree-request.js';
 import { startFileWriteRequestSubscriber } from '../../convex/subscribers/file-write-request.js';
 import { startGitRequestSubscriber } from '../../convex/subscribers/git-request.js';
-import { startWorkspaceListSubscriber } from '../../convex/subscribers/workspace-list.js';
 import { startUserMessageSubscriber } from '../../convex/subscribers/user-message.js';
-import { isDaemonOrchestrationP7Enabled } from '../../../infrastructure/projection/feature-flags.js';
+import { startWorkspaceListSubscriber } from '../../convex/subscribers/workspace-list.js';
 
 export function startInboundSubscribers(
   deps: ConvexSubscriberDeps,
-  onEvent: (event: InboundEvent) => void
+  onEvent: (event: InboundEvent) => void | Promise<void>
 ): { stopAll(): Promise<void> } {
   const session = startDirectHarnessSessionSubscriber(deps, onEvent);
   const prompt = startDirectHarnessPromptSubscriber(deps, onEvent);

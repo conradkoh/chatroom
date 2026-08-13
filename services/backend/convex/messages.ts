@@ -24,6 +24,7 @@ import type { PrimaryDeliveryAttachments } from '../src/domain/entities/message-
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
+import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { restartPlannerOnHandoffToUser } from '../src/domain/usecase/agent/restart-planner-on-handoff-to-user';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
@@ -1074,23 +1075,63 @@ export const projectUserMessageFromDaemon = mutation({
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
     const message = await ctx.db.get('chatroom_messages', args.messageId);
-    if (!message || message.chatroomId !== args.chatroomId) throw new ConvexError({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' });
-    const existingTask = await ctx.db.query('chatroom_tasks').withIndex('by_daemonTaskId', (q) => q.eq('daemonTaskId', args.newTaskId)).first();
-    if (existingTask) return { success: true, replayed: true, messageId: message._id, taskId: existingTask._id };
+    if (!message || message.chatroomId !== args.chatroomId)
+      throw new ConvexError({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' });
+    if (
+      args.idempotencyKey !== `${args.chatroomId}:${args.messageId}` ||
+      message.senderRole?.toLowerCase() !== 'user'
+    ) {
+      throw new ConvexError({
+        code: 'INVALID_USER_MESSAGE_PROJECTION',
+        message: 'Invalid user message projection',
+      });
+    }
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
+    if (!chatroom)
+      throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
+    const entryPointRole = getTeamEntryPoint(chatroom);
+    if (!entryPointRole)
+      throw new ConvexError({
+        code: 'TEAM_ENTRY_POINT_MISSING',
+        message: 'Chatroom has no configured entry-point role',
+      });
+    await assertMachineBelongsToChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      role: entryPointRole,
+      allowNewMachine: false,
+    });
+    if (message.taskId) {
+      const linked = await ctx.db.get('chatroom_tasks', message.taskId);
+      if (!linked || linked.daemonTaskId !== args.newTaskId)
+        throw new ConvexError({
+          code: 'DAEMON_TASK_ID_CONFLICT',
+          message: 'Message is linked to a different task identity',
+        });
+      return { success: true, replayed: true, messageId: message._id, taskId: linked._id };
+    }
+    const existingBySource = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .filter((q) => q.eq(q.field('sourceMessageId'), message._id))
+      .first();
+    if (existingBySource)
+      throw new ConvexError({
+        code: 'DAEMON_TASK_ID_CONFLICT',
+        message: 'Source message already has a projected task',
+      });
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
     const { taskId } = await createTaskUsecase(ctx, {
       chatroomId: args.chatroomId,
       createdBy: args.senderRole,
-      content: args.content,
+      content: message.content,
       forceStatus: 'pending',
-      assignedTo: 'planner',
+      assignedTo: entryPointRole,
       sourceMessageId: message._id,
       queuePosition,
     });
     await ctx.db.patch('chatroom_tasks', taskId, { daemonTaskId: args.newTaskId });
-    if (!message.taskId) await ctx.db.patch('chatroom_messages', message._id, { taskId });
+    await ctx.db.patch('chatroom_messages', message._id, { taskId });
     return { success: true, replayed: false, messageId: message._id, taskId };
   },
 });
