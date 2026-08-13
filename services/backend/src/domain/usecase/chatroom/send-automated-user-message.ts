@@ -6,7 +6,6 @@ import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agen
 import { createTask as createTaskUsecase, shouldEnqueueMessage } from '../task/create-task';
 import { adjustTaskCount } from '../task/task-counts';
 import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-planner-enhancer-enabled';
-import { isDaemonOrchestrationChatroom } from './is-daemon-orchestration-chatroom';
 
 export type SendAutomatedUserMessageResult =
   | { ok: true; messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> }
