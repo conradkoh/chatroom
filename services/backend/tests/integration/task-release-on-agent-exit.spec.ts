@@ -16,6 +16,7 @@ import {
   joinParticipant,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
+  sendUserMessageWithProjectedTask,
 } from '../helpers/integration';
 
 test('recordAgentExited (crash) releases acknowledged task to pending — no grace_period', async () => {
@@ -28,13 +29,7 @@ test('recordAgentExited (crash) releases acknowledged task to pending — no gra
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  await t.mutation(api.messages.sendMessage, {
-    sessionId,
-    chatroomId,
-    senderRole: 'user',
-    content: 'Implement the feature',
-    type: 'message',
-  });
+  await sendUserMessageWithProjectedTask(sessionId, machineId, chatroomId, 'Implement the feature');
 
   await t.mutation(api.tasks.claimTask, {
     sessionId,
@@ -103,13 +98,7 @@ test('recordAgentExited (user.stop) releases acknowledged task to pending', asyn
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  await t.mutation(api.messages.sendMessage, {
-    sessionId,
-    chatroomId,
-    senderRole: 'user',
-    content: 'Implement the feature',
-    type: 'message',
-  });
+  await sendUserMessageWithProjectedTask(sessionId, machineId, chatroomId, 'Implement the feature');
 
   await t.mutation(api.tasks.claimTask, {
     sessionId,
@@ -166,13 +155,7 @@ test('recordAgentExited (daemon.shutdown) releases acknowledged task to pending'
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  await t.mutation(api.messages.sendMessage, {
-    sessionId,
-    chatroomId,
-    senderRole: 'user',
-    content: 'Implement the feature',
-    type: 'message',
-  });
+  await sendUserMessageWithProjectedTask(sessionId, machineId, chatroomId, 'Implement the feature');
 
   await t.mutation(api.tasks.claimTask, {
     sessionId,
@@ -221,13 +204,7 @@ test('recordAgentExited (crash) releases in_progress task to pending', async () 
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  await t.mutation(api.messages.sendMessage, {
-    sessionId,
-    chatroomId,
-    senderRole: 'user',
-    content: 'Implement the feature',
-    type: 'message',
-  });
+  await sendUserMessageWithProjectedTask(sessionId, machineId, chatroomId, 'Implement the feature');
 
   const claimResult = await t.mutation(api.tasks.claimTask, {
     sessionId,
@@ -290,13 +267,7 @@ test('updateTeam reassigns in-flight builder task to new entry point (planner)',
   await joinParticipant(sessionId, chatroomId, 'builder');
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  await t.mutation(api.messages.sendMessage, {
-    sessionId,
-    chatroomId,
-    senderRole: 'user',
-    content: 'Implement the feature',
-    type: 'message',
-  });
+  await sendUserMessageWithProjectedTask(sessionId, machineId, chatroomId, 'Implement the feature');
 
   await t.mutation(api.tasks.claimTask, {
     sessionId,
@@ -341,13 +312,7 @@ test('releaseOrphanedTasksForRole releases acknowledged task when PID cleared wi
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  await t.mutation(api.messages.sendMessage, {
-    sessionId,
-    chatroomId,
-    senderRole: 'user',
-    content: 'Implement the feature',
-    type: 'message',
-  });
+  await sendUserMessageWithProjectedTask(sessionId, machineId, chatroomId, 'Implement the feature');
 
   await t.mutation(api.tasks.claimTask, {
     sessionId,

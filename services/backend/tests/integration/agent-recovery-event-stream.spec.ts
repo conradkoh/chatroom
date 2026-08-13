@@ -15,6 +15,7 @@ import {
   joinParticipant,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
+  sendUserMessageWithProjectedTask,
 } from '../helpers/integration';
 
 async function getEventCounts(chatroomId: Id<'chatroom_rooms'>) {
@@ -116,13 +117,7 @@ describe('Agent recovery event stream', () => {
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-    await t.mutation(api.messages.sendMessage, {
-      sessionId,
-      chatroomId,
-      senderRole: 'user',
-      content: 'Implement the feature',
-      type: 'message',
-    });
+    await sendUserMessageWithProjectedTask(sessionId, machineId, chatroomId, 'Implement the feature');
 
     await t.mutation(api.tasks.claimTask, {
       sessionId,

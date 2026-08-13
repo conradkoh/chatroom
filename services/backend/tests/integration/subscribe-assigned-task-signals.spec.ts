@@ -12,6 +12,7 @@ import {
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
+  sendUserMessageWithProjectedTask,
 } from '../helpers/integration';
 
 async function syncMachineSnapshots(sessionId: string, machineId: string): Promise<void> {
@@ -220,13 +221,7 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
     expect(baseline.items).toHaveLength(0);
 
     const messageContent = '## Goal\nBuild from chatroom message';
-    await t.mutation(api.messages.sendMessage, {
-      sessionId,
-      chatroomId,
-      senderRole: 'user',
-      content: messageContent,
-      type: 'message',
-    });
+    await sendUserMessageWithProjectedTask(sessionId, machineId, chatroomId, messageContent);
 
     const afterMessage = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,
@@ -333,13 +328,7 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-    await t.mutation(api.messages.sendMessage, {
-      sessionId,
-      chatroomId,
-      senderRole: 'user',
-      content: '## Goal\nFirst task',
-      type: 'message',
-    });
+    await sendUserMessageWithProjectedTask(sessionId, machineId, chatroomId, '## Goal\nFirst task');
 
     const baseline = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
       sessionId,

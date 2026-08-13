@@ -15,6 +15,7 @@ import {
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
+  sendUserMessageWithProjectedTask,
 } from '../helpers/integration';
 
 async function findOfflineRestartEvents(chatroomId: Id<'chatroom_rooms'>) {
@@ -269,13 +270,7 @@ test('does not restart when user message is queued behind active task', async ()
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  await t.mutation(api.messages.sendMessage, {
-    sessionId,
-    chatroomId,
-    senderRole: 'user',
-    content: 'First message',
-    type: 'message',
-  });
+  await sendUserMessageWithProjectedTask(sessionId, machineId, chatroomId, 'First message');
 
   await t.mutation(api.participants.join, {
     sessionId,
@@ -486,13 +481,7 @@ test('restarts offline planner on user sendMessage (production duo: planner entr
     }
   });
 
-  await t.mutation(api.messages.sendMessage, {
-    sessionId,
-    chatroomId,
-    senderRole: 'user',
-    content: 'Wake up planner',
-    type: 'message',
-  });
+  await sendUserMessageWithProjectedTask(sessionId, machineId, chatroomId, 'Wake up planner');
 
   const tasks = await getPendingTasks(sessionId, chatroomId);
   expect(tasks).toHaveLength(1);
