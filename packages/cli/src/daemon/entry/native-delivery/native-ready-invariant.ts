@@ -2,7 +2,6 @@ import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/
 
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import {
-  isAgentDesiredRunning,
   isDeliverableTaskStatus,
 } from '../../../daemon/domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../daemon/domain/usecase/check-agent-slot.js';
@@ -26,21 +25,13 @@ export function explainAgentReadyForNativeDeliveryBlock(
   if (!isNativeHarness(agentConfig.agentHarness)) {
     return `not_native_harness (harness=${agentConfig.agentHarness})`;
   }
-  if (!isAgentDesiredRunning(agentConfig.desiredState)) {
-    return `desired_state_not_running (desiredState=${agentConfig.desiredState})`;
-  }
-  if (agentConfig.spawnedAgentPid == null) {
-    return 'spawned_pid_missing';
-  }
   if (!slot) {
-    return `slot_missing (expectedPid=${agentConfig.spawnedAgentPid})`;
+    return 'slot_missing';
   }
   if (!isSlotRunning(slot.state)) {
-    return `slot_not_running (slotState=${slot.state}, expectedPid=${agentConfig.spawnedAgentPid})`;
+    return `slot_not_running (slotState=${slot.state})`;
   }
-  if (slot.pid !== agentConfig.spawnedAgentPid) {
-    return `pid_mismatch (slotPid=${slot.pid ?? 'none'}, snapshotPid=${agentConfig.spawnedAgentPid})`;
-  }
+  if (!slot.pid) return 'slot_pid_missing';
   if (typeof slot.harnessSessionId !== 'string' || slot.harnessSessionId.length === 0) {
     return 'harness_session_missing';
   }

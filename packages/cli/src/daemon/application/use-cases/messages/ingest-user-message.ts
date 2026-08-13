@@ -30,23 +30,13 @@ export async function ingestUserMessage(
   input: IngestUserMessageInput
 ): Promise<{ newTaskId: string }> {
   if (input.senderRole.toLowerCase() !== 'user') throw new Error('Only user messages may be ingested');
+  if (hasProcessedInboundMessage(deps.db, input.chatroomId, input.messageId)) {
+    const existing = deps.db.prepare('SELECT task_id as taskId FROM read_model_tasks WHERE chatroom_id = ? AND role = ? AND task_content = ? ORDER BY created_at DESC LIMIT 1').get(input.chatroomId, input.entryPointRole, input.content) as { taskId?: string } | undefined;
+    if (existing?.taskId) return { newTaskId: existing.taskId };
+  }
   const taskId = randomUUID();
   const now = deps.now?.() ?? Date.now();
   const harness = (await deps.getAgentHarness(input.chatroomId, input.entryPointRole)) ?? 'opencode';
-  runInTransaction(deps.db, () => {
-    upsertTaskReadModel(deps.db, {
-      chatroomId: input.chatroomId,
-      role: input.entryPointRole,
-      taskId,
-      status: 'pending',
-      taskContent: input.content,
-      assignedTo: input.entryPointRole,
-      agentHarness: harness,
-      machineId: deps.machineId,
-      createdAt: now,
-      updatedAt: now,
-    });
-  });
   const event = {
     type: 'user-message.received',
     idempotencyKey: `${input.chatroomId}:${input.messageId}`,
@@ -58,12 +48,15 @@ export async function ingestUserMessage(
     newTaskId: taskId,
     timestamp: now,
   } as const;
+  let created = false;
   runInTransaction(deps.db, () => {
     if (hasProcessedInboundMessage(deps.db, input.chatroomId, input.messageId)) return;
+    upsertTaskReadModel(deps.db, { chatroomId: input.chatroomId, role: input.entryPointRole, taskId, status: 'pending', taskContent: input.content, assignedTo: input.entryPointRole, agentHarness: harness, machineId: deps.machineId, createdAt: now, updatedAt: now });
     appendOutboundEventWithOutbox(deps.db, event);
     markInboundMessageProcessed(deps.db, input.chatroomId, input.messageId, now);
+    created = true;
   });
-  deps.appendEvent(event);
+  if (created) deps.appendEvent(event);
   if (isDaemonOrchestrationP3LocalDeliveryEnabled()) {
     deps.emitOrchestrationEvent?.({ chatroomId: input.chatroomId, role: input.entryPointRole, taskId, source: 'user-message' });
   }
