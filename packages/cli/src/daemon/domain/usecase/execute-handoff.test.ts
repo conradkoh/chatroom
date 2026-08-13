@@ -101,6 +101,58 @@ describe('executeHandoff', () => {
     }
   });
 
+  it('emits a local task-ready event for a handoff to builder', async () => {
+    const db = openDatabase(tempDbPath());
+    const emitOrchestrationEvent = vi.fn();
+    try {
+      upsertTaskReadModel(db, taskReadModelFromSnapshot(makeSnapshot()));
+      const result = await executeHandoff(
+        {
+          db,
+          machineId: 'machine-1',
+          chatroom: makePort(),
+          appendEvent: () => {},
+          emitOrchestrationEvent,
+        },
+        {
+          sessionId: 'session-1',
+          chatroomId: 'room-1',
+          senderRole: 'planner',
+          content: 'local handoff',
+          targetRole: 'builder',
+        }
+      );
+      expect(result.newTaskId).toEqual(expect.any(String));
+      expect(emitOrchestrationEvent).not.toHaveBeenCalled();
+      process.env.DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY = '1';
+      const second = await executeHandoff(
+        {
+          db,
+          machineId: 'machine-1',
+          chatroom: makePort(),
+          appendEvent: () => {},
+          emitOrchestrationEvent,
+        },
+        {
+          sessionId: 'session-1',
+          chatroomId: 'room-1',
+          senderRole: 'planner',
+          content: 'local handoff 2',
+          targetRole: 'builder',
+        }
+      );
+      expect(emitOrchestrationEvent).toHaveBeenCalledWith({
+        chatroomId: 'room-1',
+        role: 'builder',
+        taskId: second.newTaskId,
+        source: 'handoff',
+      });
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY;
+      db.close();
+    }
+  });
+
   it('planner → user handoff does not create a new task', async () => {
     const db = openDatabase(tempDbPath());
     const events: OutboundEvent[] = [];
