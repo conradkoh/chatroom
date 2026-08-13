@@ -66,8 +66,8 @@ export function ModelFilterPanel({
   );
 
   const allHidden = useMemo(
-    () => allProviderKeys.length > 0 && allProviderKeys.every((key) => hiddenProvidersSet.has(key)),
-    [allProviderKeys, hiddenProvidersSet]
+    () => availableModels.length > 0 && availableModels.every((model) => hiddenModelsSet.has(model)),
+    [availableModels, hiddenModelsSet]
   );
 
   const clearAllFilters = useCallback(() => {
@@ -77,8 +77,8 @@ export function ModelFilterPanel({
 
   const handleHideAll = useCallback(() => {
     if (disabled) return;
-    onFilterChange([], allProviderKeys);
-  }, [disabled, onFilterChange, allProviderKeys]);
+    onFilterChange(availableModels, []);
+  }, [disabled, onFilterChange, availableModels]);
 
   const handleModelToggle = useCallback(
     (modelId: string) => {

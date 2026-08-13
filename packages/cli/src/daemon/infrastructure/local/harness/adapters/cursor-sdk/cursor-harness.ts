@@ -16,10 +16,8 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
-import {
-  normalizeCursorSdkListedModels,
-  resolveCursorSdkModel,
-} from '../../services/cursor-sdk/cursor-models.js';
+import { fetchCursorSdkModelCatalog } from '../../services/cursor-sdk/cursor-sdk-model-catalog.js';
+import { resolveCursorSdkSpawnModelSelection } from '../../services/cursor-sdk/cursor-models.js';
 import {
   formatCursorSdkLoadError,
   importBundledCursorSdk,
@@ -27,7 +25,6 @@ import {
 import { withTimeout } from '../../services/with-timeout.js';
 
 const DEFAULT_MODEL = 'composer-2.5';
-const MODELS_LIST_TIMEOUT_MS = 60_000;
 const AGENT_CREATE_TIMEOUT_MS = 60_000;
 
 type LoadedCursorSdk = Awaited<ReturnType<typeof importBundledCursorSdk>>;
@@ -79,18 +76,7 @@ export class CursorSdkHarness implements BoundHarness {
   }
 
   async listProviders(): Promise<readonly PublishedProvider[]> {
-    const apiKey = process.env.CURSOR_API_KEY?.trim();
-    if (!apiKey) return [];
-
-    const { Cursor } = await loadSdk();
-    const listed = await withTimeout(
-      Cursor.models.list({ apiKey }),
-      MODELS_LIST_TIMEOUT_MS,
-      'Cursor.models.list'
-    );
-    const modelIds = normalizeCursorSdkListedModels(
-      listed.map((m) => m.id).filter((id) => id.length > 0)
-    );
+    const modelIds = await fetchCursorSdkModelCatalog();
 
     return [
       {
@@ -108,12 +94,12 @@ export class CursorSdkHarness implements BoundHarness {
     const apiKey = process.env.CURSOR_API_KEY?.trim();
     if (!apiKey) throw new Error('CURSOR_API_KEY is not set');
 
-    const modelId = resolveCursorSdkModel(config.model ?? DEFAULT_MODEL);
+    const modelSelection = resolveCursorSdkSpawnModelSelection(config.model ?? DEFAULT_MODEL);
     const { Agent } = await loadSdk();
     const agent = await withTimeout(
       Agent.create({
         apiKey,
-        model: { id: modelId },
+        model: modelSelection,
         local: { cwd: this.cwd, settingSources: [] },
       }),
       AGENT_CREATE_TIMEOUT_MS,
@@ -146,7 +132,7 @@ export class CursorSdkHarness implements BoundHarness {
     const agent = await withTimeout(
       Agent.resume(sessionId, {
         apiKey,
-        model: { id: DEFAULT_MODEL },
+        model: resolveCursorSdkSpawnModelSelection(DEFAULT_MODEL),
         local: { cwd: this.cwd, settingSources: [] },
       }),
       AGENT_CREATE_TIMEOUT_MS,

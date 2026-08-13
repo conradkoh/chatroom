@@ -1,24 +1,51 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  getBaseModelId,
   getModelProviderKey,
   isModelHidden,
+  normalizeModelFilter,
   selectModel,
   UNPREFIXED_PROVIDER_KEY,
 } from './modelSelection';
+
+describe('cursor-sdk blacklist semantics', () => {
+  it('normalizes legacy sentinel and hides only blacklisted model', () => {
+    const filter = normalizeModelFilter({ hiddenModels: ['composer-2.5'], hiddenProviders: [UNPREFIXED_PROVIDER_KEY] });
+    expect(filter).toEqual({ hiddenModels: ['composer-2.5'], hiddenProviders: [] });
+    expect(isModelHidden('composer-2.5', filter)).toBe(true);
+    expect(isModelHidden('claude-4.5-sonnet', filter)).toBe(false);
+  });
+});
 import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_ALT } from '../../../test/test-models';
 
 // ─── getModelProviderKey ────────────────────────────────────────────
 
 describe('getModelProviderKey', () => {
-  it('returns sentinel for bare slugs', () => {
-    expect(getModelProviderKey('gpt-5.4-high')).toBe(UNPREFIXED_PROVIDER_KEY);
-    expect(getModelProviderKey('composer-2.5')).toBe(UNPREFIXED_PROVIDER_KEY);
+  it('uses base model id for unprefixed bare slugs', () => {
+    expect(getModelProviderKey('gpt-5.4-high')).toBe('gpt-5.4-high');
+    expect(getModelProviderKey('composer-2.5')).toBe('composer-2.5');
+  });
+
+  it('uses base model id for variant-encoded unprefixed models', () => {
+    expect(getModelProviderKey('sonnet[effort=high]')).toBe('sonnet');
+    expect(getModelProviderKey('gpt-5.6-terra[reasoning=high]')).toBe('gpt-5.6-terra');
   });
 
   it('returns prefix before slash for provider/model IDs', () => {
     expect(getModelProviderKey('openai/gpt-4')).toBe('openai');
     expect(getModelProviderKey(TEST_MODEL_OPENCODE)).toBe('opencode');
+    expect(getModelProviderKey('openrouter/deepseek/deepseek-v4-pro-0813')).toBe('openrouter');
+  });
+});
+
+describe('getBaseModelId', () => {
+  it('strips variant suffix', () => {
+    expect(getBaseModelId('sonnet[effort=high]')).toBe('sonnet');
+  });
+
+  it('returns input when not a variant', () => {
+    expect(getBaseModelId('openai/gpt-4')).toBe('openai/gpt-4');
   });
 });
 
@@ -79,6 +106,16 @@ describe('isModelHidden', () => {
     };
     expect(isModelHidden('gpt-5.4-high', filter)).toBe(false);
     expect(isModelHidden('composer-2.5', filter)).toBe(true);
+  });
+
+  it('un-hides variant models when base model is listed as exception under sentinel', () => {
+    const filter = {
+      hiddenModels: ['sonnet'],
+      hiddenProviders: [UNPREFIXED_PROVIDER_KEY],
+    };
+    expect(isModelHidden('sonnet', filter)).toBe(false);
+    expect(isModelHidden('sonnet[effort=high]', filter)).toBe(false);
+    expect(isModelHidden('opus[effort=high]', filter)).toBe(true);
   });
 });
 

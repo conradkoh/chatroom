@@ -5,6 +5,8 @@ export function isModelEffectivelyHidden(
   hiddenProviders: ReadonlySet<string>
 ): boolean {
   const providerHidden = hiddenProviders.has(providerKey);
-  const hasOverride = hiddenModels.has(modelId);
+  const baseId = getBaseModelId(modelId);
+  const hasOverride = hiddenModels.has(modelId) || (baseId !== modelId && hiddenModels.has(baseId));
   return providerHidden ? !hasOverride : hasOverride;
 }
+import { getBaseModelId } from '../../utils/modelSelection';

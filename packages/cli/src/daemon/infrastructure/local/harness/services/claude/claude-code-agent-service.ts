@@ -19,7 +19,7 @@
 
 import { type ChildProcess } from 'node:child_process';
 
-import { CLAUDE_FALLBACK_MODELS, fetchClaudeModels } from './claude-models.js';
+import { decodeClaudeVariant } from './claude-models.js';
 import { ClaudeStreamReader } from './claude-stream-reader.js';
 import {
   BASH_TOOL_KIND,
@@ -65,9 +65,7 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    const dynamic = await fetchClaudeModels();
-    if (dynamic) return dynamic;
-    return [...CLAUDE_FALLBACK_MODELS];
+    return [];
   }
 
   // fallow-ignore-next-line complexity
@@ -85,7 +83,8 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
     args.push('--max-turns', String(DEFAULT_MAX_TURNS));
 
     if (model) {
-      args.push('--model', model);
+      const variant = decodeClaudeVariant(model);
+      if (variant) { args.push('--model', variant.model); if (variant.effort) args.push('--effort', variant.effort); }
     }
 
     if (systemPrompt) {

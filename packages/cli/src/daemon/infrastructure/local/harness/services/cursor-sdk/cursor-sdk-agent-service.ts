@@ -21,7 +21,8 @@ import { randomUUID } from 'node:crypto';
 import type * as CursorSdkModule from '@cursor/sdk';
 import { Effect } from 'effect';
 
-import { normalizeCursorSdkListedModels, resolveCursorSdkModel } from './cursor-models.js';
+import { fetchCursorSdkModelCatalog } from './cursor-sdk-model-catalog.js';
+import { resolveCursorSdkSpawnModelSelection } from './cursor-models.js';
 import {
   formatCursorSdkError,
   formatCursorSdkLoadError,
@@ -87,7 +88,6 @@ const DEFAULT_MODEL = 'composer-2.5';
 const AGENT_CREATE_TIMEOUT_MS = 60_000;
 const SEND_TIMEOUT_MS = 60_000;
 const RUN_WAIT_TIMEOUT_MS = 3_600_000;
-const MODELS_LIST_TIMEOUT_MS = 60_000;
 const RUN_CANCEL_TIMEOUT_MS = 5_000;
 
 let cachedSdkPackageVersion: string | undefined;
@@ -147,10 +147,6 @@ function waitForResumeOrAbort(session: SdkSession): Promise<string | null> {
       };
     }),
   ]);
-}
-
-function resolveModelId(model?: string): string {
-  return model ? resolveCursorSdkModel(model) : DEFAULT_MODEL;
 }
 
 function buildLocalAgentOptions(cwd: string) {
@@ -216,25 +212,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    const apiKey = process.env.CURSOR_API_KEY?.trim();
-    if (!apiKey) return [];
-
-    try {
-      const { Cursor } = await loadSdk();
-      const models = await withTimeout(
-        Cursor.models.list({ apiKey }),
-        MODELS_LIST_TIMEOUT_MS,
-        'Cursor.models.list'
-      );
-      const listedModelIds = models.map((m) => m.id).filter((id) => id.length > 0);
-      return normalizeCursorSdkListedModels(listedModelIds);
-    } catch (err) {
-      console.warn(
-        `[cursor-sdk] Cursor.models.list failed:`,
-        err instanceof Error ? err.message : err
-      );
-      return [];
-    }
+    return fetchCursorSdkModelCatalog();
   }
 
   async resumeTurn(pid: number, prompt: string): Promise<void> {
@@ -310,7 +288,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const context = options.context;
     const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
     const agentName = stored.agentName;
-    const modelId = resolveModelId(options.model ?? stored.model);
+    const modelSelection = resolveCursorSdkSpawnModelSelection(options.model ?? stored.model);
     const systemPrompt = options.systemPrompt
       ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
       : NO_SUBAGENT_DIRECTIVE;
@@ -322,7 +300,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       agent = await withTimeout(
         Agent.resume(stored.harnessSessionId, {
           apiKey,
-          model: { id: modelId },
+          model: modelSelection,
           local: buildLocalAgentOptions(stored.workingDir),
         }),
         AGENT_CREATE_TIMEOUT_MS,
@@ -668,7 +646,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     const context = options.context;
     const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
     const agentName = buildAgentName(context);
-    const modelId = resolveModelId(options.model);
+    const modelSelection = resolveCursorSdkSpawnModelSelection(options.model);
     const systemPrompt = options.systemPrompt
       ? `${NO_SUBAGENT_DIRECTIVE}\n\n${options.systemPrompt}`
       : NO_SUBAGENT_DIRECTIVE;
@@ -681,7 +659,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
         Agent.create({
           apiKey,
           name: agentName,
-          model: { id: modelId, params: [{ id: 'fast', value: 'false' }] },
+          model: modelSelection,
           local: buildLocalAgentOptions(options.workingDir),
         }),
         AGENT_CREATE_TIMEOUT_MS,
