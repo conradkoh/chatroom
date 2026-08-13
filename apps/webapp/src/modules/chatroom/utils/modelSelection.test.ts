@@ -4,9 +4,19 @@ import {
   getBaseModelId,
   getModelProviderKey,
   isModelHidden,
+  normalizeModelFilter,
   selectModel,
   UNPREFIXED_PROVIDER_KEY,
 } from './modelSelection';
+
+describe('cursor-sdk blacklist semantics', () => {
+  it('normalizes legacy sentinel and hides only blacklisted model', () => {
+    const filter = normalizeModelFilter({ hiddenModels: ['composer-2.5'], hiddenProviders: [UNPREFIXED_PROVIDER_KEY] });
+    expect(filter).toEqual({ hiddenModels: ['composer-2.5'], hiddenProviders: [] });
+    expect(isModelHidden('composer-2.5', filter)).toBe(true);
+    expect(isModelHidden('claude-4.5-sonnet', filter)).toBe(false);
+  });
+});
 import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_ALT } from '../../../test/test-models';
 
 // ─── getModelProviderKey ────────────────────────────────────────────

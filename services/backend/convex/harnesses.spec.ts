@@ -19,7 +19,6 @@ async function createTestSession(id: string) {
 test.each([
   ['codexSdk', 'codex-sdk'],
   ['copilot', 'copilot'],
-  ['cursor', 'cursor'],
   ['claude', 'claude'],
   ['claudeSdk', 'claude-sdk'],
 ] as const)(

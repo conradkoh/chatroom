@@ -4,7 +4,7 @@ import { CursorSdkHarness, startCursorSdkHarness } from './index.js';
 
 const mockAgentCreate = vi.fn();
 const mockAgentResume = vi.fn();
-const mockModelsList = vi.fn();
+const mockFetchCatalog = vi.fn();
 
 vi.mock('@cursor/sdk', () => ({
   Agent: {
@@ -13,7 +13,7 @@ vi.mock('@cursor/sdk', () => ({
   },
   Cursor: {
     models: {
-      list: (...args: unknown[]) => mockModelsList(...args),
+      list: vi.fn(),
     },
   },
 }));
@@ -21,6 +21,13 @@ vi.mock('@cursor/sdk', () => ({
 vi.mock('../../services/cursor-sdk/cursor-sdk-package.js', () => ({
   importBundledCursorSdk: vi.fn(async () => import('@cursor/sdk')),
   formatCursorSdkLoadError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
+}));
+
+vi.mock('../../services/cursor-sdk/cursor-sdk-model-catalog.js', () => ({
+  fetchCursorSdkModelCatalog: (...args: unknown[]) => mockFetchCatalog(...args),
+  cursorCatalogBaseId: (id: string) => (id === 'default' ? 'auto' : id),
+  cursorSdkBaseId: (id: string) => (id === 'auto' ? 'default' : id),
+  expandCursorSdkModelCatalog: vi.fn(),
 }));
 
 function stubAgent(agentId = 'agent-1') {
@@ -50,8 +57,8 @@ describe('CursorSdkHarness', () => {
     process.env.CURSOR_API_KEY = 'test-key';
     mockAgentCreate.mockReset();
     mockAgentResume.mockReset();
-    mockModelsList.mockReset();
-    mockModelsList.mockResolvedValue([{ id: 'composer-2.5' }]);
+    mockFetchCatalog.mockReset();
+    mockFetchCatalog.mockResolvedValue(['auto', 'gpt-5.6-terra', 'gpt-5.6-terra[effort=high]']);
   });
 
   afterEach(() => {
@@ -63,6 +70,17 @@ describe('CursorSdkHarness', () => {
     const harness = new CursorSdkHarness('/tmp/work');
     const agents = await harness.listAgents();
     expect(agents).toEqual([{ name: 'builder', mode: 'primary' }]);
+  });
+
+  it('listProviders returns SDK catalog', async () => {
+    const harness = new CursorSdkHarness('/tmp/work');
+    const providers = await harness.listProviders();
+    expect(mockFetchCatalog).toHaveBeenCalled();
+    expect(providers[0].models.map((model) => model.modelID)).toEqual([
+      'auto',
+      'gpt-5.6-terra',
+      'gpt-5.6-terra[effort=high]',
+    ]);
   });
 
   it('creates a session via Agent.create', async () => {

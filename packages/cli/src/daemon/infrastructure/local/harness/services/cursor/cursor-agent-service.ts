@@ -27,8 +27,9 @@ import {
   formatBashRunningPayload,
 } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { decodeCursorVariant } from '../cursor-sdk/cursor-models.js';
+import { fetchCursorSdkModelCatalog } from '../cursor-sdk/cursor-sdk-model-catalog.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
-import { createSessionLogCallbacks } from '../session-log-callbacks.js';
 
 export type CursorAgentServiceDeps = CLIAgentServiceDeps;
 
@@ -72,15 +73,14 @@ export class CursorAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    // Model list moved to the server catalog (api.harnesses.cursor.listModels).
-    // The daemon overlays the catalog onto discovery at boot / manual refresh.
-    return [];
+    return fetchCursorSdkModelCatalog();
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
     const args: string[] = ['-p', '--force', '--output-format', 'stream-json'];
     if (options.model) {
-      args.push('--model', resolveCursorCliModel(options.model));
+      const model = resolveCursorCliModel(options.model);
+      args.push('--model', decodeCursorVariant(model)?.cliSlug ?? model);
     }
 
     const systemPrompt = options.systemPrompt
@@ -105,9 +105,13 @@ export class CursorAgentService extends BaseCLIAgentService {
     const entry = this.registerProcess(pid, context);
 
     const logPrefix = buildAgentLogPrefix('cursor', context);
-    const { onLogLine, emitFormatted } = createSessionLogCallbacks();
 
     const outputCallbacks: (() => void)[] = [];
+    const logLineCallbacks: ((line: string) => void)[] = [];
+    const emitLog = (line: string) => {
+      process.stdout.write(`${line}\n`);
+      for (const cb of logLineCallbacks) cb(line);
+    };
 
     if (childProcess.stdout) {
       const reader = new CursorStreamReader(childProcess.stdout);
@@ -116,7 +120,7 @@ export class CursorAgentService extends BaseCLIAgentService {
       const flushText = () => {
         if (!textBuffer) return;
         for (const line of textBuffer.split('\n')) {
-          if (line) emitFormatted(formatAgentLogLine(logPrefix, 'text', line));
+          if (line) emitLog(formatAgentLogLine(logPrefix, 'text', line));
         }
         textBuffer = '';
       };
@@ -135,27 +139,27 @@ export class CursorAgentService extends BaseCLIAgentService {
 
       reader.onAgentEnd(() => {
         flushText();
-        emitFormatted(formatAgentLogLine(logPrefix, 'agent_end'));
+        process.stdout.write(`${formatAgentLogLine(logPrefix, 'agent_end')}\n`);
       });
 
       reader.onToolCall((callId, toolCall) => {
         flushText();
         const bashCmd = extractBashCommandFromCursorToolCall(toolCall);
         if (bashCmd !== null) {
-          emitFormatted(formatAgentLogLine(logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd)));
+          emitLog(formatAgentLogLine(logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd)));
           return;
         }
-        emitFormatted(formatAgentLogLine(logPrefix, 'tool', `${callId} ${JSON.stringify(toolCall)}`));
+        emitLog(formatAgentLogLine(logPrefix, 'tool', `${callId} ${JSON.stringify(toolCall)}`));
       });
 
       reader.onToolResult((callId) => {
         flushText();
-        emitFormatted(formatAgentLogLine(logPrefix, 'tool_result', callId));
+        process.stdout.write(`${formatAgentLogLine(logPrefix, 'tool_result', callId)}\n`);
       });
 
       if (childProcess.stderr) {
-        childProcess.stderr.on('data', (chunk: Buffer) => {
-          emitFormatted(chunk.toString('utf8'), 'stderr');
+        childProcess.stderr.pipe(process.stderr, { end: false });
+        childProcess.stderr.on('data', () => {
           entry.lastOutputAt = Date.now();
           for (const cb of outputCallbacks) cb();
         });
@@ -175,13 +179,13 @@ export class CursorAgentService extends BaseCLIAgentService {
         onAgentEnd: (cb) => {
           reader.onAgentEnd(cb);
         },
-        onLogLine,
+        onLogLine: (cb) => logLineCallbacks.push(cb),
       };
     }
 
     if (childProcess.stderr) {
-      childProcess.stderr.on('data', (chunk: Buffer) => {
-        emitFormatted(chunk.toString('utf8'), 'stderr');
+      childProcess.stderr.pipe(process.stderr, { end: false });
+      childProcess.stderr.on('data', () => {
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
@@ -198,7 +202,6 @@ export class CursorAgentService extends BaseCLIAgentService {
       onOutput: (cb) => {
         outputCallbacks.push(cb);
       },
-      onLogLine,
     };
   }
 }

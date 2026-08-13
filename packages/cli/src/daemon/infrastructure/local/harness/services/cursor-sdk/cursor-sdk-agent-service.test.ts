@@ -133,7 +133,7 @@ describe('CursorSdkAgentService', () => {
       expect(sharedAgentCreateFn).toHaveBeenCalledWith({
         apiKey: 'cursor_test_key',
         name: 'builder@c1',
-        model: { id: 'composer-2.5', params: [{ id: 'fast', value: 'false' }] },
+        model: { id: 'composer-2.5' },
         local: { cwd: '/tmp/work', settingSources: [] },
       });
     });
@@ -819,32 +819,29 @@ describe('CursorSdkAgentService', () => {
   });
 
   describe('listModels', () => {
-    it('maps SDK default to UI-centric auto', async () => {
+    it('returns expanded catalog from Cursor.models.list', async () => {
       vi.mocked(Cursor.models.list).mockResolvedValue([
-        { id: 'default' },
-        { id: 'composer-2.5' },
-      ] as Awaited<ReturnType<typeof Cursor.models.list>>);
-
+        {
+          id: 'default',
+          displayName: 'Auto',
+          variants: [{ params: [], displayName: 'Auto', isDefault: true }],
+        },
+        {
+          id: 'gpt-5.6-terra',
+          displayName: 'GPT 5.6 Terra',
+          variants: [
+            { params: [], displayName: 'Default', isDefault: true },
+            { params: [{ id: 'effort', value: 'high' }], displayName: 'High' },
+          ],
+        },
+      ]);
       const service = new CursorSdkAgentService(createMockDeps());
-      await expect(service.listModels()).resolves.toEqual(['auto', 'composer-2.5']);
-    });
-
-    it('returns empty list when CURSOR_API_KEY is unset', async () => {
-      process.env.CURSOR_API_KEY = '';
-      const service = new CursorSdkAgentService(createMockDeps());
-      await expect(service.listModels()).resolves.toEqual([]);
-      expect(Cursor.models.list).not.toHaveBeenCalled();
-    });
-
-    it('returns [] when Cursor.models.list fails', async () => {
-      vi.mocked(Cursor.models.list).mockRejectedValue(new Error('network down'));
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      const service = new CursorSdkAgentService(createMockDeps());
-      await expect(service.listModels()).resolves.toEqual([]);
-      expect(warnSpy).toHaveBeenCalled();
-
-      warnSpy.mockRestore();
+      await expect(service.listModels()).resolves.toEqual([
+        'auto',
+        'gpt-5.6-terra',
+        'gpt-5.6-terra[effort=high]',
+      ]);
+      expect(Cursor.models.list).toHaveBeenCalled();
     });
   });
 });

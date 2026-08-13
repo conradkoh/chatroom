@@ -10,7 +10,7 @@ const SESSION_ID = 'session-1';
 
 /**
  * Client stub returning one canned result per call, in catalog order
- * (codex-sdk, copilot, cursor, claude, claude-sdk). An Error entry rejects that call.
+ * (codex-sdk, copilot, claude, claude-sdk). An Error entry rejects that call.
  */
 function clientWith(sequence: (string[] | Error)[]) {
   const query = vi.fn();
@@ -35,7 +35,6 @@ describe('fetchHarnessCatalog', () => {
     const client = clientWith([
       ['gpt-5.6-terra', 'gpt-5.6-terra[reasoning=high]'],
       ['claude-sonnet-4-6'],
-      ['auto', 'composer-2.5'],
       ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
       ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
     ]);
@@ -45,11 +44,10 @@ describe('fetchHarnessCatalog', () => {
     expect(catalog).toEqual({
       'codex-sdk': ['gpt-5.6-terra', 'gpt-5.6-terra[reasoning=high]'],
       copilot: ['claude-sonnet-4-6'],
-      cursor: ['auto', 'composer-2.5'],
       claude: ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
       'claude-sdk': ['claude-sonnet-4-6', 'claude-sonnet-4-6[effort=high]'],
     });
-    expect(client.query).toHaveBeenCalledTimes(5);
+    expect(client.query).toHaveBeenCalledTimes(4);
     for (const call of client.query.mock.calls) {
       expect(call[1]).toEqual({ sessionId: SESSION_ID });
     }
@@ -57,11 +55,15 @@ describe('fetchHarnessCatalog', () => {
 
   it('skips a harness whose query fails, keeping the others', async () => {
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const client = clientWith([['gpt-5.6-terra'], new Error('backend down'), ['auto']]);
+    const client = clientWith([
+      ['gpt-5.6-terra'],
+      new Error('backend down'),
+      ['claude-sonnet-4-6'],
+    ]);
 
     const catalog = await fetchHarnessCatalog(client, SESSION_ID);
 
-    expect(catalog).toEqual({ 'codex-sdk': ['gpt-5.6-terra'], cursor: ['auto'] });
+    expect(catalog).toEqual({ 'codex-sdk': ['gpt-5.6-terra'], claude: ['claude-sonnet-4-6'] });
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('copilot'));
   });
 });
