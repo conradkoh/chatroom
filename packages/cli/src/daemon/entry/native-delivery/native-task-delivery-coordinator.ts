@@ -214,7 +214,7 @@ export class NativeTaskDeliveryCoordinator {
       Runtime.runFork(runtime)(
         Effect.gen(function* () {
           const taskContent = readModelDb
-            ? getTaskContentFromReadModel(readModelDb, row.chatroomId, role, row.taskId)
+            ? getTaskContentFromReadModel(readModelDb, row.chatroomId, role, deliveryTaskId)
             : undefined;
           const useLocalDelivery = Boolean(
             readModelDb && taskContent && isDaemonTaskId(deliveryTaskId)

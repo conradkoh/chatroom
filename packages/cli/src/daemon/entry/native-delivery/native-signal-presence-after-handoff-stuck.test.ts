@@ -182,11 +182,11 @@ describe('native signal-presence stuck after planner handoff', () => {
 
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(
-      '[NativeDelivery:fallback] signal-presence planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a task nh7dh7bj63fdns9zkyasjgnga58afx3s — reconcile'
+      `[NativeDelivery:fallback] signal-presence planner@${CHATROOM_ID} task ${TASK_ID} — reconcile`
     );
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining(
-        '[NativeDelivery:skip] planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a task nh7dh7bj63fdns9zkyasjgnga58afx3s — turn_not_idle'
+        `[NativeDelivery:skip] planner@${CHATROOM_ID} task ${TASK_ID} — turn_not_idle`
       )
     );
     expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('[NativeDelivery:inject]'));

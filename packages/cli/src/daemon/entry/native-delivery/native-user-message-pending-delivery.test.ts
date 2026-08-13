@@ -113,7 +113,8 @@ describe('user message pending delivery path', () => {
   test('coordinator injects first pending user-message task when agent slot is idle', async () => {
     const snapshot = createTaskMonitorSnapshot();
     snapshot.replaceAll([]);
-    const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
+    const merged = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
+    const row = merged ? { ...merged, daemonTaskId: DAEMON_TASK_ID } : merged;
     expect(row).toBeDefined();
 
     const db = openNativeDeliveryTestDb();
@@ -170,7 +171,8 @@ describe('user message pending delivery path', () => {
   test('stuck pending: does not inject when harness turn is still in flight', async () => {
     const snapshot = createTaskMonitorSnapshot();
     snapshot.replaceAll([]);
-    const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
+    const merged = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
+    const row = merged ? { ...merged, daemonTaskId: DAEMON_TASK_ID } : merged;
     expect(row).toBeDefined();
 
     expect(
