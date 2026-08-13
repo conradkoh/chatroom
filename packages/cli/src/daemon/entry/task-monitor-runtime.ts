@@ -602,7 +602,6 @@ export const startTaskMonitorEffect = (
       stop() {
         stopped = true;
         unregisterAssignedTaskMonitorHandler();
-        unsubscribeSnapshotStore?.();
         clearAssignedTaskSnapshots();
         unregisterNativeDeliverySession();
         clearInterval(reconcileTimer);
