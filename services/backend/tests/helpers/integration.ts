@@ -44,6 +44,19 @@ export async function simulateDaemonUserMessageProjection(
   return result.taskId;
 }
 
+export async function sendUserMessageWithProjectedTask(
+  sessionId: SessionId,
+  machineId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  content: string
+): Promise<Id<'chatroom_messages'>> {
+  const messageId = await t.mutation(api.messages.sendMessage, {
+    sessionId, chatroomId, senderRole: 'user', content, type: 'message',
+  });
+  await simulateDaemonUserMessageProjection(sessionId, machineId, chatroomId, messageId, content);
+  return messageId;
+}
+
 /**
  * Create a duo team chatroom (planner + builder, entry point = planner).
  */
