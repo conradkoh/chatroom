@@ -35,3 +35,19 @@
 | `file-write-request.ts`     | `daemon-start/file-write-subscription.ts`          | **done** |
 | `workspace-list.ts`         | `daemon-start/workspace-list-subscription.ts`      | **done** |
 | `command-run.ts`            | `daemon-start/` command run feeds                  | **done** |
+
+## P5 — orchestration subscriber shrink
+
+When `DAEMON_ORCHESTRATION_P5` is enabled, the daemon registers **inbound-only**
+(user-intent) subscribers — see `infrastructure/inbound/convex/subscriber-registry.ts`.
+The following **orchestration subscribers are NOT registered** (files remain for the
+flag-off path and reference):
+
+| File                        | Reason removed                                              |
+| --------------------------- | ----------------------------------------------------------- |
+| `assigned-task-signals.ts`  | Daemon no longer subscribes to self-projected task state    |
+| `assigned-task-presence.ts` | P2 cutover + P3/P4 local paths replace presence feed        |
+| `enhancer-job.ts`           | P4 local SQLite enhancer queue replaces Convex pending poll |
+
+User-intent subscribers (git, files, workspace list, webapp commands, direct
+harness sessions, agentic queries) remain registered in both modes.

@@ -1,6 +1,15 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { startEnhancerJobSubscriber } from './job-subscriber.js';
+import {
+  getEnhancerQueuePort,
+  setEnhancerQueueDb,
+} from '../../infrastructure/persistence/enhancer-queue.js';
+import { openDatabase } from '../../infrastructure/persistence/open-database.js';
 
 vi.mock('../../../api.js', () => {
   const api: Record<string, unknown> = {};
@@ -330,5 +339,84 @@ describe('startEnhancerJobSubscriber', () => {
     expect(updateTokenActivity).not.toHaveBeenCalled();
 
     vi.useRealTimers();
+  });
+
+  it('polls the local enhancer queue when P4 is enabled', async () => {
+    vi.useFakeTimers();
+    const dir = mkdtempSync(join(tmpdir(), 'p4-enhancer-subscriber-'));
+    const db = openDatabase(join(dir, 'events.sqlite'));
+    process.env.DAEMON_ORCHESTRATION_P4 = '1';
+    try {
+      setEnhancerQueueDb(db);
+      const queue = getEnhancerQueuePort();
+      queue.enqueue({
+        jobId: 'local:room-1:msg-1',
+        chatroomId: 'room-1',
+        machineId: 'machine-1',
+        payload: {
+          agentHarness: 'opencode',
+          model: 'gpt-4o',
+          machineId: 'machine-1',
+          content: 'review',
+          workingDir: '/tmp/work',
+        },
+      });
+
+      let exitCallback: (() => void) | undefined;
+      const spawn = vi.fn().mockReturnValue({
+        onLogLine: vi.fn(),
+        onExit: (fn: () => void) => {
+          exitCallback = fn;
+        },
+        onAgentEnd: vi.fn(),
+        pid: 123,
+      });
+      const agentServices = new Map([
+        ['opencode', { spawn, stop: vi.fn().mockResolvedValue(undefined) }],
+      ]);
+      const mutationFn = vi.fn();
+      const queryFn = vi.fn().mockResolvedValue([]);
+      const backend = { mutation: mutationFn, query: queryFn };
+
+      const handles = startEnhancerJobSubscriber(
+        'session',
+        'machine-1',
+        'http://localhost',
+        backend as any,
+        agentServices as any
+      );
+
+      await handles.drainPendingEnhancerJobs();
+      await vi.advanceTimersByTimeAsync(10);
+
+      // Local claim + spawn, no Convex pendingForMachine/claimForSpawn calls.
+      expect(mutationFn).not.toHaveBeenCalled();
+      expect(queryFn).not.toHaveBeenCalled();
+      expect(spawn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workingDir: '/tmp/work',
+          model: 'gpt-4o',
+          context: { machineId: 'machine-1', chatroomId: 'room-1', role: 'enhancer' },
+        })
+      );
+
+      const row = db
+        .prepare(`SELECT status FROM enhancer_queue WHERE job_id = ?`)
+        .get('local:room-1:msg-1') as { status: string };
+      expect(row.status).toBe('claimed');
+
+      exitCallback!();
+      await vi.runAllTimersAsync();
+
+      const after = db
+        .prepare(`SELECT status FROM enhancer_queue WHERE job_id = ?`)
+        .get('local:room-1:msg-1') as { status: string };
+      expect(after.status).toBe('failed');
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P4;
+      setEnhancerQueueDb(undefined);
+      db.close();
+      vi.useRealTimers();
+    }
   });
 });

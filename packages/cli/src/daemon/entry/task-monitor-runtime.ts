@@ -10,6 +10,8 @@
  * Dual-channel WorkingSnapshot hydrate still uses one-shot HTTP.
  */
 
+import type { DatabaseSync } from 'node:sqlite';
+
 import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliability.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { roleSupportsSessionAugmentation } from '@workspace/backend/src/domain/entities/team-agent-settings.js';
@@ -75,11 +77,26 @@ import type {
 } from '../domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
 import type { AssignedTaskInboundEvent } from '../domain/usecase/handle-assigned-task-inbound.js';
+import {
+  taskReadModelFromSnapshot,
+  upsertTaskReadModel,
+} from '../infrastructure/persistence/read-models/tasks.js';
+import {
+  isDaemonOrchestrationP2CutoverEnabled,
+  isDaemonOrchestrationP2Enabled,
+} from '../infrastructure/projection/feature-flags.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
 
 type TaskMonitorPass = 'signal' | 'presence';
+
+let taskMonitorReadModelDb: DatabaseSync | undefined;
+
+/** Set the SQLite handle used for P2 shadow-sync of read models (set by start-daemon when P2 enabled). */
+export function setTaskMonitorReadModelDb(db: DatabaseSync | undefined): void {
+  taskMonitorReadModelDb = db;
+}
 
 function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
@@ -246,6 +263,7 @@ async function clearStuckStoppingSlotIfNeeded(
   }
 }
 
+// fallow-ignore-next-line complexity
 async function nudgeStuckTasks(
   tasks: AssignedTaskSnapshotView[],
   now: number,
@@ -444,12 +462,22 @@ function subscribeAssignedTaskSnapshotStore(
   return wsClient.onUpdate(
     api.machines.listMachineAssignedTaskSnapshots,
     args as never,
+    // fallow-ignore-next-line complexity
     (result) => {
       if (isStopped()) return;
       const tasks = mapAssignedTaskSnapshotList(
         parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? [])
       );
       replaceAssignedTaskSnapshots(tasks);
+      if (
+        taskMonitorReadModelDb &&
+        isDaemonOrchestrationP2Enabled() &&
+        !isDaemonOrchestrationP2CutoverEnabled()
+      ) {
+        for (const task of tasks) {
+          upsertTaskReadModel(taskMonitorReadModelDb, taskReadModelFromSnapshot(task));
+        }
+      }
     },
     (err: unknown) => {
       console.warn(
@@ -459,7 +487,25 @@ function subscribeAssignedTaskSnapshotStore(
   );
 }
 
-// fallow-ignore-next-line unused-export
+// fallow-ignore-next-line complexity
+async function refreshAssignedTaskReadModelsFromConvex(
+  sessionDeps: NativeTaskDeliverySessionDeps
+): Promise<AssignedTaskSnapshotView[]> {
+  const result = (await sessionDeps.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
+    sessionId: sessionDeps.sessionId,
+    machineId: sessionDeps.machineId,
+  })) as { tasks?: unknown };
+  const tasks = mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(result.tasks ?? []));
+  if (taskMonitorReadModelDb) {
+    for (const task of tasks) {
+      upsertTaskReadModel(taskMonitorReadModelDb, taskReadModelFromSnapshot(task));
+    }
+  }
+  replaceAssignedTaskSnapshots(tasks);
+  return tasks;
+}
+
+// fallow-ignore-next-line complexity unused-export
 export function handleInboundAssignedTaskEvent(
   event: AssignedTaskInboundEvent,
   runMonitorPass: (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass) => void
@@ -516,11 +562,20 @@ export const startTaskMonitorEffect = (
       machineId: session.machineId,
     });
 
-    const unsubscribeSnapshotStore = subscribeAssignedTaskSnapshotStore(
-      wsClient,
-      { sessionId: session.sessionId, machineId: session.machineId },
-      () => stopped
-    );
+    const cutover = isDaemonOrchestrationP2CutoverEnabled();
+
+    let unsubscribeSnapshotStore: (() => void) | undefined;
+    if (cutover) {
+      void refreshAssignedTaskReadModelsFromConvex(sessionDeps).catch((err: unknown) => {
+        console.warn(`[TaskMonitor] P2 cutover refresh failed: ${getErrorMessage(err)}`);
+      });
+    } else {
+      unsubscribeSnapshotStore = subscribeAssignedTaskSnapshotStore(
+        wsClient,
+        { sessionId: session.sessionId, machineId: session.machineId },
+        () => stopped
+      );
+    }
 
     const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
       if (stopped || monitorPassInFlight || tasks.length === 0) return;
@@ -540,6 +595,16 @@ export const startTaskMonitorEffect = (
     };
 
     registerAssignedTaskMonitorHandler(async (event) => {
+      if (cutover) {
+        const tasks = await refreshAssignedTaskReadModelsFromConvex(sessionDeps);
+        const row = tasks.find(
+          (snapshot) => snapshot.taskId === event.taskId && snapshot.agentConfig.role === event.role
+        );
+        if (row) {
+          runMonitorPass([row], event.type === 'assigned-task.signal' ? 'signal' : 'presence');
+        }
+        return;
+      }
       handleInboundAssignedTaskEvent(event, runMonitorPass);
     });
 
@@ -566,7 +631,7 @@ export const startTaskMonitorEffect = (
       stop() {
         stopped = true;
         unregisterAssignedTaskMonitorHandler();
-        unsubscribeSnapshotStore();
+        unsubscribeSnapshotStore?.();
         clearAssignedTaskSnapshots();
         unregisterNativeDeliverySession();
         clearInterval(reconcileTimer);

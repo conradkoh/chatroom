@@ -47,6 +47,7 @@ import {
 import { formatAuthLoginCommand } from '../../utils/cli-command-formatting.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
+import { createAgentLifecyclePort } from '../infrastructure/agent-process-manager/agent-lifecycle-port.js';
 import { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 import { initHarnessRegistry } from '../infrastructure/local/harness/registry.js';
 import { getAllHarnesses } from '../infrastructure/local/harness/services/index.js';
@@ -388,6 +389,7 @@ function assembleDaemonSessionInit(args: {
     spawning: deps.spawning,
     crashLoop: new CrashLoopTracker(),
     convexUrl,
+    lifecycle: createAgentLifecyclePort(),
   });
 
   return {

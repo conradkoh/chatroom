@@ -1,7 +1,44 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { Effect } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
 
-import { runRestartOrchestrator } from './restart-orchestrator.js';
+import { runRestartOrchestrator, setRestartOrchestratorDb } from './restart-orchestrator.js';
+import type { AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
+import type { OutboundEvent } from '../domain/entities/outbound-event.js';
+import { openDatabase } from '../infrastructure/persistence/open-database.js';
+import {
+  taskReadModelFromSnapshot,
+  upsertTaskReadModel,
+} from '../infrastructure/persistence/read-models/tasks.js';
+
+function tempDbPath(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'v2-restart-orchestrator-'));
+  return join(dir, 'events.sqlite');
+}
+
+function makeSnapshot(overrides?: Partial<AssignedTaskSnapshotView>): AssignedTaskSnapshotView {
+  return {
+    taskId: 'task-1',
+    chatroomId: 'test-chatroom',
+    status: 'pending',
+    assignedTo: 'builder',
+    updatedAt: 200,
+    createdAt: 100,
+    agentConfig: {
+      role: 'builder',
+      machineId: 'test-machine',
+      agentHarness: 'opencode',
+      workingDir: '/tmp/test',
+      desiredState: 'running',
+      circuitState: 'closed',
+    },
+    participant: { lastSeenAction: 'idle', lastSeenAt: 180, lastStatus: 'waiting' },
+    ...overrides,
+  };
+}
 
 vi.mock('../../api.js', () => ({
   api: {
@@ -105,5 +142,68 @@ describe('runRestartOrchestrator', () => {
 
     const restartCompletedCalls = mutationLog.filter((call) => call.fn === 'emitRestartCompleted');
     expect(restartCompletedCalls).toHaveLength(0);
+  });
+
+  test('cutover reads deliverable snapshots from read models, not Convex snapshot query', async () => {
+    const db = openDatabase(tempDbPath());
+    setRestartOrchestratorDb(db);
+    process.env.DAEMON_ORCHESTRATION_P2_CUTOVER = '1';
+    try {
+      upsertTaskReadModel(db, taskReadModelFromSnapshot(makeSnapshot({ status: 'pending' })));
+      const { deps, backendMock } = createMockDeps();
+      backendMock.query.mockResolvedValue({ tasks: [] });
+
+      await runRestartOrchestrator(deps as any, {
+        chatroomId: 'test-chatroom',
+        role: 'builder',
+        agentHarness: 'opencode',
+        model: 'gpt-4',
+        workingDir: '/tmp/test',
+        correlationId: 'test-correlation',
+        wantResume: true,
+      });
+
+      expect(backendMock.query).not.toHaveBeenCalledWith(
+        'listMachineAssignedTaskSnapshots',
+        expect.anything()
+      );
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P2_CUTOVER;
+      setRestartOrchestratorDb(undefined);
+      db.close();
+    }
+  });
+
+  test('P4 on: failure emits restart phase via lifecycle events, not Convex mutation', async () => {
+    const { deps, mutationLog } = createMockDeps({ spawnSuccess: false });
+    const events: OutboundEvent[] = [];
+    const lifecycle = {
+      appendLifecycleEvent: (event: OutboundEvent) => events.push(event),
+      updateAgentReadModel: () => {},
+      updateParticipantReadModel: () => {},
+    };
+    process.env.DAEMON_ORCHESTRATION_P4 = '1';
+    try {
+      await runRestartOrchestrator({ ...deps, lifecycle } as any, {
+        chatroomId: 'test-chatroom',
+        role: 'builder',
+        agentHarness: 'opencode',
+        model: 'gpt-4',
+        workingDir: '/tmp/test',
+        correlationId: 'test-correlation',
+        wantResume: true,
+      });
+
+      const phaseMutations = mutationLog.filter((call) => call.fn === 'emitRestartPhase');
+      expect(phaseMutations).toHaveLength(0);
+      const phaseEvent = events.find((e) => e.type === 'restart.phase');
+      expect(phaseEvent?.type).toBe('restart.phase');
+      if (phaseEvent?.type === 'restart.phase') {
+        expect(phaseEvent.phase).toBe('failed');
+        expect(phaseEvent.correlationId).toBe('test-correlation');
+      }
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P4;
+    }
   });
 });

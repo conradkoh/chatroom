@@ -132,7 +132,11 @@ export function parseAssignedTaskSignal(raw: unknown): AssignedTaskSignal {
 export function parseAssignedTaskPresenceSignal(raw: unknown): AssignedTaskPresenceSignal {
   const delta = assignedTaskPresenceDeltaSchema.safeParse(raw);
   const hasFullWireFields =
-    typeof raw === 'object' && raw !== null && 'chatroomId' in raw && 'presenceUpdatedAt' in raw;
+    typeof raw === 'object' &&
+    raw !== null &&
+    'chatroomId' in raw &&
+    'presenceUpdatedAt' in raw &&
+    typeof (raw as { presenceUpdatedAt?: unknown }).presenceUpdatedAt === 'number';
   if (delta.success && !hasFullWireFields) {
     const presenceUpdatedAt = Number(delta.data.presenceKey.split(':')[0]);
     const resolvedAt = Number.isFinite(presenceUpdatedAt) ? presenceUpdatedAt : 0;

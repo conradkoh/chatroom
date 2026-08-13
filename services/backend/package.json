@@ -1,10 +1,10 @@
 {
   "name": "@workspace/backend",
-  "version": "1.94.2",
+  "version": "1.90.3",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "CONVEX_NON_INTERACTIVE=true DOCUMENT_RETENTION_DELAY=1 INDEX_RETENTION_DELAY=1 RETENTION_DELETE_FREQUENCY=10 bun ../../scripts/start-convex-dev.ts",
+    "dev": "CONVEX_NON_INTERACTIVE=true DOCUMENT_RETENTION_DELAY=1 INDEX_RETENTION_DELAY=1 RETENTION_DELETE_FREQUENCY=10 convex dev",
     "deploy": "convex deploy",
     "typecheck": "tsc --build",
     "test": "bash ../../scripts/kill-stale-vitest.sh \"$PWD\" && vitest run",

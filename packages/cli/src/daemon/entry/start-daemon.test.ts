@@ -8,8 +8,11 @@ const {
   initDaemon,
   startAllSubscribers,
   startLocalWebServer,
+  startCliHttpServer,
   createPersistenceStore,
   createDaemonDeps,
+  startOutboxDrainWorker,
+  createConvexProjectionAdapter,
   runFork,
   runPromise,
 } = vi.hoisted(() => ({
@@ -18,8 +21,14 @@ const {
   initDaemon: vi.fn(),
   startAllSubscribers: vi.fn(),
   startLocalWebServer: vi.fn(),
+  startCliHttpServer: vi.fn(() => ({ port: 28766, stop: vi.fn().mockResolvedValue(undefined) })),
   createPersistenceStore: vi.fn(),
   createDaemonDeps: vi.fn(),
+  startOutboxDrainWorker: vi.fn(() => ({ stop: vi.fn() })),
+  createConvexProjectionAdapter: vi.fn(() => ({
+    project: vi.fn(),
+    validateProjectable: vi.fn(),
+  })),
   runFork: vi.fn(),
   runPromise: vi.fn().mockResolvedValue(undefined),
 }));
@@ -67,8 +76,20 @@ vi.mock('../local-web/server/create-local-web-server.js', () => ({
   startLocalWebServer,
 }));
 
+vi.mock('../infrastructure/inbound/local/cli-http-server.js', () => ({
+  startCliHttpServer,
+}));
+
 vi.mock('../infrastructure/persistence/index.js', () => ({
   createPersistenceStore,
+}));
+
+vi.mock('../infrastructure/projection/outbox-drain-worker.js', () => ({
+  startOutboxDrainWorker,
+}));
+
+vi.mock('../infrastructure/projection/convex/convex-projection-adapter.js', () => ({
+  createConvexProjectionAdapter,
 }));
 
 vi.mock('./deps.js', () => ({
@@ -98,7 +119,7 @@ describe('startDaemon', () => {
       machineId: 'machine-1',
     });
 
-    createPersistenceStore.mockReturnValue({ close: persistenceClose });
+    createPersistenceStore.mockReturnValue({ close: persistenceClose, db: {} });
     createDaemonDeps.mockReturnValue({ streamHub: { publish: vi.fn(), subscribe: vi.fn() } });
 
     startLocalWebServer.mockResolvedValue({
@@ -155,6 +176,38 @@ describe('startDaemon', () => {
             deliverInbound: expect.any(Function),
           }),
         }),
+      })
+    );
+  });
+
+  it('does not start outbox drain worker by default', async () => {
+    await startDaemon();
+
+    expect(startOutboxDrainWorker).not.toHaveBeenCalled();
+  });
+
+  it('starts the CLI HTTP server bound to localhost', async () => {
+    await startDaemon();
+
+    expect(startCliHttpServer).toHaveBeenCalledWith(
+      { host: '127.0.0.1', port: expect.any(Number) },
+      expect.objectContaining({ dispatch: expect.any(Function) })
+    );
+  });
+
+  it('starts outbox drain worker when DAEMON_ORCHESTRATION_P1 is set', async () => {
+    process.env.DAEMON_ORCHESTRATION_P1 = '1';
+    try {
+      await startDaemon();
+    } finally {
+      delete process.env.DAEMON_ORCHESTRATION_P1;
+    }
+
+    expect(startOutboxDrainWorker).toHaveBeenCalledOnce();
+    expect(createConvexProjectionAdapter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        machineId: 'machine-1',
       })
     );
   });

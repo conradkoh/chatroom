@@ -1,6 +1,6 @@
 # Phase P3 — Handoff Local
 
-**Status:** Not started  
+**Status:** Implemented (in review) — combined PR [#1351](https://github.com/conradkoh/chatroom/pull/1351) on the combined P2 branch  
 **Depends on:** [P2](./p2-local-read-models.md)  
 **Feature flag:** `DAEMON_ORCHESTRATION_P3` — when off, `chatroom handoff` uses Convex `messages.handoff`.
 
@@ -49,7 +49,7 @@ Route `chatroom handoff` through daemon HTTP on localhost. Daemon executes hando
 
 ## Todos
 
-### P3-T1 — Domain events and handoff use case `[new]`
+### P3-T1 — Domain events and handoff use case `[done]` — PR #1351
 
 **Implement:**
 
@@ -73,7 +73,7 @@ Route `chatroom handoff` through daemon HTTP on localhost. Daemon executes hando
 - Unit tests cover: handoff to user, handoff to builder, rejected handoff, enhancer enqueue path
 - Local SQLite transaction rolls back on invariant failure (no partial state)
 
-### P3-T2 — CLI HTTP server for handoff `[new]`
+### P3-T2 — CLI HTTP server for handoff `[done]` — PR #1351
 
 **Implement:**
 
@@ -92,33 +92,27 @@ Route `chatroom handoff` through daemon HTTP on localhost. Daemon executes hando
 - `curl -X POST localhost:<port>/handoff` with valid session returns 200
 - Invalid chatroom returns structured error matching CLI error shape
 
-### P3-T3 — Convex projection for handoff `[new]`
+### P3-T3 — Convex projection for handoff `[done]` — PR #1351 (`handoff.completed` → `projectHandoffFromDaemon`, idempotent on `idempotencyKey`)
 
-**Implement:**
+**As built (no `handlers/`/`mappers/` folders — follows the P1 `route-outbound-event.ts` + publisher pattern):**
 
-- `packages/cli/src/daemon/infrastructure/projection/convex/handlers/project-handoff.ts`
-- `packages/cli/src/daemon/infrastructure/projection/convex/mappers/handoff.mapper.ts`
-- `services/backend/convex/messages.ts` — add idempotent `projectHandoffFromDaemon` mutation (or equivalent) called by projection worker only
-
-**Modify:**
-
-- `packages/cli/src/daemon/infrastructure/persistence/event-store.ts` — append `DomainEvent` alongside/instead of `OutboundEvent` for handoff
-
-**Delete:** Nothing yet — keep `messages.handoff` mutation for flag-off path.
+- `packages/cli/src/daemon/infrastructure/convex/publishers/handoff-completed.ts` — maps `handoff.completed` → `api.messages.projectHandoffFromDaemon`
+- `packages/cli/src/daemon/infrastructure/projection/convex/route-outbound-event.ts` — `case 'handoff.completed':` registered
+- `services/backend/convex/messages.ts` — `projectHandoffFromDaemon` mutation: `requireMachineOwner`, idempotent on `idempotencyKey` (schema field + `by_idempotencyKey` index), inserts handoff message, completes `completedTaskIds`, creates task for `newTaskId` (queue position), promotes `promotedTaskId`, updates participant presence
 
 **Verify:**
 
-- `pnpm --filter @workspace/backend test handoff` passes (add projection idempotency test)
+- `pnpm --filter @workspace/backend test messages.project-handoff` passes (idempotent replay no-op)
 - Webapp shows handoff message within T3 SLA
 - Re-projection with same idempotency key is no-op
 
-### P3-T4 — CLI handoff command calls daemon HTTP `[modify]`
+### P3-T4 — CLI handoff command calls daemon HTTP `[done]` — PR #1351 (flag-on POSTs daemon HTTP; flag-off Convex unchanged)
 
 **Modify:**
 
 - `packages/cli/src/commands/handoff/index.ts` — when `DAEMON_ORCHESTRATION_P3` on, POST to daemon HTTP instead of `api.messages.handoff`
 - `packages/cli/src/commands/handoff/deps.ts` — add daemon HTTP client
-- `packages/cli/src/commands/handoff/handoff.test.ts` — test both paths
+- `packages/cli/src/commands/handoff/daemon-handoff-client.ts` [as-built] — POST client using `resolveCliHttpPort()`; `index.ts` branches on `isDaemonOrchestrationP3Enabled()`; `handoff.test.ts` covers both paths
 
 **Verify:**
 
@@ -138,10 +132,10 @@ Route `chatroom handoff` through daemon HTTP on localhost. Daemon executes hando
 
 ## Definition of done
 
-- [ ] `chatroom handoff` with P3 on writes SQLite first, projects to Convex
-- [ ] No `messages.handoff` on hot path when P3 on
-- [ ] Webapp handoff UX unchanged
-- [ ] `pnpm turbo run typecheck test --filter=chatroom-cli --filter=@workspace/backend` green
+- [x] `chatroom handoff` with P3 on writes SQLite first, projects to Convex
+- [x] No `messages.handoff` on hot path when P3 on (flag-on test asserts daemon HTTP used)
+- [ ] Webapp handoff UX unchanged (E2E smoke pending)
+- [x] `pnpm turbo run typecheck test --filter=chatroom-cli --filter=@workspace/backend` green (292 / 251 files)
 
 ## Rollback
 

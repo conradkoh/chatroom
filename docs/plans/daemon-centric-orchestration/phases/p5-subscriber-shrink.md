@@ -1,8 +1,12 @@
 # Phase P5 — Subscriber Shrink
 
-**Status:** Not started  
+**Status:** Implemented (in review) — [PR #1356](https://github.com/conradkoh/chatroom/pull/1356)  
 **Depends on:** [P3](./p3-handoff-local.md), [P4](./p4-lifecycle-local.md)  
 **Feature flag:** `DAEMON_ORCHESTRATION_P5` — when off, full 16-subscriber registry remains.
+
+> **Soak gate (operational, not code):** Do not merge this PR until P3+P4 have
+> soaked ≥1 week in dev with their flags on. The code ships behind
+> `DAEMON_ORCHESTRATION_P5` (default off) and is otherwise inert.
 
 ## Shippability
 

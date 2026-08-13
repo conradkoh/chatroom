@@ -13,6 +13,8 @@ import {
 } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
 import { TEST_MODEL_OPENCODE } from '../../../testing/test-models.js';
+import type { AgentLifecyclePort } from '../../application/ports/agent-lifecycle.port.js';
+import type { OutboundEvent } from '../../domain/entities/outbound-event.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 import {
   CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS,
@@ -20,6 +22,8 @@ import {
 } from '../../domain/usecase/cursor-sdk-session-reopen-retry.js';
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import type * as NativeTaskDeliveryCoordinatorModule from '../../entry/native-delivery/native-task-delivery-coordinator.js';
+import type { AgentReadModelRow } from '../../infrastructure/persistence/read-models/agents.js';
+import type { ParticipantReadModelRow } from '../../infrastructure/persistence/read-models/participants.js';
 import { NATIVE_DIRECT_HARNESS_NAMES } from '../local/harness/bound-harness-registry.js';
 import type {
   RemoteAgentService,
@@ -2790,6 +2794,101 @@ describe('AgentProcessManager', () => {
 
       // 2 additional retry calls were made
       expect(mutation.mock.calls.length).toBeGreaterThanOrEqual(callsBeforeRetry + 2);
+    });
+  });
+
+  // ── P4: lifecycle local ─────────────────────────────────────────────────
+
+  describe('P4 lifecycle local', () => {
+    function createLocalLifecycle(): {
+      port: AgentLifecyclePort;
+      events: OutboundEvent[];
+      agentRows: AgentReadModelRow[];
+      participantRows: ParticipantReadModelRow[];
+    } {
+      const events: OutboundEvent[] = [];
+      const agentRows: AgentReadModelRow[] = [];
+      const participantRows: ParticipantReadModelRow[] = [];
+      const port = {
+        appendLifecycleEvent: (event: OutboundEvent) => events.push(event),
+        updateAgentReadModel: (row: AgentReadModelRow) => agentRows.push(row),
+        updateParticipantReadModel: (row: ParticipantReadModelRow) => participantRows.push(row),
+      };
+      return { port, events, agentRows, participantRows };
+    }
+
+    afterEach(() => {
+      delete process.env.DAEMON_ORCHESTRATION_P4;
+    });
+
+    test.each(NATIVE_DIRECT_HARNESS_NAMES)(
+      'turn-end for %s with P4 on appends agent.native_end locally, no handleNativeAgentEnd mutation',
+      async (harness) => {
+        process.env.DAEMON_ORCHESTRATION_P4 = '1';
+        const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
+        const localLifecycle = createLocalLifecycle();
+        deps.agentServices = new Map([[harness, service]]);
+        manager = new AgentProcessManager({ ...deps, lifecycle: localLifecycle.port });
+
+        await manager.ensureRunning(
+          createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
+        );
+        manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-1');
+        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+        mockNotifyNativeTurnIdle.mockClear();
+
+        const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
+        await triggerAgentEnd(manager, agentEndCb);
+
+        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(0);
+        const nativeEndEvents = localLifecycle.events.filter((e) => e.type === 'agent.native_end');
+        expect(nativeEndEvents).toHaveLength(1);
+        if (nativeEndEvents[0]?.type === 'agent.native_end') {
+          expect(nativeEndEvents[0]).toMatchObject({
+            chatroomId: CHATROOM_ID,
+            role: ROLE,
+            machineId: 'test-machine',
+            taskId: 'task-1',
+          });
+        }
+        // In-flight work remains → reminder injected locally via resumeTurn
+        expect(resumeTurn).toHaveBeenCalledWith(PID, NATIVE_HANDOFF_REMINDER);
+        expect(localLifecycle.participantRows.length).toBeGreaterThan(0);
+      }
+    );
+
+    test('stop timeout with P4 on appends agent.stop_timeout locally, no emitAgentStopTimeout mutation', async () => {
+      process.env.DAEMON_ORCHESTRATION_P4 = '1';
+      const localLifecycle = createLocalLifecycle();
+      manager = new AgentProcessManager({ ...deps, lifecycle: localLifecycle.port });
+
+      await manager.ensureRunning(createOpts({ agentHarness: 'opencode' }));
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.state = 'stopping';
+      slot.stoppingSince = deps.clock.now() - STOPPING_TIMEOUT_MS - 1;
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      const cleared = await manager.clearStuckStoppingSlot(CHATROOM_ID, ROLE);
+      expect(cleared).toBe(true);
+
+      const stopTimeoutEvents = localLifecycle.events.filter(
+        (e) => e.type === 'agent.stop_timeout'
+      );
+      expect(stopTimeoutEvents).toHaveLength(1);
+      if (stopTimeoutEvents[0]?.type === 'agent.stop_timeout') {
+        expect(stopTimeoutEvents[0]).toMatchObject({
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
+          machineId: 'test-machine',
+        });
+      }
+      expect(localLifecycle.agentRows.some((r) => r.pid === undefined)).toBe(true);
+      expect(
+        getMutationCallsByArgs(
+          deps,
+          (args) => (args as { durationMs?: number }).durationMs !== undefined
+        )
+      ).toHaveLength(0);
     });
   });
 });

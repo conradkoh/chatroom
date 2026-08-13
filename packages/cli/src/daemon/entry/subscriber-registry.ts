@@ -16,6 +16,8 @@ import { startFileTreeRequestSubscriber } from '../infrastructure/convex/subscri
 import { startFileWriteRequestSubscriber } from '../infrastructure/convex/subscribers/file-write-request.js';
 import { startGitRequestSubscriber } from '../infrastructure/convex/subscribers/git-request.js';
 import { startWorkspaceListSubscriber } from '../infrastructure/convex/subscribers/workspace-list.js';
+import { startInboundSubscribers } from '../infrastructure/inbound/convex/subscriber-registry.js';
+import { isDaemonOrchestrationP5Enabled } from '../infrastructure/projection/feature-flags.js';
 
 export type SubscriberRegistryDeps = ConvexSubscriberDeps & {
   router: EventRouterDeps;
@@ -27,6 +29,13 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const onEvent = (event: InboundEvent): void => {
     void routeInboundEvent(deps.router, event);
   };
+
+  // P5: inbound-only Convex subscription — orchestration subscribers
+  // (assigned-task signals/presence, enhancer-job) are not registered because
+  // the daemon no longer subscribes to its own projected state.
+  if (isDaemonOrchestrationP5Enabled()) {
+    return startInboundSubscribers(deps, onEvent);
+  }
 
   const signals = startAssignedTaskSignalsSubscriber(deps, onEvent);
   const presence = startAssignedTaskPresenceSubscriber(deps, onEvent);

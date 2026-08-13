@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { USER_INTENT_SUBSCRIBERS } from '../infrastructure/inbound/convex/user-intent-subscribers.js';
+
 const cliPackageRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 
 const V2_SUBSCRIBED_QUERIES = [
@@ -61,6 +63,44 @@ describe('subscriber-registry duplicate guard (G4)', () => {
     expect(registrySource).toContain('startAgenticQuerySessionSubscriber');
     expect(registrySource).toContain('startAgenticQueryPromptSubscriber');
     expect(registrySource).toContain('startEnhancerJobSubscriber');
+  });
+
+  it('P5 inbound registry registers only user-intent subscribers (no orchestration)', () => {
+    const inboundSource = readRepoFile(
+      'src/daemon/infrastructure/inbound/convex/subscriber-registry.ts'
+    );
+    for (const starter of [
+      'startGitRequestSubscriber',
+      'startFileTreeRequestSubscriber',
+      'startFileContentRequestSubscriber',
+      'startFileWriteRequestSubscriber',
+      'startWorkspaceListSubscriber',
+      'startCommandEventsSubscriber',
+      'startCommandRunSubscriber',
+      'startDirectHarnessSessionSubscriber',
+      'startDirectHarnessPromptSubscriber',
+      'startDirectHarnessCommandSubscriber',
+      'startAgenticQuerySessionSubscriber',
+      'startAgenticQueryPromptSubscriber',
+    ]) {
+      expect(inboundSource).toContain(starter);
+    }
+    expect(inboundSource).not.toContain('startAssignedTaskSignalsSubscriber');
+    expect(inboundSource).not.toContain('startAssignedTaskPresenceSubscriber');
+    expect(inboundSource).not.toContain('startEnhancerJobSubscriber');
+  });
+
+  it('P5 user-intent subscriber list matches the inbound registry count', () => {
+    expect(USER_INTENT_SUBSCRIBERS).toHaveLength(12);
+    expect(USER_INTENT_SUBSCRIBERS).not.toContain('assigned-task-signals');
+    expect(USER_INTENT_SUBSCRIBERS).not.toContain('assigned-task-presence');
+    expect(USER_INTENT_SUBSCRIBERS).not.toContain('enhancer-job');
+  });
+
+  it('P5 entry registry delegates to inbound registry behind the flag', () => {
+    const registrySource = readRepoFile('src/daemon/entry/subscriber-registry.ts');
+    expect(registrySource).toContain('isDaemonOrchestrationP5Enabled');
+    expect(registrySource).toContain('startInboundSubscribers');
   });
 
   it('legacy daemon-start does not onUpdate migrated Convex queries', () => {

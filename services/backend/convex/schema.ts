@@ -494,6 +494,10 @@ export default defineSchema({
     acknowledgedAt: v.optional(v.number()),
     // completedAt: When the agent completed work on this message (via handoff)
     completedAt: v.optional(v.number()),
+
+    // Daemon projection idempotency key (handoff.completed events). Written by
+    // projectHandoffFromDaemon; replay with the same key is a no-op.
+    idempotencyKey: v.optional(v.string()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_taskId', ['taskId'])
@@ -503,7 +507,8 @@ export default defineSchema({
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type'])
     .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole'])
-    .index('by_scheduledPromptId', ['scheduledPromptId']),
+    .index('by_scheduledPromptId', ['scheduledPromptId'])
+    .index('by_idempotencyKey', ['idempotencyKey']),
 
   /**
    * Staging table for queued user messages.

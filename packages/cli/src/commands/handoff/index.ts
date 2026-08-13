@@ -16,9 +16,11 @@ import { generateHandoffOutput } from '@workspace/backend/prompts/generator.js';
 import { ConvexError } from 'convex/values';
 import { Effect } from 'effect';
 
+import { postDaemonHandoff } from './daemon-handoff-client.js';
 import type { HandoffDeps } from './deps.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
+import { isDaemonOrchestrationP3Enabled } from '../../daemon/infrastructure/projection/feature-flags.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import {
@@ -107,32 +109,59 @@ export const handoffEffect = (
       id,
     }));
 
-    const result = yield* backend
-      .mutation<{
-        success: boolean;
-        error?: {
-          message: string;
-          code?: string;
-          suggestedTarget?: string;
-          suggestedTargets?: string[];
-        };
-        supportsNativeIntegration?: boolean;
-      }>(api.messages.handoff, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        senderRole: role,
-        content: message,
-        targetRole: nextRole,
-      })
-      .pipe(
-        Effect.mapError((cause): HandoffError => {
-          let errorData: { code?: string; message?: string } | undefined;
-          if (cause instanceof ConvexError) {
-            errorData = cause.data as { code?: string; message?: string };
-          }
-          return { _tag: 'HandoffFailed', cause, errorData };
+    const result = isDaemonOrchestrationP3Enabled()
+      ? yield* Effect.tryPromise({
+          try: async () => {
+            const response = await postDaemonHandoff({
+              chatroomId,
+              senderRole: role,
+              content: message,
+              targetRole: nextRole,
+              sessionId,
+            });
+            return {
+              success: response.success,
+              error: response.error,
+              supportsNativeIntegration: response.supportsNativeIntegration,
+            };
+          },
+          catch: (cause): HandoffError => {
+            const errorData =
+              cause instanceof Error && typeof (cause as { data?: unknown }).data === 'object'
+                ? ((cause as { data?: { code?: string; message?: string } }).data as {
+                    code?: string;
+                    message?: string;
+                  })
+                : undefined;
+            return { _tag: 'HandoffFailed', cause: cause as Error, errorData };
+          },
         })
-      );
+      : yield* backend
+          .mutation<{
+            success: boolean;
+            error?: {
+              message: string;
+              code?: string;
+              suggestedTarget?: string;
+              suggestedTargets?: string[];
+            };
+            supportsNativeIntegration?: boolean;
+          }>(api.messages.handoff, {
+            sessionId,
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            senderRole: role,
+            content: message,
+            targetRole: nextRole,
+          })
+          .pipe(
+            Effect.mapError((cause): HandoffError => {
+              let errorData: { code?: string; message?: string } | undefined;
+              if (cause instanceof ConvexError) {
+                errorData = cause.data as { code?: string; message?: string };
+              }
+              return { _tag: 'HandoffFailed', cause, errorData };
+            })
+          );
 
     if (!result.success && result.error) {
       return yield* Effect.fail<HandoffError>({
