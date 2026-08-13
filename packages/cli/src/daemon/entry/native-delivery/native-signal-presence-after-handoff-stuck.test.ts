@@ -34,6 +34,11 @@ import {
   NativeTaskDeliveryCoordinator,
   notifyNativeTurnIdle,
 } from './native-task-delivery-coordinator.js';
+import {
+  clearNativeDeliveryReadModel,
+  openNativeDeliveryTestDb,
+  seedNativeDeliveryReadModel,
+} from './test-read-model-fixture.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import {
   clearAssignedTaskSnapshots,
@@ -285,7 +290,10 @@ describe('native signal-presence stuck after planner handoff', () => {
     );
     expect(row).toBeDefined();
 
-    const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
+    const db = openNativeDeliveryTestDb();
+    seedNativeDeliveryReadModel(db, row!, '## Goal\nNew user message after handoff');
+
+    const resumeTurnForSlot = vi.fn().mockReturnValue(Effect.succeed(undefined));
     simulateSignalPresenceReconcile({
       row: row!,
       agentMgr: {
@@ -299,15 +307,7 @@ describe('native signal-presence stuck after planner handoff', () => {
         machineId: MACHINE_ID,
         backend: {
           mutation: vi.fn().mockResolvedValue(undefined),
-          query: vi.fn(async (_fn, args) => {
-            if (args && 'machineId' in args && !('chatroomId' in args)) {
-              return { ...row, taskContent: '## Goal\nNew user message after handoff' };
-            }
-            if (args && 'chatroomId' in args) {
-              return { fullCliOutput: 'POST HANDOFF DELIVERY' };
-            }
-            throw new Error(`Unexpected query: ${String(_fn)}`);
-          }),
+          query: vi.fn(),
         },
       },
     });
@@ -315,5 +315,8 @@ describe('native signal-presence stuck after planner handoff', () => {
     await vi.waitFor(() => {
       expect(resumeTurnForSlot).toHaveBeenCalled();
     });
+
+    clearNativeDeliveryReadModel();
+    db.close();
   });
 });

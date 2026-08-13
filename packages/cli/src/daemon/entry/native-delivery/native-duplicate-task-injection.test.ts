@@ -16,6 +16,11 @@ import {
 } from './native-delivery-ledger.js';
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import { explainLedgerDeliveryBlock } from './native-task-injector-logic.js';
+import {
+  clearNativeDeliveryReadModel,
+  openNativeDeliveryTestDb,
+  seedNativeDeliveryReadModel,
+} from './test-read-model-fixture.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
@@ -79,13 +84,10 @@ describe('native duplicate task injection', () => {
     const resumeTurnForSlot = vi.fn().mockReturnValue(Effect.succeed(undefined));
     const agentMgr = makeAgentMgr(resumeTurnForSlot);
     const row = makeAcknowledgedRow();
+    const db = openNativeDeliveryTestDb();
+    seedNativeDeliveryReadModel(db, row, '## Goal\nDuplicate injection test');
+
     const backendMutation = vi.fn().mockResolvedValue(undefined);
-    const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
-      if (args && typeof args === 'object' && 'chatroomId' in args) {
-        return { fullCliOutput: 'TASK PROMPT' };
-      }
-      return { ...row, taskContent: '## Goal\nDuplicate injection test' };
-    });
 
     const coordinator = new NativeTaskDeliveryCoordinator();
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -99,7 +101,7 @@ describe('native duplicate task injection', () => {
         sessionId: 'session_dup',
         machineId: 'machine_dup',
         convexUrl: 'http://test:3210',
-        backend: { mutation: backendMutation, query: backendQuery },
+        backend: { mutation: backendMutation, query: vi.fn() },
       },
       machineId: 'machine_dup',
     };
@@ -119,5 +121,8 @@ describe('native duplicate task injection', () => {
     expect(logSpy).toHaveBeenCalledWith(
       `[NativeDelivery:skip] ${ROLE}@${CHATROOM_ID} task ${TASK_ID} — already_delivered_this_session`
     );
+
+    clearNativeDeliveryReadModel();
+    db.close();
   });
 });

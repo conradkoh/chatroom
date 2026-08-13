@@ -15,7 +15,6 @@
  */
 
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel.js';
-import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { resolveSessionAugmentationForRole } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { Context, Effect, Runtime } from 'effect';
@@ -29,8 +28,11 @@ import {
   buildNativeInjectionPrompt,
   shouldDeliverNativeTask,
 } from './native-task-injector-logic.js';
-import { api } from '../../../api.js';
-import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
+import {
+  clearNativeDeliveryReadModel,
+  openNativeDeliveryTestDb,
+  seedNativeDeliveryReadModel,
+} from './test-read-model-fixture.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { createTaskMonitorSnapshot } from '../task-monitor/task-monitor-snapshot.js';
 
@@ -78,15 +80,6 @@ function makeIdleNativeSlot(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeFullTaskFromRow(
-  row: NonNullable<ReturnType<ReturnType<typeof createTaskMonitorSnapshot>['mergeSignal']>>
-): AssignedTaskWithContent {
-  return {
-    ...row,
-    taskContent: MESSAGE_CONTENT,
-  };
-}
-
 describe('user message pending delivery path', () => {
   test('signal from sendMessage merges into daemon snapshot as deliverable pending row', () => {
     const snapshot = createTaskMonitorSnapshot();
@@ -121,8 +114,11 @@ describe('user message pending delivery path', () => {
     const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
 
+    const db = openNativeDeliveryTestDb();
+    seedNativeDeliveryReadModel(db, row!, MESSAGE_CONTENT);
+
     const backendMutation = vi.fn().mockResolvedValue(undefined);
-    const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
+    const resumeTurnForSlot = vi.fn().mockReturnValue(Effect.succeed(undefined));
     const agentMgr = {
       getSlot: vi.fn().mockReturnValue(makeIdleNativeSlot()),
       resumeTurnForSlot,
@@ -145,15 +141,7 @@ describe('user message pending delivery path', () => {
         machineId: MACHINE_ID,
         backend: {
           mutation: backendMutation,
-          query: vi.fn(async (fn, args) => {
-            if (args && 'machineId' in args && !('chatroomId' in args)) {
-              return makeFullTaskFromRow(row!);
-            }
-            if (args && 'chatroomId' in args) {
-              return { fullCliOutput: 'USER MESSAGE DELIVERY OUTPUT' };
-            }
-            throw new Error(`Unexpected query: ${String(fn)}`);
-          }),
+          query: vi.fn(),
         },
       } satisfies NativeTaskDeliverySessionDeps,
       machineId: MACHINE_ID,
@@ -163,29 +151,18 @@ describe('user message pending delivery path', () => {
       expect(resumeTurnForSlot).toHaveBeenCalled();
     });
 
-    expect(backendMutation).toHaveBeenCalledWith(
-      api.tasks.claimTask,
-      expect.objectContaining({
-        chatroomId: row!.chatroomId,
-        role: 'builder',
-        taskId: row!.taskId,
-      })
-    );
-    expect(backendMutation).toHaveBeenCalledWith(
-      api.participants.join,
-      expect.objectContaining({
-        action: NATIVE_TASK_INJECTED_ACTION,
-        taskId: row!.taskId,
-      })
-    );
+    expect(backendMutation).not.toHaveBeenCalled();
     expect(resumeTurnForSlot).toHaveBeenCalledWith({
       chatroomId: row!.chatroomId,
       role: 'builder',
       prompt: buildNativeInjectionPrompt({
-        taskDeliveryOutput: 'USER MESSAGE DELIVERY OUTPUT',
+        taskDeliveryOutput: MESSAGE_CONTENT,
         augmentationMode: resolveSessionAugmentationForRole(MESSAGE_CONTENT, 'builder'),
       }),
     });
+
+    clearNativeDeliveryReadModel();
+    db.close();
   });
 
   test('stuck pending: does not inject when harness turn is still in flight', async () => {
