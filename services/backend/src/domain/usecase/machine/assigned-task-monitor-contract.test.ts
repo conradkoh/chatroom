@@ -140,4 +140,15 @@ describe('assignedTaskSignalSchema', () => {
     const parsed = parseAssignedTaskPresenceSignal(full);
     expect(parsed).toEqual(full);
   });
+
+  it('parses slim delta when chatroomId is present but presenceUpdatedAt is missing', () => {
+    const parsed = parseAssignedTaskPresenceSignal({
+      taskId: 'nh7dh7bj63fdns9zkyasjgnga58afx3s',
+      role: 'builder',
+      presenceKey: '000000000001500:nh7dh7bj63fdns9zkyasjgnga58afx3s:builder',
+      chatroomId: 'n57ctdnfvd0avh0ghx6p4szk8x8aa69a',
+    });
+    expect(parsed.presenceUpdatedAt).toBe(1500);
+    expect(parsed.lastSeenAt).toBe(1500);
+  });
 });

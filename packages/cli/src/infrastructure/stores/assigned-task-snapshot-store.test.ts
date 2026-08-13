@@ -6,6 +6,7 @@ import {
   listAssignedTaskSnapshots,
   listAssignedTaskSnapshotsForRole,
   replaceAssignedTaskSnapshots,
+  setAssignedTaskSnapshotProvider,
 } from './assigned-task-snapshot-store.js';
 import type { AssignedTaskSnapshotView } from '../../daemon/domain/entities/assigned-task.js';
 
@@ -109,5 +110,14 @@ describe('assigned-task-snapshot-store', () => {
     clearAssignedTaskSnapshots();
     expect(hasAssignedTaskSnapshot()).toBe(false);
     expect(listAssignedTaskSnapshots()).toHaveLength(0);
+  });
+
+  test('listAssignedTaskSnapshotsForRole uses snapshot provider when set', () => {
+    setAssignedTaskSnapshotProvider(() => [
+      makeRow({ chatroomId: 'room_1' as never, agentConfig: { ...makeRow().agentConfig, role: 'planner' } }),
+    ]);
+    replaceAssignedTaskSnapshots([]);
+    expect(listAssignedTaskSnapshotsForRole('room_1', 'planner')).toHaveLength(1);
+    setAssignedTaskSnapshotProvider(undefined);
   });
 });

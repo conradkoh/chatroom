@@ -127,4 +127,35 @@ describe('projectHandoffFromDaemon', () => {
     expect(ctx.db.insert).not.toHaveBeenCalled();
     expect(mockCreateTask).not.toHaveBeenCalled();
   });
+
+  it('stores daemonTaskId and completes by daemon UUID lookup', async () => {
+    const daemonTaskId = 'daemon-uuid-abc';
+    const ctx = makeCtx();
+    ctx.db.get.mockImplementation(async (id: string) =>
+      id === 'room-1' ? { _id: 'room-1', nextQueuePosition: 5 } : null
+    );
+    ctx.db.query.mockImplementation((table: string) => ({
+      withIndex: vi.fn().mockReturnValue({
+        first: vi.fn().mockResolvedValue(
+          table === 'chatroom_tasks'
+            ? { _id: 'cvx-task-1', status: 'in_progress', daemonTaskId }
+            : null
+        ),
+        unique: vi.fn().mockResolvedValue(undefined),
+      }),
+    }));
+    await (
+      projectHandoffFromDaemon as unknown as { _handler: (ctx: unknown, args: unknown) => Promise<unknown> }
+    )._handler(ctx as never, makeArgs({ newTaskId: daemonTaskId, completedTaskIds: [daemonTaskId] }));
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'chatroom_tasks',
+      'cvx-task-1',
+      expect.objectContaining({ daemonTaskId })
+    );
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'chatroom_tasks',
+      'cvx-task-1',
+      expect.objectContaining({ status: 'completed' })
+    );
+  });
 });
