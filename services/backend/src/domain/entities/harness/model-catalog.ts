@@ -25,6 +25,7 @@ import {
   type CodexReasoningLevel,
 } from './codex-sdk.model-variants';
 import { expandModelVariantCatalog } from './model-variant';
+import { inferCopilotModelProvider, prefixCatalogModels, prefixCatalogModelsWithInfer } from './model-provider';
 
 /** Harness ids with a server-curated catalog. */
 export type CatalogBackedHarness = Extract<
@@ -32,7 +33,7 @@ export type CatalogBackedHarness = Extract<
   'codex-sdk' | 'copilot' | 'claude' | 'claude-sdk'
 >;
 const claudeModelVariants = () =>
-  expandModelVariantCatalog(CLAUDE_CATALOG_BASE_MODEL_IDS, CLAUDE_MODEL_VARIANT_COMBINATIONS);
+  prefixCatalogModels('anthropic', expandModelVariantCatalog(CLAUDE_CATALOG_BASE_MODEL_IDS, CLAUDE_MODEL_VARIANT_COMBINATIONS));
 
 // ─── Codex variants (typed template strings — catalog entries are compile-checked) ───
 
@@ -60,17 +61,17 @@ const CODEX_MODEL_IDS: readonly CodexModelId[] = [
  * `reasoning=none` for explicitly opting out of a reasoning level.
  */
 function codexModelVariants(): CodexModelVariantString[] {
-  return expandModelVariantCatalog(
+  return prefixCatalogModels('openai', expandModelVariantCatalog(
     CODEX_MODEL_IDS,
     CODEX_MODEL_VARIANT_COMBINATIONS
-  ) as CodexModelVariantString[];
+  )) as CodexModelVariantString[];
 }
 
 // ─── Catalog ────────────────────────────────────────────────────────────────
 
 export const HARNESS_MODEL_CATALOG: Record<CatalogBackedHarness, readonly string[]> = {
   'codex-sdk': codexModelVariants(),
-  copilot: [
+  copilot: prefixCatalogModelsWithInfer(inferCopilotModelProvider, [
     'claude-3-5-sonnet-20241022',
     'claude-3-5-haiku-20241022',
     'claude-haiku-4.5',
@@ -81,7 +82,7 @@ export const HARNESS_MODEL_CATALOG: Record<CatalogBackedHarness, readonly string
     'gpt-4-turbo',
     'gemini-3-pro-preview',
     'gemini-2-5-flash',
-  ],
+  ]),
   claude: claudeModelVariants(),
   'claude-sdk': claudeModelVariants(),
 };
