@@ -42,7 +42,7 @@ export async function startDaemon(): Promise<void> {
   const daemonDeps = createDaemonDeps({
     persistence,
     backend: init.backend,
-    sessionId: init.sessionId,
+    sessionId: init.sessionId as never,
     machineId: init.machineId,
   });
 

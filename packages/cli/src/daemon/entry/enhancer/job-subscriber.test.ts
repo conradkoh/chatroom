@@ -377,11 +377,13 @@ describe('startEnhancerJobSubscriber', () => {
       const mutationFn = vi.fn();
       const queryFn = vi.fn().mockResolvedValue([]);
       const backend = { mutation: mutationFn, query: queryFn };
+      const wsClient = {} as any;
 
       const handles = startEnhancerJobSubscriber(
         'session',
         'machine-1',
         'http://localhost',
+        wsClient,
         backend as any,
         agentServices as any
       );
