@@ -638,7 +638,7 @@ export default defineSchema({
     .index('by_chatroom_status', ['chatroomId', 'status'])
     .index('by_chatroom_status_assignedTo', ['chatroomId', 'status', 'assignedTo'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition'])
-    .index('by_assignedTo_status', ['assignedTo', 'status']),
+    .index('by_assignedTo_status', ['assignedTo', 'status'])
     .index('by_daemonTaskId', ['daemonTaskId']),
 
   /**
