@@ -15,6 +15,7 @@ export function getTierForOutboundEvent(type: OutboundEvent['type']): SyncTier {
   if (type === 'turn.ended') return SyncTier.T0;
   if (type === 'task.status') return SyncTier.T3;
   if (type === 'handoff.completed') return SyncTier.T3;
+  if (type === 'user-message.received') return SyncTier.T3;
   if (type === 'heartbeat') return SyncTier.T1;
   // Lifecycle status events (agent start/stop/exit) are T3 immediate; session
   // metadata churn (session_id_updated) is T1 batched.

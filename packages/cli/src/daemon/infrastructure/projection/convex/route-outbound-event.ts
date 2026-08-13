@@ -12,6 +12,7 @@ import type { ConvexPublisherDeps } from '../../convex/publishers/publisher-deps
 import { createSessionLifecyclePublisher } from '../../convex/publishers/session-lifecycle.js';
 import { createTurnOutputPublisher } from '../../convex/publishers/turn-output.js';
 import { createWorkspaceCommandsPublisher } from '../../convex/publishers/workspace-commands.js';
+import { createUserMessageReceivedPublisher } from '../../convex/publishers/user-message-received.js';
 
 export function createConvexPublishers(deps: ConvexPublisherDeps) {
   return {
@@ -27,6 +28,7 @@ export function createConvexPublishers(deps: ConvexPublisherDeps) {
     workspaceCommands: createWorkspaceCommandsPublisher(deps),
     handoffCompleted: createHandoffCompletedPublisher(deps),
     agentLifecycle: createAgentLifecycleProjector(deps),
+    userMessageReceived: createUserMessageReceivedPublisher(deps),
   };
 }
 
@@ -64,6 +66,8 @@ export function getConvexEventHandler(
       return publishers.workspaceCommands.publish.bind(publishers.workspaceCommands);
     case 'handoff.completed':
       return publishers.handoffCompleted.publish.bind(publishers.handoffCompleted);
+    case 'user-message.received':
+      return publishers.userMessageReceived.publish.bind(publishers.userMessageReceived);
     case 'agent.start_failed':
     case 'agent.stop_timeout':
     case 'session.resume_requested':

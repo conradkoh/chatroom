@@ -1058,6 +1058,47 @@ export const projectHandoffFromDaemon = mutation({
   },
 });
 
+/** Projects a locally-ingested user message and its planner task idempotently. */
+export const projectUserMessageFromDaemon = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    idempotencyKey: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    messageId: v.string(),
+    content: v.string(),
+    senderRole: v.string(),
+    newTaskId: v.string(),
+    timestamp: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    const existing = await ctx.db.query('chatroom_messages').withIndex('by_idempotencyKey', (q) => q.eq('idempotencyKey', args.idempotencyKey)).first();
+    if (existing) return { success: true, replayed: true, messageId: existing._id };
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
+    const messageId = await ctx.db.insert('chatroom_messages', {
+      chatroomId: args.chatroomId,
+      senderRole: args.senderRole,
+      content: args.content,
+      type: 'message',
+      idempotencyKey: args.idempotencyKey,
+    });
+    const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
+    const { taskId } = await createTaskUsecase(ctx, {
+      chatroomId: args.chatroomId,
+      createdBy: args.senderRole,
+      content: args.content,
+      forceStatus: 'pending',
+      assignedTo: 'planner',
+      sourceMessageId: messageId,
+      queuePosition,
+    });
+    await ctx.db.patch('chatroom_tasks', taskId, { daemonTaskId: args.newTaskId });
+    return { success: true, replayed: false, messageId, taskId };
+  },
+});
+
 /** Thin wrapper for enhancer handoff delivery. */
 export async function performHandoffFromEnhancer(
   ctx: MutationCtx,

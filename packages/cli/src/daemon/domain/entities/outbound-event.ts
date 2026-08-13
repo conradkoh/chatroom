@@ -9,6 +9,17 @@ import type { MachineCapabilities } from './machine-capabilities.js';
 
 export type OutboundEvent =
   | {
+      type: 'user-message.received';
+      idempotencyKey: string;
+      sessionId: string;
+      chatroomId: string;
+      messageId: string;
+      content: string;
+      senderRole: string;
+      newTaskId: string;
+      timestamp: number;
+    }
+  | {
       type: 'turn.chunk';
       harnessSessionId: string;
       content: string;
