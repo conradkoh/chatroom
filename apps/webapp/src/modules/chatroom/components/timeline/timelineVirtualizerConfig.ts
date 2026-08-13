@@ -64,7 +64,11 @@ export function getTimelineItemKey(index: number, events: TimelineEvent[]): stri
 export const JUMP_TO_NEW_MESSAGES_GAP_PX = 8;
 
 /** z-index for jump-to-new-messages chip — must exceed getTimelineVirtualRowZIndex for any row count */
-export const JUMP_TO_NEW_MESSAGES_Z_INDEX = 50;
+/**
+ * Content-overlay z-index for jump-to-new-messages chips.
+ * Row chrome is contained in a z-0 scroll context; mobile layout scrims begin at z-30.
+ */
+export const JUMP_TO_NEW_MESSAGES_Z_INDEX = 20;
 
 /** Bottom CSS px offset so the chip sits above the measured footer chrome. */
 export function jumpToNewMessagesBottomOffset(

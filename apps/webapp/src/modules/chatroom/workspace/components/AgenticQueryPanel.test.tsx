@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AgenticQueryPanel } from './AgenticQueryPanel';
+import { JUMP_TO_NEW_MESSAGES_Z_INDEX } from '../../components/timeline/timelineVirtualizerConfig';
 
 import {
   chatroomIndustrialButtonPrimaryClassName,
@@ -298,6 +299,15 @@ describe('AgenticQueryPanel', () => {
 
     expect(screen.getByTestId('agentic-query-jump-to-new')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Jump to new messages' })).toBeInTheDocument();
+  });
+
+  it('uses the shared content-overlay z-index for the jump chip', () => {
+    mockIsPinned = false;
+    render(<AgenticQueryPanel queryId="query-1" mode="search" workspaceId="ws-1" />);
+
+    expect(screen.getByTestId('agentic-query-jump-to-new').style.zIndex).toBe(
+      String(JUMP_TO_NEW_MESSAGES_Z_INDEX)
+    );
   });
 
   it('hides jump to new messages button when pinned', () => {
