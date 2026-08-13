@@ -5,6 +5,7 @@ import {
   createDaemonTaskId,
   isDaemonTaskId,
   isDaemonLocalTaskId,
+  resolveCanonicalTaskId,
 } from './daemon-task-id';
 
 describe('daemon-task-id', () => {
@@ -24,5 +25,20 @@ describe('daemon-task-id', () => {
 
   test('asDaemonTaskId throws on invalid input', () => {
     expect(() => asDaemonTaskId('not-a-uuid')).toThrow(/Invalid DaemonTaskId/);
+  });
+});
+
+describe('resolveCanonicalTaskId', () => {
+  test('prefers daemonTaskId when valid', () => {
+    const daemonTaskId = createDaemonTaskId();
+    expect(resolveCanonicalTaskId({ _id: 'convex-id', daemonTaskId })).toBe(daemonTaskId);
+  });
+
+  test('falls back to _id when daemonTaskId missing', () => {
+    expect(resolveCanonicalTaskId({ _id: 'convex-id' })).toBe('convex-id');
+  });
+
+  test('falls back to _id when daemonTaskId invalid', () => {
+    expect(resolveCanonicalTaskId({ _id: 'convex-id', daemonTaskId: 'bad' })).toBe('convex-id');
   });
 });
