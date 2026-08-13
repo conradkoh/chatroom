@@ -49,8 +49,50 @@ function createWsClient() {
   };
 }
 
+function enqueueLocalEnhancerJob(machineId = 'machine') {
+  getEnhancerQueuePort().enqueue({
+    jobId: 'job1',
+    chatroomId: 'room1',
+    machineId,
+    payload: {
+      agentHarness: 'opencode',
+      model: 'm',
+      workingDir: '/tmp',
+      content: 'task envelope',
+      machineId,
+    },
+  });
+}
+
+function createEnhancerSpawnMock(
+  handlers: {
+    exitCallback?: () => void;
+    agentEndCallback?: () => void;
+  } = {}
+) {
+  return vi.fn().mockReturnValue({
+    pid: 123,
+    harnessSessionId: 'harness-1',
+    onExit: (cb: () => void) => {
+      handlers.exitCallback = cb;
+    },
+    onAgentEnd: (cb: () => void) => {
+      handlers.agentEndCallback = cb;
+    },
+    onAssistantText: vi.fn(),
+    onLogLine: vi.fn(),
+  });
+}
+
 describe('startEnhancerJobSubscriber', () => {
   let testQueueDb: ReturnType<typeof openDatabase> | undefined;
+
+  function queueJobStatus(jobId: string): string {
+    const row = testQueueDb!
+      .prepare(`SELECT status FROM enhancer_queue WHERE job_id = ?`)
+      .get(jobId) as { status: string };
+    return row.status;
+  }
   beforeEach(() => {
     testQueueDb = openDatabase(
       join(mkdtempSync(join(tmpdir(), 'enhancer-test-')), 'events.sqlite')
@@ -61,49 +103,21 @@ describe('startEnhancerJobSubscriber', () => {
     setEnhancerQueueDb(undefined);
     testQueueDb?.close();
   });
-  it('records attempt failure when harness exits without completing job', async () => {
+  it('marks local queue job failed when harness exits without agent_end', async () => {
     vi.useFakeTimers();
 
-    const recordFailure = vi.fn().mockResolvedValue(undefined);
-    const mutationFn = vi.fn().mockImplementation((endpoint: string, args: unknown) => {
-      if (endpoint === 'claimForSpawn') return { claimed: true };
-      if (endpoint === 'recordAttemptFailure') return recordFailure(args);
-      return undefined;
-    });
-    const queryFn = vi.fn().mockImplementation((endpoint: string) => {
-      if (endpoint === 'pendingForMachine') {
-        return [{ jobId: 'job1', chatroomId: 'room1' }];
-      }
-      if (endpoint === 'getSpawnPayload') {
-        return {
-          chatroomId: 'room1',
-          jobId: 'job1',
-          agentHarness: 'opencode',
-          model: 'm',
-          workingDir: '/tmp',
-          systemPrompt: 'sys',
-          taskEnvelope: 'task',
-        };
-      }
-      return Promise.resolve({ status: 'running' });
-    });
+    const mutationFn = vi.fn();
+    const queryFn = vi.fn();
+    const backend = { mutation: mutationFn, query: queryFn };
 
-    const backend = {
-      mutation: mutationFn,
-      query: queryFn,
-    };
-
-    let exitCallback: (() => void) | undefined;
-    const spawn = vi.fn().mockReturnValue({
-      onExit: (fn: () => void) => {
-        exitCallback = fn;
-      },
-      onLogLine: vi.fn(),
-      onAssistantText: vi.fn(),
-      pid: 123,
-    });
-    const agentServices = new Map([['opencode', { spawn, stop: vi.fn() }]]);
+    const spawnHandlers: { exitCallback?: () => void } = {};
+    const spawn = createEnhancerSpawnMock(spawnHandlers);
+    const agentServices = new Map([
+      ['opencode', { spawn, stop: vi.fn().mockResolvedValue(undefined) }],
+    ]);
     const { wsClient } = createWsClient();
+
+    enqueueLocalEnhancerJob();
 
     const handles = startEnhancerJobSubscriber(
       'session',
@@ -115,67 +129,35 @@ describe('startEnhancerJobSubscriber', () => {
     );
 
     await handles.drainPendingEnhancerJobs();
-
-    // Let the async handler claim the job and spawn
     await vi.advanceTimersByTimeAsync(10);
 
-    // Simulate harness exit — triggers onExit in waitForEnhancerJobResolution
-    exitCallback!();
+    expect(spawn).toHaveBeenCalled();
+    expect(queueJobStatus('job1')).toBe('claimed');
 
+    spawnHandlers.exitCallback!();
     await vi.runAllTimersAsync();
 
-    // Verify recordAttemptFailure was called
-    expect(recordFailure).toHaveBeenCalled();
-    const callArgs = recordFailure.mock.calls[0][0] as Record<string, unknown>;
-    expect(callArgs.error).toBe('Agent process exited without completing enhancer job');
+    expect(queueJobStatus('job1')).toBe('failed');
+    expect(mutationFn).not.toHaveBeenCalled();
 
     vi.useRealTimers();
   });
 
-  it('agent_end triggers forceTerminal failure', async () => {
+  it('marks local queue job complete on agent_end', async () => {
     vi.useFakeTimers();
 
-    const recordFailure = vi.fn().mockResolvedValue(undefined);
-    const mutationFn = vi.fn().mockImplementation((endpoint: string, args: unknown) => {
-      if (endpoint === 'claimForSpawn') return { claimed: true };
-      if (endpoint === 'recordAttemptFailure') return recordFailure(args);
-      return undefined;
-    });
-    const queryFn = vi.fn().mockImplementation((endpoint: string) => {
-      if (endpoint === 'pendingForMachine') {
-        return [{ jobId: 'job1', chatroomId: 'room1' }];
-      }
-      if (endpoint === 'getSpawnPayload') {
-        return {
-          chatroomId: 'room1',
-          jobId: 'job1',
-          agentHarness: 'opencode',
-          model: 'm',
-          workingDir: '/tmp',
-          systemPrompt: 'sys',
-          taskEnvelope: 'task',
-        };
-      }
-      return Promise.resolve({ status: 'running' });
-    });
+    const mutationFn = vi.fn();
+    const queryFn = vi.fn();
+    const backend = { mutation: mutationFn, query: queryFn };
 
-    const backend = {
-      mutation: mutationFn,
-      query: queryFn,
-    };
-
-    let agentEndCallback: (() => void) | undefined;
-    const spawn = vi.fn().mockReturnValue({
-      onExit: vi.fn(),
-      onAgentEnd: (fn: () => void) => {
-        agentEndCallback = fn;
-      },
-      onLogLine: vi.fn(),
-      onAssistantText: vi.fn(),
-      pid: 123,
-    });
-    const agentServices = new Map([['opencode', { spawn, stop: vi.fn() }]]);
+    const spawnHandlers: { agentEndCallback?: () => void } = {};
+    const spawn = createEnhancerSpawnMock(spawnHandlers);
+    const agentServices = new Map([
+      ['opencode', { spawn, stop: vi.fn().mockResolvedValue(undefined) }],
+    ]);
     const { wsClient } = createWsClient();
+
+    enqueueLocalEnhancerJob();
 
     const handles = startEnhancerJobSubscriber(
       'session',
@@ -187,73 +169,35 @@ describe('startEnhancerJobSubscriber', () => {
     );
 
     await handles.drainPendingEnhancerJobs();
-
     await vi.advanceTimersByTimeAsync(10);
 
-    // Fire agent_end
-    agentEndCallback!();
-
+    spawnHandlers.agentEndCallback!();
     await vi.runAllTimersAsync();
 
-    expect(recordFailure).toHaveBeenCalled();
-    const callArgs = recordFailure.mock.calls[0][0] as Record<string, unknown>;
-    expect(callArgs.error).toBe('Agent exited without completing enhancer job');
-    expect(callArgs.forceTerminal).toBe(true);
+    expect(queueJobStatus('job1')).toBe('complete');
+    expect(mutationFn).not.toHaveBeenCalled();
 
     vi.useRealTimers();
   });
 
-  it('agent_end with assistant text salvages via complete mutation', async () => {
+  it('marks local queue job complete on agent_end without Convex salvage', async () => {
     vi.useFakeTimers();
 
-    const { wsClient, emitOutcome } = createWsClient();
-    const completeFn = vi.fn().mockImplementation(async () => {
-      emitOutcome({ status: 'complete', attemptCount: 1, maxAttempts: 3 });
-    });
-    const recordFailure = vi.fn();
+    const { wsClient } = createWsClient();
+    const completeFn = vi.fn();
     const mutationFn = vi.fn().mockImplementation((endpoint: string, args: unknown) => {
-      if (endpoint === 'claimForSpawn') return { claimed: true };
       if (endpoint === 'complete') return completeFn(args);
-      if (endpoint === 'recordAttemptFailure') return recordFailure(args);
       return undefined;
     });
-    const queryFn = vi.fn().mockImplementation((endpoint: string) => {
-      if (endpoint === 'pendingForMachine') {
-        return [{ jobId: 'job1', chatroomId: 'room1' }];
-      }
-      if (endpoint === 'getSpawnPayload') {
-        return Promise.resolve({
-          chatroomId: 'room1',
-          jobId: 'job1',
-          agentHarness: 'opencode',
-          model: 'm',
-          workingDir: '/tmp',
-          systemPrompt: 'sys',
-          taskEnvelope: 'task',
-        });
-      }
-      return Promise.resolve(null);
-    });
+    const backend = { mutation: mutationFn, query: vi.fn() };
 
-    const backend = {
-      mutation: mutationFn,
-      query: queryFn,
-    };
+    const spawnHandlers: { agentEndCallback?: () => void } = {};
+    const spawn = createEnhancerSpawnMock(spawnHandlers);
+    const agentServices = new Map([
+      ['opencode', { spawn, stop: vi.fn().mockResolvedValue(undefined) }],
+    ]);
 
-    let agentEndCallback: (() => void) | undefined;
-    let assistantTextCallback: ((text: string) => void) | undefined;
-    const spawn = vi.fn().mockReturnValue({
-      onExit: vi.fn(),
-      onAgentEnd: (fn: () => void) => {
-        agentEndCallback = fn;
-      },
-      onAssistantText: (fn: (text: string) => void) => {
-        assistantTextCallback = fn;
-      },
-      onLogLine: vi.fn(),
-      pid: 123,
-    });
-    const agentServices = new Map([['opencode', { spawn, stop: vi.fn() }]]);
+    enqueueLocalEnhancerJob();
 
     const handles = startEnhancerJobSubscriber(
       'session',
@@ -267,19 +211,11 @@ describe('startEnhancerJobSubscriber', () => {
     await handles.drainPendingEnhancerJobs();
     await vi.advanceTimersByTimeAsync(10);
 
-    // Simulate assistant text deltas
-    assistantTextCallback!('## Summary\n');
-    assistantTextCallback!('Planning feedback');
-
-    // Fire agent_end
-    agentEndCallback!();
+    spawnHandlers.agentEndCallback!();
     await vi.runAllTimersAsync();
 
-    // Assert complete called with accumulated text, recordAttemptFailure NOT called
-    expect(completeFn).toHaveBeenCalled();
-    const callArgs = completeFn.mock.calls[0][0] as Record<string, unknown>;
-    expect(callArgs.enhancedContent).toBe('## Summary\nPlanning feedback');
-    expect(recordFailure).not.toHaveBeenCalled();
+    expect(queueJobStatus('job1')).toBe('complete');
+    expect(completeFn).not.toHaveBeenCalled();
 
     vi.useRealTimers();
   });
