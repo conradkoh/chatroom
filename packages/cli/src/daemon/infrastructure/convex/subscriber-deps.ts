@@ -5,4 +5,5 @@ export type ConvexSubscriberDeps = {
   wsClient: ConvexClient;
   sessionId: SessionId;
   machineId: string;
+  chatroomId?: string;
 };

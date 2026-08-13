@@ -48,7 +48,7 @@ export type OrchestrationTaskReadyEvent = {
   chatroomId: string;
   role: string;
   taskId: string;
-  source: 'handoff' | 'promotion';
+  source: 'handoff' | 'promotion' | 'user-message';
 };
 
 type NormalizedHandoff = {
