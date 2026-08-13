@@ -266,7 +266,7 @@ describe('user message pending delivery path', () => {
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
   });
 
-  test('stuck pending: does not inject when local slot pid mismatches snapshot spawnedAgentPid', async () => {
+  test('live slot pid remains authoritative when snapshot pid differs', async () => {
     const snapshot = createTaskMonitorSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
@@ -276,7 +276,7 @@ describe('user message pending delivery path', () => {
       shouldDeliverNativeTask(row!, {
         slot: makeIdleNativeSlot({ pid: SPAWNED_PID + 1 }),
       })
-    ).toBe(false);
+    ).toBe(true);
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
     const coordinator = new NativeTaskDeliveryCoordinator();
