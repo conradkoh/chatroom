@@ -6,6 +6,7 @@ import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agen
 import { createTask as createTaskUsecase, shouldEnqueueMessage } from '../task/create-task';
 import { adjustTaskCount } from '../task/task-counts';
 import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-planner-enhancer-enabled';
+import { isDaemonOrchestrationChatroom } from './is-daemon-orchestration-chatroom';
 
 export type SendAutomatedUserMessageResult =
   | { ok: true; messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> }
@@ -33,7 +34,7 @@ export async function sendAutomatedUserMessage(
   if (!trimmed) return { ok: false, reason: 'empty_content' };
 
   const targetRole = getTeamEntryPoint(chatroom) ?? undefined;
-  const daemonOwned = false;
+  const daemonOwned = await isDaemonOrchestrationChatroom(ctx, args.chatroomId);
   const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
   const enqueue = await shouldEnqueueMessage(ctx, args.chatroomId);
 
@@ -86,7 +87,10 @@ export async function sendAutomatedUserMessage(
     ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
     ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
   });
-  if (daemonOwned) return { ok: true, messageId };
+  if (daemonOwned) {
+    await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: Date.now() });
+    return { ok: true, messageId };
+  }
   await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: Date.now() });
 
   const { taskId } = await createTaskUsecase(ctx, {

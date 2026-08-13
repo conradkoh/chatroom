@@ -6,6 +6,7 @@
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
+import { randomUUID } from 'node:crypto';
 
 import {
   createPlannerBuilderDuoChatroom,
@@ -80,6 +81,7 @@ export class ChatroomScenario {
   readonly convexUrl: string;
   readonly team: ScenarioTeam;
   private readonly instanceId: string;
+  private readonly roleMachines = new Map<string, string>();
 
   private constructor(
     sessionId: SessionId,
@@ -120,6 +122,7 @@ export class ChatroomScenario {
     } = options;
 
     await registerMachineWithDaemon(this.sessionId, machineId);
+    this.roleMachines.set(role, machineId);
     await joinParticipant(this.sessionId, this.chatroomId, role);
 
     await t.mutation(api.machines.saveTeamAgentConfig, {
@@ -150,9 +153,17 @@ export class ChatroomScenario {
       chatroomId: this.chatroomId,
     });
 
-    const task = tasks.find(
+    let task = tasks.find(
       (row: { sourceMessageId?: Id<'chatroom_messages'> }) => row.sourceMessageId === messageId
     );
+    if (!task) {
+      const machineId = this.roleMachines.get(targetRole) ?? `machine-${this.instanceId}-${targetRole}`;
+      const daemonTaskId = randomUUID();
+      await registerMachineWithDaemon(this.sessionId, machineId);
+      await t.mutation(api.messages.projectUserMessageFromDaemon, { sessionId: this.sessionId, machineId, chatroomId: this.chatroomId, messageId, content, senderRole: 'user', newTaskId: daemonTaskId, idempotencyKey: `${this.chatroomId}:${messageId}`, timestamp: Date.now() });
+      const projected = await t.query(api.tasks.listTasks, { sessionId: this.sessionId, chatroomId: this.chatroomId });
+      task = projected.find((row: { daemonTaskId?: string }) => row.daemonTaskId === daemonTaskId);
+    }
     if (!task) {
       throw new Error(`No task created for user message ${messageId}`);
     }
