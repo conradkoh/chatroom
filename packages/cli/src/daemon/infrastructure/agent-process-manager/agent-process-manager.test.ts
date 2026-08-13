@@ -2536,7 +2536,7 @@ describe('AgentProcessManager', () => {
         const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
         await triggerAgentEnd(manager, agentEndCb);
 
-        expect(slot.nativeTurnPhase).toBe('turn_in_flight');
+        expect(slot.nativeTurnPhase).toBe('idle');
         expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
           chatroomId: CHATROOM_ID,
           role: ROLE,
