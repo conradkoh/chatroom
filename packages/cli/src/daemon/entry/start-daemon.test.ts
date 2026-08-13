@@ -195,12 +195,12 @@ describe('startDaemon', () => {
     );
   });
 
-  it('starts outbox drain worker when DAEMON_ORCHESTRATION_P1 is set', async () => {
-    process.env.DAEMON_ORCHESTRATION_P1 = '1';
+  it('starts outbox drain worker when UNCONDITIONAL_CUTOVER is set', async () => {
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       await startDaemon();
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P1;
+      delete process.env.UNCONDITIONAL_CUTOVER;
     }
 
     expect(startOutboxDrainWorker).toHaveBeenCalledOnce();

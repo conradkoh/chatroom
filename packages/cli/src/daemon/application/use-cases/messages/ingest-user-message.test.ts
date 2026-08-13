@@ -12,7 +12,7 @@ describe('ingestUserMessage', () => {
     const db = openDatabase(join(mkdtempSync(join(tmpdir(), 'p7-')), 'events.sqlite'));
     const appendEvent = vi.fn();
     const emitOrchestrationEvent = vi.fn();
-    process.env.DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       const result = await ingestUserMessage(
         { db, machineId: 'machine', sessionId: 'session', appendEvent, emitOrchestrationEvent, getAgentHarness: async () => 'opencode' },
@@ -22,7 +22,7 @@ describe('ingestUserMessage', () => {
       expect(db.prepare("SELECT event_type FROM outbound_events WHERE event_type = 'user-message.received'").all()).toHaveLength(1);
       expect(emitOrchestrationEvent).toHaveBeenCalledWith({ chatroomId: 'room', role: 'planner', taskId: result.newTaskId, source: 'user-message' });
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY;
+      delete process.env.UNCONDITIONAL_CUTOVER;
       db.close();
     }
   });

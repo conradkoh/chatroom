@@ -3,7 +3,7 @@
  * User-intent inbound Convex subscribers (P5).
  *
  * These are the ONLY Convex WS subscribers the daemon registers when
- * DAEMON_ORCHESTRATION_P5 is enabled — they carry user/webapp intent INTO the
+ * Inbound-only is enabled — they carry user/webapp intent INTO the
  * daemon. Orchestration subscribers (assigned-task signals/presence,
  * enhancer-job) are removed because the daemon no longer subscribes to its own
  * projected state (handoff/lifecycle/enhancer are local-first under P3/P4).

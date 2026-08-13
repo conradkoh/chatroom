@@ -17,13 +17,13 @@
 
 Append enqueues outbox rows for **non-T0** event types (T0 — `harness.stream` — stays local-only and is never enqueued). Default DB path is `~/.chatroom/daemon/<machineId>/events.sqlite` via `entry/persistence-path.ts` and `entry/start-daemon.ts`.
 
-The drain worker lives in `infrastructure/projection/outbox-drain-worker.ts` and is started from `entry/start-daemon.ts` when `DAEMON_ORCHESTRATION_P1` is set (default off):
+The drain worker lives in `infrastructure/projection/outbox-drain-worker.ts` and is started from `entry/start-daemon.ts` when `orchestration flags` is set (default off):
 
 | Flag                                                              | Effect                                                                                                                                                                     |
 | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | (unset)                                                           | No drain worker; publisher-registry direct Convex publish (today's behavior)                                                                                               |
-| `DAEMON_ORCHESTRATION_P1=1`                                       | Drain worker runs in **shadow** mode — validates that a projection handler exists and marks rows done, **does not** call Convex. Direct publish remains authoritative.     |
-| `DAEMON_ORCHESTRATION_P1=1` + `DAEMON_ORCHESTRATION_P1_CUTOVER=1` | Drain worker **projects** to Convex via the projection handlers; publisher-registry skips direct Convex publish for covered event types (outbox drain is the sole writer). |
+| `orchestration flags=1`                                       | Drain worker runs in **shadow** mode — validates that a projection handler exists and marks rows done, **does not** call Convex. Direct publish remains authoritative.     |
+| `orchestration flags=1` + `orchestration flags=1` | Drain worker **projects** to Convex via the projection handlers; publisher-registry skips direct Convex publish for covered event types (outbox drain is the sole writer). |
 
 Shadow mode produces **no duplicate Convex writes**: the drain worker validates only, while direct publishers remain the single writer. Cutover hands the write path to the drain worker.
 
@@ -42,10 +42,10 @@ Flags (both default **off**):
 
 | Flag                                                              | Effect                                                                                                                                                                                                                                                                                                                                                             |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `DAEMON_ORCHESTRATION_P2=1`                                       | Hydrate read models from Convex on startup; shadow-sync each assigned-task snapshot WS update into `read_model_tasks`. Convex WS remains authoritative for decisions.                                                                                                                                                                                              |
-| `DAEMON_ORCHESTRATION_P2=1` + `DAEMON_ORCHESTRATION_P2_CUTOVER=1` | Task monitor skips the snapshot WS subscription and sources snapshots from read models (via the snapshot-store provider); restart orchestrator reads deliverable tasks from read models. Signals/presence trigger a pull-refresh from Convex into read models. Cutover requires P1 (`DAEMON_ORCHESTRATION_P1_CUTOVER`) for Convex sync of task-status projections. |
+| `orchestration flags=1`                                       | Hydrate read models from Convex on startup; shadow-sync each assigned-task snapshot WS update into `read_model_tasks`. Convex WS remains authoritative for decisions.                                                                                                                                                                                              |
+| `orchestration flags=1` + `orchestration flags=1` | Task monitor skips the snapshot WS subscription and sources snapshots from read models (via the snapshot-store provider); restart orchestrator reads deliverable tasks from read models. Signals/presence trigger a pull-refresh from Convex into read models. Cutover requires P1 (`orchestration flags`) for Convex sync of task-status projections. |
 
-Rollback: unset `DAEMON_ORCHESTRATION_P2_CUTOVER` (or both P2 flags) — the snapshot WS and Convex query paths resume unchanged.
+Rollback: unset `orchestration flags` (or both P2 flags) — the snapshot WS and Convex query paths resume unchanged.
 
 ## P3 handoff local
 
@@ -53,8 +53,8 @@ Flags (both default **off**):
 
 | Flag                                                                     | Effect                                                                                    |
 | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `DAEMON_ORCHESTRATION_P3=1`                                              | (PR D) `chatroom handoff` routes to daemon HTTP instead of `api.messages.handoff`         |
-| `DAEMON_ORCHESTRATION_P3=1` + `DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY=1` | (PR D) Native delivery triggered from local handoff event instead of assigned-task signal |
+| `orchestration flags=1`                                              | (PR D) `chatroom handoff` routes to daemon HTTP instead of `api.messages.handoff`         |
+| `orchestration flags=1` + `orchestration flags=1` | (PR D) Native delivery triggered from local handoff event instead of assigned-task signal |
 
 PR A adds `domain/usecase/execute-handoff.ts` — local SQLite transaction + `handoff.completed` outbound event. HTTP server, projection handler, and CLI routing land in PR B–D.
 

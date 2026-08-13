@@ -74,8 +74,8 @@ async function runAndStop(layer: ReturnType<typeof makeLayers>['layer']) {
 describe('P2 cutover snapshot store', () => {
   afterEach(() => {
     setAssignedTaskSnapshotProvider(undefined);
-    delete process.env.DAEMON_ORCHESTRATION_P2_CUTOVER;
-    delete process.env.DAEMON_ORCHESTRATION_P2;
+    delete process.env.UNCONDITIONAL_CUTOVER;
+    delete process.env.UNCONDITIONAL_CUTOVER;
   });
 
   it('listAssignedTaskSnapshots reads through the read-model provider when set', () => {
@@ -101,8 +101,8 @@ describe('P2 cutover snapshot store', () => {
   });
 
   it('starts the task monitor effect without error (cutover on, no WS subscription)', async () => {
-    process.env.DAEMON_ORCHESTRATION_P2 = '1';
-    process.env.DAEMON_ORCHESTRATION_P2_CUTOVER = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     const { layer, backend } = makeLayers();
     await expect(runAndStop(layer)).resolves.toBeUndefined();
     // cutover seeds the store by querying Convex once — not via onUpdate subscription

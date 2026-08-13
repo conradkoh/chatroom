@@ -223,7 +223,7 @@ describe('routeInboundEvent', () => {
   });
 
   test('P5 on: assigned-task events are no-ops (subscriber not registered)', async () => {
-    process.env.DAEMON_ORCHESTRATION_P5 = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       const deliverInbound = vi.fn().mockResolvedValue(undefined);
       const event: AssignedTaskInboundEvent = {
@@ -236,12 +236,12 @@ describe('routeInboundEvent', () => {
 
       expect(deliverInbound).not.toHaveBeenCalled();
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P5;
+      delete process.env.UNCONDITIONAL_CUTOVER;
     }
   });
 
   test('P5 on: enhancer.job-assigned is a no-op (enhancer is local-first)', async () => {
-    process.env.DAEMON_ORCHESTRATION_P5 = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       const deliverInbound = vi.fn().mockResolvedValue(undefined);
       const event: EnhancerInboundEvent = {
@@ -253,7 +253,7 @@ describe('routeInboundEvent', () => {
 
       expect(deliverInbound).not.toHaveBeenCalled();
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P5;
+      delete process.env.UNCONDITIONAL_CUTOVER;
     }
   });
 

@@ -81,10 +81,6 @@ import {
   taskReadModelFromSnapshot,
   upsertTaskReadModel,
 } from '../infrastructure/persistence/read-models/tasks.js';
-import {
-  isDaemonOrchestrationP2CutoverEnabled,
-  isDaemonOrchestrationP2Enabled,
-} from '../infrastructure/projection/feature-flags.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -471,8 +467,8 @@ function subscribeAssignedTaskSnapshotStore(
       replaceAssignedTaskSnapshots(tasks);
       if (
         taskMonitorReadModelDb &&
-        isDaemonOrchestrationP2Enabled() &&
-        !isDaemonOrchestrationP2CutoverEnabled()
+        true &&
+        !true
       ) {
         for (const task of tasks) {
           upsertTaskReadModel(taskMonitorReadModelDb, taskReadModelFromSnapshot(task));
@@ -562,7 +558,7 @@ export const startTaskMonitorEffect = (
       machineId: session.machineId,
     });
 
-    const cutover = isDaemonOrchestrationP2CutoverEnabled();
+    const cutover = true;
 
     let unsubscribeSnapshotStore: (() => void) | undefined;
     if (cutover) {

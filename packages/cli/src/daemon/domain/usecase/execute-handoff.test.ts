@@ -118,7 +118,7 @@ describe('executeHandoff', () => {
       );
       expect(result.newTaskId).toEqual(expect.any(String));
       expect(emitOrchestrationEvent).not.toHaveBeenCalled();
-      process.env.DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY = '1';
+      process.env.UNCONDITIONAL_CUTOVER = '1';
       const second = await executeHandoff(
         {
           db,
@@ -142,7 +142,7 @@ describe('executeHandoff', () => {
         source: 'handoff',
       });
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY;
+      delete process.env.UNCONDITIONAL_CUTOVER;
       db.close();
     }
   });
@@ -364,7 +364,7 @@ describe('executeHandoff', () => {
   it('enqueues enhancer job locally when P4 enabled on planner → enhancer handoff', async () => {
     const db = openDatabase(tempDbPath());
     const enqueued: unknown[] = [];
-    process.env.DAEMON_ORCHESTRATION_P4 = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       upsertTaskReadModel(db, taskReadModelFromSnapshot(makeSnapshot()));
 
@@ -411,7 +411,7 @@ describe('executeHandoff', () => {
         },
       });
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P4;
+      delete process.env.UNCONDITIONAL_CUTOVER;
       db.close();
     }
   });

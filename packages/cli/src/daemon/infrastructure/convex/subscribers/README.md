@@ -38,7 +38,7 @@
 
 ## P5 — orchestration subscriber shrink
 
-When `DAEMON_ORCHESTRATION_P5` is enabled, the daemon registers **inbound-only**
+When `UNCONDITIONAL_CUTOVER` is enabled, the daemon registers **inbound-only**
 (user-intent) subscribers — see `infrastructure/inbound/convex/subscriber-registry.ts`.
 The following **orchestration subscribers are NOT registered** (files remain for the
 flag-off path and reference):

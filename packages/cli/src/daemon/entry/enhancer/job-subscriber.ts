@@ -9,7 +9,6 @@ import { processEnhancerJob } from '../../application/use-cases/enhancer/process
 import type { RemoteAgentService } from '../../infrastructure/local/harness/services/remote-agent-service.js';
 import { createSpawnPrompt } from '../../infrastructure/local/harness/services/spawn-prompt.js';
 import { getEnhancerQueuePort } from '../../infrastructure/persistence/enhancer-queue.js';
-import { isDaemonOrchestrationP4Enabled } from '../../infrastructure/projection/feature-flags.js';
 import {
   registerEnhancerInboundHandler,
   unregisterEnhancerInboundHandler,
@@ -208,7 +207,7 @@ async function drainPendingEnhancerJobs(
   agentServices: Map<string, RemoteAgentService>,
   inFlight: Set<string>
 ): Promise<void> {
-  if (isDaemonOrchestrationP4Enabled()) {
+  if (true) {
     await drainLocalEnhancerQueue(
       sessionId,
       machineId,

@@ -10,7 +10,7 @@ Canonical home for all machine daemon code within the CLI.
 
 The `daemon/` module is the **sole daemon runtime**: `daemon-start/index.ts` delegates to `startDaemon`, which runs persistence, local-web, Convex subscribers, and `createDaemonRuntime`. Legacy `daemon-start/` retains handlers, drains, and thin re-export shims.
 
-**P5 (inbound-only Convex subscription):** when `DAEMON_ORCHESTRATION_P5` is enabled, the daemon subscribes only to user-intent inbound Convex state (git, files, workspace list, webapp commands, direct harness, agentic queries). Orchestration subscribers (assigned-task signals/presence, enhancer-job) are removed because the daemon no longer subscribes to its own projected state. All outbound flows go **event store → outbox → projection** (see `infrastructure/projection/`); the publisher registry becomes a local event bus (append + `harness.stream` fan-out only).
+**P5 (inbound-only Convex subscription):** when `orchestration flags` is enabled, the daemon subscribes only to user-intent inbound Convex state (git, files, workspace list, webapp commands, direct harness, agentic queries). Orchestration subscribers (assigned-task signals/presence, enhancer-job) are removed because the daemon no longer subscribes to its own projected state. All outbound flows go **event store → outbox → projection** (see `infrastructure/projection/`); the publisher registry becomes a local event bus (append + `harness.stream` fan-out only).
 
 ---
 

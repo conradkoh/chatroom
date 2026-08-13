@@ -119,7 +119,6 @@ import type {
   SpawnResult,
 } from '../local/harness/services/remote-agent-service.js';
 import { createSpawnPrompt } from '../local/harness/services/spawn-prompt.js';
-import { isDaemonOrchestrationP4Enabled } from '../projection/feature-flags.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -223,7 +222,7 @@ export interface AgentProcessManagerDeps {
   crashLoop: CrashLoopTracker;
   convexUrl: string;
   resumeStormTracker?: ResumeStormTracker;
-  /** P4: local lifecycle event + read model port. Required when DAEMON_ORCHESTRATION_P4 enabled. */
+  /** P4: local lifecycle event + read model port. Required when UNCONDITIONAL_CUTOVER enabled. */
   lifecycle?: AgentLifecyclePort;
 }
 
@@ -325,7 +324,7 @@ export class AgentProcessManager {
   private get lifecyclePort(): AgentLifecyclePort {
     if (!this.deps.lifecycle) {
       throw new Error(
-        'AgentLifecyclePort not injected — required when DAEMON_ORCHESTRATION_P4 is enabled'
+        'AgentLifecyclePort not injected — required when UNCONDITIONAL_CUTOVER is enabled'
       );
     }
     return this.deps.lifecycle;
@@ -334,7 +333,7 @@ export class AgentProcessManager {
   private createTurnBackend() {
     return createTurnCompletedBackend({
       ...this.deps,
-      isP4: isDaemonOrchestrationP4Enabled(),
+      isP4: true,
     });
   }
 
@@ -645,33 +644,11 @@ export class AgentProcessManager {
       return;
     }
 
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (slot) {
       await this.handleNativeTurnEndP4(opts, slot);
       return;
     }
 
-    try {
-      const result = await this.deps.backend.mutation(api.participants.handleNativeAgentEnd, {
-        sessionId: this.deps.sessionId,
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        ...(slot?.lastInFlightTaskId ? { taskId: slot.lastInFlightTaskId } : {}),
-      });
-
-      if (result?.needsHandoffReminder) {
-        await this.injectHarnessReminder(opts.chatroomId, opts.role, NATIVE_HANDOFF_REMINDER);
-        console.log(`[AgentProcessManager] ⏩ Handoff reminder injected for ${opts.role}`);
-        return;
-      }
-
-      if (slot) {
-        setNativeTurnPhase(slot, defaultNativeTurnPhase());
-      }
-      notifyNativeTurnIdle({ chatroomId: opts.chatroomId, role: opts.role });
-      console.log(`[AgentProcessManager] ✅ Native agent_end handled for ${opts.role}`);
-    } catch (err) {
-      console.log(`   ⚠️  Failed native agent_end for ${opts.role}: ${(err as Error).message}`);
-    }
   }
 
   /**
@@ -772,7 +749,7 @@ export class AgentProcessManager {
     );
 
     this.resetSlotAfterExit(slot);
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (true) {
       this.stopAgentLocal(opts.chatroomId, opts.role, { pid: opts.pid });
     }
     await this.emitExitEvent(slot, opts, ctx);
@@ -1137,7 +1114,7 @@ export class AgentProcessManager {
 
   private emitStartFailedEvent(role: string, chatroomId: string, error: string): void {
     const timestamp = this.deps.clock.now();
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (true) {
       this.lifecyclePort.appendLifecycleEvent(
         buildAgentStartFailedEvent({
           chatroomId,
@@ -1620,7 +1597,7 @@ export class AgentProcessManager {
     harnessSessionId?: string
   ): Promise<void> {
     const timestamp = this.deps.clock.now();
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (true) {
       this.lifecyclePort.appendLifecycleEvent(
         buildSessionResumeRequestedEvent({
           chatroomId,
@@ -1662,7 +1639,7 @@ export class AgentProcessManager {
     harnessSessionId?: string
   ): Promise<void> {
     const timestamp = this.deps.clock.now();
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (true) {
       this.lifecyclePort.appendLifecycleEvent(
         buildSessionResumedEvent({
           chatroomId,
@@ -1703,7 +1680,7 @@ export class AgentProcessManager {
     harnessSessionId?: string
   ): Promise<void> {
     const timestamp = this.deps.clock.now();
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (true) {
       this.lifecyclePort.appendLifecycleEvent(
         buildSessionResumeFailedEvent({
           chatroomId,
@@ -1746,7 +1723,7 @@ export class AgentProcessManager {
     error?: string,
     harnessSessionId?: string
   ): Promise<void> {
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (true) {
       this.lifecyclePort.appendLifecycleEvent(
         buildSessionReopenRetryEvent({
           chatroomId,
@@ -1815,7 +1792,7 @@ export class AgentProcessManager {
     role: string,
     info: HarnessSessionIdUpdatedInfo
   ): Promise<void> {
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (true) {
       this.lifecyclePort.appendLifecycleEvent(
         buildHarnessSessionIdUpdatedEvent({
           chatroomId,
@@ -1876,7 +1853,7 @@ export class AgentProcessManager {
       return { success: false, error: 'backoff', retryAfterMs: loopCheck.waitMs };
     }
 
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (true) {
       this.lifecyclePort.appendLifecycleEvent(
         buildRestartLimitReachedEvent({
           chatroomId: opts.chatroomId,
@@ -2167,7 +2144,7 @@ export class AgentProcessManager {
     const { pid } = spawnResult;
 
     this.assignRunningSlotState(key, slot, opts, spawnResult, wantResume, pid);
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (true) {
       startAgent(
         {
           machineId: this.deps.machineId,
@@ -2398,7 +2375,7 @@ export class AgentProcessManager {
     this.bumpStopGeneration(slot);
     this.clearSlotRuntimeState(slot);
 
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (true) {
       this.stopAgentLocal(chatroomId, role, { pid, stopTimedOut: true, durationMs });
     } else {
       void this.deps.backend
@@ -2489,7 +2466,7 @@ export class AgentProcessManager {
     }
 
     this.resetSlotAfterStop(slot);
-    if (isDaemonOrchestrationP4Enabled()) {
+    if (true) {
       this.stopAgentLocal(opts.chatroomId, opts.role, { pid });
     }
     this.recordStopExit(slot, pid, opts);

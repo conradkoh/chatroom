@@ -2818,13 +2818,13 @@ describe('AgentProcessManager', () => {
     }
 
     afterEach(() => {
-      delete process.env.DAEMON_ORCHESTRATION_P4;
+      delete process.env.UNCONDITIONAL_CUTOVER;
     });
 
     test.each(NATIVE_DIRECT_HARNESS_NAMES)(
       'turn-end for %s with P4 on appends agent.native_end locally, no handleNativeAgentEnd mutation',
       async (harness) => {
-        process.env.DAEMON_ORCHESTRATION_P4 = '1';
+        process.env.UNCONDITIONAL_CUTOVER = '1';
         const { service, resumeTurn, onAgentEndRegistrar } = createNativeSdkService(harness);
         const localLifecycle = createLocalLifecycle();
         deps.agentServices = new Map([[harness, service]]);
@@ -2858,7 +2858,7 @@ describe('AgentProcessManager', () => {
     );
 
     test('stop timeout with P4 on appends agent.stop_timeout locally, no emitAgentStopTimeout mutation', async () => {
-      process.env.DAEMON_ORCHESTRATION_P4 = '1';
+      process.env.UNCONDITIONAL_CUTOVER = '1';
       const localLifecycle = createLocalLifecycle();
       manager = new AgentProcessManager({ ...deps, lifecycle: localLifecycle.port });
 

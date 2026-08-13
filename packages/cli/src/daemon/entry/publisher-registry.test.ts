@@ -88,11 +88,11 @@ describe('createPublisherRegistry', () => {
       machineId: 'machine-1',
     });
 
-    process.env.DAEMON_ORCHESTRATION_P1_CUTOVER = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       await registry.publish({ type: 'heartbeat', machineId: 'machine-1' });
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P1_CUTOVER;
+      delete process.env.UNCONDITIONAL_CUTOVER;
     }
 
     expect(mutation).not.toHaveBeenCalled();
@@ -125,7 +125,7 @@ describe('createPublisherRegistry', () => {
   it('P5 on: appends to persistence and never calls direct Convex mutations', async () => {
     const store = createPersistenceStore(tempDbPath());
     const mutation = vi.fn().mockResolvedValue(undefined);
-    process.env.DAEMON_ORCHESTRATION_P5 = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       const registry = createPublisherRegistry({
         persistence: store,
@@ -148,7 +148,7 @@ describe('createPublisherRegistry', () => {
       const pending = store.listPendingOutbox();
       expect(pending).toHaveLength(1);
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P5;
+      delete process.env.UNCONDITIONAL_CUTOVER;
       store.close();
     }
   });

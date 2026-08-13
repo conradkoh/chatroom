@@ -147,7 +147,7 @@ describe('runRestartOrchestrator', () => {
   test('cutover reads deliverable snapshots from read models, not Convex snapshot query', async () => {
     const db = openDatabase(tempDbPath());
     setRestartOrchestratorDb(db);
-    process.env.DAEMON_ORCHESTRATION_P2_CUTOVER = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       upsertTaskReadModel(db, taskReadModelFromSnapshot(makeSnapshot({ status: 'pending' })));
       const { deps, backendMock } = createMockDeps();
@@ -168,7 +168,7 @@ describe('runRestartOrchestrator', () => {
         expect.anything()
       );
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P2_CUTOVER;
+      delete process.env.UNCONDITIONAL_CUTOVER;
       setRestartOrchestratorDb(undefined);
       db.close();
     }
@@ -182,7 +182,7 @@ describe('runRestartOrchestrator', () => {
       updateAgentReadModel: () => {},
       updateParticipantReadModel: () => {},
     };
-    process.env.DAEMON_ORCHESTRATION_P4 = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       await runRestartOrchestrator({ ...deps, lifecycle } as any, {
         chatroomId: 'test-chatroom',
@@ -203,7 +203,7 @@ describe('runRestartOrchestrator', () => {
         expect(phaseEvent.correlationId).toBe('test-correlation');
       }
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P4;
+      delete process.env.UNCONDITIONAL_CUTOVER;
     }
   });
 });

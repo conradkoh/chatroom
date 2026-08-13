@@ -1,6 +1,6 @@
 /**
  * Orchestrates atomic user restart: reset → spawn → await session → ready → deliver pending.
- * P4: when DAEMON_ORCHESTRATION_P4 is enabled, restart phase/completed facts are emitted as
+ * P4: when orchestration flags is enabled, restart phase/completed facts are emitted as
  * local lifecycle events and projected to Convex via the outbox; otherwise direct mutations.
  */
 
@@ -38,10 +38,6 @@ import {
   clearRestartOrchestratorInFlight,
 } from '../../../entry/restart-orchestrator-in-flight.js';
 import { listSnapshotViewsFromReadModels } from '../../../infrastructure/persistence/read-models/task-snapshot-adapter.js';
-import {
-  isDaemonOrchestrationP4Enabled,
-  isDaemonOrchestrationP2CutoverEnabled,
-} from '../../../infrastructure/projection/feature-flags.js';
 import type { AgentLifecyclePort } from '../../ports/agent-lifecycle.port.js';
 
 interface RestartOrchestratorEvent {
@@ -84,9 +80,9 @@ async function emitPhase(
   phase: AgentRestartPhase | 'completed' | 'failed',
   detail?: string
 ): Promise<void> {
-  if (isDaemonOrchestrationP4Enabled()) {
+  if (true) {
     if (!deps.lifecycle) {
-      throw new Error('AgentLifecyclePort required when DAEMON_ORCHESTRATION_P4 is enabled');
+      throw new Error('AgentLifecyclePort required when orchestration flags is enabled');
     }
     deps.lifecycle.appendLifecycleEvent(
       buildRestartPhaseEvent({
@@ -117,9 +113,9 @@ async function emitRestartCompleted(
   event: RestartOrchestratorEvent,
   deliveredTaskIds: string[]
 ): Promise<void> {
-  if (isDaemonOrchestrationP4Enabled()) {
+  if (true) {
     if (!deps.lifecycle) {
-      throw new Error('AgentLifecyclePort required when DAEMON_ORCHESTRATION_P4 is enabled');
+      throw new Error('AgentLifecyclePort required when orchestration flags is enabled');
     }
     deps.lifecycle.appendLifecycleEvent(
       buildRestartCompletedEvent({
@@ -196,7 +192,7 @@ async function listDeliverableSnapshots(
   const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
 
   let candidates: AssignedTaskSnapshotView[];
-  if (restartOrchestratorDb && isDaemonOrchestrationP2CutoverEnabled()) {
+  if (restartOrchestratorDb && true) {
     candidates = listSnapshotViewsFromReadModels(restartOrchestratorDb, deps.session.machineId);
   } else {
     await deps.session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {

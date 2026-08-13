@@ -99,7 +99,7 @@ describe('subscriber-registry duplicate guard (G4)', () => {
 
   it('P5 entry registry delegates to inbound registry behind the flag', () => {
     const registrySource = readRepoFile('src/daemon/entry/subscriber-registry.ts');
-    expect(registrySource).toContain('isDaemonOrchestrationP5Enabled');
+    expect(registrySource).toContain('unconditionalCutover');
     expect(registrySource).toContain('startInboundSubscribers');
   });
 

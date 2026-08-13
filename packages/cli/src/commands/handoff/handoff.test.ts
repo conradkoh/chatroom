@@ -20,7 +20,7 @@ vi.mock('./daemon-handoff-client.js', () => ({
 }));
 
 afterEach(() => {
-  delete process.env.DAEMON_ORCHESTRATION_P3;
+  delete process.env.UNCONDITIONAL_CUTOVER;
   mockPostDaemonHandoff.mockReset();
 });
 
@@ -232,8 +232,8 @@ describe('handoffEffect', () => {
     expect(exit._tag).toBe('Success');
   });
 
-  test('routes to daemon HTTP when DAEMON_ORCHESTRATION_P3 is enabled', async () => {
-    process.env.DAEMON_ORCHESTRATION_P3 = '1';
+  test('routes to daemon HTTP when UNCONDITIONAL_CUTOVER is enabled', async () => {
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     mockPostDaemonHandoff.mockResolvedValue({
       success: true,
       messageId: 'msg-1',
@@ -264,7 +264,7 @@ describe('handoffEffect', () => {
   });
 
   test('fails with HandoffRejected when daemon HTTP returns success=false', async () => {
-    process.env.DAEMON_ORCHESTRATION_P3 = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     mockPostDaemonHandoff.mockResolvedValue({
       success: false,
       error: {

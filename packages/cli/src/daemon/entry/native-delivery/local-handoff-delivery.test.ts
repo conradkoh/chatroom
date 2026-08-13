@@ -6,10 +6,10 @@ import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/as
 
 describe('local handoff delivery', () => {
   it('injects stored task content without Convex calls', async () => {
-    process.env.DAEMON_ORCHESTRATION_P2 = '1';
-    process.env.DAEMON_ORCHESTRATION_P2_CUTOVER = '1';
-    process.env.DAEMON_ORCHESTRATION_P3 = '1';
-    process.env.DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     const query = vi.fn();
     const mutation = vi.fn();
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
@@ -39,10 +39,10 @@ describe('local handoff delivery', () => {
       expect(query).not.toHaveBeenCalled();
       expect(mutation).not.toHaveBeenCalled();
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P2;
-      delete process.env.DAEMON_ORCHESTRATION_P2_CUTOVER;
-      delete process.env.DAEMON_ORCHESTRATION_P3;
-      delete process.env.DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY;
+      delete process.env.UNCONDITIONAL_CUTOVER;
+      delete process.env.UNCONDITIONAL_CUTOVER;
+      delete process.env.UNCONDITIONAL_CUTOVER;
+      delete process.env.UNCONDITIONAL_CUTOVER;
     }
   });
 });

@@ -345,7 +345,7 @@ describe('startEnhancerJobSubscriber', () => {
     vi.useFakeTimers();
     const dir = mkdtempSync(join(tmpdir(), 'p4-enhancer-subscriber-'));
     const db = openDatabase(join(dir, 'events.sqlite'));
-    process.env.DAEMON_ORCHESTRATION_P4 = '1';
+    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       setEnhancerQueueDb(db);
       const queue = getEnhancerQueuePort();
@@ -415,7 +415,7 @@ describe('startEnhancerJobSubscriber', () => {
         .get('local:room-1:msg-1') as { status: string };
       expect(after.status).toBe('failed');
     } finally {
-      delete process.env.DAEMON_ORCHESTRATION_P4;
+      delete process.env.UNCONDITIONAL_CUTOVER;
       setEnhancerQueueDb(undefined);
       db.close();
       vi.useRealTimers();
