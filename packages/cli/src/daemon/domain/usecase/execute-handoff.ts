@@ -3,6 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import type { EnqueueEnhancerQueueInput } from '../../application/ports/enhancer-queue.port.js';
 import type { HandoffChatroomContext } from '../../infrastructure/convex/adapters/handoff-chatroom-adapter.js';
+import { appendOutboundEventWithOutbox } from '../../infrastructure/persistence/event-store.js';
 import { upsertHandoffReadModel } from '../../infrastructure/persistence/read-models/handoffs.js';
 import { upsertParticipantReadModel } from '../../infrastructure/persistence/read-models/participants.js';
 import {
@@ -12,11 +13,11 @@ import {
   type TaskReadModelRow,
   upsertTaskReadModel,
 } from '../../infrastructure/persistence/read-models/tasks.js';
+import { createDaemonTaskId } from '../entities/daemon-task-id.js';
 import type { OutboundEvent } from '../entities/outbound-event.js';
 import type { ExecuteHandoffResult, HandoffRejectedError } from '../errors/handoff-errors.js';
 import { buildHandoffCompletedEvent } from '../events/handoff-completed.js';
 import { isNativeHarness } from '../native-integration/index.js';
-import { appendOutboundEventWithOutbox } from '../../infrastructure/persistence/event-store.js';
 
 export interface HandoffChatroomPort {
   getContext(chatroomId: string): Promise<HandoffChatroomContext>;
@@ -257,7 +258,16 @@ function applyHandoffInTransaction(
     for (const task of tasksToComplete) {
       upsertTaskReadModel(deps.db, completeTaskRow(task, now));
       completedTaskIds.push(task.taskId);
-      appendOutboundEventWithOutbox(deps.db, { type: 'task.status', variant: 'transition', idempotencyKey: `${input.chatroomId}:${task.taskId}:completed:${now}`, taskId: task.taskId, role: task.role, chatroomId: input.chatroomId, status: 'completed', timestamp: now });
+      appendOutboundEventWithOutbox(deps.db, {
+        type: 'task.status',
+        variant: 'transition',
+        idempotencyKey: `${input.chatroomId}:${task.taskId}:completed:${now}`,
+        taskId: task.taskId,
+        role: task.role,
+        chatroomId: input.chatroomId,
+        status: 'completed',
+        timestamp: now,
+      });
     }
 
     upsertHandoffReadModel(deps.db, {
@@ -268,7 +278,7 @@ function applyHandoffInTransaction(
     });
 
     if (!handoff.isHandoffToUser && targetHarness) {
-      newTaskId = randomUUID();
+      newTaskId = createDaemonTaskId();
       upsertTaskReadModel(deps.db, {
         chatroomId: input.chatroomId,
         role: handoff.normalizedTargetRole,
@@ -306,7 +316,22 @@ function applyHandoffInTransaction(
       }
     }
 
-    appendOutboundEventWithOutbox(deps.db, buildHandoffCompletedEvent({ idempotencyKey: `${input.chatroomId}:${messageId}`, sessionId: input.sessionId, chatroomId: input.chatroomId, senderRole: handoff.normalizedSenderRole, content: input.content, targetRole: handoff.normalizedTargetRole, messageId, completedTaskIds, newTaskId: newTaskId ?? undefined, promotedTaskId: promotedTaskId ?? undefined, timestamp: now }));
+    appendOutboundEventWithOutbox(
+      deps.db,
+      buildHandoffCompletedEvent({
+        idempotencyKey: `${input.chatroomId}:${messageId}`,
+        sessionId: input.sessionId,
+        chatroomId: input.chatroomId,
+        senderRole: handoff.normalizedSenderRole,
+        content: input.content,
+        targetRole: handoff.normalizedTargetRole,
+        messageId,
+        completedTaskIds,
+        newTaskId: newTaskId ?? undefined,
+        promotedTaskId: promotedTaskId ?? undefined,
+        timestamp: now,
+      })
+    );
   });
 
   return { messageId, completedTaskIds, newTaskId, promotedTaskId, promotedRole };

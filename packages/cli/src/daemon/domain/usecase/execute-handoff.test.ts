@@ -15,6 +15,7 @@ import {
   upsertTaskReadModel,
 } from '../../infrastructure/persistence/read-models/tasks.js';
 import type { AssignedTaskSnapshotView } from '../entities/assigned-task.js';
+import { isDaemonTaskId } from '../entities/daemon-task-id.js';
 import type { OutboundEvent } from '../entities/outbound-event.js';
 
 function tempDbPath(): string {
@@ -80,6 +81,7 @@ describe('executeHandoff', () => {
       expect(result.success).toBe(true);
       expect(result.completedTaskIds).toEqual(['task-planner']);
       expect(result.newTaskId).toBeTruthy();
+      expect(isDaemonTaskId(result.newTaskId!)).toBe(true);
 
       const plannerTasks = listTaskReadModelsForChatroomRole(db, 'room-1', 'planner');
       expect(plannerTasks[0]?.status).toBe('completed');
@@ -121,6 +123,7 @@ describe('executeHandoff', () => {
         }
       );
       expect(result.newTaskId).toEqual(expect.any(String));
+      expect(isDaemonTaskId(result.newTaskId!)).toBe(true);
       expect(emitOrchestrationEvent).toHaveBeenCalled();
       process.env.UNCONDITIONAL_CUTOVER = '1';
       const second = await executeHandoff(
