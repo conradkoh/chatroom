@@ -1,6 +1,5 @@
 // fallow-ignore-file code-duplication
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
-import { isDaemonOrchestrationP7Enabled } from '../../../infrastructure/projection/feature-flags.js';
 import type { ConvexSubscriberDeps } from '../../convex/subscriber-deps.js';
 import { startAgenticQueryPromptSubscriber } from '../../convex/subscribers/agentic-query-prompt.js';
 import { startAgenticQuerySessionSubscriber } from '../../convex/subscribers/agentic-query-session.js';
@@ -32,9 +31,7 @@ export function startInboundSubscribers(
   const fileWrite = startFileWriteRequestSubscriber(deps, onEvent);
   const agenticQuerySession = startAgenticQuerySessionSubscriber(deps, onEvent);
   const agenticQueryPrompt = startAgenticQueryPromptSubscriber(deps, onEvent);
-  const userMessage = isDaemonOrchestrationP7Enabled()
-    ? startUserMessageSubscriber(deps, onEvent)
-    : { async stop() {} };
+  const userMessage = startUserMessageSubscriber(deps, onEvent);
 
   return {
     async stopAll() {

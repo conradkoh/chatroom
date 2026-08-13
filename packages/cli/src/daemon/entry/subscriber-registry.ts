@@ -18,10 +18,6 @@ import { startGitRequestSubscriber } from '../infrastructure/convex/subscribers/
 import { startUserMessageSubscriber } from '../infrastructure/convex/subscribers/user-message.js';
 import { startWorkspaceListSubscriber } from '../infrastructure/convex/subscribers/workspace-list.js';
 import { startInboundSubscribers } from '../infrastructure/inbound/convex/subscriber-registry.js';
-import {
-  isDaemonOrchestrationP5Enabled,
-  isDaemonOrchestrationP7Enabled,
-} from '../infrastructure/projection/feature-flags.js';
 
 export type SubscriberRegistryDeps = ConvexSubscriberDeps & {
   router: EventRouterDeps;
@@ -32,52 +28,5 @@ export type SubscriberRegistryHandle = { stopAll(): Promise<void> };
 export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberRegistryHandle {
   const onEvent = (event: InboundEvent): Promise<void> => routeInboundEvent(deps.router, event);
 
-  // P5: inbound-only Convex subscription — orchestration subscribers
-  // (assigned-task signals/presence, enhancer-job) are not registered because
-  // the daemon no longer subscribes to its own projected state.
-  if (isDaemonOrchestrationP5Enabled()) {
-    return startInboundSubscribers(deps, onEvent);
-  }
-
-  const signals = startAssignedTaskSignalsSubscriber(deps, onEvent);
-  const presence = startAssignedTaskPresenceSubscriber(deps, onEvent);
-  const session = startDirectHarnessSessionSubscriber(deps, onEvent);
-  const prompt = startDirectHarnessPromptSubscriber(deps, onEvent);
-  const directHarnessCommand = startDirectHarnessCommandSubscriber(deps, onEvent);
-  const commandEvents = startCommandEventsSubscriber(deps, onEvent);
-  const commandRun = startCommandRunSubscriber(deps, onEvent);
-  const workspaceList = startWorkspaceListSubscriber(deps, onEvent);
-  const gitRequest = startGitRequestSubscriber(deps, onEvent);
-  const fileTree = startFileTreeRequestSubscriber(deps, onEvent);
-  const fileContent = startFileContentRequestSubscriber(deps, onEvent);
-  const fileWrite = startFileWriteRequestSubscriber(deps, onEvent);
-  const agenticQuerySession = startAgenticQuerySessionSubscriber(deps, onEvent);
-  const agenticQueryPrompt = startAgenticQueryPromptSubscriber(deps, onEvent);
-  const enhancerJob = startEnhancerJobSubscriber(deps, onEvent);
-  const userMessage = isDaemonOrchestrationP7Enabled()
-    ? startUserMessageSubscriber(deps, onEvent)
-    : { async stop() {} };
-
-  return {
-    async stopAll() {
-      await Promise.all([
-        signals.stop(),
-        presence.stop(),
-        session.stop(),
-        prompt.stop(),
-        directHarnessCommand.stop(),
-        commandEvents.stop(),
-        commandRun.stop(),
-        workspaceList.stop(),
-        gitRequest.stop(),
-        fileTree.stop(),
-        fileContent.stop(),
-        fileWrite.stop(),
-        agenticQuerySession.stop(),
-        agenticQueryPrompt.stop(),
-        enhancerJob.stop(),
-        userMessage.stop(),
-      ]);
-    },
-  };
+  return startInboundSubscribers(deps, onEvent);
 }
