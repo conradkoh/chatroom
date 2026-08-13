@@ -91,10 +91,12 @@ describe('scroll pinning and jump chip', () => {
     expect(document.querySelector('[data-testid="all-tab-jump-to-new-messages"]')).not.toBeNull();
   });
 
-  it('positions jump chip above timeline row z-index range when visible', () => {
-    render(<AllTabMessageList events={[makeEvent('msg-1')]} anchorId="a1" />);
+  it('positions jump chip above contained timeline rows with long feed', () => {
+    const events = Array.from({ length: 40 }, (_, index) => makeEvent(`msg-${index}`));
+    render(<AllTabMessageList events={events} anchorId="a1" />);
 
     const list = document.querySelector('[data-testid="all-tab-message-list"]') as HTMLDivElement;
+    expect(list).toHaveClass('relative', 'z-0');
     setScrollMetrics(list, { clientHeight: 400, scrollHeight: 1200, scrollTop: 100 });
     fireEvent.scroll(list);
 
@@ -103,7 +105,7 @@ describe('scroll pinning and jump chip', () => {
     ) as HTMLElement;
     expect(chip).not.toBeNull();
     expect(chip.style.zIndex).toBe(String(JUMP_TO_NEW_MESSAGES_Z_INDEX));
-    expect(chip.className).not.toContain('z-10');
+    expect(JUMP_TO_NEW_MESSAGES_Z_INDEX).toBe(20);
   });
 
   it('hides jump chip when at bottom (pinned)', () => {
