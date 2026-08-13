@@ -1038,8 +1038,6 @@ export const updateDaemonStatus = mutation({
   },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    const receipt = await ctx.db.query('daemon_projection_receipts').withIndex('by_idempotencyKey', (q) => q.eq('idempotencyKey', args.idempotencyKey)).first();
-    if (receipt) return { replayed: true };
     const machine = await getMachineByMachineId(ctx, args.machineId);
 
     const now = Date.now();
@@ -3322,6 +3320,8 @@ export const projectTaskStatusFromDaemon = mutation({
   args: { ...SessionIdArg, machineId: v.string(), idempotencyKey: v.string(), daemonTaskId: v.string(), status: v.union(v.literal('pending'), v.literal('in_progress'), v.literal('completed')), timestamp: v.number() },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    const receipt = await ctx.db.query('daemon_projection_receipts').withIndex('by_idempotencyKey', (q) => q.eq('idempotencyKey', args.idempotencyKey)).first();
+    if (receipt) return { replayed: true };
     const task = await ctx.db.query('chatroom_tasks').withIndex('by_daemonTaskId', (q) => q.eq('daemonTaskId', args.daemonTaskId)).unique();
     if (!task) throw new ConvexError(`Unknown daemon task ${args.daemonTaskId}`);
     if (task.status !== args.status) await ctx.db.patch('chatroom_tasks', task._id, { status: args.status });
