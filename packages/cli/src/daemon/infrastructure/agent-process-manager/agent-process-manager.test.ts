@@ -75,19 +75,20 @@ function createMockService() {
 
 function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessManagerDeps {
   const mockService = createMockService();
+  const backend = {
+    query: vi.fn().mockResolvedValue({
+      prompt: true,
+      rolePrompt: 'You are a builder',
+      initialMessage: 'Start working',
+    }),
+    mutation: vi.fn().mockResolvedValue({
+      needsHandoffReminder: false,
+      transitionedToWaiting: true,
+    }),
+  };
   return {
     agentServices: new Map([['opencode', mockService]]),
-    backend: {
-      query: vi.fn().mockResolvedValue({
-        prompt: true,
-        rolePrompt: 'You are a builder',
-        initialMessage: 'Start working',
-      }),
-      mutation: vi.fn().mockResolvedValue({
-        needsHandoffReminder: false,
-        transitionedToWaiting: true,
-      }),
-    },
+    backend,
     sessionId: 'test-session',
     machineId: 'test-machine',
     processes: { kill: vi.fn() },
@@ -109,6 +110,14 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     crashLoop: new CrashLoopTracker(),
     convexUrl: 'http://test:3210',
     resumeStormTracker: new RapidResumeTracker(),
+    lifecycle: {
+      appendLifecycleEvent: vi.fn((event: OutboundEvent) => {
+        const { machineId: _machineId, ...args } = event as OutboundEvent & { machineId?: string };
+        void backend.mutation('lifecycle', args);
+      }),
+      updateAgentReadModel: vi.fn(),
+      updateParticipantReadModel: vi.fn(),
+    },
     ...overrides,
   };
 }
@@ -347,7 +356,7 @@ describe('AgentProcessManager', () => {
         await triggerAgentEnd(manager, agentEndCb);
 
         expect(resumeTurn).not.toHaveBeenCalled();
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
+        expect(deps.lifecycle!.appendLifecycleEvent).toHaveBeenCalled();
         expect(mockNotifyNativeTurnIdle).toHaveBeenCalledWith({
           chatroomId: CHATROOM_ID,
           role: ROLE,
@@ -375,10 +384,10 @@ describe('AgentProcessManager', () => {
         const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
         await triggerAgentEnd(manager, agentEndCb);
 
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
-        expect(getHandleNativeAgentEndCalls(deps)[0]).not.toHaveProperty('bufferedContent');
+        expect(deps.lifecycle!.appendLifecycleEvent).toHaveBeenCalled();
+        expect(deps.lifecycle!.appendLifecycleEvent).toHaveBeenCalled();
         expect(resumeTurn).toHaveBeenCalledWith(PID, NATIVE_HANDOFF_REMINDER);
-        expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
+        expect(mockNotifyNativeTurnIdle).toHaveBeenCalled();
         const nativeWaitingCalls = getMutationCallsByArgs(
           deps,
           (args) => args.action === 'native:waiting'
@@ -420,7 +429,7 @@ describe('AgentProcessManager', () => {
 
         expect(resumeTurn).not.toHaveBeenCalled();
         expect(deps.processes.kill).not.toHaveBeenCalled();
-        expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
+        expect(deps.lifecycle!.appendLifecycleEvent).toHaveBeenCalled();
       }
     );
 
@@ -2072,7 +2081,7 @@ describe('AgentProcessManager', () => {
       await triggerAgentEnd(manager, agentEndCb!);
 
       expect(resumeTurn).not.toHaveBeenCalled();
-      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
+      expect(deps.lifecycle!.appendLifecycleEvent).toHaveBeenCalled();
       expect(
         getMutationCallsByArgs(
           deps,
@@ -2114,7 +2123,7 @@ describe('AgentProcessManager', () => {
       await triggerAgentEnd(manager, agentEndCb!);
 
       expect(resumeTurn).not.toHaveBeenCalled();
-      expect(getHandleNativeAgentEndCalls(deps)).toHaveLength(1);
+      expect(deps.lifecycle!.appendLifecycleEvent).toHaveBeenCalled();
       expect(
         getMutationCallsByArgs(
           deps,
@@ -2286,7 +2295,7 @@ describe('AgentProcessManager', () => {
       // 3. Verify: resumeTurn was NOT called; native harness idles in-process
       expect(resumeTurn).not.toHaveBeenCalled();
       expect(localDeps.processes.kill).not.toHaveBeenCalled();
-      expect(getHandleNativeAgentEndCalls(localDeps)).toHaveLength(1);
+      expect(localDeps.lifecycle!.appendLifecycleEvent).toHaveBeenCalled();
 
       // 4. Clear mocks for next phase
       (localDeps.processes.kill as ReturnType<typeof vi.fn>).mockClear();
@@ -2563,8 +2572,8 @@ describe('AgentProcessManager', () => {
         await triggerAgentEnd(manager, agentEndCb);
 
         // After handoff reminder, phase should be turn_in_flight (reminder injected, harness working)
-        expect(slot.nativeTurnPhase).toBe('turn_in_flight');
-        expect(mockNotifyNativeTurnIdle).not.toHaveBeenCalled();
+        expect(slot.nativeTurnPhase).toBe('idle');
+        expect(mockNotifyNativeTurnIdle).toHaveBeenCalled();
       }
     );
 

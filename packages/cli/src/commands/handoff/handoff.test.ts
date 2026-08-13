@@ -8,7 +8,7 @@
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { Cause, Effect, Layer } from 'effect';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { handoffEffect, type HandoffError, type HandoffOptions } from './index.js';
 import { BackendService, SessionService } from '../../infrastructure/services/index.js';
@@ -22,6 +22,10 @@ vi.mock('./daemon-handoff-client.js', () => ({
 afterEach(() => {
   delete process.env.UNCONDITIONAL_CUTOVER;
   mockPostDaemonHandoff.mockReset();
+});
+
+beforeEach(() => {
+  mockPostDaemonHandoff.mockResolvedValue({ success: true, supportsNativeIntegration: false });
 });
 
 // ─── Test Helpers ──────────────────────────────────────────────────────────

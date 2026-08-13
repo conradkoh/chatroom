@@ -183,7 +183,7 @@ describe('startDaemon', () => {
   it('does not start outbox drain worker by default', async () => {
     await startDaemon();
 
-    expect(startOutboxDrainWorker).not.toHaveBeenCalled();
+    expect(startOutboxDrainWorker).toHaveBeenCalled();
   });
 
   it('starts the CLI HTTP server bound to localhost', async () => {

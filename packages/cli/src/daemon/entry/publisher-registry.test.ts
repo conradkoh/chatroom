@@ -44,7 +44,7 @@ describe('createPublisherRegistry', () => {
     expect(received).toEqual(['hello']);
   });
 
-  it('routes heartbeat events to convex publisher when backend deps provided', async () => {
+  it('keeps heartbeat events outbox-only when backend deps provided', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const registry = createPublisherRegistry({
       backend: { mutation, query: vi.fn() },
@@ -54,10 +54,7 @@ describe('createPublisherRegistry', () => {
 
     await registry.publish({ type: 'heartbeat', machineId: 'machine-1' });
 
-    expect(mutation).toHaveBeenCalledWith(expect.anything(), {
-      sessionId: 'sess-1',
-      machineId: 'machine-1',
-    });
+    expect(mutation).not.toHaveBeenCalled();
   });
 
   it('no-ops convex routing when backend deps are absent', async () => {
@@ -67,7 +64,7 @@ describe('createPublisherRegistry', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('routes heartbeat to convex by default (P1 cutover off)', async () => {
+  it('does not directly publish heartbeat to Convex', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const registry = createPublisherRegistry({
       backend: { mutation, query: vi.fn() },
@@ -77,7 +74,7 @@ describe('createPublisherRegistry', () => {
 
     await registry.publish({ type: 'heartbeat', machineId: 'machine-1' });
 
-    expect(mutation).toHaveBeenCalledTimes(1);
+    expect(mutation).not.toHaveBeenCalled();
   });
 
   it('skips direct convex publish when P1_CUTOVER enabled and handler exists', async () => {

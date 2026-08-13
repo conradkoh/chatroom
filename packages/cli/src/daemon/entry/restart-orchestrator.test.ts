@@ -83,6 +83,11 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean; harnessSessionId?:
     resumeTurnForSlot: vi.fn(),
     setLastInFlightTask: vi.fn(),
   } as any;
+  const lifecycle = {
+    appendLifecycleEvent: vi.fn(),
+    updateAgentReadModel: vi.fn(),
+    updateParticipantReadModel: vi.fn(),
+  };
 
   return {
     deps: {
@@ -93,6 +98,7 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean; harnessSessionId?:
         backend,
       },
       agentMgr,
+      lifecycle,
     },
     mutationLog,
     agentMgrMock: agentMgr,
@@ -101,7 +107,7 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean; harnessSessionId?:
 }
 
 describe('runRestartOrchestrator', () => {
-  test('success path calls emitRestartCompleted once and does not call emitRestartPhase', async () => {
+  test('success path emits restart completion through lifecycle', async () => {
     const { deps, mutationLog } = createMockDeps();
 
     await runRestartOrchestrator(deps as any, {
@@ -114,14 +120,16 @@ describe('runRestartOrchestrator', () => {
       wantResume: true,
     });
 
-    const restartCompletedCalls = mutationLog.filter((call) => call.fn === 'emitRestartCompleted');
-    expect(restartCompletedCalls).toHaveLength(1);
+    expect(deps.lifecycle.appendLifecycleEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'restart.completed' })
+    );
+    expect(mutationLog.filter((call) => call.fn === 'emitRestartCompleted')).toHaveLength(0);
 
     const phaseCalls = mutationLog.filter((call) => call.fn === 'emitRestartPhase');
     expect(phaseCalls).toHaveLength(0);
   });
 
-  test('failure path calls emitRestartPhase with failed exactly once', async () => {
+  test('failure path emits failed phase through lifecycle', async () => {
     const { deps, mutationLog } = createMockDeps({ spawnSuccess: false });
 
     await runRestartOrchestrator(deps as any, {
@@ -134,20 +142,16 @@ describe('runRestartOrchestrator', () => {
       wantResume: true,
     });
 
-    const phaseCalls = mutationLog.filter(
-      (call) =>
-        call.fn === 'emitRestartPhase' && (call.args as { phase?: string }).phase === 'failed'
+    expect(deps.lifecycle.appendLifecycleEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'restart.phase', phase: 'failed' })
     );
-    expect(phaseCalls).toHaveLength(1);
 
-    const restartCompletedCalls = mutationLog.filter((call) => call.fn === 'emitRestartCompleted');
-    expect(restartCompletedCalls).toHaveLength(0);
+    expect(mutationLog.filter((call) => call.fn === 'emitRestartCompleted')).toHaveLength(0);
   });
 
   test('cutover reads deliverable snapshots from read models, not Convex snapshot query', async () => {
     const db = openDatabase(tempDbPath());
     setRestartOrchestratorDb(db);
-    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       upsertTaskReadModel(db, taskReadModelFromSnapshot(makeSnapshot({ status: 'pending' })));
       const { deps, backendMock } = createMockDeps();
@@ -168,7 +172,6 @@ describe('runRestartOrchestrator', () => {
         expect.anything()
       );
     } finally {
-      delete process.env.UNCONDITIONAL_CUTOVER;
       setRestartOrchestratorDb(undefined);
       db.close();
     }
@@ -182,7 +185,6 @@ describe('runRestartOrchestrator', () => {
       updateAgentReadModel: () => {},
       updateParticipantReadModel: () => {},
     };
-    process.env.UNCONDITIONAL_CUTOVER = '1';
     try {
       await runRestartOrchestrator({ ...deps, lifecycle } as any, {
         chatroomId: 'test-chatroom',
@@ -203,7 +205,6 @@ describe('runRestartOrchestrator', () => {
         expect(phaseEvent.correlationId).toBe('test-correlation');
       }
     } finally {
-      delete process.env.UNCONDITIONAL_CUTOVER;
     }
   });
 });

@@ -1,8 +1,8 @@
-import { describe, expect, test, vi } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openDatabase } from '../infrastructure/persistence/open-database.js';
+
+import { describe, expect, test, vi } from 'vitest';
 
 import { routeInboundEvent } from './event-router.js';
 import type { InboundEvent } from '../domain/entities/inbound-event.js';
@@ -13,6 +13,7 @@ import type { DirectHarnessInboundEvent } from '../domain/usecase/handle-direct-
 import type { EnhancerInboundEvent } from '../domain/usecase/handle-enhancer-inbound.js';
 import type { FileInboundEvent } from '../domain/usecase/handle-file-inbound.js';
 import type { WorkspaceGitInboundEvent } from '../domain/usecase/handle-workspace-git-inbound.js';
+import { openDatabase } from '../infrastructure/persistence/open-database.js';
 
 const routerDeps = {
   assignedTask: {} as { deliverInbound?: (event: AssignedTaskInboundEvent) => Promise<void> },
@@ -35,12 +36,38 @@ describe('routeInboundEvent', () => {
     const db = openDatabase(join(mkdtempSync(join(tmpdir(), 'router-')), 'db.sqlite'));
     const appendEvent = vi.fn();
     try {
-      const deps = { ...routerDeps, userMessage: { db, machineId: '', sessionId: '', appendEvent, emitOrchestrationEvent: vi.fn(), query: vi.fn(), getEntryPointRole: vi.fn().mockResolvedValue('planner'), getAgentHarness: vi.fn().mockResolvedValue('opencode') } };
-      await routeInboundEvent(deps, { type: 'user-message.received', chatroomId: 'room', messageId: 'msg', content: 'hello', senderRole: 'user' });
-      expect(db.prepare("SELECT event_type FROM outbound_events WHERE event_type = 'user-message.received'").all()).toHaveLength(1);
-    } finally { db.close(); }
+      const deps = {
+        ...routerDeps,
+        userMessage: {
+          db,
+          machineId: '',
+          sessionId: '',
+          appendEvent,
+          emitOrchestrationEvent: vi.fn(),
+          query: vi.fn(),
+          getEntryPointRole: vi.fn().mockResolvedValue('planner'),
+          getAgentHarness: vi.fn().mockResolvedValue('opencode'),
+        },
+      };
+      await routeInboundEvent(deps, {
+        type: 'user-message.received',
+        chatroomId: 'room',
+        messageId: 'msg',
+        content: 'hello',
+        senderRole: 'user',
+      });
+      expect(
+        db
+          .prepare(
+            "SELECT event_type FROM outbound_events WHERE event_type = 'user-message.received'"
+          )
+          .all()
+      ).toHaveLength(1);
+    } finally {
+      db.close();
+    }
   });
-  test('dispatches assigned-task.signal to handler', async () => {
+  test('ignores assigned-task.signal projections', async () => {
     const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: AssignedTaskInboundEvent = {
       type: 'assigned-task.signal',
@@ -50,10 +77,10 @@ describe('routeInboundEvent', () => {
 
     await routeInboundEvent({ ...routerDeps, assignedTask: { deliverInbound } }, event);
 
-    expect(deliverInbound).toHaveBeenCalledWith(event);
+    expect(deliverInbound).not.toHaveBeenCalled();
   });
 
-  test('dispatches assigned-task.presence to handler', async () => {
+  test('ignores assigned-task.presence projections', async () => {
     const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: AssignedTaskInboundEvent = {
       type: 'assigned-task.presence',
@@ -63,7 +90,7 @@ describe('routeInboundEvent', () => {
 
     await routeInboundEvent({ ...routerDeps, assignedTask: { deliverInbound } }, event);
 
-    expect(deliverInbound).toHaveBeenCalledWith(event);
+    expect(deliverInbound).not.toHaveBeenCalled();
   });
 
   test('dispatches direct-harness.session-opened to handler', async () => {
@@ -210,7 +237,7 @@ describe('routeInboundEvent', () => {
     expect(deliverInbound).toHaveBeenCalledWith(event);
   });
 
-  test('dispatches enhancer.job-assigned to handler', async () => {
+  test('ignores enhancer.job-assigned projections', async () => {
     const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: EnhancerInboundEvent = {
       type: 'enhancer.job-assigned',
@@ -219,7 +246,7 @@ describe('routeInboundEvent', () => {
 
     await routeInboundEvent({ ...routerDeps, enhancer: { deliverInbound } }, event);
 
-    expect(deliverInbound).toHaveBeenCalledWith(event);
+    expect(deliverInbound).not.toHaveBeenCalled();
   });
 
   test('P5 on: assigned-task events are no-ops (subscriber not registered)', async () => {

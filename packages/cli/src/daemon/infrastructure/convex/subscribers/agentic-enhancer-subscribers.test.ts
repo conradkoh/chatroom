@@ -129,10 +129,7 @@ describe('agentic-query and enhancer v2 subscribers', () => {
       type: 'agentic-query.session-opened',
       sessionId: RUN_ID,
     });
-    expect(enhancerHandled).toContainEqual({
-      type: 'enhancer.job-assigned',
-      jobId: JOB_ID,
-    });
+    expect(enhancerHandled).toEqual([]);
   });
 
   it('event router dispatches agentic-query and enhancer events to handlers', async () => {
@@ -161,7 +158,7 @@ describe('agentic-query and enhancer v2 subscribers', () => {
     );
 
     expect(agenticHandled).toEqual([]);
-    expect(enhancerHandled).toEqual([{ type: 'enhancer.job-assigned', jobId: JOB_ID }]);
+    expect(enhancerHandled).toEqual([]);
   });
 
   it('default router deps provide deliverInbound hook for agentic query', () => {

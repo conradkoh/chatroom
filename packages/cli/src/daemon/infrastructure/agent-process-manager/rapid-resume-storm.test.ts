@@ -62,6 +62,11 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
     crashLoop: new CrashLoopTracker(),
     convexUrl: 'http://test:3210',
     resumeStormTracker: new RapidResumeTracker(),
+    lifecycle: {
+      appendLifecycleEvent: vi.fn(),
+      updateAgentReadModel: vi.fn(),
+      updateParticipantReadModel: vi.fn(),
+    },
     ...overrides,
   };
 }

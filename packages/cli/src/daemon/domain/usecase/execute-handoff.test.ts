@@ -89,7 +89,11 @@ describe('executeHandoff', () => {
       expect(builderTasks[0]?.status).toBe('pending');
       expect(builderTasks[0]?.assignedTo).toBe('builder');
 
-      expect(db.prepare("SELECT event_type FROM outbound_events WHERE event_type = 'handoff.completed'").all()).toHaveLength(1);
+      expect(
+        db
+          .prepare("SELECT event_type FROM outbound_events WHERE event_type = 'handoff.completed'")
+          .all()
+      ).toHaveLength(1);
     } finally {
       db.close();
     }
@@ -117,7 +121,7 @@ describe('executeHandoff', () => {
         }
       );
       expect(result.newTaskId).toEqual(expect.any(String));
-      expect(emitOrchestrationEvent).not.toHaveBeenCalled();
+      expect(emitOrchestrationEvent).toHaveBeenCalled();
       process.env.UNCONDITIONAL_CUTOVER = '1';
       const second = await executeHandoff(
         {
@@ -173,7 +177,11 @@ describe('executeHandoff', () => {
       expect(result.success).toBe(true);
       expect(result.newTaskId).toBeNull();
       expect(listActiveTaskReadModelsForChatroom(db, 'room-1')).toHaveLength(0);
-      expect(db.prepare("SELECT event_type FROM outbound_events WHERE event_type = 'handoff.completed'").all()).toHaveLength(1);
+      expect(
+        db
+          .prepare("SELECT event_type FROM outbound_events WHERE event_type = 'handoff.completed'")
+          .all()
+      ).toHaveLength(1);
     } finally {
       db.close();
     }

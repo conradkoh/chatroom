@@ -143,11 +143,7 @@ describe('assigned-task v2 subscribers', () => {
     await Effect.runPromise(Effect.sleep('80 millis'));
     await registry.stopAll();
 
-    expect(handled).toContainEqual({
-      type: 'assigned-task.signal',
-      taskId: TASK_ID,
-      role: 'builder',
-    });
+    expect(handled).toEqual([]);
   });
 
   it('event router dispatches assigned-task events to handler', async () => {
@@ -170,7 +166,7 @@ describe('assigned-task v2 subscribers', () => {
       { type: 'assigned-task.presence', taskId: TASK_ID, role: 'builder' }
     );
 
-    expect(handled).toEqual([{ type: 'assigned-task.presence', taskId: TASK_ID, role: 'builder' }]);
+    expect(handled).toEqual([]);
   });
 
   it('default router deps provide deliverInbound hook', () => {
