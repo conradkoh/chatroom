@@ -16,7 +16,6 @@ import {
 import type { AssignedTaskSignal } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
-import { resolveCanonicalTaskId } from '../../entities/daemon-task-id';
 import { getTeamEntryPoint } from '../../entities/team';
 import { resolveSessionAugmentationForRole } from '../../handoff/parse-session-augmentation';
 
@@ -102,7 +101,6 @@ interface SnapshotRowInput {
 // fallow-ignore-next-line complexity
 function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' | '_creationTime'> {
   const { task, config, participant, machineId, now, existing, presenceOnly } = input;
-  const canonicalTaskId = resolveCanonicalTaskId(task) as Id<'chatroom_tasks'>;
   const taskUpdatedAt = task.updatedAt ?? task.createdAt ?? now;
   const configUpdatedAt = config.updatedAt;
   const participantView = toParticipantView(participant) ?? {
@@ -115,7 +113,7 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     configUpdatedAt,
     lastSeenAction: participantView.lastSeenAction ?? '',
     lastStatus: participantView.lastStatus ?? '',
-    taskId: canonicalTaskId,
+    taskId: task._id,
     role: config.role,
   });
 
@@ -125,7 +123,7 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
       : (participant?.lastSeenAt ?? existing?.presenceUpdatedAt ?? now);
   const presenceKey = buildAssignedTaskPresenceKey({
     presenceUpdatedAt,
-    taskId: canonicalTaskId,
+    taskId: task._id,
     role: config.role,
   });
 
@@ -136,7 +134,8 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
 
   return {
     machineId,
-    taskId: canonicalTaskId,
+    taskId: task._id,
+    ...(task.daemonTaskId ? { daemonTaskId: task.daemonTaskId } : {}),
     chatroomId: task.chatroomId,
     role: config.role,
     taskStatus: task.status as ActiveTaskStatus,

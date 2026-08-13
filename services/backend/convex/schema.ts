@@ -654,6 +654,7 @@ export default defineSchema({
   chatroom_timelineTaskStatusSignals: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     taskId: v.id('chatroom_tasks'),
+    daemonTaskId: v.optional(v.string()),
     taskStatus: v.union(
       v.literal('pending'),
       v.literal('acknowledged'),
@@ -675,6 +676,7 @@ export default defineSchema({
   chatroom_machineAssignedTaskSnapshots: defineTable({
     machineId: v.string(),
     taskId: v.id('chatroom_tasks'),
+    daemonTaskId: v.optional(v.string()),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
 

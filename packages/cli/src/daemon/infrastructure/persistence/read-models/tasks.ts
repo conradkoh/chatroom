@@ -10,6 +10,7 @@ import type {
   AssignedTaskSnapshotView,
 } from '../../../domain/entities/assigned-task.js';
 import { isDaemonTaskId } from '../../../domain/entities/daemon-task-id.js';
+import { resolveCanonicalTaskId } from '../../../domain/entities/daemon-task-id.js';
 
 export type TaskReadModelStatus = ActiveTaskStatus | 'completed' | 'queued';
 
@@ -226,7 +227,7 @@ export function taskReadModelFromSnapshot(snapshot: AssignedTaskSnapshotView): T
   return {
     chatroomId: snapshot.chatroomId,
     role: snapshot.agentConfig.role,
-    taskId: snapshot.taskId,
+    taskId: resolveCanonicalTaskId({ _id: snapshot.taskId, daemonTaskId: snapshot.daemonTaskId }),
     status: snapshot.status,
     assignedTo: snapshot.assignedTo,
     agentHarness: snapshot.agentConfig.agentHarness,

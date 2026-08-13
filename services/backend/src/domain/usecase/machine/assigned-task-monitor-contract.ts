@@ -77,6 +77,7 @@ export const assignedTaskSignalSchema = z.object(assignedTaskSignalBootstrapFiel
 
 export const assignedTaskPresenceSignalSchema = z.object({
   taskId: chatroomTaskIdSchema,
+  daemonTaskId: z.string().optional(),
   chatroomId: chatroomRoomIdSchema,
   role: z.string(),
   lastSeenAt: z.number().nullable(),
@@ -96,6 +97,7 @@ export type AssignedTaskPresenceDelta = z.infer<typeof assignedTaskPresenceDelta
 export const assignedTaskMonitorRowSchema = z
   .object({
     taskId: chatroomTaskIdSchema,
+    daemonTaskId: z.string().optional(),
     chatroomId: chatroomRoomIdSchema,
     status: activeTaskStatusSchema,
     assignedTo: z.string().optional(),

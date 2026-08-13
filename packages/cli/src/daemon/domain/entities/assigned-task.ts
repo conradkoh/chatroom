@@ -27,6 +27,7 @@ export interface AssignedTaskParticipant {
 /** Daemon working-row snapshot for assigned tasks (SSOT). */
 export interface AssignedTask {
   taskId: string;
+  daemonTaskId?: string;
   chatroomId: string;
   status: ActiveTaskStatus;
   assignedTo: string | undefined;

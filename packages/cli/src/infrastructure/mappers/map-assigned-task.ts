@@ -13,6 +13,7 @@ export function mapAssignedTaskSnapshot(
 ): AssignedTaskSnapshotView {
   return {
     taskId: row.taskId,
+    daemonTaskId: row.daemonTaskId,
     chatroomId: row.chatroomId,
     status: row.status,
     assignedTo: row.assignedTo,
