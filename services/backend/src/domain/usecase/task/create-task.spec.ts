@@ -7,10 +7,15 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { shouldEnqueueMessage, hasActiveTaskFromMaterializedCounts } from './create-task';
+import {
+  createTask,
+  shouldEnqueueMessage,
+  hasActiveTaskFromMaterializedCounts,
+} from './create-task';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
+import { createDaemonTaskId } from '../../entities/daemon-task-id';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -104,6 +109,30 @@ describe('hasActiveTaskFromMaterializedCounts', () => {
     expect(
       hasActiveTaskFromMaterializedCounts({ pending: 0, acknowledged: 0, inProgress: 1 })
     ).toBe(true);
+  });
+});
+
+describe('createTask with daemonTaskId', () => {
+  test('stores daemonTaskId on insert', async () => {
+    const { sessionId } = await createTestSession('create-daemon-id-1');
+    const chatroomId = await createChatroom(sessionId);
+    const daemonTaskId = createDaemonTaskId();
+
+    const result = await t.run(async (ctx) => {
+      const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+      return createTask(ctx, {
+        chatroomId,
+        createdBy: 'user',
+        content: 'projected task',
+        forceStatus: 'pending',
+        assignedTo: 'planner',
+        queuePosition: chatroom?.nextQueuePosition ?? 0,
+        daemonTaskId,
+      });
+    });
+
+    const row = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', result.taskId));
+    expect(row?.daemonTaskId).toBe(daemonTaskId);
   });
 });
 

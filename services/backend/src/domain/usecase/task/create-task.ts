@@ -18,6 +18,8 @@
  * instead of a backend ensure-agent handler.
  */
 
+import { ConvexError } from 'convex/values';
+
 import {
   adjustTaskCount,
   hasActiveTaskFromSource,
@@ -25,6 +27,7 @@ import {
 } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { isDaemonTaskId, type DaemonTaskId } from '../../entities/daemon-task-id';
 import { resolveTaskRole } from '../../entities/task';
 import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
 
@@ -50,6 +53,8 @@ export interface CreateTaskArgs {
   attachedTaskIds?: Id<'chatroom_tasks'>[];
   queuePosition: number;
   plannerEnhancerEnabled?: boolean;
+  /** Client-allocated canonical task identity for daemon-projected tasks. */
+  daemonTaskId?: DaemonTaskId;
 }
 
 export interface CreateTaskResult {
@@ -109,6 +114,25 @@ export async function createTask(
   // Status is always pending for direct task creation
   const status = 'pending' as const;
 
+  if (args.daemonTaskId) {
+    if (!isDaemonTaskId(args.daemonTaskId)) {
+      throw new ConvexError({
+        code: 'INVALID_DAEMON_TASK_ID',
+        message: 'daemonTaskId must be a valid UUID',
+      });
+    }
+    const existing = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_daemonTaskId', (q) => q.eq('daemonTaskId', args.daemonTaskId))
+      .first();
+    if (existing) {
+      throw new ConvexError({
+        code: 'DAEMON_TASK_ID_CONFLICT',
+        message: 'daemonTaskId is already in use',
+      });
+    }
+  }
+
   const taskId = await ctx.db.insert('chatroom_tasks', {
     chatroomId: args.chatroomId,
     createdBy: args.createdBy,
@@ -126,6 +150,7 @@ export async function createTask(
     ...(args.plannerEnhancerEnabled !== undefined
       ? { plannerEnhancerEnabled: args.plannerEnhancerEnabled }
       : {}),
+    ...(args.daemonTaskId ? { daemonTaskId: args.daemonTaskId } : {}),
   });
 
   // Update materialized task counts

@@ -19,6 +19,7 @@ import {
   assemblePrimaryDeliveryAttachments,
   resolvePrimaryDeliveryAssemblyInput,
 } from '../src/domain/entities/assemble-primary-delivery-attachments';
+import type { DaemonTaskId } from '../src/domain/entities/daemon-task-id';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
 import type { PrimaryDeliveryAttachments } from '../src/domain/entities/message-attachments';
 import { isActiveParticipant } from '../src/domain/entities/participant';
@@ -1022,8 +1023,8 @@ export const projectHandoffFromDaemon = mutation({
         assignedTo: args.targetRole,
         sourceMessageId: messageId,
         queuePosition,
+        daemonTaskId: args.newTaskId as DaemonTaskId,
       });
-      await ctx.db.patch('chatroom_tasks', createdTaskId, { daemonTaskId: args.newTaskId });
       await ctx.db.patch('chatroom_messages', messageId, { taskId: createdTaskId });
     }
 
@@ -1129,8 +1130,8 @@ export const projectUserMessageFromDaemon = mutation({
       assignedTo: entryPointRole,
       sourceMessageId: message._id,
       queuePosition,
+      daemonTaskId: args.newTaskId as DaemonTaskId,
     });
-    await ctx.db.patch('chatroom_tasks', taskId, { daemonTaskId: args.newTaskId });
     await ctx.db.patch('chatroom_messages', message._id, { taskId });
     return { success: true, replayed: false, messageId: message._id, taskId };
   },
