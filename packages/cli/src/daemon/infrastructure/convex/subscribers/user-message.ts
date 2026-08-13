@@ -9,7 +9,7 @@ export function startUserMessageSubscriber(
 ): SubscriberHandle {
   if (!deps.chatroomId) return { async stop() {} };
   const chatroomId = deps.chatroomId;
-  let cursor = Number(deps.loadUserIntentCursor?.() ?? Date.now());
+  let cursor = Number(deps.loadUserIntentCursor?.(chatroomId) ?? Date.now());
   let stopped = false;
   let unsubscribe = () => {};
   let processing = Promise.resolve();
@@ -36,7 +36,7 @@ export function startUserMessageSubscriber(
                 });
               }
               cursor = message._creationTime;
-              deps.saveUserIntentCursor?.(String(cursor));
+              deps.saveUserIntentCursor?.(chatroomId, String(cursor));
             }
             if (!stopped && (messages?.length ?? 0) > 0) {
               unsubscribe();

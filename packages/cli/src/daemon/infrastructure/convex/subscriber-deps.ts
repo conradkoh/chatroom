@@ -6,6 +6,6 @@ export type ConvexSubscriberDeps = {
   sessionId: SessionId;
   machineId: string;
   chatroomId?: string;
-  loadUserIntentCursor?: () => string | undefined;
-  saveUserIntentCursor?: (cursor: string) => void;
+  loadUserIntentCursor?: (chatroomId: string) => string | undefined;
+  saveUserIntentCursor?: (chatroomId: string, cursor: string) => void;
 };

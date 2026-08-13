@@ -2597,6 +2597,33 @@ export const listAgentOverview = query({
   },
 });
 
+/** Chatroom IDs where this machine has remote team-agent configs (daemon user-message intake). */
+export const listOrchestratedChatroomIdsForMachine = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+
+    const configs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .collect();
+
+    const chatroomIds = new Set<Id<'chatroom_rooms'>>();
+    for (const config of configs) {
+      if (config.type === 'remote' && config.machineId === args.machineId) {
+        chatroomIds.add(config.chatroomId);
+      }
+    }
+    return [...chatroomIds];
+  },
+});
+
 /** Returns agent overview for a single chatroom. Per-chatroom subscription reduces blast radius. */
 export const getAgentOverviewForChatroom = query({
   args: {

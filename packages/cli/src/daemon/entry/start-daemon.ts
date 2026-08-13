@@ -18,7 +18,11 @@ import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/r
 import { setAgentLifecyclePersistence } from '../infrastructure/agent-process-manager/agent-lifecycle-port.js';
 import { startCliHttpServer } from '../infrastructure/inbound/local/cli-http-server.js';
 import { setEnhancerQueueDb } from '../infrastructure/persistence/enhancer-queue.js';
-import { loadUserIntentCursor, saveUserIntentCursor } from '../infrastructure/persistence/user-intent-cursor.js';
+import { hydrateReadModelsFromConvex } from '../infrastructure/persistence/read-models/hydrate-from-convex.js';
+import {
+  loadUserIntentCursor,
+  saveUserIntentCursor,
+} from '../infrastructure/persistence/user-intent-cursor.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { listSnapshotViewsFromReadModels } from '../infrastructure/persistence/read-models/task-snapshot-adapter.js';
 import { createConvexProjectionAdapter } from '../infrastructure/projection/convex/convex-projection-adapter.js';
@@ -57,6 +61,17 @@ export async function startDaemon(): Promise<void> {
   setTaskMonitorReadModelDb(persistence.db);
   setRestartOrchestratorDb(persistence.db);
   setAssignedTaskSnapshotProvider(() => listSnapshotViewsFromReadModels(persistence.db, init.machineId));
+
+  const hydrated = await hydrateReadModelsFromConvex({
+    db: persistence.db,
+    machineId: init.machineId,
+    sessionId: init.sessionId,
+    query: (fn, args) => init.backend.query(fn, args),
+    mutation: (fn, args) => init.backend.mutation(fn, args),
+  });
+  if (hydrated.taskCount > 0) {
+    console.log(`[daemon] Hydrated ${hydrated.taskCount} assigned-task read model row(s) from Convex`);
+  }
 
   const localWebPort = resolveLocalWebPort();
   const localWeb = await startLocalWebServer(

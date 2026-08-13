@@ -12,7 +12,7 @@ import { startFileContentRequestSubscriber } from '../../convex/subscribers/file
 import { startFileTreeRequestSubscriber } from '../../convex/subscribers/file-tree-request.js';
 import { startFileWriteRequestSubscriber } from '../../convex/subscribers/file-write-request.js';
 import { startGitRequestSubscriber } from '../../convex/subscribers/git-request.js';
-import { startUserMessageSubscriber } from '../../convex/subscribers/user-message.js';
+import { startUserMessageSubscribers } from '../../convex/subscribers/user-message-subscribers.js';
 import { startWorkspaceListSubscriber } from '../../convex/subscribers/workspace-list.js';
 
 export function startInboundSubscribers(
@@ -31,7 +31,7 @@ export function startInboundSubscribers(
   const fileWrite = startFileWriteRequestSubscriber(deps, onEvent);
   const agenticQuerySession = startAgenticQuerySessionSubscriber(deps, onEvent);
   const agenticQueryPrompt = startAgenticQueryPromptSubscriber(deps, onEvent);
-  const userMessage = startUserMessageSubscriber(deps, onEvent);
+  const userMessage = startUserMessageSubscribers(deps, onEvent);
 
   return {
     async stopAll() {
