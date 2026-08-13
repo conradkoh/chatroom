@@ -19,6 +19,7 @@
 import { type ChildProcess } from 'node:child_process';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { inferCopilotModelProvider, stripProviderPrefix } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CopilotStreamReader } from './copilot-stream-reader.js';
 import { createSessionLogCallbacks } from '../session-log-callbacks.js';
@@ -28,6 +29,10 @@ export type CopilotAgentServiceDeps = CLIAgentServiceDeps;
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const COPILOT_COMMAND = 'copilot';
+
+function resolveCopilotSpawnModel(model: string): string {
+  return stripProviderPrefix(inferCopilotModelProvider(model), model);
+}
 
 // ─── Implementation ──────────────────────────────────────────────────────────
 
@@ -86,7 +91,7 @@ export class CopilotAgentService extends BaseCLIAgentService {
 
     // Add model if specified
     if (options.model) {
-      args.push('--model', options.model);
+      args.push('--model', resolveCopilotSpawnModel(options.model));
     }
 
     // Allow all tools automatically (required for non-interactive mode)
