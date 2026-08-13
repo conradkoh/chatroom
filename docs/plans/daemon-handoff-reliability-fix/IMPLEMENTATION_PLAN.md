@@ -43,7 +43,7 @@ P5 requires P1, P1_CUTOVER, P2, P2_CUTOVER, P3, P3_LOCAL_DELIVERY, and P4; start
 |---|---|---|---|
 | 1 — Foundation | [x] Complete | through `c184cedc4` | P1–P5, identity mapping, provider/presence fixes, validation |
 | 2 — Local delivery | [x] Complete | `5ac59346f`, `5442917f6`, `1dbd640e9`, pending test commit | Local task content, task-ready event, idempotent schema, and Convex-free injection path |
-| 3 — Ingress + P5 cutover | [ ] Pending | — | P7 user-message ingress and subscriber removal |
+| 3 — Ingress + P5 cutover | [ ] In progress | `0ee8f7e87`, `1d05d63de` | P7 local ingress, projection mutation, and user-message subscriber implemented; full verification pending |
 | 4 — E2E + PR | [ ] Pending | — | Flag-on verification, PR, backlog review |
 
 ## Slice 1 — Foundation Integration ✅ COMPLETE
@@ -104,7 +104,7 @@ P5 requires P1, P1_CUTOVER, P2, P2_CUTOVER, P3, P3_LOCAL_DELIVERY, and P4; start
 
 ### Todos
 
-- [ ] Implement P7 local user-message ingress, pending planner task creation, event emission, and outbox projection.
+- [x] Implement P7 local user-message ingress, pending planner task creation, event emission, and outbox projection.
 - [ ] Verify P5 skips assigned-task signal/presence subscribers while P2 cutover reads local models.
 - [ ] Ensure task-monitor runtime does not open the Convex snapshot WS under P2 cutover.
 

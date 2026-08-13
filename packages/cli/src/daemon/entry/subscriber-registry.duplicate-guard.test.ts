@@ -91,7 +91,7 @@ describe('subscriber-registry duplicate guard (G4)', () => {
   });
 
   it('P5 user-intent subscriber list matches the inbound registry count', () => {
-    expect(USER_INTENT_SUBSCRIBERS).toHaveLength(12);
+    expect(USER_INTENT_SUBSCRIBERS).toHaveLength(13);
     expect(USER_INTENT_SUBSCRIBERS).not.toContain('assigned-task-signals');
     expect(USER_INTENT_SUBSCRIBERS).not.toContain('assigned-task-presence');
     expect(USER_INTENT_SUBSCRIBERS).not.toContain('enhancer-job');
