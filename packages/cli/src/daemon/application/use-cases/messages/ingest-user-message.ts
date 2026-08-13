@@ -7,7 +7,7 @@ import { runInTransaction } from '../../../infrastructure/persistence/transactio
 import { upsertTaskReadModel } from '../../../infrastructure/persistence/read-models/tasks.js';
 import { isDaemonOrchestrationP3LocalDeliveryEnabled } from '../../../infrastructure/projection/feature-flags.js';
 import { appendOutboundEventWithOutbox } from '../../../infrastructure/persistence/event-store.js';
-import { hasProcessedInboundMessage, markInboundMessageProcessed } from '../../../infrastructure/persistence/processed-inbound-messages.js';
+import { getProcessedInboundTaskId, hasProcessedInboundMessage, markInboundMessageProcessed } from '../../../infrastructure/persistence/processed-inbound-messages.js';
 
 export type IngestUserMessageInput = {
   chatroomId: string;
@@ -31,8 +31,8 @@ export async function ingestUserMessage(
 ): Promise<{ newTaskId: string }> {
   if (input.senderRole.toLowerCase() !== 'user') throw new Error('Only user messages may be ingested');
   if (hasProcessedInboundMessage(deps.db, input.chatroomId, input.messageId)) {
-    const existing = deps.db.prepare('SELECT task_id as taskId FROM read_model_tasks WHERE chatroom_id = ? AND role = ? AND task_content = ? ORDER BY created_at DESC LIMIT 1').get(input.chatroomId, input.entryPointRole, input.content) as { taskId?: string } | undefined;
-    if (existing?.taskId) return { newTaskId: existing.taskId };
+    const existing = getProcessedInboundTaskId(deps.db, input.chatroomId, input.messageId);
+    if (existing) return { newTaskId: existing };
   }
   const taskId = randomUUID();
   const now = deps.now?.() ?? Date.now();
@@ -53,10 +53,10 @@ export async function ingestUserMessage(
     if (hasProcessedInboundMessage(deps.db, input.chatroomId, input.messageId)) return;
     upsertTaskReadModel(deps.db, { chatroomId: input.chatroomId, role: input.entryPointRole, taskId, status: 'pending', taskContent: input.content, assignedTo: input.entryPointRole, agentHarness: harness, machineId: deps.machineId, createdAt: now, updatedAt: now });
     appendOutboundEventWithOutbox(deps.db, event);
-    markInboundMessageProcessed(deps.db, input.chatroomId, input.messageId, now);
+    markInboundMessageProcessed(deps.db, input.chatroomId, input.messageId, taskId, now);
     created = true;
   });
-  if (created) deps.appendEvent(event);
+  void created;
   if (isDaemonOrchestrationP3LocalDeliveryEnabled()) {
     deps.emitOrchestrationEvent?.({ chatroomId: input.chatroomId, role: input.entryPointRole, taskId, source: 'user-message' });
   }

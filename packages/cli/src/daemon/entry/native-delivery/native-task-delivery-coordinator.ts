@@ -166,7 +166,7 @@ export class NativeTaskDeliveryCoordinator {
           if (isDaemonOrchestrationP3LocalDeliveryEnabled() && isDaemonOrchestrationP2CutoverEnabled() && readModelDb) {
             const taskContent = getTaskContentFromReadModel(readModelDb, row.chatroomId, role, row.taskId);
             if (taskContent) {
-              claimTaskReadModelLocally(readModelDb, row.chatroomId, role, row.taskId, Date.now());
+              claimTaskReadModelLocally(readModelDb, row.chatroomId, role, row.taskId, Date.now(), sessionDeps.sessionId, sessionDeps.machineId);
               yield* runNativeInjectionEffect({ ...row, status: 'in_progress', taskContent }, harnessSessionId, {
                 sessionId: sessionDeps.sessionId, machineId: sessionDeps.machineId, backend: sessionDeps.backend,
                 localDelivery: true,

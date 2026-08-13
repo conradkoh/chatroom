@@ -20,6 +20,7 @@ import type { OutboundEvent } from '../entities/outbound-event.js';
 import type { ExecuteHandoffResult, HandoffRejectedError } from '../errors/handoff-errors.js';
 import { buildHandoffCompletedEvent } from '../events/handoff-completed.js';
 import { isNativeHarness } from '../native-integration/index.js';
+import { appendOutboundEventWithOutbox } from '../../infrastructure/persistence/event-store.js';
 
 export interface HandoffChatroomPort {
   getContext(chatroomId: string): Promise<HandoffChatroomContext>;
@@ -260,6 +261,7 @@ function applyHandoffInTransaction(
     for (const task of tasksToComplete) {
       upsertTaskReadModel(deps.db, completeTaskRow(task, now));
       completedTaskIds.push(task.taskId);
+      appendOutboundEventWithOutbox(deps.db, { type: 'task.status', variant: 'transition', idempotencyKey: `${input.chatroomId}:${task.taskId}:completed:${now}`, taskId: task.taskId, role: task.role, chatroomId: input.chatroomId, status: 'completed', timestamp: now });
     }
 
     upsertHandoffReadModel(deps.db, {
@@ -307,6 +309,8 @@ function applyHandoffInTransaction(
         }
       }
     }
+
+    appendOutboundEventWithOutbox(deps.db, buildHandoffCompletedEvent({ idempotencyKey: `${input.chatroomId}:${messageId}`, sessionId: input.sessionId, chatroomId: input.chatroomId, senderRole: handoff.normalizedSenderRole, content: input.content, targetRole: handoff.normalizedTargetRole, messageId, completedTaskIds, newTaskId: newTaskId ?? undefined, promotedTaskId: promotedTaskId ?? undefined, timestamp: now }));
   });
 
   return { messageId, completedTaskIds, newTaskId, promotedTaskId, promotedRole };
@@ -357,23 +361,6 @@ export async function executeHandoff(
       },
     });
   }
-
-  deps.appendEvent(
-    buildHandoffCompletedEvent({
-      idempotencyKey: `${input.chatroomId}:${messageId}`,
-      sessionId: input.sessionId,
-      chatroomId: input.chatroomId,
-      senderRole: handoff.normalizedSenderRole,
-      content: input.content,
-      targetRole: handoff.normalizedTargetRole,
-      messageId,
-      completedTaskIds,
-      newTaskId: newTaskId ?? undefined,
-      promotedTaskId: promotedTaskId ?? undefined,
-      enhancerJobPayload,
-      timestamp: now,
-    })
-  );
 
   if (isDaemonOrchestrationP3LocalDeliveryEnabled()) {
     if (newTaskId)

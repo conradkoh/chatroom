@@ -80,6 +80,6 @@ export const MIGRATIONS: string[] = [
     updated_at INTEGER NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_enhancer_queue_machine_status ON enhancer_queue(machine_id, status)`,
-  `CREATE TABLE IF NOT EXISTS processed_inbound_messages (chatroom_id TEXT NOT NULL, message_id TEXT NOT NULL, processed_at INTEGER NOT NULL, PRIMARY KEY (chatroom_id, message_id))`,
+  `CREATE TABLE IF NOT EXISTS processed_inbound_messages (chatroom_id TEXT NOT NULL, message_id TEXT NOT NULL, task_id TEXT, processed_at INTEGER NOT NULL, PRIMARY KEY (chatroom_id, message_id))`,
   `CREATE TABLE IF NOT EXISTS user_intent_cursor (key TEXT PRIMARY KEY, cursor_value TEXT NOT NULL, updated_at INTEGER NOT NULL)`,
 ];
