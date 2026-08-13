@@ -89,6 +89,7 @@ export async function sendAutomatedUserMessage(
   });
   if (daemonOwned) {
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: Date.now() });
+    await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
     return { ok: true, messageId };
   }
   await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: Date.now() });

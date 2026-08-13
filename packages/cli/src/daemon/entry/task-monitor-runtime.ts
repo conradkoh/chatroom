@@ -81,6 +81,7 @@ import {
   taskReadModelFromSnapshot,
   upsertTaskReadModel,
 } from '../infrastructure/persistence/read-models/tasks.js';
+import { listSnapshotViewsFromReadModels } from '../infrastructure/persistence/read-models/task-snapshot-adapter.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -501,6 +502,10 @@ async function refreshAssignedTaskReadModelsFromConvex(
   return tasks;
 }
 
+function seedAssignedTaskSnapshotsFromReadModels(machineId: string): void {
+  if (taskMonitorReadModelDb) replaceAssignedTaskSnapshots(listSnapshotViewsFromReadModels(taskMonitorReadModelDb, machineId));
+}
+
 // fallow-ignore-next-line complexity unused-export
 export function handleInboundAssignedTaskEvent(
   event: AssignedTaskInboundEvent,
@@ -558,7 +563,7 @@ export const startTaskMonitorEffect = (
       machineId: session.machineId,
     });
 
-    const cutover = true;
+    seedAssignedTaskSnapshotsFromReadModels(session.machineId);
 
     let unsubscribeSnapshotStore: (() => void) | undefined;
     if (cutover) {
@@ -592,15 +597,6 @@ export const startTaskMonitorEffect = (
 
     registerAssignedTaskMonitorHandler(async (event) => {
       if (cutover) {
-        const tasks = await refreshAssignedTaskReadModelsFromConvex(sessionDeps);
-        const row = tasks.find(
-          (snapshot) => snapshot.taskId === event.taskId && snapshot.agentConfig.role === event.role
-        );
-        if (row) {
-          runMonitorPass([row], event.type === 'assigned-task.signal' ? 'signal' : 'presence');
-        }
-        return;
-      }
       handleInboundAssignedTaskEvent(event, runMonitorPass);
     });
 
@@ -615,13 +611,6 @@ export const startTaskMonitorEffect = (
         machineId: session.machineId,
       });
     }, NATIVE_DELIVERY_RECONCILE_MS);
-
-    yield* Effect.tryPromise(() =>
-      session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
-        sessionId: session.sessionId,
-        machineId: session.machineId,
-      })
-    ).pipe(Effect.catchAll(() => Effect.void));
 
     return {
       stop() {

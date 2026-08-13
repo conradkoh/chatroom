@@ -174,24 +174,11 @@ export class NativeTaskDeliveryCoordinator {
               });
               return;
             }
-          }
-          const backend = (yield* Effect.tryPromise(() =>
-            sessionDeps.backend.query(api.machines.getAssignedTaskForAction, {
-              sessionId: sessionDeps.sessionId,
-              machineId,
-              taskId: row.taskId,
-              role: row.agentConfig.role,
-            })
-          )) as Parameters<typeof mapAssignedTaskView>[0] | null;
-
-          if (!backend) {
-            console.warn(
-              `[NativeDelivery:skip] ${role}@${row.chatroomId} task ${row.taskId} — task_hydrate_missing (deleted or not assigned)`
-            );
+            console.warn(`[NativeDelivery:skip] ${role}@${row.chatroomId} task ${row.taskId} — task_hydrate_missing (local read model)`);
             return;
           }
-
-          const full = mapAssignedTaskView(backend);
+          console.warn(`[NativeDelivery:skip] ${role}@${row.chatroomId} task ${row.taskId} — read_model_db_missing`);
+          return;
 
           yield* runNativeInjectionEffect(full, harnessSessionId, {
             sessionId: sessionDeps.sessionId,
