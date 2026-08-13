@@ -35,13 +35,13 @@ function makeCtx(overrides?: Record<string, unknown>) {
         unique: vi.fn().mockResolvedValue(undefined),
       }),
     }),
-    get: vi
-      .fn()
-      .mockImplementation(async (id: string) =>
-        id === 'room-1'
-          ? { _id: 'room-1', nextQueuePosition: 5 }
-          : { _id: id, status: 'in_progress' }
-      ),
+    get: vi.fn().mockImplementation(async (table: string, id: string) => {
+      if (table === 'chatroom_rooms' && id === 'room-1') {
+        return { _id: 'room-1', nextQueuePosition: 5 };
+      }
+      if (table === 'chatroom_tasks') return { _id: id, status: 'in_progress' };
+      return null;
+    }),
     insert: vi.fn().mockResolvedValue('msg-convex-1'),
     patch: vi.fn().mockResolvedValue(undefined),
   };
@@ -131,9 +131,6 @@ describe('projectHandoffFromDaemon', () => {
   it('stores daemonTaskId and completes by daemon UUID lookup', async () => {
     const daemonTaskId = 'daemon-uuid-abc';
     const ctx = makeCtx();
-    ctx.db.get.mockImplementation(async (id: string) =>
-      id === 'room-1' ? { _id: 'room-1', nextQueuePosition: 5 } : null
-    );
     ctx.db.query.mockImplementation((table: string) => ({
       withIndex: vi.fn().mockReturnValue({
         first: vi.fn().mockResolvedValue(
