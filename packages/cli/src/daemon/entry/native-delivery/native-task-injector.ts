@@ -172,30 +172,21 @@ export function runNativeInjectionEffect(
     if (resumeResult._tag === 'Left') {
       const error = getErrorMessage(resumeResult.left);
       console.warn(`[NativeTaskInjector] resumeTurn failed for ${role}@${chatroomId}: ${error}`);
-      yield* Effect.tryPromise({
-        try: () =>
-          emitTaskDeliveryFailed(deps, {
-            chatroomId,
-            role,
-            taskId: taskId as string,
-            error,
-          }),
-        catch: () => undefined,
-      }).pipe(Effect.catchAll(() => Effect.void));
+      if (!deps.localDelivery) {
+        yield* Effect.tryPromise({
+          try: () => emitTaskDeliveryFailed(deps, { chatroomId, role, taskId: taskId as string, error }),
+          catch: () => undefined,
+        }).pipe(Effect.catchAll(() => Effect.void));
+      }
       return;
     }
 
-    yield* Effect.tryPromise({
-      try: () =>
-        deps.backend.mutation(api.machines.emitTaskDelivered, {
-          sessionId: deps.sessionId,
-          machineId: deps.machineId,
-          chatroomId,
-          role,
-          taskId,
-        }),
-      catch: (err) => err,
-    }).pipe(Effect.catchAll(() => Effect.void));
+    if (!deps.localDelivery) {
+      yield* Effect.tryPromise({
+        try: () => deps.backend.mutation(api.machines.emitTaskDelivered, { sessionId: deps.sessionId, machineId: deps.machineId, chatroomId, role, taskId }),
+        catch: (err) => err,
+      }).pipe(Effect.catchAll(() => Effect.void));
+    }
 
     deps.onTaskDelivered?.({ chatroomId, role, taskId: taskId as string });
   });
