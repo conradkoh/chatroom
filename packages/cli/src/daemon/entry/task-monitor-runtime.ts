@@ -484,24 +484,6 @@ function subscribeAssignedTaskSnapshotStore(
   );
 }
 
-// fallow-ignore-next-line complexity
-async function refreshAssignedTaskReadModelsFromConvex(
-  sessionDeps: NativeTaskDeliverySessionDeps
-): Promise<AssignedTaskSnapshotView[]> {
-  const result = (await sessionDeps.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
-    sessionId: sessionDeps.sessionId,
-    machineId: sessionDeps.machineId,
-  })) as { tasks?: unknown };
-  const tasks = mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(result.tasks ?? []));
-  if (taskMonitorReadModelDb) {
-    for (const task of tasks) {
-      upsertTaskReadModel(taskMonitorReadModelDb, taskReadModelFromSnapshot(task));
-    }
-  }
-  replaceAssignedTaskSnapshots(tasks);
-  return tasks;
-}
-
 function seedAssignedTaskSnapshotsFromReadModels(machineId: string): void {
   if (taskMonitorReadModelDb) replaceAssignedTaskSnapshots(listSnapshotViewsFromReadModels(taskMonitorReadModelDb, machineId));
 }
