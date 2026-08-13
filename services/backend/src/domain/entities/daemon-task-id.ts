@@ -23,3 +23,6 @@ export function createDaemonTaskId(): DaemonTaskId {
 
 /** @deprecated Use `isDaemonTaskId` instead. */
 export const isDaemonLocalTaskId = isDaemonTaskId;
+export function resolveCanonicalTaskId(task: { _id: string; daemonTaskId?: string | null }): string {
+  return task.daemonTaskId && isDaemonTaskId(task.daemonTaskId) ? task.daemonTaskId : task._id;
+}

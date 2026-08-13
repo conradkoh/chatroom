@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import { api } from '../../../../api.js';
-import { createDaemonTaskId } from '../../../domain/entities/daemon-task-id.js';
+import { createDaemonTaskId, resolveCanonicalTaskId } from '../../../domain/entities/daemon-task-id.js';
 import type { OutboundEvent } from '../../../domain/entities/outbound-event.js';
 import type { OrchestrationTaskReadyEvent } from '../../../domain/usecase/execute-handoff.js';
 import { appendOutboundEventWithOutbox } from '../../../infrastructure/persistence/event-store.js';
@@ -67,7 +67,7 @@ export async function ingestUserMessage(
   })) as ConvexTaskRow[] | undefined;
   const existingConvexTask = activeTasks?.find((task) => task.sourceMessageId === input.messageId);
   if (existingConvexTask) {
-    const readModelTaskId = existingConvexTask.daemonTaskId ?? existingConvexTask._id;
+    const readModelTaskId = resolveCanonicalTaskId(existingConvexTask);
     runInTransaction(deps.db, () => {
       if (hasProcessedInboundMessage(deps.db, input.chatroomId, input.messageId)) return;
       upsertTaskReadModel(deps.db, {

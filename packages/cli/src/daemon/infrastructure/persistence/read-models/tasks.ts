@@ -9,6 +9,7 @@ import type {
   AgentDesiredState,
   AssignedTaskSnapshotView,
 } from '../../../domain/entities/assigned-task.js';
+import { isDaemonTaskId } from '../../../domain/entities/daemon-task-id.js';
 
 export type TaskReadModelStatus = ActiveTaskStatus | 'completed' | 'queued';
 
@@ -249,7 +250,9 @@ export function claimTaskReadModelLocally(db: DatabaseSync, chatroomId: string, 
     if (!row) return null;
     const claimed = { ...readTaskRow(row), status: 'in_progress' as const, updatedAt: now };
     upsertTaskReadModel(db, claimed);
-    if (sessionId && machineId) appendOutboundEventWithOutbox(db, { type: 'task.status', variant: 'transition', idempotencyKey: `${chatroomId}:${taskId}:in_progress:${now}`, taskId, role, chatroomId, status: 'in_progress', timestamp: now });
+    if (sessionId && machineId && isDaemonTaskId(taskId)) {
+      appendOutboundEventWithOutbox(db, { type: 'task.status', variant: 'transition', idempotencyKey: `${chatroomId}:${taskId}:in_progress:${now}`, taskId, role, chatroomId, status: 'in_progress', timestamp: now });
+    }
     return claimed;
   });
 }

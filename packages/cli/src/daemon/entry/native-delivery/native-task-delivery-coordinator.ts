@@ -18,6 +18,7 @@ import {
 import { runNativeInjectionEffect } from './native-task-injector.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
+import { isDaemonTaskId } from '../../domain/entities/daemon-task-id.js';
 import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import {
@@ -25,6 +26,7 @@ import {
   getTaskContentFromReadModel,
   listDeliverableSnapshotsForRole,
 } from '../../infrastructure/persistence/read-models/tasks.js';
+import { backfillPendingTasksForChatroomRole } from '../../infrastructure/persistence/read-models/backfill-pending-tasks.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,
@@ -82,6 +84,49 @@ export class NativeTaskDeliveryCoordinator {
     const tasks = readModelDb
       ? listDeliverableSnapshotsForRole(readModelDb, chatroomId, role)
       : listAssignedTaskSnapshotsForRole(chatroomId, role);
+    if (tasks.length === 0 && readModelDb) {
+      void this.backfillAndInject(chatroomId, role, session);
+      return;
+    }
+    if (tasks.length === 0) {
+      logNativeDeliveryNoTasks(role, chatroomId);
+      return;
+    }
+    this.reconcileAssignedTasks({
+      tasks,
+      runtime,
+      effectContext,
+      agentMgr,
+      sessionDeps,
+      machineId,
+    });
+  }
+
+  private async backfillAndInject(
+    chatroomId: string,
+    role: string,
+    session: NonNullable<ReturnType<typeof getNativeDeliverySession>>
+  ): Promise<void> {
+    if (!readModelDb) return;
+    const { runtime, effectContext, agentMgr, sessionDeps, machineId } = session;
+    try {
+      await backfillPendingTasksForChatroomRole(
+        {
+          db: readModelDb,
+          machineId,
+          sessionId: sessionDeps.sessionId,
+          query: sessionDeps.backend.query,
+        },
+        chatroomId,
+        role
+      );
+    } catch (err) {
+      console.warn(
+        `[NativeTaskDelivery] pending-task backfill failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`
+      );
+    }
+
+    const tasks = listDeliverableSnapshotsForRole(readModelDb, chatroomId, role);
     if (tasks.length === 0) {
       logNativeDeliveryNoTasks(role, chatroomId);
       return;
@@ -167,53 +212,44 @@ export class NativeTaskDeliveryCoordinator {
 
       Runtime.runFork(runtime)(
         Effect.gen(function* () {
-          if (readModelDb) {
-            const taskContent = getTaskContentFromReadModel(
+          const taskContent = readModelDb
+            ? getTaskContentFromReadModel(readModelDb, row.chatroomId, role, row.taskId)
+            : undefined;
+          const useLocalDelivery = Boolean(
+            readModelDb && taskContent && isDaemonTaskId(row.taskId)
+          );
+
+          if (useLocalDelivery && readModelDb) {
+            claimTaskReadModelLocally(
               readModelDb,
               row.chatroomId,
               role,
-              row.taskId
+              row.taskId,
+              Date.now(),
+              sessionDeps.sessionId,
+              sessionDeps.machineId
             );
-            if (taskContent) {
-              claimTaskReadModelLocally(
-                readModelDb,
-                row.chatroomId,
-                role,
-                row.taskId,
-                Date.now(),
-                sessionDeps.sessionId,
-                sessionDeps.machineId
-              );
-              yield* runNativeInjectionEffect(
-                { ...row, status: 'in_progress', taskContent },
-                harnessSessionId,
-                {
-                  sessionId: sessionDeps.sessionId,
-                  machineId: sessionDeps.machineId,
-                  backend: sessionDeps.backend,
-                  localDelivery: true,
-                  agentMgr: {
-                    resumeTurnForSlot: (args) =>
-                      Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
-                  },
-                  onTaskDelivered: ({ chatroomId, role, taskId: deliveredTaskId }) => {
-                    deliveredToHarness = true;
-                    ledger.markDelivered(deliveredTaskId, harnessSessionId);
-                    Effect.runSync(agentMgr.setLastInFlightTask(chatroomId, role, deliveredTaskId));
-                  },
-                }
-              );
-              return;
-            }
-            console.warn(
-              `[NativeDelivery:skip] ${role}@${row.chatroomId} task ${row.taskId} — task_hydrate_missing (local read model)`
-            );
-            return;
           }
-          console.warn(
-            `[NativeDelivery:skip] ${role}@${row.chatroomId} task ${row.taskId} — read_model_db_missing`
+
+          yield* runNativeInjectionEffect(
+            { ...row, status: useLocalDelivery ? 'in_progress' : row.status, taskContent: taskContent ?? '' },
+            harnessSessionId,
+            {
+              sessionId: sessionDeps.sessionId,
+              machineId: sessionDeps.machineId,
+              convexUrl: sessionDeps.convexUrl,
+              backend: sessionDeps.backend,
+              localDelivery: useLocalDelivery,
+              agentMgr: {
+                resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
+              },
+              onTaskDelivered: ({ chatroomId, role, taskId: deliveredTaskId }) => {
+                deliveredToHarness = true;
+                ledger.markDelivered(deliveredTaskId, harnessSessionId);
+                Effect.runSync(agentMgr.setLastInFlightTask(chatroomId, role, deliveredTaskId));
+              },
+            }
           );
-          return;
         }).pipe(
           Effect.provide(effectContext),
           Effect.catchAll((err) =>
