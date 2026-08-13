@@ -81,6 +81,7 @@ import {
   taskReadModelFromSnapshot,
   upsertTaskReadModel,
 } from '../infrastructure/persistence/read-models/tasks.js';
+import { backfillPendingTasksForChatroomRole } from '../infrastructure/persistence/read-models/backfill-pending-tasks.js';
 import { listSnapshotViewsFromReadModels } from '../infrastructure/persistence/read-models/task-snapshot-adapter.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -466,14 +467,17 @@ function subscribeAssignedTaskSnapshotStore(
         parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? [])
       );
       replaceAssignedTaskSnapshots(tasks);
-      if (
-        taskMonitorReadModelDb &&
-        true &&
-        !true
-      ) {
+      if (taskMonitorReadModelDb) {
         for (const task of tasks) {
           upsertTaskReadModel(taskMonitorReadModelDb, taskReadModelFromSnapshot(task));
         }
+      }
+      for (const task of tasks) {
+        if (task.status !== 'pending') continue;
+        getNativeTaskDeliveryCoordinator().tryInjectNextForRole(
+          task.chatroomId,
+          task.agentConfig.role
+        );
       }
     },
     (err: unknown) => {
@@ -486,6 +490,50 @@ function subscribeAssignedTaskSnapshotStore(
 
 function seedAssignedTaskSnapshotsFromReadModels(machineId: string): void {
   if (taskMonitorReadModelDb) replaceAssignedTaskSnapshots(listSnapshotViewsFromReadModels(taskMonitorReadModelDb, machineId));
+}
+
+async function backfillPendingTasksOnStartup(
+  sessionDeps: NativeTaskDeliverySessionDeps,
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  machineId: string
+): Promise<void> {
+  if (!taskMonitorReadModelDb) return;
+
+  const chatroomRoles = new Map<string, string>();
+  for (const active of agentMgr.listActive()) {
+    if (active.slot.harnessSessionId) {
+      chatroomRoles.set(active.chatroomId, active.role);
+    }
+  }
+
+  const orchestrated = (await sessionDeps.backend.query(
+    api.machines.listOrchestratedChatroomIdsForMachine,
+    { sessionId: sessionDeps.sessionId, machineId }
+  )) as string[];
+  for (const chatroomId of orchestrated) {
+    if (!chatroomRoles.has(chatroomId)) {
+      chatroomRoles.set(chatroomId, 'planner');
+    }
+  }
+
+  for (const [chatroomId, role] of chatroomRoles) {
+    try {
+      await backfillPendingTasksForChatroomRole(
+        {
+          db: taskMonitorReadModelDb,
+          machineId,
+          sessionId: sessionDeps.sessionId,
+          query: sessionDeps.backend.query,
+        },
+        chatroomId,
+        role
+      );
+    } catch (err) {
+      console.warn(
+        `[TaskMonitor] startup pending-task backfill failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`
+      );
+    }
+  }
 }
 
 // fallow-ignore-next-line complexity unused-export
@@ -547,6 +595,27 @@ export const startTaskMonitorEffect = (
 
     seedAssignedTaskSnapshotsFromReadModels(session.machineId);
 
+    void backfillPendingTasksOnStartup(sessionDeps, agentMgr, session.machineId).then(() => {
+      seedAssignedTaskSnapshotsFromReadModels(session.machineId);
+      for (const task of listAssignedTaskSnapshots()) {
+        if (task.status === 'pending') {
+          getNativeTaskDeliveryCoordinator().tryInjectNextForRole(
+            task.chatroomId,
+            task.agentConfig.role
+          );
+        }
+      }
+    });
+
+    for (const task of listAssignedTaskSnapshots()) {
+      if (task.status === 'pending') {
+        getNativeTaskDeliveryCoordinator().tryInjectNextForRole(
+          task.chatroomId,
+          task.agentConfig.role
+        );
+      }
+    }
+
     const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
       if (stopped || monitorPassInFlight || tasks.length === 0) return;
       monitorPassInFlight = true;
@@ -568,7 +637,17 @@ export const startTaskMonitorEffect = (
       handleInboundAssignedTaskEvent(event, runMonitorPass);
     });
 
+    const unsubscribeSnapshotStore = subscribeAssignedTaskSnapshotStore(
+      wsClient,
+      { sessionId: session.sessionId, machineId: session.machineId },
+      () => stopped
+    );
+
     const reconcileTimer = setInterval(() => {
+      for (const active of agentMgr.listActive()) {
+        if (!active.slot.harnessSessionId) continue;
+        getNativeTaskDeliveryCoordinator().tryInjectNextForRole(active.chatroomId, active.role);
+      }
       runLocalStoreReconcilePass({
         stopped,
         monitorPassInFlight,
@@ -583,6 +662,7 @@ export const startTaskMonitorEffect = (
     return {
       stop() {
         stopped = true;
+        unsubscribeSnapshotStore();
         unregisterAssignedTaskMonitorHandler();
         clearAssignedTaskSnapshots();
         unregisterNativeDeliverySession();

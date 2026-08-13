@@ -10,7 +10,7 @@ describe('handleUserMessageInbound', () => {
     const db = openDatabase(join(mkdtempSync(join(tmpdir(), 'p7-handler-')), 'db.sqlite'));
     const appendEvent = vi.fn();
     try {
-      await handleUserMessageInbound({ db, machineId: 'm', sessionId: 's', appendEvent, emitOrchestrationEvent: vi.fn(), query: vi.fn(), getEntryPointRole: async () => 'planner', getAgentHarness: async () => 'opencode' }, { chatroomId: 'room', messageId: 'msg', content: 'hello', senderRole: 'user' });
+      await handleUserMessageInbound({ db, machineId: 'm', sessionId: 's', appendEvent, emitOrchestrationEvent: vi.fn(), query: vi.fn().mockResolvedValue([]), getEntryPointRole: async () => 'planner', getAgentHarness: async () => 'opencode' }, { chatroomId: 'room', messageId: 'msg', content: 'hello', senderRole: 'user' });
       expect(db.prepare("SELECT event_type FROM outbound_events WHERE event_type = 'user-message.received'").all()).toHaveLength(1);
     } finally { db.close(); }
   });
@@ -18,7 +18,7 @@ describe('handleUserMessageInbound', () => {
     const db = openDatabase(join(mkdtempSync(join(tmpdir(), 'p7-handler-')), 'db.sqlite'));
     const appendEvent = vi.fn();
     try {
-      const deps = { db, machineId: 'm', sessionId: 's', appendEvent, emitOrchestrationEvent: vi.fn(), query: vi.fn(), getEntryPointRole: async () => 'planner', getAgentHarness: async () => 'opencode' };
+      const deps = { db, machineId: 'm', sessionId: 's', appendEvent, emitOrchestrationEvent: vi.fn(), query: vi.fn().mockResolvedValue([]), getEntryPointRole: async () => 'planner', getAgentHarness: async () => 'opencode' };
       await handleUserMessageInbound(deps, { chatroomId: 'room', messageId: 'a' });
       await handleUserMessageInbound(deps, { chatroomId: 'room', messageId: 'b', content: 'no', senderRole: 'builder' });
       expect(appendEvent).not.toHaveBeenCalled();

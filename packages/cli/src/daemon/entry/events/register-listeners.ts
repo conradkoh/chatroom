@@ -32,7 +32,10 @@ export const registerEventListenersEffect = (): Effect.Effect<
         Runtime.runFork(runtime)(onAgentExitedEffect(payload));
       })
     );
-    unsubs.push(session.events.on('agent:started', (payload) => logAgentStarted(payload)));
+    unsubs.push(session.events.on('agent:started', (payload) => {
+      logAgentStarted(payload);
+      getNativeTaskDeliveryCoordinator().tryInjectNextForRole(payload.chatroomId, payload.role);
+    }));
     unsubs.push(session.events.on('agent:stopped', (payload) => logAgentStopped(payload)));
     {
       unsubs.push(session.events.on('orchestration:task-ready', (payload) => {
