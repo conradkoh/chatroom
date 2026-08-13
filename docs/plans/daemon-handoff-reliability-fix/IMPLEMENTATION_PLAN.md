@@ -2,7 +2,7 @@
 
 **Branch:** `fix/daemon-handoff-reliability` (based on `release/v1.94.2`)
 **Backlog:** `ps72tbe9eyt786fhmbb3dy21xs8cbeme`
-**Status:** In progress — projection/ingress correctness before unconditional cutover
+**Status:** Slice 2 flag removal complete; lifecycle/E2E/PR phases pending
 **Background:** [daemon-centric orchestration overview](../daemon-centric-orchestration/overview.md)
 
 ## Remaining Phases (unconditional cutover)
@@ -30,7 +30,9 @@ flowchart TD
 
 **Invariant:** when the target slot is idle, delivery is attempted in the same process tick as the handoff commit, without a Convex round-trip before injection.
 
-## Feature Flags (all default off)
+## Feature Flags — removed in Slice 2
+
+The `DAEMON_ORCHESTRATION_P*` feature-flag implementation was deleted. The daemon now uses unconditional inbound-only subscribers, SQLite-authoritative read models, local delivery, and outbox-only projection.
 
 | Flag | Purpose |
 |---|---|
