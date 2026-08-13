@@ -164,6 +164,7 @@ describe('handoffEffect', () => {
   });
 
   test('fails with HandoffFailed when handoff mutation throws', async () => {
+    mockPostDaemonHandoff.mockRejectedValue(new Error('Handoff mutation failed'));
     const testLayer = Layer.mergeAll(
       makeTestBackend({ mutationResponse: new Error('Handoff mutation failed') }),
       makeTestSession({ sessionId: 'test-session' })
@@ -192,6 +193,7 @@ describe('handoffEffect', () => {
       code: 'INVALID_TARGET_ROLE',
       suggestedTargets: ['planner', 'architect'],
     };
+    mockPostDaemonHandoff.mockResolvedValue({ success: false, error: rejectionError });
     const testLayer = Layer.mergeAll(
       makeTestBackend({
         mutationResponse: {

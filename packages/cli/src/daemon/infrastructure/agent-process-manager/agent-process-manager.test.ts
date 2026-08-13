@@ -375,10 +375,7 @@ describe('AgentProcessManager', () => {
           createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
         );
         (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-          needsHandoffReminder: true,
-          transitionedToWaiting: false,
-        });
+        manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-handoff-reminder');
         mockNotifyNativeTurnIdle.mockClear();
 
         const agentEndCb = onAgentEndRegistrar.mock.calls[0][0] as () => void;
@@ -2558,10 +2555,7 @@ describe('AgentProcessManager', () => {
           createOpts({ agentHarness: harness as EnsureRunningOpts['agentHarness'] })
         );
         (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
-        (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-          needsHandoffReminder: true,
-          transitionedToWaiting: false,
-        });
+        manager.setLastInFlightTask(CHATROOM_ID, ROLE, 'task-handoff-reminder');
         mockNotifyNativeTurnIdle.mockClear();
 
         // Simulate turn_in_flight

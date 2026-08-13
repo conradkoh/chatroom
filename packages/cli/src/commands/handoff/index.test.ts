@@ -154,7 +154,7 @@ describe('handoff', () => {
   describe('handoff restriction', () => {
     it('exits with code 1 and shows suggested target', async () => {
       const deps = createMockDeps();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
+      mockPostDaemonHandoff.mockResolvedValue({
         success: false,
         error: {
           message: 'Cannot hand off to user for new_feature tasks',
@@ -173,7 +173,7 @@ describe('handoff', () => {
 
     it('exits with code 1 and lists available targets for INVALID_TARGET_ROLE', async () => {
       const deps = createMockDeps();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
+      mockPostDaemonHandoff.mockResolvedValue({
         success: false,
         error: {
           code: 'INVALID_TARGET_ROLE',
@@ -200,9 +200,7 @@ describe('handoff', () => {
   describe('mutation failure', () => {
     it('exits with code 1 when handoff throws', async () => {
       const deps = createMockDeps();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error('Network timeout')
-      );
+      mockPostDaemonHandoff.mockRejectedValue(new Error('Network timeout'));
 
       await handoff(TEST_CHATROOM_ID, defaultOptions(), deps);
 

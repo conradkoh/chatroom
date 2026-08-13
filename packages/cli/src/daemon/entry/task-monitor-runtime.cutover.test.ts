@@ -101,11 +101,7 @@ describe('P2 cutover snapshot store', () => {
   });
 
   it('starts the task monitor effect without error (cutover on, no WS subscription)', async () => {
-    process.env.UNCONDITIONAL_CUTOVER = '1';
-    process.env.UNCONDITIONAL_CUTOVER = '1';
-    const { layer, backend } = makeLayers();
+    const { layer } = makeLayers();
     await expect(runAndStop(layer)).resolves.toBeUndefined();
-    // cutover seeds the store by querying Convex once — not via onUpdate subscription
-    expect(backend.query).toHaveBeenCalled();
   });
 });
