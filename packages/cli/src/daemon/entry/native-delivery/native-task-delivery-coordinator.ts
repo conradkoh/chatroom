@@ -180,21 +180,6 @@ export class NativeTaskDeliveryCoordinator {
           console.warn(`[NativeDelivery:skip] ${role}@${row.chatroomId} task ${row.taskId} — read_model_db_missing`);
           return;
 
-          yield* runNativeInjectionEffect(full, harnessSessionId, {
-            sessionId: sessionDeps.sessionId,
-            machineId: sessionDeps.machineId,
-            backend: sessionDeps.backend,
-            agentMgr: {
-              resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
-            },
-            convexUrl: sessionDeps.convexUrl,
-            onTaskDelivered: ({ chatroomId, role, taskId: deliveredTaskId }) => {
-              deliveredToHarness = true;
-              ledger.markDelivered(deliveredTaskId, harnessSessionId);
-              Effect.runSync(agentMgr.setLastInFlightTask(chatroomId, role, deliveredTaskId));
-              deliveryState.clearNativeNudgeFailures(chatroomId, role);
-            },
-          });
         }).pipe(
           Effect.provide(effectContext),
           Effect.catchAll((err) =>

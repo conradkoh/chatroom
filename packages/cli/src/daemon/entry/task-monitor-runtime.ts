@@ -565,19 +565,6 @@ export const startTaskMonitorEffect = (
 
     seedAssignedTaskSnapshotsFromReadModels(session.machineId);
 
-    let unsubscribeSnapshotStore: (() => void) | undefined;
-    if (cutover) {
-      void refreshAssignedTaskReadModelsFromConvex(sessionDeps).catch((err: unknown) => {
-        console.warn(`[TaskMonitor] P2 cutover refresh failed: ${getErrorMessage(err)}`);
-      });
-    } else {
-      unsubscribeSnapshotStore = subscribeAssignedTaskSnapshotStore(
-        wsClient,
-        { sessionId: session.sessionId, machineId: session.machineId },
-        () => stopped
-      );
-    }
-
     const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
       if (stopped || monitorPassInFlight || tasks.length === 0) return;
       monitorPassInFlight = true;
@@ -595,7 +582,7 @@ export const startTaskMonitorEffect = (
       });
     };
 
-    registerAssignedTaskMonitorHandler((event) => {
+    registerAssignedTaskMonitorHandler(async (event) => {
       handleInboundAssignedTaskEvent(event, runMonitorPass);
     });
 
