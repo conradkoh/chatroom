@@ -124,8 +124,8 @@ export async function registerMachineWithDaemon(
     machineId,
     hostname: 'test-host',
     os: 'darwin',
-    availableHarnesses: ['opencode'],
-    availableModels: { opencode: [TEST_MODEL_OPENCODE] },
+    availableHarnesses: ['opencode', 'cursor-sdk'],
+    availableModels: { opencode: [TEST_MODEL_OPENCODE], 'cursor-sdk': [TEST_MODEL_OPENCODE] },
   });
   await t.mutation(api.machines.updateDaemonStatus, {
     sessionId,
