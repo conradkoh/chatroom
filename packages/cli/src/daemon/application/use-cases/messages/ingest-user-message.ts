@@ -38,6 +38,8 @@ export async function ingestUserMessage(
       taskId,
       status: 'pending',
       taskContent: input.content,
+      desiredState: 'running',
+      spawnedAgentPid: 1,
       assignedTo: input.entryPointRole,
       agentHarness: harness,
       machineId: deps.machineId,

@@ -2,7 +2,7 @@
 
 **Branch:** `fix/daemon-handoff-reliability` (based on `release/v1.94.2`)
 **Backlog:** `ps72tbe9eyt786fhmbb3dy21xs8cbeme`
-**Status:** In progress — Slice 2 complete; Slices 3–4 pending
+**Status:** In progress — Slice 3 complete; Slice 4 pending
 **Background:** [daemon-centric orchestration overview](../daemon-centric-orchestration/overview.md)
 
 ## Problem Statement
@@ -34,6 +34,7 @@ flowchart TD
 | `DAEMON_ORCHESTRATION_P3_LOCAL_DELIVERY` | Local task-ready delivery |
 | `DAEMON_ORCHESTRATION_P4` | Local lifecycle events |
 | `DAEMON_ORCHESTRATION_P5` | Assigned-task subscriber removal |
+| `DAEMON_ORCHESTRATION_P7` | Local user-message ingress |
 
 P5 requires P1, P1_CUTOVER, P2, P2_CUTOVER, P3, P3_LOCAL_DELIVERY, and P4; startup validation enforces this.
 
@@ -43,7 +44,7 @@ P5 requires P1, P1_CUTOVER, P2, P2_CUTOVER, P3, P3_LOCAL_DELIVERY, and P4; start
 |---|---|---|---|
 | 1 — Foundation | [x] Complete | through `c184cedc4` | P1–P5, identity mapping, provider/presence fixes, validation |
 | 2 — Local delivery | [x] Complete | `5ac59346f`, `5442917f6`, `1dbd640e9`, pending test commit | Local task content, task-ready event, idempotent schema, and Convex-free injection path |
-| 3 — Ingress + P5 cutover | [ ] In progress | `0ee8f7e87`, `1d05d63de` | P7 local ingress, projection mutation, and user-message subscriber implemented; full verification pending |
+| 3 — Ingress + P5 cutover | [x] Complete | `0ee8f7e87`, `1d05d63de`, `82a541309`, pending tests | P7 local ingress, routing, projection, and delivery verification complete |
 | 4 — E2E + PR | [ ] Pending | — | Flag-on verification, PR, backlog review |
 
 ## Slice 1 — Foundation Integration ✅ COMPLETE
@@ -111,7 +112,7 @@ P5 requires P1, P1_CUTOVER, P2, P2_CUTOVER, P3, P3_LOCAL_DELIVERY, and P4; start
 ### Validation Criteria
 
 - [ ] Full flags deliver a second user message without a Convex signal round-trip.
-- [ ] P5/P7 do not register assigned-task subscribers; flag-off behavior remains unchanged.
+- [x] P5/P7 do not register assigned-task subscribers; flag-off behavior remains unchanged.
 - [ ] Stuck-regression scenarios and aggregate tests pass.
 
 ### Key Files

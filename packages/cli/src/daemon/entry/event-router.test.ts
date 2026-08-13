@@ -1,4 +1,8 @@
 import { describe, expect, test, vi } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { openDatabase } from '../infrastructure/persistence/open-database.js';
 
 import { routeInboundEvent } from './event-router.js';
 import type { InboundEvent } from '../domain/entities/inbound-event.js';
@@ -27,6 +31,15 @@ const routerDeps = {
 };
 
 describe('routeInboundEvent', () => {
+  test('routes user-message.received to handler', async () => {
+    const db = openDatabase(join(mkdtempSync(join(tmpdir(), 'router-')), 'db.sqlite'));
+    const appendEvent = vi.fn();
+    try {
+      const deps = { ...routerDeps, userMessage: { db, machineId: '', sessionId: '', appendEvent, emitOrchestrationEvent: vi.fn(), query: vi.fn(), getEntryPointRole: vi.fn().mockResolvedValue('planner'), getAgentHarness: vi.fn().mockResolvedValue('opencode') } };
+      await routeInboundEvent(deps, { type: 'user-message.received', chatroomId: 'room', messageId: 'msg', content: 'hello', senderRole: 'user' });
+      expect(appendEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'user-message.received' }));
+    } finally { db.close(); }
+  });
   test('dispatches assigned-task.signal to handler', async () => {
     const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: AssignedTaskInboundEvent = {
