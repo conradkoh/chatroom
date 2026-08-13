@@ -596,6 +596,7 @@ export default defineSchema({
 
     // Assignment
     assignedTo: v.optional(v.string()), // Role assigned to work on this
+    daemonTaskId: v.optional(v.string()),
 
     // Link to source message (for auto-created tasks from user messages)
     sourceMessageId: v.optional(v.id('chatroom_messages')),
@@ -638,6 +639,7 @@ export default defineSchema({
     .index('by_chatroom_status_assignedTo', ['chatroomId', 'status', 'assignedTo'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition'])
     .index('by_assignedTo_status', ['assignedTo', 'status']),
+    .index('by_daemonTaskId', ['daemonTaskId']),
 
   /**
    * Slim timeline task-status signals — one row per FSM transition.

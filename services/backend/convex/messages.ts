@@ -999,7 +999,13 @@ export const projectHandoffFromDaemon = mutation({
     });
 
     for (const taskId of args.completedTaskIds) {
-      const task = await ctx.db.get('chatroom_tasks', taskId as Id<'chatroom_tasks'>);
+      let task = await ctx.db.get('chatroom_tasks', taskId as Id<'chatroom_tasks'>);
+      if (!task) {
+        task = await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_daemonTaskId', (q) => q.eq('daemonTaskId', taskId))
+          .first();
+      }
       if (task && task.status !== 'completed') {
         await ctx.db.patch('chatroom_tasks', task._id, { status: 'completed' });
       }
@@ -1016,14 +1022,21 @@ export const projectHandoffFromDaemon = mutation({
         sourceMessageId: messageId,
         queuePosition,
       });
+      await ctx.db.patch('chatroom_tasks', createdTaskId, { daemonTaskId: args.newTaskId });
       await ctx.db.patch('chatroom_messages', messageId, { taskId: createdTaskId });
     }
 
     if (args.promotedTaskId) {
-      const promoted = await ctx.db.get(
+      let promoted = await ctx.db.get(
         'chatroom_tasks',
         args.promotedTaskId as Id<'chatroom_tasks'>
       );
+      if (!promoted) {
+        promoted = await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_daemonTaskId', (q) => q.eq('daemonTaskId', args.promotedTaskId))
+          .first();
+      }
       if (promoted && promoted.status !== 'completed') {
         await ctx.db.patch('chatroom_tasks', promoted._id, { status: 'pending' });
       }
