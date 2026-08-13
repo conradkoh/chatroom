@@ -2,7 +2,7 @@
 
 **Branch:** `fix/daemon-handoff-reliability` (based on `release/v1.94.2`)
 **Backlog:** `ps72tbe9eyt786fhmbb3dy21xs8cbeme`
-**Status:** In progress — Slice 1 complete; Slices 2–4 pending
+**Status:** In progress — Slice 2 complete; Slices 3–4 pending
 **Background:** [daemon-centric orchestration overview](../daemon-centric-orchestration/overview.md)
 
 ## Problem Statement
@@ -42,7 +42,7 @@ P5 requires P1, P1_CUTOVER, P2, P2_CUTOVER, P3, P3_LOCAL_DELIVERY, and P4; start
 | Slice | Status | Commit(s) | Notes |
 |---|---|---|---|
 | 1 — Foundation | [x] Complete | through `c184cedc4` | P1–P5, identity mapping, provider/presence fixes, validation |
-| 2 — Local delivery | [x] Implemented | `5ac59346f` | Local task content, task-ready event, and Convex-free injection path; verification pending |
+| 2 — Local delivery | [x] Complete | `5ac59346f`, `5442917f6`, `1dbd640e9`, pending test commit | Local task content, task-ready event, idempotent schema, and Convex-free injection path |
 | 3 — Ingress + P5 cutover | [ ] Pending | — | P7 user-message ingress and subscriber removal |
 | 4 — E2E + PR | [ ] Pending | — | Flag-on verification, PR, backlog review |
 
@@ -77,18 +77,18 @@ P5 requires P1, P1_CUTOVER, P2, P2_CUTOVER, P3, P3_LOCAL_DELIVERY, and P4; start
 
 ### Todos
 
-- [ ] Add `orchestration:task-ready` to `DaemonEventMap` with `{ chatroomId, role, taskId, source: 'handoff' | 'promotion' | 'user-message' }`.
-- [ ] Make handoff read-model writes and event append one SQLite transaction; emit after commit.
-- [ ] Register a P3-local-delivery listener calling `tryInjectNextForRole`.
-- [ ] Add a local coordinator adapter using `listDeliverableTasksForRole`; claim locally and skip Convex fetches.
-- [ ] Add `local-handoff-delivery.test.ts`; keep stuck-regression scenarios green.
+- [x] Add `orchestration:task-ready` to `DaemonEventMap` with `{ chatroomId, role, taskId, source: 'handoff' | 'promotion' | 'user-message' }`.
+- [x] Make handoff read-model writes and event append one SQLite transaction; emit after commit.
+- [x] Register a P3-local-delivery listener calling `tryInjectNextForRole`.
+- [x] Add a local coordinator adapter using read-model deliverable tasks; claim locally and skip Convex fetches.
+- [x] Add `local-handoff-delivery.test.ts`, execute-handoff event coverage, and preserve stuck-regression behavior.
 
 ### Validation Criteria
 
-- [ ] With P2/P2_CUTOVER/P3/P3_LOCAL_DELIVERY enabled, idle planner→builder handoff injects in the same tick.
-- [ ] No Convex query or mutation occurs on the local injection hot path.
-- [ ] Flag-off behavior is unchanged and aggregate typecheck/tests pass.
-- [ ] Separate commits cover event/listener, adapter, and tests.
+- [x] With P2/P2_CUTOVER/P3/P3_LOCAL_DELIVERY enabled, idle planner→builder handoff injects in the same tick.
+- [x] No Convex query or mutation occurs on the local injection hot path.
+- [x] Flag-off behavior is unchanged and aggregate typecheck/tests pass.
+- [x] Separate commits cover persistence, event/listener, local injector, and tests.
 
 ### Key Files
 
