@@ -27,7 +27,7 @@ import {
 } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { isDaemonTaskId, type DaemonTaskId } from '../../entities/daemon-task-id';
+import { createDaemonTaskId, isDaemonTaskId, type DaemonTaskId } from '../../entities/daemon-task-id';
 import { resolveTaskRole } from '../../entities/task';
 import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
 
@@ -113,24 +113,23 @@ export async function createTask(
 
   // Status is always pending for direct task creation
   const status = 'pending' as const;
+  const daemonTaskId = args.daemonTaskId ?? createDaemonTaskId();
 
-  if (args.daemonTaskId) {
-    if (!isDaemonTaskId(args.daemonTaskId)) {
+  if (!isDaemonTaskId(daemonTaskId)) {
       throw new ConvexError({
         code: 'INVALID_DAEMON_TASK_ID',
         message: 'daemonTaskId must be a valid UUID',
       });
-    }
+  }
     const existing = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_daemonTaskId', (q) => q.eq('daemonTaskId', args.daemonTaskId))
+      .withIndex('by_daemonTaskId', (q) => q.eq('daemonTaskId', daemonTaskId))
       .first();
-    if (existing) {
-      throw new ConvexError({
-        code: 'DAEMON_TASK_ID_CONFLICT',
-        message: 'daemonTaskId is already in use',
-      });
-    }
+  if (existing) {
+    throw new ConvexError({
+      code: 'DAEMON_TASK_ID_CONFLICT',
+      message: 'daemonTaskId is already in use',
+    });
   }
 
   const taskId = await ctx.db.insert('chatroom_tasks', {
@@ -150,7 +149,7 @@ export async function createTask(
     ...(args.plannerEnhancerEnabled !== undefined
       ? { plannerEnhancerEnabled: args.plannerEnhancerEnabled }
       : {}),
-    ...(args.daemonTaskId ? { daemonTaskId: args.daemonTaskId } : {}),
+    daemonTaskId,
   });
 
   // Update materialized task counts

@@ -13,6 +13,7 @@ import { getSession } from './auth/session';
 import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
+import type { DaemonTaskId } from '../src/domain/entities/daemon-task-id';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { acknowledgePendingTask } from '../src/domain/usecase/task/acknowledge-pending-task';
 import {
@@ -48,6 +49,7 @@ export const createTask = mutation({
     content: v.string(),
     createdBy: v.string(),
     sourceMessageId: v.optional(v.id('chatroom_messages')),
+    daemonTaskId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access - need chatroom for queue position
@@ -91,6 +93,7 @@ export const createTask = mutation({
       content: args.content,
       forceStatus: 'pending',
       sourceMessageId: args.sourceMessageId,
+      ...(args.daemonTaskId ? { daemonTaskId: args.daemonTaskId as DaemonTaskId } : {}),
       queuePosition,
     });
 

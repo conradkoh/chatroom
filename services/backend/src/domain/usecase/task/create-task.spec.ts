@@ -15,7 +15,7 @@ import {
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
-import { createDaemonTaskId } from '../../entities/daemon-task-id';
+import { createDaemonTaskId, isDaemonTaskId } from '../../entities/daemon-task-id';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -133,6 +133,21 @@ describe('createTask with daemonTaskId', () => {
 
     const row = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', result.taskId));
     expect(row?.daemonTaskId).toBe(daemonTaskId);
+  });
+
+  test('auto-allocates daemonTaskId when omitted', async () => {
+    const { sessionId } = await createTestSession('create-auto-daemon-id');
+    const chatroomId = await createChatroom(sessionId);
+    const result = await t.run(async (ctx) => {
+      const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+      return createTask(ctx, {
+        chatroomId, createdBy: 'user', content: 'auto id task', forceStatus: 'pending',
+        queuePosition: chatroom?.nextQueuePosition ?? 0,
+      });
+    });
+    const row = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', result.taskId));
+    expect(row?.daemonTaskId).toBeTruthy();
+    expect(isDaemonTaskId(row!.daemonTaskId!)).toBe(true);
   });
 });
 
