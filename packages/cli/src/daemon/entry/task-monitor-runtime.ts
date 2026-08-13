@@ -595,8 +595,7 @@ export const startTaskMonitorEffect = (
       });
     };
 
-    registerAssignedTaskMonitorHandler(async (event) => {
-      if (cutover) {
+    registerAssignedTaskMonitorHandler((event) => {
       handleInboundAssignedTaskEvent(event, runMonitorPass);
     });
 
