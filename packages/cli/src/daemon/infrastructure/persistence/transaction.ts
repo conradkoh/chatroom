@@ -1,10 +1,11 @@
 import type { DatabaseSync } from 'node:sqlite';
 
-export function runInTransaction(db: DatabaseSync, fn: () => void): void {
+export function runInTransaction<T>(db: DatabaseSync, fn: () => T): T {
   db.exec('BEGIN');
   try {
-    fn();
+    const result = fn();
     db.exec('COMMIT');
+    return result;
   } catch (error) {
     db.exec('ROLLBACK');
     throw error;

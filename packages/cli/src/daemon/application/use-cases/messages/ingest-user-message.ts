@@ -6,6 +6,8 @@ import type { OutboundEvent } from '../../../domain/entities/outbound-event.js';
 import { runInTransaction } from '../../../infrastructure/persistence/transaction.js';
 import { upsertTaskReadModel } from '../../../infrastructure/persistence/read-models/tasks.js';
 import { isDaemonOrchestrationP3LocalDeliveryEnabled } from '../../../infrastructure/projection/feature-flags.js';
+import { appendOutboundEventWithOutbox } from '../../../infrastructure/persistence/event-store.js';
+import { hasProcessedInboundMessage, markInboundMessageProcessed } from '../../../infrastructure/persistence/processed-inbound-messages.js';
 
 export type IngestUserMessageInput = {
   chatroomId: string;
@@ -38,8 +40,6 @@ export async function ingestUserMessage(
       taskId,
       status: 'pending',
       taskContent: input.content,
-      desiredState: 'running',
-      spawnedAgentPid: 1,
       assignedTo: input.entryPointRole,
       agentHarness: harness,
       machineId: deps.machineId,
@@ -47,7 +47,7 @@ export async function ingestUserMessage(
       updatedAt: now,
     });
   });
-  deps.appendEvent({
+  const event = {
     type: 'user-message.received',
     idempotencyKey: `${input.chatroomId}:${input.messageId}`,
     sessionId: deps.sessionId,
@@ -57,7 +57,13 @@ export async function ingestUserMessage(
     senderRole: input.senderRole,
     newTaskId: taskId,
     timestamp: now,
+  } as const;
+  runInTransaction(deps.db, () => {
+    if (hasProcessedInboundMessage(deps.db, input.chatroomId, input.messageId)) return;
+    appendOutboundEventWithOutbox(deps.db, event);
+    markInboundMessageProcessed(deps.db, input.chatroomId, input.messageId, now);
   });
+  deps.appendEvent(event);
   if (isDaemonOrchestrationP3LocalDeliveryEnabled()) {
     deps.emitOrchestrationEvent?.({ chatroomId: input.chatroomId, role: input.entryPointRole, taskId, source: 'user-message' });
   }

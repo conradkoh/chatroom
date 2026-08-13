@@ -22,6 +22,7 @@ const handledEvents: OutboundEvent[] = [
   { type: 'session.lifecycle', harnessSessionId: 'hs-1', action: 'opened' },
   {
     type: 'task.status',
+    variant: 'delivery',
     taskId: 'task-1',
     role: 'builder',
     chatroomId: 'room-1',

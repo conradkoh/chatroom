@@ -1,5 +1,6 @@
 // fallow-ignore-file unused-export
 import type { DatabaseSync } from 'node:sqlite';
+import { appendOutboundEventWithOutbox } from '../event-store.js';
 
 import type {
   ActiveTaskStatus,
@@ -241,11 +242,12 @@ export function taskReadModelFromSnapshot(snapshot: AssignedTaskSnapshotView): T
   };
 }
 
-export function claimTaskReadModelLocally(db: DatabaseSync, chatroomId: string, role: string, taskId: string, now: number): TaskReadModelRow | null {
+export function claimTaskReadModelLocally(db: DatabaseSync, chatroomId: string, role: string, taskId: string, now: number, sessionId?: string, machineId?: string): TaskReadModelRow | null {
   const row = db.prepare(`SELECT ${TASK_COLUMNS} FROM read_model_tasks WHERE chatroom_id = ? AND role = ? AND task_id = ? AND status = 'pending'`).get(chatroomId, role, taskId) as Parameters<typeof readTaskRow>[0] | undefined;
   if (!row) return null;
   const claimed = { ...readTaskRow(row), status: 'in_progress' as const, updatedAt: now };
   upsertTaskReadModel(db, claimed);
+  if (sessionId && machineId) appendOutboundEventWithOutbox(db, { type: 'task.status', variant: 'transition', idempotencyKey: `${chatroomId}:${taskId}:in_progress:${now}`, taskId, role, chatroomId, status: 'in_progress', timestamp: now });
   return claimed;
 }
 

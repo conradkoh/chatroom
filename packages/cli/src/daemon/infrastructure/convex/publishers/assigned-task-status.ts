@@ -7,6 +7,13 @@ export function createAssignedTaskStatusPublisher(deps: ConvexPublisherDeps): Pu
   return {
     async publish(event: OutboundEvent): Promise<void> {
       if (event.type !== 'task.status') return;
+      if (event.variant === 'transition') {
+        await deps.backend.mutation(api.machines.projectTaskStatusFromDaemon, {
+          sessionId: deps.sessionId, machineId: deps.machineId, idempotencyKey: event.idempotencyKey,
+          daemonTaskId: event.taskId, status: event.status, timestamp: event.timestamp,
+        });
+        return;
+      }
 
       if (event.outcome === 'delivered') {
         await deps.backend.mutation(api.machines.emitTaskDelivered, {

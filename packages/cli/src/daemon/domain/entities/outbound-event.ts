@@ -37,6 +37,17 @@ export type OutboundEvent =
     }
   | {
       type: 'task.status';
+      variant: 'transition';
+      idempotencyKey: string;
+      taskId: string;
+      role: string;
+      chatroomId: string;
+      status: 'pending' | 'in_progress' | 'completed';
+      timestamp: number;
+    }
+  | {
+      type: 'task.status';
+      variant: 'delivery';
       taskId: string;
       role: string;
       chatroomId: string;

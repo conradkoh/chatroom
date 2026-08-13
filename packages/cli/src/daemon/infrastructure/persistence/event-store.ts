@@ -1,6 +1,8 @@
 import type { DatabaseSync } from 'node:sqlite';
 
 import type { OutboundEvent } from '../../domain/entities/outbound-event.js';
+import { enqueueOutbox } from './outbox.js';
+import { shouldEnqueueOutbox } from '../projection/sync-policy.js';
 
 export function appendOutboundEvent(db: DatabaseSync, event: OutboundEvent): number {
   const now = Date.now();
@@ -11,6 +13,12 @@ export function appendOutboundEvent(db: DatabaseSync, event: OutboundEvent): num
     )
     .run(event.type, JSON.stringify(event), now);
   return Number(result.lastInsertRowid);
+}
+
+export function appendOutboundEventWithOutbox(db: DatabaseSync, event: OutboundEvent): number {
+  const id = appendOutboundEvent(db, event);
+  if (shouldEnqueueOutbox(event)) enqueueOutbox(db, id);
+  return id;
 }
 
 export function loadOutboundEventById(db: DatabaseSync, id: number): OutboundEvent | null {

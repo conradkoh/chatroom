@@ -13,6 +13,7 @@ describe('createAssignedTaskStatusPublisher', () => {
 
     await publisher.publish({
       type: 'task.status',
+      variant: 'delivery',
       taskId: 'task-1',
       role: 'builder',
       chatroomId: 'room-1',
@@ -38,6 +39,7 @@ describe('createAssignedTaskStatusPublisher', () => {
 
     await publisher.publish({
       type: 'task.status',
+      variant: 'delivery',
       taskId: 'task-1',
       role: 'builder',
       chatroomId: 'room-1',
