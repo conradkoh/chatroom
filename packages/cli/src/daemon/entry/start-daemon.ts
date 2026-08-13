@@ -104,7 +104,7 @@ export async function startDaemon(): Promise<void> {
   // user-intent inbound subscribers (no assigned-task/enhancer orchestration subs).
   const subscribers = startAllSubscribers({
     wsClient,
-    sessionId: init.sessionId,
+    sessionId: init.sessionId as never,
     machineId: init.machineId,
     router: createDefaultEventRouterDeps(),
   });
