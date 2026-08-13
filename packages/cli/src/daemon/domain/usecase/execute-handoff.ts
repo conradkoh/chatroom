@@ -12,7 +12,10 @@ import {
   type TaskReadModelRow,
   upsertTaskReadModel,
 } from '../../infrastructure/persistence/read-models/tasks.js';
-import { isDaemonOrchestrationP3LocalDeliveryEnabled, isDaemonOrchestrationP4Enabled } from '../../infrastructure/projection/feature-flags.js';
+import {
+  isDaemonOrchestrationP3LocalDeliveryEnabled,
+  isDaemonOrchestrationP4Enabled,
+} from '../../infrastructure/projection/feature-flags.js';
 import type { OutboundEvent } from '../entities/outbound-event.js';
 import type { ExecuteHandoffResult, HandoffRejectedError } from '../errors/handoff-errors.js';
 import { buildHandoffCompletedEvent } from '../events/handoff-completed.js';
@@ -41,7 +44,12 @@ export type ExecuteHandoffDeps = {
   enqueueEnhancerJob?: (input: EnqueueEnhancerQueueInput) => void;
   now?: () => number;
 };
-export type OrchestrationTaskReadyEvent = { chatroomId: string; role: string; taskId: string; source: 'handoff' | 'promotion' };
+export type OrchestrationTaskReadyEvent = {
+  chatroomId: string;
+  role: string;
+  taskId: string;
+  source: 'handoff' | 'promotion';
+};
 
 type NormalizedHandoff = {
   normalizedSenderRole: string;
@@ -231,6 +239,7 @@ type HandoffTransactionResult = {
   completedTaskIds: string[];
   newTaskId: string | null;
   promotedTaskId: string | null;
+  promotedRole: string | null;
 };
 
 function applyHandoffInTransaction(
@@ -244,6 +253,7 @@ function applyHandoffInTransaction(
   const messageId = randomUUID();
   let newTaskId: string | null = null;
   let promotedTaskId: string | null = null;
+  let promotedRole: string | null = null;
   const completedTaskIds: string[] = [];
 
   runInTransaction(deps.db, () => {
@@ -288,6 +298,7 @@ function applyHandoffInTransaction(
         const queued = findNextQueuedTaskForChatroom(deps.db, input.chatroomId);
         if (queued) {
           promotedTaskId = queued.taskId;
+          promotedRole = queued.role;
           upsertTaskReadModel(deps.db, {
             ...queued,
             status: 'pending',
@@ -298,7 +309,7 @@ function applyHandoffInTransaction(
     }
   });
 
-  return { messageId, completedTaskIds, newTaskId, promotedTaskId };
+  return { messageId, completedTaskIds, newTaskId, promotedTaskId, promotedRole };
 }
 
 export async function executeHandoff(
@@ -321,14 +332,8 @@ export async function executeHandoff(
     : ((await deps.chatroom.getAgentHarness(input.chatroomId, handoff.normalizedTargetRole)) ??
       'opencode');
 
-  const { messageId, completedTaskIds, newTaskId, promotedTaskId } = applyHandoffInTransaction(
-    deps,
-    input,
-    handoff,
-    tasksToComplete,
-    targetHarness,
-    now
-  );
+  const { messageId, completedTaskIds, newTaskId, promotedTaskId, promotedRole } =
+    applyHandoffInTransaction(deps, input, handoff, tasksToComplete, targetHarness, now);
 
   const enhancerJobPayload =
     handoff.isHandoffToEnhancer && context.enhancerConfig && newTaskId
@@ -371,8 +376,20 @@ export async function executeHandoff(
   );
 
   if (isDaemonOrchestrationP3LocalDeliveryEnabled()) {
-    if (newTaskId) deps.emitOrchestrationEvent?.({ chatroomId: input.chatroomId, role: handoff.normalizedTargetRole, taskId: newTaskId, source: 'handoff' });
-    if (promotedTaskId) deps.emitOrchestrationEvent?.({ chatroomId: input.chatroomId, role: handoff.normalizedTargetRole, taskId: promotedTaskId, source: 'promotion' });
+    if (newTaskId)
+      deps.emitOrchestrationEvent?.({
+        chatroomId: input.chatroomId,
+        role: handoff.normalizedTargetRole,
+        taskId: newTaskId,
+        source: 'handoff',
+      });
+    if (promotedTaskId && promotedRole)
+      deps.emitOrchestrationEvent?.({
+        chatroomId: input.chatroomId,
+        role: promotedRole,
+        taskId: promotedTaskId,
+        source: 'promotion',
+      });
   }
 
   return {

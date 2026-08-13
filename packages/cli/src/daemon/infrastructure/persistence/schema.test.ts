@@ -20,10 +20,10 @@ function tableNames(db: ReturnType<typeof openDatabase>): string[] {
 }
 
 describe('schema', () => {
-  it('is at version 3 with read model tables', () => {
+  it('is at version 4 with read model tables', () => {
     const db = openDatabase(tempDbPath());
     try {
-      expect(SCHEMA_VERSION).toBe(3);
+      expect(SCHEMA_VERSION).toBe(4);
       const names = tableNames(db);
       expect(names).toEqual(
         expect.arrayContaining([
