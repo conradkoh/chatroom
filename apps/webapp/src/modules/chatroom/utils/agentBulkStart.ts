@@ -4,17 +4,11 @@ import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatro
 import { startAgentsBatch } from './agentStart';
 import type { AgentConfig, SendCommandFn } from '../types/machine';
 
-export function resolveRestartConfigForRole(
+function buildRestartConfigFromSources(
   role: string,
-  roleConfigMap: Map<string, AgentConfig>,
-  machineConfigs: AgentConfig[],
+  base: AgentConfig | undefined,
   agentView?: AgentRoleView
 ): AgentConfig | null {
-  const roleLower = role.toLowerCase();
-  const runningConfig = machineConfigs.find(
-    (c) => c.role.toLowerCase() === roleLower && c.spawnedAgentPid != null
-  );
-  const base = runningConfig ?? roleConfigMap.get(roleLower);
   const machineId = base?.machineId ?? agentView?.machineId;
   const agentType = base?.agentType ?? agentView?.agentHarness;
   if (!machineId || !agentType) return null;
@@ -33,6 +27,20 @@ export function resolveRestartConfigForRole(
     spawnedAt: base?.spawnedAt,
     wantResume: base?.wantResume ?? agentView?.wantResume,
   };
+}
+
+function resolveRestartConfigForRole(
+  role: string,
+  roleConfigMap: Map<string, AgentConfig>,
+  machineConfigs: AgentConfig[],
+  agentView?: AgentRoleView
+): AgentConfig | null {
+  const roleLower = role.toLowerCase();
+  const runningConfig = machineConfigs.find(
+    (c) => c.role.toLowerCase() === roleLower && c.spawnedAgentPid != null
+  );
+  const base = runningConfig ?? roleConfigMap.get(roleLower);
+  return buildRestartConfigFromSources(role, base, agentView);
 }
 
 export async function startAgentsForRoles(
@@ -60,7 +68,7 @@ export async function startAgentsForRoles(
   );
 }
 
-export async function restartAgentsForRoles(
+async function restartAgentsForRoles(
   agentRoles: string[],
   roleConfigMap: Map<string, AgentConfig>,
   machineConfigs: AgentConfig[],
@@ -120,17 +128,6 @@ export function ensureAgentRolesConfigured(
     return false;
   }
   return true;
-}
-
-export async function runAgentStartBatch(
-  agentRoles: string[],
-  roleConfigMap: Map<string, AgentConfig>,
-  chatroomId: Id<'chatroom_rooms'>,
-  sendCommand: SendCommandFn,
-  onComplete: (failed: string[]) => void
-): Promise<void> {
-  const results = await startAgentsForRoles(agentRoles, roleConfigMap, chatroomId, sendCommand);
-  onComplete(getFailedAgentRoles(results, agentRoles));
 }
 
 export async function runAgentRestartBatch(

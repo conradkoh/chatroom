@@ -1,8 +1,8 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import dynamic from 'next/dynamic';
 import { Check, Paperclip, MoreHorizontal, StopCircle, Trash2, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 
@@ -14,13 +14,9 @@ import {
   taskDetailProseClassNames,
   backlogRichTextEditorProseClassNames,
 } from './markdown-utils';
+import { getStatusBadge } from './WorkQueue/utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 import { useAttachments } from '../attachments';
-
-const RichTextEditor = dynamic(
-  () => import('./rich-text').then((m) => ({ default: m.RichTextEditor })),
-  { ssr: false }
-);
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +31,11 @@ import {
   FixedModalContent,
   FixedModalHeader,
 } from '@/components/ui/fixed-modal';
+
+const RichTextEditor = dynamic(
+  () => import('./rich-text').then((m) => ({ default: m.RichTextEditor })),
+  { ssr: false }
+);
 
 /** True when a click originates from an interactive element — never enter edit mode. */
 function isInteractiveClickTarget(target: EventTarget | null): boolean {
@@ -62,42 +63,6 @@ interface TaskDetailModalProps {
   isProtected?: boolean;
 }
 
-// Status badge colors
-const getStatusBadge = (status: TaskStatus) => {
-  switch (status) {
-    case 'pending':
-      return {
-        emoji: '🟢',
-        label: 'Pending',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'acknowledged':
-      return {
-        emoji: '🟢',
-        label: 'Acknowledged',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'in_progress':
-      return {
-        emoji: '🔵',
-        label: 'In Progress',
-        classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
-      };
-    case 'completed':
-      return {
-        emoji: '✅',
-        label: 'Completed',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    default:
-      return {
-        emoji: '⚫',
-        label: status,
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-  }
-};
-
 export function TaskDetailModal({
   isOpen,
   task,
@@ -109,9 +74,10 @@ export function TaskDetailModal({
 }: TaskDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
-  const [initialClickCoords, setInitialClickCoords] = useState<{ left: number; top: number } | null>(
-    null
-  );
+  const [initialClickCoords, setInitialClickCoords] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -250,13 +216,17 @@ export function TaskDetailModal({
                       }
                     : undefined
                 }
-                onKeyDown={!isProtected ? (e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setInitialClickCoords(null);
-                    setIsEditing(true);
-                  }
-                } : undefined}
+                onKeyDown={
+                  !isProtected
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setInitialClickCoords(null);
+                          setIsEditing(true);
+                        }
+                      }
+                    : undefined
+                }
                 role={!isProtected ? 'button' : undefined}
                 tabIndex={!isProtected ? 0 : undefined}
                 className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${!isProtected ? 'cursor-pointer' : ''} ${backlogRichTextEditorProseClassNames} ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}

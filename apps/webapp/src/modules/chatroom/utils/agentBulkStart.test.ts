@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  getFailedAgentRoles,
-  resolveRestartConfigForRole,
-  restartAgentsForRoles,
-} from './agentBulkStart';
+import { getFailedAgentRoles, runAgentRestartBatch } from './agentBulkStart';
 
 describe('getFailedAgentRoles', () => {
   it('returns roles for rejected results', () => {
@@ -17,7 +13,7 @@ describe('getFailedAgentRoles', () => {
   });
 });
 
-describe('restartAgentsForRoles', () => {
+describe('runAgentRestartBatch', () => {
   it('dispatches atomic restart commands with the complete persisted config', async () => {
     const sendCommand = vi.fn().mockResolvedValue(undefined);
     const config = {
@@ -28,13 +24,14 @@ describe('restartAgentsForRoles', () => {
       wantResume: true,
     } as any;
 
-    await restartAgentsForRoles(
+    await runAgentRestartBatch(
       ['Builder'],
       new Map([['builder', config]]),
       [],
       new Map(),
       'chatroom-1' as any,
-      sendCommand
+      sendCommand,
+      vi.fn()
     );
 
     expect(sendCommand).toHaveBeenCalledWith({
@@ -50,10 +47,7 @@ describe('restartAgentsForRoles', () => {
       },
     });
   });
-});
-
-describe('resolveRestartConfigForRole', () => {
-  it('prefers the spawned config over a stale persisted config', () => {
+  it('prefers the spawned config over a stale persisted config', async () => {
     const persisted = {
       role: 'builder',
       machineId: 'machine-1',
@@ -68,22 +62,51 @@ describe('resolveRestartConfigForRole', () => {
       spawnedAgentPid: 42,
     } as any;
 
-    expect(
-      resolveRestartConfigForRole('Builder', new Map([['builder', persisted]]), [running])
-    ).toMatchObject({ machineId: 'machine-2', model: 'current' });
+    const sendCommand = vi.fn().mockResolvedValue(undefined);
+    await runAgentRestartBatch(
+      ['Builder'],
+      new Map([['builder', persisted]]),
+      [running],
+      new Map(),
+      'chatroom-1' as any,
+      sendCommand,
+      vi.fn()
+    );
+    expect(sendCommand.mock.calls[0]?.[0]).toMatchObject({
+      machineId: 'machine-2',
+      payload: { model: 'current' },
+    });
   });
 
-  it('falls back to the live agent view model', () => {
+  it('falls back to the live agent view model', async () => {
     const config = { machineId: 'machine-1', agentType: 'cursor-sdk' } as any;
     const view = { machineId: 'machine-1', agentHarness: 'cursor-sdk', model: 'live-model' } as any;
 
-    expect(
-      resolveRestartConfigForRole('Builder', new Map([['builder', config]]), [], view)
-    ).toMatchObject({ model: 'live-model' });
+    const sendCommand = vi.fn().mockResolvedValue(undefined);
+    await runAgentRestartBatch(
+      ['Builder'],
+      new Map([['builder', config]]),
+      [],
+      new Map([['builder', view]]),
+      'chatroom-1' as any,
+      sendCommand,
+      vi.fn()
+    );
+    expect(sendCommand.mock.calls[0]?.[0]).toMatchObject({ payload: { model: 'live-model' } });
   });
 
-  it('returns null when no machine can be resolved', () => {
+  it('rejects when no machine can be resolved', async () => {
     const config = { agentType: 'cursor-sdk', model: 'model' } as any;
-    expect(resolveRestartConfigForRole('Builder', new Map([['builder', config]]), [])).toBeNull();
+    const onComplete = vi.fn();
+    await runAgentRestartBatch(
+      ['Builder'],
+      new Map([['builder', config]]),
+      [],
+      new Map(),
+      'chatroom-1' as any,
+      vi.fn(),
+      onComplete
+    );
+    expect(onComplete).toHaveBeenCalledWith(['Builder']);
   });
 });
