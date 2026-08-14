@@ -189,7 +189,7 @@ describe('daemon.enhancer.index', () => {
     expect(payload.taskEnvelope).toContain('<planner-check-in>');
     expect(payload.taskEnvelope).toContain('Draft content here');
     expect(payload.taskEnvelope).toContain('### Defragmentation workflow checklist');
-    expect(payload.taskEnvelope).toContain('<handoff-defragmentation>');
+    expect(payload.taskEnvelope).toContain('&lt;handoff-defragmentation&gt;');
     expect(payload.taskEnvelope).toContain('optional **Defragmentation** section');
   });
 

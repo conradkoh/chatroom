@@ -37,6 +37,11 @@ const CONTENT_WITH_UX = `${STRUCTURED_CONTENT}
 - **Patterns:** Use existing dialog
 </handoff-ux>`;
 
+const CONTENT_WITH_DEFRAGMENTATION = `${STRUCTURED_CONTENT}
+<handoff-defragmentation>
+- **Golden path:** Build one canonical implementation
+</handoff-defragmentation>`;
+
 const LEGACY_CONTENT = `## Summary
 Implemented login feature
 
@@ -79,6 +84,16 @@ describe('parseHandoffReport', () => {
     const result = parseHandoffReport(CONTENT_WITH_UX);
     expect(result.ux).toContain('**Flows:** Too many clicks');
     expect(result.ux).toContain('**Patterns:** Use existing dialog');
+  });
+
+  it('returns null defragmentation when tag is absent', () => {
+    expect(parseHandoffReport(STRUCTURED_CONTENT).defragmentation).toBeNull();
+  });
+
+  it('extracts defragmentation section from handoff-defragmentation tag', () => {
+    expect(parseHandoffReport(CONTENT_WITH_DEFRAGMENTATION).defragmentation).toContain(
+      '**Golden path:** Build one canonical implementation'
+    );
   });
 
   it('overview section populates summary for structured format', () => {
