@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { AssignedTaskPresenceSignal, AssignedTaskSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import {
   deliverAssignedTaskInbound,
@@ -12,8 +13,7 @@ describe('deliverAssignedTaskInbound', () => {
     const deps: DeliverAssignedTaskInboundDeps = { dispatchInbound };
     const event: AssignedTaskInboundEvent = {
       type: 'assigned-task.signal',
-      taskId: 'task_1',
-      role: 'builder',
+      signal: {} as AssignedTaskSignal,
     };
 
     await deliverAssignedTaskInbound(deps, event);
@@ -26,8 +26,7 @@ describe('deliverAssignedTaskInbound', () => {
     const deps: DeliverAssignedTaskInboundDeps = { dispatchInbound };
     const event: AssignedTaskInboundEvent = {
       type: 'assigned-task.presence',
-      taskId: 'task_2',
-      role: 'planner',
+      presence: {} as AssignedTaskPresenceSignal,
     };
 
     await deliverAssignedTaskInbound(deps, event);

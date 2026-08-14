@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
+import type { AssignedTaskPresenceSignal, AssignedTaskSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
 import {
   handleAssignedTaskInbound,
@@ -10,8 +11,7 @@ describe('handleAssignedTaskInbound', () => {
     const deliverInbound = vi.fn().mockResolvedValue(undefined);
     const event: AssignedTaskInboundEvent = {
       type: 'assigned-task.signal',
-      taskId: 'task_1',
-      role: 'builder',
+      signal: {} as AssignedTaskSignal,
     };
 
     await handleAssignedTaskInbound({ deliverInbound }, event);
@@ -23,7 +23,7 @@ describe('handleAssignedTaskInbound', () => {
     await expect(
       handleAssignedTaskInbound(
         {},
-        { type: 'assigned-task.presence', taskId: 'task_1', role: 'builder' }
+        { type: 'assigned-task.presence', presence: {} as AssignedTaskPresenceSignal }
       )
     ).resolves.toBeUndefined();
   });

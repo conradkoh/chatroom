@@ -167,10 +167,10 @@ describe('assigned-task v2 subscribers', () => {
         agenticQuery: {},
         enhancer: {},
       },
-      { type: 'assigned-task.presence', taskId: TASK_ID, role: 'builder' }
+      { type: 'assigned-task.presence', presence: { taskId: TASK_ID, role: 'builder' } as never }
     );
 
-    expect(handled).toEqual([{ type: 'assigned-task.presence', taskId: TASK_ID, role: 'builder' }]);
+    expect(handled).toEqual([{ type: 'assigned-task.presence', presence: { taskId: TASK_ID, role: 'builder' } }]);
   });
 
   it('default router deps provide deliverInbound hook', () => {
