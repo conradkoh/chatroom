@@ -11,10 +11,10 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { requireMachineOwner } from './auth/cli/machineAccess';
-import { requireChatroomAccess } from './auth/chatroomAccess';
 import { mutation, query } from './_generated/server';
+import { requireChatroomAccess } from './auth/chatroomAccess';
 import { CONNECTION_CLOSE_REQUEST_TTL_MS } from '../config/reliability';
+import { requireMachineOwner } from './auth/cli/machineAccess';
 
 /**
  * Append a close request for a specific connection. General entry point for the
@@ -58,8 +58,6 @@ export const confirmConnectionClosed = mutation({
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    const now = Date.now();
-
     const rows = await ctx.db
       .query('chatroom_connectionCloseRequests')
       .withIndex('by_chatroom_role_connection', (q) =>
@@ -69,19 +67,6 @@ export const confirmConnectionClosed = mutation({
           .eq('connectionId', args.connectionId)
       )
       .collect();
-
-    const machineId = rows.find((r) => r.machineId)?.machineId;
-    const reason = rows[0]?.reason ?? 'closed';
-
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'connection.terminated',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      connectionId: args.connectionId,
-      ...(machineId ? { machineId } : {}),
-      reason,
-      timestamp: now,
-    });
 
     for (const row of rows) {
       await ctx.db.delete('chatroom_connectionCloseRequests', row._id);

@@ -117,7 +117,7 @@ export async function startAgent(
     const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
     const teamConfigNow = Date.now();
 
-    const { previousMachineId } = await upsertTeamAgentConfigByTeamRoleKey(ctx, {
+    await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey,
       createdAt: teamConfigNow,
       fields: {
@@ -135,18 +135,6 @@ export async function startAgent(
         circuitOpenedAt: undefined,
       },
     });
-
-    if (previousMachineId != null && previousMachineId !== machineId) {
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'machine.switched',
-        chatroomId,
-        role,
-        previousMachineId,
-        newMachineId: machineId,
-        reason,
-        timestamp: teamConfigNow,
-      });
-    }
   }
 
   // ── Step 3: Write agent.requestStart event to stream ──────────────────

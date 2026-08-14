@@ -193,12 +193,6 @@ export const join = mutation({
         args.role.toLowerCase() === 'planner' &&
         (await hasActivePlannerEnhancerJob(ctx, args.chatroomId));
       const waitingStatus = plannerEnhancerActive ? 'agent.enhancing' : 'agent.waiting';
-      await ctx.db.insert('chatroom_eventStream', {
-        type: waitingStatus,
-        chatroomId: args.chatroomId,
-        role: args.role,
-        timestamp: now,
-      });
       await transitionAgentStatus(ctx, args.chatroomId, args.role, waitingStatus);
     }
 
@@ -220,12 +214,6 @@ export const join = mutation({
         return participantId;
       }
 
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'agent.waiting',
-        chatroomId: args.chatroomId,
-        role: args.role,
-        timestamp: now,
-      });
       await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
     }
 

@@ -23,11 +23,6 @@ import {
 } from '../src/domain/entities/agent';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
-import {
-  buildAgentRestartCompletedEvent,
-  buildAgentRestartPhaseEvent,
-  type AgentRestartPhase,
-} from '../src/domain/usecase/agent/build-agent-restart-event';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
@@ -1556,29 +1551,12 @@ export const updateSpawnedAgent = mutation({
 
     // Write agent.started event and increment restart metric when a new agent is spawning
     if (args.pid != null) {
-      // 1. Write agent.started event to event stream
-      const harness = config.agentHarness ?? 'opencode';
-      const configWorkingDir = config.workingDir ?? '/unknown';
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'agent.started',
-        chatroomId: args.chatroomId,
-        role: args.role,
-        machineId: args.machineId,
-        agentHarness: harness,
-        model: args.model ?? config.model ?? 'unknown',
-        workingDir: configWorkingDir,
-        pid: args.pid,
-        reason: args.reason,
-        harnessSessionId: args.harnessSessionId,
-        timestamp: now,
-      });
-
       await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.started');
 
       // 2. Upsert restart metric for this hour bucket
       const model = args.model ?? config.model ?? 'unknown';
-      const agentType = harness as string;
-      const workingDir = configWorkingDir;
+      const agentType = config.agentHarness ?? 'opencode';
+      const workingDir = config.workingDir ?? '/unknown';
       const hourBucket = Math.floor(now / 3_600_000) * 3_600_000;
 
       const existingMetric = await ctx.db
@@ -1696,15 +1674,6 @@ async function runRecordRemoteAgentRegistered(
     }
   }
 
-  const now = Date.now();
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'agent.registered',
-    chatroomId: args.chatroomId,
-    role: args.role,
-    agentType: 'remote' as const,
-    machineId: args.machineId,
-    timestamp: now,
-  });
   await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered');
   return { success: true };
 }
@@ -1781,14 +1750,6 @@ async function runRecordCustomAgentRegistered(
     await projectAssignedTaskSnapshotsForMachines(ctx, [previousMachineId]);
   }
 
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'agent.registered',
-    chatroomId: args.chatroomId,
-    role: args.role,
-    agentType: 'custom' as const,
-    machineId: undefined,
-    timestamp: now,
-  });
   await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
   return { success: true };
@@ -2020,15 +1981,6 @@ export const saveTeamAgentConfig = mutation({
       previousMachineId,
     });
 
-    // Emit agent.registered event to the event stream
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.registered',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      agentType: args.type,
-      machineId: args.machineId,
-      timestamp: now,
-    });
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
     return { success: true };
@@ -2794,15 +2746,6 @@ export const emitAgentStartFailed = mutation({
       allowNewMachine: false,
     });
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.startFailed',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      error: args.error,
-      timestamp: Date.now(),
-    });
-
     // Update participant status so the UI reflects the failure
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.startFailed', 'stopped');
 
@@ -2849,18 +2792,6 @@ export const emitAgentProviderUnavailable = mutation({
       machineId: args.machineId,
       role: args.role,
       allowNewMachine: false,
-    });
-
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.providerUnavailable',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      reason: args.reason,
-      model: args.model,
-      message: args.message,
-      recoverable: args.recoverable,
-      timestamp: Date.now(),
     });
 
     await transitionAgentStatus(
@@ -2912,16 +2843,6 @@ export const emitSessionResumeRequested = mutation({
       allowNewMachine: false,
     });
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.sessionResumeRequested',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      agentHarness: args.agentHarness,
-      harnessSessionId: args.harnessSessionId,
-      timestamp: Date.now(),
-    });
-
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionResumeRequested');
 
     return { success: true };
@@ -2947,15 +2868,6 @@ export const emitSessionResumed = mutation({
       machineId: args.machineId,
       role: args.role,
       allowNewMachine: false,
-    });
-
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.sessionResumed',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      harnessSessionId: args.harnessSessionId,
-      timestamp: Date.now(),
     });
 
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionResumed');
@@ -2986,16 +2898,6 @@ export const emitSessionResumeFailed = mutation({
       allowNewMachine: false,
     });
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.sessionResumeFailed',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      reason: args.reason,
-      harnessSessionId: args.harnessSessionId,
-      timestamp: Date.now(),
-    });
-
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionResumeFailed');
 
     return { success: true };
@@ -3024,16 +2926,6 @@ export const emitAgentStopTimeout = mutation({
       allowNewMachine: false,
     });
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.stopTimeout',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      pid: args.pid,
-      durationMs: args.durationMs,
-      timestamp: Date.now(),
-    });
-
     return { success: true };
   },
 });
@@ -3060,18 +2952,6 @@ export const emitSessionReopenRetry = mutation({
       machineId: args.machineId,
       role: args.role,
       allowNewMachine: false,
-    });
-
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.sessionReopenRetry',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      attempt: args.attempt,
-      maxAttempts: args.maxAttempts,
-      error: args.error,
-      harnessSessionId: args.harnessSessionId,
-      timestamp: Date.now(),
     });
 
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.sessionReopenRetry');
@@ -3104,18 +2984,6 @@ export const emitSessionAugmented = mutation({
       allowNewMachine: false,
     });
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.sessionAugmented',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      taskId: args.taskId,
-      mode: args.mode,
-      newSessionStarted: args.newSessionStarted,
-      harnessSessionId: args.harnessSessionId,
-      timestamp: Date.now(),
-    });
-
     return { success: true };
   },
 });
@@ -3142,18 +3010,6 @@ export const emitHarnessSessionIdUpdated = mutation({
       machineId: args.machineId,
       role: args.role,
       allowNewMachine: false,
-    });
-
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.harnessSessionIdUpdated',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      correlationId: args.correlationId,
-      previousResumableId: args.previousResumableId,
-      resumableId: args.resumableId,
-      source: args.source,
-      timestamp: Date.now(),
     });
 
     return { success: true };
@@ -3183,21 +3039,6 @@ export const emitRestartPhase = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    const now = Date.now();
-    await ctx.db.insert(
-      'chatroom_eventStream',
-      buildAgentRestartPhaseEvent(
-        {
-          chatroomId: args.chatroomId,
-          machineId: args.machineId,
-          role: args.role,
-          correlationId: args.correlationId,
-          phase: args.phase as AgentRestartPhase,
-          detail: args.detail,
-        },
-        now
-      )
-    );
     return { success: true };
   },
 });
@@ -3216,20 +3057,6 @@ export const emitRestartCompleted = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    const now = Date.now();
-    await ctx.db.insert(
-      'chatroom_eventStream',
-      buildAgentRestartCompletedEvent(
-        {
-          chatroomId: args.chatroomId,
-          machineId: args.machineId,
-          role: args.role,
-          correlationId: args.correlationId,
-          deliveredTaskIds: args.deliveredTaskIds,
-        },
-        now
-      )
-    );
     return { success: true };
   },
 });
@@ -3248,15 +3075,6 @@ export const emitHarnessSessionAwaiting = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.harnessSessionAwaiting',
-      chatroomId: args.chatroomId,
-      machineId: args.machineId,
-      role: args.role,
-      pid: args.pid,
-      timeoutMs: args.timeoutMs,
-      timestamp: Date.now(),
-    });
     return { success: true };
   },
 });
@@ -3275,15 +3093,6 @@ export const emitHarnessSessionReady = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.harnessSessionReady',
-      chatroomId: args.chatroomId,
-      machineId: args.machineId,
-      role: args.role,
-      harnessSessionId: args.harnessSessionId,
-      pid: args.pid,
-      timestamp: Date.now(),
-    });
     return { success: true };
   },
 });
@@ -3302,15 +3111,6 @@ export const emitHarnessSessionTimeout = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.harnessSessionTimeout',
-      chatroomId: args.chatroomId,
-      machineId: args.machineId,
-      role: args.role,
-      pid: args.pid,
-      timeoutMs: args.timeoutMs,
-      timestamp: Date.now(),
-    });
     return { success: true };
   },
 });
@@ -3328,14 +3128,6 @@ export const emitTaskDelivered = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.taskDelivered',
-      chatroomId: args.chatroomId,
-      machineId: args.machineId,
-      role: args.role,
-      taskId: args.taskId,
-      timestamp: Date.now(),
-    });
     return { success: true };
   },
 });
@@ -3354,15 +3146,6 @@ export const emitTaskDeliveryFailed = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.taskDeliveryFailed',
-      chatroomId: args.chatroomId,
-      machineId: args.machineId,
-      role: args.role,
-      taskId: args.taskId,
-      error: args.error,
-      timestamp: Date.now(),
-    });
     return { success: true };
   },
 });
@@ -3381,16 +3164,6 @@ export const emitRestartLimitReached = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.restartLimitReached',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      restartCount: args.restartCount,
-      windowMs: args.windowMs,
-      timestamp: Date.now(),
-    });
 
     return { success: true };
   },

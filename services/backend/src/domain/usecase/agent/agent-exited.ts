@@ -58,21 +58,7 @@ export interface AgentExitedInput {
  * @param input - The exit parameters
  */
 export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Promise<void> {
-  const { chatroomId, role, machineId, pid, stopReason, exitCode, signal, stopSignal } = input;
-
-  // 1. Always insert the audit-trail event
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'agent.exited',
-    chatroomId,
-    role,
-    machineId,
-    pid,
-    exitCode,
-    signal,
-    stopReason,
-    stopSignal,
-    timestamp: Date.now(),
-  });
+  const { chatroomId, role, machineId, pid, stopReason } = input;
 
   // Look up the current config for this role
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);

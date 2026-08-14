@@ -22,21 +22,14 @@ async function hasActiveEnhancerTask(
 }
 
 async function emitParticipantStatusEvent(
-  ctx: MutationCtx,
-  params: {
+  _ctx: MutationCtx,
+  _params: {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
     type: 'agent.enhancing' | 'agent.waiting';
     timestamp: number;
   }
-): Promise<void> {
-  await ctx.db.insert('chatroom_eventStream', {
-    type: params.type,
-    chatroomId: params.chatroomId,
-    role: params.role,
-    timestamp: params.timestamp,
-  });
-}
+): Promise<void> {}
 
 /** Set planner status while a handoff enhancer job is in flight. */
 export async function transitionPlannerToEnhancing(

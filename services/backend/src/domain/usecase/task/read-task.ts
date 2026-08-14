@@ -22,8 +22,8 @@
  * wrappers that handle auth and delegate to the usecase.
  */
 
-import { transitionTask } from './transition-task';
 import { fetchTaskSourceAttachments } from './fetch-task-source-attachments';
+import { transitionTask } from './transition-task';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
@@ -122,13 +122,6 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
         updatedAt: now,
       });
     }
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'task.inProgress',
-      chatroomId,
-      role,
-      taskId,
-      timestamp: now,
-    });
     await transitionAgentStatus(ctx, chatroomId, role, 'task.inProgress');
 
     return buildReadTaskResult(ctx, chatroomId, task, taskId);

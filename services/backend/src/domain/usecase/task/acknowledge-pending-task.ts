@@ -27,12 +27,5 @@ export async function acknowledgePendingTask(
     }
   }
 
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'task.acknowledged',
-    chatroomId: args.chatroomId,
-    role: args.role,
-    taskId: args.pendingTask._id,
-    timestamp: now,
-  });
   await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
 }

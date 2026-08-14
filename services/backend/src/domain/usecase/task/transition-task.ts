@@ -34,7 +34,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
-import { TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
+import { TERMINAL_TASK_STATUSES } from '../../entities/task';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { projectAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-assigned-task-snapshot-sync';
 
@@ -67,15 +67,6 @@ export interface TransitionTaskOptions {
    * or task creation logic.
    */
   skipAutoPromotion?: boolean;
-
-  /**
-   * When true, skips all chatroom_eventStream writes for this transition.
-   *
-   * Use this when releasing tasks on agent exit — the task was already
-   * visible in the event stream at creation/claim time and re-emitting
-   * task.activated on re-queue would duplicate events during recovery.
-   */
-  skipEventStreamWrite?: boolean;
 }
 
 // ============================================================================
@@ -124,73 +115,16 @@ export async function transitionTask(
     await adjustTaskCountsForTransition(ctx, taskBeforeTransition.chatroomId, oldStatus, newStatus);
   }
 
-  // 2. Write event to chatroom_eventStream based on new status.
-  //    Re-fetch the task to get current fields (assignedTo, chatroomId).
-  const eventTask = await ctx.db.get('chatroom_tasks', taskId);
-  if (eventTask && !options?.skipEventStreamWrite) {
-    if (newStatus === 'in_progress') {
-      // Emit task.inProgress for in_progress status — this is the event type
-      // that the UI uses to show "WORKING" status (agentStatusLabel.ts maps it).
-      // Note: task.activated is intentionally NOT mapped to UI status.
-      const chatroom = eventTask.assignedTo
-        ? null
-        : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
-      const role = resolveTaskRole(eventTask.assignedTo, chatroom);
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'task.inProgress',
-        chatroomId: eventTask.chatroomId,
-        taskId,
-        role,
-        timestamp: Date.now(),
-      });
-    } else if (newStatus === 'pending') {
-      // Emit task.activated only for pending (task creation / re-queue visibility).
-      const chatroom = eventTask.assignedTo
-        ? null
-        : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
-      const role = resolveTaskRole(eventTask.assignedTo, chatroom);
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'task.activated',
-        chatroomId: eventTask.chatroomId,
-        taskId,
-        role,
-        taskStatus: 'pending',
-        taskContent: eventTask.content,
-        timestamp: Date.now(),
-      });
-    } else if (newStatus === 'acknowledged') {
-      // No event here — acknowledgePendingTask emits task.acknowledged at claim time.
-    } else if (TERMINAL_TASK_STATUSES.has(newStatus)) {
-      const completedRole = eventTask.assignedTo ?? 'unknown';
-
-      // Always emit task.completed — it's the authoritative terminal-transition event.
-      // When skipAgentStatusUpdate is requested (e.g. force-complete from UI), include
-      // the flag on the event so consumers know agent status should NOT be derived from it.
-      // The actual agent process may still be running and will update status naturally.
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'task.completed',
-        chatroomId: eventTask.chatroomId,
-        taskId,
-        role: completedRole,
-        finalStatus: newStatus,
-        timestamp: Date.now(),
-        ...(options?.skipAgentStatusUpdate && { skipAgentStatusUpdate: true }),
-      });
-
-      // Only update participant lastStatus when NOT skipping agent status.
-      // transitionAgentStatus writes to the participant record which drives the UI.
-      // For force-complete, we skip this so the UI reflects the real agent state
-      // rather than the externally-forced completion.
-      if (!options?.skipAgentStatusUpdate) {
-        if (eventTask.assignedTo) {
-          await transitionAgentStatus(
-            ctx,
-            eventTask.chatroomId,
-            eventTask.assignedTo,
-            'task.completed'
-          );
-        }
-      }
+  // 2. Keep participant status materialization for normal task completion.
+  if (TERMINAL_TASK_STATUSES.has(newStatus) && !options?.skipAgentStatusUpdate) {
+    const eventTask = await ctx.db.get('chatroom_tasks', taskId);
+    if (eventTask?.assignedTo) {
+      await transitionAgentStatus(
+        ctx,
+        eventTask.chatroomId,
+        eventTask.assignedTo,
+        'task.completed'
+      );
     }
   }
 

@@ -11,7 +11,7 @@ import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession } from './auth/session';
 import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
-import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
+import { makePromoteNextTaskDeps, canPromote } from './lib/promoteNextTaskDeps';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { acknowledgePendingTask } from '../src/domain/usecase/task/acknowledge-pending-task';
@@ -19,11 +19,10 @@ import {
   createTask as createTaskUsecase,
   hasActiveTaskFromMaterializedCounts,
 } from '../src/domain/usecase/task/create-task';
+import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
-import { canPromote } from './lib/promoteNextTaskDeps';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
-import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
 import {
   countActiveTasksFromSource,
@@ -233,13 +232,6 @@ export const startTask = mutation({
             updatedAt: now,
           });
         }
-        await ctx.db.insert('chatroom_eventStream', {
-          type: 'task.inProgress',
-          chatroomId: args.chatroomId,
-          role: args.role,
-          taskId: acknowledgedTask._id,
-          timestamp: now,
-        });
         await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
         return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
       }

@@ -58,16 +58,6 @@ export async function activateSkill(
     }
   }
 
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'skill.activated',
-    chatroomId: args.chatroomId,
-    skillId: skill.skillId,
-    skillName: skill.name,
-    role: args.role,
-    prompt: prompt,
-    timestamp: Date.now(),
-  });
-
   return {
     success: true,
     skill: {
