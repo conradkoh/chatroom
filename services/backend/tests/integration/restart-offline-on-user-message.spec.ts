@@ -25,9 +25,7 @@ async function findOfflineRestartEvents(chatroomId: Id<'chatroom_rooms'>) {
       .collect();
   });
   return events.filter(
-    (e) =>
-      e.type === 'agent.requestStart' &&
-      (e as { reason?: string }).reason === 'platform.restart_offline_on_user_message'
+    (e) => e.type === 'agent.restart'
   );
 }
 
@@ -85,9 +83,6 @@ test('restarts offline builder on user sendMessage', async () => {
   expect(restartEvents).toHaveLength(1);
   expect(restartEvents[0].role).toBe('builder');
   expect(restartEvents[0].machineId).toBe(machineId);
-  if (restartEvents[0].type === 'agent.requestStart') {
-    expect(restartEvents[0].reason).toBe('platform.restart_offline_on_user_message');
-  }
 });
 
 test('does not restart when agent is waiting', async () => {
@@ -661,7 +656,4 @@ test('restartOfflineAgentsFromConfig mutation works standalone', async () => {
   expect(restartEvents).toHaveLength(1);
   expect(restartEvents[0].role).toBe('builder');
   expect(restartEvents[0].machineId).toBe(machineId);
-  if (restartEvents[0].type === 'agent.requestStart') {
-    expect(restartEvents[0].reason).toBe('platform.restart_offline_on_user_message');
-  }
 });

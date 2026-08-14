@@ -88,7 +88,7 @@ import type { SavedCommand, SavedCommandScope } from './types/savedCommand';
 import {
   ensureAgentRolesConfigured,
   getFailedAgentRoles,
-  runAgentStartBatch,
+  runAgentRestartBatch,
   startAgentsForRoles,
 } from './utils/agentBulkStart';
 import { isFocusModeActive } from './utils/focusMode';
@@ -185,7 +185,6 @@ const ProcessesPanel = dynamic(
 );
 
 // Constant to indicate "all machines" when stopping agents across all connected machines
-const ALL_MACHINES = '';
 
 /** Minimum time between manual workspace-state refresh requests. */
 const REFRESH_COOLDOWN_MS = 5000;
@@ -1120,6 +1119,12 @@ export function ChatroomDashboard({
     return map;
   }, [agentPanelData.machineConfigs]);
 
+  const agentViewsByRole = useMemo(() => {
+    const map = new Map<string, (typeof agentPanelData.agents)[number]>();
+    for (const agent of agentPanelData.agents) map.set(agent.role.toLowerCase(), agent);
+    return map;
+  }, [agentPanelData.agents]);
+
   // Machine name map for event stream display
   const machineNameMap = useMemo(() => {
     const map = new Map<string, { hostname: string; alias?: string }>();
@@ -1456,65 +1461,49 @@ export function ChatroomDashboard({
     }
   }, [agentPanelData, chatroomId]);
 
-  // Restart all remote agents handler — starts if stopped, restarts if running
+  // Restart all remote agents through the atomic backend restart path.
   const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
   const handleRestartAllRemoteAgents = useCallback(async () => {
     const agentRoles = getConfiguredAgentRoles();
     if (!agentRoles) return;
 
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-    const reportStartResults = (failed: string[], successMessage: string) => {
+    const reportRestartResults = (failed: string[]) => {
       if (failed.length > 0) {
-        toast.error(`Failed to start: ${failed.join(', ')}`);
+        toast.error(`Failed to restart: ${failed.join(', ')}`);
       } else {
-        toast.success(successMessage);
+        toast.success(`Restart requested for ${agentRoles.length} agent(s)`);
       }
     };
-
-    // Get current agent states
-    const runningAgents = agentPanelData.agents.filter((a) => a.state === 'running');
-
-    // Stop all running agents first
-    if (runningAgents.length > 0) {
-      setIsRestartingAllAgents(true);
-
-      // Stop all running agents
-      await Promise.allSettled(
-        runningAgents.map((agent) =>
-          agentPanelData.sendCommand({
-            machineId: agent.machineId ?? ALL_MACHINES,
-            type: 'stop-agent' as const,
-            payload: {
-              chatroomId: chatroomIdTyped,
-              role: agent.role,
-            },
-          })
-        )
-      );
-
-      // Wait a bit for agents to stop before starting
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      await runAgentStartBatch(
-        agentRoles,
+    setIsRestartingAllAgents(true);
+    const runningRoles = agentPanelData.agents
+      .filter((a) => (a.state === 'running' || a.state === 'starting') && a.machineId)
+      .map((a) => a.role);
+    try {
+      if (runningRoles.length === 0) {
+        const results = await startAgentsForRoles(
+          agentRoles,
+          roleConfigMap,
+          chatroomIdTyped,
+          agentPanelData.sendCommand
+        );
+        const failed = getFailedAgentRoles(results, agentRoles);
+        if (failed.length > 0) toast.error(`Failed to start: ${failed.join(', ')}`);
+        return;
+      }
+      await runAgentRestartBatch(
+        runningRoles,
         roleConfigMap,
+        agentPanelData.machineConfigs,
+        agentViewsByRole,
         chatroomIdTyped,
         agentPanelData.sendCommand,
-        (failed) => reportStartResults(failed, `Restarted ${agentRoles.length} agent(s)`)
+        reportRestartResults
       );
-      setIsRestartingAllAgents(false);
-    } else {
-      setIsRestartingAllAgents(true);
-      await runAgentStartBatch(
-        agentRoles,
-        roleConfigMap,
-        chatroomIdTyped,
-        agentPanelData.sendCommand,
-        (failed) => reportStartResults(failed, `Started ${agentRoles.length} agent(s)`)
-      );
-      setIsRestartingAllAgents(false);
+    } finally {
+      // Stay latched until status returns to running; the daemon mutation is async.
     }
-  }, [agentPanelData, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
+  }, [agentPanelData, agentViewsByRole, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
 
   // Per-role restart
   const restartableAgentRoles = useMemo(
@@ -1527,9 +1516,21 @@ export function ChatroomDashboard({
   const isAnyAgentRestartInProgress = isRestartingAllAgents || restartingAgentRole !== null;
 
   const hasRunningRemoteAgents = useMemo(
-    () => agentPanelData.agents.some((a) => a.state === 'running' || a.state === 'starting'),
-    [agentPanelData.agents]
+    () =>
+      isRestartingAllAgents ||
+      agentPanelData.agents.some((a) => a.state === 'running' || a.state === 'starting'),
+    [agentPanelData.agents, isRestartingAllAgents]
   );
+
+  useEffect(() => {
+    if (!isRestartingAllAgents) return;
+    const remoteAgents = agentPanelData.agents.filter((a) => a.role.toLowerCase() !== 'user');
+    const anyStarting = remoteAgents.some((a) => a.state === 'starting');
+    const allRunning = remoteAgents.length > 0 && remoteAgents.every((a) => a.state === 'running');
+    if (allRunning || (!anyStarting && remoteAgents.some((a) => a.state === 'running'))) {
+      setIsRestartingAllAgents(false);
+    }
+  }, [isRestartingAllAgents, agentPanelData.agents]);
 
   const isAgentActionInProgress =
     isStartingAllAgents || isStoppingAllAgents || isAnyAgentRestartInProgress;
@@ -1542,29 +1543,20 @@ export function ChatroomDashboard({
         return;
       }
       const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-      const agent = agentPanelData.agents.find((a) => a.role.toLowerCase() === role.toLowerCase());
-      const isRunning = agent?.state === 'running';
-
       setRestartingAgentRole(role);
       try {
-        if (isRunning) {
-          await agentPanelData.sendCommand({
-            machineId: agent?.machineId ?? ALL_MACHINES,
-            type: 'stop-agent' as const,
-            payload: { chatroomId: chatroomIdTyped, role },
-          });
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-        await runAgentStartBatch(
+        await runAgentRestartBatch(
           [role],
           roleConfigMap,
+          agentPanelData.machineConfigs,
+          agentViewsByRole,
           chatroomIdTyped,
           agentPanelData.sendCommand,
           (failed) => {
             if (failed.length > 0) {
               toast.error(`Failed to restart ${role}`);
             } else {
-              toast.success(isRunning ? `Restarted ${role}` : `Started ${role}`);
+              toast.success(`Restart requested for ${role}`);
             }
           }
         );
@@ -1572,7 +1564,7 @@ export function ChatroomDashboard({
         setRestartingAgentRole(null);
       }
     },
-    [agentPanelData, roleConfigMap, chatroomId, handleCmdOpenSettings]
+    [agentPanelData, agentViewsByRole, roleConfigMap, chatroomId, handleCmdOpenSettings]
   );
 
   const sourceControlPanel = useMemo(

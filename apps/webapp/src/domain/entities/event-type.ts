@@ -38,7 +38,7 @@ export const SUPPORTED_EVENT_TYPES = {
   'agent.resumeStormAborted': { label: 'Resume Storm Aborted', badge: 'error' },
   'agent.restart': { label: 'Agent Restarting', badge: 'info' },
   'agent.restartCompleted': { label: 'Agent Restarted', badge: 'success' },
-  'agent.restartPhase': { label: 'Agent Restart Failed', badge: 'error' },
+  'agent.restartPhase': { label: 'Agent Restart Progress', badge: 'info' },
   'agent.restartLimitReached': { label: 'Agent Restart Limit', badge: 'error' },
   'agent.stopTimeout': { label: 'Agent Stop Timeout', badge: 'warning' },
   'agent.harnessSessionIdUpdated': { label: 'Harness Session ID Updated', badge: 'info' },

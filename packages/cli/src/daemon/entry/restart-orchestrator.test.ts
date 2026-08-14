@@ -64,7 +64,7 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean; harnessSessionId?:
 }
 
 describe('runRestartOrchestrator', () => {
-  test('success path calls emitRestartCompleted once and does not call emitRestartPhase', async () => {
+  test('success path emits ordered phases and completes once', async () => {
     const { deps, mutationLog } = createMockDeps();
 
     await runRestartOrchestrator(deps as any, {
@@ -81,7 +81,19 @@ describe('runRestartOrchestrator', () => {
     expect(restartCompletedCalls).toHaveLength(1);
 
     const phaseCalls = mutationLog.filter((call) => call.fn === 'emitRestartPhase');
-    expect(phaseCalls).toHaveLength(0);
+    expect(phaseCalls.map((call) => (call.args as { phase: string }).phase)).toEqual([
+      'reset',
+      'spawn',
+      'await_session',
+      'ready',
+      'deliver',
+      'completed',
+    ]);
+    expect(
+      phaseCalls.every(
+        (call) => (call.args as { correlationId: string }).correlationId === 'test-correlation'
+      )
+    ).toBe(true);
   });
 
   test('failure path calls emitRestartPhase with failed exactly once', async () => {

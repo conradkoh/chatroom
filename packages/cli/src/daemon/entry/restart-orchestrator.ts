@@ -239,12 +239,14 @@ export async function runRestartOrchestrator(
   try {
     resetRoleDeliveryState(chatroomId, role);
 
+    await emitPhase(deps, event, 'reset');
     await deps.agentMgr.stop({
       chatroomId,
       role,
       reason: 'user.restart',
     });
 
+    await emitPhase(deps, event, 'spawn');
     const spawnResult = await Effect.runPromise(
       deps.agentMgr.ensureRunning({
         chatroomId,
@@ -262,6 +264,7 @@ export async function runRestartOrchestrator(
       return;
     }
 
+    await emitPhase(deps, event, 'await_session');
     const harnessSessionId = await waitForHarnessSessionId(deps, event, spawnResult.pid);
     if (!harnessSessionId) {
       await emitPhase(deps, event, 'failed', 'harnessSessionId timeout');
@@ -269,9 +272,12 @@ export async function runRestartOrchestrator(
     }
 
     await forceNativeWaiting(deps, event);
+    await emitPhase(deps, event, 'ready');
 
+    await emitPhase(deps, event, 'deliver');
     const deliveredTaskIds = await deliverPendingTasks(deps, event);
 
+    await emitPhase(deps, event, 'completed');
     await deps.session.backend.mutation(api.machines.emitRestartCompleted, {
       sessionId: deps.session.sessionId,
       machineId: deps.session.machineId,

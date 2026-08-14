@@ -1,6 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import {
   Play,
   Square,
@@ -241,6 +242,8 @@ export function useAgentControls({
   teamPlannerRestartOnHandoffToUser,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
+  latestEventType,
+  agentRoleView,
   lockedMachineId,
   lockedWorkingDir,
   teamId,
@@ -266,6 +269,8 @@ export function useAgentControls({
   chatroomWorkspaces?: Workspace[];
   /** When true, init defers until workspaces load if working dir may come from the registry */
   chatroomWorkspacesLoading?: boolean;
+  latestEventType?: string | null;
+  agentRoleView?: AgentRoleView;
   /** Setup wizard: lock machine and working directory. */
   lockedMachineId?: string;
   lockedWorkingDir?: string;
@@ -317,6 +322,28 @@ export function useAgentControls({
       (c) => c.spawnedAgentPid && connectedMachines.some((m) => m.machineId === c.machineId)
     );
   }, [roleConfigs, connectedMachines]);
+
+  const isRestartInProgress =
+    latestEventType === 'agent.restart' ||
+    latestEventType === 'agent.restartPhase' ||
+    latestEventType === 'agent.restartCompleted';
+  const displayAgentConfig = useMemo(() => {
+    if (runningAgentConfig) return runningAgentConfig;
+    if (!isRestartInProgress || !agentRoleView?.machineId || !agentRoleView.agentHarness) {
+      return undefined;
+    }
+    return {
+      machineId: agentRoleView.machineId,
+      hostname: '',
+      role,
+      agentType: agentRoleView.agentHarness as AgentConfig['agentType'],
+      workingDir: agentRoleView.workingDir ?? '',
+      model: agentRoleView.model,
+      availableHarnesses: [],
+      updatedAt: 0,
+      wantResume: agentRoleView.wantResume,
+    } satisfies AgentConfig;
+  }, [runningAgentConfig, isRestartInProgress, agentRoleView, role]);
 
   // Get available harnesses for selected machine
   const availableHarnessesForMachine = useMemo(() => {
@@ -448,7 +475,7 @@ export function useAgentControls({
     teamConfigModel,
   ]);
 
-  const isAgentRunning = !!runningAgentConfig;
+  const isAgentRunning = !!displayAgentConfig;
   const isBusy = isStarting || isStopping;
   const hasModels = availableModelsForHarness.length > 0;
   const canStart =
@@ -546,12 +573,12 @@ export function useAgentControls({
   }, []);
 
   const handleStopAgent = useCallback(async () => {
-    if (!runningAgentConfig) return;
+    if (!displayAgentConfig) return;
     setIsStopping(true);
     setError(null);
     try {
       await sendCommand({
-        machineId: runningAgentConfig.machineId,
+        machineId: displayAgentConfig.machineId,
         type: 'stop-agent',
         payload: { chatroomId: chatroomId as Id<'chatroom_rooms'>, role },
       });
@@ -562,23 +589,23 @@ export function useAgentControls({
     } finally {
       setIsStopping(false);
     }
-  }, [runningAgentConfig, sendCommand, chatroomId, role]);
+  }, [displayAgentConfig, sendCommand, chatroomId, role]);
 
   const handleRestartAgent = useCallback(async () => {
-    if (!runningAgentConfig) return;
+    if (!displayAgentConfig) return;
     setIsStarting(true);
     setError(null);
     try {
       await sendCommand({
-        machineId: runningAgentConfig.machineId,
+        machineId: displayAgentConfig.machineId,
         type: 'restart-agent',
         payload: {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
-          model: selectedModel || undefined,
-          agentHarness: runningAgentConfig.agentType,
-          workingDir: runningAgentConfig.workingDir,
-          wantResume: runningAgentConfig.wantResume ?? effectiveWantResume,
+          model: displayAgentConfig.model ?? selectedModel ?? undefined,
+          agentHarness: displayAgentConfig.agentType,
+          workingDir: displayAgentConfig.workingDir,
+          wantResume: displayAgentConfig.wantResume ?? effectiveWantResume,
         },
       });
       setSuccess('Restart command sent!');
@@ -588,7 +615,7 @@ export function useAgentControls({
     } finally {
       setIsStarting(false);
     }
-  }, [runningAgentConfig, selectedModel, effectiveWantResume, sendCommand, chatroomId, role]);
+  }, [displayAgentConfig, selectedModel, effectiveWantResume, sendCommand, chatroomId, role]);
 
   // Wrapper for machine change — clears harness, per-harness model memory, and re-initializes for new machine
   const handleMachineChange = useCallback(
@@ -648,6 +675,7 @@ export function useAgentControls({
     success,
     roleConfigs,
     runningAgentConfig,
+    displayAgentConfig,
     availableHarnessesForMachine,
     harnessVersionsForMachine,
     availableModelsForHarness,
@@ -710,7 +738,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     availableHarnessesForMachine,
     harnessVersionsForMachine,
     availableModelsForHarness,
-    runningAgentConfig,
+    displayAgentConfig,
     isAgentRunning,
     isBusy,
     teamId,
@@ -734,7 +762,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 
   // When an agent is running, display values come exclusively from runningAgentConfig.
   // Internal form state is preserved so it's ready again when the agent stops.
-  const runningConfig = isAgentRunning ? runningAgentConfig : undefined;
+  const runningConfig = isAgentRunning ? displayAgentConfig : undefined;
   const displayMachineId = runningConfig?.machineId ?? selectedMachineId;
   const displayHarness = runningConfig?.agentType ?? selectedHarness;
   const displayModel = runningConfig?.model ?? selectedModel;
