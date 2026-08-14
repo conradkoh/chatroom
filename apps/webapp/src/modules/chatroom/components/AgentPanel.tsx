@@ -243,10 +243,11 @@ export const AgentPanel = memo(function AgentPanel({
           </div>
           <RemoteAgentQuickActions
             hasRunningAgents={hasRunningRemoteAgents ?? false}
+            isRestarting={isAgentActionInProgress}
             onStart={onStartAllRemoteAgents}
             onStop={onStopAllRemoteAgents}
             onRestart={onRestartAllRemoteAgents}
-            disabled={isAgentActionInProgress}
+            disabled={isStartingAllAgents}
             isStarting={isStartingAllAgents}
           />
         </div>
