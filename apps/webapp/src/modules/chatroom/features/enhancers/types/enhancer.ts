@@ -16,6 +16,27 @@ export interface EnhancerConfig {
   readonly machineId: string;
 }
 
-export function isEnhancerConfigActive(config: EnhancerConfig | null): boolean {
-  return config?.enabled === true && !!config.agentHarness && !!config.model && !!config.machineId;
+export type ActiveEnhancerConfig = EnhancerConfig & { enabled: true };
+
+export function isEnhancerConfigActive(
+  config: EnhancerConfig | null
+): config is ActiveEnhancerConfig {
+  return Boolean(
+    config?.enabled === true &&
+      config.agentHarness &&
+      config.model.trim() &&
+      config.machineId.trim()
+  );
+}
+
+export function hasEnhancerConfigFields(
+  config: EnhancerConfig | null
+): config is EnhancerConfig {
+  return Boolean(config?.agentHarness && config.model.trim() && config.machineId.trim());
+}
+
+export function toActiveEnhancerConfig(
+  config: EnhancerConfig | null
+): ActiveEnhancerConfig | null {
+  return isEnhancerConfigActive(config) ? config : null;
 }

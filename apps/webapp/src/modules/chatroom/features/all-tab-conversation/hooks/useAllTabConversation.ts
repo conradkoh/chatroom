@@ -46,16 +46,16 @@ export function useAllTabConversation(chatroomId: string) {
 
   const effectiveAnchorId = nav?.anchor?._id ?? null;
 
-  const sliceUpperBound = nav?.sliceUpperBoundExclusive;
+  const sliceUpperBound = nav?.sliceUpperBoundExclusive ?? null;
 
   const paginated = usePaginatedQuery(
     api.allTabConversation.listAllTabSlicePaginated as PaginatedQueryReference,
-    effectiveAnchorId && sessionId
+    effectiveAnchorId && sessionId && nav !== undefined
       ? {
           chatroomId: typedChatroomId,
           sessionId,
           anchorMessageId: effectiveAnchorId,
-          ...(sliceUpperBound != null ? { sliceUpperBoundExclusive: sliceUpperBound } : {}),
+          sliceUpperBoundExclusive: sliceUpperBound,
         }
       : 'skip',
     { initialNumItems: PAGE_SIZE }

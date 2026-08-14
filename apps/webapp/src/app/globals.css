@@ -266,9 +266,9 @@ input,
   --chatroom-text-secondary: #525252; /* neutral-600 */
   --chatroom-text-muted: #737373; /* neutral-500 */
 
-  /* Loader — mid-tone squares with stronger dim opacity for light backgrounds */
-  --chatroom-loader-square: #737373; /* neutral-500 */
-  --chatroom-loader-opacity-dim: 0.45;
+  /* Loader — dark squares with wide opacity range for visible pulse on light backgrounds */
+  --chatroom-loader-square: #171717; /* neutral-900 — matches --chatroom-text-primary */
+  --chatroom-loader-opacity-dim: 0.2;
   --chatroom-loader-opacity-bright: 1;
 
   /* Status Colors - darker for light backgrounds */

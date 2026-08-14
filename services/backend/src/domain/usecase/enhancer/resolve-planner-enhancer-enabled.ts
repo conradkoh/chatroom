@@ -18,7 +18,7 @@ export function resolveTaskPlannerEnhancerEnabled(args: {
 export function resolvePlannerEnhancerEnabledFromConfig(
   config: Doc<'chatroom_enhancerConfigs'> | null | undefined
 ): boolean {
-  return config?.enabled === true && config.targetId === 'handoff:planner-to-builder';
+  return config?.enabled === true && hasUsableEnhancerConfig(config);
 }
 
 export type PlannerEnhancerHandoffValidation =
@@ -31,8 +31,8 @@ function hasUsableEnhancerConfig(
   return (
     config?.targetId === 'handoff:planner-to-builder' &&
     !!config.agentHarness &&
-    !!config.model &&
-    !!config.machineId
+    config.model.trim().length > 0 &&
+    config.machineId.trim().length > 0
   );
 }
 
@@ -52,6 +52,9 @@ export function validatePlannerEnhancerHandoff(args: {
   }
   if (!args.config?.enabled || args.config.targetId !== 'handoff:planner-to-builder') {
     return { allowed: false, code: 'ENHANCER_NOT_ENABLED' };
+  }
+  if (!hasUsableEnhancerConfig(args.config)) {
+    return { allowed: false, code: 'ENHANCER_CONFIG_INCOMPLETE' };
   }
   return { allowed: true, config: args.config };
 }
