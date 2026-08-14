@@ -17,18 +17,14 @@ const mockDeleteBacklogItem = vi.fn().mockResolvedValue({ success: true });
 vi.mock('next/dynamic', () => ({
   default: () => {
     const MockEditor = (props: Record<string, unknown>) => {
-      const { value, onChange, initialClickCoords, ...rest } = props as {
-        value: string;
+      const { defaultMarkdown = '', onChange, ...rest } = props as {
+        defaultMarkdown?: string;
         onChange: (md: string) => void;
-        initialClickCoords?: { left: number; top: number } | null;
       };
       return (
         <textarea
           data-testid="backlog-rich-text-editor"
-          data-initial-click-coords={
-            initialClickCoords ? `${initialClickCoords.left},${initialClickCoords.top}` : ''
-          }
-          value={value}
+          value={defaultMarkdown}
           onChange={(e) => onChange(e.target.value)}
           {...rest}
         />
@@ -137,42 +133,6 @@ describe('BacklogItemDetailModal editor initialization', () => {
     fireEvent.click(viewBody);
 
     expect(screen.getByTestId('backlog-rich-text-editor')).toBeInTheDocument();
-  });
-
-  it('passes click coordinates when entering edit mode via click', () => {
-    render(<BacklogItemDetailModal isOpen item={makeBacklogItem('backlog')} onClose={vi.fn()} />);
-
-    const viewBody = screen.getByTestId('backlog-detail-view-body');
-    fireEvent.click(viewBody, { clientX: 120, clientY: 340 });
-
-    const editor = screen.getByTestId('backlog-rich-text-editor');
-    expect(editor.getAttribute('data-initial-click-coords')).toBe('120,340');
-  });
-
-  it('passes no click coordinates when entering edit mode via keyboard', () => {
-    render(<BacklogItemDetailModal isOpen item={makeBacklogItem('backlog')} onClose={vi.fn()} />);
-
-    const viewBody = screen.getByTestId('backlog-detail-view-body');
-    fireEvent.keyDown(viewBody, { key: 'Enter' });
-
-    const editor = screen.getByTestId('backlog-rich-text-editor');
-    expect(editor.getAttribute('data-initial-click-coords')).toBe('');
-  });
-
-  it('clears click coordinates when edit is cancelled', () => {
-    render(<BacklogItemDetailModal isOpen item={makeBacklogItem('backlog')} onClose={vi.fn()} />);
-
-    const viewBody = screen.getByTestId('backlog-detail-view-body');
-    fireEvent.click(viewBody, { clientX: 120, clientY: 340 });
-    expect(screen.getByTestId('backlog-rich-text-editor')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('Cancel'));
-    // Re-enter via keyboard — stale click coordinates must not leak through.
-    fireEvent.keyDown(screen.getByTestId('backlog-detail-view-body'), { key: 'Enter' });
-
-    expect(
-      screen.getByTestId('backlog-rich-text-editor').getAttribute('data-initial-click-coords')
-    ).toBe('');
   });
 
   it('cancel resets the draft to the original content', () => {
