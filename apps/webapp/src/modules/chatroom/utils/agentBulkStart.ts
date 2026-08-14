@@ -4,28 +4,52 @@ import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatro
 import { startAgentsBatch } from './agentStart';
 import type { AgentConfig, SendCommandFn } from '../types/machine';
 
-function buildRestartConfigFromSources(
-  role: string,
+function resolveRequiredRestartFields(
   base: AgentConfig | undefined,
   agentView?: AgentRoleView
-): AgentConfig | null {
-  const machineId = base?.machineId ?? agentView?.machineId;
-  const agentType = base?.agentType ?? agentView?.agentHarness;
-  if (!machineId || !agentType) return null;
+): { machineId: string; agentType: AgentConfig['agentType'] } | null {
+  const source = Object.assign({}, agentView, base) as {
+    machineId?: string;
+    agentType?: AgentConfig['agentType'];
+    agentHarness?: AgentRoleView['agentHarness'];
+  };
+  const machineId = source.machineId;
+  const agentType = source.agentType ?? source.agentHarness;
+  return machineId && agentType
+    ? { machineId, agentType: agentType as AgentConfig['agentType'] }
+    : null;
+}
+
+function withRestartDefaults(
+  role: string,
+  required: { machineId: string; agentType: AgentConfig['agentType'] },
+  base: AgentConfig | undefined,
+  agentView?: AgentRoleView
+): AgentConfig {
+  const source = Object.assign(
+    {
+      hostname: '',
+      workingDir: '',
+      availableHarnesses: [],
+      updatedAt: 0,
+    },
+    agentView,
+    base
+  ) as Partial<AgentConfig>;
   return {
-    machineId,
-    hostname: base?.hostname ?? '',
-    alias: base?.alias,
+    machineId: required.machineId,
+    hostname: source.hostname as string,
+    alias: source.alias,
     role,
-    agentType: agentType as AgentConfig['agentType'],
-    workingDir: base?.workingDir ?? agentView?.workingDir ?? '',
-    model: base?.model ?? agentView?.model,
-    daemonConnected: base?.daemonConnected,
-    availableHarnesses: base?.availableHarnesses ?? [],
-    updatedAt: base?.updatedAt ?? 0,
-    spawnedAgentPid: base?.spawnedAgentPid,
-    spawnedAt: base?.spawnedAt,
-    wantResume: base?.wantResume ?? agentView?.wantResume,
+    agentType: required.agentType,
+    workingDir: source.workingDir as string,
+    model: source.model,
+    daemonConnected: source.daemonConnected,
+    availableHarnesses: source.availableHarnesses as AgentConfig['availableHarnesses'],
+    updatedAt: source.updatedAt as number,
+    spawnedAgentPid: source.spawnedAgentPid,
+    spawnedAt: source.spawnedAt,
+    wantResume: source.wantResume,
   };
 }
 
@@ -40,7 +64,8 @@ function resolveRestartConfigForRole(
     (c) => c.role.toLowerCase() === roleLower && c.spawnedAgentPid != null
   );
   const base = runningConfig ?? roleConfigMap.get(roleLower);
-  return buildRestartConfigFromSources(role, base, agentView);
+  const required = resolveRequiredRestartFields(base, agentView);
+  return required ? withRestartDefaults(role, required, base, agentView) : null;
 }
 
 export async function startAgentsForRoles(

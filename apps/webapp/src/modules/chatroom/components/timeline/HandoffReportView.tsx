@@ -57,6 +57,31 @@ const STRUCTURED_SECTIONS: SectionDef[] = [
   { id: 'action', label: 'Action required', key: 'action', defaultOpenWhenNonempty: true },
 ];
 
+function computeInitialOpenSections(
+  bodies: Record<SectionKey, string | null>,
+  isAbsent: Record<string, boolean>
+): Record<string, boolean> {
+  const initial: Record<string, boolean> = {};
+  for (const section of STRUCTURED_SECTIONS) {
+    const body = bodies[section.key];
+    if (shouldSkipSection(section, body, isAbsent)) continue;
+    initial[section.id] = isHandoffSectionBodyEmpty(body ?? null)
+      ? false
+      : section.defaultOpenWhenNonempty;
+  }
+  return initial;
+}
+
+function shouldSkipSection(
+  section: SectionDef,
+  body: string | null,
+  isAbsent: Record<string, boolean>
+): boolean {
+  if (body === null && section.key !== 'direction') return true;
+  const absentKey = section.key === 'systemDesign' ? 'system-design' : section.key;
+  return Boolean(section.key !== 'direction' && isAbsent[absentKey]);
+}
+
 function computeSectionBodies(parsed: HandoffReportParseResult): {
   bodies: Record<SectionKey, string | null>;
   isAbsent: Record<string, boolean>;
@@ -90,19 +115,9 @@ function computeSectionBodies(parsed: HandoffReportParseResult): {
 function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
   const { bodies, isAbsent } = useMemo(() => computeSectionBodies(parsed), [parsed]);
 
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    for (const section of STRUCTURED_SECTIONS) {
-      const body = bodies[section.key];
-      if (body === null && section.key !== 'direction') continue;
-      if (section.key === 'systemDesign' && isAbsent['system-design']) continue;
-      if (section.key === 'ux' && isAbsent['ux']) continue;
-      if (section.key === 'defragmentation' && isAbsent['defragmentation']) continue;
-      const isEmpty = isHandoffSectionBodyEmpty(body ?? null);
-      initial[section.id] = isEmpty ? false : section.defaultOpenWhenNonempty;
-    }
-    return initial;
-  });
+  const [openSections, setOpenSections] = useState(() =>
+    computeInitialOpenSections(bodies, isAbsent)
+  );
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
