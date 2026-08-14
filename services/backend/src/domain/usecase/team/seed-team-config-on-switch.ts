@@ -22,10 +22,12 @@ export interface SeedTeamAgentConfigInput {
   existingTeamConfigs: Doc<'chatroom_teamAgentConfigs'>[];
 }
 
-export type SeedTeamAgentConfigFields = Pick<
-  Doc<'chatroom_teamAgentConfigs'>,
-  'machineId' | 'agentHarness' | 'model' | 'workingDir'
->;
+export type SeedTeamAgentConfigFields = {
+  machineId: string;
+  agentHarness: NonNullable<Doc<'chatroom_teamAgentConfigs'>['agentHarness']>;
+  model: string;
+  workingDir: string;
+};
 
 async function resolveWorkingDirFallback(
   ctx: MutationCtx,
