@@ -3,18 +3,18 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   getEnhancerConfig,
   setEnhancerConfig,
   clearEnhancerConfig,
 } from '../stores/enhancerConfigStore';
-import type { EnhancerConfig } from '../types/enhancer';
-import { isEnhancerConfigActive } from '../types/enhancer';
+import { isEnhancerConfigActive, type EnhancerConfig } from '../types/enhancer';
 
 export function useEnhancerConfig(chatroomId: string) {
   const [config, setConfig] = useState<EnhancerConfig | null>(() => getEnhancerConfig(chatroomId));
+  const autoDisableAttemptRef = useRef<number | null>(null);
 
   const serverConfig = useSessionQuery(api.web.enhancer.index.getConfig, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -37,9 +37,15 @@ export function useEnhancerConfig(chatroomId: string) {
       model: serverConfig.model,
       machineId: serverConfig.machineId,
     };
-    setEnhancerConfig(chatroomId, hydrated);
-    setConfig(hydrated);
-  }, [serverConfig, chatroomId]);
+    const shouldAutoDisable = hydrated.enabled && !isEnhancerConfigActive(hydrated);
+    const localConfig = shouldAutoDisable ? { ...hydrated, enabled: false } : hydrated;
+    setEnhancerConfig(chatroomId, localConfig);
+    setConfig(localConfig);
+    if (shouldAutoDisable && autoDisableAttemptRef.current !== serverConfig.updatedAt) {
+      autoDisableAttemptRef.current = serverConfig.updatedAt;
+      void disableMutation({ chatroomId: chatroomId as Id<'chatroom_rooms'> }).catch(() => {});
+    }
+  }, [serverConfig, chatroomId, disableMutation]);
 
   const saveConfig = useCallback(
     async (cfg: EnhancerConfig) => {
