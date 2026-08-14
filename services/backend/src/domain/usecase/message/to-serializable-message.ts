@@ -17,7 +17,9 @@ export type EnrichedMessageInput = {
   attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
 };
 
-export function toSerializableMessage(input: EnrichedMessageInput): SerializableMessage {
+function normalizeDeliveryAttachments(
+  input: EnrichedMessageInput
+): DeliveryAttachmentsInput | undefined {
   const attachments: DeliveryAttachmentsInput = {
     attachedTasks: input.attachedTasks?.map((item) => ({
       _id: item._id,
@@ -32,7 +34,18 @@ export function toSerializableMessage(input: EnrichedMessageInput): Serializable
     attachedMessages: input.attachedMessages,
     attachedSnippets: input.attachedSnippets,
   };
-  const hasAttachments = Object.values(attachments).some((items) => items && items.length > 0);
+  return Object.values(attachments).some((items) => items && items.length > 0)
+    ? attachments
+    : undefined;
+}
+
+function normalizeTask(input: EnrichedMessageInput): SerializableMessage['task'] | undefined {
+  if (!input.taskId || input.taskStatus == null || input.taskContent == null) return undefined;
+  return { _id: input.taskId, status: input.taskStatus, content: input.taskContent };
+}
+
+export function toSerializableMessage(input: EnrichedMessageInput): SerializableMessage {
+  const attachments = normalizeDeliveryAttachments(input);
   return {
     _id: input._id,
     _creationTime: input._creationTime,
@@ -40,9 +53,7 @@ export function toSerializableMessage(input: EnrichedMessageInput): Serializable
     targetRole: input.targetRole,
     type: input.type,
     content: input.content,
-    ...(hasAttachments ? { attachments } : {}),
-    ...(input.taskId && input.taskStatus != null && input.taskContent != null
-      ? { task: { _id: input.taskId, status: input.taskStatus, content: input.taskContent } }
-      : {}),
+    ...(attachments ? { attachments } : {}),
+    ...(normalizeTask(input) ? { task: normalizeTask(input) } : {}),
   };
 }

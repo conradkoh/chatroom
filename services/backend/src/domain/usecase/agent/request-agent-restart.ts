@@ -35,30 +35,64 @@ export async function requestAgentRestart(
     return { status: 'skipped', reason: 'incomplete_remote_config' };
   }
 
-  const overrides = input.request.reason === 'user.restart' ? input.request.overrides : undefined;
   const chatroom = await ctx.db.get('chatroom_rooms', input.chatroomId);
-  const resolved: RunnableRemoteAgentConfig = {
-    machineId: overrides?.machineId ?? base.machineId,
-    agentHarness: overrides?.agentHarness ?? base.agentHarness,
-    model: overrides?.model ?? base.model,
-    workingDir: overrides?.workingDir ?? base.workingDir,
-    wantResume:
-      overrides?.wantResume ??
-      base.wantResume ??
-      (chatroom?.teamId ? resolveDefaultWantResume(chatroom.teamId, input.role) : false),
-  };
+  const resolved = resolveRestartOverrides(input.request, base, chatroom, input.role);
 
-  if (machine && !machine.availableHarnesses.includes(resolved.agentHarness)) {
-    throw new Error(`Agent harness '${resolved.agentHarness}' is not available on this machine`);
-  }
+  validateMachineHarness(machine, resolved.agentHarness);
 
-  const releasedTaskCount =
-    input.request.reason === 'user.restart'
-      ? await releaseTasksOnAgentExit(ctx, { chatroomId: input.chatroomId, role: input.role })
-      : 0;
-  const now = Date.now();
+  const releasedTaskCount = await releaseRestartTasks(ctx, input);
   const correlationId = crypto.randomUUID();
+  await persistRestartAndEmit(ctx, input, resolved, chatroom, correlationId, Date.now());
 
+  return { status: 'requested', correlationId, releasedTaskCount };
+}
+
+function resolveRestartOverrides(
+  request: AgentRestartRequest,
+  base: Omit<RunnableRemoteAgentConfig, 'wantResume'> & { wantResume?: boolean },
+  chatroom: Doc<'chatroom_rooms'> | null,
+  role: string
+): RunnableRemoteAgentConfig {
+  const overrides = request.reason === 'user.restart' ? request.overrides : undefined;
+  const source = Object.assign({}, base, overrides);
+  return {
+    machineId: source.machineId,
+    agentHarness: source.agentHarness,
+    model: source.model,
+    workingDir: source.workingDir,
+    wantResume: source.wantResume ?? defaultWantResume(chatroom, role),
+  };
+}
+
+function defaultWantResume(chatroom: Doc<'chatroom_rooms'> | null, role: string): boolean {
+  return chatroom?.teamId ? resolveDefaultWantResume(chatroom.teamId, role) : false;
+}
+
+function validateMachineHarness(
+  machine: Doc<'chatroom_machines'> | undefined,
+  harness: RunnableRemoteAgentConfig['agentHarness']
+): void {
+  if (machine && !machine.availableHarnesses.includes(harness)) {
+    throw new Error(`Agent harness '${harness}' is not available on this machine`);
+  }
+}
+
+async function releaseRestartTasks(
+  ctx: MutationCtx,
+  input: { chatroomId: Id<'chatroom_rooms'>; role: string; request: AgentRestartRequest }
+): Promise<number> {
+  if (input.request.reason !== 'user.restart') return 0;
+  return releaseTasksOnAgentExit(ctx, { chatroomId: input.chatroomId, role: input.role });
+}
+
+async function persistRestartAndEmit(
+  ctx: MutationCtx,
+  input: { chatroomId: Id<'chatroom_rooms'>; role: string },
+  resolved: RunnableRemoteAgentConfig,
+  chatroom: Doc<'chatroom_rooms'> | null,
+  correlationId: string,
+  now: number
+): Promise<void> {
   if (chatroom?.teamId) {
     await upsertTeamAgentConfigByTeamRoleKey(ctx, {
       teamRoleKey: buildTeamRoleKey(chatroom._id, chatroom.teamId, input.role),
@@ -75,7 +109,6 @@ export async function requestAgentRestart(
       },
     });
   }
-
   await ctx.db.insert(
     'chatroom_eventStream',
     buildAgentRestartEvent(
@@ -85,6 +118,4 @@ export async function requestAgentRestart(
   );
   await transitionAgentStatus(ctx, input.chatroomId, input.role, 'agent.restart', 'running');
   await projectAssignedTaskSnapshotsForChatroom(ctx, input.chatroomId);
-
-  return { status: 'requested', correlationId, releasedTaskCount };
 }

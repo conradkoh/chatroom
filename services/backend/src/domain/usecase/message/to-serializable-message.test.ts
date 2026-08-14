@@ -21,4 +21,20 @@ describe('toSerializableMessage', () => {
       attachedTasks: [{ _id: 't', content: 'task', status: 'todo' }],
     });
   });
+
+  it('preserves message and snippet attachments without task attachments', () => {
+    const result = toSerializableMessage({
+      ...base,
+      attachedMessages: [{ _id: 'm2', content: 'related', senderRole: 'planner' }],
+      attachedSnippets: [
+        { reference: 'src/a.ts', fileSource: 'workspace', selectedContent: 'code' },
+      ],
+    });
+    expect(result.attachments).toEqual({
+      attachedMessages: [{ _id: 'm2', content: 'related', senderRole: 'planner' }],
+      attachedSnippets: [
+        { reference: 'src/a.ts', fileSource: 'workspace', selectedContent: 'code' },
+      ],
+    });
+  });
 });

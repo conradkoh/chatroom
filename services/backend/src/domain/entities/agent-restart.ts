@@ -46,8 +46,11 @@ export function isRunnableRemoteTeamConfig(config: {
   model: string;
   workingDir: string;
 } {
-  return (
-    config.type === 'remote' &&
-    Boolean(config.machineId && config.agentHarness && config.model && config.workingDir)
-  );
+  return [
+    config.type === 'remote',
+    Boolean(config.machineId),
+    Boolean(config.agentHarness),
+    Boolean(config.model),
+    Boolean(config.workingDir),
+  ].every(Boolean);
 }
