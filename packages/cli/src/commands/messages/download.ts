@@ -1,10 +1,12 @@
 import * as nodePath from 'node:path';
 
+import { serializeMessage } from '@workspace/backend/src/domain/usecase/message/serialize-message';
+import type { EnrichedMessageInput } from '@workspace/backend/src/domain/usecase/message/to-serializable-message';
+import { toSerializableMessage } from '@workspace/backend/src/domain/usecase/message/to-serializable-message';
 import { Effect, Layer } from 'effect';
 
 import type { MessagesError } from './index.js';
 import {
-  buildLinearMessageContent,
   messageFilename,
   MessagesFsService,
   MessagesFsServiceLive,
@@ -40,6 +42,12 @@ type DownloadMessage = {
   content: string;
   targetRole?: string | null;
   taskStatus?: string | null;
+  taskId?: string | null;
+  taskContent?: string | null;
+  attachedTasks?: EnrichedMessageInput['attachedTasks'];
+  attachedBacklogItems?: EnrichedMessageInput['attachedBacklogItems'];
+  attachedMessages?: EnrichedMessageInput['attachedMessages'];
+  attachedSnippets?: EnrichedMessageInput['attachedSnippets'];
 };
 
 export type DownloadMessagesError =
@@ -218,7 +226,11 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
     }[] = [];
     for (const msg of messages) {
       const file = messageFilename(msg);
-      const content = buildLinearMessageContent(msg);
+      const content = serializeMessage(toSerializableMessage(msg), {
+        profile: 'linear',
+        chatroomId,
+        role: options.role,
+      });
       const filePath = nodePath.join(outputDir, file);
       yield* fs.writeFile(filePath, content).pipe(
         Effect.mapError((cause): DownloadMessagesError => ({
