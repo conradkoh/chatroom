@@ -896,7 +896,7 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
 
             return (
               <InlineAgentCard
-                key={agent.role}
+                key={`${teamId}-${agent.role}`}
                 role={agent.role}
                 allRoles={teamRoles}
                 online={status?.online ?? false}
