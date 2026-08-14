@@ -10,7 +10,7 @@
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { emitConfigRemoval } from '../agent/config-removal';
+import { teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
 import {
   patchTeamAgentConfig,
   projectAssignedTaskSnapshotsForMachines,
@@ -25,13 +25,16 @@ export interface UpdateTeamInput {
   teamName: string;
   teamRoles: string[];
   teamEntryPoint?: string;
+  userId: Id<'users'>;
 }
 
 export interface UpdateTeamResult {
   /** Number of stop events dispatched for running agents. */
   stoppedAgentCount: number;
   /** Number of team agent configs deleted. */
-  deletedTeamConfigCount: number;
+  preservedCount: number;
+  restoredCount: number;
+  seededCount: number;
 }
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
@@ -41,6 +44,8 @@ export async function updateTeam(
   input: UpdateTeamInput
 ): Promise<UpdateTeamResult> {
   const { chatroomId, teamId, teamName, teamRoles, teamEntryPoint } = input;
+  const previousChatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  const oldTeamId = previousChatroom?.teamId;
 
   // ── Step 1: Update chatroom team fields ────────────────────────────────
 
@@ -63,13 +68,13 @@ export async function updateTeam(
 
   const now = Date.now();
   let stoppedAgentCount = 0;
-  let deletedTeamConfigCount = 0;
+  let preservedCount = 0;
 
   // Track machines whose configs are being torn down so we can prune their
   // orphaned snapshot projection rows after the configs are deleted.
   const affectedMachineIds = new Set<string>();
 
-  for (const config of existingTeamConfigs) {
+  for (const config of existingTeamConfigs.filter((c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId))) {
     if (config.machineId) {
       affectedMachineIds.add(config.machineId);
     }
@@ -105,26 +110,7 @@ export async function updateTeam(
       );
     }
 
-    if (config.machineId) {
-      // Request config removal via event stream — actual deletion happens
-      // in recordAgentExited after the process is confirmed dead
-      await emitConfigRemoval(ctx, {
-        chatroomId,
-        role: config.role,
-        machineId: config.machineId,
-        reason: 'team_switch',
-      });
-
-      // Since we cleared spawnedAgentPid above (or it was never set),
-      // the config can be deleted immediately. The daemon will still
-      // receive the stop event to kill the actual process.
-      await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
-      deletedTeamConfigCount++;
-    } else {
-      // No machine — safe to delete (custom config or orphan)
-      await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
-      deletedTeamConfigCount++;
-    }
+    preservedCount++;
   }
 
   // Rebuild each affected machine's snapshot projection. With this chatroom's
@@ -133,6 +119,8 @@ export async function updateTeam(
 
   return {
     stoppedAgentCount,
-    deletedTeamConfigCount,
+    preservedCount,
+    restoredCount: 0,
+    seededCount: 0,
   };
 }

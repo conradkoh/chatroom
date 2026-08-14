@@ -265,7 +265,7 @@ export const updateTeam = mutation({
     teamEntryPoint: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     if (args.teamRoles.length === 0) {
       throw new ConvexError({ code: 'TEAM_REQUIRED', message: 'Team must have at least one role' });
@@ -283,6 +283,7 @@ export const updateTeam = mutation({
       teamName: args.teamName,
       teamRoles: args.teamRoles,
       teamEntryPoint: args.teamEntryPoint,
+      userId: session.userId,
     });
   },
 });

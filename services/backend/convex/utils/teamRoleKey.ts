@@ -23,6 +23,14 @@ export function buildTeamRoleKey(
   return `chatroom_${chatroomId}#team_${teamId.toLowerCase()}#role_${role.toLowerCase()}`;
 }
 
+export function teamRoleKeyMatchesTeam(
+  teamRoleKey: string,
+  chatroomId: Id<'chatroom_rooms'> | string,
+  teamId: string
+): boolean {
+  return teamRoleKey.startsWith(`chatroom_${chatroomId}#team_${teamId.toLowerCase()}#`);
+}
+
 /**
  * Removes stale chatroom_teamAgentConfigs rows with the given teamRoleKey.
  * For configs with a running process, emits stop + removal events instead of
