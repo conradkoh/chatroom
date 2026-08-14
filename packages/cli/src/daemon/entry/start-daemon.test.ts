@@ -6,6 +6,7 @@ const {
   getConvexWsClient,
   getConvexUrl,
   initDaemon,
+  getActiveChatroomLogSink,
   startAllSubscribers,
   startLocalWebServer,
   createPersistenceStore,
@@ -16,6 +17,7 @@ const {
   getConvexWsClient: vi.fn(),
   getConvexUrl: vi.fn(),
   initDaemon: vi.fn(),
+  getActiveChatroomLogSink: vi.fn(() => ({ writeChatroomLog: vi.fn() })),
   startAllSubscribers: vi.fn(),
   startLocalWebServer: vi.fn(),
   createPersistenceStore: vi.fn(),
@@ -43,6 +45,7 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
 
 vi.mock('./init-daemon.js', () => ({
   initDaemon,
+  getActiveChatroomLogSink,
 }));
 
 vi.mock('./daemon-runtime.js', () => ({
