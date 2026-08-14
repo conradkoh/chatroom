@@ -2,11 +2,11 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Check, Paperclip, MoreHorizontal, StopCircle, Trash2, X } from 'lucide-react';
-import dynamic from 'next/dynamic';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
+import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
 import { HandoffStructuredContent } from './HandoffStructuredContent';
 import {
   modalMarkdownComponents,
@@ -32,15 +32,6 @@ import {
   FixedModalHeader,
 } from '@/components/ui/fixed-modal';
 
-const RichTextEditor = dynamic(
-  () => import('./rich-text').then((m) => ({ default: m.RichTextEditor })),
-  { ssr: false }
-);
-
-/** True when a click originates from an interactive element — never enter edit mode. */
-function isInteractiveClickTarget(target: EventTarget | null): boolean {
-  return !!(target as HTMLElement)?.closest?.('button, a, input, textarea, select, label');
-}
 
 interface Task {
   _id: Id<'chatroom_tasks'>;

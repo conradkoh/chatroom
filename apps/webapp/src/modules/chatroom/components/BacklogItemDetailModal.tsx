@@ -12,12 +12,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import dynamic from 'next/dynamic';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
+import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
 import { modalMarkdownComponents, backlogRichTextEditorProseClassNames } from './markdown-utils';
 import { useAttachments } from '../attachments';
 import {
@@ -45,16 +45,6 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
-
-const RichTextEditor = dynamic(
-  () => import('./rich-text').then((m) => ({ default: m.RichTextEditor })),
-  { ssr: false }
-);
-
-/** True when a click originates from an interactive element — never enter edit mode. */
-function isInteractiveClickTarget(target: EventTarget | null): boolean {
-  return !!(target as HTMLElement)?.closest?.('button, a, input, textarea, select, label');
-}
 
 interface BacklogItemDetailModalProps {
   isOpen: boolean;
