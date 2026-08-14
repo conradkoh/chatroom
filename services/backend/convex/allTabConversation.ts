@@ -136,17 +136,13 @@ export const listAllTabSlicePaginated = query({
     chatroomId: v.id('chatroom_rooms'),
     anchorMessageId: v.id('chatroom_messages'),
     paginationOpts: paginationOptsValidator,
-    sliceUpperBoundExclusive: v.optional(v.number()),
+    sliceUpperBoundExclusive: v.union(v.number(), v.null()),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const anchor = await getAnchorOrThrow(ctx, args.chatroomId, args.anchorMessageId);
 
-    const upperBoundExclusive =
-      args.sliceUpperBoundExclusive !== undefined
-        ? args.sliceUpperBoundExclusive
-        : ((await findNextUserMessageAfter(ctx, args.chatroomId, anchor._creationTime))
-            ?._creationTime ?? null);
+    const upperBoundExclusive = args.sliceUpperBoundExclusive;
 
     let cursor = args.paginationOpts.cursor;
     let isDone = false;
