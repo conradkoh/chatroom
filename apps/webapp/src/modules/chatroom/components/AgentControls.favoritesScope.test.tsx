@@ -124,6 +124,49 @@ function FavoritesScopeHarness() {
   );
 }
 
+function AsyncFavoritesScopeHarness({ loaded }: { loaded: boolean }) {
+  const machines = [mkMachine('machine-a', 'host-a'), mkMachine('machine-b', 'host-b')];
+  const controls = useAgentControls({
+    role: 'planner',
+    chatroomId: CHATROOM_ID as Id<'chatroom_rooms'>,
+    connectedMachines: machines,
+    agentConfigs: [],
+    sendCommand: vi.fn().mockResolvedValue(undefined) as unknown as SendCommandFn,
+    teamId: 'squad',
+    chatroomWorkspaces: loaded
+      ? [
+          {
+            machineId: 'machine-a',
+            workingDir: '/a',
+            id: 'a',
+            hostname: 'a',
+            agentRoles: [],
+            registeredAt: 100,
+          },
+          {
+            machineId: 'machine-b',
+            workingDir: '/b',
+            id: 'b',
+            hostname: 'b',
+            agentRoles: [],
+            registeredAt: 200,
+          },
+        ]
+      : [],
+    chatroomWorkspacesLoading: !loaded,
+  });
+  return (
+    <RemoteTabContent
+      controls={controls}
+      connectedMachines={machines}
+      isLoadingMachines={false}
+      daemonStartCommand="chatroom daemon"
+      chatroomId={CHATROOM_ID}
+      role="planner"
+    />
+  );
+}
+
 describe('AgentControls favorites scope', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -139,6 +182,18 @@ describe('AgentControls favorites scope', () => {
           machineId: 'machine-a',
           teamRoleKey: 'team_duo#role_planner',
         }
+      );
+    });
+  });
+
+  it('restores the most recent workspace machine after async workspace loading', async () => {
+    const view = render(<AsyncFavoritesScopeHarness loaded={false} />);
+    view.rerender(<AsyncFavoritesScopeHarness loaded />);
+
+    await waitFor(() => {
+      expect(mockUseSessionQuery).toHaveBeenCalledWith(
+        'machineConfigFavorites:getMachineConfigFavorites',
+        { machineId: 'machine-b', teamRoleKey: 'team_squad#role_planner' }
       );
     });
   });
