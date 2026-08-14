@@ -98,36 +98,6 @@ describe('acknowledgePendingTask', () => {
     expect(task?.assignedTo).toBe('builder');
   });
 
-  test('emits task.acknowledged event on chatroom_eventStream', async () => {
-    const { sessionId } = await createTestSession('apt-event');
-    const chatroomId = await createChatroom(sessionId);
-    const pendingTask = await seedPendingTask(chatroomId);
-
-    await t.run(async (ctx) => {
-      await acknowledgePendingTask(ctx, {
-        chatroomId,
-        role: 'builder',
-        pendingTask,
-      });
-    });
-
-    const events = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'task.acknowledged')
-        )
-        .collect();
-    });
-
-    expect(events).toHaveLength(1);
-    expect(events[0]?.type).toBe('task.acknowledged');
-    if (events[0]?.type === 'task.acknowledged') {
-      expect(events[0].role).toBe('builder');
-      expect(events[0].taskId).toBe(pendingTask._id);
-    }
-  });
-
   test('sets participant lastStatus to task.acknowledged via transitionAgentStatus', async () => {
     const { sessionId } = await createTestSession('apt-participant');
     const chatroomId = await createChatroom(sessionId);

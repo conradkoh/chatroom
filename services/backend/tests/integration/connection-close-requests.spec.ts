@@ -106,7 +106,7 @@ describe('connection close requests', () => {
     expect(result.type).not.toBe('connection_closed');
   });
 
-  test('confirmConnectionClosed emits event and removes rows', async () => {
+  test('confirmConnectionClosed removes close-request rows', async () => {
     const { sessionId } = await createTestSession('ccr-confirm-1');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
@@ -141,16 +141,6 @@ describe('connection close requests', () => {
         .collect();
     });
     expect(remainingRows).toHaveLength(0);
-
-    // A connection.terminated event should exist
-    const events = await t.run(async (ctx) => {
-      return ctx.db.query('chatroom_eventStream').collect();
-    });
-    const terminatedEvent = events.find(
-      (e) => e.type === 'connection.terminated' && (e as any).connectionId === 'conn-A'
-    );
-    expect(terminatedEvent).toBeDefined();
-    expect((terminatedEvent as any).reason).toBe('superseded');
   });
 
   test('requestConnectionClose appends a row', async () => {

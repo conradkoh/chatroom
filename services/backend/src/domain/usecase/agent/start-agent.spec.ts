@@ -188,7 +188,7 @@ describe('startAgent use case — desiredState', () => {
     expect(config?.desiredState).toBe('running');
   });
 
-  test('emits machine.switched when starting on a different machine with allowNewMachine: true', async () => {
+  test('switches machine on team config when starting on a different machine with allowNewMachine: true', async () => {
     const { sessionId } = await createTestSession('start-agent-switch-1');
     const chatroomId = await createChatroom(sessionId);
     const machineA = 'start-switch-a';
@@ -200,26 +200,19 @@ describe('startAgent use case — desiredState', () => {
 
     await startAgent(sessionId, machineB, chatroomId, 'builder', { allowNewMachine: true });
 
-    const switched = await t.run(async (ctx) => {
+    const config = await t.run(async (ctx) => {
       return await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'machine.switched')
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
-        .collect();
+        .first();
     });
 
-    expect(switched.length).toBeGreaterThanOrEqual(1);
-    const last = switched[switched.length - 1];
-    expect(last.type).toBe('machine.switched');
-    if (last.type === 'machine.switched') {
-      expect(last.previousMachineId).toBe(machineA);
-      expect(last.newMachineId).toBe(machineB);
-      expect(last.role).toBe('builder');
-    }
+    expect(config?.machineId).toBe(machineB);
   });
 
-  test('does not emit machine.switched when the same machine is used again', async () => {
+  test('does not switch machine when the same machine is used again', async () => {
     const { sessionId } = await createTestSession('start-agent-switch-2');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-switch-same';
@@ -228,16 +221,15 @@ describe('startAgent use case — desiredState', () => {
     await startAgent(sessionId, machineId, chatroomId, 'builder');
     await startAgent(sessionId, machineId, chatroomId, 'builder');
 
-    const switched = await t.run(async (ctx) => {
+    const config = await t.run(async (ctx) => {
       return await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'machine.switched')
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
-        .collect();
+        .first();
     });
-
-    expect(switched.length).toBe(0);
+    expect(config?.machineId).toBe(machineId);
   });
 
   test('rejects start on a different machine when allowNewMachine is false', async () => {
@@ -272,16 +264,15 @@ describe('startAgent use case — desiredState', () => {
       /allowNewMachine: true/
     );
 
-    // Verify no machine.switched event was emitted.
-    const switched = await t.run(async (ctx) => {
+    const config = await t.run(async (ctx) => {
       return await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'machine.switched')
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
         )
-        .collect();
+        .first();
     });
-    expect(switched.length).toBe(0);
+    expect(config?.machineId).toBe(machineA);
   });
 });
 

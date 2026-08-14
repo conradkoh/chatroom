@@ -43,7 +43,7 @@ async function createPlannerUserMessageAndTask(
 }
 
 describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle', () => {
-  test('enqueueHandoff creates job and enhancer.job.created event', async () => {
+  test('enqueueHandoff creates job and updates planner status', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-enqueue');
 
     // Enable enhancer config
@@ -97,17 +97,6 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(plannerStatus.exists).toBe(true);
     expect(plannerStatus.lastStatus).toBe('agent.enhancing');
 
-    const events = await t.run(async (ctx) =>
-      ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'enhancer.job.created')
-        )
-        .collect()
-    );
-    expect(events.length).toBeGreaterThanOrEqual(1);
-    expect(events[0].jobId).toBe(result.jobId);
-
     const draftMessages = await t.run(async (ctx) =>
       ctx.db
         .query('chatroom_messages')
@@ -138,8 +127,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(enhancerTasks.length).toBe(1);
     expect(enhancerTasks[0]!._id).toBe(job!.taskId);
 
-    const { shouldEnqueueMessage } =
-      await import('../../../src/domain/usecase/task/create-task');
+    const { shouldEnqueueMessage } = await import('../../../src/domain/usecase/task/create-task');
     const shouldQueue = await t.run(async (ctx) => shouldEnqueueMessage(ctx, chatroomId));
     expect(shouldQueue).toBe(true);
   });
@@ -420,16 +408,6 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(job!.status).toBe('cancelled');
     expect(job!.lastError).toBe('cancelled_by_user');
 
-    const cancelEvents = await t.run(async (ctx) =>
-      ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'enhancer.job.cancelled')
-        )
-        .collect()
-    );
-    expect(cancelEvents.length).toBeGreaterThanOrEqual(1);
-
     // Handoff should have been delivered with outcome envelope, not draft content
     const handoffMessages = await t.run(async (ctx) =>
       ctx.db
@@ -546,17 +524,6 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
 
     const job3 = await t.run(async (ctx) => ctx.db.get(jobId));
     expect(job3!.status).toBe('failed');
-
-    // Verify events
-    const failedEvents = await t.run(async (ctx) =>
-      ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'enhancer.job.failed')
-        )
-        .collect()
-    );
-    expect(failedEvents.length).toBeGreaterThanOrEqual(1);
 
     // Verify handoff was delivered with planning-review-outcome envelope (not draft content)
     const tasks = await t.run(async (ctx) =>

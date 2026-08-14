@@ -38,17 +38,7 @@ describe('skill activation: what the agent sees', () => {
     });
 
     expect(result.success).toBe(true);
-
-    const event = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) => q.eq(q.field('type'), 'skill.activated'))
-        .first();
-    });
-
-    expect(event).toBeDefined();
-    expect(event?.prompt).toContain('You have been activated with the "backlog" skill');
-    expect(event?.prompt).toContain('mark-for-review');
+    expect(result.skill.prompt).toContain('You have been activated with the "backlog" skill');
+    expect(result.skill.prompt).toContain('mark-for-review');
   });
 });

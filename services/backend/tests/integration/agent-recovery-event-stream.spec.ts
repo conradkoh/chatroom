@@ -1,5 +1,5 @@
 /**
- * Agent recovery event stream — no duplicate task.activated / task.acknowledged
+ * Agent recovery — task status and participant state without observability events.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -17,22 +17,18 @@ import {
   setupRemoteAgentConfig,
 } from '../helpers/integration';
 
-async function getEventCounts(chatroomId: Id<'chatroom_rooms'>) {
+async function getParticipantLastStatus(chatroomId: Id<'chatroom_rooms'>, role: string) {
   return t.run(async (ctx) => {
-    const events = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect();
-    return {
-      activated: events.filter((e) => e.type === 'task.activated'),
-      acknowledged: events.filter((e) => e.type === 'task.acknowledged'),
-      inProgress: events.filter((e) => e.type === 'task.inProgress'),
-    };
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+      .unique();
+    return participant?.lastStatus ?? null;
   });
 }
 
-describe('Agent recovery event stream', () => {
-  test('claimTask produces exactly 1 task.activated (pending) + 1 task.acknowledged', async () => {
+describe('Agent recovery task state', () => {
+  test('claimTask updates task status and participant lastStatus', async () => {
     const { sessionId } = await createTestSession('test-ares-claim');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -44,13 +40,8 @@ describe('Agent recovery event stream', () => {
       createdBy: 'user',
     });
 
-    const countsAfterCreate = await getEventCounts(chatroomId);
-    expect(countsAfterCreate.activated).toHaveLength(1);
-    expect(countsAfterCreate.activated[0]?.type).toBe('task.activated');
-    if (countsAfterCreate.activated[0]?.type === 'task.activated') {
-      expect(countsAfterCreate.activated[0].taskStatus).toBe('pending');
-    }
-    expect(countsAfterCreate.acknowledged).toHaveLength(0);
+    const taskAfterCreate = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(taskAfterCreate?.status).toBe('pending');
 
     await t.mutation(api.tasks.claimTask, {
       sessionId,
@@ -59,17 +50,12 @@ describe('Agent recovery event stream', () => {
       taskId,
     });
 
-    const countsAfterClaim = await getEventCounts(chatroomId);
-    expect(countsAfterClaim.activated).toHaveLength(1);
-    expect(countsAfterClaim.acknowledged).toHaveLength(1);
-    expect(
-      countsAfterClaim.activated.some(
-        (e) => e.type === 'task.activated' && e.taskStatus === 'acknowledged'
-      )
-    ).toBe(false);
+    const taskAfterClaim = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(taskAfterClaim?.status).toBe('acknowledged');
+    expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('task.acknowledged');
   });
 
-  test('native:task-injected after claim does NOT add second task.acknowledged', async () => {
+  test('native:task-injected after claim keeps participant task.acknowledged', async () => {
     const { sessionId } = await createTestSession('test-ares-reinject');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -88,8 +74,7 @@ describe('Agent recovery event stream', () => {
       taskId,
     });
 
-    const countsBeforeReinject = await getEventCounts(chatroomId);
-    expect(countsBeforeReinject.acknowledged).toHaveLength(1);
+    expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('task.acknowledged');
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -99,14 +84,10 @@ describe('Agent recovery event stream', () => {
       taskId,
     });
 
-    const countsAfterReinject = await getEventCounts(chatroomId);
-    expect(countsAfterReinject.acknowledged).toHaveLength(1);
-    expect(countsAfterReinject.acknowledged[0]?._id).toBe(
-      countsBeforeReinject.acknowledged[0]?._id
-    );
+    expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('task.acknowledged');
   });
 
-  test('release on agent exit does NOT add second task.activated (pending)', async () => {
+  test('release on agent exit returns task to pending without duplicate state changes', async () => {
     const { sessionId } = await createTestSession('test-ares-release');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -130,9 +111,7 @@ describe('Agent recovery event stream', () => {
       role: 'builder',
     });
 
-    const countsBeforeExit = await getEventCounts(chatroomId);
-    expect(countsBeforeExit.activated).toHaveLength(1);
-    expect(countsBeforeExit.acknowledged).toHaveLength(1);
+    expect(await getParticipantLastStatus(chatroomId, 'builder')).toBe('task.acknowledged');
 
     await t.run(async (ctx) => {
       const config = await ctx.db
@@ -154,10 +133,6 @@ describe('Agent recovery event stream', () => {
       pid: 9393,
       stopReason: 'agent_process.crashed',
     });
-
-    const countsAfterExit = await getEventCounts(chatroomId);
-    expect(countsAfterExit.activated).toHaveLength(1);
-    expect(countsAfterExit.acknowledged).toHaveLength(1);
 
     const tasks = await t.query(api.tasks.listTasks, {
       sessionId,

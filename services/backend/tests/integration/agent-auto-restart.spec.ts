@@ -6,9 +6,8 @@
  *
  * Crash recovery is now fully owned by the daemon — the backend
  * no longer emits `agent.requestStart` on exit. These tests confirm:
- * 1. agent.exited event is always recorded
+ * 1. spawnedAgentPid is cleared after exit
  * 2. NO agent.requestStart is emitted (daemon owns restarts)
- * 3. spawnedAgentPid is cleared after exit
  */
 
 import { expect, test } from 'vitest';
@@ -44,21 +43,11 @@ async function findRequestStartEvent(chatroomId: Id<'chatroom_rooms'>) {
   );
 }
 
-async function findExitedEvent(chatroomId: Id<'chatroom_rooms'>) {
-  const events = await t.run(async (ctx) => {
-    return ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect();
-  });
-  return events.find((e) => e.type === 'agent.exited');
-}
-
 // ---------------------------------------------------------------------------
 // Tests — daemon owns restarts, backend only records exit
 // ---------------------------------------------------------------------------
 
-test('recordAgentExited records agent.exited event and does NOT emit agent.requestStart (crashed)', async () => {
+test('recordAgentExited does NOT emit agent.requestStart on crash (daemon owns restarts)', async () => {
   const { sessionId } = await createTestSession('test-ar-a');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-ar-a';
@@ -84,9 +73,6 @@ test('recordAgentExited records agent.exited event and does NOT emit agent.reque
     stopReason: 'agent_process.crashed',
   });
 
-  const exitedEvent = await findExitedEvent(chatroomId);
-  expect(exitedEvent, 'agent.exited should be recorded').toBeDefined();
-
   const requestStartEvent = await findRequestStartEvent(chatroomId);
   expect(
     requestStartEvent,
@@ -94,7 +80,7 @@ test('recordAgentExited records agent.exited event and does NOT emit agent.reque
   ).toBeUndefined();
 });
 
-test('recordAgentExited records agent.exited event and does NOT emit agent.requestStart (exited_clean)', async () => {
+test('recordAgentExited does NOT emit agent.requestStart on clean exit (daemon owns restarts)', async () => {
   const { sessionId } = await createTestSession('test-ar-b');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-ar-b';
@@ -119,9 +105,6 @@ test('recordAgentExited records agent.exited event and does NOT emit agent.reque
     pid: 12346,
     stopReason: 'agent_process.exited_clean',
   });
-
-  const exitedEvent = await findExitedEvent(chatroomId);
-  expect(exitedEvent, 'agent.exited should be recorded').toBeDefined();
 
   const requestStartEvent = await findRequestStartEvent(chatroomId);
   expect(

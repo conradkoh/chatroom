@@ -16,7 +16,7 @@ import {
 } from '../helpers/integration';
 
 describe('emitResumeStormAborted', () => {
-  test('marks agent stopped and writes event stream row', async () => {
+  test('marks agent stopped without observability event stream row', async () => {
     const { sessionId } = await createTestSession('test-resume-storm-abort');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-resume-storm-abort';
@@ -39,22 +39,6 @@ describe('emitResumeStormAborted', () => {
       machineId,
       chatroomId,
       role: 'builder',
-      reason: 'rate_limit',
-      endCount: 5,
-      windowMs: 30_000,
-      harnessSessionId: 'pi-sess-storm',
-    });
-
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-
-    const aborted = events.filter((e) => e.type === 'agent.resumeStormAborted');
-    expect(aborted).toHaveLength(1);
-    expect(aborted[0]).toMatchObject({
       reason: 'rate_limit',
       endCount: 5,
       windowMs: 30_000,

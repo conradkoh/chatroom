@@ -2,7 +2,6 @@
  * Tests for the agentExited use case.
  *
  * Verifies:
- *   - Audit event is always inserted
  *   - PID-gated config cleanup (only clears when PID+machineId match)
  *   - Participant update guard (skips when config belongs to a different machine)
  *   - Idempotency (calling twice with same input is safe)
@@ -113,41 +112,9 @@ async function getParticipant(chatroomId: Id<'chatroom_rooms'>, role: string) {
   });
 }
 
-async function countExitedEvents(chatroomId: Id<'chatroom_rooms'>, role: string) {
-  return await t.run(async (ctx) => {
-    const events = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom_type', (q) =>
-        q.eq('chatroomId', chatroomId).eq('type', 'agent.exited')
-      )
-      .collect();
-    return events.filter((e) => e.type === 'agent.exited' && e.role === role).length;
-  });
-}
-
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('agentExited use case', () => {
-  test('inserts agent.exited event (audit trail)', async () => {
-    const { sessionId } = await createTestSession('ae-audit-1');
-    const chatroomId = await createChatroom(sessionId);
-    const machineId = 'machine-ae-1';
-    await setupAgentConfig(sessionId, chatroomId, machineId, 'builder', 12345);
-
-    await t.run(async (ctx) => {
-      await agentExited(ctx, {
-        chatroomId,
-        role: 'builder',
-        machineId,
-        pid: 12345,
-        stopReason: 'user.stop',
-      });
-    });
-
-    const count = await countExitedEvents(chatroomId, 'builder');
-    expect(count).toBe(1);
-  });
-
   test('clears PID only when config.spawnedAgentPid matches input.pid', async () => {
     const { sessionId } = await createTestSession('ae-pid-match-1');
     const chatroomId = await createChatroom(sessionId);
@@ -292,10 +259,6 @@ describe('agentExited use case', () => {
     await t.run(async (ctx) => {
       await agentExited(ctx, input);
     });
-
-    // Two audit events should exist (one per call)
-    const count = await countExitedEvents(chatroomId, 'builder');
-    expect(count).toBe(2);
 
     // Config PID should still be cleared
     const config = await getConfig(chatroomId, 'builder');

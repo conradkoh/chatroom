@@ -1,8 +1,8 @@
 /**
  * Event Stream — Integration Tests
  *
- * Verifies that the dual-write layer correctly appends events to
- * `chatroom_eventStream` at each instrumented write site.
+ * Verifies that command events are correctly appended to
+ * `chatroom_eventStream` at instrumented write sites.
  *
  * Tests are written first (TDD) and drive the Phase 2 implementation.
  */
@@ -122,14 +122,12 @@ test('stopAgent use case writes agent.requestStop event', async () => {
   }
 });
 
-// ─── Test 3: task.activated event on task creation (pending) ─────────────────
+// ─── Test 3: task creation does not write observability events ───────────────
 
-test('task creation writes task.activated event for pending tasks', async () => {
-  // ===== SETUP =====
+test('task creation does not write task.activated observability events', async () => {
   const { sessionId } = await createTestSession('test-es-create-1');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
-  // ===== ACTION =====
   await t.mutation(api.tasks.createTask, {
     sessionId,
     chatroomId,
@@ -137,7 +135,6 @@ test('task creation writes task.activated event for pending tasks', async () => 
     createdBy: 'user',
   });
 
-  // ===== VERIFY =====
   const events = await t.run(async (ctx) => {
     return ctx.db
       .query('chatroom_eventStream')
@@ -145,24 +142,12 @@ test('task creation writes task.activated event for pending tasks', async () => 
       .collect();
   });
 
-  // Should have exactly one task.activated event
-  const activatedEvents = events.filter((e) => e.type === 'task.activated');
-  expect(activatedEvents.length).toBe(1);
-  const evt = activatedEvents[0]!;
-  expect(evt.type).toBe('task.activated');
-  if (evt.type === 'task.activated') {
-    expect(evt.chatroomId).toBe(chatroomId);
-    expect(evt.taskStatus).toBe('pending');
-    expect(evt.taskContent).toBe('Build the widget');
-    // role should be the entry point (builder) or assigned role
-    expect(typeof evt.role).toBe('string');
-    expect(typeof evt.timestamp).toBe('number');
-  }
+  expect(events.filter((e) => e.type === 'task.activated')).toHaveLength(0);
 });
 
-// ─── Test 4: task.inProgress event on transition to in_progress ───────────────
+// ─── Test 4: transition to in_progress updates task status only ───────────────
 
-test('transitionTask to in_progress writes task.inProgress event', async () => {
+test('transitionTask to in_progress updates task status without observability events', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-trans-inprog-1');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
@@ -183,17 +168,7 @@ test('transitionTask to in_progress writes task.inProgress event', async () => {
     role: 'builder',
   });
 
-  // Count events so far (includes the task.activated from creation)
-  const eventsBefore = await t.run(async (ctx) => {
-    return ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect();
-  });
-  const countBefore = eventsBefore.length;
-
   // ===== ACTION =====
-  // Transition acknowledged → in_progress
   await t.mutation(api.tasks.startTask, {
     sessionId,
     chatroomId,
@@ -202,30 +177,21 @@ test('transitionTask to in_progress writes task.inProgress event', async () => {
   });
 
   // ===== VERIFY =====
+  const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+  expect(task?.status).toBe('in_progress');
+
   const eventsAfter = await t.run(async (ctx) => {
     return ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
       .collect();
   });
-
-  // There should be at least one new event
-  expect(eventsAfter.length).toBeGreaterThan(countBefore);
-
-  // Find the task.inProgress event (not task.activated with taskStatus: 'in_progress')
-  // Note: transitionTask now emits task.inProgress for in_progress status to avoid
-  // double events and ensure the UI correctly shows "WORKING" status.
-  const inProgressEvent = eventsAfter.find((e) => e.type === 'task.inProgress');
-  expect(inProgressEvent).toBeDefined();
-  if (inProgressEvent && inProgressEvent.type === 'task.inProgress') {
-    expect(inProgressEvent.chatroomId).toBe(chatroomId);
-    expect(inProgressEvent.taskId).toBe(taskId);
-  }
+  expect(eventsAfter.filter((e) => e.type === 'task.inProgress')).toHaveLength(0);
 });
 
-// ─── Test 5: task.completed event on transition to completed ─────────────────
+// ─── Test 5: transition to completed updates task status only ───────────────
 
-test('transitionTask to completed writes task.completed event', async () => {
+test('transitionTask to completed updates task status without observability events', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-trans-done-1');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
@@ -252,15 +218,6 @@ test('transitionTask to completed writes task.completed event', async () => {
     role: 'builder',
   });
 
-  // Count events before completion
-  const eventsBefore = await t.run(async (ctx) => {
-    return ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect();
-  });
-  const countBefore = eventsBefore.length;
-
   // ===== ACTION =====
   await t.mutation(api.tasks.completeTask, {
     sessionId,
@@ -269,29 +226,21 @@ test('transitionTask to completed writes task.completed event', async () => {
   });
 
   // ===== VERIFY =====
+  const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+  expect(task?.status).toBe('completed');
+
   const eventsAfter = await t.run(async (ctx) => {
     return ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
       .collect();
   });
-
-  expect(eventsAfter.length).toBeGreaterThan(countBefore);
-
-  const completedEvent = eventsAfter.find((e) => e.type === 'task.completed');
-  expect(completedEvent).toBeDefined();
-  if (completedEvent && completedEvent.type === 'task.completed') {
-    expect(completedEvent.chatroomId).toBe(chatroomId);
-    expect(completedEvent.taskId).toBe(taskId);
-    expect(completedEvent.finalStatus).toBe('completed');
-    expect(typeof completedEvent.role).toBe('string');
-    expect(typeof completedEvent.timestamp).toBe('number');
-  }
+  expect(eventsAfter.filter((e) => e.type === 'task.completed')).toHaveLength(0);
 });
 
-// ─── Test 6: agent.exited event via recordAgentExited mutation ────────────────
+// ─── Test 6: recordAgentExited clears PID ────────────────────────────────────
 
-test('recordAgentExited mutation writes agent.exited event', async () => {
+test('recordAgentExited mutation clears spawned agent PID', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-exited-1');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
@@ -331,15 +280,6 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
     pid: 9999,
   });
 
-  // Count events so far (includes agent.requestStart)
-  const eventsBefore = await t.run(async (ctx) => {
-    return ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect();
-  });
-  const countBefore = eventsBefore.length;
-
   // ===== ACTION =====
   await t.mutation(api.machines.recordAgentExited, {
     sessionId,
@@ -351,27 +291,6 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
   });
 
   // ===== VERIFY =====
-  const eventsAfter = await t.run(async (ctx) => {
-    return ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect();
-  });
-
-  expect(eventsAfter.length).toBeGreaterThan(countBefore);
-
-  const exitedEvent = eventsAfter.find((e) => e.type === 'agent.exited');
-  expect(exitedEvent).toBeDefined();
-  if (exitedEvent && exitedEvent.type === 'agent.exited') {
-    expect(exitedEvent.chatroomId).toBe(chatroomId);
-    expect(exitedEvent.machineId).toBe(machineId);
-    expect(exitedEvent.role).toBe('builder');
-    expect(exitedEvent.pid).toBe(9999);
-    expect(exitedEvent.exitCode).toBe(1);
-    expect(typeof exitedEvent.timestamp).toBe('number');
-  }
-
-  // Also verify that the PID was cleared on the agent config
   const agentConfig = await t.run(async (ctx) => {
     return ctx.db
       .query('chatroom_teamAgentConfigs')
@@ -446,7 +365,6 @@ test('recordAgentExited does NOT emit agent.requestStart — daemon owns crash r
   const requestStartCountAfter = eventsAfter.filter((e) => e.type === 'agent.requestStart').length;
 
   expect(requestStartCountAfter).toBe(requestStartCountBefore); // no new requestStart events
-  expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined(); // exited event still recorded
 });
 
 // ─── Test 8: Intentional stop does NOT schedule ensure-agent ─────────────────
@@ -529,133 +447,7 @@ test('recordAgentExited with crash but no active task does NOT schedule ensure-a
   expect(crashRecoveryCheck).toBeUndefined();
 });
 
-// ─── Test 10: updateSpawnedAgent writes agent.started event ──────────────────
-
-test('updateSpawnedAgent writes agent.started event to event stream', async () => {
-  // ===== SETUP =====
-  const { sessionId } = await createTestSession('test-es-started-1');
-  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
-  const machineId = 'machine-es-started-1';
-  await registerMachineWithDaemon(sessionId, machineId);
-
-  // Ensure agent config exists
-  await t.run(async (ctx) => {
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-      .first();
-    const user = await ctx.db.query('users').first();
-    return startAgent(
-      ctx,
-      {
-        machineId,
-        chatroomId,
-        role: 'builder',
-        userId: user!._id,
-        model: 'test-model',
-        agentHarness: 'opencode',
-        workingDir: '/test/ws',
-        reason: 'test',
-      },
-      machine!
-    );
-  });
-
-  // Count events before
-  const before = await t.run(async (ctx) =>
-    ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect()
-  );
-
-  // ===== ACTION =====
-  await t.mutation(api.machines.updateSpawnedAgent, {
-    sessionId,
-    machineId,
-    chatroomId,
-    role: 'builder',
-    pid: 42001,
-    model: 'test-model',
-  });
-
-  // ===== VERIFY =====
-  const after = await t.run(async (ctx) =>
-    ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect()
-  );
-
-  const startedEvents = after.filter((e) => (e as { type?: string }).type === 'agent.started');
-  expect(startedEvents.length).toBeGreaterThanOrEqual(1);
-
-  const latestStarted = startedEvents[startedEvents.length - 1] as {
-    type: string;
-    pid: number;
-    role: string;
-    model: string;
-  };
-  expect(latestStarted.pid).toBe(42001);
-  expect(latestStarted.role).toBe('builder');
-  expect(latestStarted.model).toBe('test-model');
-  expect(after.length).toBeGreaterThan(before.length);
-});
-
-test('updateSpawnedAgent persists harnessSessionId on agent.started event', async () => {
-  const { sessionId } = await createTestSession('test-es-started-harness-session');
-  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
-  const machineId = 'machine-es-started-harness-session';
-  await registerMachineWithDaemon(sessionId, machineId);
-
-  await t.run(async (ctx) => {
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-      .first();
-    const user = await ctx.db.query('users').first();
-    return startAgent(
-      ctx,
-      {
-        machineId,
-        chatroomId,
-        role: 'builder',
-        userId: user!._id,
-        model: 'test-model',
-        agentHarness: 'opencode',
-        workingDir: '/test/ws',
-        reason: 'test',
-      },
-      machine!
-    );
-  });
-
-  await t.mutation(api.machines.updateSpawnedAgent, {
-    sessionId,
-    machineId,
-    chatroomId,
-    role: 'builder',
-    pid: 42002,
-    model: 'test-model',
-    harnessSessionId: 'harness-sess-abc123',
-  });
-
-  const after = await t.run(async (ctx) =>
-    ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect()
-  );
-
-  const startedEvents = after.filter((e) => (e as { type?: string }).type === 'agent.started');
-  const latestStarted = startedEvents[startedEvents.length - 1] as {
-    type: string;
-    harnessSessionId?: string;
-  };
-  expect(latestStarted.harnessSessionId).toBe('harness-sess-abc123');
-});
-
-// ─── Test 11: updateSpawnedAgent upserts restart metric ──────────────────────
+// ─── Test 10: updateSpawnedAgent upserts restart metric ──────────────────────
 
 test('updateSpawnedAgent upserts chatroom_agentRestartMetrics — increments on repeated starts', async () => {
   // ===== SETUP =====
@@ -856,9 +648,6 @@ describe('Eager crash recovery (idle agent restart)', () => {
       (e) => e.type === 'agent.requestStart'
     ).length;
     expect(requestStartCountAfter).toBe(requestStartCountBefore);
-
-    // agent.exited should still be recorded
-    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined();
   });
 
   test('crash with no task + desiredState=stopped does NOT emit agent.requestStart', async () => {
@@ -1046,9 +835,6 @@ describe('Eager crash recovery (idle agent restart)', () => {
       (e) => e.type === 'agent.requestStart'
     ).length;
     expect(requestStartCountAfter).toBe(requestStartCountBefore);
-
-    // agent.exited should still be recorded
-    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined();
   });
 });
 

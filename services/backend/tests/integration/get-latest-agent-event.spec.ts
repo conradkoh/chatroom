@@ -116,9 +116,9 @@ test('getLatestAgentEvent returns null for unauthenticated session', async () =>
   expect(result).toBeNull();
 });
 
-// ─── Test 5: End-to-end: task.acknowledged appears after claimTask ────────────
+// ─── Test 5: claimTask updates participant lastStatus ────────────────────────
 
-test('after claimTask, getLatestAgentEvent returns task.acknowledged for the role', async () => {
+test('after claimTask, participant lastStatus is task.acknowledged', async () => {
   const { sessionId } = await createTestSession('test-glae-claim');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
@@ -144,20 +144,22 @@ test('after claimTask, getLatestAgentEvent returns task.acknowledged for the rol
     role: 'builder',
   });
 
-  // Query latest event for builder
-  const result = await t.query(api.machines.getLatestAgentEvent, {
-    sessionId,
-    chatroomId,
-    role: 'builder',
+  // Query participant status (observability events no longer written to event stream)
+  const participant = await t.run(async (ctx) => {
+    return ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', 'builder')
+      )
+      .unique();
   });
 
-  expect(result).not.toBeNull();
-  expect(result?.type).toBe('task.acknowledged');
+  expect(participant?.lastStatus).toBe('task.acknowledged');
 });
 
-// ─── Test 6: End-to-end: task.inProgress appears after startTask ─────────────
+// ─── Test 6: startTask updates participant lastStatus ───────────────────────
 
-test('after startTask, getLatestAgentEvent returns task.inProgress for the role', async () => {
+test('after startTask, participant lastStatus is task.inProgress', async () => {
   const { sessionId } = await createTestSession('test-glae-start');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
@@ -189,13 +191,14 @@ test('after startTask, getLatestAgentEvent returns task.inProgress for the role'
     role: 'builder',
   });
 
-  // Query latest event
-  const result = await t.query(api.machines.getLatestAgentEvent, {
-    sessionId,
-    chatroomId,
-    role: 'builder',
+  const participant = await t.run(async (ctx) => {
+    return ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', 'builder')
+      )
+      .unique();
   });
 
-  expect(result).not.toBeNull();
-  expect(result?.type).toBe('task.inProgress');
+  expect(participant?.lastStatus).toBe('task.inProgress');
 });

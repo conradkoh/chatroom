@@ -34,16 +34,6 @@ async function getParticipantStatus(chatroomId: Id<'chatroom_rooms'>, role: stri
   });
 }
 
-async function getEventStreamTypes(chatroomId: Id<'chatroom_rooms'>, role: string) {
-  return t.run(async (ctx) => {
-    const events = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect();
-    return events.filter((e) => e.role === role).map((e) => e.type);
-  });
-}
-
 async function createAcknowledgedTask(
   sessionId: string,
   chatroomId: Id<'chatroom_rooms'>,
@@ -196,9 +186,6 @@ describe('Participant Status Tracking', () => {
 
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('agent.waiting');
-
-    const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
-    expect(eventTypes).toContain('agent.waiting');
   });
 
   test('task.acknowledged via join with native:task-injected', async () => {
@@ -206,15 +193,6 @@ describe('Participant Status Tracking', () => {
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
     const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
-
-    const acknowledgedCountBefore = await t.run(async (ctx) => {
-      const events = await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-      return events.filter((e) => e.type === 'task.acknowledged').length;
-    });
-    expect(acknowledgedCountBefore).toBe(1);
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -226,15 +204,6 @@ describe('Participant Status Tracking', () => {
 
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('task.acknowledged');
-
-    const acknowledgedCountAfter = await t.run(async (ctx) => {
-      const events = await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-      return events.filter((e) => e.type === 'task.acknowledged').length;
-    });
-    expect(acknowledgedCountAfter).toBe(acknowledgedCountBefore);
   });
 
   test('task.inProgress via updateTokenActivity when lastStatus is task.acknowledged', async () => {
@@ -259,9 +228,6 @@ describe('Participant Status Tracking', () => {
 
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('task.inProgress');
-
-    const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
-    expect(eventTypes.filter((type) => type === 'task.inProgress')).toHaveLength(1);
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
     expect(task?.status).toBe('in_progress');
@@ -433,9 +399,6 @@ describe('Participant Status Tracking', () => {
 
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('task.inProgress');
-
-    const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
-    expect(eventTypes.filter((type) => type === 'task.inProgress')).toHaveLength(1);
   });
 
   test('task.acknowledged via claimTask', async () => {
@@ -686,7 +649,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastDesiredState).toBe('stopped');
   });
 
-  test('emitSessionResumeRequested writes event stream row and updates lastStatus', async () => {
+  test('emitSessionResumeRequested updates lastStatus', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resume-requested');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resume-requested';
@@ -703,25 +666,11 @@ describe('Participant Status Tracking', () => {
       harnessSessionId: 'harness-sess-requested-xyz',
     });
 
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-
-    const requested = events.filter((e) => e.type === 'agent.sessionResumeRequested');
-    expect(requested).toHaveLength(1);
-    expect(requested[0]).toMatchObject({
-      agentHarness: 'cursor-sdk',
-      harnessSessionId: 'harness-sess-requested-xyz',
-    });
-
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('agent.sessionResumeRequested');
   });
 
-  test('emitSessionResumed writes event stream row and updates lastStatus', async () => {
+  test('emitSessionResumed updates lastStatus', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resumed');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resumed';
@@ -736,21 +685,11 @@ describe('Participant Status Tracking', () => {
       role: 'builder',
     });
 
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-
-    const resumed = events.filter((e) => e.type === 'agent.sessionResumed');
-    expect(resumed).toHaveLength(1);
-
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('agent.sessionResumed');
   });
 
-  test('emitSessionResumed persists harnessSessionId on event stream row', async () => {
+  test('emitSessionResumed updates lastStatus with harnessSessionId arg', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resumed-harness');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resumed-harness';
@@ -766,19 +705,11 @@ describe('Participant Status Tracking', () => {
       harnessSessionId: 'harness-sess-resumed-xyz',
     });
 
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-
-    const resumed = events.filter((e) => e.type === 'agent.sessionResumed');
-    expect(resumed).toHaveLength(1);
-    expect(resumed[0].harnessSessionId).toBe('harness-sess-resumed-xyz');
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('agent.sessionResumed');
   });
 
-  test('emitSessionAugmented writes event stream row with mode and newSessionStarted', async () => {
+  test('emitSessionAugmented completes successfully', async () => {
     const { sessionId } = await createTestSession('test-pst-session-augmented');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-augmented';
@@ -787,7 +718,7 @@ describe('Participant Status Tracking', () => {
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
     const taskId = await createAcknowledgedTask(sessionId, chatroomId, 'builder');
 
-    await t.mutation(api.machines.emitSessionAugmented, {
+    const result = await t.mutation(api.machines.emitSessionAugmented, {
       sessionId,
       machineId,
       chatroomId,
@@ -798,26 +729,10 @@ describe('Participant Status Tracking', () => {
       harnessSessionId: 'sess-2',
     });
 
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-
-    const augmented = events.filter((e) => e.type === 'agent.sessionAugmented');
-    expect(augmented).toHaveLength(1);
-    expect(augmented[0]).toMatchObject({
-      taskId,
-      harnessSessionId: 'sess-2',
-      machineId,
-      role: 'builder',
-      mode: 'new_session',
-      newSessionStarted: true,
-    });
+    expect(result).toEqual({ success: true });
   });
 
-  test('emitSessionResumeFailed persists harnessSessionId on event stream row', async () => {
+  test('emitSessionResumeFailed updates lastStatus', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resume-failed-harness');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resume-failed-harness';
@@ -834,15 +749,7 @@ describe('Participant Status Tracking', () => {
       harnessSessionId: 'harness-sess-failed-xyz',
     });
 
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-
-    const failed = events.filter((e) => e.type === 'agent.sessionResumeFailed');
-    expect(failed).toHaveLength(1);
-    expect(failed[0].harnessSessionId).toBe('harness-sess-failed-xyz');
+    const status = await getParticipantStatus(chatroomId, 'builder');
+    expect(status.lastStatus).toBe('agent.sessionResumeFailed');
   });
 });
