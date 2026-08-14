@@ -33,11 +33,12 @@ export function getEnhancerFeedbackTemplateBody(): string {
 <!-- When UI is proposed: specific findings tied to the planner's proposal. No code blocks (use Suggested edits). -->
 - **Flows:** <click count, nested modals, simpler alternatives>
 - **Patterns:** <consistency with existing project components; recommend one when multiple>
-- **Layout:** <complexity, wrappers, layout-shift risk>
+- **Layout:** <complexity, wrappers, layout stable across state transitions — no layout shift>
 - **Shortcuts:** <alignment with catalog; gaps or conflicts>
-- **States:** <loading/error/empty coverage for async surfaces>
+- **States:** <loading/error/empty explicitly handled; no blank panels or silent failures>
 - **Error boundaries:** <error boundary placement; failure isolated from the whole app>
 - **Feedback:** <timely response for async actions>
+- **Interaction affordance:** <pointer cursor or project equivalent on clickable elements where applicable>
 - **Destructive safeguards:** <confirmation before irreversible/high-impact actions>
 - **Bulk safeguards:** <confirmation with scope summary for batch operations>
 </handoff-ux>

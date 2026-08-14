@@ -6,21 +6,26 @@ export function renderWebappUxHandoffReference(): string {
     '',
     '1. **Flows** — is the primary path straightforward? simpler alternatives exist?',
     '2. **Patterns** — consistent with existing project components and conventions? recommend one when multiple exist.',
-    '3. **Layout** — unnecessary complexity, wrappers, or layout-shift risk?',
+    '3. **Layout** — unnecessary complexity or wrappers? layout stable across loading/empty/error transitions (no layout shift when async content arrives or state changes)?',
     '4. **Shortcuts** — aligned with the project keyboard/shortcut conventions? gaps or conflicts?',
-    '5. **States** — loading, error, and empty states covered for async surfaces?',
+    '5. **States** — loading, error, and empty states explicitly handled for async surfaces (no blank panels, silent failures, or missing retry affordances)?',
     '6. **Error boundaries** — failures scoped so one subtree does not crash the whole app?',
     '7. **Feedback** — timely response for async user actions?',
-    '8. **Destructive actions** — irreversible or high-impact single actions gated by confirmation?',
-    '9. **Bulk actions** — batch/multi-item operations confirmed with scope or impact summary?',
+    "8. **Interaction affordance** — clickable/interactive elements use pointer cursor (or the project's established equivalent) where applicable?",
+    '9. **Destructive actions** — irreversible or high-impact single actions gated by confirmation?',
+    '10. **Bulk actions** — batch/multi-item operations confirmed with scope or impact summary?',
     '',
     '### Review principles',
     '- Ground feedback in the planner check-in and the project codebase — cite existing patterns rather than inventing generic UI preferences.',
-    '- Do **not** prescribe style choices the project has not adopted (e.g. `cursor: pointer`, specific flex layouts, canonical card chrome, responsive utility patterns, button label copy).',
-    '- Flag missing states and missing safeguards when the plan omits them; recommend consistency with established project conventions.',
+    '- Flag missing states, layout-shift risk, and missing interaction affordances when the plan omits them; recommend consistency with established project conventions.',
+    '- Do **not** prescribe style choices the project has not adopted (e.g. specific flex layouts, canonical card chrome, responsive utility patterns, button label copy).',
     '- When multiple valid patterns exist in the codebase, recommend one and explain the tradeoff.',
   ].join('\n');
 }
 // fallow-ignore-next-line unused-export
-export function renderWebappUxReference(): string { return renderWebappUxHandoffReference(); }
-export function getUxReviewTriggerDescription(): string { return 'when the planner check-in proposes user interface changes'; }
+export function renderWebappUxReference(): string {
+  return renderWebappUxHandoffReference();
+}
+export function getUxReviewTriggerDescription(): string {
+  return 'when the planner check-in proposes user interface changes';
+}
