@@ -40,6 +40,7 @@ export function isActiveParticipant(participant: { lastSeenAction?: string | nul
 const ONLINE_OR_STARTING_STATUSES = new Set([
   'agent.waiting',
   'agent.requestStart',
+  'agent.restart',
   'agent.started',
   'task.acknowledged',
   'task.inProgress',
