@@ -18,20 +18,14 @@ import { resetOverlayDismissStackForTests } from '@/modules/chatroom/components/
 vi.mock('next/dynamic', () => ({
   default: () => {
     const MockComponent = (props: Record<string, unknown>) => {
-      const { value, onChange, onCmdEnter, ...rest } = props as {
-        value: string;
-        onChange: (md: string) => void;
-        onCmdEnter?: () => void;
+      const { defaultMarkdown = '', onChange, ...rest } = props as {
+        defaultMarkdown?: string;
+        onChange?: (md: string) => void;
       };
       return (
         <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-              onCmdEnter?.();
-            }
-          }}
+          value={defaultMarkdown}
+          onChange={(e) => onChange?.(e.target.value)}
           {...rest}
         />
       );
