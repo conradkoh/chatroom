@@ -117,6 +117,27 @@ describe('getAllTabAnchorNavigation', () => {
 });
 
 describe('listAllTabSlicePaginated', () => {
+  test('defaults sliceUpperBoundExclusive to null when field is omitted', async () => {
+    const { sessionId } = await createTestSession('alltab-slice-omit-bound');
+    const chatroomId = await createChatroom(sessionId);
+    const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
+    await insertTimelineMessage(chatroomId, 'builder', 'reply');
+    await insertTimelineMessage(chatroomId, 'user', 'next user');
+
+    const result = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId as Id<'chatroom_messages'>,
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+
+    const contents = result.page.map((m) => m.content);
+    expect(contents).toContain('anchor');
+    expect(contents).toContain('reply');
+    expect(contents).toContain('next user');
+    expect(result.sliceMetadata.upperBoundExclusive).toBeNull();
+  });
+
   test('returns anchor + replies, excludes next user message', async () => {
     const { sessionId } = await createTestSession('alltab-slice-basic');
     const chatroomId = await createChatroom(sessionId);
