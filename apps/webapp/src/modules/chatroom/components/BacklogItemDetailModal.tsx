@@ -17,7 +17,7 @@ import Markdown from 'react-markdown';
 
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
-import { ChatroomMarkdownEditorShell, isInteractiveClickTarget } from './detail-modal-shared';
+import { ChatroomMarkdownEditorShell, useClickToEditHandlers } from './detail-modal-shared';
 import { modalMarkdownComponents, backlogRichTextEditorProseClassNames } from './markdown-utils';
 import { useAttachments } from '../attachments';
 import {
@@ -121,6 +121,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
   }, [item, editedContent, updateItem]);
 
   const enterEdit = useCallback(() => setIsEditing(true), []);
+  const clickToEditHandlers = useClickToEditHandlers(enterEdit, item?.status === 'backlog');
 
   const handleMutation = async (fn: () => Promise<unknown>) => {
     setIsLoading(true);
@@ -206,14 +207,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
               // View mode — read-only markdown; click to edit for backlog status
               <div
                 data-testid="backlog-detail-view-body"
-                onClick={
-                  item.status === 'backlog'
-                    ? (e) => {
-                        if (isInteractiveClickTarget(e.target)) return;
-                        enterEdit();
-                      }
-                    : undefined
-                }
+                {...clickToEditHandlers}
                 onKeyDown={
                   item.status === 'backlog'
                     ? (e) => {

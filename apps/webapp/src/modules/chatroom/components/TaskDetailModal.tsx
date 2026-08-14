@@ -6,7 +6,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
-import { ChatroomMarkdownEditorShell, isInteractiveClickTarget } from './detail-modal-shared';
+import { ChatroomMarkdownEditorShell, useClickToEditHandlers } from './detail-modal-shared';
 import { HandoffStructuredContent } from './HandoffStructuredContent';
 import {
   modalMarkdownComponents,
@@ -67,6 +67,8 @@ export function TaskDetailModal({
   const [editedContent, setEditedContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const enterEdit = useCallback(() => setIsEditing(true), []);
+  const clickToEditHandlers = useClickToEditHandlers(enterEdit, !isProtected);
 
   // Attachments context for adding to chat
   const { add, isAttached, canAddMore } = useAttachments();
@@ -191,14 +193,7 @@ export function TaskDetailModal({
             ) : (
               <div
                 data-testid="task-detail-view-body"
-                onClick={
-                  !isProtected
-                    ? (e) => {
-                        if (isInteractiveClickTarget(e.target)) return;
-                        setIsEditing(true);
-                      }
-                    : undefined
-                }
+                {...clickToEditHandlers}
                 onKeyDown={
                   !isProtected
                     ? (e) => {
