@@ -13,6 +13,7 @@ import { transitionAgentStatus } from './transition-agent-status';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 import {
   patchTeamAgentConfig,
   projectAssignedTaskSnapshotsForMachines,
@@ -48,11 +49,17 @@ export async function ensureOnlyAgentForRole(
 ): Promise<void> {
   const { chatroomId, role, excludeMachineId } = input;
 
+  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   const allConfigs = await ctx.db
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
     .collect();
-  const configs = allConfigs.filter((c) => c.role.toLowerCase() === role.toLowerCase());
+  const currentTeamConfigs = filterTeamAgentConfigsForTeam(
+    allConfigs,
+    chatroomId,
+    chatroom?.teamId
+  );
+  const configs = currentTeamConfigs.filter((c) => c.role.toLowerCase() === role.toLowerCase());
 
   const conflicting = configs.filter(
     (config) =>

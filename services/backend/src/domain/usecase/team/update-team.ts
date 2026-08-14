@@ -3,14 +3,15 @@
  *
  * Handles the team switch lifecycle:
  *   1. Updates the chatroom's team configuration
- *   2. Dispatches stop events for running agents on stale roles
- *   3. Deletes teamAgentConfigs (these belong to the platform, not the machine)
+ *   2. Dispatches stop events for running agents on outgoing team roles
+ *   3. Preserves outgoing teamAgentConfigs, restores target-team rows, seeds missing ones
  */
 
+import { buildSeedTeamAgentConfigFields } from './seed-team-config-on-switch';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { emitConfigRemoval } from '../agent/config-removal';
+import { buildTeamRoleKey, teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
 import {
   patchTeamAgentConfig,
   projectAssignedTaskSnapshotsForMachines,
@@ -25,36 +26,28 @@ export interface UpdateTeamInput {
   teamName: string;
   teamRoles: string[];
   teamEntryPoint?: string;
+  userId: Id<'users'>;
 }
 
 export interface UpdateTeamResult {
   /** Number of stop events dispatched for running agents. */
   stoppedAgentCount: number;
-  /** Number of team agent configs deleted. */
-  deletedTeamConfigCount: number;
+  /** Number of outgoing team agent configs preserved (not deleted). */
+  preservedCount: number;
+  restoredCount: number;
+  seededCount: number;
 }
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
 
+// fallow-ignore-next-line complexity
 export async function updateTeam(
   ctx: MutationCtx,
   input: UpdateTeamInput
 ): Promise<UpdateTeamResult> {
-  const { chatroomId, teamId, teamName, teamRoles, teamEntryPoint } = input;
-
-  // ── Step 1: Update chatroom team fields ────────────────────────────────
-
-  await ctx.db.patch('chatroom_rooms', chatroomId, {
-    teamId,
-    teamName,
-    teamRoles,
-    teamEntryPoint,
-  });
-
-  // Reassign in-flight tasks to the new team entry point before stopping agents.
-  await reassignInFlightTasksOnTeamSwitch(ctx, chatroomId);
-
-  // ── Step 2: Stop running agents and delete team configs ────────────────
+  const { chatroomId, teamId, teamName, teamRoles, teamEntryPoint, userId } = input;
+  const previousChatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  const oldTeamId = previousChatroom?.teamId;
 
   const existingTeamConfigs = await ctx.db
     .query('chatroom_teamAgentConfigs')
@@ -63,19 +56,27 @@ export async function updateTeam(
 
   const now = Date.now();
   let stoppedAgentCount = 0;
-  let deletedTeamConfigCount = 0;
+  let preservedCount = 0;
+  let restoredCount = 0;
+  let seededCount = 0;
 
-  // Track machines whose configs are being torn down so we can prune their
-  // orphaned snapshot projection rows after the configs are deleted.
+  await ctx.db.patch('chatroom_rooms', chatroomId, {
+    teamId,
+    teamName,
+    teamRoles,
+    teamEntryPoint,
+  });
+
+  await reassignInFlightTasksOnTeamSwitch(ctx, chatroomId);
+
   const affectedMachineIds = new Set<string>();
 
-  for (const config of existingTeamConfigs) {
+  for (const config of existingTeamConfigs.filter(
+    (c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId)
+  )) {
     if (config.machineId) {
       affectedMachineIds.add(config.machineId);
     }
-    // Dispatch stop event for running remote agents.
-    // The daemon will receive this, stop the process, and call recordAgentExited
-    // which clears the PID in teamAgentConfig.
     if (config.machineId && (config.desiredState === 'running' || config.spawnedAgentPid != null)) {
       await ctx.db.insert('chatroom_eventStream', {
         type: 'agent.requestStop',
@@ -89,10 +90,6 @@ export async function updateTeam(
       });
       stoppedAgentCount++;
 
-      // Immediately clear the spawned PID and set desiredState to stopped.
-      // This prevents stale configs from appearing as "running" in the UI
-      // if the daemon doesn't process the stop event in time (deadline expiry,
-      // daemon disconnected, etc.).
       await patchTeamAgentConfig(
         ctx,
         config._id,
@@ -105,34 +102,57 @@ export async function updateTeam(
       );
     }
 
-    if (config.machineId) {
-      // Request config removal via event stream — actual deletion happens
-      // in recordAgentExited after the process is confirmed dead
-      await emitConfigRemoval(ctx, {
-        chatroomId,
-        role: config.role,
-        machineId: config.machineId,
-        reason: 'team_switch',
-      });
+    preservedCount++;
+  }
 
-      // Since we cleared spawnedAgentPid above (or it was never set),
-      // the config can be deleted immediately. The daemon will still
-      // receive the stop event to kill the actual process.
-      await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
-      deletedTeamConfigCount++;
+  for (const role of teamRoles) {
+    const key = buildTeamRoleKey(chatroomId, teamId, role);
+    const existing = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', key))
+      .first();
+    if (existing) {
+      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, {
+        desiredState: 'stopped',
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+        updatedAt: now,
+      });
+      if (existing.machineId) affectedMachineIds.add(existing.machineId);
+      restoredCount++;
     } else {
-      // No machine — safe to delete (custom config or orphan)
-      await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
-      deletedTeamConfigCount++;
+      const seedFields = await buildSeedTeamAgentConfigFields({
+        ctx,
+        chatroomId,
+        userId,
+        targetTeamId: teamId,
+        targetRole: role,
+        previousChatroom,
+        existingTeamConfigs,
+      });
+      if (seedFields?.machineId) {
+        await ctx.db.insert('chatroom_teamAgentConfigs', {
+          teamRoleKey: key,
+          chatroomId,
+          role,
+          type: 'remote',
+          createdAt: now,
+          updatedAt: now,
+          desiredState: 'stopped',
+          ...seedFields,
+        });
+        affectedMachineIds.add(seedFields.machineId);
+        seededCount++;
+      }
     }
   }
 
-  // Rebuild each affected machine's snapshot projection. With this chatroom's
-  // configs now deleted, projection rebuild prunes the orphaned rows.
   await projectAssignedTaskSnapshotsForMachines(ctx, affectedMachineIds);
 
   return {
     stoppedAgentCount,
-    deletedTeamConfigCount,
+    preservedCount,
+    restoredCount,
+    seededCount,
   };
 }

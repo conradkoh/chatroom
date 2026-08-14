@@ -16,6 +16,7 @@ import {
 import type { AssignedTaskSignal } from './assigned-tasks-types';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
+import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 import { getTeamEntryPoint } from '../../entities/team';
 import { resolveSessionAugmentationForRole } from '../../handoff/parse-session-augmentation';
 
@@ -230,7 +231,11 @@ export async function projectAssignedTaskSnapshotsForMachine(
   for (const chatroomId of chatroomIds) {
     const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
     const activeTasks = await collectActiveTasksForChatroom(ctx, chatroomId);
-    const configsForChatroom = agentConfigs.filter((c) => c.chatroomId === chatroomId);
+    const configsForChatroom = filterTeamAgentConfigsForTeam(
+      agentConfigs.filter((c) => c.chatroomId === chatroomId),
+      chatroomId,
+      chatroom?.teamId
+    );
 
     for (const task of activeTasks) {
       const responsibleConfigs = resolveResponsibleConfigs(
@@ -271,11 +276,16 @@ export async function projectAssignedTaskSnapshotsForChatroom(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<void> {
-  const configs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .filter((q) => q.eq(q.field('type'), 'remote'))
-    .collect();
+  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  const configs = filterTeamAgentConfigsForTeam(
+    await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .filter((q) => q.eq(q.field('type'), 'remote'))
+      .collect(),
+    chatroomId,
+    chatroom?.teamId
+  );
 
   const machineIds = new Set(
     configs.map((c) => c.machineId).filter((id): id is string => id !== undefined)

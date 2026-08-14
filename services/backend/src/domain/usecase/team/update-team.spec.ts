@@ -1,22 +1,22 @@
 /**
  * Update Team Use Case — Unit Tests
  *
- * Tests the core updateTeam use case logic in isolation:
- * - Chatroom fields are updated
- * - Team configs are deleted
- * - Stop events dispatched for running team-config agents
+ * Tests preserve/restore/seed behavior on team switch.
  */
 
 import { describe, expect, test } from 'vitest';
 
 import { updateTeam } from './update-team';
 import { api } from '../../../../convex/_generated/api';
+import type { Id } from '../../../../convex/_generated/dataModel';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
 import {
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../../../../tests/helpers/integration';
+import { TEST_MODEL_OPENCODE_LEGACY } from '../../../../tests/helpers/test-models';
 
 function createThreeRoleChatroom(sessionId: string) {
   return t.mutation(api.chatrooms.create, {
@@ -28,10 +28,18 @@ function createThreeRoleChatroom(sessionId: string) {
   });
 }
 
+async function getOwnerUserId(chatroomId: Id<'chatroom_rooms'>) {
+  return t.run(async (ctx) => {
+    const room = await ctx.db.get('chatroom_rooms', chatroomId);
+    return room!.ownerId;
+  });
+}
+
 describe('updateTeam use case', () => {
   test('updates chatroom team fields', async () => {
     const { sessionId } = await createTestSession('test-utu-fields-1');
     const chatroomId = await createThreeRoleChatroom(sessionId);
+    const userId = await getOwnerUserId(chatroomId);
 
     await t.run(async (ctx) => {
       return updateTeam(ctx, {
@@ -40,6 +48,7 @@ describe('updateTeam use case', () => {
         teamName: 'Duo Team',
         teamRoles: ['planner', 'builder'],
         teamEntryPoint: 'planner',
+        userId,
       });
     });
 
@@ -49,11 +58,12 @@ describe('updateTeam use case', () => {
     expect(room!.teamRoles).toEqual(['planner', 'builder']);
   });
 
-  test('deletes all teamAgentConfigs', async () => {
-    const { sessionId } = await createTestSession('test-utu-delete-1');
-    const machineId = 'machine-utu-delete-1';
+  test('preserves outgoing team configs instead of deleting them', async () => {
+    const { sessionId } = await createTestSession('test-utu-preserve-1');
+    const machineId = 'machine-utu-preserve-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createThreeRoleChatroom(sessionId);
+    const userId = await getOwnerUserId(chatroomId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -64,10 +74,12 @@ describe('updateTeam use case', () => {
         teamId: 'duo',
         teamName: 'Duo Team',
         teamRoles: ['planner', 'builder'],
+        teamEntryPoint: 'planner',
+        userId,
       });
     });
 
-    expect(result.deletedTeamConfigCount).toBe(2);
+    expect(result.preservedCount).toBeGreaterThanOrEqual(2);
 
     const remaining = await t.run(async (ctx) => {
       return ctx.db
@@ -75,7 +87,116 @@ describe('updateTeam use case', () => {
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    expect(remaining).toHaveLength(0);
+
+    const customPlannerKey = buildTeamRoleKey(chatroomId, 'custom', 'planner');
+    expect(remaining.some((c) => c.teamRoleKey === customPlannerKey)).toBe(true);
+    expect(remaining.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('seeds missing target-team rows from outgoing entry-point machine', async () => {
+    const { sessionId } = await createTestSession('test-utu-seed-1');
+    const machineId = 'machine-utu-seed-1';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
+    const userId = await getOwnerUserId(chatroomId);
+
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner', {
+      workingDir: '/seed/workspace',
+    });
+
+    const result = await t.run(async (ctx) => {
+      return updateTeam(ctx, {
+        chatroomId,
+        teamId: 'duo',
+        teamName: 'Duo Team',
+        teamRoles: ['planner', 'builder'],
+        teamEntryPoint: 'planner',
+        userId,
+      });
+    });
+
+    expect(result.seededCount).toBeGreaterThanOrEqual(1);
+
+    const duoBuilderKey = buildTeamRoleKey(chatroomId, 'duo', 'builder');
+    const seeded = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', duoBuilderKey))
+        .first();
+    });
+
+    expect(seeded?.machineId).toBe(machineId);
+    expect(seeded?.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
+    expect(seeded?.workingDir).toBe('/seed/workspace');
+  });
+
+  test('restores existing target-team configs when switching back', async () => {
+    const { sessionId } = await createTestSession('test-utu-restore-1');
+    const machineId = 'machine-utu-restore-1';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
+    const userId = await getOwnerUserId(chatroomId);
+
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+
+    await t.run(async (ctx) => {
+      return updateTeam(ctx, {
+        chatroomId,
+        teamId: 'duo',
+        teamName: 'Duo Team',
+        teamRoles: ['planner', 'builder'],
+        teamEntryPoint: 'planner',
+        userId,
+      });
+    });
+
+    const duoPlannerKey = buildTeamRoleKey(chatroomId, 'duo', 'planner');
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', duoPlannerKey))
+        .first();
+      if (row) {
+        await ctx.db.patch('chatroom_teamAgentConfigs', row._id, {
+          model: 'restored-model',
+          workingDir: '/restored/dir',
+        });
+      }
+    });
+
+    await t.run(async (ctx) => {
+      return updateTeam(ctx, {
+        chatroomId,
+        teamId: 'custom',
+        teamName: 'Custom Three-Role Team',
+        teamRoles: ['planner', 'builder', 'architect'],
+        teamEntryPoint: 'planner',
+        userId,
+      });
+    });
+
+    const restoreResult = await t.run(async (ctx) => {
+      return updateTeam(ctx, {
+        chatroomId,
+        teamId: 'duo',
+        teamName: 'Duo Team',
+        teamRoles: ['planner', 'builder'],
+        teamEntryPoint: 'planner',
+        userId,
+      });
+    });
+
+    expect(restoreResult.restoredCount).toBeGreaterThanOrEqual(1);
+
+    const restored = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', duoPlannerKey))
+        .first();
+    });
+
+    expect(restored?.model).toBe('restored-model');
+    expect(restored?.workingDir).toBe('/restored/dir');
   });
 
   test('dispatches stop events for running agents and returns count', async () => {
@@ -83,6 +204,7 @@ describe('updateTeam use case', () => {
     const machineId = 'machine-utu-stop-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createThreeRoleChatroom(sessionId);
+    const userId = await getOwnerUserId(chatroomId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
@@ -93,57 +215,11 @@ describe('updateTeam use case', () => {
         teamId: 'duo',
         teamName: 'Duo Team',
         teamRoles: ['planner', 'builder'],
+        teamEntryPoint: 'planner',
+        userId,
       });
     });
 
-    // Both planner and builder had desiredState=running
     expect(result.stoppedAgentCount).toBeGreaterThanOrEqual(2);
-  });
-
-  test('clears spawnedAgentPid on old-team configs during team switch', async () => {
-    const { sessionId } = await createTestSession('test-utu-pid-clear-1');
-    const machineId = 'machine-utu-pid-clear-1';
-    await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createThreeRoleChatroom(sessionId);
-
-    // Set up agent config and simulate a running agent by setting spawnedAgentPid
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
-
-    // Directly patch the config to have a spawnedAgentPid (simulating daemon updateSpawnedAgent)
-    await t.run(async (ctx) => {
-      const configs = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-      const builderConfig = configs.find((c) => c.role === 'builder');
-      if (builderConfig) {
-        await ctx.db.patch('chatroom_teamAgentConfigs', builderConfig._id, {
-          spawnedAgentPid: 12345,
-          spawnedAt: Date.now(),
-        });
-      }
-    });
-
-    // Switch team — should clear PID and delete the config
-    const result = await t.run(async (ctx) => {
-      return updateTeam(ctx, {
-        chatroomId,
-        teamId: 'duo',
-        teamName: 'Duo Team',
-        teamRoles: ['planner', 'builder'],
-      });
-    });
-
-    // Config should be deleted (PID cleared first, then deleted)
-    expect(result.deletedTeamConfigCount).toBeGreaterThanOrEqual(1);
-
-    // No configs should remain
-    const remaining = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-    expect(remaining).toHaveLength(0);
   });
 });

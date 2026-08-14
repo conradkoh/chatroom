@@ -125,6 +125,7 @@ import type * as taskDeliveryReceipts from "../taskDeliveryReceipts.js";
 import type * as tasks from "../tasks.js";
 import type * as utils_machineFavoriteScopeKey from "../utils/machineFavoriteScopeKey.js";
 import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
+import type * as utils_teamRoleKeyFilter from "../utils/teamRoleKeyFilter.js";
 import type * as utils_types from "../utils/types.js";
 import type * as web_agenticQuery_completeLogic from "../web/agenticQuery/completeLogic.js";
 import type * as web_agenticQuery_index from "../web/agenticQuery/index.js";
@@ -275,6 +276,7 @@ declare const fullApi: ApiFromModules<{
   tasks: typeof tasks;
   "utils/machineFavoriteScopeKey": typeof utils_machineFavoriteScopeKey;
   "utils/teamRoleKey": typeof utils_teamRoleKey;
+  "utils/teamRoleKeyFilter": typeof utils_teamRoleKeyFilter;
   "utils/types": typeof utils_types;
   "web/agenticQuery/completeLogic": typeof web_agenticQuery_completeLogic;
   "web/agenticQuery/index": typeof web_agenticQuery_index;
