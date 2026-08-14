@@ -31,16 +31,15 @@ export function getEnhancerFeedbackTemplateBody(): string {
 <handoff-ux>
 <!-- Optional — write exactly "Not Applicable." when no UI changes are proposed -->
 <!-- When UI is proposed: specific findings tied to the planner's proposal. No code blocks (use Suggested edits). -->
-- **Flows:** <specific finding — click count, nested modals, simpler alternatives>
-- **Patterns:** <which existing pattern fits; recommend one if multiple; mobile vs desktop>
-- **Layout:** <compact rows, trailing CTAs, unnecessary wrappers>
+- **Flows:** <click count, nested modals, simpler alternatives>
+- **Patterns:** <consistency with existing project components; recommend one when multiple>
+- **Layout:** <complexity, wrappers, layout-shift risk>
 - **Shortcuts:** <alignment with catalog; gaps or conflicts>
 - **States:** <loading/error/empty coverage for async surfaces>
 - **Error boundaries:** <error boundary placement; failure isolated from the whole app>
-- **Alignment:** <hierarchy traced; position/height issues; inline snapshot consideration>
-- **Feedback:** <immediate pending state on async actions; ⌘Enter + button state>
-- **Destructive safeguards:** <single-item irreversible/high-impact actions gated by confirm dialog; cite missing confirms>
-- **Bulk safeguards:** <batch/multi-item operations gated by confirm with count/impact summary; cite missing confirms>
+- **Feedback:** <timely response for async actions>
+- **Destructive safeguards:** <confirmation before irreversible/high-impact actions>
+- **Bulk safeguards:** <confirmation with scope summary for batch operations>
 </handoff-ux>
 
 <handoff-defragmentation>
