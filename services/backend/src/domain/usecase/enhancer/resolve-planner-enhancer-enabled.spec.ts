@@ -39,6 +39,11 @@ describe('resolvePlannerEnhancerEnabledFromConfig', () => {
   test('returns false when target does not match', () => {
     expect(resolvePlannerEnhancerEnabledFromConfig(makeConfig({ targetId: 'other' }))).toBe(false);
   });
+
+  test('returns false when model or machine is whitespace', () => {
+    expect(resolvePlannerEnhancerEnabledFromConfig(makeConfig({ model: ' ' }))).toBe(false);
+    expect(resolvePlannerEnhancerEnabledFromConfig(makeConfig({ machineId: ' ' }))).toBe(false);
+  });
 });
 
 describe('resolveTaskPlannerEnhancerEnabled', () => {
@@ -161,5 +166,14 @@ describe('validatePlannerEnhancerHandoff', () => {
     });
     expect(result.allowed).toBe(true);
     if (result.allowed) expect(result.config).toBeDefined();
+  });
+
+  test('returns CONFIG_INCOMPLETE when undefined flag has incomplete enabled config', () => {
+    const result = validatePlannerEnhancerHandoff({
+      taskPlannerEnhancerEnabled: undefined,
+      config: makeConfig({ model: ' ' }),
+    });
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) expect(result.code).toBe('ENHANCER_CONFIG_INCOMPLETE');
   });
 });

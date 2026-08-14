@@ -87,6 +87,16 @@ describe('PlannerEnhancerToggle', () => {
     expect(mockOpenDialog).not.toHaveBeenCalled();
   });
 
+  it('does not enable an incomplete saved config', async () => {
+    mockConfig = { ...SAVED_CONFIG, enabled: true, model: '' };
+    render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
+
+    fireEvent.click(screen.getByTestId('planner-enhancer-toggle'));
+    await waitFor(() => expect(mockOpenDialog).toHaveBeenCalled());
+    expect(mockSaveConfig).not.toHaveBeenCalled();
+    expect(screen.getByTestId('planner-enhancer-toggle')).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('disables when active and not enhancing', async () => {
     mockConfig = { ...SAVED_CONFIG, enabled: true };
     mockIsActive = true;

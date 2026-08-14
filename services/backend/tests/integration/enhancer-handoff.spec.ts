@@ -43,6 +43,48 @@ async function createPlannerUserMessageAndTask(
 }
 
 describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle', () => {
+  test('rejects planner handoff to enhancer when enabled config is incomplete', async () => {
+    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-incomplete-config');
+
+    await t.run(async (ctx) => {
+      const session = await ctx.db
+        .query('sessions')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
+        .unique();
+      await ctx.db.insert('chatroom_enhancerConfigs', {
+        chatroomId,
+        userId: session!.userId,
+        enabled: true,
+        targetId: 'handoff:planner-to-builder',
+        agentHarness: 'opencode',
+        model: '',
+        machineId,
+        updatedAt: Date.now(),
+      });
+    });
+
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await createPlannerUserMessageAndTask(sessionId, chatroomId, 'Task for incomplete enhancer');
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: 'Check-in with incomplete config',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error?.code).toBe('ENHANCER_CONFIG_INCOMPLETE');
+    const jobs = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_enhancerJobs')
+        .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
+        .collect()
+    );
+    expect(jobs).toHaveLength(0);
+  });
+
   test('enqueueHandoff creates job and enhancer.job.created event', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-enqueue');
 
