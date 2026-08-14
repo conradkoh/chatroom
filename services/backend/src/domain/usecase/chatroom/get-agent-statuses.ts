@@ -13,6 +13,7 @@
 import { getTeamRolesFromChatroom } from './get-team-roles';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
+import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentType } from '../../entities/agent';
 import { resolvePlannerRestartOnHandoffToUser } from '../agent/resolve-planner-restart-on-handoff-to-user';
 
@@ -59,11 +60,15 @@ export async function getAgentStatusForChatroom(
 
   const { teamRoles } = getTeamRolesFromChatroom(chatroom);
 
-  // Fetch team agent configs for this chatroom
-  const teamConfigs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', input.chatroomId))
-    .collect();
+  // Fetch team agent configs for this chatroom (current team only)
+  const teamConfigs = filterTeamAgentConfigsForTeam(
+    await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', input.chatroomId))
+      .collect(),
+    input.chatroomId,
+    chatroom.teamId
+  );
 
   const teamConfigByRole = new Map(teamConfigs.map((c) => [c.role.toLowerCase(), c]));
 

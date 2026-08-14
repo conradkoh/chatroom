@@ -10,8 +10,7 @@
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { teamRoleKeyMatchesTeam, buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import {
   patchTeamAgentConfig,
   projectAssignedTaskSnapshotsForMachines,
@@ -40,6 +39,7 @@ export interface UpdateTeamResult {
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
 
+// fallow-ignore-next-line complexity
 export async function updateTeam(
   ctx: MutationCtx,
   input: UpdateTeamInput
@@ -77,7 +77,9 @@ export async function updateTeam(
   // orphaned snapshot projection rows after the configs are deleted.
   const affectedMachineIds = new Set<string>();
 
-  for (const config of existingTeamConfigs.filter((c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId))) {
+  for (const config of existingTeamConfigs.filter(
+    (c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId)
+  )) {
     if (config.machineId) {
       affectedMachineIds.add(config.machineId);
     }
@@ -118,13 +120,29 @@ export async function updateTeam(
 
   for (const role of teamRoles) {
     const key = buildTeamRoleKey(chatroomId, teamId, role);
-    const existing = await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', key)).first();
+    const existing = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', key))
+      .first();
     if (existing) {
-      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, { desiredState: 'stopped', spawnedAgentPid: undefined, spawnedAt: undefined, updatedAt: now });
+      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, {
+        desiredState: 'stopped',
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+        updatedAt: now,
+      });
       if (existing.machineId) affectedMachineIds.add(existing.machineId);
       restoredCount++;
     } else {
-      await ctx.db.insert('chatroom_teamAgentConfigs', { teamRoleKey: key, chatroomId, role, type: 'remote', createdAt: now, updatedAt: now, desiredState: 'stopped' });
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey: key,
+        chatroomId,
+        role,
+        type: 'remote',
+        createdAt: now,
+        updatedAt: now,
+        desiredState: 'stopped',
+      });
       seededCount++;
     }
   }

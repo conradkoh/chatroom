@@ -3,10 +3,25 @@
  * Emits config.requestRemoval events and processes pending removals.
  */
 
-import type { Id } from '../../../../convex/_generated/dataModel';
+import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKeyFilter';
 
 export type ConfigRemovalReason = 'team_switch' | 'stale_duplicate' | 'manual';
+
+// fallow-ignore-next-line complexity
+function configMatchesRemovalTarget(
+  config: Doc<'chatroom_teamAgentConfigs'>,
+  chatroomId: Id<'chatroom_rooms'>,
+  teamId: string | undefined,
+  role: string,
+  machineId: string
+): boolean {
+  if (config.role.toLowerCase() !== role.toLowerCase()) return false;
+  if (config.machineId !== machineId) return false;
+  if (teamId && !teamRoleKeyMatchesTeam(config.teamRoleKey, chatroomId, teamId)) return false;
+  return true;
+}
 
 /**
  * Emit a config.requestRemoval event to the event stream.
@@ -47,13 +62,14 @@ export async function processConfigRemoval(
     machineId: string;
   }
 ): Promise<boolean> {
+  const chatroom = await ctx.db.get('chatroom_rooms', opts.chatroomId);
   const allConfigs = await ctx.db
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', opts.chatroomId))
     .collect();
 
-  const config = allConfigs.find(
-    (c) => c.role.toLowerCase() === opts.role.toLowerCase() && c.machineId === opts.machineId
+  const config = allConfigs.find((c) =>
+    configMatchesRemovalTarget(c, opts.chatroomId, chatroom?.teamId, opts.role, opts.machineId)
   );
 
   if (!config) return false;
