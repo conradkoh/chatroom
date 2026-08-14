@@ -7,6 +7,7 @@ import {
   type EnsureRunningOpts,
   STOPPING_TIMEOUT_MS,
 } from './agent-process-manager.js';
+import type { LogServer } from '../../../infrastructure/log-server/log-server.js';
 import {
   CRASH_LOOP_MAX_RESTARTS,
   CrashLoopTracker,
@@ -72,6 +73,7 @@ function createMockService() {
 function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessManagerDeps {
   const mockService = createMockService();
   return {
+    logSink: { write: vi.fn(), writeChatroomLog: vi.fn() } as unknown as LogServer,
     agentServices: new Map([['opencode', mockService]]),
     backend: {
       query: vi.fn().mockResolvedValue({
@@ -210,6 +212,9 @@ describe('AgentProcessManager', () => {
       // Verify backend interactions
       const service = deps.agentServices.get('opencode')!;
       expect(service.spawn).toHaveBeenCalledOnce();
+      expect(
+        (deps.logSink as unknown as { writeChatroomLog: ReturnType<typeof vi.fn> }).writeChatroomLog
+      ).toHaveBeenCalledWith(expect.objectContaining({ type: 'agent.started' }));
       expect(deps.persistence.persistAgentPid).toHaveBeenCalledWith(
         'test-machine',
         CHATROOM_ID,
