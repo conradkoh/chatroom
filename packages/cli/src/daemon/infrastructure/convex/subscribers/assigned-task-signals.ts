@@ -30,7 +30,7 @@ export function startAssignedTaskSignalsSubscriber(
         Effect.sync(() => {
           if (stopped) return;
           ack();
-          onEvent({ type: 'assigned-task.signal', taskId: item.taskId, role: item.role });
+          onEvent({ type: 'assigned-task.signal', signal: item });
         }),
       onError: (err) => {
         console.warn(`[daemon] assigned-task-signals subscriber error: ${String(err)}`);

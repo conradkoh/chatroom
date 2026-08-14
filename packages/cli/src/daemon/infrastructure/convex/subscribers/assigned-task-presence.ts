@@ -30,7 +30,7 @@ export function startAssignedTaskPresenceSubscriber(
         Effect.sync(() => {
           if (stopped) return;
           ack();
-          onEvent({ type: 'assigned-task.presence', taskId: item.taskId, role: item.role });
+          onEvent({ type: 'assigned-task.presence', presence: item });
         }),
       onError: (err) => {
         console.warn(`[daemon] assigned-task-presence subscriber error: ${String(err)}`);

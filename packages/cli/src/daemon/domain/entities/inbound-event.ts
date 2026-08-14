@@ -3,9 +3,14 @@
  * Subscribers map transport payloads → InboundEvent before calling event-router.
  */
 
+import type {
+  AssignedTaskPresenceSignal,
+  AssignedTaskSignal,
+} from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
+
 export type InboundEvent =
-  | { type: 'assigned-task.signal'; taskId: string; role: string }
-  | { type: 'assigned-task.presence'; taskId: string; role: string }
+  | { type: 'assigned-task.signal'; signal: AssignedTaskSignal }
+  | { type: 'assigned-task.presence'; presence: AssignedTaskPresenceSignal }
   | { type: 'command.received'; commandId: string }
   | { type: 'direct-harness.session-opened'; harnessSessionId: string }
   | { type: 'direct-harness.prompt'; harnessSessionId: string }

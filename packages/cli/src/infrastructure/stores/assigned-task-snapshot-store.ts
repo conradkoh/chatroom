@@ -21,6 +21,18 @@ export function listAssignedTaskSnapshots(): AssignedTaskSnapshotView[] {
   return [...rows];
 }
 
+function snapshotKey(row: AssignedTaskSnapshotView): string {
+  return `${row.taskId}:${row.agentConfig.role}`;
+}
+
+export function upsertAssignedTaskSnapshot(row: AssignedTaskSnapshotView): void {
+  const key = snapshotKey(row);
+  const index = rows.findIndex((existing) => snapshotKey(existing) === key);
+  if (index >= 0) rows[index] = row;
+  else rows.push(row);
+  hasSnapshot = true;
+}
+
 export function listAssignedTaskSnapshotsForRole(
   chatroomId: string,
   role: string

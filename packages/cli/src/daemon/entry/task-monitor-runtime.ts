@@ -67,6 +67,7 @@ import {
   hasAssignedTaskSnapshot,
   listAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
+  upsertAssignedTaskSnapshot,
 } from '../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import type {
@@ -75,6 +76,7 @@ import type {
 } from '../domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
 import type { AssignedTaskInboundEvent } from '../domain/usecase/handle-assigned-task-inbound.js';
+import { createTaskMonitorSnapshot } from './task-monitor/task-monitor-snapshot.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -464,10 +466,16 @@ export function handleInboundAssignedTaskEvent(
   event: AssignedTaskInboundEvent,
   runMonitorPass: (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass) => void
 ): void {
-  const row = listAssignedTaskSnapshots().find(
-    (snapshot) => snapshot.taskId === event.taskId && snapshot.agentConfig.role === event.role
-  );
+  // Merge signal into local store before reconcile; the signal can arrive before
+  // the separate Convex snapshot subscription has populated this store.
+  const working = createTaskMonitorSnapshot();
+  working.replaceAll(listAssignedTaskSnapshots());
+  const row =
+    event.type === 'assigned-task.signal'
+      ? working.mergeSignal(event.signal)
+      : working.mergePresence(event.presence);
   if (!row) return;
+  upsertAssignedTaskSnapshot(row);
   const pass: TaskMonitorPass = event.type === 'assigned-task.signal' ? 'signal' : 'presence';
   runMonitorPass([row], pass);
 }
