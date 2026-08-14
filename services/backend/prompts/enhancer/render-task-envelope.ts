@@ -1,3 +1,4 @@
+import { getDefragmentationReviewTriggerDescription } from './defragmentation-reference.js';
 import { getUxReviewTriggerDescription } from './webapp-ux-reference.js';
 import { escapeXmlAttribute, escapeXmlText } from '../attachments/xml.js';
 
@@ -36,6 +37,7 @@ export function renderEnhancerTaskEnvelope(params: RenderEnhancerTaskEnvelopePar
     '- Tighten and correct within the existing scope; do not add new requirements.',
     '- Return only the feedback markdown — no preamble.',
     `- When ${getUxReviewTriggerDescription()}, complete the optional **UX** section in your output (see reference in <handoff-templates>). Write "Not Applicable." for non-UI tasks.`,
+    `- When ${getDefragmentationReviewTriggerDescription()}, complete the optional **Defragmentation** section in your output (see reference in <handoff-templates>). Write "Not Applicable." only when no large or multi-surface system revision is proposed.`,
     '- Follow template section order; **Suggested edits** must be last (code examples only).',
     '- **Run the CLI complete command** as your final action. Stdout alone does NOT deliver feedback — the planner only receives feedback after you run complete.',
     '- If the plan needs no changes, still run complete with a brief "no changes needed" message. Skipping complete = your work is discarded.',

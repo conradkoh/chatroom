@@ -14,6 +14,12 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: () => undefined,
 }));
 
+vi.mock('next/dynamic', () => ({
+  default: () => function MockRichTextEditor({ value, onChange, initialClickCoords }: { value: string; onChange: (value: string) => void; initialClickCoords?: { left: number; top: number } | null }) {
+    return <textarea data-testid="task-rich-text-editor" value={value} onChange={(e) => onChange(e.target.value)} data-initial-click-coords={initialClickCoords ? `${initialClickCoords.left},${initialClickCoords.top}` : ''} />;
+  },
+}));
+
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     tasks: {

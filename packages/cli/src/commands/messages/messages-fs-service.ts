@@ -40,30 +40,6 @@ export const MessagesFsServiceLive: Layer.Layer<MessagesFsService> = Layer.succe
   }
 );
 
-export function buildMessageMarkdown(msg: {
-  _id: string;
-  _creationTime: number;
-  senderRole: string;
-  type: string;
-  content: string;
-  targetRole?: string | null;
-  taskStatus?: string | null;
-}): string {
-  const ts = new Date(msg._creationTime).toISOString();
-  const parts: string[] = [];
-  parts.push('---');
-  parts.push(`id: ${msg._id}`);
-  parts.push(`createdAt: ${ts}`);
-  parts.push(`senderRole: ${msg.senderRole}`);
-  parts.push(`type: ${msg.type}`);
-  if (msg.targetRole) parts.push(`targetRole: ${msg.targetRole}`);
-  if (msg.taskStatus) parts.push(`taskStatus: ${msg.taskStatus}`);
-  parts.push('---');
-  parts.push('');
-  parts.push(msg.content);
-  return parts.join('\n');
-}
-
 const SORT_KEY_MAX = 9_999_999_999_999;
 
 export function messageFilename(msg: {
@@ -75,16 +51,4 @@ export function messageFilename(msg: {
   const sortPrefix = String(SORT_KEY_MAX - msg._creationTime).padStart(13, '0');
   const receiver = msg.targetRole ?? 'all';
   return `${sortPrefix}_${msg.senderRole}-to-${receiver}_${msg._id}.md`;
-}
-
-/** Simple linear format — no YAML frontmatter */
-export function buildLinearMessageContent(msg: {
-  _creationTime: number;
-  senderRole: string;
-  targetRole?: string | null;
-  content: string;
-}): string {
-  const ts = new Date(msg._creationTime).toISOString();
-  const receiver = msg.targetRole ? ` → ${msg.targetRole}` : '';
-  return `${ts} | ${msg.senderRole}${receiver}\n\n${msg.content}`;
 }

@@ -11,6 +11,7 @@ export interface HandoffReportParseResult {
   proofs: string | null;
   direction: string | null;
   ux: string | null;
+  defragmentation: string | null;
   notes: string | null;
   action: string | null;
   // Legacy fallback
@@ -49,6 +50,7 @@ export function parseHandoffReport(content: string): HandoffReportParseResult {
   const proofsResult = extractTag(content, 'handoff-proofs');
   const directionResult = extractTag(content, 'handoff-direction');
   const uxResult = extractTag(content, 'handoff-ux');
+  const defragmentationResult = extractTag(content, 'handoff-defragmentation');
   const notesResult = extractTag(content, 'handoff-notes');
   const actionResult = extractTag(content, 'handoff-action');
   const detailsResult = extractTag(content, 'handoff-details');
@@ -72,6 +74,7 @@ export function parseHandoffReport(content: string): HandoffReportParseResult {
       proofs: proofsResult.body,
       direction: directionResult.body,
       ux: uxResult.body,
+      defragmentation: defragmentationResult.body,
       notes: notesResult.body,
       action: actionResult.body,
       summary: overviewResult.body ?? '',
@@ -90,6 +93,7 @@ export function parseHandoffReport(content: string): HandoffReportParseResult {
       proofs: proofsResult.body,
       direction: null,
       ux: null,
+      defragmentation: null,
       notes: null,
       action: null,
       summary,
@@ -105,6 +109,7 @@ export function parseHandoffReport(content: string): HandoffReportParseResult {
     proofs: null,
     direction: null,
     ux: null,
+    defragmentation: null,
     notes: null,
     action: null,
     summary: '',

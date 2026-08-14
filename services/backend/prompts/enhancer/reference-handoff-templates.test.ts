@@ -72,7 +72,7 @@ describe('materialized enhancer handoff-templates block (spawn output contract)'
 
       The planner sent you three XML sections. Your job is **advisory adversarial review** — raise risks, challenge assumptions, align with user intent. Be **specific and targeted**: cite concrete claims, files, UX choices, and gaps from the check-in so the planner can improve the plan without re-synthesizing vague feedback.
 
-      Give **concrete, actionable recommendations** in every section. End with **Recommendations** (second-last: summarized suggestions, tradeoffs, and considerations) then **Suggested edits** (last: proposed edits to grounding and the builder-handoff with file paths and code snippets). For UI work, complete the optional **UX** section using the reference below. **Do not rewrite their full builder brief.** The planner makes the final call.
+      Give **concrete, actionable recommendations** in every section. End with **Recommendations** (second-last: summarized suggestions, tradeoffs, and considerations) then **Suggested edits** (last: proposed edits to grounding and the builder-handoff with file paths and code snippets). For UI work, complete the optional **UX** section using the reference below. For large or multi-surface revision work, complete the optional **Defragmentation** section using its reference below. **Do not rewrite their full builder brief.** The planner makes the final call.
 
       ### UX review checklist
       Complete the optional **UX** section in your output when the planner proposes UI changes. Write exactly "Not Applicable." for non-UI tasks. Put code snippets in **Suggested edits** only.
@@ -156,6 +156,26 @@ describe('materialized enhancer handoff-templates block (spawn output contract)'
       - Common patterns: modifier+letter for global commands, Enter to confirm in dialogs, Escape to cancel/close, Shift+Enter for multiline input where applicable
       - Flag plans that add shortcuts without checking for conflicts or omit keyboard access for primary actions
 
+      ### Defragmentation workflow checklist
+      Complete the optional **Defragmentation** section when the planner check-in addresses a large or multi-surface system revision, including refactoring, consolidation, or consistency work. Write exactly "Not Applicable." only when no such revision is proposed.
+
+      1. **Study surfaces** — map all call sites, use cases, and complexity variants before proposing slices; name every relevant file/module
+      2. **Golden implementation** — build a standalone canonical solution first; introduce canonical domain entities/types only when the studied variants require them, then shared use cases, UI components, or utilities; do not patch duplicates in place
+      3. **Migrate callers** — refactor all consumers to the golden path; each slice must be shippable end-to-end
+      4. **Delete legacy** — remove old implementations only after migration is complete; no dead-code leftovers
+
+      ### Anti-patterns to flag
+      - Incremental copy-paste fixes across N files without a golden SSOT
+      - New abstraction without studying all existing variants
+      - Leaving old code "for safety" after migration
+      - Slices that add helpers/infra without a runnable end-to-end outcome
+      - Parallel implementations coexisting without a deletion plan
+
+      ### Structural decisions
+      - Identify SSOT locations for domain entities, shared use cases, and UI components
+      - Align with \`structural-decisions\` glossary: folder structure, file naming, interface locations
+      - Flag when the plan scatters the canonical implementation across unrelated modules
+
       \`\`\`markdown
       <handoff-overview>
       ## Summary
@@ -165,7 +185,7 @@ describe('materialized enhancer handoff-templates block (spawn output contract)'
       <specific misreadings or missing constraints — what the user asked vs what the planner proposed>
       </handoff-overview>
 
-      <!-- UI collapses proofs, direction, ux, and notes by default; overview and action required are expanded -->
+      <!-- UI collapses proofs, direction, ux, defragmentation, and notes by default; overview and action required are expanded -->
 
       <handoff-proofs>
       ## Reasoning review
@@ -191,6 +211,20 @@ describe('materialized enhancer handoff-templates block (spawn output contract)'
       - **Destructive safeguards:** <single-item irreversible/high-impact actions gated by confirm dialog; cite missing confirms>
       - **Bulk safeguards:** <batch/multi-item operations gated by confirm with count/impact summary; cite missing confirms>
       </handoff-ux>
+
+      <handoff-defragmentation>
+      <!-- Optional — write exactly "Not Applicable." when no large or multi-surface system revision is proposed -->
+      <!-- When revision work is proposed: specific findings tied to the planner's proposal. No code blocks (use Suggested edits). -->
+      - **Surfaces:** <call sites and modules identified; gaps in surface mapping>
+      - **Golden path:** <whether planner builds standalone canonical implementation first>
+      - **Domain model:** <canonical types/entities needed or "not needed">
+      - **Shared components:** <shared abstractions planned (use cases, UI, utilities)>
+      - **Slice ordering:** <study → golden → migrate → delete sequence respected?>
+      - **Migration plan:** <how all callers move to golden path>
+      - **Deletion plan:** <old implementations slated for removal>
+      - **Duplication:** <existing duplicates to eliminate; risk of new duplication>
+      - **Structural decisions:** <folder/module boundaries; SSOT locations>
+      </handoff-defragmentation>
 
       <handoff-notes>
       ## Knowledge gaps
