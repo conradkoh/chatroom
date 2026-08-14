@@ -7,6 +7,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
+import { filterTeamAgentConfigsForTeam } from './utils/teamRoleKeyFilter';
 import {
   PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS,
   CONNECTION_CLOSE_REQUEST_TTL_MS,
@@ -427,10 +428,14 @@ export const getTeamLifecycle = query({
     const participantByRole = new Map(participantRows.map((p) => [p.role.toLowerCase(), p]));
 
     // Fetch agent configs to determine isAlive from spawnedAgentPid
-    const agentConfigs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+    const agentConfigs = filterTeamAgentConfigsForTeam(
+      await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .collect(),
+      args.chatroomId,
+      chatroom.teamId
+    );
     const configByRole = new Map(agentConfigs.map((c) => [c.role.toLowerCase(), c]));
 
     const expectedRoles = chatroom.teamRoles;

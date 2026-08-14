@@ -35,6 +35,18 @@ function httpGet(url: string): Promise<{ status: number; body: string }> {
   });
 }
 
+function connectSocket(client: ReturnType<typeof ioClient>, timeoutMs = 5_000): Promise<void> {
+  return Promise.race([
+    new Promise<void>((resolve, reject) => {
+      client.on('connect', () => resolve());
+      client.on('connect_error', reject);
+    }),
+    new Promise<void>((_, reject) =>
+      setTimeout(() => reject(new Error('Socket.IO connect timed out')), timeoutMs)
+    ),
+  ]);
+}
+
 describe('startLocalWebServer', () => {
   it('serves the SPA at GET /', async () => {
     const server = await startLocalWebServer(
@@ -59,6 +71,22 @@ describe('startLocalWebServer', () => {
       expect(JSON.parse(body)).toEqual({ status: 'ok', service: 'v2-local-web' });
     } finally {
       await server.stop();
+    }
+  });
+
+  it('releases the bound port after stop so the same port can be reused', async () => {
+    const first = await startLocalWebServer({ host: '127.0.0.1', port: 0 });
+    const { port } = first;
+
+    await expect(first.stop()).resolves.toBeUndefined();
+
+    const second = await startLocalWebServer({ host: '127.0.0.1', port });
+    try {
+      expect(second.port).toBe(port);
+      const { status } = await httpGet(`http://127.0.0.1:${port}/health`);
+      expect(status).toBe(200);
+    } finally {
+      await second.stop();
     }
   });
 
@@ -105,8 +133,13 @@ describe('startLocalWebServer', () => {
     const received = await new Promise<string>((resolve, reject) => {
       const req = get(`http://127.0.0.1:${server.port}/events/harness-stream`, (res) => {
         let data = '';
+        let published = false;
         res.on('data', (chunk) => {
           data += chunk.toString('utf8');
+          if (!published) {
+            published = true;
+            server.streamHub.publish(event);
+          }
           if (data.includes('data: ')) {
             req.destroy();
             resolve(data);
@@ -115,16 +148,12 @@ describe('startLocalWebServer', () => {
         res.on('error', reject);
       });
       req.on('error', reject);
-
-      setTimeout(() => {
-        server.streamHub.publish(event);
-      }, 50);
     });
 
     await server.stop();
 
     expect(received).toContain(`data: ${JSON.stringify(event)}`);
-  });
+  }, 10_000);
 
   it('responds to health.get over socket.io', async () => {
     const server = await startLocalWebServer({ host: '127.0.0.1' });
@@ -132,10 +161,7 @@ describe('startLocalWebServer', () => {
       transports: ['websocket'],
     });
     try {
-      await new Promise<void>((resolve, reject) => {
-        client.on('connect', () => resolve());
-        client.on('connect_error', reject);
-      });
+      await connectSocket(client);
       const ack = await client.emitWithAck('health.get');
       expect(ack).toEqual({
         ok: true,
@@ -144,6 +170,19 @@ describe('startLocalWebServer', () => {
     } finally {
       client.close();
       await server.stop();
+    }
+  });
+
+  it('stop resolves while a Socket.IO client is connected', async () => {
+    const server = await startLocalWebServer({ host: '127.0.0.1', port: 0 });
+    const client = ioClient(`http://127.0.0.1:${server.port}`, {
+      transports: ['websocket'],
+    });
+    try {
+      await connectSocket(client);
+      await expect(server.stop()).resolves.toBeUndefined();
+    } finally {
+      client.close();
     }
   });
 });

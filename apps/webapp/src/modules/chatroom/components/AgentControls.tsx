@@ -277,6 +277,7 @@ export function useAgentControls({
 }) {
   // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
   const initialTeamConfigHarnessRef = useRef(teamConfigHarness);
+  const previousTeamIdRef = useRef(teamId);
 
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedHarness, setSelectedHarness] = useState<AgentHarness | null>(null);
@@ -299,6 +300,17 @@ export function useAgentControls({
   const [rehomeConfirmOpen, setRehomeConfirmOpen] = useState(false);
   // Guards initialization — fires exactly once when machines become available
   const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    if (previousTeamIdRef.current === teamId) return;
+    previousTeamIdRef.current = teamId;
+    initialTeamConfigHarnessRef.current = teamConfigHarness;
+    setSelectedMachineId(null);
+    setSelectedHarness(null);
+    setUserModelByHarness({});
+    setWorkingDir('');
+    setIsInitialized(false);
+  }, [teamId, teamConfigHarness]);
 
   // Update the ref if it's still unset and teamConfigHarness arrives before initialization.
   // Safe to do in render: runs only before initialization, is a one-way undefined→defined
