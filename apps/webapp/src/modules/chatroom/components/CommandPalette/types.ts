@@ -34,11 +34,4 @@ export type CommandItem = {
 };
 
 export type SettingsTab =
-  | 'setup'
-  | 'team'
-  | 'machine'
-  | 'agents'
-  | 'workspaces'
-  | 'skills'
-  | 'integrations'
-  | 'event-stream';
+  'setup' | 'team' | 'machine' | 'agents' | 'workspaces' | 'skills' | 'integrations';

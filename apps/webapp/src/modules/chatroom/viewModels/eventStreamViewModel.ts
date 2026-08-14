@@ -1,53 +1,8 @@
 /**
- * Presentation helpers for the event stream feature.
- * Used by EventStreamPanel and event type renderers.
- *
- * Core types live in `src/domain/entities/event-type.ts` and
- * `src/domain/entities/event-stream-event.ts`.
+ * Timestamp formatting helpers shared by timeline and other chatroom UI.
  */
 
 import { DateTime } from 'luxon';
-
-export type {
-  EventBadgeVariant,
-  EventTypeName,
-  SupportedEventTypeMeta,
-} from '@/domain/entities/event-type';
-export {
-  isSupportedEventType,
-  SUPPORTED_EVENT_TYPES,
-  SUPPORTED_EVENT_TYPE_NAMES,
-} from '@/domain/entities/event-type';
-
-export type {
-  AgentCircuitOpenEvent,
-  AgentExitedEvent,
-  AgentRegisteredEvent,
-  AgentRequestStartEvent,
-  AgentRequestStopEvent,
-  AgentRestartLimitReachedEvent,
-  AgentSessionResumedEvent,
-  AgentSessionResumeFailedEvent,
-  AgentStartFailedEvent,
-  AgentStartedEvent,
-  AgentWaitingEvent,
-  CommandRunEvent,
-  CommandStopEvent,
-  ConfigRequestRemovalEvent,
-  DaemonGitRefreshEvent,
-  DaemonLocalActionEvent,
-  DaemonPingEvent,
-  DaemonPongEvent,
-  DaemonRefreshCapabilitiesEvent,
-  EventStreamEvent,
-  EventStreamEventBase,
-  MachineSwitchedEvent,
-  SkillActivatedEvent,
-  TaskActivatedEvent,
-  TaskAcknowledgedEvent,
-  TaskCompletedEvent,
-  TaskInProgressEvent,
-} from '@/domain/entities/event-stream-event';
 
 /** e.g. 12 → "12th" */
 function ordinalDay(day: number): string {
@@ -71,9 +26,4 @@ export function formatTimestamp(ms: number): string {
   const dt = DateTime.fromMillis(ms);
   const includeYear = dt.year !== DateTime.now().year;
   return formatChatroomTimestamp(ms, includeYear);
-}
-
-/** Format a Unix millisecond timestamp with year (detail panels). */
-export function formatTimestampFull(ms: number): string {
-  return formatChatroomTimestamp(ms, true);
 }
