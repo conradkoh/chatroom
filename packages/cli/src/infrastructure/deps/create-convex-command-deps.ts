@@ -9,11 +9,13 @@ export type ConvexCommandDeps = {
 
 export async function createConvexCommandDeps(): Promise<ConvexCommandDeps> {
   const client = await getConvexClient();
+  const backend: BackendOps = {
+    mutation: (endpoint, args) => client.mutation(endpoint, args),
+    query: (endpoint, args) => client.query(endpoint, args),
+  };
+  const session: SessionOps = { getSessionId, getConvexUrl, getOtherSessionUrls };
   return {
-    backend: {
-      mutation: (endpoint, args) => client.mutation(endpoint, args),
-      query: (endpoint, args) => client.query(endpoint, args),
-    },
-    session: { getSessionId, getConvexUrl, getOtherSessionUrls },
+    backend,
+    session,
   };
 }
