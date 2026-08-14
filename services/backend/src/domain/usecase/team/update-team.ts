@@ -11,6 +11,7 @@ import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import {
   patchTeamAgentConfig,
   projectAssignedTaskSnapshotsForMachines,
@@ -69,6 +70,8 @@ export async function updateTeam(
   const now = Date.now();
   let stoppedAgentCount = 0;
   let preservedCount = 0;
+  let restoredCount = 0;
+  let seededCount = 0;
 
   // Track machines whose configs are being torn down so we can prune their
   // orphaned snapshot projection rows after the configs are deleted.
@@ -113,6 +116,19 @@ export async function updateTeam(
     preservedCount++;
   }
 
+  for (const role of teamRoles) {
+    const key = buildTeamRoleKey(chatroomId, teamId, role);
+    const existing = await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', key)).first();
+    if (existing) {
+      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, { desiredState: 'stopped', spawnedAgentPid: undefined, spawnedAt: undefined, updatedAt: now });
+      if (existing.machineId) affectedMachineIds.add(existing.machineId);
+      restoredCount++;
+    } else {
+      await ctx.db.insert('chatroom_teamAgentConfigs', { teamRoleKey: key, chatroomId, role, type: 'remote', createdAt: now, updatedAt: now, desiredState: 'stopped' });
+      seededCount++;
+    }
+  }
+
   // Rebuild each affected machine's snapshot projection. With this chatroom's
   // configs now deleted, projection rebuild prunes the orphaned rows.
   await projectAssignedTaskSnapshotsForMachines(ctx, affectedMachineIds);
@@ -120,7 +136,7 @@ export async function updateTeam(
   return {
     stoppedAgentCount,
     preservedCount,
-    restoredCount: 0,
-    seededCount: 0,
+    restoredCount,
+    seededCount,
   };
 }
