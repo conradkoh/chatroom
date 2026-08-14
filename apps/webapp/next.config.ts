@@ -14,10 +14,10 @@ const nextConfig = {
   turbopack: {
     root: turbopackRoot,
   },
-  // Disable when `.next/dev/cache/turbopack` grows unbounded and compaction pegs CPU.
-  // Use: TURBOPACK_FS_CACHE=1 pnpm dev to opt in
+  // Disable Turbopack filesystem cache for dev — prevents unbounded `.next/dev/cache/turbopack` growth
+  // and CPU pegging during compaction. See: https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopackFileSystemCache
   experimental: {
-    turbopackFileSystemCacheForDev: process.env.TURBOPACK_FS_CACHE === '1',
+    turbopackFileSystemCacheForDev: false,
   },
 };
 

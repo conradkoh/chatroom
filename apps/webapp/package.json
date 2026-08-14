@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "dotenv -e .env.local -- next dev",
-    "dev:clean": "rm -rf .next && dotenv -e .env.local -- env TURBOPACK_FS_CACHE=0 next dev",
+    "dev:clean": "rm -rf .next && dotenv -e .env.local -- next dev",
     "build": "rm -rf .next && next build --turbopack",
     "start": "next start",
     "typecheck": "tsc --noEmit",
