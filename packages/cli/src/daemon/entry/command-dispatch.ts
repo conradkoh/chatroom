@@ -23,10 +23,12 @@ import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent
 import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
 import { handlePing } from './handlers/ping.js';
 import { processManager } from './handlers/process/manager.js';
+import { getActiveChatroomLogSink } from './init-daemon.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
 import { executeLocalAction } from '../../infrastructure/local-actions/index.js';
 import { pickFolderDialog } from '../../infrastructure/local-actions/pick-folder.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
+import { appendChatroomLog } from '../domain/usecase/append-chatroom-log.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
 import { makeGitStateKey } from '../infrastructure/git/types.js';
 
@@ -123,6 +125,12 @@ function handlePingCommandEffect(
     if (tracker.pingIds.has(eventId)) return;
     handlePing();
     const session = yield* DaemonSessionService;
+    appendChatroomLog(getActiveChatroomLogSink(), {
+      chatroomId: '__daemon__',
+      type: 'daemon.pong',
+      machineId: session.machineId,
+      payload: { pingEventId: event._id.toString() },
+    });
     yield* Effect.promise(() =>
       session.backend.mutation(api.machines.ackPing, {
         sessionId: session.sessionId,
@@ -167,7 +175,9 @@ function handleLocalActionCommandEffect(
       `[${formatTimestamp()}] 🖥️  Local action: ${typedEvent.action} → ${typedEvent.workingDir}`
     );
     const result = yield* Effect.promise(() =>
-      executeLocalAction(typedEvent.action, typedEvent.workingDir, { chatroomId: typedEvent.chatroomId })
+      executeLocalAction(typedEvent.action, typedEvent.workingDir, {
+        chatroomId: typedEvent.chatroomId,
+      })
     );
     if (!result.success) {
       console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);

@@ -28,7 +28,7 @@ import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
-import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
+import type { LogServer } from '../../../infrastructure/log-server/index.js';
 import type { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import { RapidResumeTracker } from '../../../infrastructure/machine/rapid-resume-tracker.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
@@ -50,6 +50,7 @@ import { resolveStopReason } from '../../domain/entities/stop-reason.js';
 import type { StopReason } from '../../domain/entities/stop-reason.js';
 import { resolveNativeSpawnPolicy } from '../../domain/native-integration/spawn-policy.js';
 import { tryAbortResumeStorm } from '../../domain/usecase/abort-resume-storm.js';
+import { appendChatroomLog } from '../../domain/usecase/append-chatroom-log.js';
 import { appendRecentLogLine } from '../../domain/usecase/append-recent-log-line.js';
 import {
   classifyProviderErrorFromLogs,
@@ -166,7 +167,7 @@ export interface AgentSlot {
 }
 
 export interface AgentProcessManagerDeps {
-  logSink?: AgentLogSink;
+  logSink?: LogServer;
   agentServices: Map<string, RemoteAgentService>;
   /**
    * Backend client for Convex queries/mutations.
@@ -1285,6 +1286,18 @@ export class AgentProcessManager {
     exitArgs: RetryQueueItem['args'],
     failureLog: string
   ): void {
+    appendChatroomLog(this.deps.logSink, {
+      chatroomId: exitArgs.chatroomId,
+      type: 'agent.exited',
+      role,
+      machineId: this.deps.machineId,
+      payload: {
+        pid: exitArgs.pid,
+        stopReason: exitArgs.stopReason,
+        exitCode: exitArgs.exitCode,
+        signal: exitArgs.signal,
+      },
+    });
     this.deps.backend.mutation(api.machines.recordAgentExited, exitArgs).catch((err: Error) => {
       console.log(`   ⚠️  ${failureLog}: ${err.message}`);
       this.queueExitRetry({ role, args: exitArgs });
@@ -1827,6 +1840,20 @@ export class AgentProcessManager {
       .catch((err: Error) => {
         console.log(`   ⚠️  Failed to update PID in backend: ${err.message}`);
       });
+    appendChatroomLog(this.deps.logSink, {
+      chatroomId: opts.chatroomId,
+      type: 'agent.started',
+      role: opts.role,
+      machineId: this.deps.machineId,
+      payload: {
+        pid,
+        agentHarness: opts.agentHarness,
+        model: opts.model,
+        workingDir: opts.workingDir,
+        reason: opts.reason,
+        ...(spawnResult.harnessSessionId ? { harnessSessionId: spawnResult.harnessSessionId } : {}),
+      },
+    });
   }
 
   private registerSpawnCallbacks(

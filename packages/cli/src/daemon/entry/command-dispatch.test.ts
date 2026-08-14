@@ -103,6 +103,7 @@ vi.mock('./workspace-git/workspace-cache.js', () => ({
 // same-module function which uses these via static import bindings.
 vi.mock('./init-daemon.js', () => ({
   discoverModels: vi.fn().mockResolvedValue({ opencode: ['opencode/model-a'] }),
+  getActiveChatroomLogSink: vi.fn().mockReturnValue(undefined),
 }));
 
 vi.mock('../../infrastructure/machine/index.js', () => ({
