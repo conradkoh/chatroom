@@ -1,6 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import dynamic from 'next/dynamic';
 import { Check, Paperclip, MoreHorizontal, StopCircle, Trash2, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
@@ -11,9 +12,15 @@ import {
   modalMarkdownComponents,
   modalMarkdownWrapProseClassNames,
   taskDetailProseClassNames,
+  backlogRichTextEditorProseClassNames,
 } from './markdown-utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 import { useAttachments } from '../attachments';
+
+const RichTextEditor = dynamic(
+  () => import('./rich-text').then((m) => ({ default: m.RichTextEditor })),
+  { ssr: false }
+);
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -102,6 +109,9 @@ export function TaskDetailModal({
 }: TaskDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+  const [initialClickCoords, setInitialClickCoords] = useState<{ left: number; top: number } | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -116,12 +126,14 @@ export function TaskDetailModal({
     if (isOpen && task && task._id !== initializedTaskId) {
       setEditedContent(task.content);
       setIsEditing(false);
+      setInitialClickCoords(null);
       setError(null);
       setInitializedTaskId(task._id);
     } else if (!isOpen) {
       // Reset when modal closes
       setInitializedTaskId(null);
       setError(null);
+      setInitialClickCoords(null);
     }
   }, [isOpen, task, initializedTaskId]);
 
@@ -129,6 +141,7 @@ export function TaskDetailModal({
   const cancelEdit = useCallback(() => {
     if (task) setEditedContent(task.content);
     setIsEditing(false);
+    setInitialClickCoords(null);
   }, [task]);
 
   const dismissFromChrome = useCallback(() => {
@@ -146,6 +159,7 @@ export function TaskDetailModal({
     try {
       await onEdit(task._id, editedContent.trim());
       setIsEditing(false);
+      setInitialClickCoords(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save changes';
       setError(message);
@@ -216,32 +230,36 @@ export function TaskDetailModal({
         <FixedModalBody className="flex flex-col min-h-0 p-0">
           <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
             {isEditing ? (
-              <textarea
+              <RichTextEditor
                 value={editedContent}
-                onChange={(e) => setEditedContent(e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                    e.preventDefault();
-                    if (editedContent.trim()) {
-                      handleSave();
-                    }
-                  }
-                }}
-                className="flex-1 w-full bg-chatroom-bg-primary border-0 text-chatroom-text-primary text-sm p-4 resize-none focus:outline-none font-mono"
-                autoFocus
+                onChange={setEditedContent}
                 placeholder="Write your markdown here..."
+                onCmdEnter={handleSave}
+                initialClickCoords={initialClickCoords}
+                className="flex-1 flex flex-col min-h-0"
               />
             ) : (
               <div
+                data-testid="task-detail-view-body"
                 onClick={
                   !isProtected
                     ? (e) => {
                         if (isInteractiveClickTarget(e.target)) return;
+                        setInitialClickCoords({ left: e.clientX, top: e.clientY });
                         setIsEditing(true);
                       }
                     : undefined
                 }
-                className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${!isProtected ? 'cursor-pointer' : ''} ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
+                onKeyDown={!isProtected ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setInitialClickCoords(null);
+                    setIsEditing(true);
+                  }
+                } : undefined}
+                role={!isProtected ? 'button' : undefined}
+                tabIndex={!isProtected ? 0 : undefined}
+                className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${!isProtected ? 'cursor-pointer' : ''} ${backlogRichTextEditorProseClassNames} ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
               >
                 <HandoffStructuredContent
                   content={task.content}

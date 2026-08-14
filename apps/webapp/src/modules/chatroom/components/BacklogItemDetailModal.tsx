@@ -8,6 +8,7 @@ import {
   Paperclip,
   ListChecks,
   MoreHorizontal,
+  Pencil,
   Trash2,
   X,
 } from 'lucide-react';
@@ -137,6 +138,11 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
     }
   }, [item, editedContent, updateItem]);
 
+  const enterEdit = useCallback((coords?: { left: number; top: number } | null) => {
+    setInitialClickCoords(coords ?? null);
+    setIsEditing(true);
+  }, []);
+
   const handleMutation = async (fn: () => Promise<unknown>) => {
     setIsLoading(true);
     try {
@@ -224,8 +230,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   item.status === 'backlog'
                     ? (e) => {
                         if (isInteractiveClickTarget(e.target)) return;
-                        setInitialClickCoords({ left: e.clientX, top: e.clientY });
-                        setIsEditing(true);
+                        enterEdit({ left: e.clientX, top: e.clientY });
                       }
                     : undefined
                 }
@@ -235,7 +240,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
                           setInitialClickCoords(null);
-                          setIsEditing(true);
+                  enterEdit(null);
                         }
                       }
                     : undefined
@@ -344,6 +349,15 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   Actions
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[160px]">
+                  {item.status === 'backlog' && (
+                    <DropdownMenuItem
+                      onClick={() => enterEdit(null)}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Pencil size={14} />
+                      Edit
+                    </DropdownMenuItem>
+                  )}
                   {/* Mark for Review — only for backlog status */}
                   {item.status === 'backlog' && (
                     <DropdownMenuItem

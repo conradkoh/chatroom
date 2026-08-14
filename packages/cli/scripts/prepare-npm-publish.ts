@@ -71,12 +71,14 @@ function readPublishManifest(): PublishPackageJson {
 function ensureBuilt(skipBuild: boolean): void {
   const distEntry = join(cliRoot, 'dist', 'index.js');
   const launchEntry = join(cliRoot, 'dist', 'node-launch.js');
-  if (existsSync(distEntry) && existsSync(launchEntry)) {
+  const clientEntry = join(cliRoot, 'dist', 'client', 'build', 'index.html');
+  if (existsSync(distEntry) && existsSync(launchEntry) && existsSync(clientEntry)) {
     return;
   }
   if (skipBuild) {
     throw new Error(
-      'dist/index.js or dist/node-launch.js is missing. Build chatroom-cli before publishing.'
+      'dist/index.js, dist/node-launch.js, or dist/client/build/index.html is missing. ' +
+        'Build chatroom-cli before publishing.'
     );
   }
   run('pnpm build', { cwd: cliRoot });
