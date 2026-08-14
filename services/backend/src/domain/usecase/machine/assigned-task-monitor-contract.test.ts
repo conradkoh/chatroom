@@ -140,4 +140,18 @@ describe('assignedTaskSignalSchema', () => {
     const parsed = parseAssignedTaskPresenceSignal(full);
     expect(parsed).toEqual(full);
   });
+
+  it('parses slim deltas when full-wire keys are present but undefined', () => {
+    const parsed = parseAssignedTaskPresenceSignal({
+      taskId: 'task_1' as AssignedTaskSignal['taskId'],
+      role: 'builder',
+      presenceKey: '000000000001500:task_1:builder',
+      chatroomId: undefined,
+      presenceUpdatedAt: undefined,
+    });
+    expect(parsed.presenceUpdatedAt).toBe(1500);
+    expect(parsed.lastSeenAt).toBe(1500);
+    expect(parsed.taskId).toBe('task_1');
+    expect(parsed.role).toBe('builder');
+  });
 });

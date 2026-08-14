@@ -130,10 +130,11 @@ export function parseAssignedTaskSignal(raw: unknown): AssignedTaskSignal {
 /** Parse incremental presence wire payloads; throws ZodError on mismatch. */
 // fallow-ignore-next-line complexity
 export function parseAssignedTaskPresenceSignal(raw: unknown): AssignedTaskPresenceSignal {
+  const full = assignedTaskPresenceSignalSchema.safeParse(raw);
+  if (full.success) return full.data;
+
   const delta = assignedTaskPresenceDeltaSchema.safeParse(raw);
-  const hasFullWireFields =
-    typeof raw === 'object' && raw !== null && 'chatroomId' in raw && 'presenceUpdatedAt' in raw;
-  if (delta.success && !hasFullWireFields) {
+  if (delta.success) {
     const presenceUpdatedAt = Number(delta.data.presenceKey.split(':')[0]);
     const resolvedAt = Number.isFinite(presenceUpdatedAt) ? presenceUpdatedAt : 0;
     return {
