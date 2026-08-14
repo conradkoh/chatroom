@@ -10,6 +10,8 @@
  */
 
 import { getContextViewTemplate } from '@workspace/backend/prompts/cli/context/context-template.js';
+import { serializeMessage } from '@workspace/backend/src/domain/usecase/message/serialize-message';
+import { toSerializableMessage } from '@workspace/backend/src/domain/usecase/message/to-serializable-message';
 import { Effect } from 'effect';
 
 import type { ContextDeps } from './deps.js';
@@ -86,6 +88,7 @@ export const readContextEffect = (
       .query<{
         messages: {
           _id: string;
+          _creationTime: number;
           senderRole: string;
           targetRole?: string;
           type: string;
@@ -96,7 +99,12 @@ export const readContextEffect = (
           attachedTasks?: {
             _id: string;
             content: string;
+            status?: string;
+            backlogStatus?: string;
           }[];
+          attachedBacklogItems?: { _id?: string; id?: string; content: string; status: string }[];
+          attachedMessages?: { _id: string; content: string; senderRole: string }[];
+          attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
         }[];
         currentContext?: {
           content: string;
@@ -166,61 +174,12 @@ export const readContextEffect = (
       console.log('─'.repeat(60));
 
       for (const message of context.messages) {
-        // Build the opening <message> tag with attributes
-        const toAttr = message.targetRole ? ` to="${message.targetRole}"` : '';
-        console.log(
-          `<message id="${message._id}" from="${message.senderRole}"${toAttr} type="${message.type}">`
-        );
-
-        // Show task info if available
-        if (message.taskId) {
-          console.log(`   Task:`);
-          console.log(`      ID: ${message.taskId}`);
-          if (message.taskStatus) {
-            console.log(`      Status: ${message.taskStatus}`);
-          }
-          if (message.taskContent) {
-            const safeTaskContent = sanitizeForTerminal(message.taskContent);
-            console.log(`      Content:`);
-            console.log(`      <task-content>`);
-            console.log(
-              safeTaskContent
-                .split('\n')
-                .map((l) => `      ${l}`)
-                .join('\n')
-            );
-            console.log(`      </task-content>`);
-          }
-        }
-
-        // Show attached tasks if available
-        if (message.attachedTasks && message.attachedTasks.length > 0) {
-          console.log(`   Attachments:`);
-          for (const task of message.attachedTasks) {
-            console.log(`      🔹 Task ID: ${task._id}`);
-            console.log(`         Type: Task`);
-            const contentLines = sanitizeForTerminal(task.content).split('\n');
-            console.log(`         Content:`);
-            console.log(`         <task-content>`);
-            for (const line of contentLines) {
-              console.log(`         ${line}`);
-            }
-            console.log(`         </task-content>`);
-          }
-        }
-
-        // Show full message content
-        console.log(`   Content:`);
-        console.log(`   <message-content>`);
-        const safeMessageContent = sanitizeForTerminal(message.content);
-        console.log(
-          safeMessageContent
-            .split('\n')
-            .map((l) => `      ${l}`)
-            .join('\n')
-        );
-        console.log(`   </message-content>`);
-        console.log(`</message>`);
+        const serialized = serializeMessage(toSerializableMessage(message), {
+          profile: 'context-xml',
+          chatroomId,
+          role: options.role,
+        });
+        console.log(sanitizeForTerminal(serialized));
       }
 
       console.log('\n' + '═'.repeat(60));

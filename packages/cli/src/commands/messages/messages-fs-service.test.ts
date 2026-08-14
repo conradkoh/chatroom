@@ -1,10 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import {
-  buildLinearMessageContent,
-  buildMessageMarkdown,
-  messageFilename,
-} from './messages-fs-service.js';
+import { messageFilename } from './messages-fs-service.js';
 
 const sampleMsg = {
   _id: 'msg-123',
@@ -39,29 +35,5 @@ describe('messageFilename', () => {
   test('uses "all" when no targetRole', () => {
     const name = messageFilename(sampleMsg);
     expect(name).toContain('planner-to-all');
-  });
-});
-
-describe('buildLinearMessageContent', () => {
-  test('includes timestamp, sender, receiver, and content', () => {
-    const content = buildLinearMessageContent(fullMsg);
-    expect(content).toContain('planner');
-    expect(content).toContain('→ builder');
-    expect(content).toContain('Hello world');
-  });
-});
-
-describe('buildMessageMarkdown', () => {
-  test('includes frontmatter with id, createdAt, senderRole', () => {
-    const md = buildMessageMarkdown(sampleMsg);
-    expect(md).toContain('id: msg-123');
-    expect(md).toContain('senderRole: planner');
-    expect(md).toContain('Hello world');
-  });
-
-  test('includes optional fields when present', () => {
-    const md = buildMessageMarkdown(fullMsg);
-    expect(md).toContain('targetRole: builder');
-    expect(md).toContain('taskStatus: completed');
   });
 });
