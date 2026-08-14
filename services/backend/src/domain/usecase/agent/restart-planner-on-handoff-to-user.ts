@@ -1,4 +1,4 @@
-import { restartAgent } from './restart-agent';
+import { requestAgentRestart } from './request-agent-restart';
 import { resolvePlannerRestartOnHandoffToUser } from './resolve-planner-restart-on-handoff-to-user';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -9,22 +9,14 @@ export async function restartPlannerOnHandoffToUser(
   args: { chatroomId: Id<'chatroom_rooms'>; teamId: string }
 ): Promise<void> {
   const key = buildTeamRoleKey(args.chatroomId, args.teamId, 'planner');
-  const config = await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', q => q.eq('teamRoleKey', key)).first();
-  if (!resolvePlannerRestartOnHandoffToUser(config)) return;
-  if (config?.type !== 'remote' || !config.machineId || !config.agentHarness || !config.model || !config.workingDir) return;
-  const machine = await ctx.db
-    .query('chatroom_machines')
-    .withIndex('by_machineId', (q) => q.eq('machineId', config.machineId!))
+  const config = await ctx.db
+    .query('chatroom_teamAgentConfigs')
+    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', key))
     .first();
-  if (!machine) return;
-  await restartAgent(ctx, {
-    machineId: config.machineId,
+  if (!resolvePlannerRestartOnHandoffToUser(config)) return;
+  await requestAgentRestart(ctx, {
     chatroomId: args.chatroomId,
     role: 'planner',
-    userId: machine.userId,
-    model: config.model,
-    agentHarness: config.agentHarness,
-    workingDir: config.workingDir,
-    wantResume: config.wantResume,
-  }, machine);
+    request: { reason: 'platform.planner_handoff_to_user' },
+  });
 }

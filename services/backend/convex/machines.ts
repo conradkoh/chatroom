@@ -31,7 +31,7 @@ import {
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
-import { restartAgent as restartAgentUseCase } from '../src/domain/usecase/agent/restart-agent';
+import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
 import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
@@ -819,6 +819,24 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
+    const pendingRestartEvents = restartEvents.filter(
+      (event): event is Extract<Doc<'chatroom_eventStream'>, { type: 'agent.restart' }> =>
+        event.type === 'agent.restart'
+    );
+    for (const event of [...pendingRestartEvents]) {
+      const completed = await ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', event.chatroomId))
+        .filter((q) =>
+          q.and(
+            q.eq(q.field('type'), 'agent.restartCompleted'),
+            q.eq(q.field('correlationId'), event.correlationId)
+          )
+        )
+        .first();
+      if (completed) pendingRestartEvents.splice(pendingRestartEvents.indexOf(event), 1);
+    }
+
     // 4. Fetch agent.requestStop events — deadline-filtered (not cursor-filtered)
     const stopEvents = await ctx.db
       .query('chatroom_eventStream')
@@ -889,7 +907,7 @@ export const getCommandEvents = query({
     // 7. Merge and sort by _creationTime ascending
     const all = [
       ...requestStartEvents,
-      ...restartEvents,
+      ...pendingRestartEvents,
       ...stopEvents,
       ...pingEvents,
       ...gitRefreshEvents,
@@ -1436,26 +1454,6 @@ export const sendCommand = mutation({
           .first();
       }
 
-      const resolvedModel =
-        args.payload.model ??
-        (existingConfig?.type === 'remote' ? existingConfig.model : undefined);
-      const resolvedHarness =
-        args.payload.agentHarness ??
-        (existingConfig?.type === 'remote' ? existingConfig.agentHarness : undefined);
-      const resolvedWorkingDir =
-        args.payload.workingDir ??
-        (existingConfig?.type === 'remote' ? existingConfig.workingDir : undefined);
-      const resolvedWantResume =
-        args.payload.wantResume ??
-        (existingConfig?.type === 'remote' ? existingConfig.wantResume : undefined);
-
-      if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
-        throw new Error(
-          'Cannot restart agent: model, agentHarness, and workingDir are required. ' +
-            'Provide them in the payload or ensure an existing config exists.'
-        );
-      }
-
       const allowNewMachine = resolveAllowNewMachineForStart(args.payload, existingConfig);
       await assertMachineBelongsToChatroom(ctx, {
         chatroomId: args.payload.chatroomId,
@@ -1464,20 +1462,27 @@ export const sendCommand = mutation({
         allowNewMachine,
       });
 
-      await restartAgentUseCase(
+      const result = await requestAgentRestart(
         ctx,
         {
-          machineId: args.machineId,
           chatroomId: args.payload.chatroomId,
           role: args.payload.role,
-          userId: userId,
-          model: resolvedModel,
-          agentHarness: resolvedHarness,
-          workingDir: resolvedWorkingDir,
-          wantResume: resolvedWantResume,
+          request: {
+            reason: 'user.restart',
+            overrides: {
+              machineId: args.machineId,
+              model: args.payload.model,
+              agentHarness: args.payload.agentHarness,
+              workingDir: args.payload.workingDir,
+              wantResume: args.payload.wantResume,
+            },
+          },
         },
         machine
       );
+      if (result.status === 'skipped') {
+        throw new Error(`Cannot restart agent: ${result.reason}`);
+      }
       return {};
     }
 

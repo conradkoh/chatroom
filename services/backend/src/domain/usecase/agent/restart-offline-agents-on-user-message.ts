@@ -8,13 +8,10 @@
 
 import { isAgentAlive } from './is-agent-alive';
 import { listTeamAgentConfigsForChatroom } from './list-team-agent-configs-for-chatroom';
-import { resolveDefaultWantResume } from './resolve-default-want-resume';
+import { requestAgentRestart } from './request-agent-restart';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { isOfflineForUserMessageRestart } from '../../entities/participant';
-import { buildAgentRequestStartEvent } from '../agent/build-agent-request-start-event';
-import { transitionAgentStatus } from '../agent/transition-agent-status';
-import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 type TeamAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
@@ -62,39 +59,11 @@ async function ensureRunningClosedCircuit(
   );
 }
 
-async function emitOfflineUserMessageRestart(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  config: RunnableRemoteConfig,
-  teamId: string,
-  now: number
-): Promise<void> {
-  await ctx.db.insert(
-    'chatroom_eventStream',
-    buildAgentRequestStartEvent(
-      {
-        chatroomId,
-        machineId: config.machineId,
-        role: config.role,
-        agentHarness: config.agentHarness,
-        model: config.model,
-        workingDir: config.workingDir,
-        reason: 'platform.restart_offline_on_user_message',
-        wantResume: config.wantResume ?? resolveDefaultWantResume(teamId, config.role),
-      },
-      now
-    )
-  );
-  await transitionAgentStatus(ctx, chatroomId, config.role, 'agent.requestStart', 'running');
-}
-
 // fallow-ignore-next-line complexity
 export async function restartOfflineAgentsOnUserMessage(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<{ restartedRoles: string[] }> {
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  const teamId = chatroom?.teamId ?? '';
   const configs = await listTeamAgentConfigsForChatroom(ctx, chatroomId);
   const participants = await ctx.db
     .query('chatroom_participants')
@@ -102,7 +71,6 @@ export async function restartOfflineAgentsOnUserMessage(
     .collect();
   const participantByRole = new Map(participants.map((p) => [p.role.toLowerCase(), p]));
 
-  const now = Date.now();
   const restartedRoles: string[] = [];
 
   for (const config of configs) {
@@ -111,16 +79,13 @@ export async function restartOfflineAgentsOnUserMessage(
     const participant = participantByRole.get(config.role.toLowerCase());
     if (!shouldRestartForOfflineParticipant(participant, config.spawnedAgentPid)) continue;
 
-    await ensureRunningClosedCircuit(ctx, config, now);
-    await emitOfflineUserMessageRestart(ctx, chatroomId, config, teamId, now);
-    restartedRoles.push(config.role);
-  }
-
-  // Refresh the daemon snapshot projection when we flipped any config back to
-  // desiredState=running so the task monitor can act without waiting for a
-  // task transition.
-  if (restartedRoles.length > 0) {
-    await projectAssignedTaskSnapshotsForChatroom(ctx, chatroomId);
+    await ensureRunningClosedCircuit(ctx, config, Date.now());
+    const result = await requestAgentRestart(ctx, {
+      chatroomId,
+      role: config.role,
+      request: { reason: 'platform.restart_offline_on_user_message' },
+    });
+    if (result.status === 'requested') restartedRoles.push(config.role);
   }
 
   return { restartedRoles };
