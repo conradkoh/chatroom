@@ -1745,7 +1745,7 @@ export const listSinceMessage = query({
       .order('asc')
       .take(Math.min(limit, maxLimit));
 
-    return Promise.all(messages.map((message) => withTaskStatus(ctx, message)));
+    return enrichMessages(ctx, messages);
   },
 });
 
