@@ -51,10 +51,3 @@ export function serializeMessage(
     .filter(Boolean)
     .join('\n');
 }
-
-export function serializeMessageAttachmentsBlock(
-  message: SerializableMessage,
-  ctx: { chatroomId: string; role: string; mode?: 'cli' | 'native' | 'task-read' }
-): string[] {
-  return message.attachments ? renderDeliveryAttachmentsBlock(message.attachments, ctx) : [];
-}
