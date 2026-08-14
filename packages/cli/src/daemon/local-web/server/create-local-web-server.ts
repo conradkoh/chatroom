@@ -28,6 +28,7 @@ export type LocalWebServerDeps = {
   logStreamHub?: LogStreamHub;
   backend?: BackendOps;
   sessionId?: string;
+  clientDistDir?: string;
 };
 
 export type LocalWebServerHandle = {
@@ -46,7 +47,7 @@ export async function startLocalWebServer(
   }
 
   const streamHub = deps.streamHub ?? createStreamHub();
-  const clientDistDir = resolveClientDistDir();
+  const clientDistDir = deps.clientDistDir ?? resolveClientDistDir();
 
   const server = createServer((req, res) => {
     if (tryServeStatic(req, res, clientDistDir)) return;
