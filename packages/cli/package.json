@@ -77,7 +77,7 @@
     "dist/index.js.map",
     "dist/node-launch.js",
     "dist/node-launch.js.map",
-    "src/daemon/local-web/client/build",
+    "dist/client/build",
     "package.json",
     "README.md"
   ]
