@@ -1,6 +1,5 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import React, { useState, useCallback, useEffect } from 'react';
 
 import {
@@ -10,11 +9,7 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
-
-const RichTextEditor = dynamic(
-  () => import('./rich-text').then((m) => ({ default: m.RichTextEditor })),
-  { ssr: false }
-);
+import { ChatroomMarkdownEditorShell } from './chatroom-markdown-editor';
 
 interface BacklogCreateModalProps {
   isOpen: boolean;
@@ -56,12 +51,14 @@ export function BacklogCreateModal({ isOpen, onClose, onSubmit }: BacklogCreateM
         </FixedModalHeader>
 
         <FixedModalBody className="flex flex-col p-0 overflow-hidden">
-          <RichTextEditor
-            value={content}
+          <ChatroomMarkdownEditorShell
+            editorKey={isOpen ? 'create-open' : 'create-closed'}
+            defaultMarkdown={content}
             onChange={setContent}
             placeholder="Write your task description in markdown..."
             autoFocus
-            onCmdEnter={handleSubmit}
+            onModEnter={handleSubmit}
+            modEnterDisabled={isSubmitting || !content.trim()}
             className="flex-1 flex flex-col min-h-0"
           />
         </FixedModalBody>

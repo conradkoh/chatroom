@@ -17,7 +17,7 @@ import Markdown from 'react-markdown';
 
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
-import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
+import { ChatroomMarkdownEditorShell, isInteractiveClickTarget } from './detail-modal-shared';
 import { modalMarkdownComponents, backlogRichTextEditorProseClassNames } from './markdown-utils';
 import { useAttachments } from '../attachments';
 import {
@@ -60,10 +60,6 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
-  const [initialClickCoords, setInitialClickCoords] = useState<{
-    left: number;
-    top: number;
-  } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Track which item we've initialized for — prevents resetting during edits
@@ -86,11 +82,9 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
       setEditedContent(item.content);
       // Backlog items open read-only; click the content to edit.
       setIsEditing(false);
-      setInitialClickCoords(null);
       setInitializedItemId(item._id);
     } else if (!isOpen) {
       setInitializedItemId(null);
-      setInitialClickCoords(null);
     }
   }, [isOpen, item, initializedItemId]);
 
@@ -98,7 +92,6 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
   const cancelEdit = useCallback(() => {
     if (item) setEditedContent(item.content);
     setIsEditing(false);
-    setInitialClickCoords(null);
   }, [item]);
 
   /** Close-from-chrome: exit edit first (with reset), then close. */
@@ -120,7 +113,6 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
         content: editedContent.trim(),
       });
       setIsEditing(false);
-      setInitialClickCoords(null);
     } catch (error) {
       console.error('Failed to save backlog item:', error);
     } finally {
@@ -128,10 +120,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
     }
   }, [item, editedContent, updateItem]);
 
-  const enterEdit = useCallback((coords?: { left: number; top: number } | null) => {
-    setInitialClickCoords(coords ?? null);
-    setIsEditing(true);
-  }, []);
+  const enterEdit = useCallback(() => setIsEditing(true), []);
 
   const handleMutation = async (fn: () => Promise<unknown>) => {
     setIsLoading(true);
@@ -204,12 +193,13 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
         <FixedModalBody className="flex flex-col min-h-0 p-0">
           <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
             {isEditing ? (
-              <RichTextEditor
-                value={editedContent}
+              <ChatroomMarkdownEditorShell
+                editorKey={`backlog-edit-${item._id}`}
+                defaultMarkdown={editedContent}
                 onChange={setEditedContent}
                 placeholder="Write your markdown here..."
-                onCmdEnter={handleSave}
-                initialClickCoords={initialClickCoords}
+                onModEnter={handleSave}
+                modEnterDisabled={isLoading || !editedContent.trim()}
                 className="flex-1 flex flex-col min-h-0"
               />
             ) : (
@@ -220,7 +210,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   item.status === 'backlog'
                     ? (e) => {
                         if (isInteractiveClickTarget(e.target)) return;
-                        enterEdit({ left: e.clientX, top: e.clientY });
+                        enterEdit();
                       }
                     : undefined
                 }
@@ -229,8 +219,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                     ? (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
-                          setInitialClickCoords(null);
-                  enterEdit(null);
+                  enterEdit();
                         }
                       }
                     : undefined
@@ -341,7 +330,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                 <DropdownMenuContent align="end" className="min-w-[160px]">
                   {item.status === 'backlog' && (
                     <DropdownMenuItem
-                      onClick={() => enterEdit(null)}
+                      onClick={() => enterEdit()}
                       className="flex items-center gap-2 cursor-pointer"
                     >
                       <Pencil size={14} />

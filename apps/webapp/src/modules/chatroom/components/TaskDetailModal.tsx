@@ -6,7 +6,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
-import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
+import { ChatroomMarkdownEditorShell, isInteractiveClickTarget } from './detail-modal-shared';
 import { HandoffStructuredContent } from './HandoffStructuredContent';
 import {
   modalMarkdownComponents,
@@ -65,10 +65,6 @@ export function TaskDetailModal({
 }: TaskDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
-  const [initialClickCoords, setInitialClickCoords] = useState<{
-    left: number;
-    top: number;
-  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,14 +79,12 @@ export function TaskDetailModal({
     if (isOpen && task && task._id !== initializedTaskId) {
       setEditedContent(task.content);
       setIsEditing(false);
-      setInitialClickCoords(null);
       setError(null);
       setInitializedTaskId(task._id);
     } else if (!isOpen) {
       // Reset when modal closes
       setInitializedTaskId(null);
       setError(null);
-      setInitialClickCoords(null);
     }
   }, [isOpen, task, initializedTaskId]);
 
@@ -98,7 +92,6 @@ export function TaskDetailModal({
   const cancelEdit = useCallback(() => {
     if (task) setEditedContent(task.content);
     setIsEditing(false);
-    setInitialClickCoords(null);
   }, [task]);
 
   const dismissFromChrome = useCallback(() => {
@@ -116,7 +109,6 @@ export function TaskDetailModal({
     try {
       await onEdit(task._id, editedContent.trim());
       setIsEditing(false);
-      setInitialClickCoords(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save changes';
       setError(message);
@@ -187,12 +179,13 @@ export function TaskDetailModal({
         <FixedModalBody className="flex flex-col min-h-0 p-0">
           <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
             {isEditing ? (
-              <RichTextEditor
-                value={editedContent}
+              <ChatroomMarkdownEditorShell
+                editorKey={`task-edit-${task._id}`}
+                defaultMarkdown={editedContent}
                 onChange={setEditedContent}
                 placeholder="Write your markdown here..."
-                onCmdEnter={handleSave}
-                initialClickCoords={initialClickCoords}
+                onModEnter={handleSave}
+                modEnterDisabled={isLoading || !editedContent.trim()}
                 className="flex-1 flex flex-col min-h-0"
               />
             ) : (
@@ -202,7 +195,6 @@ export function TaskDetailModal({
                   !isProtected
                     ? (e) => {
                         if (isInteractiveClickTarget(e.target)) return;
-                        setInitialClickCoords({ left: e.clientX, top: e.clientY });
                         setIsEditing(true);
                       }
                     : undefined
@@ -212,7 +204,6 @@ export function TaskDetailModal({
                     ? (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
-                          setInitialClickCoords(null);
                           setIsEditing(true);
                         }
                       }
