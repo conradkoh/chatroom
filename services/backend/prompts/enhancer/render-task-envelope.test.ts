@@ -106,8 +106,8 @@ describe('renderEnhancerTaskEnvelope', () => {
       ...params,
       outputTemplateContent: getEnhancerToPlannerHandoffTemplate(),
     });
-    expect(result).toContain('Layout simplification');
-    expect(result).toContain('overflow-menu');
+    expect(result).toContain('no layout shift');
+    expect(result).toContain('**Interaction affordance**');
   });
 
   it('requirements include message history download for user-intent validation', () => {

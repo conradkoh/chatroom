@@ -51,14 +51,14 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     expect(body).toContain('**Shortcuts:**');
     expect(body).toContain('**States:**');
     expect(body).toContain('**Error boundaries:**');
-    expect(body).toContain('**Alignment:**');
+    expect(body).toContain('**Interaction affordance:**');
     expect(body).toContain('**Feedback:**');
     const uxBlock = body.slice(body.indexOf('<handoff-ux>'), body.indexOf('</handoff-ux>'));
     expect(uxBlock).toContain('**Flows:**');
     expect(uxBlock).toContain('**Shortcuts:**');
     expect(uxBlock).toContain('**States:**');
     expect(uxBlock).toContain('**Error boundaries:**');
-    expect(uxBlock).toContain('**Alignment:**');
+    expect(uxBlock).toContain('**Interaction affordance:**');
     expect(uxBlock).toContain('**Feedback:**');
     expect(uxBlock).toContain('**Destructive safeguards:**');
     expect(uxBlock).toContain('**Bulk safeguards:**');
