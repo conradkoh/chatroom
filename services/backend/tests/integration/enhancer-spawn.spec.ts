@@ -180,6 +180,7 @@ describe('daemon.enhancer.index', () => {
     expect(payload.systemPrompt).toContain(jobId);
     expect(payload.systemPrompt).toContain('messages download');
     expect(payload.systemPrompt).toContain('Do not rely solely');
+    expect(payload.systemPrompt).toContain('## Defragmentation validation');
     expect(payload.taskEnvelope).toContain('<handoff-templates>');
     expect(payload.taskEnvelope).toContain('### Handoff to `planner` (your output)');
     expect(payload.taskEnvelope).toContain('<references>');
@@ -187,6 +188,9 @@ describe('daemon.enhancer.index', () => {
     expect(payload.taskEnvelope).toContain('handoff-template for="planner->user" team="duo"');
     expect(payload.taskEnvelope).toContain('<planner-check-in>');
     expect(payload.taskEnvelope).toContain('Draft content here');
+    expect(payload.taskEnvelope).toContain('### Defragmentation workflow checklist');
+    expect(payload.taskEnvelope).toContain('&lt;handoff-defragmentation&gt;');
+    expect(payload.taskEnvelope).toContain('optional **Defragmentation** section');
   });
 
   test('pendingForMachine respects nextRetryAt filter', async () => {

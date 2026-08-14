@@ -7,7 +7,9 @@
  * Run via: bun run build.config.ts
  */
 
-import { rmSync } from 'node:fs';
+import { cpSync, existsSync, rmSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import type { BuildConfig } from 'bun';
 
@@ -30,6 +32,10 @@ const config: BuildConfig = {
 // Clean previous output before building
 rmSync('dist', { recursive: true, force: true });
 
+const cliRoot = dirname(fileURLToPath(import.meta.url));
+const clientBuildSrc = join(cliRoot, 'src/daemon/local-web/client/build');
+const clientBuildDest = join(cliRoot, 'dist/client/build');
+
 const result = await Bun.build(config);
 
 if (!result.success) {
@@ -45,3 +51,11 @@ for (const output of result.outputs) {
   const sizeKb = (output.size / 1024).toFixed(2);
   console.log(`  ${output.path}  (${sizeKb} KB)`);
 }
+
+if (!existsSync(join(clientBuildSrc, 'index.html'))) {
+  throw new Error(
+    'local-web client build missing at src/daemon/local-web/client/build — run build:local-web first'
+  );
+}
+cpSync(clientBuildSrc, clientBuildDest, { recursive: true });
+console.log(`Copied local-web client build to ${clientBuildDest}`);
