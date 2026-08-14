@@ -90,9 +90,15 @@ export async function startLocalWebServer(
     port: boundPort,
     streamHub,
     stop() {
-      return new Promise((resolve, reject) => {
-        io.close();
-        server.close((err) => (err ? reject(err) : resolve()));
+      return new Promise<void>((resolve, reject) => {
+        void io.close((err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve();
+        });
+        server.closeAllConnections();
       });
     },
   };

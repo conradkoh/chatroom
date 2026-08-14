@@ -62,6 +62,22 @@ describe('startLocalWebServer', () => {
     }
   });
 
+  it('releases the bound port after stop so the same port can be reused', async () => {
+    const first = await startLocalWebServer({ host: '127.0.0.1', port: 0 });
+    const { port } = first;
+
+    await expect(first.stop()).resolves.toBeUndefined();
+
+    const second = await startLocalWebServer({ host: '127.0.0.1', port });
+    try {
+      expect(second.port).toBe(port);
+      const { status } = await httpGet(`http://127.0.0.1:${port}/health`);
+      expect(status).toBe(200);
+    } finally {
+      await second.stop();
+    }
+  });
+
   it('rejects non-localhost host', async () => {
     await expect(startLocalWebServer({ host: '0.0.0.0' as '127.0.0.1' })).rejects.toThrow(
       'local-web must bind to 127.0.0.1 only'
@@ -144,6 +160,22 @@ describe('startLocalWebServer', () => {
     } finally {
       client.close();
       await server.stop();
+    }
+  });
+
+  it('stop resolves while a Socket.IO client is connected', async () => {
+    const server = await startLocalWebServer({ host: '127.0.0.1', port: 0 });
+    const client = ioClient(`http://127.0.0.1:${server.port}`, {
+      transports: ['websocket'],
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        client.on('connect', () => resolve());
+        client.on('connect_error', reject);
+      });
+      await expect(server.stop()).resolves.toBeUndefined();
+    } finally {
+      client.close();
     }
   });
 });
