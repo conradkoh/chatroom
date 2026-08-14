@@ -24,11 +24,11 @@ describe('shouldDeferInitUntilWorkspacesLoad', () => {
     expect(shouldDeferInitUntilWorkspacesLoad('m1', [mkConfig('m1', '/from-config')])).toBe(false);
   });
 
-  it('does not defer when no machine yet but role configs provide working dir', () => {
-    expect(shouldDeferInitUntilWorkspacesLoad(null, [mkConfig('m1', '/fallback')])).toBe(false);
+  it('defers when no machine is known because workspace registry may restore it', () => {
+    expect(shouldDeferInitUntilWorkspacesLoad(null, [mkConfig('m1', '/fallback')])).toBe(true);
   });
 
-  it('does not defer when no machine and no role configs', () => {
-    expect(shouldDeferInitUntilWorkspacesLoad(null, [])).toBe(false);
+  it('defers when no machine and no role configs', () => {
+    expect(shouldDeferInitUntilWorkspacesLoad(null, [])).toBe(true);
   });
 });
