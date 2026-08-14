@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
   createBuilderEntryDuoChatroom,
@@ -72,7 +73,28 @@ describe('restart-agent use case', () => {
     expect(restartEvent?.type).toBe('agent.restart');
     if (restartEvent?.type === 'agent.restart') {
       expect(restartEvent.role).toBe('builder');
+      expect(restartEvent.machineId).toBe(machineId);
+      expect(restartEvent.agentHarness).toBe('cursor-sdk');
+      expect(restartEvent.model).toBe(TEST_MODEL_CURSOR_SDK);
+      expect(restartEvent.workingDir).toBe('/tmp/project');
       expect(restartEvent.wantResume).toBe(true);
+      expect(restartEvent.correlationId).toEqual(expect.any(String));
     }
+
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        )
+        .first();
+      expect(config).toMatchObject({
+        machineId,
+        agentHarness: 'cursor-sdk',
+        model: TEST_MODEL_CURSOR_SDK,
+        workingDir: '/tmp/project',
+        wantResume: true,
+      });
+    });
   });
 });

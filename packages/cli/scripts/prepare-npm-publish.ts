@@ -68,15 +68,22 @@ function readPublishManifest(): PublishPackageJson {
   };
 }
 
+const REQUIRED_DIST_ARTIFACTS = [
+  join(cliRoot, 'dist', 'index.js'),
+  join(cliRoot, 'dist', 'node-launch.js'),
+  join(cliRoot, 'dist', 'client', 'build', 'index.html'),
+] as const;
+
+function distArtifactsExist(): boolean {
+  return REQUIRED_DIST_ARTIFACTS.every((path) => existsSync(path));
+}
+
 function ensureBuilt(skipBuild: boolean): void {
-  const distEntry = join(cliRoot, 'dist', 'index.js');
-  const launchEntry = join(cliRoot, 'dist', 'node-launch.js');
-  if (existsSync(distEntry) && existsSync(launchEntry)) {
-    return;
-  }
+  if (distArtifactsExist()) return;
   if (skipBuild) {
     throw new Error(
-      'dist/index.js or dist/node-launch.js is missing. Build chatroom-cli before publishing.'
+      'dist/index.js, dist/node-launch.js, or dist/client/build/index.html is missing. ' +
+        'Build chatroom-cli before publishing.'
     );
   }
   run('pnpm build', { cwd: cliRoot });

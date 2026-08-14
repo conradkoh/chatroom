@@ -6,12 +6,15 @@ import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
+import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
 import { HandoffStructuredContent } from './HandoffStructuredContent';
 import {
   modalMarkdownComponents,
   modalMarkdownWrapProseClassNames,
   taskDetailProseClassNames,
+  backlogRichTextEditorProseClassNames,
 } from './markdown-utils';
+import { getStatusBadge } from './WorkQueue/utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 import { useAttachments } from '../attachments';
 import {
@@ -29,10 +32,6 @@ import {
   FixedModalHeader,
 } from '@/components/ui/fixed-modal';
 
-/** True when a click originates from an interactive element — never enter edit mode. */
-function isInteractiveClickTarget(target: EventTarget | null): boolean {
-  return !!(target as HTMLElement)?.closest?.('button, a, input, textarea, select, label');
-}
 
 interface Task {
   _id: Id<'chatroom_tasks'>;
@@ -55,42 +54,6 @@ interface TaskDetailModalProps {
   isProtected?: boolean;
 }
 
-// Status badge colors
-const getStatusBadge = (status: TaskStatus) => {
-  switch (status) {
-    case 'pending':
-      return {
-        emoji: '🟢',
-        label: 'Pending',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'acknowledged':
-      return {
-        emoji: '🟢',
-        label: 'Acknowledged',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'in_progress':
-      return {
-        emoji: '🔵',
-        label: 'In Progress',
-        classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
-      };
-    case 'completed':
-      return {
-        emoji: '✅',
-        label: 'Completed',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    default:
-      return {
-        emoji: '⚫',
-        label: status,
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-  }
-};
-
 export function TaskDetailModal({
   isOpen,
   task,
@@ -102,6 +65,10 @@ export function TaskDetailModal({
 }: TaskDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+  const [initialClickCoords, setInitialClickCoords] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -116,12 +83,14 @@ export function TaskDetailModal({
     if (isOpen && task && task._id !== initializedTaskId) {
       setEditedContent(task.content);
       setIsEditing(false);
+      setInitialClickCoords(null);
       setError(null);
       setInitializedTaskId(task._id);
     } else if (!isOpen) {
       // Reset when modal closes
       setInitializedTaskId(null);
       setError(null);
+      setInitialClickCoords(null);
     }
   }, [isOpen, task, initializedTaskId]);
 
@@ -129,6 +98,7 @@ export function TaskDetailModal({
   const cancelEdit = useCallback(() => {
     if (task) setEditedContent(task.content);
     setIsEditing(false);
+    setInitialClickCoords(null);
   }, [task]);
 
   const dismissFromChrome = useCallback(() => {
@@ -146,6 +116,7 @@ export function TaskDetailModal({
     try {
       await onEdit(task._id, editedContent.trim());
       setIsEditing(false);
+      setInitialClickCoords(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save changes';
       setError(message);
@@ -216,32 +187,40 @@ export function TaskDetailModal({
         <FixedModalBody className="flex flex-col min-h-0 p-0">
           <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
             {isEditing ? (
-              <textarea
+              <RichTextEditor
                 value={editedContent}
-                onChange={(e) => setEditedContent(e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                    e.preventDefault();
-                    if (editedContent.trim()) {
-                      handleSave();
-                    }
-                  }
-                }}
-                className="flex-1 w-full bg-chatroom-bg-primary border-0 text-chatroom-text-primary text-sm p-4 resize-none focus:outline-none font-mono"
-                autoFocus
+                onChange={setEditedContent}
                 placeholder="Write your markdown here..."
+                onCmdEnter={handleSave}
+                initialClickCoords={initialClickCoords}
+                className="flex-1 flex flex-col min-h-0"
               />
             ) : (
               <div
+                data-testid="task-detail-view-body"
                 onClick={
                   !isProtected
                     ? (e) => {
                         if (isInteractiveClickTarget(e.target)) return;
+                        setInitialClickCoords({ left: e.clientX, top: e.clientY });
                         setIsEditing(true);
                       }
                     : undefined
                 }
-                className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${!isProtected ? 'cursor-pointer' : ''} ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
+                onKeyDown={
+                  !isProtected
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setInitialClickCoords(null);
+                          setIsEditing(true);
+                        }
+                      }
+                    : undefined
+                }
+                role={!isProtected ? 'button' : undefined}
+                tabIndex={!isProtected ? 0 : undefined}
+                className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${!isProtected ? 'cursor-pointer' : ''} ${backlogRichTextEditorProseClassNames} ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
               >
                 <HandoffStructuredContent
                   content={task.content}

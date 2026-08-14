@@ -1,6 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import {
   Play,
   Square,
@@ -62,6 +63,7 @@ import { formatHarnessLabel, getModelDisplayLabel, getMachineDisplayName } from 
 import type { Workspace } from '../types/workspace';
 import { dispatchStartAgent } from '../utils/agentStart';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
+import { pickSetupWorkspace } from '../utils/pickSetupWorkspace';
 import { resolveDefaultWantResume } from '../utils/wantResumeDefaults';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
@@ -88,9 +90,9 @@ export interface AgentControlsProps {
 // INITIALIZATION MODEL
 // ────────────────────
 // Form state is initialized ONCE when machines first become available.
-// The "last used" configuration comes from a single source — the persisted
-// teamAgentConfigs (roleConfigs) — so the form reflects exactly what the agent
-// was last started with. After initialization, all state changes come
+// It uses the strongest available signal: running agent → current-team role
+// config → team binding → most recently registered connected workspace.
+// After initialization, all state changes come
 // exclusively from explicit user interactions (handleMachineChange,
 // handleHarnessChange, etc.) — never from reactive prop updates.
 //
@@ -111,7 +113,9 @@ export interface AgentControlsProps {
 export function deriveInitialMachineId(
   connectedMachines: MachineInfo[],
   roleConfigs: AgentConfig[],
-  runningAgentConfig: AgentConfig | undefined
+  runningAgentConfig: AgentConfig | undefined,
+  teamConfigMachineId?: string | null,
+  chatroomWorkspaces?: Workspace[]
 ): string | null {
   if (connectedMachines.length === 0) return null;
   // Priority: running agent > existing config machine
@@ -120,7 +124,25 @@ export function deriveInitialMachineId(
     roleConfigs.some((c) => c.machineId === m.machineId)
   );
   if (configMachine) return configMachine.machineId;
-  return null;
+  if (teamConfigMachineId && connectedMachines.some((m) => m.machineId === teamConfigMachineId)) {
+    return teamConfigMachineId;
+  }
+  const candidates =
+    chatroomWorkspaces?.filter(
+      (ws) =>
+        ws.machineId &&
+        ws.workingDir?.trim() &&
+        connectedMachines.some((m) => m.machineId === ws.machineId)
+    ) ?? [];
+  return (
+    pickSetupWorkspace(
+      candidates.map((ws) => ({
+        machineId: ws.machineId ?? '',
+        workingDir: ws.workingDir,
+        registeredAt: ws.registeredAt,
+      }))
+    )?.machineId ?? null
+  );
 }
 
 function deriveInitialHarness(
@@ -160,18 +182,14 @@ export function deriveInitialWorkingDir(
   return '';
 }
 
-/** True when one-shot init should wait for chatroom workspaces before resolving working dir. */
+/** Wait for workspaces when they may supply the machine or its working directory. */
 export function shouldDeferInitUntilWorkspacesLoad(
   machineId: string | null,
   roleConfigs: AgentConfig[]
 ): boolean {
-  if (machineId) {
-    const config = roleConfigs.find((c) => c.machineId === machineId);
-    if (config?.workingDir) return false;
-    return true;
-  }
-  if (roleConfigs.some((c) => c.workingDir)) return false;
-  return false;
+  if (!machineId) return true;
+  const config = roleConfigs.find((c) => c.machineId === machineId);
+  return !config?.workingDir;
 }
 
 /**
@@ -224,6 +242,8 @@ export function useAgentControls({
   teamPlannerRestartOnHandoffToUser,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
+  latestEventType,
+  agentRoleView,
   lockedMachineId,
   lockedWorkingDir,
   teamId,
@@ -249,6 +269,8 @@ export function useAgentControls({
   chatroomWorkspaces?: Workspace[];
   /** When true, init defers until workspaces load if working dir may come from the registry */
   chatroomWorkspacesLoading?: boolean;
+  latestEventType?: string | null;
+  agentRoleView?: AgentRoleView;
   /** Setup wizard: lock machine and working directory. */
   lockedMachineId?: string;
   lockedWorkingDir?: string;
@@ -301,6 +323,28 @@ export function useAgentControls({
     );
   }, [roleConfigs, connectedMachines]);
 
+  const isRestartInProgress =
+    latestEventType === 'agent.restart' ||
+    latestEventType === 'agent.restartPhase' ||
+    latestEventType === 'agent.restartCompleted';
+  const displayAgentConfig = useMemo(() => {
+    if (runningAgentConfig) return runningAgentConfig;
+    if (!isRestartInProgress || !agentRoleView?.machineId || !agentRoleView.agentHarness) {
+      return undefined;
+    }
+    return {
+      machineId: agentRoleView.machineId,
+      hostname: '',
+      role,
+      agentType: agentRoleView.agentHarness as AgentConfig['agentType'],
+      workingDir: agentRoleView.workingDir ?? '',
+      model: agentRoleView.model,
+      availableHarnesses: [],
+      updatedAt: 0,
+      wantResume: agentRoleView.wantResume,
+    } satisfies AgentConfig;
+  }, [runningAgentConfig, isRestartInProgress, agentRoleView, role]);
+
   // Get available harnesses for selected machine
   const availableHarnessesForMachine = useMemo(() => {
     if (!selectedMachineId) return [];
@@ -324,7 +368,14 @@ export function useAgentControls({
 
     // Single source of truth for "last used": persisted teamAgentConfigs.
     const machine =
-      lockedMachineId ?? deriveInitialMachineId(connectedMachines, roleConfigs, runningAgentConfig);
+      lockedMachineId ??
+      deriveInitialMachineId(
+        connectedMachines,
+        roleConfigs,
+        runningAgentConfig,
+        teamConfigMachineId,
+        chatroomWorkspaces
+      );
     if (chatroomWorkspacesLoading && shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs)) {
       return;
     }
@@ -360,6 +411,7 @@ export function useAgentControls({
     seedFromTeamConfig,
     lockedMachineId,
     lockedWorkingDir,
+    teamConfigMachineId,
   ]);
 
   // ── Display the persisted preference for next start ──
@@ -423,7 +475,7 @@ export function useAgentControls({
     teamConfigModel,
   ]);
 
-  const isAgentRunning = !!runningAgentConfig;
+  const isAgentRunning = !!displayAgentConfig;
   const isBusy = isStarting || isStopping;
   const hasModels = availableModelsForHarness.length > 0;
   const canStart =
@@ -521,12 +573,12 @@ export function useAgentControls({
   }, []);
 
   const handleStopAgent = useCallback(async () => {
-    if (!runningAgentConfig) return;
+    if (!displayAgentConfig) return;
     setIsStopping(true);
     setError(null);
     try {
       await sendCommand({
-        machineId: runningAgentConfig.machineId,
+        machineId: displayAgentConfig.machineId,
         type: 'stop-agent',
         payload: { chatroomId: chatroomId as Id<'chatroom_rooms'>, role },
       });
@@ -537,23 +589,23 @@ export function useAgentControls({
     } finally {
       setIsStopping(false);
     }
-  }, [runningAgentConfig, sendCommand, chatroomId, role]);
+  }, [displayAgentConfig, sendCommand, chatroomId, role]);
 
   const handleRestartAgent = useCallback(async () => {
-    if (!runningAgentConfig) return;
+    if (!displayAgentConfig) return;
     setIsStarting(true);
     setError(null);
     try {
       await sendCommand({
-        machineId: runningAgentConfig.machineId,
+        machineId: displayAgentConfig.machineId,
         type: 'restart-agent',
         payload: {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
-          model: selectedModel || undefined,
-          agentHarness: runningAgentConfig.agentType,
-          workingDir: runningAgentConfig.workingDir,
-          wantResume: runningAgentConfig.wantResume ?? effectiveWantResume,
+          model: displayAgentConfig.model ?? selectedModel ?? undefined,
+          agentHarness: displayAgentConfig.agentType,
+          workingDir: displayAgentConfig.workingDir,
+          wantResume: displayAgentConfig.wantResume ?? effectiveWantResume,
         },
       });
       setSuccess('Restart command sent!');
@@ -563,7 +615,7 @@ export function useAgentControls({
     } finally {
       setIsStarting(false);
     }
-  }, [runningAgentConfig, selectedModel, effectiveWantResume, sendCommand, chatroomId, role]);
+  }, [displayAgentConfig, selectedModel, effectiveWantResume, sendCommand, chatroomId, role]);
 
   // Wrapper for machine change — clears harness, per-harness model memory, and re-initializes for new machine
   const handleMachineChange = useCallback(
@@ -623,6 +675,7 @@ export function useAgentControls({
     success,
     roleConfigs,
     runningAgentConfig,
+    displayAgentConfig,
     availableHarnessesForMachine,
     harnessVersionsForMachine,
     availableModelsForHarness,
@@ -685,7 +738,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     availableHarnessesForMachine,
     harnessVersionsForMachine,
     availableModelsForHarness,
-    runningAgentConfig,
+    displayAgentConfig,
     isAgentRunning,
     isBusy,
     teamId,
@@ -709,7 +762,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 
   // When an agent is running, display values come exclusively from runningAgentConfig.
   // Internal form state is preserved so it's ready again when the agent stops.
-  const runningConfig = isAgentRunning ? runningAgentConfig : undefined;
+  const runningConfig = isAgentRunning ? displayAgentConfig : undefined;
   const displayMachineId = runningConfig?.machineId ?? selectedMachineId;
   const displayHarness = runningConfig?.agentType ?? selectedHarness;
   const displayModel = runningConfig?.model ?? selectedModel;
@@ -1254,7 +1307,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             onResumeSessionChange={(checked) => void teamBehavior.updateWantResume(checked)}
             plannerRestartOnHandoffToUser={teamBehavior.plannerRestartOnHandoffToUser}
             isSavingPlannerRestart={teamBehavior.isSavingPlannerRestart}
-            onPlannerRestartOnHandoffToUserChange={(checked) => void teamBehavior.updatePlannerRestartOnHandoffToUser(checked)}
+            onPlannerRestartOnHandoffToUserChange={(checked) =>
+              void teamBehavior.updatePlannerRestartOnHandoffToUser(checked)
+            }
           />
 
           <AlertDialog

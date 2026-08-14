@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 
 export interface RemoteAgentQuickActionsProps {
   hasRunningAgents: boolean;
+  isRestarting?: boolean;
   onStart?: () => void;
   onStop?: () => void;
   onRestart?: () => void;
@@ -19,15 +20,17 @@ const baseBtn =
 
 export const RemoteAgentQuickActions = memo(function RemoteAgentQuickActions({
   hasRunningAgents,
+  isRestarting = false,
   onStart,
   onStop,
   onRestart,
   disabled = false,
   isStarting = false,
 }: RemoteAgentQuickActionsProps) {
-  const startEnabled = !hasRunningAgents && !disabled && !!onStart;
-  const stopEnabled = hasRunningAgents && !disabled && !!onStop;
-  const restartEnabled = hasRunningAgents && !disabled && !!onRestart;
+  const treatAsRunning = hasRunningAgents || isRestarting;
+  const startEnabled = !treatAsRunning && !disabled && !!onStart;
+  const stopEnabled = treatAsRunning && !disabled && !!onStop;
+  const restartEnabled = treatAsRunning && !disabled && !!onRestart;
 
   const inactiveClass = 'text-chatroom-text-muted opacity-40';
 

@@ -191,9 +191,16 @@ describe('BacklogItemDetailModal editor initialization', () => {
     );
   });
 
-  it('does not show an Edit item in the Actions menu', () => {
+  it('shows Edit in Actions menu for backlog status', () => {
     render(<BacklogItemDetailModal isOpen item={makeBacklogItem('backlog')} onClose={vi.fn()} />);
 
+    fireEvent.click(screen.getByText('Actions'));
+    fireEvent.click(screen.getByText('Edit'));
+    expect(screen.getByTestId('backlog-rich-text-editor')).toBeInTheDocument();
+  });
+
+  it('does not show Edit in Actions menu for pending_user_review status', () => {
+    render(<BacklogItemDetailModal isOpen item={makeBacklogItem('pending_user_review')} onClose={vi.fn()} />);
     fireEvent.click(screen.getByText('Actions'));
     expect(screen.queryByText('Edit')).not.toBeInTheDocument();
   });

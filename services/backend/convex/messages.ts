@@ -2,8 +2,8 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { generateRolePrompt, composeInitPrompt } from '../prompts';
-import type { Doc, Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
+import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internalMutation, mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
@@ -1663,7 +1663,7 @@ export const listBySenderRole = query({
       .order('desc')
       .take(Math.min(limit, maxLimit));
 
-    return Promise.all(messages.map((message) => withTaskStatus(ctx, message)));
+    return enrichMessages(ctx, messages);
   },
 });
 
@@ -1745,7 +1745,7 @@ export const listSinceMessage = query({
       .order('asc')
       .take(Math.min(limit, maxLimit));
 
-    return Promise.all(messages.map((message) => withTaskStatus(ctx, message)));
+    return enrichMessages(ctx, messages);
   },
 });
 
@@ -1828,15 +1828,6 @@ export const getContextForRole = query({
       contextMessages.map(async (message) => {
         let taskStatus: TaskStatus | undefined;
         let taskContent: string | undefined;
-        let attachedTasks:
-          | {
-              _id: string;
-              content: string;
-              status: TaskStatus;
-              createdAt: number;
-            }[]
-          | undefined;
-
         // Get task status and content for this message
         if (message.taskId) {
           const task = await ctx.db.get('chatroom_tasks', message.taskId);
@@ -1846,42 +1837,7 @@ export const getContextForRole = query({
           }
         }
 
-        // Get full attached task objects (not just IDs)
-        if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
-          const tasks = await Promise.all(
-            message.attachedTaskIds.map(async (taskId) => {
-              const task = await ctx.db.get('chatroom_tasks', taskId);
-              if (task) {
-                return {
-                  _id: task._id.toString(),
-                  content: task.content,
-                  status: task.status,
-                  createdAt: task.createdAt,
-                };
-              }
-              return null;
-            })
-          );
-          // Filter out null values (tasks that don't exist)
-          const validTasks = tasks.filter((t): t is NonNullable<typeof t> => t !== null);
-          if (validTasks.length > 0) {
-            attachedTasks = validTasks;
-          }
-        }
-
-        // Get full attached backlog item objects (not just IDs)
-        let attachedBacklogItems: { id: string; content: string; status: string }[] | undefined;
-        if (message.attachedBacklogItemIds && message.attachedBacklogItemIds.length > 0) {
-          const items = await Promise.all(
-            message.attachedBacklogItemIds.map((itemId) => ctx.db.get('chatroom_backlog', itemId))
-          );
-          const validItems = items
-            .filter((i): i is NonNullable<typeof i> => i !== null)
-            .map((i) => ({ id: i._id, content: i.content, status: i.status }));
-          if (validItems.length > 0) {
-            attachedBacklogItems = validItems;
-          }
-        }
+        const attachments = await enrichMessageAttachments(ctx, message);
 
         return {
           _id: message._id.toString(),
@@ -1893,8 +1849,7 @@ export const getContextForRole = query({
           taskId: message.taskId?.toString(),
           taskStatus,
           taskContent,
-          attachedTasks,
-          ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
+          ...attachments,
         };
       })
     );

@@ -19,7 +19,15 @@ export interface HandoffReportViewProps {
   variant?: HandoffReportViewVariant;
 }
 
-type SectionKey = 'overview' | 'proofs' | 'direction' | 'ux' | 'systemDesign' | 'notes' | 'action';
+type SectionKey =
+  | 'overview'
+  | 'proofs'
+  | 'direction'
+  | 'ux'
+  | 'defragmentation'
+  | 'systemDesign'
+  | 'notes'
+  | 'action';
 
 interface SectionDef {
   id: string;
@@ -34,6 +42,12 @@ const STRUCTURED_SECTIONS: SectionDef[] = [
   { id: 'direction', label: 'Direction', key: 'direction', defaultOpenWhenNonempty: false },
   { id: 'ux', label: 'UX', key: 'ux', defaultOpenWhenNonempty: false },
   {
+    id: 'defragmentation',
+    label: 'Defragmentation',
+    key: 'defragmentation',
+    defaultOpenWhenNonempty: false,
+  },
+  {
     id: 'system-design',
     label: 'System Design',
     key: 'systemDesign',
@@ -42,6 +56,31 @@ const STRUCTURED_SECTIONS: SectionDef[] = [
   { id: 'notes', label: 'Notes', key: 'notes', defaultOpenWhenNonempty: false },
   { id: 'action', label: 'Action required', key: 'action', defaultOpenWhenNonempty: true },
 ];
+
+function computeInitialOpenSections(
+  bodies: Record<SectionKey, string | null>,
+  isAbsent: Record<string, boolean>
+): Record<string, boolean> {
+  const initial: Record<string, boolean> = {};
+  for (const section of STRUCTURED_SECTIONS) {
+    const body = bodies[section.key];
+    if (shouldSkipSection(section, body, isAbsent)) continue;
+    initial[section.id] = isHandoffSectionBodyEmpty(body ?? null)
+      ? false
+      : section.defaultOpenWhenNonempty;
+  }
+  return initial;
+}
+
+function shouldSkipSection(
+  section: SectionDef,
+  body: string | null,
+  isAbsent: Record<string, boolean>
+): boolean {
+  if (body === null && section.key !== 'direction') return true;
+  const absentKey = section.key === 'systemDesign' ? 'system-design' : section.key;
+  return Boolean(section.key !== 'direction' && isAbsent[absentKey]);
+}
 
 function computeSectionBodies(parsed: HandoffReportParseResult): {
   bodies: Record<SectionKey, string | null>;
@@ -52,6 +91,7 @@ function computeSectionBodies(parsed: HandoffReportParseResult): {
     proofs: parsed.proofs,
     direction: null,
     ux: parsed.ux,
+    defragmentation: parsed.defragmentation,
     systemDesign: null,
     notes: parsed.notes,
     action: parsed.action,
@@ -67,6 +107,7 @@ function computeSectionBodies(parsed: HandoffReportParseResult): {
   }
   // ux is absent when the tag was never present in the message
   isAbsent['ux'] = parsed.ux === null;
+  isAbsent['defragmentation'] = parsed.defragmentation === null;
 
   return { bodies, isAbsent };
 }
@@ -74,18 +115,9 @@ function computeSectionBodies(parsed: HandoffReportParseResult): {
 function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
   const { bodies, isAbsent } = useMemo(() => computeSectionBodies(parsed), [parsed]);
 
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    for (const section of STRUCTURED_SECTIONS) {
-      const body = bodies[section.key];
-      if (body === null && section.key !== 'direction') continue;
-      if (section.key === 'systemDesign' && isAbsent['system-design']) continue;
-      if (section.key === 'ux' && isAbsent['ux']) continue;
-      const isEmpty = isHandoffSectionBodyEmpty(body ?? null);
-      initial[section.id] = isEmpty ? false : section.defaultOpenWhenNonempty;
-    }
-    return initial;
-  });
+  const [openSections, setOpenSections] = useState(() =>
+    computeInitialOpenSections(bodies, isAbsent)
+  );
 
   const toggleSection = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -98,6 +130,7 @@ function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
         if (body === null && section.key !== 'direction') return null;
         if (section.key === 'systemDesign' && isAbsent['system-design']) return null;
         if (section.key === 'ux' && isAbsent['ux']) return null;
+        if (section.key === 'defragmentation' && isAbsent['defragmentation']) return null;
         if (section.key === 'direction' && body === null) return null;
         if (body === null) return null;
         const subsectionCount = countNonemptySubsections(body);

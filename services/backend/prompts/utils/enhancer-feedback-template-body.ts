@@ -1,8 +1,8 @@
 /**
  * XML-wrapped planning feedback body for enhancer → planner handoffs.
- * Maps 8 sections into 6 collapsible UI tags (same tags as
- * planner→user report handoffs plus handoff-ux). UX is its own optional
- * tag between direction and notes; Suggested edits is the last `##`
+ * Maps 9 sections into 7 collapsible UI tags (same tags as
+ * planner→user report handoffs plus handoff-ux and handoff-defragmentation).
+ * Both optional tags sit between direction and notes; Suggested edits is the last `##`
  * heading — code examples come last for LLM generation.
  */
 import { getFileReferenceGuidanceComment } from './file-reference-guidance';
@@ -16,7 +16,7 @@ export function getEnhancerFeedbackTemplateBody(): string {
 <specific misreadings or missing constraints — what the user asked vs what the planner proposed>
 </handoff-overview>
 
-<!-- UI collapses proofs, direction, ux, and notes by default; overview and action required are expanded -->
+<!-- UI collapses proofs, direction, ux, defragmentation, and notes by default; overview and action required are expanded -->
 
 <handoff-proofs>
 ## Reasoning review
@@ -42,6 +42,20 @@ export function getEnhancerFeedbackTemplateBody(): string {
 - **Destructive safeguards:** <single-item irreversible/high-impact actions gated by confirm dialog; cite missing confirms>
 - **Bulk safeguards:** <batch/multi-item operations gated by confirm with count/impact summary; cite missing confirms>
 </handoff-ux>
+
+<handoff-defragmentation>
+<!-- Optional — write exactly "Not Applicable." when no large or multi-surface system revision is proposed -->
+<!-- When revision work is proposed: specific findings tied to the planner's proposal. No code blocks (use Suggested edits). -->
+- **Surfaces:** <call sites and modules identified; gaps in surface mapping>
+- **Golden path:** <whether planner builds standalone canonical implementation first>
+- **Domain model:** <canonical types/entities needed or "not needed">
+- **Shared components:** <shared abstractions planned (use cases, UI, utilities)>
+- **Slice ordering:** <study → golden → migrate → delete sequence respected?>
+- **Migration plan:** <how all callers move to golden path>
+- **Deletion plan:** <old implementations slated for removal>
+- **Duplication:** <existing duplicates to eliminate; risk of new duplication>
+- **Structural decisions:** <folder/module boundaries; SSOT locations>
+</handoff-defragmentation>
 
 <handoff-notes>
 ## Knowledge gaps

@@ -8,15 +8,16 @@ import {
   Paperclip,
   ListChecks,
   MoreHorizontal,
+  Pencil,
   Trash2,
   X,
 } from 'lucide-react';
-import dynamic from 'next/dynamic';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
+import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
 import { modalMarkdownComponents, backlogRichTextEditorProseClassNames } from './markdown-utils';
 import { useAttachments } from '../attachments';
 import {
@@ -44,16 +45,6 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
-
-const RichTextEditor = dynamic(
-  () => import('./rich-text').then((m) => ({ default: m.RichTextEditor })),
-  { ssr: false }
-);
-
-/** True when a click originates from an interactive element — never enter edit mode. */
-function isInteractiveClickTarget(target: EventTarget | null): boolean {
-  return !!(target as HTMLElement)?.closest?.('button, a, input, textarea, select, label');
-}
 
 interface BacklogItemDetailModalProps {
   isOpen: boolean;
@@ -136,6 +127,11 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
       setIsLoading(false);
     }
   }, [item, editedContent, updateItem]);
+
+  const enterEdit = useCallback((coords?: { left: number; top: number } | null) => {
+    setInitialClickCoords(coords ?? null);
+    setIsEditing(true);
+  }, []);
 
   const handleMutation = async (fn: () => Promise<unknown>) => {
     setIsLoading(true);
@@ -224,8 +220,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   item.status === 'backlog'
                     ? (e) => {
                         if (isInteractiveClickTarget(e.target)) return;
-                        setInitialClickCoords({ left: e.clientX, top: e.clientY });
-                        setIsEditing(true);
+                        enterEdit({ left: e.clientX, top: e.clientY });
                       }
                     : undefined
                 }
@@ -235,7 +230,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
                           setInitialClickCoords(null);
-                          setIsEditing(true);
+                  enterEdit(null);
                         }
                       }
                     : undefined
@@ -344,6 +339,15 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   Actions
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[160px]">
+                  {item.status === 'backlog' && (
+                    <DropdownMenuItem
+                      onClick={() => enterEdit(null)}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Pencil size={14} />
+                      Edit
+                    </DropdownMenuItem>
+                  )}
                   {/* Mark for Review — only for backlog status */}
                   {item.status === 'backlog' && (
                     <DropdownMenuItem
