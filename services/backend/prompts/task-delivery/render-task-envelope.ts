@@ -4,6 +4,7 @@
 
 import { appendStandingInstructionsSection } from './render-standing-instructions.js';
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
+import { serializeMessage } from '../../src/domain/usecase/message/serialize-message.js';
 import { renderDeliveryAttachmentsBlock } from '../attachments/render-delivery-attachments.js';
 import { escapeXmlAttribute, escapeXmlText } from '../attachments/xml.js';
 
@@ -35,16 +36,24 @@ function renderOriginMessageBlock(
   content: string
 ): string[] {
   if (!content) return [];
-  const senderAttr = message
-    ? ` sender="${escapeXmlAttribute(message.senderRole)}" message-id="${escapeXmlAttribute(message._id)}"`
-    : '';
-  return [
-    `<message${senderAttr}>`,
-    '<message-content>',
-    escapeXmlText(content),
-    '</message-content>',
-    '</message>',
-  ];
+  if (!message)
+    return [
+      '<message>',
+      '<message-content>',
+      escapeXmlText(content),
+      '</message-content>',
+      '</message>',
+    ];
+  return serializeMessage(
+    {
+      _id: message._id,
+      _creationTime: 0,
+      senderRole: message.senderRole,
+      type: 'message',
+      content,
+    },
+    { profile: 'task-origin' }
+  ).split('\n');
 }
 
 /** Returns lines for full <task>...</task> envelope (including open/close tags). */
