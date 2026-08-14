@@ -80,8 +80,7 @@ describe('assigned-task v2 subscribers', () => {
 
     expect(events).toContainEqual({
       type: 'assigned-task.signal',
-      taskId: TASK_ID,
-      role: 'builder',
+      signal: makeSignalItem(),
     });
   });
 
@@ -106,8 +105,11 @@ describe('assigned-task v2 subscribers', () => {
 
     expect(events).toContainEqual({
       type: 'assigned-task.presence',
-      taskId: TASK_ID,
-      role: 'builder',
+      presence: expect.objectContaining({
+        taskId: TASK_ID,
+        role: 'builder',
+        presenceKey: makePresenceItem().presenceKey,
+      }),
     });
   });
 
@@ -145,8 +147,7 @@ describe('assigned-task v2 subscribers', () => {
 
     expect(handled).toContainEqual({
       type: 'assigned-task.signal',
-      taskId: TASK_ID,
-      role: 'builder',
+      signal: makeSignalItem(),
     });
   });
 
