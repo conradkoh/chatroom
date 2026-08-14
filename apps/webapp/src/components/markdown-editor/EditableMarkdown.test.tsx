@@ -19,7 +19,7 @@ vi.mock('./MarkdownEditor', () => ({
     onChange?: (markdown: string) => void;
     placeholder?: string;
   }) => (
-    <div className="mdxeditor">
+    <div data-testid="markdown-editor">
       <textarea
         aria-label="editable markdown"
         placeholder={placeholder}

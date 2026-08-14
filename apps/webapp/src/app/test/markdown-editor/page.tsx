@@ -53,7 +53,7 @@ export default function MarkdownEditorTestPage() {
         <div>
           <h1 className="text-3xl font-bold mb-2 text-foreground">Markdown WYSIWYG Editor</h1>
           <p className="text-muted-foreground">
-            MDXEditor-based editing with a separate read-only MarkdownViewer for downstream apps.
+            TipTap-based editing with a separate read-only MarkdownViewer for downstream apps.
           </p>
         </div>
 

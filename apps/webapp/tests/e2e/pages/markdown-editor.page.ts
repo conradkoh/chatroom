@@ -46,23 +46,15 @@ export class MarkdownEditorTestPage extends BasePage {
   }
 
   get interactiveEditor(): Locator {
-    return this.interactiveEditorSection.locator('.mdxeditor');
+    return this.interactiveEditorSection.getByTestId('markdown-editor');
   }
 
   get interactiveToolbar(): Locator {
-    return this.interactiveEditor.locator('.mdxeditor-toolbar');
+    return this.interactiveEditor.locator('button[title="Bold"]');
   }
 
   get interactiveEditorEditable(): Locator {
-    return this.interactiveEditor.getByLabel('editable markdown', { exact: true });
-  }
-
-  get interactiveCodeMirrorEditors(): Locator {
-    return this.interactiveEditor.locator('.cm-editor');
-  }
-
-  get insertCodeBlockButton(): Locator {
-    return this.interactiveEditor.getByRole('button', { name: 'Insert Code Block' });
+    return this.interactiveEditor.locator('.ProseMirror');
   }
 
   get livePreviewViewer(): Locator {

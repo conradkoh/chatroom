@@ -17,7 +17,7 @@ test.describe('Markdown Editor Demo', { tag: [TAG_UPSTREAM, TAG_MARKDOWN] }, () 
 
     await expect(markdownPage.interactiveEditor).toBeVisible();
     await expect(markdownPage.interactiveToolbar).toBeVisible();
-    await expect(markdownPage.insertCodeBlockButton).toBeVisible();
+    await expect(markdownPage.interactiveToolbar).toBeVisible();
     await expect(markdownPage.interactiveEditorEditable).toBeVisible();
   });
 
@@ -61,38 +61,18 @@ test.describe('Markdown Editor Demo', { tag: [TAG_UPSTREAM, TAG_MARKDOWN] }, () 
     await expect(viewer.locator('li').filter({ hasText: 'Same typography' })).toBeVisible();
   });
 
-  test('existing code blocks are editable without runtime errors', async ({ page }) => {
-    const runtimeErrors: string[] = [];
-    page.on('pageerror', (error) => runtimeErrors.push(error.message));
-
+  test('toolbar bold toggle applies formatting', async ({ page }) => {
     const markdownPage = new MarkdownEditorTestPage(page);
     await markdownPage.navigate();
-
-    const firstCodeEditor = markdownPage.interactiveCodeMirrorEditors.first();
-    const codeContent = firstCodeEditor.locator('.cm-content');
-    await expect(codeContent).toBeVisible({ timeout: 15_000 });
-    await codeContent.click();
-    await expect(codeContent).toBeFocused();
-
-    await page.keyboard.insertText('E2E-CODE-777');
-    await expect(markdownPage.livePreviewViewer).toContainText('E2E-CODE-777');
-
-    expect(runtimeErrors.some((message) => message.includes('No CodeBlockEditor registered'))).toBe(
-      false
-    );
-    await expect(page.getByText('No CodeBlockEditor registered')).toHaveCount(0);
-  });
-
-  test('inserting a code block adds an editable CodeMirror editor', async ({ page }) => {
-    const markdownPage = new MarkdownEditorTestPage(page);
-    await markdownPage.navigate();
-
-    const codeEditors = markdownPage.interactiveCodeMirrorEditors;
-    await expect(codeEditors.first().locator('.cm-content')).toBeVisible({ timeout: 15_000 });
-    const before = await codeEditors.count();
-    await markdownPage.insertCodeBlockButton.click();
-    await expect(codeEditors).toHaveCount(before + 1);
-    await expect(codeEditors.nth(before).locator('.cm-content')).toBeVisible();
+    const editor = markdownPage.livePreviewSection.getByTestId('markdown-editor');
+    const editable = editor.locator('.ProseMirror');
+    await editable.click();
+    const boldButton = editor.locator('button[title="Bold"]');
+    await boldButton.click();
+    await editable.click();
+    await page.keyboard.type('Bold E2E marker');
+    await expect(editable).toContainText('Bold E2E marker');
+    await expect(boldButton).toHaveClass(/bg-muted/);
   });
 
   test('click to edit: view → edit → save returns to pristine rendered view', async ({ page }) => {
@@ -105,18 +85,16 @@ test.describe('Markdown Editor Demo', { tag: [TAG_UPSTREAM, TAG_MARKDOWN] }, () 
     // Click view area (not a link) to enter edit mode
     await view.click();
     await expect(markdownPage.clickToEditSaveButton).toBeVisible();
-    await expect(markdownPage.clickToEditSection.locator('.mdxeditor')).toBeVisible();
+    await expect(markdownPage.clickToEditSection.getByTestId('markdown-editor')).toBeVisible();
 
     // Type unique marker in editor
-    const editable = markdownPage.clickToEditSection.getByLabel('editable markdown', {
-      exact: true,
-    });
+    const editable = markdownPage.clickToEditSection.locator('.ProseMirror');
     await editable.click();
     await page.keyboard.insertText(' E2E-EDITABLE-MARKER');
 
     // Save — editor chrome should disappear, marker visible in rendered view
     await markdownPage.clickToEditSaveButton.click();
-    await expect(markdownPage.clickToEditSection.locator('.mdxeditor')).toHaveCount(0);
+    await expect(markdownPage.clickToEditSection.getByTestId('markdown-editor')).toHaveCount(0);
     await expect(view).toContainText('E2E-EDITABLE-MARKER');
   });
 });

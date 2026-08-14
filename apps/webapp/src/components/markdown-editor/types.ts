@@ -1,5 +1,3 @@
-import type { MDXEditorProps } from '@mdxeditor/editor';
-
 export type MarkdownEditorProps = {
   /** Initial markdown content. Avoid rebinding on every onChange. */
   defaultMarkdown?: string;
@@ -8,8 +6,8 @@ export type MarkdownEditorProps = {
   /** Placeholder when empty. */
   placeholder?: string;
   className?: string;
-  readOnly?: never;
-} & Omit<MDXEditorProps, 'markdown' | 'onChange' | 'readOnly' | 'plugins'>;
+  autoFocus?: boolean;
+};
 
 export type MarkdownViewerProps = {
   markdown: string;
