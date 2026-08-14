@@ -6,17 +6,12 @@ import { toast } from 'sonner';
 import { PlannerEnhancerToggleButton, type TeamSupportState } from './PlannerEnhancerToggleButton';
 import { useActiveEnhancerJob } from '../hooks/useActiveEnhancerJob';
 import { useEnhancerConfigDialogHost } from '../hooks/useEnhancerConfigDialogHost';
-import type { EnhancerConfig } from '../types/enhancer';
+import { hasEnhancerConfigFields, type EnhancerConfig } from '../types/enhancer';
 
 interface PlannerEnhancerToggleProps {
   chatroomId: string;
   machineId: string | null | undefined;
   teamSupportState?: TeamSupportState;
-}
-
-/** True when config has the fields needed to enable without opening the dialog. */
-function hasEnhancerConfigFields(config: EnhancerConfig | null): config is EnhancerConfig {
-  return Boolean(config?.agentHarness && config.model && config.machineId);
 }
 
 async function toggleEnhancerState(args: {
