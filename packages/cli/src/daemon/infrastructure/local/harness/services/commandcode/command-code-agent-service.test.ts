@@ -116,7 +116,7 @@ describe('CommandCodeAgentService', () => {
       const models = await service.listModels();
       expect(models.length).toBeGreaterThan(2);
       expect(models).toContain('deepseek/deepseek-v4-flash');
-      expect(models).toContain('claude-sonnet-4-6');
+      expect(models).toContain('anthropic/claude-sonnet-4-6');
     });
   });
 

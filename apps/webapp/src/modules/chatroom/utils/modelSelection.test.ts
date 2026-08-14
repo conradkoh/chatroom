@@ -8,16 +8,19 @@ import {
   selectModel,
   UNPREFIXED_PROVIDER_KEY,
 } from './modelSelection';
+import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_ALT } from '../../../test/test-models';
 
 describe('cursor-sdk blacklist semantics', () => {
   it('normalizes legacy sentinel and hides only blacklisted model', () => {
-    const filter = normalizeModelFilter({ hiddenModels: ['composer-2.5'], hiddenProviders: [UNPREFIXED_PROVIDER_KEY] });
+    const filter = normalizeModelFilter({
+      hiddenModels: ['composer-2.5'],
+      hiddenProviders: [UNPREFIXED_PROVIDER_KEY],
+    });
     expect(filter).toEqual({ hiddenModels: ['composer-2.5'], hiddenProviders: [] });
     expect(isModelHidden('composer-2.5', filter)).toBe(true);
     expect(isModelHidden('claude-4.5-sonnet', filter)).toBe(false);
   });
 });
-import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_ALT } from '../../../test/test-models';
 
 // ─── getModelProviderKey ────────────────────────────────────────────
 
@@ -52,6 +55,19 @@ describe('getBaseModelId', () => {
 // ─── isModelHidden ──────────────────────────────────────────────────
 
 describe('isModelHidden', () => {
+  it('hides only the exact base model when provider is visible (not variants)', () => {
+    const filter = { hiddenModels: ['gpt-5.6-luna'], hiddenProviders: [] };
+    expect(isModelHidden('gpt-5.6-luna', filter)).toBe(true);
+    expect(isModelHidden('gpt-5.6-luna[effort=high]', filter)).toBe(false);
+    expect(isModelHidden('gpt-5.6-luna[effort=medium]', filter)).toBe(false);
+  });
+
+  it('hides only the exact variant when that variant is listed', () => {
+    const filter = { hiddenModels: ['sonnet[effort=high]'], hiddenProviders: [] };
+    expect(isModelHidden('sonnet[effort=high]', filter)).toBe(true);
+    expect(isModelHidden('sonnet', filter)).toBe(false);
+    expect(isModelHidden('sonnet[effort=low]', filter)).toBe(false);
+  });
   it('returns false when filter is null', () => {
     expect(isModelHidden('openai/gpt-4', null)).toBe(false);
   });

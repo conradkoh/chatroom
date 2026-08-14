@@ -56,10 +56,7 @@ import { NotificationSoundToggleButton } from './components/NotificationSoundTog
 import { PanelLoadingSpinner } from './components/PanelLoadingSpinner';
 import { PromptModal } from './components/PromptModal';
 import { SavedCommandModal } from './components/SavedCommandModal';
-import {
-  Z_AGENT_SIDEBAR_MOBILE_BACKDROP,
-  Z_AGENT_SIDEBAR_MOBILE_PANEL,
-} from './components/shared/overlayLayers';
+import { Z_LAYOUT_CHROME, Z_PANEL } from './components/shared/overlayLayers';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
 import { WorkQueue } from './components/WorkQueue';
@@ -2085,7 +2082,7 @@ export function ChatroomDashboard({
                   {/* Sidebar Overlay for mobile - below app header */}
                   {sidebarVisible && isSmallScreen && (
                     <div
-                      className={`fixed inset-0 top-14 bg-black/50 ${Z_AGENT_SIDEBAR_MOBILE_BACKDROP} md:hidden`}
+                      className={`fixed inset-0 top-14 bg-black/50 ${Z_LAYOUT_CHROME} md:hidden`}
                       onClick={toggleSidebar}
                     />
                   )}
@@ -2095,7 +2092,7 @@ export function ChatroomDashboard({
                   {/* On mobile: uses fixed positioning with translate for overlay effect */}
                   <div
                     className={`
-                ${isSmallScreen ? `fixed right-0 top-14 bottom-0 ${Z_AGENT_SIDEBAR_MOBILE_PANEL} overscroll-contain w-80` : 'relative overflow-hidden'}
+                ${isSmallScreen ? `fixed right-0 top-14 bottom-0 ${Z_PANEL} overscroll-contain w-80` : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
                 grid grid-rows-[auto_1fr] border-l-2 border-chatroom-border-strong

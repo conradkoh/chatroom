@@ -81,9 +81,12 @@ export function isModelHidden(modelId: string, filter: ModelFilter | null | unde
   const unprefixedBucketHidden =
     baseId.indexOf('/') === -1 && filter.hiddenProviders.includes(UNPREFIXED_PROVIDER_KEY);
   const providerHidden = filter.hiddenProviders.includes(provider) || unprefixedBucketHidden;
-  const hasExplicitOverride =
-    filter.hiddenModels.includes(modelId) ||
-    (baseId !== modelId && filter.hiddenModels.includes(baseId));
+  const hasExactMatch = filter.hiddenModels.includes(modelId);
+  // Base-ID matching is only for exceptions to a hidden provider; individual
+  // model hides must match the complete model ID, including any variant.
+  const hasBaseException =
+    providerHidden && baseId !== modelId && filter.hiddenModels.includes(baseId);
+  const hasExplicitOverride = hasExactMatch || hasBaseException;
 
   if (providerHidden) {
     // Provider is hidden; hiddenModels contains exceptions (models to UN-hide)

@@ -120,7 +120,7 @@ export function AllTabMessageList({
       <div
         ref={containerRefCallback}
         onScroll={handleScroll}
-        className={`flex-1 ${TIMELINE_SCROLL_CONTAINER}`}
+        className={`relative z-0 flex-1 ${TIMELINE_SCROLL_CONTAINER}`}
         style={TIMELINE_SCROLL_CONTAINER_STYLE}
         data-testid="all-tab-message-list"
       >

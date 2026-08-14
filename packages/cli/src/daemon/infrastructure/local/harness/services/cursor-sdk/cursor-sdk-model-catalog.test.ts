@@ -1,5 +1,6 @@
 import type { ModelListItem } from '@cursor/sdk';
 import { describe, expect, it } from 'vitest';
+import { prefixCatalogModels } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 
 import {
   cursorCatalogBaseId,
@@ -50,14 +51,14 @@ describe('cursorCatalogBaseId / cursorSdkBaseId', () => {
 
 describe('expandCursorSdkModelCatalog', () => {
   it('expands SDK models including GPT 5.6 variants', () => {
-    const catalog = expandCursorSdkModelCatalog(FIXTURE);
-    expect(catalog).toContain('auto');
-    expect(catalog).toContain('gpt-5.6-terra');
-    expect(catalog).toContain('gpt-5.6-terra[effort=high]');
-    expect(catalog).toContain('gpt-5.6-terra[effort=low,fast=enabled]');
-    expect(catalog).toContain('gpt-5.6-luna[effort=high]');
-    expect(catalog).toContain('gpt-5.6-luna[effort=medium]');
-    expect(catalog).toContain('composer-2.5');
+    const catalog = prefixCatalogModels('cursor', expandCursorSdkModelCatalog(FIXTURE));
+    expect(catalog).toContain('cursor/auto');
+    expect(catalog).toContain('cursor/gpt-5.6-terra');
+    expect(catalog).toContain('cursor/gpt-5.6-terra[effort=high]');
+    expect(catalog).toContain('cursor/gpt-5.6-terra[effort=low,fast=enabled]');
+    expect(catalog).toContain('cursor/gpt-5.6-luna[effort=high]');
+    expect(catalog).toContain('cursor/gpt-5.6-luna[effort=medium]');
+    expect(catalog).toContain('cursor/composer-2.5');
   });
 
   it('deduplicates entries preserving first-seen order', () => {
