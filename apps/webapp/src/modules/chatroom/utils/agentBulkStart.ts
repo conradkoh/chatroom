@@ -1,7 +1,39 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 
 import { startAgentsBatch } from './agentStart';
 import type { AgentConfig, SendCommandFn } from '../types/machine';
+
+export function resolveRestartConfigForRole(
+  role: string,
+  roleConfigMap: Map<string, AgentConfig>,
+  machineConfigs: AgentConfig[],
+  agentView?: AgentRoleView
+): AgentConfig | null {
+  const roleLower = role.toLowerCase();
+  const runningConfig = machineConfigs.find(
+    (c) => c.role.toLowerCase() === roleLower && c.spawnedAgentPid != null
+  );
+  const base = runningConfig ?? roleConfigMap.get(roleLower);
+  const machineId = base?.machineId ?? agentView?.machineId;
+  const agentType = base?.agentType ?? agentView?.agentHarness;
+  if (!machineId || !agentType) return null;
+  return {
+    machineId,
+    hostname: base?.hostname ?? '',
+    alias: base?.alias,
+    role,
+    agentType: agentType as AgentConfig['agentType'],
+    workingDir: base?.workingDir ?? agentView?.workingDir ?? '',
+    model: base?.model ?? agentView?.model,
+    daemonConnected: base?.daemonConnected,
+    availableHarnesses: base?.availableHarnesses ?? [],
+    updatedAt: base?.updatedAt ?? 0,
+    spawnedAgentPid: base?.spawnedAgentPid,
+    spawnedAt: base?.spawnedAt,
+    wantResume: base?.wantResume ?? agentView?.wantResume,
+  };
+}
 
 export async function startAgentsForRoles(
   agentRoles: string[],
@@ -31,13 +63,21 @@ export async function startAgentsForRoles(
 export async function restartAgentsForRoles(
   agentRoles: string[],
   roleConfigMap: Map<string, AgentConfig>,
+  machineConfigs: AgentConfig[],
+  agentViewsByRole: Map<string, AgentRoleView>,
   chatroomId: Id<'chatroom_rooms'>,
   sendCommand: SendCommandFn
 ): Promise<PromiseSettledResult<unknown>[]> {
   return Promise.allSettled(
     agentRoles.map((role) => {
-      const config = roleConfigMap.get(role.toLowerCase());
+      const config = resolveRestartConfigForRole(
+        role,
+        roleConfigMap,
+        machineConfigs,
+        agentViewsByRole.get(role.toLowerCase())
+      );
       if (!config) return Promise.reject(new Error(`Missing agent config for ${role}`));
+      if (!config.model) return Promise.reject(new Error(`Missing model for ${role}`));
       return sendCommand({
         machineId: config.machineId,
         type: 'restart-agent',
@@ -96,10 +136,19 @@ export async function runAgentStartBatch(
 export async function runAgentRestartBatch(
   agentRoles: string[],
   roleConfigMap: Map<string, AgentConfig>,
+  machineConfigs: AgentConfig[],
+  agentViewsByRole: Map<string, AgentRoleView>,
   chatroomId: Id<'chatroom_rooms'>,
   sendCommand: SendCommandFn,
   onComplete: (failed: string[]) => void
 ): Promise<void> {
-  const results = await restartAgentsForRoles(agentRoles, roleConfigMap, chatroomId, sendCommand);
+  const results = await restartAgentsForRoles(
+    agentRoles,
+    roleConfigMap,
+    machineConfigs,
+    agentViewsByRole,
+    chatroomId,
+    sendCommand
+  );
   onComplete(getFailedAgentRoles(results, agentRoles));
 }
