@@ -7,6 +7,8 @@ export type MarkdownEditorProps = {
   placeholder?: string;
   className?: string;
   autoFocus?: boolean;
+  onCmdEnter?: () => void;
+  initialClickCoords?: { left: number; top: number } | null;
 };
 
 export type MarkdownViewerProps = {

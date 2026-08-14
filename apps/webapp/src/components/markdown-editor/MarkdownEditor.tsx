@@ -14,12 +14,16 @@ export function MarkdownEditor({
   className,
   placeholder,
   autoFocus,
+  onCmdEnter,
+  initialClickCoords,
 }: MarkdownEditorProps) {
   const { editor } = useMarkdownEditor({
     content: defaultMarkdown,
     onUpdate: (md) => onChange?.(md),
     placeholder,
     autoFocus,
+    onCmdEnter,
+    initialClickCoords,
   });
 
   return (
