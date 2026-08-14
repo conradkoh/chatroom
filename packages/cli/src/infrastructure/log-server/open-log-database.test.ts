@@ -14,6 +14,9 @@ describe('openLogDatabase', () => {
     expect(a.prepare('PRAGMA journal_mode').get()).toMatchObject({ journal_mode: 'wal' });
     a.exec("INSERT INTO log_entries(timestamp,level,source,message) VALUES(1,'info','x','hello')");
     expect(b.prepare('SELECT message FROM log_entries').get()).toMatchObject({ message: 'hello' });
+    expect(
+      a.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='chatroom_logs'").get()
+    ).toMatchObject({ name: 'chatroom_logs' });
     a.close();
     b.close();
   });
