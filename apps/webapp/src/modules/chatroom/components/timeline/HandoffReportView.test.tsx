@@ -182,6 +182,18 @@ None
 Simplify flow
 </handoff-action>`;
 
+const CONTENT_WITH_DEFRAGMENTATION = `${CONTENT_WITH_UX}
+<handoff-defragmentation>
+- **Surfaces:** 3 duplicate parsers
+- **Golden path:** Missing — planner patches in place
+- **Migration plan:** Missing caller migration
+</handoff-defragmentation>`;
+
+const CONTENT_WITH_NA_DEFRAGMENTATION = `${CONTENT_WITH_UX}
+<handoff-defragmentation>
+Not Applicable.
+</handoff-defragmentation>`;
+
 const LEGACY_CONTENT = `## Summary
 Implemented login feature
 
@@ -256,6 +268,29 @@ describe('HandoffReportView', () => {
       render(<HandoffReportView content={CONTENT_WITH_NA_UX} />);
       expect(screen.getByText('UX (0)')).toBeInTheDocument();
       expect(screen.queryByText('Not Applicable.')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Defragmentation section', () => {
+    it('does not render when tag absent', () => {
+      render(<HandoffReportView content={STRUCTURED_CONTENT} />);
+      expect(screen.queryByText(/^Defragmentation/)).not.toBeInTheDocument();
+    });
+
+    it('renders label when tag present and stays collapsed', () => {
+      render(<HandoffReportView content={CONTENT_WITH_DEFRAGMENTATION} />);
+      expect(screen.getByText('Defragmentation (1)')).toBeInTheDocument();
+      expect(screen.queryByText('Missing caller migration')).not.toBeInTheDocument();
+    });
+
+    it('renders N/A as empty and collapsed', () => {
+      render(<HandoffReportView content={CONTENT_WITH_NA_DEFRAGMENTATION} />);
+      expect(screen.getByText('Defragmentation (0)')).toBeInTheDocument();
+      expect(screen.queryByText('Not Applicable.')).not.toBeInTheDocument();
+      expect(screen.getByTestId('handoff-section-defragmentation')).toHaveAttribute(
+        'data-empty',
+        'true'
+      );
     });
   });
 
