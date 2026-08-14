@@ -1,3 +1,5 @@
+import { getBaseModelId } from '../../utils/modelSelection';
+
 export function isModelEffectivelyHidden(
   modelId: string,
   providerKey: string,
@@ -6,7 +8,8 @@ export function isModelEffectivelyHidden(
 ): boolean {
   const providerHidden = hiddenProviders.has(providerKey);
   const baseId = getBaseModelId(modelId);
-  const hasOverride = hiddenModels.has(modelId) || (baseId !== modelId && hiddenModels.has(baseId));
+  const hasExactMatch = hiddenModels.has(modelId);
+  const hasBaseException = providerHidden && baseId !== modelId && hiddenModels.has(baseId);
+  const hasOverride = hasExactMatch || hasBaseException;
   return providerHidden ? !hasOverride : hasOverride;
 }
-import { getBaseModelId } from '../../utils/modelSelection';
