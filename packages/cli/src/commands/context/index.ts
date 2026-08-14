@@ -13,12 +13,12 @@ import { getContextViewTemplate } from '@workspace/backend/prompts/cli/context/c
 import { serializeMessage } from '@workspace/backend/src/domain/usecase/message/serialize-message';
 import { toSerializableMessage } from '@workspace/backend/src/domain/usecase/message/to-serializable-message';
 import { Effect } from 'effect';
+import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { ContextDeps } from './deps.js';
 import { formatNewContextError } from './format-new-context-error.js';
 import { api, type Id } from '../../api.js';
-import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
-import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
 import type { SessionService } from '../../infrastructure/services/index.js';
 import {
   BackendService,
@@ -46,18 +46,22 @@ export type ContextError =
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
 async function createDefaultDeps(): Promise<ContextDeps> {
-  const client = await getConvexClient();
-  return {
-    backend: {
-      mutation: (endpoint, args) => client.mutation(endpoint, args),
-      query: (endpoint, args) => client.query(endpoint, args),
-    },
-    session: {
-      getSessionId,
-      getConvexUrl,
-      getOtherSessionUrls,
-    },
-  };
+  return createConvexCommandDeps();
+}
+
+function requireAuthenticatedChatroom(
+  chatroomId: string
+): Effect.Effect<SessionId, ContextError, BackendService | SessionService> {
+  return Effect.gen(function* () {
+    const sessionId = yield* requireSessionIdEffect(() => ({
+      _tag: 'NotAuthenticated' as const,
+    }));
+    yield* validateChatroomIdEffect(chatroomId, (id) => ({
+      _tag: 'InvalidChatroomId' as const,
+      id,
+    }));
+    return sessionId;
+  });
 }
 
 // ─── Effect Programs ───────────────────────────────────────────────────────
@@ -74,14 +78,7 @@ export const readContextEffect = (
   Effect.gen(function* () {
     const backend = yield* BackendService;
 
-    const sessionId = yield* requireSessionIdEffect(() => ({
-      _tag: 'NotAuthenticated' as const,
-    }));
-
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
+    const sessionId = yield* requireAuthenticatedChatroom(chatroomId);
 
     // Query context
     const context = yield* backend
@@ -202,14 +199,7 @@ export const newContextEffect = (
   Effect.gen(function* () {
     const backend = yield* BackendService;
 
-    const sessionId = yield* requireSessionIdEffect(() => ({
-      _tag: 'NotAuthenticated' as const,
-    }));
-
-    yield* validateChatroomIdEffect(chatroomId, (id) => ({
-      _tag: 'InvalidChatroomId' as const,
-      id,
-    }));
+    const sessionId = yield* requireAuthenticatedChatroom(chatroomId);
 
     // Validate content is not empty
     if (!options.content || options.content.trim().length === 0) {

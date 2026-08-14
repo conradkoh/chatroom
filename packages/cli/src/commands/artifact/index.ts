@@ -9,8 +9,7 @@ import { Effect } from 'effect';
 import type { ArtifactDeps } from './deps.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
-import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
-import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { createConvexCommandDeps } from '../../infrastructure/deps/create-convex-command-deps.js';
 import type { SessionService } from '../../infrastructure/services/index.js';
 import {
   BackendService,
@@ -65,18 +64,7 @@ export type ArtifactError =
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
 async function createDefaultDeps(): Promise<ArtifactDeps> {
-  const client = await getConvexClient();
-  return {
-    backend: {
-      mutation: (endpoint, args) => client.mutation(endpoint, args),
-      query: (endpoint, args) => client.query(endpoint, args),
-    },
-    session: {
-      getSessionId,
-      getConvexUrl,
-      getOtherSessionUrls,
-    },
-  };
+  return createConvexCommandDeps();
 }
 
 // ─── Effect Programs ───────────────────────────────────────────────────────
