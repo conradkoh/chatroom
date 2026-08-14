@@ -62,6 +62,7 @@ import { formatHarnessLabel, getModelDisplayLabel, getMachineDisplayName } from 
 import type { Workspace } from '../types/workspace';
 import { dispatchStartAgent } from '../utils/agentStart';
 import { isModelHidden, selectModel } from '../utils/modelSelection';
+import { pickSetupWorkspace } from '../utils/pickSetupWorkspace';
 import { resolveDefaultWantResume } from '../utils/wantResumeDefaults';
 import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
@@ -88,9 +89,9 @@ export interface AgentControlsProps {
 // INITIALIZATION MODEL
 // ────────────────────
 // Form state is initialized ONCE when machines first become available.
-// The "last used" configuration comes from a single source — the persisted
-// teamAgentConfigs (roleConfigs) — so the form reflects exactly what the agent
-// was last started with. After initialization, all state changes come
+// It uses the strongest available signal: running agent → current-team role
+// config → team binding → most recently registered connected workspace.
+// After initialization, all state changes come
 // exclusively from explicit user interactions (handleMachineChange,
 // handleHarnessChange, etc.) — never from reactive prop updates.
 //
@@ -111,7 +112,9 @@ export interface AgentControlsProps {
 export function deriveInitialMachineId(
   connectedMachines: MachineInfo[],
   roleConfigs: AgentConfig[],
-  runningAgentConfig: AgentConfig | undefined
+  runningAgentConfig: AgentConfig | undefined,
+  teamConfigMachineId?: string | null,
+  chatroomWorkspaces?: Workspace[]
 ): string | null {
   if (connectedMachines.length === 0) return null;
   // Priority: running agent > existing config machine
@@ -120,7 +123,25 @@ export function deriveInitialMachineId(
     roleConfigs.some((c) => c.machineId === m.machineId)
   );
   if (configMachine) return configMachine.machineId;
-  return null;
+  if (teamConfigMachineId && connectedMachines.some((m) => m.machineId === teamConfigMachineId)) {
+    return teamConfigMachineId;
+  }
+  const candidates =
+    chatroomWorkspaces?.filter(
+      (ws) =>
+        ws.machineId &&
+        ws.workingDir?.trim() &&
+        connectedMachines.some((m) => m.machineId === ws.machineId)
+    ) ?? [];
+  return (
+    pickSetupWorkspace(
+      candidates.map((ws) => ({
+        machineId: ws.machineId ?? '',
+        workingDir: ws.workingDir,
+        registeredAt: ws.registeredAt,
+      }))
+    )?.machineId ?? null
+  );
 }
 
 function deriveInitialHarness(
@@ -160,18 +181,14 @@ export function deriveInitialWorkingDir(
   return '';
 }
 
-/** True when one-shot init should wait for chatroom workspaces before resolving working dir. */
+/** Wait for workspaces when they may supply the machine or its working directory. */
 export function shouldDeferInitUntilWorkspacesLoad(
   machineId: string | null,
   roleConfigs: AgentConfig[]
 ): boolean {
-  if (machineId) {
-    const config = roleConfigs.find((c) => c.machineId === machineId);
-    if (config?.workingDir) return false;
-    return true;
-  }
-  if (roleConfigs.some((c) => c.workingDir)) return false;
-  return false;
+  if (!machineId) return true;
+  const config = roleConfigs.find((c) => c.machineId === machineId);
+  return !config?.workingDir;
 }
 
 /**
@@ -324,7 +341,14 @@ export function useAgentControls({
 
     // Single source of truth for "last used": persisted teamAgentConfigs.
     const machine =
-      lockedMachineId ?? deriveInitialMachineId(connectedMachines, roleConfigs, runningAgentConfig);
+      lockedMachineId ??
+      deriveInitialMachineId(
+        connectedMachines,
+        roleConfigs,
+        runningAgentConfig,
+        teamConfigMachineId,
+        chatroomWorkspaces
+      );
     if (chatroomWorkspacesLoading && shouldDeferInitUntilWorkspacesLoad(machine, roleConfigs)) {
       return;
     }
@@ -360,6 +384,7 @@ export function useAgentControls({
     seedFromTeamConfig,
     lockedMachineId,
     lockedWorkingDir,
+    teamConfigMachineId,
   ]);
 
   // ── Display the persisted preference for next start ──
@@ -1254,7 +1279,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             onResumeSessionChange={(checked) => void teamBehavior.updateWantResume(checked)}
             plannerRestartOnHandoffToUser={teamBehavior.plannerRestartOnHandoffToUser}
             isSavingPlannerRestart={teamBehavior.isSavingPlannerRestart}
-            onPlannerRestartOnHandoffToUserChange={(checked) => void teamBehavior.updatePlannerRestartOnHandoffToUser(checked)}
+            onPlannerRestartOnHandoffToUserChange={(checked) =>
+              void teamBehavior.updatePlannerRestartOnHandoffToUser(checked)
+            }
           />
 
           <AlertDialog

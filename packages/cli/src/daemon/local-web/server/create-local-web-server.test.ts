@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { get } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,6 +12,12 @@ import { createPersistenceStore } from '../../infrastructure/persistence/index.j
 function tempDbPath(): string {
   const dir = mkdtempSync(join(tmpdir(), 'v2-local-web-'));
   return join(dir, 'events.sqlite');
+}
+
+function tempClientDistDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'v2-local-web-client-'));
+  writeFileSync(join(dir, 'index.html'), '<div id="root"></div>');
+  return dir;
 }
 
 function httpGet(url: string): Promise<{ status: number; body: string }> {
@@ -31,7 +37,10 @@ function httpGet(url: string): Promise<{ status: number; body: string }> {
 
 describe('startLocalWebServer', () => {
   it('serves the SPA at GET /', async () => {
-    const server = await startLocalWebServer({ host: '127.0.0.1' });
+    const server = await startLocalWebServer(
+      { host: '127.0.0.1' },
+      { clientDistDir: tempClientDistDir() }
+    );
     try {
       const { status, body } = await httpGet(`http://127.0.0.1:${server.port}/`);
       expect(status).toBe(200);

@@ -99,6 +99,10 @@ function verifyStagingDir(dir: string): void {
   assert(existsSync(pkgPath), `Missing package.json in ${dir}`);
   assert(existsSync(join(dir, 'dist', 'index.js')), `Missing dist/index.js in ${dir}`);
   assert(existsSync(join(dir, 'dist', 'node-launch.js')), `Missing dist/node-launch.js in ${dir}`);
+  assert(
+    existsSync(join(dir, 'dist', 'client', 'build', 'index.html')),
+    'Missing dist/client/build/index.html in publish staging'
+  );
 
   const pkg = readJson(pkgPath);
   const sdkSpecifier = pkg.dependencies?.['@cursor/sdk'];
@@ -159,6 +163,18 @@ function verifyTarball(tarball: string): void {
     'Tarball missing package/dist/node-launch.js'
   );
   assert(output.includes('package/package.json'), 'Tarball missing package/package.json');
+  const entries = output.split('\n');
+  assert(
+    entries.includes('package/dist/client/build/index.html'),
+    'Tarball missing package/dist/client/build/index.html'
+  );
+  assert(
+    entries.some(
+      (entry) =>
+        entry.startsWith('package/dist/client/build/assets/') && entry.endsWith('.js')
+    ),
+    'Tarball missing local-web JavaScript assets'
+  );
 
   const pkgJson = execSync(`tar -xOf ${JSON.stringify(tarball)} package/package.json`, {
     encoding: 'utf8',
