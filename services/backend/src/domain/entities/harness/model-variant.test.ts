@@ -168,9 +168,9 @@ describe('HARNESS_MODEL_CATALOG', () => {
       'gpt-5.5',
       'gpt-5.4-mini',
     ]) {
-      expect(codex).toContain(base);
+      expect(codex).toContain(`openai/${base}`);
       for (const level of ['none', 'low', 'medium', 'high', 'xhigh']) {
-        expect(codex).toContain(`${base}[reasoning=${level}]`);
+        expect(codex).toContain(`openai/${base}[reasoning=${level}]`);
       }
     }
   });
@@ -210,8 +210,8 @@ describe('HARNESS_MODEL_CATALOG', () => {
       for (const alias of CLAUDE_SPAWN_ALIASES) {
         expect(baseIds).not.toContain(alias);
       }
-      expect(baseIds).toContain('claude-sonnet-4-6');
-      expect(baseIds).toContain('claude-haiku-4-5');
+      expect(baseIds).toContain('anthropic/claude-sonnet-4-6');
+      expect(baseIds).toContain('anthropic/claude-haiku-4-5');
     }
   });
 });

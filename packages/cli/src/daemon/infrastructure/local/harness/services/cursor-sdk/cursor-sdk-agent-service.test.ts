@@ -159,7 +159,8 @@ describe('CursorSdkAgentService', () => {
       ).rejects.toThrow('sandbox not supported: bubblewrap missing');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[cursor-sdk:builder@c1 spawn-error]'), createError
+        expect.stringContaining('[cursor-sdk:builder@c1 spawn-error]'),
+        createError
       );
       expect(child.kill).toHaveBeenCalled();
       consoleErrorSpy.mockRestore();
@@ -262,12 +263,18 @@ describe('CursorSdkAgentService', () => {
 
       // Wait until the turn loop has created the adapter (finish() emits agent_end),
       // so the onDelta closure below observes a non-undefined adapter.
-      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
+      result.onLogLine?.((entry) => {
+        logMessages.push(
+          typeof entry === 'string' ? entry : (entry as { message: string }).message
+        );
+      });
       await vi.waitFor(() => expect(logMessages.some((l) => l.endsWith('agent_end]'))).toBe(true));
 
       sendOptions.onDelta?.({ update: { type: 'text-delta', text: 'streamed delta\n' } });
 
-      await vi.waitFor(() => expect(logMessages.some((l) => l.includes('text] streamed delta'))).toBe(true));
+      await vi.waitFor(() =>
+        expect(logMessages.some((l) => l.includes('text] streamed delta'))).toBe(true)
+      );
     });
   });
 
@@ -364,7 +371,11 @@ describe('CursorSdkAgentService', () => {
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
-      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
+      result.onLogLine?.((entry) => {
+        logMessages.push(
+          typeof entry === 'string' ? entry : (entry as { message: string }).message
+        );
+      });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalled());
@@ -596,7 +607,11 @@ describe('CursorSdkAgentService', () => {
         resolvedConvexUrl: 'http://test:3210',
       });
       const logMessages: string[] = [];
-      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
+      result.onLogLine?.((entry) => {
+        logMessages.push(
+          typeof entry === 'string' ? entry : (entry as { message: string }).message
+        );
+      });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(sharedAgentSendFn).toHaveBeenCalledTimes(1));
@@ -656,11 +671,17 @@ describe('CursorSdkAgentService', () => {
         context: SPAWN_CONTEXT,
         resolvedConvexUrl: 'http://test:3210',
       });
-      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
+      result.onLogLine?.((entry) => {
+        logMessages.push(
+          typeof entry === 'string' ? entry : (entry as { message: string }).message
+        );
+      });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
-      expect(logMessages.some((line) => line.includes('[cursor-sdk:builder@c1 spawn-error]'))).toBe(true);
+      expect(logMessages.some((line) => line.includes('[cursor-sdk:builder@c1 spawn-error]'))).toBe(
+        true
+      );
       expect(run.wait).not.toHaveBeenCalled();
       expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
       expect(sharedAgentCloseFn).toHaveBeenCalled();
@@ -705,11 +726,17 @@ describe('CursorSdkAgentService', () => {
         resolvedConvexUrl: 'http://test:3210',
       });
       const logMessages: string[] = [];
-      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
+      result.onLogLine?.((entry) => {
+        logMessages.push(
+          typeof entry === 'string' ? entry : (entry as { message: string }).message
+        );
+      });
       result.onExit(exitInfo);
 
       await vi.waitFor(() => expect(exitInfo).toHaveBeenCalled(), { timeout: 3000 });
-      expect(logMessages.some((line) => line.includes('[cursor-sdk:builder@c1 spawn-error]'))).toBe(true);
+      expect(logMessages.some((line) => line.includes('[cursor-sdk:builder@c1 spawn-error]'))).toBe(
+        true
+      );
       expect(exitInfo).toHaveBeenCalledWith(expect.objectContaining({ code: 1, signal: null }));
       expect(sharedAgentCloseFn).toHaveBeenCalled();
     });
@@ -837,9 +864,9 @@ describe('CursorSdkAgentService', () => {
       ]);
       const service = new CursorSdkAgentService(createMockDeps());
       await expect(service.listModels()).resolves.toEqual([
-        'auto',
-        'gpt-5.6-terra',
-        'gpt-5.6-terra[effort=high]',
+        'cursor/auto',
+        'cursor/gpt-5.6-terra',
+        'cursor/gpt-5.6-terra[effort=high]',
       ]);
       expect(Cursor.models.list).toHaveBeenCalled();
     });

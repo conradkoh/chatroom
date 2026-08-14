@@ -1,5 +1,6 @@
 import type { ModelListItem } from '@cursor/sdk';
 import { encodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant.js';
+import { prefixCatalogModels } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 
 import { importBundledCursorSdk } from './cursor-sdk-package.js';
 
@@ -65,7 +66,7 @@ export async function fetchCursorSdkModelCatalog(): Promise<string[]> {
   try {
     const sdk = await importBundledCursorSdk();
     const models = await sdk.Cursor.models.list();
-    return expandCursorSdkModelCatalog(models);
+    return prefixCatalogModels('cursor', expandCursorSdkModelCatalog(models));
   } catch (err) {
     console.warn(`[cursor] listModels failed:`, err instanceof Error ? err.message : err);
     return [];

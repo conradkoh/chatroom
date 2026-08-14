@@ -103,7 +103,7 @@ describe('CursorAgentService', () => {
         },
       ]);
       const service = new CursorAgentService(createMockDeps());
-      expect(await service.listModels()).toEqual(['gpt-5.6-terra']);
+      expect(await service.listModels()).toEqual(['cursor/gpt-5.6-terra']);
     });
   });
 

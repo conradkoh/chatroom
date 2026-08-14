@@ -23,6 +23,7 @@
 import { type ChildProcess } from 'node:child_process';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { inferCommandCodeModelProvider, prefixModelWithProvider } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 import type { SpawnContext, SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CommandCodeStreamReader } from './command-code-stream-reader.js';
 import { createSessionLogCallbacks } from '../session-log-callbacks.js';
@@ -91,7 +92,7 @@ export class CommandCodeAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    return COMMANDCODE_MODELS;
+    return COMMANDCODE_MODELS.map((model) => prefixModelWithProvider(inferCommandCodeModelProvider(model), model));
   }
 
   /**
