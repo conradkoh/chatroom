@@ -28,4 +28,16 @@ describe('assignedTaskPresenceFeedDef', () => {
     });
     expect(assignedTaskPresenceFeedDef.itemKey(parsed)).toBe(presenceKey);
   });
+
+  it('parses slim deltas with undefined full-wire keys', () => {
+    const parsed = assignedTaskPresenceFeedDef.parseItem!({
+      taskId: TASK_ID,
+      role: 'builder',
+      presenceKey: `000000000001500:${TASK_ID}:builder`,
+      chatroomId: undefined,
+      presenceUpdatedAt: undefined,
+    });
+    expect(parsed.presenceUpdatedAt).toBe(1500);
+    expect(parsed.lastSeenAt).toBe(1500);
+  });
 });
