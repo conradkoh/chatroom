@@ -1083,17 +1083,18 @@ function renderAgentRestartCompletedDetails(event: AgentRestartCompletedEvent): 
   );
 }
 
-// ─── Agent Restart Phase (failed) ────────────────────────────────────────────
+// ─── Agent Restart Phase ─────────────────────────────────────────────────────
 
 function renderAgentRestartPhaseCell(
   event: AgentRestartPhaseEvent,
   isSelected: boolean
 ): React.ReactNode {
+  const failed = event.phase === 'failed';
   return (
     <EventRow
       type="agent.restartPhase"
-      badgeText="Restart Failed"
-      badgeColor="error"
+      badgeText={failed ? 'Restart Failed' : `Restart: ${event.phase}`}
+      badgeColor={failed ? 'error' : event.phase === 'completed' ? 'success' : 'info'}
       primaryInfo={event.role}
       secondaryInfo={event.detail}
       timestamp={event.timestamp}
@@ -1103,9 +1104,10 @@ function renderAgentRestartPhaseCell(
 }
 
 function renderAgentRestartPhaseDetails(event: AgentRestartPhaseEvent): React.ReactNode {
+  const failed = event.phase === 'failed';
   return (
     <EventDetails
-      title="Agent Restart Failed"
+      title={failed ? 'Agent Restart Failed' : `Agent Restart: ${event.phase}`}
       timestamp={event.timestamp}
       type="agent.restartPhase"
     >
