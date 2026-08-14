@@ -4,12 +4,13 @@ import { createDaemonRuntime } from './daemon-runtime.js';
 import { asConvexSessionId } from './daemon-types.js';
 import { createDefaultEventRouterDeps } from './default-router-deps.js';
 import { createDaemonDeps } from './deps.js';
-import { initDaemon } from './init-daemon.js';
+import { getActiveChatroomLogSink, initDaemon } from './init-daemon.js';
 import { resolvePersistenceDbPath } from './persistence-path.js';
 import { resolveLocalWebPort } from './resolve-local-web-port.js';
 import { startAllSubscribers } from './subscriber-registry.js';
 import { getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { createLogServer, resolveLogsDbPath } from '../../infrastructure/log-server/index.js';
+import { appendChatroomLog } from '../domain/usecase/append-chatroom-log.js';
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { createLogRepository } from '../infrastructure/repository/log-repository.js';
@@ -24,6 +25,13 @@ export async function startDaemon(): Promise<void> {
   let init: Awaited<ReturnType<typeof initDaemon>>;
   try {
     init = await initDaemon({ logSink: logServer });
+    appendChatroomLog(getActiveChatroomLogSink(), {
+      chatroomId: '__daemon__',
+      type: 'daemon.started',
+      machineId: init.machineId,
+      payload: {},
+    });
+    logServer.flush();
   } catch (error) {
     logServer.close();
     throw error;

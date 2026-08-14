@@ -28,7 +28,7 @@ import { acquireLockWithRetry, releaseLock } from '../../commands/machine/pid.js
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../infrastructure/convex/client.js';
 import { formatConvexUrlMismatchWarning } from '../../infrastructure/convex/spawn-env.js';
-import type { AgentLogSink } from '../../infrastructure/log-server/index.js';
+import type { ChatroomLogSink, LogServer } from '../../infrastructure/log-server/index.js';
 import { CrashLoopTracker } from '../../infrastructure/machine/crash-loop-tracker.js';
 import {
   clearAgentPid,
@@ -350,7 +350,11 @@ const connectOnceEffect = (
     return { typedSessionId, config, machineId, agentServices, cachedModels };
   });
 
-let activeLogSink: AgentLogSink | undefined;
+let activeLogSink: LogServer | undefined;
+
+export function getActiveChatroomLogSink(): ChatroomLogSink | undefined {
+  return activeLogSink;
+}
 
 function assembleDaemonSessionInit(args: {
   client: ConvexHttpClient;
@@ -631,7 +635,7 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
 );
 
 /** Thin wrapper — daemon-start/index.ts and tests still import this. */
-export type InitDaemonOptions = { logSink?: AgentLogSink };
+export type InitDaemonOptions = { logSink?: LogServer };
 export async function initDaemon(options: InitDaemonOptions = {}): Promise<DaemonSessionInit> {
   activeLogSink = options.logSink;
   return Effect.runPromise(initDaemonEffect);
