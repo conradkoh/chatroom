@@ -124,12 +124,18 @@ describe('listAllTabSlicePaginated', () => {
     await insertTimelineMessage(chatroomId, 'builder', 'reply1');
     await insertTimelineMessage(chatroomId, 'planner', 'reply2');
     await insertTimelineMessage(chatroomId, 'user', 'next user');
+    const navigation = await t.query(api.allTabConversation.getAllTabAnchorNavigation, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId,
+    });
 
     const result = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
       sessionId,
       chatroomId,
       anchorMessageId: anchorId as Id<'chatroom_messages'>,
       paginationOpts: { numItems: 10, cursor: null },
+      sliceUpperBoundExclusive: navigation.sliceUpperBoundExclusive,
     });
 
     expect(result.sliceMetadata.upperBoundExclusive).not.toBeNull();
@@ -146,12 +152,18 @@ describe('listAllTabSlicePaginated', () => {
     const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
     await insertTimelineMessage(chatroomId, 'builder', 'work');
     await insertTimelineMessage(chatroomId, 'user', 'follow up');
+    const navigation = await t.query(api.allTabConversation.getAllTabAnchorNavigation, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId,
+    });
 
     const result = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
       sessionId,
       chatroomId,
       anchorMessageId: anchorId as Id<'chatroom_messages'>,
       paginationOpts: { numItems: 10, cursor: null },
+      sliceUpperBoundExclusive: navigation.sliceUpperBoundExclusive,
     });
 
     const contents = result.page.map((m) => m.content);
@@ -177,6 +189,7 @@ describe('listAllTabSlicePaginated', () => {
       chatroomId,
       anchorMessageId: anchorId as Id<'chatroom_messages'>,
       paginationOpts: { numItems: 10, cursor: null },
+      sliceUpperBoundExclusive: followUpTime,
     });
 
     expect(result.sliceMetadata.upperBoundExclusive).toBe(followUpTime);
@@ -223,12 +236,18 @@ describe('listAllTabSlicePaginated', () => {
     for (let i = 0; i < 20; i++) {
       await insertTimelineMessage(chatroomId, 'builder', `post-page ${i}`);
     }
+    const navigation = await t.query(api.allTabConversation.getAllTabAnchorNavigation, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId,
+    });
 
     const result = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
       sessionId,
       chatroomId,
       anchorMessageId: anchorId as Id<'chatroom_messages'>,
       paginationOpts: { numItems: 10, cursor: null },
+      sliceUpperBoundExclusive: navigation.sliceUpperBoundExclusive,
     });
 
     const contents = result.page.map((m) => m.content);
@@ -251,6 +270,7 @@ describe('listAllTabSlicePaginated', () => {
       chatroomId,
       anchorMessageId: anchorId as Id<'chatroom_messages'>,
       paginationOpts: { numItems: 10, cursor: null },
+      sliceUpperBoundExclusive: null,
     });
 
     const contents = result.page.map((m) => m.content);
@@ -258,6 +278,82 @@ describe('listAllTabSlicePaginated', () => {
     expect(contents).toContain('reply');
     expect(contents).not.toContain('join event');
     expect(contents).not.toContain('progress update');
+  });
+
+  test('paginates with stable cursor when sliceUpperBoundExclusive is null', async () => {
+    const { sessionId } = await createTestSession('alltab-slice-null-cursor');
+    const chatroomId = await createChatroom(sessionId);
+    const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
+    for (let i = 0; i < 35; i++) {
+      await insertTimelineMessage(
+        chatroomId,
+        'builder',
+        `reply ${i}`,
+        i % 3 === 0 ? { type: 'join' } : undefined
+      );
+    }
+
+    const firstPage = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId,
+      paginationOpts: { numItems: 10, cursor: null },
+      sliceUpperBoundExclusive: null,
+    });
+    const secondPage = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId,
+      paginationOpts: { numItems: 10, cursor: firstPage.continueCursor },
+      sliceUpperBoundExclusive: null,
+    });
+
+    expect(firstPage.isDone).toBe(false);
+    const ids = [...firstPage.page, ...secondPage.page].map((message) => message._id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect([...firstPage.page, ...secondPage.page].map((message) => message._creationTime)).toEqual(
+      [...firstPage.page, ...secondPage.page]
+        .map((message) => message._creationTime)
+        .sort((a, b) => a - b)
+    );
+  });
+
+  test('paginates with stable cursor when bound comes from navigation', async () => {
+    const { sessionId } = await createTestSession('alltab-slice-bound-cursor');
+    const chatroomId = await createChatroom(sessionId);
+    const anchorId = await insertTimelineMessage(chatroomId, 'user', 'anchor');
+    for (let i = 0; i < 25; i++) {
+      await insertTimelineMessage(chatroomId, 'builder', `reply ${i}`);
+    }
+    await insertTimelineMessage(chatroomId, 'user', 'next anchor');
+
+    const navigation = await t.query(api.allTabConversation.getAllTabAnchorNavigation, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId,
+    });
+    expect(navigation.sliceUpperBoundExclusive).not.toBeNull();
+
+    const firstPage = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId,
+      paginationOpts: { numItems: 10, cursor: null },
+      sliceUpperBoundExclusive: navigation.sliceUpperBoundExclusive,
+    });
+    const secondPage = await t.query(api.allTabConversation.listAllTabSlicePaginated, {
+      sessionId,
+      chatroomId,
+      anchorMessageId: anchorId,
+      paginationOpts: { numItems: 10, cursor: firstPage.continueCursor },
+      sliceUpperBoundExclusive: navigation.sliceUpperBoundExclusive,
+    });
+
+    expect(firstPage.isDone).toBe(false);
+    expect(firstPage.sliceMetadata.upperBoundExclusive).toBe(navigation.sliceUpperBoundExclusive);
+    expect(secondPage.sliceMetadata.upperBoundExclusive).toBe(navigation.sliceUpperBoundExclusive);
+    const ids = [...firstPage.page, ...secondPage.page].map((message) => message._id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
