@@ -1175,12 +1175,14 @@ export default defineSchema({
   }).index('by_userId_created', ['userId', 'createdAt']),
 
   // ============================================================================
-  // EVENT STREAM TABLE
-  // Append-only log of all significant events in the chatroom system.
-  // Used for crash recovery, audit, and daemon-driven reactions.
+  // EVENT STREAM TABLE (deprecated for observability UI — command delivery only)
+  // Append-only log retained for daemon command events (agent.requestStart, etc.).
+  // Observability events are written to daemon-local chatroom_logs SQLite.
   // ============================================================================
 
   /**
+   * @deprecated Observability events moved to daemon chatroom_logs.
+   * Table retained for command-delivery events until fully replaced.
    * Immutable event log for the chatroom system.
    * Each row represents one discrete event. Consumers read forward from a
    * checkpoint and react to events without fetching additional data.

@@ -76,7 +76,6 @@ import type * as e2e from "../e2e.js";
 import type * as enhancerConfigFavorites from "../enhancerConfigFavorites.js";
 import type * as enhancerJobReaper from "../enhancerJobReaper.js";
 import type * as eventCleanup from "../eventCleanup.js";
-import type * as events from "../events.js";
 import type * as guidelines from "../guidelines.js";
 import type * as harnesses_claude from "../harnesses/claude.js";
 import type * as harnesses_claudeSdk from "../harnesses/claudeSdk.js";
@@ -226,7 +225,6 @@ declare const fullApi: ApiFromModules<{
   enhancerConfigFavorites: typeof enhancerConfigFavorites;
   enhancerJobReaper: typeof enhancerJobReaper;
   eventCleanup: typeof eventCleanup;
-  events: typeof events;
   guidelines: typeof guidelines;
   "harnesses/claude": typeof harnesses_claude;
   "harnesses/claudeSdk": typeof harnesses_claudeSdk;
