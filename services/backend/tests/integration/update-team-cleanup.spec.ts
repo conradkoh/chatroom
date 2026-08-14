@@ -29,14 +29,13 @@ function createThreeRoleChatroom(sessionId: string) {
 // ─── teamAgentConfigs lifecycle ───────────────────────────────────────────────
 
 describe('updateTeam — teamAgentConfigs', () => {
-  test('deletes all teamAgentConfigs on team switch', async () => {
+  test('preserves outgoing configs and seeds target-team rows on team switch', async () => {
     const { sessionId } = await createTestSession('test-ut-tac-1');
     const machineId = 'machine-ut-tac-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createThreeRoleChatroom(sessionId);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,
@@ -53,7 +52,10 @@ describe('updateTeam — teamAgentConfigs', () => {
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    expect(teamConfigs).toHaveLength(0);
+
+    expect(teamConfigs.length).toBeGreaterThanOrEqual(2);
+    const duoPlannerKey = `chatroom_${chatroomId}#team_duo#role_planner`;
+    expect(teamConfigs.some((c) => c.teamRoleKey === duoPlannerKey)).toBe(true);
   });
 });
 
