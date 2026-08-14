@@ -31,19 +31,23 @@ import {
 import { useTheme } from 'next-themes';
 import type { ForwardedRef } from 'react';
 
+import { cn } from '@/lib/utils';
+
 import './markdown-editor-theme.css';
 
 export default function InitializedMDXEditor({
   editorRef,
+  className,
   ...props
 }: { editorRef: ForwardedRef<MDXEditorMethods> | null } & MDXEditorProps) {
   const { resolvedTheme } = useTheme();
 
   return (
     <MDXEditor
-      className={
-        resolvedTheme === 'dark' ? 'dark-theme markdown-editor-theme' : 'markdown-editor-theme'
-      }
+      className={cn(
+        resolvedTheme === 'dark' ? 'dark-theme markdown-editor-theme' : 'markdown-editor-theme',
+        className
+      )}
       plugins={[
         headingsPlugin(),
         listsPlugin(),

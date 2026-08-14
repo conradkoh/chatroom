@@ -9,17 +9,27 @@ export function MarkdownEditor({
   defaultMarkdown = '',
   onChange,
   className,
+  editorClassName,
   placeholder,
   ...rest
 }: MarkdownEditorProps) {
+  const editor = (
+    <ForwardRefEditor
+      markdown={defaultMarkdown}
+      onChange={onChange}
+      placeholder={placeholder}
+      className={editorClassName}
+      {...rest}
+    />
+  );
+
   return (
     <div className={cn('rounded-lg border border-border bg-card overflow-hidden', className)}>
-      <ForwardRefEditor
-        markdown={defaultMarkdown}
-        onChange={onChange}
-        placeholder={placeholder}
-        {...rest}
-      />
+      {editorClassName ? (
+        <div className="flex flex-col flex-1 min-h-0 h-full">{editor}</div>
+      ) : (
+        editor
+      )}
     </div>
   );
 }

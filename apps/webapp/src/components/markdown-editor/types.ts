@@ -7,9 +7,12 @@ export type MarkdownEditorProps = {
   onChange?: (markdown: string) => void;
   /** Placeholder when empty. */
   placeholder?: string;
+  /** Classes for the outer wrapper div (border, layout in parent). */
   className?: string;
+  /** Classes for the MDXEditor root element (.mdxeditor). */
+  editorClassName?: string;
   readOnly?: never;
-} & Omit<MDXEditorProps, 'markdown' | 'onChange' | 'readOnly' | 'plugins'>;
+} & Omit<MDXEditorProps, 'markdown' | 'onChange' | 'readOnly' | 'plugins' | 'className'>;
 
 export type MarkdownViewerProps = {
   markdown: string;
