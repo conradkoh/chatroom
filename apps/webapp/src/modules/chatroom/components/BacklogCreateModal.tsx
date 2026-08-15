@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import React, { useState, useCallback, useEffect } from 'react';
+import { backlogRichTextEditorProseClassNames } from './markdown-utils';
 
 import {
   FixedModal,
@@ -63,6 +64,7 @@ export function BacklogCreateModal({ isOpen, onClose, onSubmit }: BacklogCreateM
             autoFocus
             onCmdEnter={handleSubmit}
             className="flex-1 flex flex-col min-h-0"
+            proseClassName={backlogRichTextEditorProseClassNames}
           />
         </FixedModalBody>
 

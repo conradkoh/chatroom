@@ -6,6 +6,8 @@ export type MarkdownEditorProps = {
   /** Placeholder when empty. */
   placeholder?: string;
   className?: string;
+  /** Tailwind prose classes for editor typography. */
+  proseClassName?: string;
   autoFocus?: boolean;
   onCmdEnter?: () => void;
   initialClickCoords?: { left: number; top: number } | null;

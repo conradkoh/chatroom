@@ -13,6 +13,7 @@ export function MarkdownEditor({
   defaultMarkdown = '',
   onChange,
   className,
+  proseClassName,
   placeholder,
   autoFocus,
   onCmdEnter,
@@ -64,7 +65,7 @@ export function MarkdownEditor({
               ? 'flex flex-1 flex-col min-h-0 [&_.tiptap]:flex-1 [&_.tiptap]:min-h-full [&_.ProseMirror]:min-h-full'
               : '[&_.tiptap]:min-h-[200px]',
             '[&_.ProseMirror]:outline-none [&_.ProseMirror:focus]:outline-none',
-            'prose dark:prose-invert max-w-none'
+            proseClassName ?? 'prose dark:prose-invert max-w-none'
           )}
         />
       </div>

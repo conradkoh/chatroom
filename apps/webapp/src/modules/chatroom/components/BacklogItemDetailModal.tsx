@@ -211,6 +211,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                 onCmdEnter={handleSave}
                 initialClickCoords={initialClickCoords}
                 className="flex-1 flex flex-col min-h-0"
+                proseClassName={backlogRichTextEditorProseClassNames}
               />
             ) : (
               // View mode — read-only markdown; click to edit for backlog status

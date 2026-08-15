@@ -4,6 +4,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Check, Paperclip, MoreHorizontal, StopCircle, Trash2, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
+import { cn } from '@/lib/utils';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
@@ -194,6 +195,7 @@ export function TaskDetailModal({
                 onCmdEnter={handleSave}
                 initialClickCoords={initialClickCoords}
                 className="flex-1 flex flex-col min-h-0"
+                proseClassName={cn(backlogRichTextEditorProseClassNames, taskDetailProseClassNames, modalMarkdownWrapProseClassNames)}
               />
             ) : (
               <div

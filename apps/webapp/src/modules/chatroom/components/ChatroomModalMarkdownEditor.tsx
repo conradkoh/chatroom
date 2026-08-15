@@ -11,6 +11,7 @@ export interface ChatroomModalMarkdownEditorProps {
   onCmdEnter?: () => void;
   initialClickCoords?: { left: number; top: number } | null;
   className?: string;
+  proseClassName?: string;
 }
 
 export function ChatroomModalMarkdownEditor({
@@ -21,6 +22,7 @@ export function ChatroomModalMarkdownEditor({
   onCmdEnter,
   initialClickCoords,
   className,
+  proseClassName,
 }: ChatroomModalMarkdownEditorProps) {
   return (
     <MarkdownEditor
@@ -32,6 +34,7 @@ export function ChatroomModalMarkdownEditor({
       initialClickCoords={initialClickCoords}
       fillHeight
       className={cn('flex-1 flex flex-col min-h-0 !border-0 rounded-none shadow-none', className)}
+      proseClassName={proseClassName}
     />
   );
 }
