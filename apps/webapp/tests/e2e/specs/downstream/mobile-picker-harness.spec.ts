@@ -1,8 +1,10 @@
 import { expect, test, devices } from '@playwright/test';
+import { TAG_DOWNSTREAM } from '../../support/tags';
 
 const HARNESS_PATH = '/dev/mobile-picker-harness';
 
 test.use({ ...devices['iPhone 14'] });
+test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
 
 test.beforeEach(async ({ page }) => {
   await page.goto(HARNESS_PATH);
@@ -138,4 +140,5 @@ test('filter picker hides chrome and keeps filtered rows visible with keyboard i
   await expect(page.getByText('provider/model-01')).toBeVisible();
   await expect(page.getByText('provider/model-02')).toHaveCount(0);
   await expect.poll(async () => drawer.evaluate((el) => (el.querySelector('[data-picker-scroll-body]') as HTMLElement | null)?.clientHeight ?? 0)).toBeGreaterThan(0);
+});
 });

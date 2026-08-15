@@ -1,8 +1,10 @@
 import { expect, test, devices } from '@playwright/test';
+import { TAG_DOWNSTREAM } from '../../support/tags';
 
 const HARNESS_PATH = '/dev/standing-instructions-release-harness';
 
 test.use({ ...devices['Desktop Chrome'] });
+test.describe('Standing instructions release harness (desktop)', { tag: [TAG_DOWNSTREAM] }, () => {
 
 test('click near right of standing instructions bar anchors popover near click X', async ({
   page,
@@ -38,4 +40,5 @@ test('Edit mode has no history list', async ({ page }) => {
   await page.getByTestId('standing-instructions-harness-edit').click();
   await expect(page.getByPlaceholder('Enter standing instructions…')).toBeVisible();
   await expect(page.getByText('Create new')).toHaveCount(0);
+});
 });
