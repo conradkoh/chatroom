@@ -2,15 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { htmlToMarkdown, looksLikeHtml, normalizeMarkdownContent, stripHtmlTags } from './normalizeMarkdownContent';
 describe('normalizeMarkdownContent', () => {
   it('detects legacy html fragments but excludes structured and fenced content', () => {
-    expect(looksLikeHtml('&lt;p&gt;Hello &lt;strong&gt;world&lt;/strong&gt;&lt;/p&gt;')).toBe(true);
-    expect(looksLikeHtml('text with &lt;strong&gt;inline&lt;/strong&gt; html')).toBe(true);
-    expect(looksLikeHtml('&lt;handoff-overview&gt;## Summary&lt;/handoff-overview&gt;')).toBe(false);
-    expect(looksLikeHtml('```html\n&lt;p&gt;x&lt;/p&gt;\n```')).toBe(false);
+    expect(looksLikeHtml('<p>Hello <strong>world</strong></p>')).toBe(true);
+    expect(looksLikeHtml('text with <strong>inline</strong> html')).toBe(true);
+    expect(looksLikeHtml('<handoff-overview>## Summary</handoff-overview>')).toBe(false);
+    expect(looksLikeHtml('```html\n<p>x</p>\n```')).toBe(false);
+    expect(looksLikeHtml('&lt;p&gt;Hello&lt;/p&gt;')).toBe(false);
   });
   it('converts html and preserves markdown', () => {
-    expect(htmlToMarkdown('&lt;p&gt;Hello &lt;strong&gt;world&lt;/strong&gt;&lt;/p&gt;')).toContain('world');
+    expect(htmlToMarkdown('<p>Hello <strong>world</strong></p>')).toContain('world');
     expect(normalizeMarkdownContent('# Title')).toBe('# Title');
-    expect(normalizeMarkdownContent('&lt;handoff-overview&gt;## Summary&lt;/handoff-overview&gt;')).toContain('handoff-overview');
-    expect(stripHtmlTags('&lt;p&gt;Hello&lt;/p&gt;')).not.toContain('&lt;');
+    expect(normalizeMarkdownContent('<handoff-overview>## Summary</handoff-overview>')).toContain('handoff-overview');
+    expect(stripHtmlTags('<p>Hello</p>')).not.toContain('<');
   });
 });

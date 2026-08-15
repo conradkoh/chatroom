@@ -8,7 +8,7 @@ describe('MarkdownToolbar', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
     const editor = {
-      getMarkdown: () => '# Hello',
+      getMarkdown: () => '<p>Hi</p>',
       getAttributes: () => ({}),
       isActive: () => false,
       chain: () => ({
@@ -30,6 +30,6 @@ describe('MarkdownToolbar', () => {
     render(<MarkdownToolbar editor={editor} />);
     fireEvent.click(screen.getByTitle('Copy markdown'));
 
-    expect(writeText).toHaveBeenCalledWith('# Hello');
+    expect(writeText).toHaveBeenCalledWith('Hi');
   });
 });
