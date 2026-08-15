@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { containsStructuredEnvelope, normalizeChatroomMarkdownContent } from './normalizeChatroomMarkdownContent';
+
+import { normalizeChatroomMarkdownContent } from './normalizeChatroomMarkdownContent';
+
 describe('normalizeChatroomMarkdownContent', () => {
   it('preserves envelopes with nested HTML', () => {
-    const content = '&lt;handoff-overview&gt;\n&lt;p&gt;Summary&lt;/p&gt;\n&lt;/handoff-overview&gt;';
+    const content = '<handoff-overview>\n<p>Summary</p>\n</handoff-overview>';
     expect(normalizeChatroomMarkdownContent(content)).toBe(content);
     expect(normalizeChatroomMarkdownContent(`  ${content}  `)).toBe(content);
   });
+
   it('normalizes legacy HTML outside envelopes', () => {
     expect(normalizeChatroomMarkdownContent('<p>Hello</p>')).toContain('Hello');
   });
-  it('does not treat entity-encoded tags as envelopes', () => {
-    expect(containsStructuredEnvelope('&amp;lt;handoff-overview&amp;gt;')).toBe(false);
+
+  it('does not treat HTML-entity-encoded tags as envelopes', () => {
+    const encoded = '&lt;handoff-overview&gt;Summary&lt;/handoff-overview&gt;';
+    expect(normalizeChatroomMarkdownContent(encoded)).toBe(encoded);
   });
 });
