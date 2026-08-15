@@ -61,6 +61,16 @@ test.describe('Markdown Editor Demo', { tag: [TAG_UPSTREAM, TAG_MARKDOWN] }, () 
     await expect(viewer.locator('li').filter({ hasText: 'Same typography' })).toBeVisible();
   });
 
+  test('interactive editor applies default prose classes to EditorContent wrapper', async ({ page }) => {
+    const markdownPage = new MarkdownEditorTestPage(page);
+    await markdownPage.navigate();
+    const editor = markdownPage.interactiveEditor;
+    await expect(editor).toBeVisible();
+    const wrapper = editor.locator('.p-4');
+    await expect(wrapper).toHaveClass(/prose/);
+    await expect(wrapper).toHaveClass(/prose-invert/);
+  });
+
   test('toolbar bold toggle applies formatting', async ({ page }) => {
     const markdownPage = new MarkdownEditorTestPage(page);
     await markdownPage.navigate();
