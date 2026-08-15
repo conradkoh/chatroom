@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 
-import { PickerPanelHeader, PickerScrollBody, PickerSearch, ResponsivePickerShell } from './picker';
+import { PickerMobileChrome, PickerPanelHeader, PickerScrollBody, PickerSearch, ResponsivePickerShell, usePickerSearchState } from './picker';
 import { getModelProviderKey } from '../utils/modelSelection';
 import { MODEL_PICKER_PANEL_WIDTH, MODEL_PICKER_SCROLL_MAX_H } from './model-selection/constants';
 import { ModelGroupedList } from './model-selection/ModelGroupedList';
@@ -10,8 +10,6 @@ import { groupFlatModels } from './model-selection/modelGroups';
 import { isModelEffectivelyHidden } from './model-selection/modelVisibility';
 
 import { cn } from '@/lib/utils';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
-import { useVisualViewportKeyboardInset } from '@/hooks/useMobileKeyboard';
 
 interface ModelFilterPanelProps {
   open: boolean;
@@ -51,18 +49,7 @@ export function ModelFilterPanel({
   const hiddenModelsSet = useMemo(() => new Set(hiddenModels), [hiddenModels]);
   const hiddenProvidersSet = useMemo(() => new Set(hiddenProviders), [hiddenProviders]);
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const isDesktop = useIsDesktop();
-  const keyboardInsetPx = useVisualViewportKeyboardInset(open && !isDesktop);
-  const keyboardOpen = !isDesktop && keyboardInsetPx > 0;
-
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (!nextOpen) setSearchTerm('');
-      onOpenChange(nextOpen);
-    },
-    [onOpenChange]
-  );
+  const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(onOpenChange);
 
   const modelGroups = useMemo(() => groupFlatModels(availableModels), [availableModels]);
   const allProviderKeys = useMemo(
@@ -133,7 +120,7 @@ export function ModelFilterPanel({
 
   const panelContent = (
     <>
-      {!keyboardOpen && <PickerPanelHeader title="Model Visibility" className="shrink-0">
+      <PickerMobileChrome><PickerPanelHeader title="Model Visibility" className="shrink-0">
         <div className="flex items-center gap-2">
           {hiddenCount > 0 && (
             <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
@@ -156,7 +143,7 @@ export function ModelFilterPanel({
             </button>
           )}
         </div>
-      </PickerPanelHeader>}
+      </PickerPanelHeader></PickerMobileChrome>
 
       <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search models..." />
 
@@ -173,14 +160,14 @@ export function ModelFilterPanel({
         />
       </PickerScrollBody>
 
-      {!keyboardOpen && <button
+      <PickerMobileChrome><button
         type="button"
         disabled={disabled || !hasAnyFilter}
         onClick={clearAllFilters}
         className="w-full shrink-0 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-error px-3 py-2 border-t border-chatroom-border text-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Reset All
-      </button>}
+      </button></PickerMobileChrome>
     </>
   );
 

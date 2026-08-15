@@ -2,6 +2,7 @@
 
 import {
   PickerOptionRow,
+  PickerMobileChrome,
   PickerPanelHeader,
   PickerScrollBody,
   PickerSearch,
@@ -97,7 +98,7 @@ export function FilterPickerSection({
           </button>
         }
       >
-        <PickerPanelHeader title="Model Visibility" className="shrink-0" />
+        <PickerMobileChrome><PickerPanelHeader title="Model Visibility" className="shrink-0" /></PickerMobileChrome>
         <PickerSearch value={search} onChange={onSearchChange} placeholder="Search models..." />
         <PickerScrollBody maxHeightClassName="max-h-[576px]">
           {models.map((model, index) => (
@@ -109,9 +110,9 @@ export function FilterPickerSection({
             </div>
           ))}
         </PickerScrollBody>
-        <button type="button" className="w-full shrink-0 border-t px-3 py-2 text-xs">
+        <PickerMobileChrome><button type="button" className="w-full shrink-0 border-t px-3 py-2 text-xs">
           Reset All
-        </button>
+        </button></PickerMobileChrome>
       </ResponsivePickerShell>
     </section>
   );
