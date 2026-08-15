@@ -17,16 +17,17 @@ import { useCallback, useState, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 import { getNormalizedEditorMarkdown } from './getNormalizedEditorMarkdown';
+import type { MarkdownContentNormalizer } from './types';
 
 const toolbarButtonClass =
   'flex items-center justify-center w-7 h-7 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors outline-none focus:outline-none focus-visible:outline-none';
 const activeButtonClass = 'bg-muted text-foreground';
-export function MarkdownToolbar({ editor }: { editor: Editor | null }) {
+export function MarkdownToolbar({ editor, normalizeContent }: { editor: Editor | null; normalizeContent?: MarkdownContentNormalizer }) {
   const [copied, setCopied] = useState(false);
   const copyMarkdown = useCallback(async () => {
     if (!editor) return;
     try {
-      await navigator.clipboard.writeText(getNormalizedEditorMarkdown(editor));
+      await navigator.clipboard.writeText(getNormalizedEditorMarkdown(editor, normalizeContent));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {

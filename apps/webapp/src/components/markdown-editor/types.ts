@@ -1,4 +1,7 @@
+export type MarkdownContentNormalizer = (input: string) => string;
+
 export type MarkdownEditorProps = {
+  normalizeContent?: (input: string) => string;
   /** Markdown source only; legacy HTML is normalized lossily before callbacks. */
   defaultMarkdown?: string;
   /** Called with markdown-only content changes. */

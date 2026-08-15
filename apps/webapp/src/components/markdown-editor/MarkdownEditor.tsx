@@ -14,6 +14,7 @@ export function MarkdownEditor({
   onChange,
   className,
   proseClassName,
+  normalizeContent,
   placeholder,
   autoFocus,
   onCmdEnter,
@@ -27,6 +28,7 @@ export function MarkdownEditor({
     autoFocus,
     onCmdEnter,
     initialClickCoords,
+    normalizeContent,
   });
 
   const focusEditorAtEnd = () => {
@@ -42,7 +44,7 @@ export function MarkdownEditor({
         className
       )}
     >
-      <MarkdownToolbar editor={editor} />
+      <MarkdownToolbar editor={editor} normalizeContent={normalizeContent} />
       {/*
        * TipTap full-height pitfall: ProseMirror height follows content unless fillHeight
        * stretches .tiptap/.ProseMirror via min-h-full in a flex column chain.

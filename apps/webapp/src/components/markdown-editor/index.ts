@@ -4,6 +4,8 @@ export { MarkdownViewer } from './MarkdownViewer';
 export { normalizeMarkdownContent } from './normalizeMarkdownContent';
 export { getNormalizedEditorMarkdown } from './getNormalizedEditorMarkdown';
 export { defaultMarkdownEditorProseClassNames } from './proseClassNames';
+export type { MarkdownContentNormalizer } from './types';
+export { isModEnterKey } from './handleModEnter';
 // Public module API — consumed by downstream apps.
 // fallow-ignore-next-line unused-type
 export type { EditableMarkdownProps } from './types';
