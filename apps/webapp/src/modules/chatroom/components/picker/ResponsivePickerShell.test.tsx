@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PickerScrollBody } from './PickerScrollBody';
 import { PickerSearch } from './PickerSearch';
 import { ResponsivePickerShell } from './ResponsivePickerShell';
+import { PickerMobileChrome } from './PickerMobileChrome';
 import { OverlayPortalContainerProvider } from '../shared/overlayPortalContainer';
 
 const mockUseIsDesktop = vi.fn();
@@ -349,5 +350,26 @@ describe('ResponsivePickerShell', () => {
     const wrapper = scrollBody?.parentElement;
     expect(wrapper?.className).toContain('flex-col');
     expect(wrapper?.className).toContain('overflow-hidden');
+  });
+
+  it('hides PickerMobileChrome on mobile with non-zero keyboard inset', async () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    mockUseKeyboardInset.mockReturnValue(120);
+    render(<ResponsivePickerShell open onOpenChange={vi.fn()} trigger={<button>Open</button>} title="Test"><PickerMobileChrome><span>Mobile chrome</span></PickerMobileChrome></ResponsivePickerShell>);
+    await waitFor(() => expect(screen.queryByText('Mobile chrome')).not.toBeInTheDocument());
+  });
+
+  it('keeps PickerMobileChrome visible on mobile with zero inset', () => {
+    mockUseIsDesktop.mockReturnValue(false);
+    mockUseKeyboardInset.mockReturnValue(0);
+    render(<ResponsivePickerShell open onOpenChange={vi.fn()} trigger={<button>Open</button>} title="Test"><PickerMobileChrome><span>Mobile chrome</span></PickerMobileChrome></ResponsivePickerShell>);
+    expect(screen.getByText('Mobile chrome')).toBeInTheDocument();
+  });
+
+  it('keeps PickerMobileChrome visible on desktop despite non-zero inset', () => {
+    mockUseIsDesktop.mockReturnValue(true);
+    mockUseKeyboardInset.mockReturnValue(120);
+    render(<ResponsivePickerShell open onOpenChange={vi.fn()} trigger={<button>Open</button>} title="Test"><PickerMobileChrome><span>Desktop chrome</span></PickerMobileChrome></ResponsivePickerShell>);
+    expect(screen.getByText('Desktop chrome')).toBeInTheDocument();
   });
 });

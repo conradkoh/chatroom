@@ -124,3 +124,18 @@ test('filter panel picker uses scroll body inside drawer', async ({ page }) => {
   await expect(page.locator('[data-picker-scroll-body]')).toBeVisible();
   await expect(page.getByText('Reset All')).toBeVisible();
 });
+
+test('filter picker hides chrome and keeps filtered rows visible with keyboard inset', async ({ page }) => {
+  await page.evaluate(() => { window.__MOBILE_KEYBOARD_TEST_INSET__ = 300; });
+  await page.getByTestId('open-filter-picker').click();
+  const drawer = page.locator('[data-slot="drawer-content"]');
+  await expect(drawer).toBeVisible();
+  await expect(drawer.locator('span').filter({ hasText: 'Model Visibility' })).toHaveCount(0);
+  await expect(drawer.getByText('Reset All')).not.toBeVisible();
+  const search = page.getByPlaceholder('Search models...');
+  await expect(search).toBeVisible();
+  await search.fill('model-01');
+  await expect(page.getByText('provider/model-01')).toBeVisible();
+  await expect(page.getByText('provider/model-02')).toHaveCount(0);
+  await expect.poll(async () => drawer.evaluate((el) => (el.querySelector('[data-picker-scroll-body]') as HTMLElement | null)?.clientHeight ?? 0)).toBeGreaterThan(0);
+});
