@@ -38,11 +38,10 @@ export function getMobileDrawerContentStyle(
   style.height = height;
   style.overflow = 'hidden';
 
-  if (viewportOffsetTopPx > 0) {
-    style.top = `calc(${viewportOffsetTopPx}px + ${safeTop})`;
-    style.bottom = 'auto';
-    style.marginTop = 0; // override data-[vaul-drawer-direction=bottom]:mt-24
-  }
+  style.top = viewportOffsetTopPx > 0 ? `calc(${viewportOffsetTopPx}px + ${safeTop})` : safeTop;
+  style.bottom = 'auto';
+  style.marginTop = 0;
+  (style as Record<string, string>)['--translate-y'] = '0px';
 
   return style;
 }

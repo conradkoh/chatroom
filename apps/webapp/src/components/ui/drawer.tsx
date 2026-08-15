@@ -5,6 +5,13 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
+const DRAWER_POPUP_STYLE_KEYS = new Set(['top','bottom','left','right','height','maxHeight','minHeight','overflow','zIndex','marginTop','marginBottom','transform','--translate-y','--translate-x']);
+function splitDrawerContentStyle(style: React.CSSProperties | undefined) {
+  const popup: Record<string, string | number> = {}; const content: Record<string, string | number> = {};
+  for (const [key, value] of Object.entries(style ?? {})) { if (value === undefined) continue; (DRAWER_POPUP_STYLE_KEYS.has(key) ? popup : content)[key] = value as string | number; }
+  return { popupStyle: popup as React.CSSProperties, contentStyle: content as React.CSSProperties };
+}
+
 type DrawerContextProps = {
   hasSnapPoints: boolean;
   modal: DrawerPrimitive.Root.Props['modal'];
@@ -138,6 +145,7 @@ function DrawerSwipeHandle({ className, ...props }: React.ComponentProps<'div'>)
 function DrawerContent({ className, children, style, ...props }: DrawerPrimitive.Popup.Props) {
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection, container } = useDrawer();
   const swipeAxis = swipeDirection === 'down' || swipeDirection === 'up' ? 'y' : 'x';
+  const { popupStyle, contentStyle } = splitDrawerContentStyle(typeof style === 'function' ? undefined : style);
 
   return (
     <DrawerPortal data-slot="drawer-portal" container={container}>
@@ -178,12 +186,13 @@ function DrawerContent({ className, children, style, ...props }: DrawerPrimitive
             'data-[swipe-direction=right]:right-0 data-[swipe-direction=right]:origin-right data-[swipe-direction=right]:[--closed-transform:translate3d(calc(100%+var(--drawer-inset,0px)+2px),0,0)] data-[swipe-direction=right]:[--translate-x:calc(var(--drawer-swipe-movement-x)-var(--stack-peek-offset)-(var(--stack-shrink)*100%))]',
             className
           )}
+          style={popupStyle}
           {...props}
         >
           {showSwipeHandle && <DrawerSwipeHandle />}
           <DrawerPrimitive.Content
             data-slot="drawer-content"
-            style={typeof style === 'function' ? undefined : style}
+            style={contentStyle}
             className={cn(
               'flex min-h-0 flex-1 flex-col overflow-hidden overscroll-contain rounded-[inherit] transition-opacity duration-300 ease-[cubic-bezier(0.45,1.005,0,1.005)] select-text group-data-nested-drawer-open/drawer-popup:opacity-0 group-data-nested-drawer-swiping/drawer-popup:opacity-100 group-data-swiping/drawer-popup:select-none',
               className
