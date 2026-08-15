@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getMobileDrawerContentStyle } from './getMobileDrawerContentStyle';
 import {
@@ -24,7 +24,6 @@ import {
   useVisualViewportOffsetTop,
 } from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
-import { PickerShellProvider } from './PickerShellContext';
 
 export interface ResponsivePickerShellProps {
   open: boolean;
@@ -63,8 +62,6 @@ export function ResponsivePickerShell({
   const mobileActive = isClient && !isDesktop && open;
   const keyboardInsetPx = useVisualViewportKeyboardInset(mobileActive);
   const viewportOffsetTopPx = useVisualViewportOffsetTop(mobileActive);
-  const shellContextValue = useMemo(() => ({ mobileKeyboardOpen: mobileActive && keyboardInsetPx > 0 }), [mobileActive, keyboardInsetPx]);
-  const renderPickerChildren = (wrapperClassName: string) => <PickerShellProvider value={shellContextValue}><div className={wrapperClassName}>{children}</div></PickerShellProvider>;
   const portalContainer = useOverlayPortalContainer();
   const [pointerAnchor, setPointerAnchor] = useState<{ x: number; y: number } | null>(null);
   const [triggerEl, setTriggerEl] = useState<HTMLElement | null>(null);
@@ -149,7 +146,7 @@ export function ResponsivePickerShell({
             anchor={anchorRef}
             {...(side ? { side } : {})}
           >
-            {renderPickerChildren(DESKTOP_PICKER_CHILDREN_WRAPPER_CLASSNAME)}
+            <div className={DESKTOP_PICKER_CHILDREN_WRAPPER_CLASSNAME}>{children}</div>
           </PopoverContent>
         </Popover>
       </>
@@ -166,7 +163,7 @@ export function ResponsivePickerShell({
           align={align}
           {...(side ? { side } : {})}
         >
-          {renderPickerChildren(DESKTOP_PICKER_CHILDREN_WRAPPER_CLASSNAME)}
+          <div className={DESKTOP_PICKER_CHILDREN_WRAPPER_CLASSNAME}>{children}</div>
         </PopoverContent>
       </Popover>
     );
@@ -190,7 +187,7 @@ export function ResponsivePickerShell({
         <DrawerHeader className="p-0 shrink-0">
           <DrawerTitle className="sr-only">{title}</DrawerTitle>
         </DrawerHeader>
-        {renderPickerChildren(cn(MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME))}
+        <div className={cn(MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME)}>{children}</div>
       </DrawerContent>
     </Drawer>
   );

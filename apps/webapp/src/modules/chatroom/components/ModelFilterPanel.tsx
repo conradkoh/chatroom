@@ -2,7 +2,7 @@
 
 import React, { useMemo, useCallback } from 'react';
 
-import { PickerMobileChrome, PickerPanelHeader, PickerScrollBody, PickerSearch, ResponsivePickerShell, usePickerSearchState } from './picker';
+import { PickerPanelHeader, PickerScrollBody, PickerSearch, ResponsivePickerShell, usePickerSearchState, useMobilePickerKeyboardOpen } from './picker';
 import { getModelProviderKey } from '../utils/modelSelection';
 import { MODEL_PICKER_PANEL_WIDTH, MODEL_PICKER_SCROLL_MAX_H } from './model-selection/constants';
 import { ModelGroupedList } from './model-selection/ModelGroupedList';
@@ -50,6 +50,7 @@ export function ModelFilterPanel({
   const hiddenProvidersSet = useMemo(() => new Set(hiddenProviders), [hiddenProviders]);
 
   const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(onOpenChange);
+  const keyboardOpen = useMobilePickerKeyboardOpen(open);
 
   const modelGroups = useMemo(() => groupFlatModels(availableModels), [availableModels]);
   const allProviderKeys = useMemo(
@@ -120,7 +121,7 @@ export function ModelFilterPanel({
 
   const panelContent = (
     <>
-      <PickerMobileChrome><PickerPanelHeader title="Model Visibility" className="shrink-0">
+      {!keyboardOpen && <PickerPanelHeader title="Model Visibility" className="shrink-0">
         <div className="flex items-center gap-2">
           {hiddenCount > 0 && (
             <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
@@ -143,11 +144,11 @@ export function ModelFilterPanel({
             </button>
           )}
         </div>
-      </PickerPanelHeader></PickerMobileChrome>
+      </PickerPanelHeader>}
 
       <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search models..." />
 
-      <PickerScrollBody className="flex-1 min-h-0" maxHeightClassName={MODEL_PICKER_SCROLL_MAX_H}>
+      <PickerScrollBody maxHeightClassName={MODEL_PICKER_SCROLL_MAX_H}>
         <ModelGroupedList
           mode="visibility-toggle"
           groups={modelGroups}
@@ -160,14 +161,14 @@ export function ModelFilterPanel({
         />
       </PickerScrollBody>
 
-      <PickerMobileChrome><button
+      {!keyboardOpen && <button
         type="button"
         disabled={disabled || !hasAnyFilter}
         onClick={clearAllFilters}
         className="w-full shrink-0 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-error px-3 py-2 border-t border-chatroom-border text-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Reset All
-      </button></PickerMobileChrome>
+      </button>}
     </>
   );
 
@@ -179,7 +180,6 @@ export function ModelFilterPanel({
       title="Model Visibility"
       align="end"
       contentClassName={MODEL_PICKER_PANEL_WIDTH}
-      drawerContentClassName="flex flex-col min-h-0 overflow-hidden"
       disabled={disabled}
     >
       {panelContent}

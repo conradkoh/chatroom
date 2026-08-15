@@ -16,6 +16,7 @@ export {
 export { usePickerSearchState } from './usePickerSearchState';
 export { PickerMobileChrome } from './PickerMobileChrome';
 export { usePickerShell } from './PickerShellContext';
+export { useMobilePickerKeyboardOpen } from './useMobilePickerKeyboardOpen';
 export { MobileKeyboardDrawer } from './MobileKeyboardDrawer';
 export type { MobileKeyboardDrawerProps } from './MobileKeyboardDrawer';
 export { filterPickerItems } from './filterPickerItems';

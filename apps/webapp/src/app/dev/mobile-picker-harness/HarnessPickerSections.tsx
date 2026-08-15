@@ -2,11 +2,11 @@
 
 import {
   PickerOptionRow,
-  PickerMobileChrome,
   PickerPanelHeader,
   PickerScrollBody,
   PickerSearch,
   ResponsivePickerShell,
+  useMobilePickerKeyboardOpen,
 } from '@/modules/chatroom/components/picker';
 
 const MODELS = Array.from(
@@ -77,6 +77,7 @@ export function FilterPickerSection({
   search,
   onSearchChange,
 }: FilterPickerSectionProps) {
+  const keyboardOpen = useMobilePickerKeyboardOpen(open);
   const models = MODELS.filter((m) =>
     search.trim() ? m.toLowerCase().includes(search.toLowerCase()) : true
   );
@@ -98,7 +99,7 @@ export function FilterPickerSection({
           </button>
         }
       >
-        <PickerMobileChrome><PickerPanelHeader title="Model Visibility" className="shrink-0" /></PickerMobileChrome>
+        {!keyboardOpen && <PickerPanelHeader title="Model Visibility" className="shrink-0" />}
         <PickerSearch value={search} onChange={onSearchChange} placeholder="Search models..." />
         <PickerScrollBody maxHeightClassName="max-h-[576px]">
           {models.map((model, index) => (
@@ -110,9 +111,9 @@ export function FilterPickerSection({
             </div>
           ))}
         </PickerScrollBody>
-        <PickerMobileChrome><button type="button" className="w-full shrink-0 border-t px-3 py-2 text-xs">
+        {!keyboardOpen && <button type="button" className="w-full shrink-0 border-t px-3 py-2 text-xs">
           Reset All
-        </button></PickerMobileChrome>
+        </button>}
       </ResponsivePickerShell>
     </section>
   );

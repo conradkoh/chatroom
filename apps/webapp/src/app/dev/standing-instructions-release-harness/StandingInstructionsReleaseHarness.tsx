@@ -11,7 +11,7 @@ import {
 } from '@/hooks/useMobileKeyboard';
 import {
   PickerOptionRow,
-  PickerMobileChrome,
+  useMobilePickerKeyboardOpen,
   PickerPanelHeader,
   PickerScrollBody,
   PickerSearch,
@@ -202,6 +202,7 @@ function HistoryFullPicker(props: {
   items: HistoryItem[];
   onSelect: (item: HistoryItem) => void;
 }) {
+  const keyboardOpen = useMobilePickerKeyboardOpen(props.open);
   const { open, onOpenChange, items, onSelect } = props;
   const { searchTerm, setSearchTerm, handleOpenChange } = usePickerSearchState(onOpenChange);
   const filtered = filterPickerItems(items, searchTerm, (item) => item.content);
@@ -215,7 +216,7 @@ function HistoryFullPicker(props: {
       contentClassName="w-72 p-0"
       trigger={<span className="sr-only">Standing instruction history</span>}
     >
-      <PickerMobileChrome><PickerPanelHeader title="Standing instruction history" /></PickerMobileChrome>
+      {!keyboardOpen && <PickerPanelHeader title="Standing instruction history" />}
       <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search history…" />
       <PickerScrollBody>
         {filtered.length === 0 ? (
@@ -452,6 +453,7 @@ export function StandingInstructionsReleaseHarness() {
   const [draft, setDraft] = useState('');
   const [historyPickerOpen, setHistoryPickerOpen] = useState(false);
   const [lastAction, setLastAction] = useState<string | null>(null);
+  const keyboardOpen = useMobilePickerKeyboardOpen(actionsOpen);
 
   const handleConfirm = () => {
     setEditing(false);
@@ -568,7 +570,7 @@ export function StandingInstructionsReleaseHarness() {
             </button>
           }
         >
-          <PickerMobileChrome><PickerPanelHeader title="Standing instructions" /></PickerMobileChrome>
+          {!keyboardOpen && <PickerPanelHeader title="Standing instructions" />}
           <PickerScrollBody>
             <PickerOptionRow
               selected={false}
