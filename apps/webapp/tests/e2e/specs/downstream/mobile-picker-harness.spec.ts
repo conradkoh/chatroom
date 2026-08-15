@@ -70,6 +70,10 @@ test('simulated keyboard inset sets maxHeight and keeps scroll body usable', asy
 
   const drawer = page.locator('[data-slot="drawer-content"]');
   await expect.poll(async () => drawer.evaluate((el) => el.style.maxHeight)).toContain('300px');
+  const popup = page.locator('[data-slot="drawer-popup"]');
+  await expect.poll(async () => popup.evaluate((el) => el.style.top)).not.toBe('');
+  await expect(popup).toHaveCSS('bottom', 'auto');
+  await expect.poll(async () => popup.evaluate((el) => el.style.maxHeight)).toContain('300px');
   const style = await drawer.evaluate((el) => ({
     paddingBottom: el.style.paddingBottom,
     maxHeight: el.style.maxHeight,
