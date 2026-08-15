@@ -660,7 +660,7 @@ export const getActiveTask = query({
       .first();
 
     if (inProgress) {
-      return inProgress;
+      return withMarkdownContent(inProgress);
     }
 
     // Then check for pending
@@ -671,7 +671,7 @@ export const getActiveTask = query({
       )
       .first();
 
-    return pending || null;
+    return pending ? withMarkdownContent(pending) : null;
   },
 });
 
@@ -1028,7 +1028,7 @@ export const getPendingTasksForRole = query({
           if (task.sourceMessageId) {
             message = await ctx.db.get('chatroom_messages', task.sourceMessageId);
           }
-          return { task, message };
+          return { task: withMarkdownContent(task), message };
         })
       );
 
