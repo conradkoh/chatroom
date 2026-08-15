@@ -1,6 +1,6 @@
 import { Editor } from '@tiptap/core';
 
-import { createMarkdownEditorExtensions } from './markdownEditorExtensions';
+import { createMarkdownEditorExtensions } from '../extensions/markdownEditorExtensions';
 
 const LEGACY_HTML_TAG_PATTERN =
   /<\/?(?:p|div|span|strong|em|b|i|a|br|h[1-6]|ul|ol|li|table|tr|td|th|blockquote|pre|code)\b[^>]*>/i;

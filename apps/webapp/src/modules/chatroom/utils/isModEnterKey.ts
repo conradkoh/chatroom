@@ -1,1 +1,1 @@
-export { isModEnterKey } from '@/components/markdown-editor/handleModEnter';
+export { isModEnterKey } from '@/components/markdown-editor/utils/handleModEnter';

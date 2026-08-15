@@ -24,13 +24,15 @@ describe('getMobileDrawerContentStyle', () => {
     expect(style.maxHeight).toBeUndefined();
   });
 
-  it('sets height without top positioning when keyboard open and offsetTop is 0', () => {
+  it('top-anchors drawer when keyboard open and offsetTop is 0', () => {
     const style = getMobileDrawerContentStyle(300, 0);
     expect(style.maxHeight).toContain('300px');
     expect(style.maxHeight).not.toContain('120px');
-    expect(style.top).toBeUndefined();
-    expect(style.marginTop).toBeUndefined();
-    expect(style.bottom).toBeUndefined();
+    expect(style.top).toContain('safe-area-inset-top');
+    expect(style.marginTop).toBe(0);
+    expect(style.bottom).toBe('auto');
+    expect((style as Record<string, string>)['--translate-y']).toBe('0px');
+    expect(style.overflow).toBe('hidden');
   });
 
   it('top-anchors drawer and subtracts offsetTop from height when keyboard open', () => {
@@ -42,5 +44,6 @@ describe('getMobileDrawerContentStyle', () => {
     expect(style.maxHeight).toContain('120px');
     expect(style.height).toBe(style.maxHeight);
     expect(style.overflow).toBe('hidden');
+    expect((style as Record<string, string>)['--translate-y']).toBe('0px');
   });
 });

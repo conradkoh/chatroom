@@ -1,6 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useMarkdownEditor } from './useMarkdownEditor';
+
 const mockSetContent = vi.fn();
 let captured: Record<string, unknown> | undefined;
 let mockGetMarkdown = vi.fn(() => '');
@@ -18,10 +20,12 @@ vi.mock('@tiptap/react', () => ({
   },
 }));
 
-import { useMarkdownEditor } from './useMarkdownEditor';
-
 describe('useMarkdownEditor', () => {
-  beforeEach(() => { vi.clearAllMocks(); captured = undefined; mockGetMarkdown = vi.fn(() => ''); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    captured = undefined;
+    mockGetMarkdown = vi.fn(() => '');
+  });
 
   it('initializes editor with normalized markdown', () => {
     renderHook(() => useMarkdownEditor({ content: '<p>Legacy</p>', onUpdate: vi.fn() }));
@@ -37,7 +41,10 @@ describe('useMarkdownEditor', () => {
 
   it('syncs external content changes', async () => {
     mockGetMarkdown = vi.fn(() => 'Old');
-    const { rerender } = renderHook(({ content }) => useMarkdownEditor({ content, onUpdate: vi.fn() }), { initialProps: { content: 'Old' } });
+    const { rerender } = renderHook(
+      ({ content }) => useMarkdownEditor({ content, onUpdate: vi.fn() }),
+      { initialProps: { content: 'Old' } }
+    );
     mockGetMarkdown = vi.fn(() => 'Old');
     rerender({ content: '<p>New</p>' });
     await waitFor(() => expect(mockSetContent).toHaveBeenCalledWith('New', expect.anything()));

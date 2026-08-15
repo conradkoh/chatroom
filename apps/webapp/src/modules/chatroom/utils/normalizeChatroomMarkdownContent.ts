@@ -1,6 +1,6 @@
 import { HANDOFF_XML_TAGS } from './handoffXmlTags';
 
-import { normalizeMarkdownContent } from '@/components/markdown-editor/normalizeMarkdownContent';
+import { normalizeMarkdownContent } from '@/components/markdown-editor/utils/normalizeMarkdownContent';
 
 const HANDOFF_XML_TAG_PATTERN = new RegExp('</?(?:' + HANDOFF_XML_TAGS.join('|') + ')\\b', 'i');
 

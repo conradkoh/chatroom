@@ -9,7 +9,7 @@ import { SyntaxHighlighter } from '../workspace/file-renderers/SyntaxHighlighter
 import { parseFileLocation } from '../workspace/utils/fileLocation';
 import { isWorkspaceFileLink, looksLikeWorkspacePath } from '../workspace/utils/workspaceFileLink';
 
-import { isEmptyParagraphChildren } from '@/components/markdown-editor/emptyParagraph';
+import { isEmptyParagraphChildren } from '@/components/markdown-editor/utils/emptyParagraph';
 
 // Lazy load MermaidBlock to avoid bundling mermaid in the main chunk
 const MermaidBlock = lazy(() =>

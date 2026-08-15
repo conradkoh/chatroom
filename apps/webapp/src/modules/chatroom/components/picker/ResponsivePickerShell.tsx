@@ -7,6 +7,7 @@ import {
   DESKTOP_PICKER_CHILDREN_WRAPPER_CLASSNAME,
   MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME,
   MOBILE_DRAWER_CONTENT_CLASSNAME,
+  MOBILE_DRAWER_POPUP_CLASSNAME,
 } from './mobileDrawerLayout';
 import { useOverlayPortalContainer } from '../shared/overlayPortalContainer';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -181,6 +182,7 @@ export function ResponsivePickerShell({
     >
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
       <DrawerContent
+        popupClassName={MOBILE_DRAWER_POPUP_CLASSNAME}
         className={cn(MOBILE_DRAWER_CONTENT_CLASSNAME, drawerContentClassName)}
         style={getMobileDrawerContentStyle(keyboardInsetPx, viewportOffsetTopPx)}
       >

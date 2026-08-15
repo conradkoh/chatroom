@@ -15,14 +15,21 @@ import {
 } from 'lucide-react';
 import { useCallback, useState, type ReactNode } from 'react';
 
+import type { MarkdownContentNormalizer } from '../types';
+import { getNormalizedEditorMarkdown } from '../utils/getNormalizedEditorMarkdown';
+
 import { cn } from '@/lib/utils';
-import { getNormalizedEditorMarkdown } from './getNormalizedEditorMarkdown';
-import type { MarkdownContentNormalizer } from './types';
 
 const toolbarButtonClass =
   'flex items-center justify-center w-7 h-7 cursor-pointer text-muted-foreground hover:text-foreground hover:bg-muted transition-colors outline-none focus:outline-none focus-visible:outline-none';
 const activeButtonClass = 'bg-muted text-foreground';
-export function MarkdownToolbar({ editor, normalizeContent }: { editor: Editor | null; normalizeContent?: MarkdownContentNormalizer }) {
+export function MarkdownToolbar({
+  editor,
+  normalizeContent,
+}: {
+  editor: Editor | null;
+  normalizeContent?: MarkdownContentNormalizer;
+}) {
   const [copied, setCopied] = useState(false);
   const copyMarkdown = useCallback(async () => {
     if (!editor) return;

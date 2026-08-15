@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Components } from 'react-markdown';
 
-import { isEmptyParagraphChildren } from './emptyParagraph';
+import { isEmptyParagraphChildren } from '../utils/emptyParagraph';
 
 interface HeadingProps {
   children?: ReactNode;

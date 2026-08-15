@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { htmlToMarkdown, looksLikeHtml, normalizeMarkdownContent, stripHtmlTags } from './normalizeMarkdownContent';
+
+import {
+  htmlToMarkdown,
+  looksLikeHtml,
+  normalizeMarkdownContent,
+  stripHtmlTags,
+} from './normalizeMarkdownContent';
+
 describe('normalizeMarkdownContent', () => {
   it('detects legacy html fragments but excludes structured and fenced content', () => {
     expect(looksLikeHtml('<p>Hello <strong>world</strong></p>')).toBe(true);
