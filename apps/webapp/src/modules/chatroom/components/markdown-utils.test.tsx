@@ -9,6 +9,7 @@ import {
   modalMarkdownComponents,
   messageFeedProseClassNames,
 } from './markdown-utils';
+import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { WorkspaceFileLinkProvider } from '../context/WorkspaceFileLinkContext';
 import { MarkdownRenderer } from '../workspace/file-renderers/MarkdownRenderer';
 
@@ -64,12 +65,14 @@ describe('markdown workspace links', () => {
 describe('modal markdown spacing', () => {
   it('renders nbsp spacer paragraphs around code blocks in modal preview', () => {
     const markdown =
-      'This is some content!\n\n&amp;nbsp;\n\n```txt\nasdasd\nasdsad\n```\n\n&amp;nbsp;\n';
+      'This is some content!\n\n&nbsp;\n\n```txt\nasdasd\nasdsad\n```\n\n&nbsp;\n';
     const { container } = render(
-      <Markdown components={modalMarkdownComponents}>{markdown}</Markdown>
+      <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
+        {markdown}
+      </Markdown>
     );
 
-    expect(container.querySelectorAll('p').length).toBeGreaterThanOrEqual(3);
+    expect(container.querySelectorAll('p.min-h-\\[1\\.5em\\][aria-hidden="true"]')).toHaveLength(2);
     expect(screen.getByText('This is some content!')).toBeInTheDocument();
   });
 });
