@@ -61,4 +61,14 @@ describe('MarkdownViewer', () => {
     expect(screen.getByText('This is some content')).toBeInTheDocument();
     expect(screen.getByText('abc')).toBeInTheDocument();
   });
+
+  it('renders blank lines around fenced code blocks from nbsp paragraphs', () => {
+    const markdown =
+      'This is some content!\n\n&amp;nbsp;\n\n```txt\nasdasd\nasdsad\n```\n\n&amp;nbsp;\n';
+    const { container } = render(<MarkdownViewer markdown={markdown} />);
+
+    expect(container.querySelectorAll('p').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByText('This is some content!')).toBeInTheDocument();
+    expect(container.querySelector('code')).toHaveTextContent('asdasd');
+  });
 });

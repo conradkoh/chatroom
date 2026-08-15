@@ -6,6 +6,7 @@ import {
   backlogProseClassNames,
   backlogRichTextEditorProseClassNames,
   fullMarkdownComponents,
+  modalMarkdownComponents,
   messageFeedProseClassNames,
 } from './markdown-utils';
 import { WorkspaceFileLinkProvider } from '../context/WorkspaceFileLinkContext';
@@ -57,5 +58,18 @@ describe('markdown workspace links', () => {
     );
 
     expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+});
+
+describe('modal markdown spacing', () => {
+  it('renders nbsp spacer paragraphs around code blocks in modal preview', () => {
+    const markdown =
+      'This is some content!\n\n&amp;nbsp;\n\n```txt\nasdasd\nasdsad\n```\n\n&amp;nbsp;\n';
+    const { container } = render(
+      <Markdown components={modalMarkdownComponents}>{markdown}</Markdown>
+    );
+
+    expect(container.querySelectorAll('p').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByText('This is some content!')).toBeInTheDocument();
   });
 });
