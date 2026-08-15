@@ -142,7 +142,7 @@ function DrawerSwipeHandle({ className, ...props }: React.ComponentProps<'div'>)
   );
 }
 
-function DrawerContent({ className, children, style, ...props }: DrawerPrimitive.Popup.Props) {
+function DrawerContent({ className, popupClassName, children, style, ...props }: DrawerPrimitive.Popup.Props & { popupClassName?: string }) {
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection, container } = useDrawer();
   const swipeAxis = swipeDirection === 'down' || swipeDirection === 'up' ? 'y' : 'x';
   const { popupStyle, contentStyle } = splitDrawerContentStyle(typeof style === 'function' ? undefined : style);
@@ -162,6 +162,7 @@ function DrawerContent({ className, children, style, ...props }: DrawerPrimitive
           className={cn(
             // Base.
             'group/drawer-popup pointer-events-auto fixed z-50 m-(--drawer-inset,0px) flex h-(--drawer-content-height) max-h-(--drawer-content-max-height,none) min-h-0 w-(--drawer-content-width,auto) transform-[translate3d(var(--translate-x,0px),var(--translate-y,0px),0)_scale(var(--stack-scale))] flex-col bg-popover text-sm text-popover-foreground transition-[transform,height,opacity,filter] duration-450 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform outline-none select-none [interpolate-size:allow-keywords] data-[swipe-direction=down]:rounded-t-xl data-[swipe-direction=down]:border-t data-[swipe-direction=left]:rounded-r-xl data-[swipe-direction=left]:border-r data-[swipe-direction=right]:rounded-l-xl data-[swipe-direction=right]:border-l data-[swipe-direction=up]:rounded-b-xl data-[swipe-direction=up]:border-b',
+            'data-[swipe-axis=y]:overflow-hidden',
             // Nested.
             'data-nested-drawer-open:overflow-hidden data-nested-drawer-open:brightness-95',
             // Bleed.
@@ -195,7 +196,7 @@ function DrawerContent({ className, children, style, ...props }: DrawerPrimitive
             style={contentStyle}
             className={cn(
               'flex min-h-0 flex-1 flex-col overflow-hidden overscroll-contain rounded-[inherit] transition-opacity duration-300 ease-[cubic-bezier(0.45,1.005,0,1.005)] select-text group-data-nested-drawer-open/drawer-popup:opacity-0 group-data-nested-drawer-swiping/drawer-popup:opacity-100 group-data-swiping/drawer-popup:select-none',
-              className
+            popupClassName,
             )}
           >
             {children}
@@ -212,7 +213,7 @@ function DrawerHeader({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot="drawer-header"
       className={cn(
         'flex shrink-0 flex-col gap-0.5 p-4 pb-0 group-data-[swipe-axis=y]/drawer-popup:text-center md:gap-1.5 md:text-left',
-        className
+              className
       )}
       {...props}
     />

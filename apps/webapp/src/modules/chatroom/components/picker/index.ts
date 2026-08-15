@@ -12,6 +12,7 @@ export { getMobileDrawerContentStyle } from './getMobileDrawerContentStyle';
 export {
   MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME,
   MOBILE_DRAWER_CONTENT_CLASSNAME,
+  MOBILE_DRAWER_POPUP_CLASSNAME,
 } from './mobileDrawerLayout';
 export { usePickerSearchState } from './usePickerSearchState';
 export { PickerMobileChrome } from './PickerMobileChrome';
