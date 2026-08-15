@@ -9,6 +9,8 @@ import { SyntaxHighlighter } from '../workspace/file-renderers/SyntaxHighlighter
 import { parseFileLocation } from '../workspace/utils/fileLocation';
 import { isWorkspaceFileLink, looksLikeWorkspacePath } from '../workspace/utils/workspaceFileLink';
 
+import { isEmptyParagraphChildren } from '@/components/markdown-editor/emptyParagraph';
+
 // Lazy load MermaidBlock to avoid bundling mermaid in the main chunk
 const MermaidBlock = lazy(() =>
   import('./MermaidBlock').then((m) => ({ default: m.MermaidBlock }))
@@ -435,6 +437,14 @@ export const fullMarkdownComponents = {
  */
 export const modalMarkdownComponents = {
   a: MarkdownLink,
+  p: ({ children }: { children?: React.ReactNode }) =>
+    isEmptyParagraphChildren(children) ? (
+      <p className="my-2 min-h-[1.5em]" aria-hidden="true">
+        {'\u00A0'}
+      </p>
+    ) : (
+      <p className="my-2">{children}</p>
+    ),
   code: ({ children, className }: { children?: React.ReactNode; className?: string }) => (
     <InlineCodeOrWorkspaceLink className={className} children={children} />
   ),

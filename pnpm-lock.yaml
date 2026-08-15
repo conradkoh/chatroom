@@ -158,7 +158,7 @@ importers:
         version: 2.1.15(react@19.2.7)
       '@mdx-js/loader':
         specifier: ^3.1.0
-        version: 3.1.0(acorn@8.15.0)(webpack@5.109.2(lightningcss@1.32.0))
+        version: 3.1.0(acorn@8.18.0)(webpack@5.109.2(lightningcss@1.32.0))
       '@sentry/nextjs':
         specifier: ^10.57.0
         version: 10.70.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))(next@16.3.0(@babel/core@7.28.5)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@20.17.32)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(webpack@5.109.2(lightningcss@1.32.0))
@@ -168,6 +168,9 @@ importers:
       '@tiptap/extension-link':
         specifier: ^3.29.0
         version: 3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1)
+      '@tiptap/extension-paragraph':
+        specifier: 3.30.1
+        version: 3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))
       '@tiptap/extension-placeholder':
         specifier: ^3.29.0
         version: 3.30.1(@tiptap/extensions@3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1))
@@ -282,7 +285,7 @@ importers:
         version: 3.1.0(@types/react@19.2.17)(react@19.2.7)
       '@next/mdx':
         specifier: 16.3.0
-        version: 16.3.0(@mdx-js/loader@3.1.0(acorn@8.15.0)(webpack@5.109.2(lightningcss@1.32.0)))(@mdx-js/react@3.1.0(@types/react@19.2.17)(react@19.2.7))
+        version: 16.3.0(@mdx-js/loader@3.1.0(acorn@8.18.0)(webpack@5.109.2(lightningcss@1.32.0)))(@mdx-js/react@3.1.0(@types/react@19.2.17)(react@19.2.7))
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.62.1
@@ -9392,9 +9395,9 @@ snapshots:
       '@mariozechner/clipboard-win32-x64-msvc': 0.3.9
     optional: true
 
-  '@mdx-js/loader@3.1.0(acorn@8.15.0)(webpack@5.109.2(lightningcss@1.32.0))':
+  '@mdx-js/loader@3.1.0(acorn@8.18.0)(webpack@5.109.2(lightningcss@1.32.0))':
     dependencies:
-      '@mdx-js/mdx': 3.1.0(acorn@8.15.0)
+      '@mdx-js/mdx': 3.1.0(acorn@8.18.0)
       source-map: 0.7.6
     optionalDependencies:
       webpack: 5.109.2(lightningcss@1.32.0)
@@ -9402,7 +9405,7 @@ snapshots:
       - acorn
       - supports-color
 
-  '@mdx-js/mdx@3.1.0(acorn@8.15.0)':
+  '@mdx-js/mdx@3.1.0(acorn@8.18.0)':
     dependencies:
       '@types/estree': 1.0.8
       '@types/estree-jsx': 1.0.5
@@ -9416,7 +9419,7 @@ snapshots:
       hast-util-to-jsx-runtime: 2.3.6
       markdown-extensions: 2.0.0
       recma-build-jsx: 1.0.0
-      recma-jsx: 1.0.1(acorn@8.15.0)
+      recma-jsx: 1.0.1(acorn@8.18.0)
       recma-stringify: 1.0.0
       rehype-recma: 1.0.0
       remark-mdx: 3.1.0
@@ -9490,11 +9493,11 @@ snapshots:
     transitivePeerDependencies:
       - eslint
 
-  '@next/mdx@16.3.0(@mdx-js/loader@3.1.0(acorn@8.15.0)(webpack@5.109.2(lightningcss@1.32.0)))(@mdx-js/react@3.1.0(@types/react@19.2.17)(react@19.2.7))':
+  '@next/mdx@16.3.0(@mdx-js/loader@3.1.0(acorn@8.18.0)(webpack@5.109.2(lightningcss@1.32.0)))(@mdx-js/react@3.1.0(@types/react@19.2.17)(react@19.2.7))':
     dependencies:
       source-map: 0.7.6
     optionalDependencies:
-      '@mdx-js/loader': 3.1.0(acorn@8.15.0)(webpack@5.109.2(lightningcss@1.32.0))
+      '@mdx-js/loader': 3.1.0(acorn@8.18.0)(webpack@5.109.2(lightningcss@1.32.0))
       '@mdx-js/react': 3.1.0(@types/react@19.2.17)(react@19.2.7)
 
   '@next/swc-darwin-arm64@16.3.0':
@@ -11335,6 +11338,10 @@ snapshots:
   acorn-jsx@5.3.2(acorn@8.15.0):
     dependencies:
       acorn: 8.15.0
+
+  acorn-jsx@5.3.2(acorn@8.18.0):
+    dependencies:
+      acorn: 8.18.0
 
   acorn@8.14.1: {}
 
@@ -14927,10 +14934,10 @@ snapshots:
       estree-util-build-jsx: 3.0.1
       vfile: 6.0.3
 
-  recma-jsx@1.0.1(acorn@8.15.0):
+  recma-jsx@1.0.1(acorn@8.18.0):
     dependencies:
-      acorn: 8.15.0
-      acorn-jsx: 5.3.2(acorn@8.15.0)
+      acorn: 8.18.0
+      acorn-jsx: 5.3.2(acorn@8.18.0)
       estree-util-to-js: 2.0.0
       recma-parse: 1.0.0
       recma-stringify: 1.0.0
@@ -15670,7 +15677,7 @@ snapshots:
   terser@5.50.0:
     dependencies:
       '@jridgewell/source-map': 0.3.11
-      acorn: 8.15.0
+      acorn: 8.18.0
       commander: 2.20.3
       source-map-support: 0.5.21
 
@@ -16118,7 +16125,7 @@ snapshots:
 
   webpack@5.109.2(lightningcss@1.32.0):
     dependencies:
-      '@types/estree': 1.0.8
+      '@types/estree': 1.0.9
       '@types/json-schema': 7.0.15
       '@webassemblyjs/ast': 1.14.1
       '@webassemblyjs/wasm-edit': 1.14.1

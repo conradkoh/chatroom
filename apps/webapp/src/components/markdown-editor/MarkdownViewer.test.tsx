@@ -52,4 +52,13 @@ describe('MarkdownViewer', () => {
     expect(screen.getByText('A1')).toBeInTheDocument();
     expect(screen.getByText('B1')).toBeInTheDocument();
   });
+
+  it('renders blank lines from nbsp empty paragraphs', () => {
+    const { container } = render(
+      <MarkdownViewer markdown={'This is some content\n\n&amp;nbsp;\n\nabc'} />
+    );
+    expect(container.querySelectorAll('p').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByText('This is some content')).toBeInTheDocument();
+    expect(screen.getByText('abc')).toBeInTheDocument();
+  });
 });
