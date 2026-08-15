@@ -20,7 +20,7 @@ import { getNormalizedEditorMarkdown } from './getNormalizedEditorMarkdown';
 import type { MarkdownContentNormalizer } from './types';
 
 const toolbarButtonClass =
-  'flex items-center justify-center w-7 h-7 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors outline-none focus:outline-none focus-visible:outline-none';
+  'flex items-center justify-center w-7 h-7 cursor-pointer text-muted-foreground hover:text-foreground hover:bg-muted transition-colors outline-none focus:outline-none focus-visible:outline-none';
 const activeButtonClass = 'bg-muted text-foreground';
 export function MarkdownToolbar({ editor, normalizeContent }: { editor: Editor | null; normalizeContent?: MarkdownContentNormalizer }) {
   const [copied, setCopied] = useState(false);
