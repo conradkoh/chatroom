@@ -3,10 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { EnhancerConfigForm } from './EnhancerConfigForm';
-import {
-  getMobileDrawerContentStyle,
-  MOBILE_DRAWER_CONTENT_CLASSNAME,
-} from '../../../components/picker';
+import { MobileKeyboardDrawer } from '../../../components/picker';
 import {
   Dialog,
   DialogContent,
@@ -24,12 +21,7 @@ import {
 } from '../types/enhancerConfigEntry';
 import type { EnhancerConfigEntry } from '../types/enhancerConfigEntry';
 
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import {
-  useVisualViewportKeyboardInset,
-  useVisualViewportOffsetTop,
-} from '@/hooks/useMobileKeyboard';
 
 interface EnhancerConfigDialogProps {
   open: boolean;
@@ -58,9 +50,6 @@ export function EnhancerConfigDialog({
   onMoveFavorite,
 }: EnhancerConfigDialogProps) {
   const isDesktop = useIsDesktop();
-  const mobileActive = open && !isDesktop;
-  const keyboardInsetPx = useVisualViewportKeyboardInset(mobileActive);
-  const viewportOffsetTopPx = useVisualViewportOffsetTop(mobileActive);
 
   const [targetId, setTargetId] = useState<string>(
     initialConfig?.targetId ?? ENHANCER_TARGETS[0].id
@@ -170,15 +159,7 @@ export function EnhancerConfigDialog({
 
   if (!isDesktop) {
     return (
-      <Drawer open={open} onOpenChange={handleOpenChange} repositionInputs={false} handleOnly>
-        <DrawerContent
-          className={MOBILE_DRAWER_CONTENT_CLASSNAME}
-          style={getMobileDrawerContentStyle(keyboardInsetPx, viewportOffsetTopPx)}
-        >
-          <DrawerHeader className="p-0 shrink-0">
-            <DrawerTitle className="sr-only">Enhancer configuration</DrawerTitle>
-          </DrawerHeader>
-          <div className="flex flex-col min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+      <MobileKeyboardDrawer open={open} onOpenChange={handleOpenChange} title="Enhancer configuration" headerClassName="p-0" contentClassName="px-4 pb-4">
             <h2 className="text-base font-semibold text-chatroom-text-primary mb-1">
               Enhancer configuration
             </h2>
@@ -186,9 +167,7 @@ export function EnhancerConfigDialog({
               Choose a planning review target and which enhancer model to use.
             </p>
             {form}
-          </div>
-        </DrawerContent>
-      </Drawer>
+      </MobileKeyboardDrawer>
     );
   }
 
