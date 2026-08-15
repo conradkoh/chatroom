@@ -45,6 +45,7 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
+import { reserializeMarkdownBlankLines } from '@/components/markdown-editor/utils/reserializeMarkdownBlankLines';
 
 interface BacklogItemDetailModalProps {
   isOpen: boolean;
@@ -117,7 +118,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
       await updateItem({
         chatroomId: item.chatroomId,
         itemId: item._id,
-        content: editedContent.trim(),
+        content: reserializeMarkdownBlankLines(editedContent),
       });
       setIsEditing(false);
       setInitialClickCoords(null);
