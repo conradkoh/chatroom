@@ -8,6 +8,7 @@
 
 import type { Doc, Id, TableNames } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
+import { normalizeMarkdownContent } from '../../entities/markdown-content';
 
 export type TaskSourceAttachments = {
   attachedTasks?: { _id: string; content: string; status: string }[];
@@ -72,7 +73,7 @@ async function fetchAttachedBacklogItems(
     sourceMessage?.attachedBacklogItemIds,
     (item) => ({
       id: item._id,
-      content: item.content,
+      content: normalizeMarkdownContent(item.content),
       status: item.status,
     })
   );
@@ -93,7 +94,7 @@ async function fetchAttachedTasks(
   const sourceMessage = await getSourceMessage(ctx, task);
   return fetchAttachedDocs(ctx, 'chatroom_tasks', sourceMessage?.attachedTaskIds, (attached) => ({
     _id: attached._id,
-    content: attached.content,
+    content: normalizeMarkdownContent(attached.content),
     status: attached.status,
   }));
 }

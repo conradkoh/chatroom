@@ -19,7 +19,7 @@ import {
   createTask as createTaskUsecase,
   hasActiveTaskFromMaterializedCounts,
 } from '../src/domain/usecase/task/create-task';
-import { normalizeMarkdownContent } from '../src/domain/entities/markdown-content';
+import { normalizeMarkdownContent, withMarkdownContent } from '../src/domain/entities/markdown-content';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { canPromote } from './lib/promoteNextTaskDeps';
@@ -555,10 +555,10 @@ export const listTasks = query({
     // Enrich tasks with source message attachments where available
     return Promise.all(
       limited.map(async (task) => {
-        if (!task.sourceMessageId) return task;
+        if (!task.sourceMessageId) return withMarkdownContent(task);
         const attachments = await fetchTaskSourceAttachments(ctx, task);
-        if (Object.keys(attachments).length === 0) return task;
-        return { ...task, ...attachments };
+        if (Object.keys(attachments).length === 0) return withMarkdownContent(task);
+        return { ...withMarkdownContent(task), ...attachments };
       })
     );
   },
@@ -603,10 +603,10 @@ export const listActiveTasks = query({
 
     // Apply limit if specified
     if (args.limit) {
-      return tasks.slice(0, args.limit);
+      return tasks.slice(0, args.limit).map(withMarkdownContent);
     }
 
-    return tasks;
+    return tasks.map(withMarkdownContent);
   },
 });
 
@@ -634,10 +634,10 @@ export const listArchivedTasks = query({
 
     // Apply limit if specified
     if (args.limit) {
-      return tasks.slice(0, args.limit);
+      return tasks.slice(0, args.limit).map(withMarkdownContent);
     }
 
-    return tasks;
+    return tasks.map(withMarkdownContent);
   },
 });
 
@@ -1179,6 +1179,6 @@ export const listHistoricalTasks = query({
     });
 
     const limit = args.limit ? Math.min(args.limit, MAX_TASK_LIST_LIMIT) : MAX_TASK_LIST_LIMIT;
-    return tasks.slice(0, limit);
+    return tasks.slice(0, limit).map(withMarkdownContent);
   },
 });

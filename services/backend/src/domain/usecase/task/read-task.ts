@@ -28,6 +28,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { loadCurrentContext } from '../context/load-current-context';
+import { normalizeMarkdownContent } from '../../entities/markdown-content';
 
 // ============================================================================
 // TYPES
@@ -163,7 +164,7 @@ async function buildReadTaskResult(
   const attachments = await fetchTaskSourceAttachments(ctx, task);
   return {
     taskId,
-    content: task.content,
+    content: normalizeMarkdownContent(task.content),
     status: 'in_progress',
     ...(context && { context }),
     ...attachments,
