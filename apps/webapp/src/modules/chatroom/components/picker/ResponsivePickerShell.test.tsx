@@ -187,8 +187,11 @@ describe('ResponsivePickerShell', () => {
     mockUseKeyboardInset.mockReturnValue(120);
     renderShell();
 
+    const drawerPopup = document.querySelector('[data-slot="drawer-popup"]') as HTMLElement;
+    expect(drawerPopup?.getAttribute('style')).toContain('120px');
     const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
-    expect(drawerContent?.getAttribute('style')).toContain('120px');
+    expect(drawerContent?.getAttribute('style')).toContain('safe-area-inset-bottom');
+    expect(drawerContent?.getAttribute('style')).not.toContain('120px');
   });
 
   it('top-anchors mobile drawer when keyboard inset and viewport offsetTop are non-zero', () => {
@@ -197,7 +200,7 @@ describe('ResponsivePickerShell', () => {
     mockUseOffsetTop.mockReturnValue(80);
     renderShell();
 
-    const drawerContent = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
+    const drawerContent = document.querySelector('[data-slot="drawer-popup"]') as HTMLElement;
     const style = drawerContent?.getAttribute('style') ?? '';
     expect(style).toContain('top');
     expect(style).toMatch(/margin-top:\s*0|marginTop:\s*0/);

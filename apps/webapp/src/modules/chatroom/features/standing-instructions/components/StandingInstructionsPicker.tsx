@@ -15,20 +15,13 @@ import {
   isSyntheticCurrentItem,
   type PickerListItem,
 } from './standingInstructionsPickerUtils';
-import {
-  getMobileDrawerContentStyle,
-  MOBILE_DRAWER_CONTENT_CLASSNAME,
-} from '../../../components/picker';
+import { MobileKeyboardDrawer } from '../../../components/picker';
 import { chatroomIndustrialDialogTitleClassName } from '../../../components/shared/industrialDialogStyles';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import type { StandingInstructionHistoryItem } from '../types/standingInstructionHistory';
 
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { DrawerTitle } from '@/components/ui/drawer';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
-import {
-  useVisualViewportKeyboardInset,
-  useVisualViewportOffsetTop,
-} from '@/hooks/useMobileKeyboard';
 import { cn } from '@/lib/utils';
 
 export interface StandingInstructionsPickerProps {
@@ -65,9 +58,6 @@ export function StandingInstructionsPicker({
   onDeleteItem,
 }: StandingInstructionsPickerProps) {
   const isDesktop = useIsDesktop();
-  const mobileActive = open && !isDesktop;
-  const keyboardInsetPx = useVisualViewportKeyboardInset(mobileActive);
-  const viewportOffsetTopPx = useVisualViewportOffsetTop(mobileActive);
 
   const { visible, activeId, hasMore } = buildStandingInstructionsPickerList({
     history,
@@ -236,19 +226,14 @@ export function StandingInstructionsPicker({
 
   if (!isDesktop) {
     return (
-      <Drawer
+      <MobileKeyboardDrawer
         open={open}
+        title="Standing instructions"
         onOpenChange={(nextOpen) => {
           if (!nextOpen) onOpenChange(false);
         }}
-        repositionInputs={false}
-        handleOnly
-      >
-        <DrawerContent
-          className={MOBILE_DRAWER_CONTENT_CLASSNAME}
-          style={getMobileDrawerContentStyle(keyboardInsetPx, viewportOffsetTopPx)}
-        >
-          <DrawerHeader className="px-4 pt-4 pb-2 shrink-0">
+        headerClassName="px-4 pt-4 pb-2"
+        header={
             <div className="flex items-center justify-between gap-2">
               <DrawerTitle
                 className={cn(chatroomIndustrialDialogTitleClassName, 'min-w-0 leading-tight')}
@@ -257,10 +242,8 @@ export function StandingInstructionsPicker({
               </DrawerTitle>
               {viewMoreButton}
             </div>
-          </DrawerHeader>
-          <div className="flex flex-col min-h-0 flex-1 overflow-y-auto">{content}</div>
-        </DrawerContent>
-      </Drawer>
+        }
+      >{content}</MobileKeyboardDrawer>
     );
   }
 

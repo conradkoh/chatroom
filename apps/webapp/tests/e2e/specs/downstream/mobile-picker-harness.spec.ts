@@ -1,8 +1,10 @@
 import { expect, test, devices } from '@playwright/test';
+import { TAG_DOWNSTREAM } from '../../support/tags';
 
 const HARNESS_PATH = '/dev/mobile-picker-harness';
 
 test.use({ ...devices['iPhone 14'] });
+test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
 
 test.beforeEach(async ({ page }) => {
   await page.goto(HARNESS_PATH);
@@ -67,14 +69,15 @@ test('simulated keyboard inset sets maxHeight and keeps scroll body usable', asy
   await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
 
   const drawer = page.locator('[data-slot="drawer-content"]');
-  await expect.poll(async () => drawer.evaluate((el) => el.style.maxHeight)).toContain('300px');
+  const popup = page.locator('[data-slot="drawer-popup"]');
+  await expect.poll(async () => popup.evaluate((el) => el.style.top)).not.toBe('');
+  await expect(popup).toHaveCSS('bottom', 'auto');
+  await expect.poll(async () => popup.evaluate((el) => el.style.maxHeight)).toContain('300px');
   const style = await drawer.evaluate((el) => ({
     paddingBottom: el.style.paddingBottom,
-    maxHeight: el.style.maxHeight,
   }));
 
   expect(style.paddingBottom).toContain('safe-area-inset-bottom');
-  expect(style.maxHeight).toContain('300px');
 
   await expect
     .poll(async () =>
@@ -123,4 +126,20 @@ test('filter panel picker uses scroll body inside drawer', async ({ page }) => {
   await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
   await expect(page.locator('[data-picker-scroll-body]')).toBeVisible();
   await expect(page.getByText('Reset All')).toBeVisible();
+});
+
+test('filter picker hides chrome and keeps filtered rows visible with keyboard inset', async ({ page }) => {
+  await page.evaluate(() => { window.__MOBILE_KEYBOARD_TEST_INSET__ = 300; });
+  await page.getByTestId('open-filter-picker').click();
+  const drawer = page.locator('[data-slot="drawer-content"]');
+  await expect(drawer).toBeVisible();
+  await expect(drawer.locator('span').filter({ hasText: 'Model Visibility' })).toHaveCount(0);
+  await expect(drawer.getByText('Reset All')).not.toBeVisible();
+  const search = page.getByPlaceholder('Search models...');
+  await expect(search).toBeVisible();
+  await search.fill('model-01');
+  await expect(page.getByText('provider/model-01')).toBeVisible();
+  await expect(page.getByText('provider/model-02')).toHaveCount(0);
+  await expect.poll(async () => drawer.evaluate((el) => (el.querySelector('[data-picker-scroll-body]') as HTMLElement | null)?.clientHeight ?? 0)).toBeGreaterThan(0);
+});
 });

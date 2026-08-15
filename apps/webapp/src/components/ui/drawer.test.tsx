@@ -16,4 +16,23 @@ describe('Drawer', () => {
     expect(screen.getByText('Test drawer')).toBeInTheDocument();
     expect(screen.getByText('Test description')).toBeInTheDocument();
   });
+
+  it('routes positioning styles to popup and padding styles to content', () => {
+    render(<Drawer open><DrawerContent style={{ top: '10px', bottom: 'auto', height: '400px', maxHeight: '400px', paddingLeft: '16px', paddingBottom: '12px' }}><DrawerTitle>Test drawer</DrawerTitle></DrawerContent></Drawer>);
+    const popup = document.querySelector('[data-slot="drawer-popup"]') as HTMLElement;
+    const content = document.querySelector('[data-slot="drawer-content"]') as HTMLElement;
+    expect(popup.style.top).toBe('10px');
+    expect(popup.style.bottom).toBe('auto');
+    expect(popup.style.height).toBe('400px');
+    expect(content.style.paddingLeft).toBe('16px');
+    expect(content.style.paddingBottom).toBe('12px');
+    expect(content.style.top).toBe('');
+  });
+
+  it('applies popupClassName to popup and className to content', () => {
+    render(<Drawer open><DrawerContent popupClassName="popup-test-class" className="content-test-class"><DrawerTitle>Test</DrawerTitle></DrawerContent></Drawer>);
+    expect(document.querySelector('[data-slot="drawer-popup"]')?.className).toContain('popup-test-class');
+    expect(document.querySelector('[data-slot="drawer-content"]')?.className).toContain('content-test-class');
+    expect(document.querySelector('[data-slot="drawer-content"]')?.className).not.toContain('popup-test-class');
+  });
 });
