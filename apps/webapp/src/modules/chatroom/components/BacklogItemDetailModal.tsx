@@ -19,6 +19,7 @@ import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './back
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
 import { modalMarkdownComponents, backlogRichTextEditorProseClassNames } from './markdown-utils';
+import { BacklogModalMarkdownSurface } from './BacklogModalMarkdownSurface';
 import { useAttachments } from '../attachments';
 import {
   AlertDialog,
@@ -216,7 +217,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
               />
             ) : (
               // View mode — read-only markdown; click to edit for backlog status
-              <div
+              <BacklogModalMarkdownSurface
                 data-testid="backlog-detail-view-body"
                 onClick={
                   item.status === 'backlog'
@@ -239,9 +240,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                 }
                 role={item.status === 'backlog' ? 'button' : undefined}
                 tabIndex={item.status === 'backlog' ? 0 : undefined}
-                className={`h-full overflow-y-auto overflow-x-hidden p-4 min-w-0 ${
-                  item.status === 'backlog' ? 'cursor-pointer' : ''
-                } ${backlogRichTextEditorProseClassNames}`}
+                proseClassName={backlogRichTextEditorProseClassNames}
               >
                 <Markdown
                   remarkPlugins={chatroomRemarkPlugins}
@@ -249,7 +248,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                 >
                   {item.content}
                 </Markdown>
-              </div>
+              </BacklogModalMarkdownSurface>
             )}
           </div>
         </FixedModalBody>

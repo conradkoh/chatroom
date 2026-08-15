@@ -7,6 +7,7 @@ import {
   backlogRichTextEditorProseClassNames,
   fullMarkdownComponents,
   modalMarkdownComponents,
+  backlogModalMarkdownProseClassNames,
   messageFeedProseClassNames,
 } from './markdown-utils';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
@@ -59,6 +60,20 @@ describe('markdown workspace links', () => {
     );
 
     expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+});
+
+describe('backlog modal markdown prose SSOT', () => {
+  it('does not duplicate wrap modifier blocks in surface prose classes', () => {
+    const signature = 'prose-pre:overflow-x-hidden';
+    const first = backlogModalMarkdownProseClassNames.indexOf(signature);
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(first).toBe(backlogModalMarkdownProseClassNames.lastIndexOf(signature));
+  });
+
+  it('uses secondary background and thick borders for fenced code', () => {
+    expect(backlogModalMarkdownProseClassNames).toContain('prose-pre:bg-chatroom-bg-secondary');
+    expect(backlogModalMarkdownProseClassNames).toContain('prose-pre:border-2');
   });
 });
 
