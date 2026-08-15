@@ -9,6 +9,8 @@ export type MarkdownEditorProps = {
   autoFocus?: boolean;
   onCmdEnter?: () => void;
   initialClickCoords?: { left: number; top: number } | null;
+  /** Stretch editor content to fill flex parent (modal layouts). Default false. */
+  fillHeight?: boolean;
 };
 
 export type MarkdownViewerProps = {
