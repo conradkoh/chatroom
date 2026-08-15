@@ -19,6 +19,7 @@ import {
   createTask as createTaskUsecase,
   hasActiveTaskFromMaterializedCounts,
 } from '../src/domain/usecase/task/create-task';
+import { normalizeMarkdownContent } from '../src/domain/entities/markdown-content';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { canPromote } from './lib/promoteNextTaskDeps';
@@ -141,7 +142,7 @@ export const claimTask = mutation({
       }
       if (pendingTask.status === 'acknowledged') {
         if (pendingTask.assignedTo?.toLowerCase() === normalizedRole) {
-          return { taskId: pendingTask._id, content: pendingTask.content };
+          return { taskId: pendingTask._id, content: normalizeMarkdownContent(pendingTask.content) };
         }
         throw new Error(`Task must be pending to claim (current status: ${pendingTask.status})`);
       }
@@ -175,7 +176,7 @@ export const claimTask = mutation({
       pendingTask,
     });
 
-    return { taskId: pendingTask._id, content: pendingTask.content };
+    return { taskId: pendingTask._id, content: normalizeMarkdownContent(pendingTask.content) };
   },
 });
 
@@ -241,7 +242,7 @@ export const startTask = mutation({
           timestamp: now,
         });
         await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
-        return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
+        return { taskId: acknowledgedTask._id, content: normalizeMarkdownContent(acknowledgedTask.content) };
       }
 
       if (acknowledgedTask.status !== 'acknowledged') {
@@ -277,7 +278,7 @@ export const startTask = mutation({
     // Patch participant status after transition
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
 
-    return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
+        return { taskId: acknowledgedTask._id, content: normalizeMarkdownContent(acknowledgedTask.content) };
   },
 });
 
@@ -1088,7 +1089,7 @@ export const getTasksByIds = query({
       .filter((task) => allowedChatroomIds.has(task.chatroomId))
       .map((task) => ({
         _id: task._id,
-        content: task.content,
+        content: normalizeMarkdownContent(task.content),
         status: task.status,
         createdAt: task.createdAt,
         createdBy: task.createdBy,
@@ -1120,7 +1121,7 @@ export const getTask = query({
 
     return {
       _id: task._id,
-      content: task.content,
+      content: normalizeMarkdownContent(task.content),
       status: task.status,
       createdAt: task.createdAt,
       createdBy: task.createdBy,

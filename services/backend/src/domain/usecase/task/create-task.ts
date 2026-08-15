@@ -25,6 +25,7 @@ import {
 } from './task-counts';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { normalizeMarkdownContent } from '../../entities/markdown-content';
 import { resolveTaskRole } from '../../entities/task';
 import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
 
@@ -112,7 +113,7 @@ export async function createTask(
   const taskId = await ctx.db.insert('chatroom_tasks', {
     chatroomId: args.chatroomId,
     createdBy: args.createdBy,
-    content: args.content,
+    content: normalizeMarkdownContent(args.content),
     status,
     sourceMessageId: args.sourceMessageId,
     createdAt: now,

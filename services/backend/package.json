@@ -18,10 +18,12 @@
     "@convex-dev/migrations": "^0.3.5",
     "convex": "^1.42.2",
     "convex-helpers": "^0.1.120",
+    "turndown": "^7.2.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
+    "@types/turndown": "^5.0.6",
     "convex-test": "^0.0.54",
     "typescript": "^5.9.3",
     "vite": "^6.3.5",
