@@ -18,8 +18,11 @@ import Markdown from 'react-markdown';
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
-import { modalMarkdownComponents, backlogRichTextEditorProseClassNames } from './markdown-utils';
-import { BacklogModalMarkdownSurface } from './BacklogModalMarkdownSurface';
+import { modalMarkdownComponents } from './markdown-utils';
+import {
+  DetailModalMarkdownSurface,
+  detailModalRichTextEditorProseClassNames,
+} from './detail-modal';
 import { useAttachments } from '../attachments';
 import {
   AlertDialog,
@@ -213,12 +216,13 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                 onCmdEnter={handleSave}
                 initialClickCoords={initialClickCoords}
                 className="flex-1 flex flex-col min-h-0"
-                proseClassName={backlogRichTextEditorProseClassNames}
+                proseClassName={detailModalRichTextEditorProseClassNames}
               />
             ) : (
               // View mode — read-only markdown; click to edit for backlog status
-              <BacklogModalMarkdownSurface
+              <DetailModalMarkdownSurface
                 data-testid="backlog-detail-view-body"
+                interactive={item.status === 'backlog'}
                 onClick={
                   item.status === 'backlog'
                     ? (e) => {
@@ -240,7 +244,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                 }
                 role={item.status === 'backlog' ? 'button' : undefined}
                 tabIndex={item.status === 'backlog' ? 0 : undefined}
-                proseClassName={backlogRichTextEditorProseClassNames}
+                proseClassName={detailModalRichTextEditorProseClassNames}
               >
                 <Markdown
                   remarkPlugins={chatroomRemarkPlugins}
@@ -248,7 +252,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                 >
                   {item.content}
                 </Markdown>
-              </BacklogModalMarkdownSurface>
+              </DetailModalMarkdownSurface>
             )}
           </div>
         </FixedModalBody>

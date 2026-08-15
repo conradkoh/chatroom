@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { backlogRichTextEditorProseClassNames } from './markdown-utils';
+import { detailModalRichTextEditorProseClassNames } from './detail-modal';
 
 import {
   FixedModal,
@@ -59,7 +59,7 @@ export function BacklogCreateModal({ isOpen, onClose, onSubmit }: BacklogCreateM
             autoFocus
             onCmdEnter={handleSubmit}
             className="flex-1 flex flex-col min-h-0"
-            proseClassName={backlogRichTextEditorProseClassNames}
+            proseClassName={detailModalRichTextEditorProseClassNames}
           />
         </FixedModalBody>
 

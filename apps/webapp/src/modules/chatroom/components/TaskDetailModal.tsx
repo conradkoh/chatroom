@@ -9,10 +9,10 @@ import { cn } from '@/lib/utils';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
 import { HandoffStructuredContent } from './HandoffStructuredContent';
+import { DetailModalMarkdownSurface, detailModalMarkdownProseClassNames } from './detail-modal';
 import {
   modalMarkdownComponents,
   taskDetailProseClassNames,
-  backlogRichTextEditorProseClassNames,
 } from './markdown-utils';
 import { getStatusBadge } from './WorkQueue/utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
@@ -161,6 +161,7 @@ export function TaskDetailModal({
   }
 
   const badge = getStatusBadge(task.status);
+  const taskModalProseClassNames = cn(detailModalMarkdownProseClassNames, taskDetailProseClassNames);
 
   return (
     <FixedModal
@@ -194,10 +195,10 @@ export function TaskDetailModal({
                 onCmdEnter={handleSave}
                 initialClickCoords={initialClickCoords}
                 className="flex-1 flex flex-col min-h-0"
-                proseClassName={cn(backlogRichTextEditorProseClassNames, taskDetailProseClassNames)}
+                proseClassName={taskModalProseClassNames}
               />
             ) : (
-              <div
+              <DetailModalMarkdownSurface
                 data-testid="task-detail-view-body"
                 onClick={
                   !isProtected
@@ -221,7 +222,8 @@ export function TaskDetailModal({
                 }
                 role={!isProtected ? 'button' : undefined}
                 tabIndex={!isProtected ? 0 : undefined}
-                className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${!isProtected ? 'cursor-pointer' : ''} ${backlogRichTextEditorProseClassNames} ${taskDetailProseClassNames}`}
+                interactive={!isProtected}
+                proseClassName={taskModalProseClassNames}
               >
                 <HandoffStructuredContent
                   content={task.content}
@@ -235,7 +237,7 @@ export function TaskDetailModal({
                     </Markdown>
                   }
                 />
-              </div>
+              </DetailModalMarkdownSurface>
             )}
           </div>
         </FixedModalBody>
