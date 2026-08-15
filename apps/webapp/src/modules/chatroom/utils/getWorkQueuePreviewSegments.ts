@@ -1,5 +1,5 @@
 import { stripHandoffXmlTags } from './stripHandoffXmlTags';
-import { normalizeMarkdownContent } from '@/components/markdown-editor/normalizeMarkdownContent';
+import { normalizeChatroomMarkdownContent } from './normalizeChatroomMarkdownContent';
 
 export type WorkQueuePreviewSegment = { text: string; bold?: boolean };
 
@@ -53,7 +53,7 @@ function parseInlineSegments(
 }
 
 export function getWorkQueuePreviewSegments(content: string): WorkQueuePreviewSegment[] {
-  let text = normalizeMarkdownContent(content);
+  let text = normalizeChatroomMarkdownContent(content);
   text = stripHandoffXmlTags(text);
   text = text.replace(/^---MESSAGE---\s*/m, '');
   text = text.replace(/```[\s\S]*?```/g, (block) => {

@@ -2,6 +2,7 @@
 
 import { MarkdownEditor } from '@/components/markdown-editor';
 import { cn } from '@/lib/utils';
+import { normalizeChatroomMarkdownContent } from '../utils/normalizeChatroomMarkdownContent';
 
 export interface ChatroomModalMarkdownEditorProps {
   value: string;
@@ -35,6 +36,7 @@ export function ChatroomModalMarkdownEditor({
       fillHeight
       className={cn('flex-1 flex flex-col min-h-0 !border-0 rounded-none shadow-none', className)}
       proseClassName={proseClassName}
+      normalizeContent={normalizeChatroomMarkdownContent}
     />
   );
 }
