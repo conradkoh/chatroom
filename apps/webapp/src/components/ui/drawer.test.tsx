@@ -28,4 +28,11 @@ describe('Drawer', () => {
     expect(content.style.paddingBottom).toBe('12px');
     expect(content.style.top).toBe('');
   });
+
+  it('applies popupClassName to popup and className to content', () => {
+    render(<Drawer open><DrawerContent popupClassName="popup-test-class" className="content-test-class"><DrawerTitle>Test</DrawerTitle></DrawerContent></Drawer>);
+    expect(document.querySelector('[data-slot="drawer-popup"]')?.className).toContain('popup-test-class');
+    expect(document.querySelector('[data-slot="drawer-content"]')?.className).toContain('content-test-class');
+    expect(document.querySelector('[data-slot="drawer-content"]')?.className).not.toContain('popup-test-class');
+  });
 });
