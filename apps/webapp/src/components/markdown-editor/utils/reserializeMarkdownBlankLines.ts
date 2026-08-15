@@ -14,7 +14,7 @@ export function reserializeMarkdownBlankLines(input: string): string {
       content: trimmed,
       contentType: 'markdown',
     });
-    return editor.getMarkdown();
+    return editor.getMarkdown().replaceAll('&amp;nbsp;', '&nbsp;');
   } finally {
     editor?.destroy();
   }

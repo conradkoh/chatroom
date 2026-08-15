@@ -7,7 +7,13 @@ describe('reserializeMarkdownBlankLines', () => {
     const legacy = 'This is some content!\n\n   \n\n```txt\nasdasd\nasdsad\n```\n\n   \n';
     const out = reserializeMarkdownBlankLines(legacy);
 
-    expect(out).toMatch(/This is some content!\n\n&amp;nbsp;\n\n```txt/);
-    expect(out).toMatch(/```\n\n&amp;nbsp;/);
+    expect(out).not.toContain('&amp;amp;nbsp;');
+    expect(out).toContain('This is some content!\n\n&nbsp;\n\n```txt');
+    expect(out).toContain('```\n\n&nbsp;');
+
+    const afterContent = out.slice(out.indexOf('content!') + 'content!'.length, out.indexOf('```txt'));
+    expect(Array.from(afterContent).map((c) => c.charCodeAt(0))).toEqual([
+      10, 10, 38, 110, 98, 115, 112, 59, 10, 10,
+    ]);
   });
 });
