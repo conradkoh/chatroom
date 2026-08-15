@@ -1,6 +1,5 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import React, { useState, useCallback, useEffect } from 'react';
 import { backlogRichTextEditorProseClassNames } from './markdown-utils';
 
@@ -11,11 +10,7 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
-
-const RichTextEditor = dynamic(
-  () => import('./ChatroomModalMarkdownEditor').then((m) => ({ default: m.ChatroomModalMarkdownEditor })),
-  { ssr: false }
-);
+import { RichTextEditor } from './detail-modal-shared';
 
 interface BacklogCreateModalProps {
   isOpen: boolean;

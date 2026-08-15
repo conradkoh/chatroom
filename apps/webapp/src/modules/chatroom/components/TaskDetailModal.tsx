@@ -11,7 +11,6 @@ import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared'
 import { HandoffStructuredContent } from './HandoffStructuredContent';
 import {
   modalMarkdownComponents,
-  modalMarkdownWrapProseClassNames,
   taskDetailProseClassNames,
   backlogRichTextEditorProseClassNames,
 } from './markdown-utils';
@@ -195,7 +194,7 @@ export function TaskDetailModal({
                 onCmdEnter={handleSave}
                 initialClickCoords={initialClickCoords}
                 className="flex-1 flex flex-col min-h-0"
-                proseClassName={cn(backlogRichTextEditorProseClassNames, taskDetailProseClassNames, modalMarkdownWrapProseClassNames)}
+                proseClassName={cn(backlogRichTextEditorProseClassNames, taskDetailProseClassNames)}
               />
             ) : (
               <div
@@ -222,7 +221,7 @@ export function TaskDetailModal({
                 }
                 role={!isProtected ? 'button' : undefined}
                 tabIndex={!isProtected ? 0 : undefined}
-                className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${!isProtected ? 'cursor-pointer' : ''} ${backlogRichTextEditorProseClassNames} ${taskDetailProseClassNames} ${modalMarkdownWrapProseClassNames}`}
+                className={`h-full overflow-y-auto overflow-x-hidden p-4 text-sm min-w-0 ${!isProtected ? 'cursor-pointer' : ''} ${backlogRichTextEditorProseClassNames} ${taskDetailProseClassNames}`}
               >
                 <HandoffStructuredContent
                   content={task.content}
