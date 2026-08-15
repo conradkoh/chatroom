@@ -42,4 +42,11 @@ describe('useMarkdownEditor', () => {
     rerender({ content: '<p>New</p>' });
     await waitFor(() => expect(mockSetContent).toHaveBeenCalledWith('New', expect.anything()));
   });
+
+  it('uses a custom normalizer at initialization', () => {
+    const normalizeContent = vi.fn((input: string) => input.toUpperCase());
+    renderHook(() => useMarkdownEditor({ content: 'hello', onUpdate: vi.fn(), normalizeContent }));
+    expect(normalizeContent).toHaveBeenCalledWith('hello');
+    expect(captured?.content).toBe('HELLO');
+  });
 });
