@@ -14,4 +14,6 @@ export {
   MOBILE_DRAWER_CONTENT_CLASSNAME,
 } from './mobileDrawerLayout';
 export { usePickerSearchState } from './usePickerSearchState';
+export { PickerMobileChrome } from './PickerMobileChrome';
+export { usePickerShell } from './PickerShellContext';
 export { filterPickerItems } from './filterPickerItems';
