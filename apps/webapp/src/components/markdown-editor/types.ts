@@ -1,7 +1,7 @@
 export type MarkdownEditorProps = {
-  /** Initial markdown content. Avoid rebinding on every onChange. */
+  /** Markdown source only; legacy HTML is normalized lossily before callbacks. */
   defaultMarkdown?: string;
-  /** Called when content changes. */
+  /** Called with markdown-only content changes. */
   onChange?: (markdown: string) => void;
   /** Placeholder when empty. */
   placeholder?: string;
@@ -19,7 +19,7 @@ export type MarkdownViewerProps = {
 };
 
 export type EditableMarkdownProps = {
-  /** Current markdown content (controlled). */
+  /** Markdown source only (controlled). */
   markdown: string;
   /** Called when user saves edited content. */
   onChange: (markdown: string) => void;

@@ -165,6 +165,9 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.13.26
         version: 3.14.9(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tiptap/core':
+        specifier: ^3.30.1
+        version: 3.30.1(@tiptap/pm@3.30.1)
       '@tiptap/extension-link':
         specifier: ^3.29.0
         version: 3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1)
