@@ -1,6 +1,7 @@
 import { Editor } from '@tiptap/core';
 
 import { createMarkdownEditorExtensions } from '../extensions/markdownEditorExtensions';
+import { decodeHtmlEntities } from './decodeHtmlEntities';
 
 const LEGACY_HTML_TAG_PATTERN =
   /<\/?(?:p|div|span|strong|em|b|i|a|br|h[1-6]|ul|ol|li|table|tr|td|th|blockquote|pre|code)\b[^>]*>/i;
@@ -9,8 +10,8 @@ export function containsFencedCode(text: string) {
   return /```[\s\S]*?```/.test(text);
 }
 export function looksLikeHtml(text: string) {
-  const trimmed = text.trim();
-  return !!trimmed && !containsFencedCode(trimmed) && LEGACY_HTML_TAG_PATTERN.test(trimmed);
+  const decoded = decodeHtmlEntities(text.trim());
+  return !!decoded && !containsFencedCode(decoded) && LEGACY_HTML_TAG_PATTERN.test(decoded);
 }
 // fallow-ignore-next-line unused-export
 export function stripHtmlTags(html: string) {
@@ -39,5 +40,7 @@ export function htmlToMarkdown(html: string) {
 }
 export function normalizeMarkdownContent(input: string) {
   const trimmed = input.trim();
-  return !trimmed ? '' : looksLikeHtml(trimmed) ? htmlToMarkdown(trimmed) : trimmed;
+  if (!trimmed) return '';
+  const decoded = decodeHtmlEntities(trimmed);
+  return looksLikeHtml(decoded) ? htmlToMarkdown(decoded) : decoded;
 }

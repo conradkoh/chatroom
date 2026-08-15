@@ -13,8 +13,8 @@ describe('normalizeChatroomMarkdownContent', () => {
     expect(normalizeChatroomMarkdownContent('<p>Hello</p>')).toContain('Hello');
   });
 
-  it('does not treat HTML-entity-encoded tags as envelopes', () => {
+  it('decodes HTML-entity-encoded tags as envelopes', () => {
     const encoded = '&lt;handoff-overview&gt;Summary&lt;/handoff-overview&gt;';
-    expect(normalizeChatroomMarkdownContent(encoded)).toBe(encoded);
+    expect(normalizeChatroomMarkdownContent(encoded)).toBe('<handoff-overview>Summary</handoff-overview>');
   });
 });

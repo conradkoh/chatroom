@@ -12,7 +12,7 @@ describe('normalizeMarkdownContent', () => {
     expect(looksLikeHtml('<p>Hello <strong>world</strong></p>')).toBe(true);
     expect(looksLikeHtml('text with <strong>inline</strong> html')).toBe(true);
     expect(looksLikeHtml('```html\n<p>x</p>\n```')).toBe(false);
-    expect(looksLikeHtml('&lt;p&gt;Hello&lt;/p&gt;')).toBe(false);
+    expect(looksLikeHtml('&lt;p&gt;Hello&lt;/p&gt;')).toBe(true);
   });
   it('converts html and preserves markdown', () => {
     expect(htmlToMarkdown('<p>Hello <strong>world</strong></p>')).toContain('world');

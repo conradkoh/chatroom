@@ -1,6 +1,7 @@
 import { HANDOFF_XML_TAGS } from './handoffXmlTags';
 
 import { normalizeMarkdownContent } from '@/components/markdown-editor/utils/normalizeMarkdownContent';
+import { decodeHtmlEntities } from '@/components/markdown-editor/utils/decodeHtmlEntities';
 
 const HANDOFF_XML_TAG_PATTERN = new RegExp('</?(?:' + HANDOFF_XML_TAGS.join('|') + ')\\b', 'i');
 
@@ -11,6 +12,7 @@ function containsStructuredEnvelope(text: string): boolean {
 export function normalizeChatroomMarkdownContent(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return '';
-  if (containsStructuredEnvelope(trimmed)) return trimmed;
-  return normalizeMarkdownContent(trimmed);
+  const decoded = decodeHtmlEntities(trimmed);
+  if (containsStructuredEnvelope(decoded)) return decoded;
+  return normalizeMarkdownContent(decoded);
 }
