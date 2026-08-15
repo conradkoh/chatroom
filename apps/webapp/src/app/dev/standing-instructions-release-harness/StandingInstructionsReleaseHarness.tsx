@@ -11,6 +11,7 @@ import {
 } from '@/hooks/useMobileKeyboard';
 import {
   PickerOptionRow,
+  PickerMobileChrome,
   PickerPanelHeader,
   PickerScrollBody,
   PickerSearch,
@@ -214,7 +215,7 @@ function HistoryFullPicker(props: {
       contentClassName="w-72 p-0"
       trigger={<span className="sr-only">Standing instruction history</span>}
     >
-      <PickerPanelHeader title="Standing instruction history" />
+      <PickerMobileChrome><PickerPanelHeader title="Standing instruction history" /></PickerMobileChrome>
       <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search history…" />
       <PickerScrollBody>
         {filtered.length === 0 ? (
@@ -567,7 +568,7 @@ export function StandingInstructionsReleaseHarness() {
             </button>
           }
         >
-          <PickerPanelHeader title="Standing instructions" />
+          <PickerMobileChrome><PickerPanelHeader title="Standing instructions" /></PickerMobileChrome>
           <PickerScrollBody>
             <PickerOptionRow
               selected={false}
