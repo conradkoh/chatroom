@@ -11,7 +11,7 @@ export interface ChatroomModalMarkdownEditorProps {
   onCmdEnter?: () => void;
   initialClickCoords?: { left: number; top: number } | null;
   className?: string;
-  proseClassName?: string;
+  proseClassName: string;
 }
 
 export function ChatroomModalMarkdownEditor({

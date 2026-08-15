@@ -7,7 +7,7 @@ export type MarkdownEditorProps = {
   placeholder?: string;
   className?: string;
   /** Tailwind prose classes for editor typography. */
-  proseClassName?: string;
+  proseClassName: string;
   autoFocus?: boolean;
   onCmdEnter?: () => void;
   initialClickCoords?: { left: number; top: number } | null;
@@ -32,4 +32,6 @@ export type EditableMarkdownProps = {
   /** Placeholder shown in empty view mode and in editor. */
   placeholder?: string;
   className?: string;
+  /** Tailwind prose classes for editor mode only; view mode uses MarkdownViewer. */
+  proseClassName: string;
 };
