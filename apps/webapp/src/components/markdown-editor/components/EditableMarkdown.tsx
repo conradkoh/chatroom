@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 
 import { MarkdownEditor } from './MarkdownEditor';
 import { MarkdownViewer } from './MarkdownViewer';
-import type { EditableMarkdownProps } from './types';
+import type { EditableMarkdownProps } from '../types';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ export function EditableMarkdown({
   onCancel,
   placeholder = 'Click to edit...',
   className,
+  proseClassName,
 }: EditableMarkdownProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(markdown);
@@ -59,7 +60,7 @@ export function EditableMarkdown({
   if (isEditing) {
     return (
       <div className={cn('space-y-3', className)}>
-        <MarkdownEditor defaultMarkdown={draft} onChange={setDraft} placeholder={placeholder} />
+        <MarkdownEditor defaultMarkdown={draft} onChange={setDraft} placeholder={placeholder} proseClassName={proseClassName} />
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" size="sm" onClick={handleCancel}>
             Cancel

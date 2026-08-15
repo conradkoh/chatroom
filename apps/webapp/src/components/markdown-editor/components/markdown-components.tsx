@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import type { Components } from 'react-markdown';
 
+import { isEmptyParagraphChildren } from '../utils/emptyParagraph';
+
 interface HeadingProps {
   children?: ReactNode;
 }
@@ -50,7 +52,14 @@ export const markdownComponents: Components = {
       {children}
     </h6>
   ),
-  p: ({ children }: ContentProps) => <p className="leading-7 text-foreground mb-4">{children}</p>,
+  p: ({ children }: ContentProps) =>
+    isEmptyParagraphChildren(children) ? (
+      <p className="leading-7 text-foreground mb-4 min-h-[1.5em]" aria-hidden="true">
+        {'\u00A0'}
+      </p>
+    ) : (
+      <p className="leading-7 text-foreground mb-4">{children}</p>
+    ),
   ul: ({ children }: ContentProps) => (
     <ul className="list-disc pl-6 mb-6 mt-2 space-y-1 text-foreground [&>li]:leading-7">
       {children}

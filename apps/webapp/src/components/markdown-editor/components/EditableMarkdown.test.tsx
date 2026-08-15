@@ -4,22 +4,23 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EditableMarkdown } from './EditableMarkdown';
+import { defaultMarkdownEditorProseClassNames } from '../utils/proseClassNames';
 
-// MDXEditor is loaded via next/dynamic (ssr: false) and depends on browser
-// APIs unavailable in jsdom, so the real editor stays on its "Loading editor"
-// placeholder in unit tests. Substitute a lightweight controlled editor that
-// mirrors MarkdownEditor's public contract (defaultMarkdown + onChange).
+// MarkdownEditor is mocked here to keep EditableMarkdown tests focused on
+// view/edit/save behavior without mounting TipTap in jsdom.
 vi.mock('./MarkdownEditor', () => ({
   MarkdownEditor: ({
     defaultMarkdown = '',
     onChange,
     placeholder,
+    proseClassName,
   }: {
     defaultMarkdown?: string;
     onChange?: (markdown: string) => void;
     placeholder?: string;
+    proseClassName: string;
   }) => (
-    <div className="mdxeditor">
+    <div data-testid="markdown-editor" data-prose-class-name={proseClassName}>
       <textarea
         aria-label="editable markdown"
         placeholder={placeholder}
@@ -36,12 +37,12 @@ Visit [example link](https://example.com) for more.`;
 
 function Harness({ initial }: { initial: string }) {
   const [value, setValue] = useState(initial);
-  return <EditableMarkdown markdown={value} onChange={setValue} />;
+  return <EditableMarkdown markdown={value} onChange={setValue} proseClassName={defaultMarkdownEditorProseClassNames} />;
 }
 
 describe('EditableMarkdown', () => {
   it('renders markdown in view mode via MarkdownViewer', () => {
-    render(<EditableMarkdown markdown={sampleMarkdown} onChange={vi.fn()} />);
+    render(<EditableMarkdown markdown={sampleMarkdown} onChange={vi.fn()} proseClassName={defaultMarkdownEditorProseClassNames} />);
 
     expect(screen.getByRole('heading', { level: 1, name: 'Heading One' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'example link' })).toHaveAttribute(
@@ -53,12 +54,19 @@ describe('EditableMarkdown', () => {
 
   it('clicking view area enters edit mode showing Save and Cancel', async () => {
     const user = userEvent.setup();
-    render(<EditableMarkdown markdown={sampleMarkdown} onChange={vi.fn()} />);
+    render(<EditableMarkdown markdown={sampleMarkdown} onChange={vi.fn()} proseClassName={defaultMarkdownEditorProseClassNames} />);
 
     await user.click(screen.getByRole('button', { name: 'Edit markdown' }));
 
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('forwards proseClassName to MarkdownEditor in edit mode', async () => {
+    const user = userEvent.setup();
+    render(<EditableMarkdown markdown={sampleMarkdown} onChange={vi.fn()} proseClassName={defaultMarkdownEditorProseClassNames} />);
+    await user.click(screen.getByRole('button', { name: 'Edit markdown' }));
+    expect(screen.getByTestId('markdown-editor')).toHaveAttribute('data-prose-class-name', defaultMarkdownEditorProseClassNames);
   });
 
   it('Save calls onChange with edited content and returns to view mode', async () => {
@@ -83,7 +91,7 @@ describe('EditableMarkdown', () => {
   it('Cancel discards edits and returns to view mode without calling onChange', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<EditableMarkdown markdown={sampleMarkdown} onChange={onChange} />);
+    render(<EditableMarkdown markdown={sampleMarkdown} onChange={onChange} proseClassName={defaultMarkdownEditorProseClassNames} />);
 
     await user.click(screen.getByRole('button', { name: 'Edit markdown' }));
 
@@ -99,13 +107,13 @@ describe('EditableMarkdown', () => {
   });
 
   it('empty markdown shows muted placeholder', () => {
-    render(<EditableMarkdown markdown="   " onChange={vi.fn()} placeholder="Click to add..." />);
+    render(<EditableMarkdown markdown="   " onChange={vi.fn()} placeholder="Click to add..." proseClassName={defaultMarkdownEditorProseClassNames} />);
 
     expect(screen.getByText('Click to add...')).toBeInTheDocument();
   });
 
   it('clicking a link in view mode does not enter edit mode', () => {
-    render(<EditableMarkdown markdown={sampleMarkdown} onChange={vi.fn()} />);
+    render(<EditableMarkdown markdown={sampleMarkdown} onChange={vi.fn()} proseClassName={defaultMarkdownEditorProseClassNames} />);
 
     const link = screen.getByRole('link', { name: 'example link' });
     fireEvent.click(link);
@@ -115,7 +123,7 @@ describe('EditableMarkdown', () => {
 
   it('Enter key on the view container enters edit mode', async () => {
     const user = userEvent.setup();
-    render(<EditableMarkdown markdown={sampleMarkdown} onChange={vi.fn()} />);
+    render(<EditableMarkdown markdown={sampleMarkdown} onChange={vi.fn()} proseClassName={defaultMarkdownEditorProseClassNames} />);
 
     const view = screen.getByRole('button', { name: 'Edit markdown' });
     view.focus();
