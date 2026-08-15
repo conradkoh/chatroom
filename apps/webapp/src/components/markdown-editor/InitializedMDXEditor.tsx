@@ -102,6 +102,8 @@ export default function InitializedMDXEditor({
           ),
         }),
       ]}
+      // When parent uses mdxeditor-full-height, contenteditable stretches via theme CSS.
+      // Do NOT rely on min-h-[200px] alone in flex modal layouts — see markdown-editor-theme.css.
       contentEditableClassName="prose dark:prose-invert max-w-none min-h-[200px] px-4 py-3"
       {...props}
       ref={editorRef}

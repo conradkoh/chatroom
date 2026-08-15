@@ -3,3 +3,34 @@
 .dark-theme.markdown-editor-theme {
   --basePageBg: transparent;
 }
+
+/*
+ * FULL-HEIGHT EDITOR PITFALL (modal / flex layouts)
+ * -------------------------------------------------
+ * MDXEditor's contenteditable grows with document content only. In a flex
+ * modal body (flex-1 min-h-0), users see empty space below short content and
+ * click expecting the caret at the end — but the click misses the editor.
+ *
+ * Fix: opt in on the MDXEditor root with class `mdxeditor-full-height`.
+ * Parent chain MUST be: flex flex-col → flex-1 min-h-0 → h-full (see
+ * ChatroomMarkdownEditorShell + MarkdownEditor editorClassName wrapper).
+ *
+ * Without this, contentEditableClassName min-h-[200px] is NOT enough.
+ */
+.mdxeditor-full-height {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
+}
+
+.mdxeditor-full-height .mdxeditor-toolbar {
+  flex-shrink: 0;
+}
+
+.mdxeditor-full-height .mdxeditor-root-contenteditable {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+}
