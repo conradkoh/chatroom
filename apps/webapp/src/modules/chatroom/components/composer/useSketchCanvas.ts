@@ -2,6 +2,12 @@
 import { useCallback, useRef, useState, type RefObject } from 'react';
 
 import {
+  captureBackingSnapshot,
+  imageDataPixelsEqual,
+  sketchCanvasHasInk,
+  type SketchHistorySnapshot,
+} from './sketchCanvasSnapshot';
+import {
   SKETCH_CANVAS_COLORS,
   SKETCH_ERASER_WIDTH_CSS_PX,
   SKETCH_MIN_STROKE_DISTANCE_CSS_PX,
@@ -12,10 +18,9 @@ import {
   SKETCH_ZOOM_MIN,
 } from './sketchConstants';
 import { buildSketchFileName } from './sketchFileName';
-import { useSketchSelection } from './useSketchSelection';
+import type { ResizeHandle, SketchFloatingSelection, SketchRect } from './sketchSelectionTypes';
 import { useSketchHistory } from './useSketchHistory';
-import { captureBackingSnapshot } from './sketchCanvasSnapshot';
-import { imageDataPixelsEqual, sketchCanvasHasInk } from './sketchCanvasSnapshot';
+import { useSketchSelection } from './useSketchSelection';
 
 export type SketchTool = 'pen' | 'eraser' | 'select';
 export type UseSketchCanvasResult = {
@@ -30,10 +35,16 @@ export type UseSketchCanvasResult = {
   setBrushColor: (color: string) => void;
   zoom: number;
   setZoom: (value: number) => void;
-  selectionMarquee: import('./sketchSelectionTypes').SketchRect | null;
-  floatingSelection: import('./sketchSelectionTypes').SketchFloatingSelection | null;
-  onResizeHandlePointerDown: (handle: import('./sketchSelectionTypes').ResizeHandle, e: React.PointerEvent) => void;
-  deleteSelection: () => void; copySelection: () => Promise<void>; commitSelection: () => void;
+  selectionMarquee: SketchRect | null;
+  floatingSelection: SketchFloatingSelection | null;
+  onResizeHandlePointerDown: (handle: ResizeHandle, e: React.PointerEvent) => void;
+  deleteSelection: () => void;
+  copySelection: () => Promise<void>;
+  commitSelection: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  undo: () => void;
+  redo: () => void;
 };
 export function useSketchCanvas(): UseSketchCanvasResult {
   const history = useSketchHistory();
@@ -45,7 +56,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
   const updateHasContent = useCallback((value: boolean) => {
     hasContentRef.current = value;
     setHasContent(value);
-  }, [selection, updateHasContent]);
+  }, []);
   const toolRef = useRef(tool);
   const [brushColor, setBrushColorState] = useState<string>(SKETCH_BRUSH_PALETTE[0]);
   const brushColorRef = useRef<string>(brushColor);
@@ -55,24 +66,92 @@ export function useSketchCanvas(): UseSketchCanvasResult {
   }, []);
   const [zoom, setZoomState] = useState(SKETCH_ZOOM_DEFAULT);
   const zoomRef = useRef(zoom);
-  const selection = useSketchSelection({ getCtx: () => ctxRef.current, getCanvas: () => canvasRef.current, getDpr: () => window.devicePixelRatio || 1, updateHasContent, getHasContent: () => hasContentRef.current });
-  const historyRef = useRef(history); historyRef.current = history;
-  const recordMutation = useCallback((snapshot: import('./sketchCanvasSnapshot').SketchHistorySnapshot) => { historyRef.current.pushSnapshot(snapshot); }, []);
-  const applyHistory = useCallback((snapshot: import('./sketchCanvasSnapshot').SketchHistorySnapshot) => { const ctx=ctxRef.current; if(ctx){ selection.clearSelectionWithoutHistory(); ctx.putImageData(snapshot.imageData,0,0); updateHasContent(snapshot.hasContent); } }, [selection, updateHasContent]);
-  const undoHistory = useCallback(() => { const ctx=ctxRef.current; if(!ctx)return; const current=captureBackingSnapshot(ctx,hasContentRef.current); const previous=historyRef.current.undo(current); if(previous)applyHistory(previous); }, [applyHistory]);
-  const redoHistory = useCallback(() => { const ctx=ctxRef.current; if(!ctx)return; const current=captureBackingSnapshot(ctx,hasContentRef.current); const next=historyRef.current.redo(current); if(next)applyHistory(next); }, [applyHistory]);
-  const setTool = useCallback((next: SketchTool) => { if (toolRef.current === 'select' && next !== 'select') selection.commitSelection(); setToolState(next); }, [selection]);
-  const setZoom = useCallback((value: number) => {
-    selection.commitSelection();
-    const next = Number.isFinite(value)
-      ? Math.min(SKETCH_ZOOM_MAX, Math.max(SKETCH_ZOOM_MIN, value))
-      : SKETCH_ZOOM_DEFAULT;
-    zoomRef.current = next;
-    setZoomState(next);
-  }, [selection]);
+  const historyRef = useRef(history);
+  historyRef.current = history;
+  const isApplyingHistoryRef = useRef(false);
+  const selectionApiRef = useRef<{
+    captureCompositedSnapshot?: () => SketchHistorySnapshot | null;
+  } | null>(null);
+  const captureSnapshot = useCallback(() => {
+    const ctx = ctxRef.current;
+    return ctx ? captureBackingSnapshot(ctx, hasContentRef.current) : null;
+  }, []);
+  const recordMutation = useCallback((snapshot: SketchHistorySnapshot) => {
+    if (!isApplyingHistoryRef.current) historyRef.current.pushSnapshot(snapshot);
+  }, []);
+  const selection = useSketchSelection({
+    getCtx: () => ctxRef.current,
+    getCanvas: () => canvasRef.current,
+    getDpr: () => window.devicePixelRatio || 1,
+    updateHasContent,
+    getHasContent: () => hasContentRef.current,
+    onBeforeLift: () => {
+      const snapshot = captureSnapshot();
+      if (snapshot) recordMutation(snapshot);
+    },
+    onBeforeSelectionWrite: () => {
+      const snapshot = selectionApiRef.current?.captureCompositedSnapshot?.();
+      if (snapshot) recordMutation(snapshot);
+    },
+    isHistoryRecording: () => !isApplyingHistoryRef.current,
+  });
+  selectionApiRef.current = selection;
+  const applyHistory = useCallback(
+    (snapshot: SketchHistorySnapshot) => {
+      const ctx = ctxRef.current;
+      if (ctx) {
+        isApplyingHistoryRef.current = true;
+        try {
+          selection.clearSelectionWithoutHistory();
+          ctx.putImageData(snapshot.imageData, 0, 0);
+          updateHasContent(snapshot.hasContent);
+        } finally {
+          isApplyingHistoryRef.current = false;
+        }
+      }
+    },
+    [selection, updateHasContent]
+  );
+  const undoHistory = useCallback(() => {
+    const ctx = ctxRef.current;
+    if (!ctx) return;
+    const current = captureBackingSnapshot(ctx, hasContentRef.current);
+    const previous = historyRef.current.undo(current);
+    if (previous) applyHistory(previous);
+  }, [applyHistory]);
+  const redoHistory = useCallback(() => {
+    const ctx = ctxRef.current;
+    if (!ctx) return;
+    const current = captureBackingSnapshot(ctx, hasContentRef.current);
+    const next = historyRef.current.redo(current);
+    if (next) applyHistory(next);
+  }, [applyHistory]);
+  const setTool = useCallback(
+    (next: SketchTool) => {
+      if (toolRef.current === 'select' && next !== 'select')
+        selection.commitSelection({ recordHistory: false });
+      setToolState(next);
+    },
+    [selection]
+  );
+  const setZoom = useCallback(
+    (value: number) => {
+      selection.commitSelection({ recordHistory: false });
+      const next = Number.isFinite(value)
+        ? Math.min(SKETCH_ZOOM_MAX, Math.max(SKETCH_ZOOM_MIN, value))
+        : SKETCH_ZOOM_DEFAULT;
+      zoomRef.current = next;
+      setZoomState(next);
+    },
+    [selection]
+  );
   toolRef.current = tool;
   const clear = useCallback(() => {
-    selection.clearSelection();
+    if (hasContentRef.current) {
+      const snapshot = captureSnapshot();
+      if (snapshot) recordMutation(snapshot);
+    }
+    selection.clearSelectionWithoutHistory();
     const c = ctxRef.current;
     if (c) {
       c.save();
@@ -82,7 +161,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
       c.restore();
     }
     updateHasContent(false);
-  }, []);
+  }, [captureSnapshot, recordMutation, selection, updateHasContent]);
   const bindCanvas = useCallback((canvas: HTMLCanvasElement) => {
     let cleanup: (() => void) | undefined;
     const setup = (): boolean => {
@@ -99,6 +178,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
       ctx.scale(dpr, dpr);
       ctx.fillStyle = SKETCH_CANVAS_COLORS.background;
       ctx.fillRect(0, 0, rect.width, rect.height);
+      historyRef.current.reset();
       const selectionCleanup = selection.bindSelectionPointerHandlers(canvas, dpr);
       updateHasContent(false);
       setZoom(SKETCH_ZOOM_DEFAULT);
@@ -175,12 +255,23 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         if (toolRef.current === 'select') return;
         pointers.delete(e.pointerId);
         if (pointers.size < 2) pinchStart = null;
-        if (drawing && preStroke) { const final = ctx.getImageData(0, 0, canvas.width, canvas.height); if (!imageDataPixelsEqual(preStroke, final)) recordMutation({ imageData: preStroke, hasContent: hadContentBeforeStroke }); updateHasContent(sketchCanvasHasInk(final)); }
+        if (drawing && preStroke) {
+          const final = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          if (!imageDataPixelsEqual(preStroke, final))
+            recordMutation({ imageData: preStroke, hasContent: hadContentBeforeStroke });
+          updateHasContent(sketchCanvasHasInk(final));
+        }
         if (pointers.size === 0) preStroke = null;
         drawing = false;
         if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
       };
-      const cancel = (e: PointerEvent) => { if (toolRef.current === 'select') return; pointers.delete(e.pointerId); if (pointers.size < 2) pinchStart = null; restorePreStroke(); if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId); };
+      const cancel = (e: PointerEvent) => {
+        if (toolRef.current === 'select') return;
+        pointers.delete(e.pointerId);
+        if (pointers.size < 2) pinchStart = null;
+        restorePreStroke();
+        if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+      };
       canvas.addEventListener('pointerdown', down);
       canvas.addEventListener('pointermove', move);
       canvas.addEventListener('pointerup', end);
@@ -195,7 +286,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
       return true;
     };
     if (setup()) return () => cleanup?.();
-    let rafId = requestAnimationFrame(() => {
+    const rafId = requestAnimationFrame(() => {
       setup();
     });
     return () => {
@@ -209,7 +300,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         const canvas = canvasRef.current;
         if (!canvas) return resolve(null);
         try {
-          selection.commitSelection();
+          selection.commitSelection({ recordHistory: false });
           canvas.toBlob(
             (blob) =>
               resolve(blob ? new File([blob], buildSketchFileName(), { type: 'image/png' }) : null),
@@ -219,7 +310,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
           resolve(null);
         }
       }),
-    []
+    [selection]
   );
   return {
     canvasRef,
@@ -235,7 +326,16 @@ export function useSketchCanvas(): UseSketchCanvasResult {
     setZoom,
     selectionMarquee: selection.marquee,
     floatingSelection: selection.selection,
-    onResizeHandlePointerDown: (handle, e) => { const canvas = canvasRef.current; if (canvas) selection.onResizeHandlePointerDown(handle, canvas, e.nativeEvent, window.devicePixelRatio || 1); },
+    onResizeHandlePointerDown: (handle, e) => {
+      const canvas = canvasRef.current;
+      if (canvas)
+        selection.onResizeHandlePointerDown(
+          handle,
+          canvas,
+          e.nativeEvent,
+          window.devicePixelRatio || 1
+        );
+    },
     deleteSelection: selection.deleteSelection,
     copySelection: selection.copySelection,
     commitSelection: selection.commitSelection,
