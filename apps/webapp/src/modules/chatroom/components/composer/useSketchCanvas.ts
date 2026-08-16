@@ -15,6 +15,7 @@ import { buildSketchFileName } from './sketchFileName';
 import { useSketchSelection } from './useSketchSelection';
 import { useSketchHistory } from './useSketchHistory';
 import { captureBackingSnapshot } from './sketchCanvasSnapshot';
+import { imageDataPixelsEqual, sketchCanvasHasInk } from './sketchCanvasSnapshot';
 
 export type SketchTool = 'pen' | 'eraser' | 'select';
 export type UseSketchCanvasResult = {
@@ -127,8 +128,6 @@ export function useSketchCanvas(): UseSketchCanvasResult {
       };
       const down = (e: PointerEvent) => {
         if (toolRef.current === 'select') return;
-        const before = captureBackingSnapshot(ctx, hasContentRef.current);
-        recordMutation(before);
         pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
         if (pointers.size >= 2) {
           restorePreStroke();
@@ -176,6 +175,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         if (toolRef.current === 'select') return;
         pointers.delete(e.pointerId);
         if (pointers.size < 2) pinchStart = null;
+        if (drawing && preStroke) { const final = ctx.getImageData(0, 0, canvas.width, canvas.height); if (!imageDataPixelsEqual(preStroke, final)) recordMutation({ imageData: preStroke, hasContent: hadContentBeforeStroke }); updateHasContent(sketchCanvasHasInk(final)); }
         if (pointers.size === 0) preStroke = null;
         drawing = false;
         if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
