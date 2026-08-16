@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { useSketchCanvas } from './useSketchCanvas';
+import { SketchColorPicker } from './SketchColorPicker';
+import { SketchZoomControls } from './SketchZoomControls';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +25,7 @@ export type SketchDialogProps = {
   onSave: (file: File) => void;
 };
 export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) {
-  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool } =
+  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, zoom, setZoom } =
     useSketchCanvas();
   const [isSaving, setIsSaving] = useState(false);
   useEffect(() => {
@@ -51,7 +53,7 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
         <DialogHeader>
           <DialogTitle>Sketch attachment</DialogTitle>
         </DialogHeader>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             aria-label="Pen"
@@ -78,12 +80,15 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
           >
             <Trash2 />
           </button>
+          <SketchColorPicker value={brushColor} onChange={setBrushColor} disabled={tool === 'eraser'} />
+          <SketchZoomControls zoom={zoom} onZoomChange={setZoom} />
         </div>
-        <DialogScrollBody className="min-h-[280px] w-full border-2 border-chatroom-border bg-white">
+        <DialogScrollBody className="min-h-[280px] w-full overflow-auto border-2 border-chatroom-border bg-white">
           <canvas
             ref={canvasRef}
             className="block w-full h-full min-h-[280px] touch-none"
             aria-label="Sketch canvas"
+            style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
           />
         </DialogScrollBody>
         <DialogFooter>
