@@ -1,11 +1,13 @@
 'use client';
-import { Eraser, Pencil, Trash2 } from 'lucide-react';
+import { BoxSelect, Eraser, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { useSketchCanvas } from './useSketchCanvas';
 import { SketchColorPicker } from './SketchColorPicker';
 import { SketchZoomControls } from './SketchZoomControls';
+import { SketchSelectionOverlay } from './SketchSelectionOverlay';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import {
   Dialog,
   DialogContent,
@@ -25,9 +27,12 @@ export type SketchDialogProps = {
   onSave: (file: File) => void;
 };
 export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) {
-  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, zoom, setZoom } =
+  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, commitSelection } =
     useSketchCanvas();
   const [isSaving, setIsSaving] = useState(false);
+  const isDesktop = useIsDesktop();
+  useEffect(() => { if (!open) return; const onKey = (e: KeyboardEvent) => { if (!floatingSelection) return; if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); } if ((e.metaKey || e.ctrlKey) && e.key === 'c') { e.preventDefault(); void copySelection(); } }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [open, floatingSelection, deleteSelection, copySelection]);
+  const handleOpenChange = (next: boolean) => { if (!next) commitSelection(); onOpenChange(next); };
   useEffect(() => {
     if (!open || !canvasRef.current) return;
     return bindCanvas(canvasRef.current);
@@ -80,22 +85,24 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
           >
             <Trash2 />
           </button>
-          <SketchColorPicker value={brushColor} onChange={setBrushColor} disabled={tool === 'eraser'} />
+          {isDesktop && <button type="button" aria-label="Select" title="Select" aria-pressed={tool === 'select'} onClick={() => setTool('select')}><BoxSelect /></button>}
+          {tool !== 'select' && <SketchColorPicker value={brushColor} onChange={setBrushColor} disabled={tool === 'eraser'} />}
           <SketchZoomControls zoom={zoom} onZoomChange={setZoom} />
         </div>
-        <DialogScrollBody className="min-h-[280px] w-full overflow-auto border-2 border-chatroom-border bg-white">
+        <DialogScrollBody className="relative min-h-[280px] w-full overflow-auto border-2 border-chatroom-border bg-white">
           <canvas
             ref={canvasRef}
             className="block w-full h-full min-h-[280px] touch-none"
             aria-label="Sketch canvas"
             style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
           />
+          {isDesktop && tool === 'select' && <SketchSelectionOverlay zoom={zoom} marquee={selectionMarquee} selection={floatingSelection} onHandlePointerDown={(h,e) => onResizeHandlePointerDown(h,e)} />}
         </DialogScrollBody>
         <DialogFooter>
           <button
             type="button"
             className={chatroomIndustrialButtonSecondaryClassName}
-            onClick={() => onOpenChange(false)}
+            onClick={() => handleOpenChange(false)}
           >
             Cancel
           </button>
