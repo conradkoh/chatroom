@@ -1110,6 +1110,7 @@ export default defineSchema({
     wantResume: v.optional(v.boolean()),
 
     /** Experimental: cold-restart planner after handoff to user (default true when unset). */
+    /** @deprecated Legacy setting — no longer written. Kept optional for existing rows. */
     plannerRestartOnHandoffToUser: v.optional(v.boolean()),
 
     /** @deprecated Legacy field — no longer written. Kept for existing documents. */

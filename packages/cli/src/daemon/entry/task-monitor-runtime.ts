@@ -14,7 +14,6 @@ import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliabil
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { shouldEmitSessionAugmentation, resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import {
-  resolveSessionAugmentationForRole,
   sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';

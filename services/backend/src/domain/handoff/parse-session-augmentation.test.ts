@@ -1,40 +1,11 @@
 import { describe, expect, test } from 'vitest';
 
 import {
-  resolveSessionAugmentationForRole,
   resolveSessionAugmentationForTask,
   shouldEmitSessionAugmentation,
   sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from './parse-session-augmentation';
-
-describe('resolveSessionAugmentationForRole', () => {
-  test('builder always returns new_session regardless of body content', () => {
-    expect(resolveSessionAugmentationForRole('## Goal\nDo work', 'builder')).toBe('new_session');
-    expect(
-      resolveSessionAugmentationForRole(
-        '## Session Augmentation\n// data:agent.session_augmentation=none',
-        'builder'
-      )
-    ).toBe('new_session');
-  });
-
-  test('planner always returns none', () => {
-    expect(resolveSessionAugmentationForRole('## Goal\nDo work', 'planner')).toBe('none');
-    expect(
-      resolveSessionAugmentationForRole(
-        '## Session Augmentation\n// data:agent.session_augmentation=new_session',
-        'planner'
-      )
-    ).toBe('none');
-  });
-
-  test('other non-augmentable roles return none', () => {
-    for (const role of ['architect', 'solo', 'reviewer']) {
-      expect(resolveSessionAugmentationForRole('## Goal\nDo work', role)).toBe('none');
-    }
-  });
-});
 
 describe('sessionAugmentationToWantResume', () => {
   test('none → resume prior session', () => {
@@ -81,7 +52,12 @@ describe('resolveSessionAugmentationForTask', () => {
   });
 
   test('after startInNewSession is consumed, planner falls back to none', () => {
-    expect(resolveSessionAugmentationForTask({ content: '## Goal\nDo work', startInNewSession: undefined }, 'planner')).toBe('none');
+    expect(
+      resolveSessionAugmentationForTask(
+        { content: '## Goal\nDo work', startInNewSession: undefined },
+        'planner'
+      )
+    ).toBe('none');
   });
 });
 

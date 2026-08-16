@@ -2,10 +2,9 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { generateRolePrompt, composeInitPrompt } from '../prompts';
-import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
-import { internalMutation, mutation, query } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { buildAvailableHandoffRoles } from './lib/handoffRoles';
@@ -24,7 +23,6 @@ import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
-import { restartPlannerOnHandoffToUser } from '../src/domain/usecase/agent/restart-planner-on-handoff-to-user';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
@@ -916,13 +914,6 @@ export async function runHandoffHandler(
   const supportsNativeIntegration =
     agentConfigResult.found && isNativeHarness(agentConfigResult.config.agentHarness);
 
-  if (normalizedSenderRole === 'planner' && isHandoffToUser && chatroom.teamId) {
-    await ctx.scheduler.runAfter(3_000, internal.messages.restartPlannerOnHandoffToUserDeferred, {
-      chatroomId: args.chatroomId,
-      teamId: chatroom.teamId,
-    });
-  }
-
   return {
     success: true,
     error: null,
@@ -934,11 +925,6 @@ export async function runHandoffHandler(
     supportsNativeIntegration,
   };
 }
-
-export const restartPlannerOnHandoffToUserDeferred = internalMutation({
-  args: { chatroomId: v.id('chatroom_rooms'), teamId: v.string() },
-  handler: async (ctx, args) => restartPlannerOnHandoffToUser(ctx, args),
-});
 
 /** Sends a message to a chatroom without completing the current task. */
 export const sendMessage = mutation({

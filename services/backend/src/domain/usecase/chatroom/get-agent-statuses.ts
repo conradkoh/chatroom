@@ -15,7 +15,6 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentType } from '../../entities/agent';
-import { resolvePlannerRestartOnHandoffToUser } from '../agent/resolve-planner-restart-on-handoff-to-user';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -32,7 +31,6 @@ export interface AgentRoleView {
   spawnedAt?: number;
   /** When true (default), stop→start reconnects to the daemon's preserved session. */
   wantResume?: boolean;
-  plannerRestartOnHandoffToUser?: boolean;
 }
 
 /** Full chatroom agent status returned to the UI. */
@@ -130,7 +128,6 @@ export async function getAgentStatusForChatroom(
       workingDir: teamConfig.workingDir,
       spawnedAt: teamConfig.spawnedAt,
       wantResume: teamConfig.wantResume,
-      plannerRestartOnHandoffToUser: resolvePlannerRestartOnHandoffToUser(teamConfig),
     };
   });
 

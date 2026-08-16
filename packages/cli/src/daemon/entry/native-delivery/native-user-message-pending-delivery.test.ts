@@ -16,7 +16,7 @@
 
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel.js';
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { resolveSessionAugmentationForRole } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
+import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { Context, Effect, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
@@ -183,7 +183,10 @@ describe('user message pending delivery path', () => {
       role: 'builder',
       prompt: buildNativeInjectionPrompt({
         taskDeliveryOutput: 'USER MESSAGE DELIVERY OUTPUT',
-        augmentationMode: resolveSessionAugmentationForRole(MESSAGE_CONTENT, 'builder'),
+        augmentationMode: resolveSessionAugmentationForTask(
+          { content: MESSAGE_CONTENT, startInNewSession: undefined },
+          'builder'
+        ),
       }),
     });
   });

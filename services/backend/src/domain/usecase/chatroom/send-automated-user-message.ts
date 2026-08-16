@@ -39,10 +39,11 @@ export async function sendAutomatedUserMessage(
 
   let plannerEnhancerEnabled: boolean | undefined;
   if (args.userId) {
+    const userId = args.userId;
     const config = await ctx.db
       .query('chatroom_enhancerConfigs')
       .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', args.userId!)
+        q.eq('chatroomId', args.chatroomId).eq('userId', userId)
       )
       .unique();
     plannerEnhancerEnabled = resolvePlannerEnhancerEnabledFromConfig(config);

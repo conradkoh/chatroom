@@ -3,7 +3,6 @@ import type { AgentHarness } from './agent';
 // fallow-ignore-next-line unused-export
 export const AGENT_RESTART_REASONS = [
   'user.restart',
-  'platform.planner_handoff_to_user',
   'platform.restart_offline_on_user_message',
 ] as const;
 
@@ -23,10 +22,7 @@ export type AgentRestartRequest =
       overrides?: Partial<RunnableRemoteAgentConfig>;
     }
   | {
-      reason: Extract<
-        AgentRestartReason,
-        'platform.planner_handoff_to_user' | 'platform.restart_offline_on_user_message'
-      >;
+      reason: Extract<AgentRestartReason, 'platform.restart_offline_on_user_message'>;
     };
 
 export type AgentRestartResult =

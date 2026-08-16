@@ -7,13 +7,18 @@
 
 import { expect } from 'vitest';
 
-import { resolveSessionAugmentationForRole } from '../../src/domain/handoff/parse-session-augmentation';
+import { resolveSessionAugmentationForTask } from '../../src/domain/handoff/parse-session-augmentation';
 
 export const NEW_SESSION_INJECTION_HEADER = 'Starting a new agent session';
 
 /** Task body implies a fresh session for builder delegation. */
 export function expectNewSessionFromTaskContent(taskContent: string): void {
-  expect(resolveSessionAugmentationForRole(taskContent, 'builder')).toBe('new_session');
+  expect(
+    resolveSessionAugmentationForTask(
+      { content: taskContent, startInNewSession: undefined },
+      'builder'
+    )
+  ).toBe('new_session');
 }
 
 /** Native injection prompt includes new-session preamble (new_session mode). */
