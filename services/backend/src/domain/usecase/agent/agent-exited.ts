@@ -111,15 +111,16 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
 
   if (shouldUpdateParticipant) {
     const isResumeStorm = stopReason === 'platform.resume_storm';
-    const isColdSession = stopReason === 'platform.task_start_in_new_session';
+    const isOrchestratedRestart =
+      stopReason === 'platform.task_start_in_new_session' || stopReason === 'daemon.respawn';
     const participantStatus = isResumeStorm
       ? 'agent.resumeStormAborted'
-      : isColdSession
+      : isOrchestratedRestart
         ? 'agent.restart'
         : 'agent.exited';
     const participantDesiredState = isResumeStorm
       ? 'stopped'
-      : isColdSession
+      : isOrchestratedRestart
         ? 'running'
         : undefined;
     await transitionAgentStatus(ctx, chatroomId, role, participantStatus, participantDesiredState);
