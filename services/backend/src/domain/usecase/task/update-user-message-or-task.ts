@@ -7,6 +7,7 @@ import {
 } from './resolve-user-message-task-link';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { normalizeMarkdownContent } from '../../entities/markdown-content';
 
 export type UpdateUserMessageOrTaskArgs =
   | { type: 'task'; taskId: Id<'chatroom_tasks'>; content: string }
@@ -34,7 +35,7 @@ export async function updateUserMessageOrTask(
   const content = validateContent(args.content);
 
   if (args.type === 'task') {
-    return updateByTaskId(ctx, args.taskId, content);
+    return updateByTaskId(ctx, args.taskId, normalizeMarkdownContent(content));
   }
   return updateByMessageId(ctx, args.messageId, content);
 }

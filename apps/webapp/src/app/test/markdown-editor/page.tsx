@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { MarkdownEditor, MarkdownViewer, EditableMarkdown } from '@/components/markdown-editor';
+import { MarkdownEditor, MarkdownViewer, EditableMarkdown, defaultMarkdownEditorProseClassNames } from '@/components/markdown-editor';
 
 const SAMPLE_MARKDOWN = `# Markdown WYSIWYG Demo
 
@@ -53,7 +53,7 @@ export default function MarkdownEditorTestPage() {
         <div>
           <h1 className="text-3xl font-bold mb-2 text-foreground">Markdown WYSIWYG Editor</h1>
           <p className="text-muted-foreground">
-            MDXEditor-based editing with a separate read-only MarkdownViewer for downstream apps.
+            TipTap-based editing with a separate read-only MarkdownViewer for downstream apps.
           </p>
         </div>
 
@@ -67,6 +67,7 @@ export default function MarkdownEditorTestPage() {
             defaultMarkdown={SAMPLE_MARKDOWN}
             onChange={setContent}
             placeholder="Start writing markdown..."
+            proseClassName={defaultMarkdownEditorProseClassNames}
           />
         </section>
 
@@ -80,6 +81,7 @@ export default function MarkdownEditorTestPage() {
             markdown={editableContent}
             onChange={setEditableContent}
             placeholder="Click to add markdown..."
+            proseClassName={defaultMarkdownEditorProseClassNames}
           />
         </section>
 
@@ -96,6 +98,7 @@ export default function MarkdownEditorTestPage() {
                 defaultMarkdown={content}
                 onChange={setContent}
                 placeholder="Edit markdown..."
+                proseClassName={defaultMarkdownEditorProseClassNames}
               />
             </div>
             <div className="space-y-2">

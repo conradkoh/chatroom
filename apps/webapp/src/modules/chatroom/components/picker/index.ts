@@ -12,6 +12,12 @@ export { getMobileDrawerContentStyle } from './getMobileDrawerContentStyle';
 export {
   MOBILE_DRAWER_CHILDREN_WRAPPER_CLASSNAME,
   MOBILE_DRAWER_CONTENT_CLASSNAME,
+  MOBILE_DRAWER_POPUP_CLASSNAME,
 } from './mobileDrawerLayout';
 export { usePickerSearchState } from './usePickerSearchState';
+export { PickerMobileChrome } from './PickerMobileChrome';
+export { usePickerShell } from './PickerShellContext';
+export { useMobilePickerKeyboardOpen } from './useMobilePickerKeyboardOpen';
+export { MobileKeyboardDrawer } from './MobileKeyboardDrawer';
+export type { MobileKeyboardDrawerProps } from './MobileKeyboardDrawer';
 export { filterPickerItems } from './filterPickerItems';

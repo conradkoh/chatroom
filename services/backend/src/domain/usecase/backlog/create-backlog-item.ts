@@ -7,6 +7,7 @@ import { ConvexError } from 'convex/values';
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { normalizeMarkdownContent } from '../../entities/markdown-content';
 
 export interface CreateBacklogItemArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -33,7 +34,7 @@ export async function createBacklogItem(
   const itemId = await ctx.db.insert('chatroom_backlog', {
     chatroomId: args.chatroomId,
     createdBy: args.createdBy,
-    content: args.content.trim(),
+    content: normalizeMarkdownContent(args.content),
     status: 'backlog',
     createdAt: now,
     updatedAt: now,

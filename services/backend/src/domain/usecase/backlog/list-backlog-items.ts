@@ -5,6 +5,7 @@
  */
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
+import { withMarkdownContent } from '../../entities/markdown-content';
 
 export type BacklogStatusFilter = 'backlog' | 'pending_user_review' | 'closed' | 'active';
 export type BacklogSortOrder = 'date:desc' | 'priority:desc';
@@ -82,5 +83,5 @@ export async function listBacklogItems(ctx: QueryCtx, args: ListBacklogItemsArgs
   }
 
   const limit = Math.min(args.limit ?? 100, 100);
-  return items.slice(0, limit);
+  return items.slice(0, limit).map(withMarkdownContent);
 }

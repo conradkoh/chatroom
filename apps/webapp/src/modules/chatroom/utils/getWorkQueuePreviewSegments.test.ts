@@ -64,4 +64,10 @@ describe('getWorkQueuePreviewSegments', () => {
     expect(text).not.toContain('##');
     expect(text).toBe('Not shown');
   });
+
+  it('strips legacy HTML and renders plain text', () => {
+    const text = formatWorkQueuePreviewPlainText(getWorkQueuePreviewSegments('<p>Hello <strong>world</strong></p>'));
+    expect(text).toBe('Hello world');
+    expect(text).not.toContain('<p');
+  });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@workspace/backend",
-  "version": "1.96.0",
+  "version": "1.96.1",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -14,6 +14,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@workspace/shared": "workspace:*",
     "@convex-dev/aggregate": "^0.2.2",
     "@convex-dev/migrations": "^0.3.5",
     "convex": "^1.42.2",
