@@ -14,6 +14,7 @@ import {
 import { buildSketchFileName } from './sketchFileName';
 import { useSketchSelection } from './useSketchSelection';
 import { useSketchHistory } from './useSketchHistory';
+import { captureBackingSnapshot } from './sketchCanvasSnapshot';
 
 export type SketchTool = 'pen' | 'eraser' | 'select';
 export type UseSketchCanvasResult = {
@@ -54,6 +55,10 @@ export function useSketchCanvas(): UseSketchCanvasResult {
   const [zoom, setZoomState] = useState(SKETCH_ZOOM_DEFAULT);
   const zoomRef = useRef(zoom);
   const selection = useSketchSelection({ getCtx: () => ctxRef.current, getCanvas: () => canvasRef.current, getDpr: () => window.devicePixelRatio || 1, updateHasContent, getHasContent: () => hasContentRef.current });
+  const historyRef = useRef(history); historyRef.current = history;
+  const applyHistory = useCallback((snapshot: import('./sketchCanvasSnapshot').SketchHistorySnapshot) => { const ctx=ctxRef.current; if(ctx){ selection.clearSelectionWithoutHistory(); ctx.putImageData(snapshot.imageData,0,0); updateHasContent(snapshot.hasContent); } }, [selection, updateHasContent]);
+  const undoHistory = useCallback(() => { const ctx=ctxRef.current; if(!ctx)return; const current=captureBackingSnapshot(ctx,hasContentRef.current); const previous=historyRef.current.undo(current); if(previous)applyHistory(previous); }, [applyHistory]);
+  const redoHistory = useCallback(() => { const ctx=ctxRef.current; if(!ctx)return; const current=captureBackingSnapshot(ctx,hasContentRef.current); const next=historyRef.current.redo(current); if(next)applyHistory(next); }, [applyHistory]);
   const setTool = useCallback((next: SketchTool) => { if (toolRef.current === 'select' && next !== 'select') selection.commitSelection(); setToolState(next); }, [selection]);
   const setZoom = useCallback((value: number) => {
     selection.commitSelection();
@@ -232,7 +237,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
     commitSelection: selection.commitSelection,
     canUndo: history.canUndo,
     canRedo: history.canRedo,
-    undo: () => {},
-    redo: () => {},
+    undo: undoHistory,
+    redo: redoHistory,
   };
 }
