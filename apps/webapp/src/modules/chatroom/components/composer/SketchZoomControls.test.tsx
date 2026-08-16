@@ -1,0 +1,3 @@
+import { render, screen } from '@testing-library/react'; import userEvent from '@testing-library/user-event'; import { describe, expect, it, vi } from 'vitest'; import { SketchZoomControls } from './SketchZoomControls';
+const desktop = vi.fn(); vi.mock('@/hooks/useIsDesktop', () => ({ useIsDesktop: () => desktop() }));
+describe('SketchZoomControls', () => { it('shows desktop slider and mobile hint', async () => { desktop.mockReturnValue(true); const onChange = vi.fn(); render(<SketchZoomControls zoom={1} onZoomChange={onChange} />); await userEvent.click(screen.getByRole('slider')); expect(screen.getByRole('slider')).toBeInTheDocument(); desktop.mockReturnValue(false); }); });
