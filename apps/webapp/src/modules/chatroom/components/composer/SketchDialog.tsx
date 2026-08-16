@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { useSketchCanvas } from './useSketchCanvas';
 import { SketchColorPicker } from './SketchColorPicker';
+import { SketchBrushSizeControl } from './SketchBrushSizeControl';
 import { SketchZoomControls } from './SketchZoomControls';
 import { SketchSelectionOverlay } from './SketchSelectionOverlay';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
@@ -27,11 +28,11 @@ export type SketchDialogProps = {
   onSave: (file: File) => void;
 };
 export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) {
-  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, pasteFromClipboard, commitSelection, canUndo, canRedo, undo, redo } =
+  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, brushSize, setBrushSize, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, pasteFromClipboard, commitSelection, canUndo, canRedo, undo, redo } =
     useSketchCanvas();
   const [isSaving, setIsSaving] = useState(false);
   const isDesktop = useIsDesktop();
-  useEffect(() => { if (!open) return; const onKey = (e: KeyboardEvent) => { const t=e.target; if(t instanceof HTMLInputElement||t instanceof HTMLTextAreaElement||t instanceof HTMLSelectElement||(t instanceof HTMLElement&&t.isContentEditable))return; const key=e.key.toLowerCase(); if((e.metaKey||e.ctrlKey)&&key==='z'&&!e.shiftKey){e.preventDefault();undo();return;} if((e.metaKey||e.ctrlKey)&&((key==='z'&&e.shiftKey)||key==='y')){e.preventDefault();redo();return;} if((e.metaKey||e.ctrlKey)&&key==='v'){e.preventDefault();void pasteFromClipboard().catch(()=>toast.error('Nothing to paste'));return;} if(!floatingSelection)return; if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelection();} if((e.metaKey||e.ctrlKey)&&key==='c'){e.preventDefault();void copySelection().catch(()=>toast.error('Failed to copy selection'));} }; window.addEventListener('keydown',onKey); return()=>window.removeEventListener('keydown',onKey); }, [open,floatingSelection,undo,redo,deleteSelection,copySelection,pasteFromClipboard]);
+  useEffect(() => { if (!open) return; const onKey = (e: KeyboardEvent) => { const t=e.target; if(t instanceof HTMLInputElement||t instanceof HTMLTextAreaElement||t instanceof HTMLSelectElement||(t instanceof HTMLElement&&t.isContentEditable))return; const key=e.key.toLowerCase(); if((e.metaKey||e.ctrlKey)&&key==='z'&&!e.shiftKey){e.preventDefault();undo();return;} if((e.metaKey||e.ctrlKey)&&((key==='z'&&e.shiftKey)||key==='y')){e.preventDefault();redo();return;} if((e.metaKey||e.ctrlKey)&&key==='v'){e.preventDefault();void pasteFromClipboard().catch(()=>toast.error('Nothing to paste'));return;} if(key==='['){e.preventDefault();setBrushSize(brushSize-1);return;} if(key===']'){e.preventDefault();setBrushSize(brushSize+1);return;} if(!floatingSelection)return; if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelection();} if((e.metaKey||e.ctrlKey)&&key==='c'){e.preventDefault();void copySelection().catch(()=>toast.error('Failed to copy selection'));} }; window.addEventListener('keydown',onKey); return()=>window.removeEventListener('keydown',onKey); }, [open,floatingSelection,undo,redo,deleteSelection,copySelection,pasteFromClipboard,brushSize,setBrushSize]);
   const handleOpenChange = (next: boolean) => { if (!next) commitSelection(); onOpenChange(next); };
   useEffect(() => {
     if (!open || !canvasRef.current) return;
@@ -100,6 +101,7 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
           </button>
           {isDesktop && <button type="button" aria-label="Select" title="Select" aria-pressed={tool === 'select'} onClick={() => setTool('select')}><BoxSelect /></button>}
           {tool !== 'select' && <SketchColorPicker value={brushColor} onChange={setBrushColor} disabled={tool === 'eraser'} />}
+          {tool === 'pen' && <SketchBrushSizeControl value={brushSize} onChange={setBrushSize} />}
           <SketchZoomControls zoom={zoom} onZoomChange={setZoom} />
         </div>
         <DialogScrollBody className="relative min-h-[280px] w-full overflow-auto border-2 border-chatroom-border bg-white">
