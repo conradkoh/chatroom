@@ -79,6 +79,10 @@ describe('resolveSessionAugmentationForTask', () => {
       )
     ).toBe('new_session');
   });
+
+  test('after startInNewSession is consumed, planner falls back to none', () => {
+    expect(resolveSessionAugmentationForTask({ content: '## Goal\nDo work', startInNewSession: undefined }, 'planner')).toBe('none');
+  });
 });
 
 describe('shouldEmitSessionAugmentation', () => {
