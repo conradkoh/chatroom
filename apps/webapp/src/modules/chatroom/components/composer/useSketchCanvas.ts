@@ -24,6 +24,7 @@ import type { ResizeHandle, SketchFloatingSelection, SketchRect } from './sketch
 import { useSketchHistory } from './useSketchHistory';
 import { useSketchSelection } from './useSketchSelection';
 import { decideTwoFingerMode, twoFingerCenter } from './sketchViewportPan';
+import { applyCroppedCanvas, extractImageDataRegion } from './sketchCanvasCrop';
 
 export type SketchTool = 'pen' | 'eraser' | 'select' | 'eyedropper';
 export type UseSketchCanvasResult = {
@@ -51,6 +52,9 @@ export type UseSketchCanvasResult = {
   deselect: () => void;
   nudgeSelection: (dx: number, dy: number) => void;
   rotateSelection90: () => void; flipSelectionHorizontal: () => void; flipSelectionVertical: () => void;
+  cropToSelection: () => boolean;
+  canvasCssSize: { width: number; height: number } | null;
+  resetCanvasLayout: () => void;
   canUndo: boolean;
   canRedo: boolean;
   undo: () => void;
@@ -82,6 +86,8 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     setBrushSizeState(next);
   }, []);
   const [zoom, setZoomState] = useState(SKETCH_ZOOM_DEFAULT);
+  const customCanvasSizeRef = useRef<{ width: number; height: number } | null>(null);
+  const [canvasCssSize, setCanvasCssSize] = useState<{ width: number; height: number } | null>(null);
   const zoomRef = useRef(zoom);
   const scrollGetterRef = useRef(options?.getScrollContainer);
   scrollGetterRef.current = options?.getScrollContainer;
@@ -167,6 +173,26 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
   );
   const deselect = useCallback(() => { selection.clearSelectionWithoutHistory(); }, [selection]);
   const nudgeSelection = useCallback((dx: number, dy: number) => selection.nudgeSelection(dx, dy), [selection]);
+  const resetCanvasLayout = useCallback(() => { customCanvasSizeRef.current = null; setCanvasCssSize(null); }, []);
+  const cropToSelection = useCallback(() => {
+    const canvas = canvasRef.current;
+    const ctx = ctxRef.current;
+    const bounds = selection.getSelectionBounds();
+    if (!canvas || !ctx || !bounds) return false;
+    selection.prepareComposite();
+    const snapshot = selection.captureCompositedSnapshot();
+    if (snapshot) recordMutation(snapshot);
+    const dpr = window.devicePixelRatio || 1;
+    const cropped = extractImageDataRegion(ctx, bounds, dpr);
+    selection.clearSelectionWithoutHistory();
+    const hasInk = applyCroppedCanvas(canvas, ctx, cropped, bounds.width, bounds.height, dpr);
+    customCanvasSizeRef.current = { width: bounds.width, height: bounds.height };
+    setCanvasCssSize({ width: bounds.width, height: bounds.height });
+    zoomRef.current = SKETCH_ZOOM_DEFAULT;
+    setZoomState(SKETCH_ZOOM_DEFAULT);
+    updateHasContent(hasInk);
+    return true;
+  }, [recordMutation, selection, updateHasContent]);
   toolRef.current = tool;
   const clear = useCallback(() => {
     if (hasContentRef.current) {
@@ -188,18 +214,21 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     let cleanup: (() => void) | undefined;
     const setup = (): boolean => {
       const rect = canvas.parentElement?.getBoundingClientRect();
-      if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+      const custom = customCanvasSizeRef.current;
+      const cssW = custom?.width ?? rect?.width ?? 0;
+      const cssH = custom?.height ?? rect?.height ?? 0;
+      if (cssW <= 0 || cssH <= 0) return false;
       const dpr = window.devicePixelRatio || 1;
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
+      canvas.style.width = `${cssW}px`;
+      canvas.style.height = `${cssH}px`;
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
       const ctx = canvas.getContext('2d');
       if (!ctx) return true;
       ctxRef.current = ctx;
       ctx.scale(dpr, dpr);
       ctx.fillStyle = SKETCH_CANVAS_COLORS.background;
-      ctx.fillRect(0, 0, rect.width, rect.height);
+      ctx.fillRect(0, 0, cssW, cssH);
       historyRef.current.reset();
       const selectionCleanup = selection.bindSelectionPointerHandlers(canvas, dpr);
       updateHasContent(false);
@@ -383,6 +412,9 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     deselect,
     nudgeSelection,
     rotateSelection90: selection.rotateSelection90, flipSelectionHorizontal: selection.flipSelectionHorizontal, flipSelectionVertical: selection.flipSelectionVertical,
+    cropToSelection,
+    canvasCssSize,
+    resetCanvasLayout,
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     undo: undoHistory,
