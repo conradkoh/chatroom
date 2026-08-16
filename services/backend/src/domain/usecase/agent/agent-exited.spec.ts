@@ -268,6 +268,31 @@ describe('agentExited use case', () => {
     expect(participant?.lastDesiredState).toBe('stopped');
   });
 
+  test('sets participant lastStatus to agent.restart for platform.task_start_in_new_session', async () => {
+    const { sessionId } = await createTestSession('ae-cold-session-1');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'machine-ae-cold';
+    await setupAgentConfig(sessionId, chatroomId, machineId, 'builder', 12345);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.run(async (ctx) => {
+      await agentExited(ctx, {
+        chatroomId,
+        role: 'builder',
+        machineId,
+        pid: 12345,
+        stopReason: 'platform.task_start_in_new_session',
+      });
+    });
+
+    const participant = await getParticipant(chatroomId, 'builder');
+    expect(participant?.lastStatus).toBe('agent.restart');
+    expect(participant?.lastDesiredState).toBe('running');
+
+    const count = await countExitedEvents(chatroomId, 'builder');
+    expect(count).toBe(1);
+  });
+
   test('is idempotent (calling twice with same input is safe)', async () => {
     const { sessionId } = await createTestSession('ae-idempotent-1');
     const chatroomId = await createChatroom(sessionId);
