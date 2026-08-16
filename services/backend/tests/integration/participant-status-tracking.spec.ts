@@ -14,6 +14,7 @@ import { stopAgent } from '../../src/domain/usecase/agent/stop-agent';
 import { t } from '../../test.setup';
 import {
   createBuilderEntryDuoChatroom,
+  createPlannerBuilderDuoChatroom,
   createTestSession,
   registerMachineWithDaemon,
   joinParticipant,
@@ -814,6 +815,52 @@ describe('Participant Status Tracking', () => {
       role: 'builder',
       mode: 'new_session',
       newSessionStarted: true,
+    });
+  });
+
+  test('emitSessionAugmented with newSessionStarted clears startInNewSession on planner task', async () => {
+    const { sessionId } = await createTestSession('test-pst-session-augmented-consume');
+    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+    const machineId = 'machine-pst-session-augmented-consume';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+
+    const { taskId } = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'User task with new session toggle',
+      createdBy: 'user',
+      startInNewSession: true,
+    });
+
+    await t.mutation(api.machines.emitSessionAugmented, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'planner',
+      taskId,
+      mode: 'new_session',
+      newSessionStarted: true,
+      harnessSessionId: 'sess-planner-cold',
+    });
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.startInNewSession).toBeUndefined();
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const augmented = events.filter((e) => e.type === 'agent.sessionAugmented');
+    expect(augmented).toHaveLength(1);
+    expect(augmented[0]).toMatchObject({
+      role: 'planner',
+      newSessionStarted: true,
+      mode: 'new_session',
+      harnessSessionId: 'sess-planner-cold',
     });
   });
 
