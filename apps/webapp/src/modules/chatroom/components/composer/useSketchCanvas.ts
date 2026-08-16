@@ -53,6 +53,7 @@ export type UseSketchCanvasResult = {
   nudgeSelection: (dx: number, dy: number) => void;
   rotateSelection90: () => void; flipSelectionHorizontal: () => void; flipSelectionVertical: () => void;
   cropToSelection: () => boolean;
+  invertSelection: () => boolean;
   canvasCssSize: { width: number; height: number } | null;
   resetCanvasLayout: () => void;
   canUndo: boolean;
@@ -413,6 +414,7 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     nudgeSelection,
     rotateSelection90: selection.rotateSelection90, flipSelectionHorizontal: selection.flipSelectionHorizontal, flipSelectionVertical: selection.flipSelectionVertical,
     cropToSelection,
+    invertSelection: () => selection.invertSelection(),
     canvasCssSize,
     resetCanvasLayout,
     canUndo: history.canUndo,
