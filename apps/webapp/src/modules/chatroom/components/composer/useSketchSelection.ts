@@ -4,7 +4,7 @@ import { canvasPointFromEvent, normalizeRect, pointInRect } from './sketchCanvas
 import { drawImageDataAt, imageDataToPngBlob, liftPixels, scaleImageData } from './sketchSelectionUtils';
 import { SKETCH_MIN_SELECTION_CSS_PX, type ResizeHandle, type SketchFloatingSelection, type SketchRect } from './sketchSelectionTypes';
 type Mode = 'idle' | 'creating' | 'moving' | 'resizing';
-export function useSketchSelection({ getCtx, getCanvas, getDpr, updateHasContent, getHasContent }: { getCtx: () => CanvasRenderingContext2D | null; getCanvas: () => HTMLCanvasElement | null; getDpr: () => number; updateHasContent: (v: boolean) => void; getHasContent: () => boolean }) {
+export function useSketchSelection({ getCtx, getCanvas, getDpr: _getDpr, updateHasContent, getHasContent: _getHasContent }: { getCtx: () => CanvasRenderingContext2D | null; getCanvas: () => HTMLCanvasElement | null; getDpr: () => number; updateHasContent: (v: boolean) => void; getHasContent: () => boolean }) {
   const [marquee, setMarquee] = useState<SketchRect | null>(null); const [selection, setSelection] = useState<SketchFloatingSelection | null>(null);
   const marqueeRef = useRef<SketchRect | null>(null); const selectionRef = useRef<SketchFloatingSelection | null>(null); const baseRef = useRef<ImageData | null>(null); const mode = useRef<Mode>('idle'); const start = useRef({ x: 0, y: 0 }); const drag = useRef({ x: 0, y: 0 }); const resize = useRef<{ handle: ResizeHandle; bounds: SketchRect; data: ImageData } | null>(null);
   const setSel = (v: SketchFloatingSelection | null) => { selectionRef.current = v; setSelection(v); };
