@@ -50,4 +50,5 @@ export type AssignedTaskSnapshotView = AssignedTask;
 /** Full task view including content — for one-shot action fetches. */
 export interface AssignedTaskWithContent extends AssignedTask {
   taskContent: string;
+  startInNewSession?: boolean;
 }

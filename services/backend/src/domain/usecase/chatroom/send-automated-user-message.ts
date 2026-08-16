@@ -23,6 +23,7 @@ export async function sendAutomatedUserMessage(
     attachedMessageIds?: Id<'chatroom_messages'>[];
     attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
     userId?: Id<'users'>;
+    startInNewSession: boolean | undefined;
   }
 ): Promise<SendAutomatedUserMessageResult> {
   const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
@@ -64,6 +65,7 @@ export async function sendAutomatedUserMessage(
       ...(args.sourcePlatform ? { sourcePlatform: args.sourcePlatform } : {}),
       ...(args.scheduledPromptId ? { scheduledPromptId: args.scheduledPromptId } : {}),
       ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
+      ...(args.startInNewSession !== undefined ? { startInNewSession: args.startInNewSession } : {}),
     });
     await adjustTaskCount(ctx, args.chatroomId, 'queueSize', 1);
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: Date.now() });
@@ -96,6 +98,7 @@ export async function sendAutomatedUserMessage(
     sourceMessageId: messageId,
     attachedTaskIds: args.attachedTaskIds,
     queuePosition,
+    startInNewSession: args.startInNewSession,
     ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
   });
   await ctx.db.patch('chatroom_messages', messageId, { taskId });

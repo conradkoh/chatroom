@@ -34,6 +34,7 @@ export interface AttachedSnippet {
 
 /** Message shape used throughout the chatroom feed UI. */
 export interface Message {
+  startInNewSession?: boolean;
   _id: string;
   type: string;
   senderRole: string;

@@ -77,6 +77,7 @@ async function enrichMessageAttachments(
     attachedMessageIds?: Id<'chatroom_messages'>[];
     attachedArtifactIds?: Id<'chatroom_artifacts'>[];
     attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
+    startInNewSession?: boolean;
   }
 ) {
   // Resolve attached tasks
@@ -303,6 +304,7 @@ async function _sendMessageHandler(
     attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
     attachedMessageIds?: Id<'chatroom_messages'>[];
     attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
+    startInNewSession?: boolean;
   }
 ) {
   const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -440,6 +442,7 @@ async function _sendMessageHandler(
         : {}),
       ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
       ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
+      startInNewSession: args.startInNewSession,
       userId: session.userId,
     });
     if (!result.ok) {
@@ -486,6 +489,7 @@ async function _sendMessageHandler(
       sourceMessageId: messageId,
       attachedTaskIds: args.attachedTaskIds,
       queuePosition,
+      startInNewSession: undefined,
     });
     await ctx.db.patch('chatroom_messages', messageId, { taskId });
   }
@@ -515,6 +519,7 @@ const sendMessageMutationArgs = {
   attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
   attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
   attachedSnippets: v.optional(v.array(attachedSnippetArgsValidator)),
+  startInNewSession: v.optional(v.boolean()),
 };
 
 /** @deprecated Use sendMessage instead. */
@@ -819,6 +824,7 @@ export async function runHandoffHandler(
       assignedTo: args.targetRole,
       sourceMessageId: messageId,
       queuePosition,
+      startInNewSession: undefined,
     });
     newTaskId = createdTaskId;
 
@@ -1195,6 +1201,7 @@ export const listQueued = query({
       isQueued: true as const,
       queuePosition: qMsg.queuePosition,
       plannerEnhancerEnabled: qMsg.plannerEnhancerEnabled,
+      startInNewSession: qMsg.startInNewSession,
     }));
 
     // Enrich queued messages with attachment details (shared helper)
@@ -1227,6 +1234,16 @@ export const updateQueuedMessagePlannerEnhancer = mutation({
     await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, {
       plannerEnhancerEnabled: args.plannerEnhancerEnabled,
     });
+  },
+});
+
+export const updateQueuedMessageStartInNewSession = mutation({
+  args: { ...SessionIdArg, queuedMessageId: v.id('chatroom_messageQueue'), startInNewSession: v.boolean() },
+  handler: async (ctx, args) => {
+    const record = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
+    if (!record) throw new ConvexError({ code: 'QUEUED_MESSAGE_NOT_FOUND', message: 'Queued message not found' });
+    await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
+    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, { startInNewSession: args.startInNewSession });
   },
 });
 

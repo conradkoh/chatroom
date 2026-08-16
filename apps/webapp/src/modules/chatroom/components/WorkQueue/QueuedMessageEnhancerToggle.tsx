@@ -49,7 +49,7 @@ export function QueuedMessageEnhancerToggle({
       className={cn(
         'p-1.5 rounded transition-colors disabled:opacity-50',
         plannerEnhancerEnabled
-          ? 'text-blue-500 dark:text-blue-400 hover:bg-blue-500/10'
+          ? 'text-yellow-500 dark:text-yellow-400 hover:bg-yellow-500/10'
           : 'text-muted-foreground hover:bg-accent/50'
       )}
     >

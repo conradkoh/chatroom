@@ -33,6 +33,7 @@ import { ComposerAccessoryButton } from './shared/ComposerAccessoryButton';
 import { composerAccessoryRowClassName } from './shared/composerAccessoryButtonStyles';
 import { useChatInputFileDrop } from '../hooks/useChatInputFileDrop';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
+import { useStartInNewSessionPreference } from '../hooks/useStartInNewSessionPreference';
 import { WorkspaceUploadProgressList } from '../workspace/components/WorkspaceUploadProgressList';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -152,6 +153,7 @@ export function MessageInput({
   workingDir = null,
   onUploadComplete,
 }: MessageInputProps) {
+  const { startInNewSession } = useStartInNewSessionPreference();
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -338,6 +340,7 @@ export function MessageInput({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           senderRole: 'user',
           content: text.trim(),
+          startInNewSession,
           type: 'message',
           ...(snippets.length > 0 && { attachedSnippets: snippets }),
           ...(attachedTasks.length > 0 && {

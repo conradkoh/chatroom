@@ -179,6 +179,9 @@ export class NativeTaskDeliveryCoordinator {
             backend: sessionDeps.backend,
             agentMgr: {
               resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
+              stop: (opts) => Effect.runPromise(agentMgr.stop(opts)),
+              ensureRunning: (opts) => Effect.runPromise(agentMgr.ensureRunning(opts)),
+              getSlot: (chatroomId, role) => agentMgr.getSlot(chatroomId, role),
             },
             convexUrl: sessionDeps.convexUrl,
             onTaskDelivered: ({ chatroomId, role, taskId: deliveredTaskId }) => {

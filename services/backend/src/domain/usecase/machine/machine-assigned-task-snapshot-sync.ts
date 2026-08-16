@@ -18,7 +18,7 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 import { getTeamEntryPoint } from '../../entities/team';
-import { resolveSessionAugmentationForRole } from '../../handoff/parse-session-augmentation';
+import { resolveSessionAugmentationForTask } from '../../handoff/parse-session-augmentation';
 
 type RemoteAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 type SnapshotDoc = Doc<'chatroom_machineAssignedTaskSnapshots'>;
@@ -142,7 +142,7 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     taskAssignedTo: task.assignedTo,
     taskCreatedAt: task.createdAt ?? now,
     taskUpdatedAt,
-    sessionAugmentation: resolveSessionAugmentationForRole(task.content, config.role),
+    sessionAugmentation: resolveSessionAugmentationForTask({ content: task.content, startInNewSession: task.startInNewSession }, config.role),
     agentHarness: config.agentHarness ?? 'opencode',
     model: config.model,
     workingDir: config.workingDir,
