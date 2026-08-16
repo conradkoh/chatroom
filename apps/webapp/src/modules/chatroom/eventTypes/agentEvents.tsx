@@ -84,6 +84,10 @@ function renderAgentExitedCell(event: AgentExitedEvent, isSelected: boolean): Re
       badgeText = 'Stopped';
       badgeColor = 'info';
       break;
+    case 'platform.task_start_in_new_session':
+      badgeText = 'New Session';
+      badgeColor = 'info';
+      break;
     case 'daemon.shutdown':
       badgeText = 'Daemon Shutdown';
       badgeColor = 'info';
