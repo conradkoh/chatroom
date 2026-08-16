@@ -112,7 +112,9 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
   if (shouldUpdateParticipant) {
     const isResumeStorm = stopReason === 'platform.resume_storm';
     const isOrchestratedRestart =
-      stopReason === 'platform.task_start_in_new_session' || stopReason === 'daemon.respawn';
+      stopReason === 'platform.task_start_in_new_session' ||
+      stopReason === 'daemon.respawn' ||
+      stopReason === 'user.restart';
     const participantStatus = isResumeStorm
       ? 'agent.resumeStormAborted'
       : isOrchestratedRestart
