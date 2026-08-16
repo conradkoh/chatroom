@@ -1,5 +1,5 @@
 'use client';
-import { BoxSelect, Eraser, Pencil, Trash2, Undo2, Redo2, Pipette, RotateCw, FlipHorizontal2, FlipVertical2, Crop, FlipHorizontal } from 'lucide-react';
+import { BoxSelect, Eraser, Pencil, Trash2, Undo2, Redo2, Pipette, RotateCw, FlipHorizontal2, FlipVertical2, Crop, FlipHorizontal, PaintBucket } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -101,6 +101,7 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
             <Eraser />
           </button>
           <button type="button" aria-label="Eyedropper" title="Eyedropper (I)" aria-pressed={tool === 'eyedropper'} onClick={() => setTool('eyedropper')}><Pipette /></button>
+          <button type="button" aria-label="Fill bucket" title="Fill bucket" aria-pressed={tool === 'bucket'} onClick={() => setTool('bucket')}><PaintBucket /></button>
           <button
             type="button"
             aria-label="Clear canvas"
@@ -117,7 +118,7 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
             <button type="button" aria-label="Crop to selection" title="Crop to selection" onClick={() => { if (!cropToSelection()) toast.error('Select an area first'); }}><Crop /></button>
             <button type="button" aria-label="Invert selection" title="Invert selection" onClick={() => { if (!invertSelection()) toast.error('Select an area first'); }}><FlipHorizontal /></button>
           </>}
-          {tool !== 'select' && tool !== 'eraser' && tool !== 'eyedropper' && <SketchColorPicker value={brushColor} onChange={setBrushColor} />}
+          {(tool === 'pen' || tool === 'bucket') && <SketchColorPicker value={brushColor} onChange={setBrushColor} />}
           {tool === 'pen' && <SketchBrushSizeControl value={brushSize} onChange={setBrushSize} />}
           <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-chatroom-text-muted"><input type="checkbox" checked={transparentBackground} onChange={e => setTransparentBackground(e.target.checked)} aria-label="Transparent background" /> Transparent</label>
           <SketchZoomControls zoom={zoom} onZoomChange={setZoom} />

@@ -26,8 +26,9 @@ import { useSketchSelection } from './useSketchSelection';
 import { decideTwoFingerMode, twoFingerCenter } from './sketchViewportPan';
 import { applyCroppedCanvas, extractImageDataRegion } from './sketchCanvasCrop';
 import { canvasToTransparentPngBlob } from './sketchCanvasExport';
+import { floodFillImageData, hexToRgba } from './sketchFloodFill';
 
-export type SketchTool = 'pen' | 'eraser' | 'select' | 'eyedropper';
+export type SketchTool = 'pen' | 'eraser' | 'select' | 'eyedropper' | 'bucket';
 export type UseSketchCanvasResult = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   tool: SketchTool;
@@ -269,6 +270,15 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
       };
       const down = (e: PointerEvent) => {
         if (toolRef.current === 'select') return;
+        if (toolRef.current === 'bucket') {
+          selection.commitSelection({ recordHistory: false });
+          const p = point(e); const bx = Math.floor(p.x * dpr); const by = Math.floor(p.y * dpr);
+          const pre = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const filled = floodFillImageData(pre, bx, by, hexToRgba(brushColorRef.current));
+          let changed = false; for (let i = 0; i < pre.data.length; i++) if (pre.data[i] !== filled.data[i]) { changed = true; break; }
+          if (changed) { recordMutation({ imageData: pre, hasContent: hasContentRef.current }); ctx.putImageData(filled, 0, 0); updateHasContent(sketchCanvasHasInk(filled)); }
+          return;
+        }
         pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
         if (pointers.size >= 2) {
           restorePreStroke();
