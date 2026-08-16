@@ -139,7 +139,7 @@ describe('native queued delivery after agent_end', () => {
       prompt: buildNativeInjectionPrompt({
         taskDeliveryOutput: 'DELIVERY OUTPUT',
         augmentationMode: resolveSessionAugmentationForTask(
-          '## Goal\nQueued follow-up after agent_end',
+          { content: '## Goal\nQueued follow-up after agent_end', startInNewSession: undefined },
           'builder'
         ),
       }),
@@ -256,7 +256,7 @@ describe('native queued delivery after agent_end', () => {
         prompt: buildNativeInjectionPrompt({
           taskDeliveryOutput: 'EVENT DRIVEN OUTPUT',
           augmentationMode: resolveSessionAugmentationForTask(
-            '## Goal\nQueued follow-up after agent_end',
+            { content: '## Goal\nQueued follow-up after agent_end', startInNewSession: undefined },
             'builder'
           ),
         }),

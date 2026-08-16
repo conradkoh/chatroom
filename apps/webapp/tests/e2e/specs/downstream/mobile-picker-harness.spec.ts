@@ -66,12 +66,7 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   });
 
   test('simulated keyboard inset sets maxHeight and keeps scroll body usable', async ({ page }) => {
-    await page.getByTestId('keyboard-inset-slider').evaluate((el) => {
-      const input = el as HTMLInputElement;
-      input.value = '300';
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    await page.getByTestId('keyboard-inset-slider').fill('300');
     await page.getByTestId('open-flat-picker').click();
     await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
 
@@ -138,12 +133,7 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   test('filter picker hides chrome and keeps filtered rows visible with keyboard inset', async ({
     page,
   }) => {
-    await page.getByTestId('keyboard-inset-slider').evaluate((el) => {
-      const input = el as HTMLInputElement;
-      input.value = '300';
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    await page.getByTestId('keyboard-inset-slider').fill('300');
     await page.getByTestId('open-filter-picker').click();
     const drawer = page.locator('[data-slot="drawer-content"]');
     await expect(drawer).toBeVisible();
