@@ -10,3 +10,4 @@ export const SKETCH_MIN_STROKE_DISTANCE_CSS_PX = 2;
 export const SKETCH_ZOOM_MIN = 0.5;
 export const SKETCH_ZOOM_MAX = 2;
 export const SKETCH_ZOOM_DEFAULT = 1;
+export const SKETCH_CANVAS_MIN_HEIGHT_CSS_PX = 280;

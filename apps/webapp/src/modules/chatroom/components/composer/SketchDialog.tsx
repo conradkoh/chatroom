@@ -1,6 +1,6 @@
 'use client';
 import { BoxSelect, Eraser, Pencil, Trash2, Undo2, Redo2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { useSketchCanvas } from './useSketchCanvas';
@@ -8,6 +8,8 @@ import { SketchColorPicker } from './SketchColorPicker';
 import { SketchBrushSizeControl } from './SketchBrushSizeControl';
 import { SketchZoomControls } from './SketchZoomControls';
 import { SketchSelectionOverlay } from './SketchSelectionOverlay';
+import { useSketchViewportPan } from './useSketchViewportPan';
+import { SKETCH_CANVAS_MIN_HEIGHT_CSS_PX } from './sketchConstants';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import {
   Dialog,
@@ -28,10 +30,12 @@ export type SketchDialogProps = {
   onSave: (file: File) => void;
 };
 export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, brushSize, setBrushSize, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, pasteFromClipboard, commitSelection, canUndo, canRedo, undo, redo } =
-    useSketchCanvas();
+    useSketchCanvas({ getScrollContainer: () => scrollContainerRef.current });
   const [isSaving, setIsSaving] = useState(false);
   const isDesktop = useIsDesktop();
+  useSketchViewportPan({ open, zoom, scrollRef: scrollContainerRef });
   useEffect(() => { if (!open) return; const onKey = (e: KeyboardEvent) => { const t=e.target; if(t instanceof HTMLInputElement||t instanceof HTMLTextAreaElement||t instanceof HTMLSelectElement||(t instanceof HTMLElement&&t.isContentEditable))return; const key=e.key.toLowerCase(); if((e.metaKey||e.ctrlKey)&&key==='z'&&!e.shiftKey){e.preventDefault();undo();return;} if((e.metaKey||e.ctrlKey)&&((key==='z'&&e.shiftKey)||key==='y')){e.preventDefault();redo();return;} if((e.metaKey||e.ctrlKey)&&key==='v'){e.preventDefault();void pasteFromClipboard().catch(()=>toast.error('Nothing to paste'));return;} if(key==='['){e.preventDefault();setBrushSize(brushSize-1);return;} if(key===']'){e.preventDefault();setBrushSize(brushSize+1);return;} if(!floatingSelection)return; if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelection();} if((e.metaKey||e.ctrlKey)&&key==='c'){e.preventDefault();void copySelection().catch(()=>toast.error('Failed to copy selection'));} }; window.addEventListener('keydown',onKey); return()=>window.removeEventListener('keydown',onKey); }, [open,floatingSelection,undo,redo,deleteSelection,copySelection,pasteFromClipboard,brushSize,setBrushSize]);
   const handleOpenChange = (next: boolean) => { if (!next) commitSelection(); onOpenChange(next); };
   useEffect(() => {
@@ -104,14 +108,16 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
           {tool === 'pen' && <SketchBrushSizeControl value={brushSize} onChange={setBrushSize} />}
           <SketchZoomControls zoom={zoom} onZoomChange={setZoom} />
         </div>
-        <DialogScrollBody className="relative min-h-[280px] w-full overflow-auto border-2 border-chatroom-border bg-white">
-          <canvas
-            ref={canvasRef}
-            className="block w-full h-full min-h-[280px] touch-none"
-            aria-label="Sketch canvas"
-            style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
-          />
-          {isDesktop && tool === 'select' && <SketchSelectionOverlay zoom={zoom} marquee={selectionMarquee} selection={floatingSelection} onHandlePointerDown={(h,e) => onResizeHandlePointerDown(h,e)} />}
+        <DialogScrollBody ref={scrollContainerRef} className="relative w-full overflow-auto border-2 border-chatroom-border bg-white">
+          <div className="relative" style={{ width: zoom > 1 ? `${zoom * 100}%` : '100%', minHeight: SKETCH_CANVAS_MIN_HEIGHT_CSS_PX * zoom }}>
+            <canvas
+              ref={canvasRef}
+              className="block h-full min-h-[280px] w-full touch-none"
+              aria-label="Sketch canvas"
+              style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
+            />
+            {isDesktop && tool === 'select' && <SketchSelectionOverlay zoom={zoom} marquee={selectionMarquee} selection={floatingSelection} onHandlePointerDown={(h,e) => onResizeHandlePointerDown(h,e)} />}
+          </div>
         </DialogScrollBody>
         <DialogFooter>
           <button
