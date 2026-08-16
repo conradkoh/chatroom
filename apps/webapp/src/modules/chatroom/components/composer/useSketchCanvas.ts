@@ -56,6 +56,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
   const zoomRef = useRef(zoom);
   const selection = useSketchSelection({ getCtx: () => ctxRef.current, getCanvas: () => canvasRef.current, getDpr: () => window.devicePixelRatio || 1, updateHasContent, getHasContent: () => hasContentRef.current });
   const historyRef = useRef(history); historyRef.current = history;
+  const recordMutation = useCallback((snapshot: import('./sketchCanvasSnapshot').SketchHistorySnapshot) => { historyRef.current.pushSnapshot(snapshot); }, []);
   const applyHistory = useCallback((snapshot: import('./sketchCanvasSnapshot').SketchHistorySnapshot) => { const ctx=ctxRef.current; if(ctx){ selection.clearSelectionWithoutHistory(); ctx.putImageData(snapshot.imageData,0,0); updateHasContent(snapshot.hasContent); } }, [selection, updateHasContent]);
   const undoHistory = useCallback(() => { const ctx=ctxRef.current; if(!ctx)return; const current=captureBackingSnapshot(ctx,hasContentRef.current); const previous=historyRef.current.undo(current); if(previous)applyHistory(previous); }, [applyHistory]);
   const redoHistory = useCallback(() => { const ctx=ctxRef.current; if(!ctx)return; const current=captureBackingSnapshot(ctx,hasContentRef.current); const next=historyRef.current.redo(current); if(next)applyHistory(next); }, [applyHistory]);
@@ -126,6 +127,8 @@ export function useSketchCanvas(): UseSketchCanvasResult {
       };
       const down = (e: PointerEvent) => {
         if (toolRef.current === 'select') return;
+        const before = captureBackingSnapshot(ctx, hasContentRef.current);
+        recordMutation(before);
         pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
         if (pointers.size >= 2) {
           restorePreStroke();
