@@ -5,6 +5,7 @@ import { canvasPointFromEvent, normalizeRect, pointInRect } from './sketchCanvas
 import type { SketchHistorySnapshot } from './sketchCanvasSnapshot';
 import { sketchCanvasHasInk } from './sketchCanvasSnapshot';
 import { samplePixelHex } from './sketchColorSample';
+import { clearBackingRectAlpha } from './sketchSelectionInvert';
 // Resize uses canvas-space points so zoom does not affect geometry.
 import {
   SKETCH_MIN_SELECTION_CSS_PX,
@@ -14,6 +15,7 @@ import {
 } from './sketchSelectionTypes';
 import {
   drawImageDataAt,
+  fillRectWithBackground,
   imageDataToPngBlob,
   imageBlobToImageData,
   fitImageDataToBounds,
@@ -88,6 +90,20 @@ export function useSketchSelection({
   const rotateSelection90 = useCallback(() => { const s=selectionRef.current; if(!s)return; const cx=s.bounds.x+s.bounds.width/2, cy=s.bounds.y+s.bounds.height/2, w=s.bounds.height, h=s.bounds.width; setSel({imageData:rotateImageData90Cw(s.imageData),bounds:{x:cx-w/2,y:cy-h/2,width:w,height:h}}); redraw(); }, [redraw]);
   const flipSelectionHorizontal = useCallback(() => { const s=selectionRef.current; if(!s)return; setSel({...s,imageData:flipImageDataHorizontal(s.imageData)}); redraw(); }, [redraw]);
   const flipSelectionVertical = useCallback(() => { const s=selectionRef.current; if(!s)return; setSel({...s,imageData:flipImageDataVertical(s.imageData)}); redraw(); }, [redraw]);
+  const invertSelection = useCallback(() => {
+    const s = selectionRef.current; const c = getCtx(); const target = getCanvas();
+    if (!s || !c || !target) return false;
+    const dpr = window.devicePixelRatio || 1;
+    if (isHistoryRecording?.() !== false) onBeforeSelectionWrite?.();
+    drawImageDataAt(c, s.imageData, s.bounds);
+    const full = c.getImageData(0, 0, target.width, target.height);
+    const inverted = clearBackingRectAlpha(full, s.bounds, dpr);
+    fillRectWithBackground(c, s.bounds);
+    baseRef.current = c.getImageData(0, 0, target.width, target.height);
+    setSel({ imageData: inverted, bounds: { x: 0, y: 0, width: target.width / dpr, height: target.height / dpr } });
+    redraw();
+    return true;
+  }, [getCanvas, getCtx, isHistoryRecording, onBeforeSelectionWrite, redraw]);
   const commitSelection = useCallback(
     (options?: { recordHistory?: boolean }) => {
       const c = getCtx();
@@ -254,6 +270,7 @@ export function useSketchSelection({
     captureCompositedSnapshot,
     prepareComposite,
     getSelectionBounds,
+    invertSelection,
     sampleColorAt,
     nudgeSelection,
     rotateSelection90, flipSelectionHorizontal, flipSelectionVertical,
