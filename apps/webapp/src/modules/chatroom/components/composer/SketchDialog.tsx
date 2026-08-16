@@ -53,7 +53,7 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
     }
   };
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex flex-col min-h-0 max-h-[85vh] w-full max-w-lg">
         <DialogHeader>
           <DialogTitle>Sketch attachment</DialogTitle>

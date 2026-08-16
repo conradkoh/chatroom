@@ -88,6 +88,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
       ctx.scale(dpr, dpr);
       ctx.fillStyle = SKETCH_CANVAS_COLORS.background;
       ctx.fillRect(0, 0, rect.width, rect.height);
+      const selectionCleanup = selection.bindSelectionPointerHandlers(canvas, dpr);
       updateHasContent(false);
       setZoom(SKETCH_ZOOM_DEFAULT);
       canvas.style.touchAction = 'none';
@@ -169,6 +170,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
       canvas.addEventListener('pointerup', end);
       canvas.addEventListener('pointercancel', end);
       cleanup = () => {
+        selectionCleanup();
         canvas.removeEventListener('pointerdown', down);
         canvas.removeEventListener('pointermove', move);
         canvas.removeEventListener('pointerup', end);
