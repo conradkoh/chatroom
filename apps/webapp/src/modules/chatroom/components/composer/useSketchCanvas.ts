@@ -35,7 +35,7 @@ export type UseSketchCanvasResult = {
 export function useSketchCanvas(): UseSketchCanvasResult {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const [tool, setTool] = useState<SketchTool>('pen');
+  const [tool, setToolState] = useState<SketchTool>('pen');
   const [hasContent, setHasContent] = useState(false);
   const hasContentRef = useRef(false);
   const updateHasContent = useCallback((value: boolean) => {
@@ -52,6 +52,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
   const [zoom, setZoomState] = useState(SKETCH_ZOOM_DEFAULT);
   const zoomRef = useRef(zoom);
   const selection = useSketchSelection({ getCtx: () => ctxRef.current, getCanvas: () => canvasRef.current, getDpr: () => window.devicePixelRatio || 1, updateHasContent, getHasContent: () => hasContentRef.current });
+  const setTool = useCallback((next: SketchTool) => { if (toolRef.current === 'select' && next !== 'select') selection.commitSelection(); setToolState(next); }, [selection]);
   const setZoom = useCallback((value: number) => {
     selection.commitSelection();
     const next = Number.isFinite(value)
@@ -116,6 +117,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         };
       };
       const down = (e: PointerEvent) => {
+        if (toolRef.current === 'select') return;
         pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
         if (pointers.size >= 2) {
           restorePreStroke();
@@ -135,6 +137,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         ctx.moveTo(p.x, p.y);
       };
       const move = (e: PointerEvent) => {
+        if (toolRef.current === 'select') return;
         pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
         if (pointers.size >= 2) {
           const p = [...pointers.values()];
@@ -159,6 +162,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
           updateHasContent(true);
       };
       const end = (e: PointerEvent) => {
+        if (toolRef.current === 'select') return;
         pointers.delete(e.pointerId);
         if (pointers.size < 2) pinchStart = null;
         if (pointers.size === 0) preStroke = null;
@@ -193,6 +197,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         const canvas = canvasRef.current;
         if (!canvas) return resolve(null);
         try {
+          selection.commitSelection();
           canvas.toBlob(
             (blob) =>
               resolve(blob ? new File([blob], buildSketchFileName(), { type: 'image/png' }) : null),
