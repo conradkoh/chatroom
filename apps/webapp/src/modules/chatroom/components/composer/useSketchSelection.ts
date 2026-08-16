@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { canvasPointFromEvent, normalizeRect, pointInRect } from './sketchCanvasCoords';
 import type { SketchHistorySnapshot } from './sketchCanvasSnapshot';
 import { sketchCanvasHasInk } from './sketchCanvasSnapshot';
+import { samplePixelHex } from './sketchColorSample';
 // Resize uses canvas-space points so zoom does not affect geometry.
 import {
   SKETCH_MIN_SELECTION_CSS_PX,
@@ -79,6 +80,7 @@ export function useSketchSelection({
     const imageData = c.getImageData(0, 0, target.width, target.height);
     return { imageData, hasContent: sketchCanvasHasInk(imageData) };
   }, [getCanvas, getCtx, redraw]);
+  const sampleColorAt = useCallback((cssX: number, cssY: number, dpr: number): string | null => { const c = getCtx(); const target = getCanvas(); if (!c || !target) return null; if (selectionRef.current) redraw(); const x = Math.min(target.width - 1, Math.max(0, Math.floor(cssX * dpr))); const y = Math.min(target.height - 1, Math.max(0, Math.floor(cssY * dpr))); return samplePixelHex(c.getImageData(x, y, 1, 1), 0, 0); }, [getCanvas, getCtx, redraw]);
   const commitSelection = useCallback(
     (options?: { recordHistory?: boolean }) => {
       const c = getCtx();
@@ -243,6 +245,7 @@ export function useSketchSelection({
     pasteFromClipboard,
     clearSelectionWithoutHistory,
     captureCompositedSnapshot,
+    sampleColorAt,
     hasActiveSelection: () => selectionRef.current !== null,
   };
 }

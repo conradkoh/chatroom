@@ -25,7 +25,7 @@ import { useSketchHistory } from './useSketchHistory';
 import { useSketchSelection } from './useSketchSelection';
 import { decideTwoFingerMode, twoFingerCenter } from './sketchViewportPan';
 
-export type SketchTool = 'pen' | 'eraser' | 'select';
+export type SketchTool = 'pen' | 'eraser' | 'select' | 'eyedropper';
 export type UseSketchCanvasResult = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   tool: SketchTool;
@@ -46,6 +46,7 @@ export type UseSketchCanvasResult = {
   deleteSelection: () => void;
   copySelection: () => Promise<void>;
   pasteFromClipboard: () => Promise<void>;
+  pickColorAt: (cssX: number, cssY: number) => string | null;
   commitSelection: () => void;
   canUndo: boolean;
   canRedo: boolean;
@@ -111,6 +112,7 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     isHistoryRecording: () => !isApplyingHistoryRef.current,
   });
   selectionApiRef.current = selection;
+  const pickColorAt = useCallback((cssX: number, cssY: number) => { const hex = selection.sampleColorAt(cssX, cssY, window.devicePixelRatio || 1); if (hex) { setBrushColor(hex); setToolState('pen'); } return hex; }, [selection, setBrushColor]);
   const applyHistory = useCallback(
     (snapshot: SketchHistorySnapshot) => {
       const ctx = ctxRef.current;
@@ -241,6 +243,7 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
         hadContentBeforeStroke = hasContentRef.current;
         drawing = true;
         const p = point(e);
+        if (toolRef.current === 'eyedropper' || e.altKey) { const hex = selection.sampleColorAt(p.x, p.y, dpr); if (hex) { brushColorRef.current = hex; setBrushColorState(hex); if (toolRef.current === 'eyedropper') setToolState('pen'); } return; }
         startX = p.x;
         startY = p.y;
         canvas.setPointerCapture(e.pointerId);
@@ -370,6 +373,7 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     deleteSelection: selection.deleteSelection,
     copySelection: selection.copySelection,
     pasteFromClipboard: selection.pasteFromClipboard,
+    pickColorAt,
     commitSelection: selection.commitSelection,
     canUndo: history.canUndo,
     canRedo: history.canRedo,
