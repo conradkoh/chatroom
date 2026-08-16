@@ -31,7 +31,7 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
     useSketchCanvas();
   const [isSaving, setIsSaving] = useState(false);
   const isDesktop = useIsDesktop();
-  useEffect(() => { if (!open) return; const onKey = (e: KeyboardEvent) => { if (!floatingSelection) return; if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); } if ((e.metaKey || e.ctrlKey) && e.key === 'c') { e.preventDefault(); void copySelection(); } }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [open, floatingSelection, deleteSelection, copySelection]);
+  useEffect(() => { if (!open) return; const onKey = (e: KeyboardEvent) => { if (!floatingSelection) return; if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); } if ((e.metaKey || e.ctrlKey) && e.key === 'c') { e.preventDefault(); void copySelection().catch(() => toast.error('Failed to copy selection')); } }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [open, floatingSelection, deleteSelection, copySelection]);
   const handleOpenChange = (next: boolean) => { if (!next) commitSelection(); onOpenChange(next); };
   useEffect(() => {
     if (!open || !canvasRef.current) return;
