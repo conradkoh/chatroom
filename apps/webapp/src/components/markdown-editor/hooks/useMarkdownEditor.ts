@@ -1,12 +1,12 @@
 'use client';
 import { useEditor } from '@tiptap/react';
+import { looksLikeHtml, normalizeMarkdownContent } from '@workspace/shared/utilities/markdown';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { createMarkdownEditorExtensions } from '../extensions/markdownEditorExtensions';
 import type { MarkdownContentNormalizer } from '../types';
 import { getNormalizedEditorMarkdown } from '../utils/getNormalizedEditorMarkdown';
 import { handleModEnter } from '../utils/handleModEnter';
-import { looksLikeHtml, normalizeMarkdownContent } from '../utils/normalizeMarkdownContent';
 import { looksLikeMarkdown } from '../utils/pasteMarkdown';
 
 export interface UseMarkdownEditorOptions {

@@ -2884,6 +2884,8 @@
     "apps/webapp/src/modules/presentation/use-presentation-sync.ts:complexity",
     "apps/webapp/src/modules/chatroom/components/CommandPalette/useCommandPaletteCommands.tsx:complexity",
     "services/backend/convex/chatroomCleanup.ts:complexity",
-    "services/backend/convex/lib/stdinDecoder.ts:complexity"
+    "services/backend/convex/lib/stdinDecoder.ts:complexity",
+    "packages/shared/src/utilities/markdown/decodeHtmlEntities.ts:complexity",
+    "apps/webapp/src/components/markdown-editor/hooks/useMarkdownEditor.ts:complexity"
   ]
 }

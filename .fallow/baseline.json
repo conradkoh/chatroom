@@ -823,9 +823,20 @@
     "apps/webapp/package.json:react-resizable-panels",
     "apps/webapp/package.json:vaul",
     "packages/cli/package.json:@connectrpc/connect-node",
-    "packages/cli/package.json:@openai/codex"
+    "packages/cli/package.json:@openai/codex",
+    "services/backend/package.json:@workspace/shared"
   ],
-  "unused_dev_dependencies": ["apps/local/package.json:react-grab"],
+  "unused_dev_dependencies": [
+    "apps/local/package.json:react-grab",
+    "packages/cli/package.json:@tanstack/react-query",
+    "packages/cli/package.json:clsx",
+    "packages/cli/package.json:lucide-react",
+    "packages/cli/package.json:react",
+    "packages/cli/package.json:react-dom",
+    "packages/cli/package.json:socket.io-client",
+    "packages/cli/package.json:tailwind-merge",
+    "packages/cli/package.json:tailwindcss-animate"
+  ],
   "circular_dependencies": [
     "services/backend/convex/messageList.ts->services/backend/convex/messages.ts"
   ],
