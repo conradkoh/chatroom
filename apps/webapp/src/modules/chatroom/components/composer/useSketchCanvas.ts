@@ -25,6 +25,7 @@ import { useSketchHistory } from './useSketchHistory';
 import { useSketchSelection } from './useSketchSelection';
 import { decideTwoFingerMode, twoFingerCenter } from './sketchViewportPan';
 import { applyCroppedCanvas, extractImageDataRegion } from './sketchCanvasCrop';
+import { canvasToTransparentPngBlob } from './sketchCanvasExport';
 
 export type SketchTool = 'pen' | 'eraser' | 'select' | 'eyedropper';
 export type UseSketchCanvasResult = {
@@ -56,6 +57,8 @@ export type UseSketchCanvasResult = {
   invertSelection: () => boolean;
   canvasCssSize: { width: number; height: number } | null;
   resetCanvasLayout: () => void;
+  transparentBackground: boolean;
+  setTransparentBackground: (value: boolean) => void;
   canUndo: boolean;
   canRedo: boolean;
   undo: () => void;
@@ -89,6 +92,9 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
   const [zoom, setZoomState] = useState(SKETCH_ZOOM_DEFAULT);
   const customCanvasSizeRef = useRef<{ width: number; height: number } | null>(null);
   const [canvasCssSize, setCanvasCssSize] = useState<{ width: number; height: number } | null>(null);
+  const [transparentBackground, setTransparentBackground] = useState(false);
+  const transparentBackgroundRef = useRef(false);
+  transparentBackgroundRef.current = transparentBackground;
   const zoomRef = useRef(zoom);
   const scrollGetterRef = useRef(options?.getScrollContainer);
   scrollGetterRef.current = options?.getScrollContainer;
@@ -174,7 +180,7 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
   );
   const deselect = useCallback(() => { selection.clearSelectionWithoutHistory(); }, [selection]);
   const nudgeSelection = useCallback((dx: number, dy: number) => selection.nudgeSelection(dx, dy), [selection]);
-  const resetCanvasLayout = useCallback(() => { customCanvasSizeRef.current = null; setCanvasCssSize(null); }, []);
+  const resetCanvasLayout = useCallback(() => { customCanvasSizeRef.current = null; setCanvasCssSize(null); setTransparentBackground(false); }, []);
   const cropToSelection = useCallback(() => {
     const canvas = canvasRef.current;
     const ctx = ctxRef.current;
@@ -368,11 +374,8 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
         if (!canvas) return resolve(null);
         try {
           selection.commitSelection({ recordHistory: false });
-          canvas.toBlob(
-            (blob) =>
-              resolve(blob ? new File([blob], buildSketchFileName(), { type: 'image/png' }) : null),
-            'image/png'
-          );
+          const blobPromise = transparentBackgroundRef.current ? canvasToTransparentPngBlob(canvas) : new Promise<Blob | null>(resolveBlob => canvas.toBlob(resolveBlob, 'image/png'));
+          void blobPromise.then(blob => resolve(blob ? new File([blob], buildSketchFileName(), { type: 'image/png' }) : null));
         } catch {
           resolve(null);
         }
@@ -417,6 +420,8 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     invertSelection: () => selection.invertSelection(),
     canvasCssSize,
     resetCanvasLayout,
+    transparentBackground,
+    setTransparentBackground,
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     undo: undoHistory,

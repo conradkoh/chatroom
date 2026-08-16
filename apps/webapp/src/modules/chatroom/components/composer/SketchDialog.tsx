@@ -32,7 +32,7 @@ export type SketchDialogProps = {
 };
 export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, brushSize, setBrushSize, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, pasteFromClipboard, pickColorAt, commitSelection, deselect, nudgeSelection, rotateSelection90, flipSelectionHorizontal, flipSelectionVertical, cropToSelection, invertSelection, canvasCssSize, resetCanvasLayout, canUndo, canRedo, undo, redo } =
+  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, brushSize, setBrushSize, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, pasteFromClipboard, pickColorAt, commitSelection, deselect, nudgeSelection, rotateSelection90, flipSelectionHorizontal, flipSelectionVertical, cropToSelection, invertSelection, canvasCssSize, resetCanvasLayout, transparentBackground, setTransparentBackground, canUndo, canRedo, undo, redo } =
     useSketchCanvas({ getScrollContainer: () => scrollContainerRef.current });
   const [isSaving, setIsSaving] = useState(false);
   const isDesktop = useIsDesktop();
@@ -119,10 +119,11 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
           </>}
           {tool !== 'select' && tool !== 'eraser' && tool !== 'eyedropper' && <SketchColorPicker value={brushColor} onChange={setBrushColor} />}
           {tool === 'pen' && <SketchBrushSizeControl value={brushSize} onChange={setBrushSize} />}
+          <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-chatroom-text-muted"><input type="checkbox" checked={transparentBackground} onChange={e => setTransparentBackground(e.target.checked)} aria-label="Transparent background" /> Transparent</label>
           <SketchZoomControls zoom={zoom} onZoomChange={setZoom} />
         </div>
         <DialogScrollBody ref={scrollContainerRef} className="relative w-full overflow-auto border-2 border-chatroom-border bg-white">
-          <div className="relative" style={{ width: canvasCssSize ? canvasCssSize.width * zoom : (zoom > 1 ? `${zoom * 100}%` : '100%'), minHeight: (canvasCssSize?.height ?? SKETCH_CANVAS_MIN_HEIGHT_CSS_PX) * zoom }}>
+          <div className="relative" style={{ ...(transparentBackground ? { backgroundImage: 'repeating-conic-gradient(#e5e7eb 0% 25%, #ffffff 0% 50%)', backgroundSize: '20px 20px', backgroundPosition: '50% 50%' } : {}), width: canvasCssSize ? canvasCssSize.width * zoom : (zoom > 1 ? `${zoom * 100}%` : '100%'), minHeight: (canvasCssSize?.height ?? SKETCH_CANVAS_MIN_HEIGHT_CSS_PX) * zoom }}>
             <canvas
               ref={canvasRef}
               className="block h-full min-h-[280px] w-full touch-none"
