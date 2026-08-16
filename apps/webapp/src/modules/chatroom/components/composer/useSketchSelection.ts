@@ -20,6 +20,7 @@ import {
   liftPixels,
   resizeBoundsFromHandle,
   scaleImageData,
+  rotateImageData90Cw, flipImageDataHorizontal, flipImageDataVertical,
 } from './sketchSelectionUtils';
 
 type Mode = 'idle' | 'creating' | 'moving' | 'resizing';
@@ -82,6 +83,9 @@ export function useSketchSelection({
   }, [getCanvas, getCtx, redraw]);
   const sampleColorAt = useCallback((cssX: number, cssY: number, dpr: number): string | null => { const c = getCtx(); const target = getCanvas(); if (!c || !target) return null; if (selectionRef.current) redraw(); const x = Math.min(target.width - 1, Math.max(0, Math.floor(cssX * dpr))); const y = Math.min(target.height - 1, Math.max(0, Math.floor(cssY * dpr))); return samplePixelHex(c.getImageData(x, y, 1, 1), 0, 0); }, [getCanvas, getCtx, redraw]);
   const nudgeSelection = useCallback((dx: number, dy: number) => { const s = selectionRef.current; if (!s) return; setSel({ ...s, bounds: { ...s.bounds, x: s.bounds.x + dx, y: s.bounds.y + dy } }); redraw(); }, [redraw]);
+  const rotateSelection90 = useCallback(() => { const s=selectionRef.current; if(!s)return; const cx=s.bounds.x+s.bounds.width/2, cy=s.bounds.y+s.bounds.height/2, w=s.bounds.height, h=s.bounds.width; setSel({imageData:rotateImageData90Cw(s.imageData),bounds:{x:cx-w/2,y:cy-h/2,width:w,height:h}}); redraw(); }, [redraw]);
+  const flipSelectionHorizontal = useCallback(() => { const s=selectionRef.current; if(!s)return; setSel({...s,imageData:flipImageDataHorizontal(s.imageData)}); redraw(); }, [redraw]);
+  const flipSelectionVertical = useCallback(() => { const s=selectionRef.current; if(!s)return; setSel({...s,imageData:flipImageDataVertical(s.imageData)}); redraw(); }, [redraw]);
   const commitSelection = useCallback(
     (options?: { recordHistory?: boolean }) => {
       const c = getCtx();
@@ -248,6 +252,7 @@ export function useSketchSelection({
     captureCompositedSnapshot,
     sampleColorAt,
     nudgeSelection,
+    rotateSelection90, flipSelectionHorizontal, flipSelectionVertical,
     hasActiveSelection: () => selectionRef.current !== null,
   };
 }

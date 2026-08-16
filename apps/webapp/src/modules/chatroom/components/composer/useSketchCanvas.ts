@@ -50,6 +50,7 @@ export type UseSketchCanvasResult = {
   commitSelection: () => void;
   deselect: () => void;
   nudgeSelection: (dx: number, dy: number) => void;
+  rotateSelection90: () => void; flipSelectionHorizontal: () => void; flipSelectionVertical: () => void;
   canUndo: boolean;
   canRedo: boolean;
   undo: () => void;
@@ -381,6 +382,7 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     commitSelection: selection.commitSelection,
     deselect,
     nudgeSelection,
+    rotateSelection90: selection.rotateSelection90, flipSelectionHorizontal: selection.flipSelectionHorizontal, flipSelectionVertical: selection.flipSelectionVertical,
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     undo: undoHistory,
