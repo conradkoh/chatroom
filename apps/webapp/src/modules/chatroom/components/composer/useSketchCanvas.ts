@@ -13,6 +13,7 @@ import {
 } from './sketchConstants';
 import { buildSketchFileName } from './sketchFileName';
 import { useSketchSelection } from './useSketchSelection';
+import { useSketchHistory } from './useSketchHistory';
 
 export type SketchTool = 'pen' | 'eraser' | 'select';
 export type UseSketchCanvasResult = {
@@ -33,6 +34,7 @@ export type UseSketchCanvasResult = {
   deleteSelection: () => void; copySelection: () => Promise<void>; commitSelection: () => void;
 };
 export function useSketchCanvas(): UseSketchCanvasResult {
+  const history = useSketchHistory();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const [tool, setToolState] = useState<SketchTool>('pen');
@@ -228,5 +230,9 @@ export function useSketchCanvas(): UseSketchCanvasResult {
     deleteSelection: selection.deleteSelection,
     copySelection: selection.copySelection,
     commitSelection: selection.commitSelection,
+    canUndo: history.canUndo,
+    canRedo: history.canRedo,
+    undo: () => {},
+    redo: () => {},
   };
 }
