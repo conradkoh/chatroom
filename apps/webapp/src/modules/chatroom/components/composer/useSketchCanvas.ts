@@ -44,7 +44,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
   const updateHasContent = useCallback((value: boolean) => {
     hasContentRef.current = value;
     setHasContent(value);
-  }, []);
+  }, [selection, updateHasContent]);
   const toolRef = useRef(tool);
   const [brushColor, setBrushColorState] = useState<string>(SKETCH_BRUSH_PALETTE[0]);
   const brushColorRef = useRef<string>(brushColor);
