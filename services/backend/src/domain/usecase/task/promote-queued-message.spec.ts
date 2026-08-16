@@ -130,6 +130,28 @@ describe('promoteQueuedMessage', () => {
     expect(task?.plannerEnhancerEnabled).toBe(true);
   });
 
+  test('promotes startInNewSession from queue record to task', async () => {
+    const { sessionId } = await createTestSession('promote-new-session-flag');
+    const chatroomId = await createChatroom(sessionId);
+    const queuedMessageId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert('chatroom_messageQueue', {
+          chatroomId,
+          senderRole: 'user',
+          targetRole: 'planner',
+          content: 'cold-start task',
+          type: 'message',
+          queuePosition: 6,
+          startInNewSession: true,
+        })
+    );
+
+    const result = await t.run(async (ctx) => promoteQueuedMessage(ctx, queuedMessageId));
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', result!.taskId));
+
+    expect(task?.startInNewSession).toBe(true);
+  });
+
   test('sets assignedTo to team entry point', async () => {
     const { sessionId } = await createTestSession('promote-msg-assigned');
     const chatroomId = await createChatroom(sessionId);

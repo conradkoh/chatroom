@@ -26,6 +26,7 @@ import { canPromote } from './lib/promoteNextTaskDeps';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
 import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
+import { projectAssignedTaskSnapshotsForChatroom } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
   countActiveTasksFromSource,
   resolveActiveCountsForRead,
@@ -49,6 +50,7 @@ export const createTask = mutation({
     content: v.string(),
     createdBy: v.string(),
     sourceMessageId: v.optional(v.id('chatroom_messages')),
+    startInNewSession: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access - need chatroom for queue position
@@ -93,9 +95,22 @@ export const createTask = mutation({
       forceStatus: 'pending',
       sourceMessageId: args.sourceMessageId,
       queuePosition,
+      startInNewSession: args.startInNewSession,
     });
 
     return { taskId, status: 'pending', queuePosition };
+  },
+});
+
+export const updateTaskStartInNewSession = mutation({
+  args: { ...SessionIdArg, taskId: v.id('chatroom_tasks'), startInNewSession: v.boolean() },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) throw new Error('Task not found');
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+    if (task.status !== 'pending') throw new Error('Only pending tasks can be updated');
+    await ctx.db.patch('chatroom_tasks', args.taskId, { startInNewSession: args.startInNewSession, updatedAt: Date.now() });
+    await projectAssignedTaskSnapshotsForChatroom(ctx, task.chatroomId);
   },
 });
 

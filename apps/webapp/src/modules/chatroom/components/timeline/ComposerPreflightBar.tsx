@@ -3,6 +3,7 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import { PlannerEnhancerToggle } from '../../features/enhancers/components/PlannerEnhancerToggle';
+import { PlannerNewSessionToggle } from '../../features/enhancers/components/PlannerNewSessionToggle';
 import { teamSupportsEnhancer } from '../../hooks/persistence/teamEnhancerSupport';
 import { useAgentPanelData } from '../../hooks/useAgentPanelData';
 import { useChatroomLifecycle } from '../../hooks/useChatroomLifecycle';
@@ -25,6 +26,9 @@ export function ComposerPreflightBar({ chatroomId }: { chatroomId: Id<'chatroom_
     >
       <div className="flex-1 min-w-0 flex items-stretch">
         <StandingInstructionsBar chatroomId={chatroomId} />
+      </div>
+      <div className="shrink-0 border-l border-chatroom-border flex items-stretch min-w-[7rem]">
+        <PlannerNewSessionToggle />
       </div>
       <div className="shrink-0 border-l border-chatroom-border flex items-stretch min-w-[7rem]">
         <PlannerEnhancerToggle

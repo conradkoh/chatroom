@@ -160,5 +160,6 @@ export async function getAssignedTaskForActionFromSnapshots(
   return {
     ...monitorRowFromSnapshotDoc(snapshot),
     taskContent: task.content,
+    startInNewSession: task.startInNewSession,
   };
 }

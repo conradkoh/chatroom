@@ -8,7 +8,7 @@
 
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel.js';
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { resolveSessionAugmentationForRole } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
+import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { Context, Effect, Runtime } from 'effect';
 import { describe, expect, test, vi } from 'vitest';
@@ -138,8 +138,8 @@ describe('native queued delivery after agent_end', () => {
       role: 'builder',
       prompt: buildNativeInjectionPrompt({
         taskDeliveryOutput: 'DELIVERY OUTPUT',
-        augmentationMode: resolveSessionAugmentationForRole(
-          '## Goal\nQueued follow-up after agent_end',
+        augmentationMode: resolveSessionAugmentationForTask(
+          { content: '## Goal\nQueued follow-up after agent_end', startInNewSession: undefined },
           'builder'
         ),
       }),
@@ -255,8 +255,8 @@ describe('native queued delivery after agent_end', () => {
         role: 'builder',
         prompt: buildNativeInjectionPrompt({
           taskDeliveryOutput: 'EVENT DRIVEN OUTPUT',
-          augmentationMode: resolveSessionAugmentationForRole(
-            '## Goal\nQueued follow-up after agent_end',
+          augmentationMode: resolveSessionAugmentationForTask(
+            { content: '## Goal\nQueued follow-up after agent_end', startInNewSession: undefined },
             'builder'
           ),
         }),

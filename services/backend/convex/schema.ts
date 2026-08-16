@@ -557,6 +557,7 @@ export default defineSchema({
     scheduledPromptId: v.optional(v.id('chatroom_scheduledPrompts')),
     // Snapshot of enhancer enabled at enqueue time (undefined = legacy/live fallback)
     plannerEnhancerEnabled: v.optional(v.boolean()),
+    startInNewSession: v.optional(v.boolean()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
@@ -627,6 +628,7 @@ export default defineSchema({
     queuePosition: v.number(),
     // Snapshot of enhancer enabled at task creation (user-tasks only; undefined = legacy/live fallback)
     plannerEnhancerEnabled: v.optional(v.boolean()),
+    startInNewSession: v.optional(v.boolean()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])
@@ -1108,6 +1110,7 @@ export default defineSchema({
     wantResume: v.optional(v.boolean()),
 
     /** Experimental: cold-restart planner after handoff to user (default true when unset). */
+    /** @deprecated Legacy setting — no longer written. Kept optional for existing rows. */
     plannerRestartOnHandoffToUser: v.optional(v.boolean()),
 
     /** @deprecated Legacy field — no longer written. Kept for existing documents. */

@@ -12,9 +12,8 @@
 
 import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliability.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { roleSupportsSessionAugmentation } from '@workspace/backend/src/domain/entities/team-agent-settings.js';
+import { shouldEmitSessionAugmentation, resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import {
-  resolveSessionAugmentationForRole,
   sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
@@ -83,7 +82,7 @@ type TaskMonitorPass = 'signal' | 'presence';
 
 function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
-    resolveSessionAugmentationForRole(task.taskContent ?? '', task.agentConfig.role)
+  resolveSessionAugmentationForTask({ content: task.taskContent ?? '', startInNewSession: task.startInNewSession }, task.agentConfig.role)
   );
 }
 
@@ -91,7 +90,7 @@ function buildCliNudgeLogLine(task: AssignedTaskWithContent): string {
   const { chatroomId, agentConfig } = task;
   const { role } = agentConfig;
   const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
-  const augmentationMode = resolveSessionAugmentationForRole(task.taskContent ?? '', role);
+  const augmentationMode = resolveSessionAugmentationForTask({ content: task.taskContent ?? '', startInNewSession: task.startInNewSession }, role);
   const wantResume = resolveTaskWantResume(task);
   return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, session_augmentation=${augmentationMode}, wantResume=${wantResume}`;
 }
@@ -129,7 +128,7 @@ function executeCliNudge(
   const ctx = resolveTaskRunnerContextFromFull(task);
   if (!ctx) return;
   const { chatroomId, agentConfig, role, workingDir, wantResume } = ctx;
-  const augmentationMode = resolveSessionAugmentationForRole(task.taskContent ?? '', role);
+  const augmentationMode = resolveSessionAugmentationForTask({ content: task.taskContent ?? '', startInNewSession: task.startInNewSession }, role);
 
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
@@ -143,7 +142,7 @@ function executeCliNudge(
         reason: 'platform.task_monitor_nudge',
         wantResume,
       });
-      if (roleSupportsSessionAugmentation(role)) {
+      if (shouldEmitSessionAugmentation(role, augmentationMode)) {
         yield* Effect.tryPromise({
           try: () =>
             sessionDeps.backend.mutation(api.machines.emitSessionAugmented, {

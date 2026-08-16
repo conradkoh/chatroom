@@ -49,6 +49,7 @@ import {
 import { subscribeAssignedTaskPresenceForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-presence';
 import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
+import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -1239,7 +1240,6 @@ export const sendLocalAction = mutation({
       ...(args.chatroomId !== undefined ? { chatroomId: args.chatroomId } : {}),
       timestamp: Date.now(),
     });
-
     return { success: true };
   },
 });
@@ -2095,57 +2095,6 @@ export const setWantResume = mutation({
     }
 
     return { success: true, wantResume: args.wantResume };
-  },
-});
-
-/** Persist experimental planner cold-restart preference. */
-export const setPlannerRestartOnHandoffToUser = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    plannerRestartOnHandoffToUser: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth)
-      throw new ConvexError({ code: 'NOT_AUTHENTICATED', message: 'Authentication required' });
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom)
-      throw new ConvexError({ code: 'CHATROOM_NOT_FOUND', message: 'Chatroom not found' });
-    if (chatroom.ownerId !== auth.userId)
-      throw new ConvexError({
-        code: 'UNAUTHORIZED',
-        message: 'Not authorized to modify team agent configs for this chatroom',
-      });
-    if (!chatroom.teamId)
-      throw new ConvexError({
-        code: 'CHATROOM_NO_TEAM_ID',
-        message: 'Chatroom has no teamId — cannot build agent config key',
-      });
-    const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
-    const existing = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-      .first();
-    const now = Date.now();
-    if (existing)
-      await patchTeamAgentConfig(ctx, existing._id, {
-        plannerRestartOnHandoffToUser: args.plannerRestartOnHandoffToUser,
-      });
-    else {
-      await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
-      await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey,
-        chatroomId: args.chatroomId,
-        role: args.role,
-        type: 'remote',
-        plannerRestartOnHandoffToUser: args.plannerRestartOnHandoffToUser,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-    return { success: true, plannerRestartOnHandoffToUser: args.plannerRestartOnHandoffToUser };
   },
 });
 
@@ -3038,7 +2987,6 @@ export const emitAgentStopTimeout = mutation({
       durationMs: args.durationMs,
       timestamp: Date.now(),
     });
-
     return { success: true };
   },
 });
@@ -3120,6 +3068,7 @@ export const emitSessionAugmented = mutation({
       harnessSessionId: args.harnessSessionId,
       timestamp: Date.now(),
     });
+    if (args.newSessionStarted) await consumeTaskStartInNewSession(ctx, args.taskId);
 
     return { success: true };
   },
