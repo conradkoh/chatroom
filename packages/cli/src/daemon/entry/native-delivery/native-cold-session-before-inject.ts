@@ -25,6 +25,7 @@ async function waitForHarnessSessionId(
 }
 
 /** Cold-restart native harness when user opted in via task.startInNewSession. */
+// fallow-ignore-next-line complexity
 export async function ensureColdSessionBeforeNativeInject(
   task: AssignedTaskWithContent,
   deps: NativeInjectorDeps
