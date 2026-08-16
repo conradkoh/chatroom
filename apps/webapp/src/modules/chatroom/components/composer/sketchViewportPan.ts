@@ -1,0 +1,4 @@
+export type PanScrollStart = { clientX: number; clientY: number; scrollLeft: number; scrollTop: number };
+export function panScrollFromPointer(start: PanScrollStart, clientX: number, clientY: number) { return { scrollLeft: start.scrollLeft - (clientX - start.clientX), scrollTop: start.scrollTop - (clientY - start.clientY) }; }
+export function decideTwoFingerMode(initialDistance: number, currentDistance: number, thresholdRatio = 0.05): 'pan' | 'zoom' { if (initialDistance <= 0) return 'zoom'; return Math.abs(currentDistance - initialDistance) / initialDistance < thresholdRatio ? 'pan' : 'zoom'; }
+export function twoFingerCenter(points: { clientX: number; clientY: number }[]) { return { x: points.reduce((s, p) => s + p.clientX, 0) / points.length, y: points.reduce((s, p) => s + p.clientY, 0) / points.length }; }

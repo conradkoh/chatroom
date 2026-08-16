@@ -23,6 +23,7 @@ import { buildSketchFileName } from './sketchFileName';
 import type { ResizeHandle, SketchFloatingSelection, SketchRect } from './sketchSelectionTypes';
 import { useSketchHistory } from './useSketchHistory';
 import { useSketchSelection } from './useSketchSelection';
+import { decideTwoFingerMode, twoFingerCenter } from './sketchViewportPan';
 
 export type SketchTool = 'pen' | 'eraser' | 'select';
 export type UseSketchCanvasResult = {
@@ -51,7 +52,7 @@ export type UseSketchCanvasResult = {
   undo: () => void;
   redo: () => void;
 };
-export function useSketchCanvas(): UseSketchCanvasResult {
+export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLElement | null }): UseSketchCanvasResult {
   const history = useSketchHistory();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -78,6 +79,8 @@ export function useSketchCanvas(): UseSketchCanvasResult {
   }, []);
   const [zoom, setZoomState] = useState(SKETCH_ZOOM_DEFAULT);
   const zoomRef = useRef(zoom);
+  const scrollGetterRef = useRef(options?.getScrollContainer);
+  scrollGetterRef.current = options?.getScrollContainer;
   const historyRef = useRef(history);
   historyRef.current = history;
   const isApplyingHistoryRef = useRef(false);
@@ -203,6 +206,9 @@ export function useSketchCanvas(): UseSketchCanvasResult {
       const pointers = new Map<number, { clientX: number; clientY: number }>();
       let pinchStart: number | null = null;
       let pinchZoom = 1;
+      let twoFingerMode: 'undecided' | 'pan' | 'zoom' = 'undecided';
+      let initialPinchDistance = 0;
+      let lastCenter = { x: 0, y: 0 };
       const restorePreStroke = () => {
         if (preStroke) {
           ctx.putImageData(preStroke, 0, 0);
@@ -226,6 +232,9 @@ export function useSketchCanvas(): UseSketchCanvasResult {
           const p = [...pointers.values()];
           pinchStart = Math.hypot(p[0].clientX - p[1].clientX, p[0].clientY - p[1].clientY);
           pinchZoom = zoomRef.current;
+          twoFingerMode = 'undecided';
+          initialPinchDistance = pinchStart;
+          lastCenter = twoFingerCenter(p);
           return;
         }
         preStroke = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -244,7 +253,13 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         if (pointers.size >= 2) {
           const p = [...pointers.values()];
           const d = Math.hypot(p[0].clientX - p[1].clientX, p[0].clientY - p[1].clientY);
-          if (pinchStart) setZoom((pinchZoom * d) / pinchStart);
+          const center = twoFingerCenter(p);
+          if (twoFingerMode === 'undecided') twoFingerMode = decideTwoFingerMode(initialPinchDistance, d);
+          if (twoFingerMode === 'pan' && zoomRef.current > 1) {
+            const scrollEl = scrollGetterRef.current?.();
+            if (scrollEl) { scrollEl.scrollLeft -= center.x - lastCenter.x; scrollEl.scrollTop -= center.y - lastCenter.y; }
+          } else if (pinchStart) setZoom((pinchZoom * d) / pinchStart);
+          lastCenter = center;
           return;
         }
         if (!drawing) return;
@@ -267,6 +282,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         if (toolRef.current === 'select') return;
         pointers.delete(e.pointerId);
         if (pointers.size < 2) pinchStart = null;
+        if (pointers.size < 2) twoFingerMode = 'undecided';
         if (drawing && preStroke) {
           const final = ctx.getImageData(0, 0, canvas.width, canvas.height);
           if (!imageDataPixelsEqual(preStroke, final))
@@ -281,6 +297,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         if (toolRef.current === 'select') return;
         pointers.delete(e.pointerId);
         if (pointers.size < 2) pinchStart = null;
+        if (pointers.size < 2) twoFingerMode = 'undecided';
         restorePreStroke();
         if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
       };
