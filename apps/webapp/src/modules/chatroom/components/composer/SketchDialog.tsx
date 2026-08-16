@@ -1,5 +1,5 @@
 'use client';
-import { BoxSelect, Eraser, Pencil, Trash2 } from 'lucide-react';
+import { BoxSelect, Eraser, Pencil, Trash2, Undo2, Redo2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -27,7 +27,7 @@ export type SketchDialogProps = {
   onSave: (file: File) => void;
 };
 export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) {
-  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, commitSelection } =
+  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, commitSelection, canUndo, canRedo, undo, redo } =
     useSketchCanvas();
   const [isSaving, setIsSaving] = useState(false);
   const isDesktop = useIsDesktop();
@@ -68,6 +68,8 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
           >
             <Pencil />
           </button>
+          <button type="button" aria-label="Undo" title="Undo" disabled={!canUndo} onClick={undo}><Undo2 /></button>
+          <button type="button" aria-label="Redo" title="Redo" disabled={!canRedo} onClick={redo}><Redo2 /></button>
           <button
             type="button"
             aria-label="Eraser"
