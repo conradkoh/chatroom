@@ -38,6 +38,7 @@ export {
 /** Full view including task content — for one-shot action fetches. */
 export interface AssignedTaskView extends AssignedTaskSnapshotView {
   taskContent: string;
+  startInNewSession: boolean | undefined;
 }
 
 export interface ListMachineAssignedTaskSnapshotsResult {
