@@ -239,7 +239,6 @@ export function useAgentControls({
   teamConfigHarness,
   teamConfigMachineId,
   teamWantResume,
-  teamPlannerRestartOnHandoffToUser,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
   latestEventType,
@@ -262,7 +261,6 @@ export function useAgentControls({
   teamConfigMachineId?: string | null;
   /** Persisted reconnect-on-start preference from team agent config. */
   teamWantResume?: boolean;
-  teamPlannerRestartOnHandoffToUser?: boolean;
   /** Team ID for role/team-specific defaults. */
   teamId?: string;
   /** Registered workspaces for this chatroom — used to auto-detect working dir when empty */
@@ -290,7 +288,6 @@ export function useAgentControls({
     chatroomId,
     role,
     teamWantResume,
-    plannerRestartOnHandoffToUser: teamPlannerRestartOnHandoffToUser,
   });
   const { seedFromTeamConfig, effectiveWantResume } = teamBehavior;
   const [isStarting, setIsStarting] = useState(false);
@@ -1317,11 +1314,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             disabled={isBusy}
             isSavingWantResume={teamBehavior.isSavingWantResume}
             onResumeSessionChange={(checked) => void teamBehavior.updateWantResume(checked)}
-            plannerRestartOnHandoffToUser={teamBehavior.plannerRestartOnHandoffToUser}
-            isSavingPlannerRestart={teamBehavior.isSavingPlannerRestart}
-            onPlannerRestartOnHandoffToUserChange={(checked) =>
-              void teamBehavior.updatePlannerRestartOnHandoffToUser(checked)
-            }
           />
 
           <AlertDialog
