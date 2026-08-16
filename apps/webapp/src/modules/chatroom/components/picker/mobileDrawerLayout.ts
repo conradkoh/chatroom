@@ -1,5 +1,4 @@
-export const MOBILE_DRAWER_CONTENT_CLASSNAME =
-  'p-0 max-h-[80dvh] flex flex-col';
+export const MOBILE_DRAWER_CONTENT_CLASSNAME = 'p-0 max-h-[80dvh] flex flex-col';
 export const MOBILE_DRAWER_POPUP_CLASSNAME =
   'bg-chatroom-bg-primary border-t border-chatroom-border overflow-hidden [&_[data-slot=drawer-handle]]:after:bg-chatroom-text-muted/70';
 

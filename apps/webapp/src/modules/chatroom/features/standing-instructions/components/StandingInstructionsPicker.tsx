@@ -234,16 +234,18 @@ export function StandingInstructionsPicker({
         }}
         headerClassName="px-4 pt-4 pb-2"
         header={
-            <div className="flex items-center justify-between gap-2">
-              <DrawerTitle
-                className={cn(chatroomIndustrialDialogTitleClassName, 'min-w-0 leading-tight')}
-              >
-                Standing instructions
-              </DrawerTitle>
-              {viewMoreButton}
-            </div>
+          <div className="flex items-center justify-between gap-2">
+            <DrawerTitle
+              className={cn(chatroomIndustrialDialogTitleClassName, 'min-w-0 leading-tight')}
+            >
+              Standing instructions
+            </DrawerTitle>
+            {viewMoreButton}
+          </div>
         }
-      >{content}</MobileKeyboardDrawer>
+      >
+        {content}
+      </MobileKeyboardDrawer>
     );
   }
 

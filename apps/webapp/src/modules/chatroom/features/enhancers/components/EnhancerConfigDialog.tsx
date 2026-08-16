@@ -159,14 +159,20 @@ export function EnhancerConfigDialog({
 
   if (!isDesktop) {
     return (
-      <MobileKeyboardDrawer open={open} onOpenChange={handleOpenChange} title="Enhancer configuration" headerClassName="p-0" contentClassName="px-4 pb-4">
-            <h2 className="text-base font-semibold text-chatroom-text-primary mb-1">
-              Enhancer configuration
-            </h2>
-            <p className="text-xs text-chatroom-text-muted mb-3">
-              Choose a planning review target and which enhancer model to use.
-            </p>
-            {form}
+      <MobileKeyboardDrawer
+        open={open}
+        onOpenChange={handleOpenChange}
+        title="Enhancer configuration"
+        headerClassName="p-0"
+        contentClassName="px-4 pb-4"
+      >
+        <h2 className="text-base font-semibold text-chatroom-text-primary mb-1">
+          Enhancer configuration
+        </h2>
+        <p className="text-xs text-chatroom-text-muted mb-3">
+          Choose a planning review target and which enhancer model to use.
+        </p>
+        {form}
       </MobileKeyboardDrawer>
     );
   }

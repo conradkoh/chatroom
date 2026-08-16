@@ -4,10 +4,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   backlogProseClassNames,
-  backlogRichTextEditorProseClassNames,
+  detailModalRichTextEditorProseClassNames,
   fullMarkdownComponents,
+  modalMarkdownComponents,
+  detailModalMarkdownProseClassNames,
   messageFeedProseClassNames,
 } from './markdown-utils';
+import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { WorkspaceFileLinkProvider } from '../context/WorkspaceFileLinkContext';
 import { MarkdownRenderer } from '../workspace/file-renderers/MarkdownRenderer';
 
@@ -15,7 +18,7 @@ describe('backlog prose heading case', () => {
   it('does not force uppercase on markdown headings', () => {
     expect(backlogProseClassNames).not.toContain('uppercase');
     expect(backlogProseClassNames).not.toContain('tracking-wider');
-    expect(backlogRichTextEditorProseClassNames).not.toContain('uppercase');
+    expect(detailModalRichTextEditorProseClassNames).not.toContain('uppercase');
   });
 });
 
@@ -57,5 +60,34 @@ describe('markdown workspace links', () => {
     );
 
     expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+});
+
+describe('backlog modal markdown prose SSOT', () => {
+  it('does not duplicate wrap modifier blocks in surface prose classes', () => {
+    const signature = 'prose-pre:overflow-x-hidden';
+    const first = detailModalMarkdownProseClassNames.indexOf(signature);
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(first).toBe(detailModalMarkdownProseClassNames.lastIndexOf(signature));
+  });
+
+  it('uses secondary background and thick borders for fenced code', () => {
+    expect(detailModalMarkdownProseClassNames).toContain('prose-pre:bg-chatroom-bg-secondary');
+    expect(detailModalMarkdownProseClassNames).toContain('prose-pre:border-2');
+  });
+});
+
+describe('modal markdown spacing', () => {
+  it('renders nbsp spacer paragraphs around code blocks in modal preview', () => {
+    const markdown =
+      'This is some content!\n\n&nbsp;\n\n```txt\nasdasd\nasdsad\n```\n\n&nbsp;\n';
+    const { container } = render(
+      <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
+        {markdown}
+      </Markdown>
+    );
+
+    expect(container.querySelectorAll('p.min-h-\\[1\\.5em\\][aria-hidden="true"]')).toHaveLength(2);
+    expect(screen.getByText('This is some content!')).toBeInTheDocument();
   });
 });

@@ -8,6 +8,7 @@ import { ConvexError } from 'convex/values';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { canEditBacklogContent } from '../../entities/backlog-item';
+import { normalizeMarkdownContent } from '../../entities/markdown-content';
 
 export interface UpdateBacklogItemArgs {
   itemId: Id<'chatroom_backlog'>;
@@ -34,7 +35,7 @@ export async function updateBacklogItem(
   }
 
   await ctx.db.patch("chatroom_backlog", args.itemId, {
-    content: args.content.trim(),
+    content: normalizeMarkdownContent(args.content),
     updatedAt: Date.now(),
   });
 }

@@ -32,7 +32,9 @@ describe('ModelFilterPanel mobile keyboard layout', () => {
       />
     );
 
-    expect(screen.queryAllByText('Model Visibility').some((node) => node.tagName === 'SPAN')).toBe(false);
+    expect(screen.queryAllByText('Model Visibility').some((node) => node.tagName === 'SPAN')).toBe(
+      false
+    );
     expect(screen.queryByText('Reset All')).not.toBeInTheDocument();
     expect(screen.getAllByRole('checkbox')).toHaveLength(2);
 
@@ -52,7 +54,9 @@ describe('ModelFilterPanel mobile keyboard layout', () => {
         onFilterChange={vi.fn()}
       />
     );
-    expect(screen.getAllByText('Model Visibility').some((node) => node.tagName === 'SPAN')).toBe(true);
+    expect(screen.getAllByText('Model Visibility').some((node) => node.tagName === 'SPAN')).toBe(
+      true
+    );
     expect(screen.getByText('Reset All')).toBeInTheDocument();
   });
 });

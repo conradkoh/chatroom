@@ -228,6 +228,46 @@ describe('BacklogItemDetailModal editor initialization', () => {
   });
 });
 
+describe('BacklogItemDetailModal preview spacing', () => {
+  const markdownWithSpacers =
+    'This is some content!\n\n&nbsp;\n\n```txt\nasdasd\nasdsad\n```\n\n&nbsp;\n';
+
+  function makeItemWithContent(content: string): BacklogItem {
+    return { ...makeBacklogItem('backlog'), content };
+  }
+
+  it('renders nbsp spacer paragraphs around code blocks in view mode', () => {
+    render(
+      <BacklogItemDetailModal
+        isOpen
+        item={makeItemWithContent(markdownWithSpacers)}
+        onClose={vi.fn()}
+      />
+    );
+
+    const viewBody = screen.getByTestId('backlog-detail-view-body');
+    const spacers = viewBody.querySelectorAll('p.min-h-\\[1\\.5em\\][aria-hidden="true"]');
+    expect(spacers).toHaveLength(2);
+    expect(within(viewBody).getByText('This is some content!')).toBeInTheDocument();
+    expect(viewBody.querySelector('code')).toHaveTextContent('asdasd');
+  });
+
+  it('does not render spacer paragraphs for legacy whitespace-only blank lines', () => {
+    const legacyMarkdown =
+      'This is some content!\n\n   \n\n```txt\nasdasd\nasdsad\n```\n\n   \n';
+    render(
+      <BacklogItemDetailModal
+        isOpen
+        item={makeItemWithContent(legacyMarkdown)}
+        onClose={vi.fn()}
+      />
+    );
+
+    const viewBody = screen.getByTestId('backlog-detail-view-body');
+    expect(viewBody.querySelectorAll('p.min-h-\\[1\\.5em\\][aria-hidden="true"]')).toHaveLength(0);
+  });
+});
+
 describe('BacklogItemDetailModal delete action', () => {
   beforeEach(() => {
     mockDeleteBacklogItem.mockReset();

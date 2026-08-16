@@ -1,0 +1,11 @@
+export {
+  markdownSurfaceParagraphClassNames as detailModalParagraphClassNames,
+  markdownSurfaceSpacerParagraphClassNames as detailModalSpacerParagraphClassNames,
+  markdownSurfaceInlineCodeClassNames as detailModalInlineCodeClassNames,
+  markdownSurfaceFencedCodePreClassNames as detailModalFencedCodePreClassNames,
+  markdownSurfaceFencedCodeBlockClassNames as detailModalFencedCodeBlockClassNames,
+  markdownSurfaceProseMirrorCodeClassNames as detailModalProseMirrorCodeClassNames,
+  markdownSurfaceBaseProseClassNames as detailModalProseClassNames,
+  markdownSurfaceModalProseClassNames as detailModalMarkdownProseClassNames,
+  markdownSurfaceRichTextEditorProseClassNames as detailModalRichTextEditorProseClassNames,
+} from '../markdown-surface';

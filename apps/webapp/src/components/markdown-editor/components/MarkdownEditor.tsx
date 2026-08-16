@@ -3,8 +3,8 @@
 import { EditorContent } from '@tiptap/react';
 
 import { MarkdownToolbar } from './MarkdownToolbar';
-import type { MarkdownEditorProps } from '../types';
 import { useMarkdownEditor } from '../hooks/useMarkdownEditor';
+import type { MarkdownEditorProps } from '../types';
 
 import { cn } from '@/lib/utils';
 

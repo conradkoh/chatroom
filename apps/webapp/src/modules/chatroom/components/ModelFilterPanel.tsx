@@ -2,7 +2,14 @@
 
 import React, { useMemo, useCallback } from 'react';
 
-import { PickerPanelHeader, PickerScrollBody, PickerSearch, ResponsivePickerShell, usePickerSearchState, useMobilePickerKeyboardOpen } from './picker';
+import {
+  PickerPanelHeader,
+  PickerScrollBody,
+  PickerSearch,
+  ResponsivePickerShell,
+  usePickerSearchState,
+  useMobilePickerKeyboardOpen,
+} from './picker';
 import { getModelProviderKey } from '../utils/modelSelection';
 import { MODEL_PICKER_PANEL_WIDTH, MODEL_PICKER_SCROLL_MAX_H } from './model-selection/constants';
 import { ModelGroupedList } from './model-selection/ModelGroupedList';
@@ -59,7 +66,8 @@ export function ModelFilterPanel({
   );
 
   const allHidden = useMemo(
-    () => availableModels.length > 0 && availableModels.every((model) => hiddenModelsSet.has(model)),
+    () =>
+      availableModels.length > 0 && availableModels.every((model) => hiddenModelsSet.has(model)),
     [availableModels, hiddenModelsSet]
   );
 
@@ -121,30 +129,32 @@ export function ModelFilterPanel({
 
   const panelContent = (
     <>
-      {!keyboardOpen && <PickerPanelHeader title="Model Visibility" className="shrink-0">
-        <div className="flex items-center gap-2">
-          {hiddenCount > 0 && (
-            <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
-              {hiddenCount} HIDDEN
-            </span>
-          )}
-          {allProviderKeys.length > 0 && (
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={allHidden ? clearAllFilters : handleHideAll}
-              className={cn(
-                'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-                allHidden
-                  ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-chatroom-status-warning/80 hover:text-chatroom-status-warning/80'
-                  : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
-              )}
-            >
-              {allHidden ? 'Show All' : 'Hide All'}
-            </button>
-          )}
-        </div>
-      </PickerPanelHeader>}
+      {!keyboardOpen && (
+        <PickerPanelHeader title="Model Visibility" className="shrink-0">
+          <div className="flex items-center gap-2">
+            {hiddenCount > 0 && (
+              <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
+                {hiddenCount} HIDDEN
+              </span>
+            )}
+            {allProviderKeys.length > 0 && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={allHidden ? clearAllFilters : handleHideAll}
+                className={cn(
+                  'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                  allHidden
+                    ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-chatroom-status-warning/80 hover:text-chatroom-status-warning/80'
+                    : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
+                )}
+              >
+                {allHidden ? 'Show All' : 'Hide All'}
+              </button>
+            )}
+          </div>
+        </PickerPanelHeader>
+      )}
 
       <PickerSearch value={searchTerm} onChange={setSearchTerm} placeholder="Search models..." />
 
@@ -161,14 +171,16 @@ export function ModelFilterPanel({
         />
       </PickerScrollBody>
 
-      {!keyboardOpen && <button
-        type="button"
-        disabled={disabled || !hasAnyFilter}
-        onClick={clearAllFilters}
-        className="w-full shrink-0 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-error px-3 py-2 border-t border-chatroom-border text-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        Reset All
-      </button>}
+      {!keyboardOpen && (
+        <button
+          type="button"
+          disabled={disabled || !hasAnyFilter}
+          onClick={clearAllFilters}
+          className="w-full shrink-0 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-status-error px-3 py-2 border-t border-chatroom-border text-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Reset All
+        </button>
+      )}
     </>
   );
 

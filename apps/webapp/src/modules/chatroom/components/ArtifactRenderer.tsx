@@ -9,6 +9,7 @@ import Markdown from 'react-markdown';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { fullMarkdownComponents } from './markdown-utils';
+import { markdownSurfaceBaseProseClassNames } from './markdown-surface';
 
 import {
   FixedModal,
@@ -50,7 +51,7 @@ type ArtifactContentRenderer = React.FC<{ artifact: ArtifactFull }>;
  */
 function MarkdownArtifactViewer({ artifact }: { artifact: ArtifactFull }) {
   return (
-    <div className="prose dark:prose-invert prose-sm max-w-none text-chatroom-text-primary">
+    <div className={markdownSurfaceBaseProseClassNames}>
       <Markdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
         {artifact.content}
       </Markdown>

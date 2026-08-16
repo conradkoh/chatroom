@@ -60,7 +60,12 @@ export function EditableMarkdown({
   if (isEditing) {
     return (
       <div className={cn('space-y-3', className)}>
-        <MarkdownEditor defaultMarkdown={draft} onChange={setDraft} placeholder={placeholder} proseClassName={proseClassName} />
+        <MarkdownEditor
+          defaultMarkdown={draft}
+          onChange={setDraft}
+          placeholder={placeholder}
+          proseClassName={proseClassName}
+        />
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" size="sm" onClick={handleCancel}>
             Cancel

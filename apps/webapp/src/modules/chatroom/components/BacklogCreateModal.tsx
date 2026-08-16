@@ -1,7 +1,7 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import React, { useState, useCallback, useEffect } from 'react';
+import { detailModalRichTextEditorProseClassNames } from './detail-modal';
 
 import {
   FixedModal,
@@ -10,11 +10,7 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
-
-const RichTextEditor = dynamic(
-  () => import('./rich-text').then((m) => ({ default: m.RichTextEditor })),
-  { ssr: false }
-);
+import { RichTextEditor } from './detail-modal-shared';
 
 interface BacklogCreateModalProps {
   isOpen: boolean;
@@ -63,6 +59,7 @@ export function BacklogCreateModal({ isOpen, onClose, onSubmit }: BacklogCreateM
             autoFocus
             onCmdEnter={handleSubmit}
             className="flex-1 flex flex-col min-h-0"
+            proseClassName={detailModalRichTextEditorProseClassNames}
           />
         </FixedModalBody>
 

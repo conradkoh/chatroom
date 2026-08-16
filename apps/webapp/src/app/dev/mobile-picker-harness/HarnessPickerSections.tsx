@@ -111,9 +111,11 @@ export function FilterPickerSection({
             </div>
           ))}
         </PickerScrollBody>
-        {!keyboardOpen && <button type="button" className="w-full shrink-0 border-t px-3 py-2 text-xs">
-          Reset All
-        </button>}
+        {!keyboardOpen && (
+          <button type="button" className="w-full shrink-0 border-t px-3 py-2 text-xs">
+            Reset All
+          </button>
+        )}
       </ResponsivePickerShell>
     </section>
   );
