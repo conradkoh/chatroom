@@ -205,6 +205,7 @@
     "services/backend/src/domain/usecase/enhancer/resolve-origin-user-message-id.ts:24-37|services/backend/src/domain/usecase/task/complete-active-tasks.ts:14-27",
     "services/backend/src/domain/usecase/task/find-acknowledged-task-for-role.ts:35-41|services/backend/src/domain/usecase/task/release-tasks-on-agent-exit.ts:151-157|services/backend/src/domain/usecase/task/release-tasks-on-agent-exit.ts:48-54",
     "services/backend/src/domain/usecase/task/release-tasks-on-agent-exit.ts:149-165|services/backend/src/domain/usecase/task/release-tasks-on-agent-exit.ts:46-59",
-    "services/backend/src/domain/usecase/task/transition-task.ts:131-140|services/backend/src/domain/usecase/task/transition-task.ts:146-153"
+    "services/backend/src/domain/usecase/task/transition-task.ts:131-140|services/backend/src/domain/usecase/task/transition-task.ts:146-153",
+    "apps/webapp/src/modules/chatroom/components/composer/useSketchCanvas.ts:170-175|apps/webapp/src/modules/chatroom/components/composer/useSketchSelection.ts:18-19"
   ]
 }

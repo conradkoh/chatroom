@@ -539,6 +539,32 @@
         "count": 1
       }
     },
+    "apps/webapp/src/modules/chatroom/components/composer/SketchDialog.tsx": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/composer/SketchSelectionOverlay.tsx": {
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/composer/useSketchCanvas.ts": {
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 2
+      }
+    },
+    "apps/webapp/src/modules/chatroom/components/composer/useSketchSelection.ts": {
+      "crap_critical": {
+        "count": 1
+      }
+    },
     "apps/webapp/src/modules/chatroom/components/PromptModal.tsx": {
       "crap_moderate": {
         "count": 1

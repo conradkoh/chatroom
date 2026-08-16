@@ -28,10 +28,11 @@ test.describe('Standing instructions release harness (desktop)', { tag: [TAG_DOW
 
   test('Add → View more opens history picker', async ({ page }) => {
     await page.goto(HARNESS_PATH);
-    await page.getByTestId('standing-instructions-harness-add').click();
-    await expect(page.getByText('Standing Instructions')).toBeVisible();
-    await expect(page.getByText('Create new')).toBeVisible();
-    await page.getByTestId('standing-instructions-harness-view-more').click();
+    const addSection = page.getByTestId('standing-instructions-harness-add-section');
+    await addSection.getByTestId('standing-instructions-harness-add').click();
+    await expect(addSection.getByText('Standing Instructions', { exact: true })).toBeVisible();
+    await expect(addSection.getByText('Create new')).toBeVisible();
+    await addSection.getByTestId('standing-instructions-harness-view-more').click();
     await expect(page.getByPlaceholder('Search history…')).toBeVisible();
   });
 
