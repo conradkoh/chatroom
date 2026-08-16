@@ -48,6 +48,7 @@ export type UseSketchCanvasResult = {
   pasteFromClipboard: () => Promise<void>;
   pickColorAt: (cssX: number, cssY: number) => string | null;
   commitSelection: () => void;
+  deselect: () => void;
   canUndo: boolean;
   canRedo: boolean;
   undo: () => void;
@@ -162,6 +163,7 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     },
     [selection]
   );
+  const deselect = useCallback(() => { selection.clearSelectionWithoutHistory(); }, [selection]);
   toolRef.current = tool;
   const clear = useCallback(() => {
     if (hasContentRef.current) {
@@ -375,6 +377,7 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     pasteFromClipboard: selection.pasteFromClipboard,
     pickColorAt,
     commitSelection: selection.commitSelection,
+    deselect,
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     undo: undoHistory,
