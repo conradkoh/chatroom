@@ -63,6 +63,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
   }, [selection]);
   toolRef.current = tool;
   const clear = useCallback(() => {
+    selection.clearSelection();
     const c = ctxRef.current;
     if (c) {
       c.save();
