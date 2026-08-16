@@ -81,6 +81,7 @@ export function useSketchSelection({
     return { imageData, hasContent: sketchCanvasHasInk(imageData) };
   }, [getCanvas, getCtx, redraw]);
   const sampleColorAt = useCallback((cssX: number, cssY: number, dpr: number): string | null => { const c = getCtx(); const target = getCanvas(); if (!c || !target) return null; if (selectionRef.current) redraw(); const x = Math.min(target.width - 1, Math.max(0, Math.floor(cssX * dpr))); const y = Math.min(target.height - 1, Math.max(0, Math.floor(cssY * dpr))); return samplePixelHex(c.getImageData(x, y, 1, 1), 0, 0); }, [getCanvas, getCtx, redraw]);
+  const nudgeSelection = useCallback((dx: number, dy: number) => { const s = selectionRef.current; if (!s) return; setSel({ ...s, bounds: { ...s.bounds, x: s.bounds.x + dx, y: s.bounds.y + dy } }); redraw(); }, [redraw]);
   const commitSelection = useCallback(
     (options?: { recordHistory?: boolean }) => {
       const c = getCtx();
@@ -246,6 +247,7 @@ export function useSketchSelection({
     clearSelectionWithoutHistory,
     captureCompositedSnapshot,
     sampleColorAt,
+    nudgeSelection,
     hasActiveSelection: () => selectionRef.current !== null,
   };
 }

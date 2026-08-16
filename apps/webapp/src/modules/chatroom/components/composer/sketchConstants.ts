@@ -11,3 +11,5 @@ export const SKETCH_ZOOM_MIN = 0.5;
 export const SKETCH_ZOOM_MAX = 2;
 export const SKETCH_ZOOM_DEFAULT = 1;
 export const SKETCH_CANVAS_MIN_HEIGHT_CSS_PX = 280;
+export const SKETCH_NUDGE_STEP_PX = 1;
+export const SKETCH_NUDGE_SHIFT_STEP_PX = 10;

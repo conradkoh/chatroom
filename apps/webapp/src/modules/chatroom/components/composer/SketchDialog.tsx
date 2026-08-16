@@ -10,6 +10,7 @@ import { SketchZoomControls } from './SketchZoomControls';
 import { SketchSelectionOverlay } from './SketchSelectionOverlay';
 import { useSketchViewportPan } from './useSketchViewportPan';
 import { SKETCH_CANVAS_MIN_HEIGHT_CSS_PX } from './sketchConstants';
+import { SKETCH_NUDGE_SHIFT_STEP_PX, SKETCH_NUDGE_STEP_PX } from './sketchConstants';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import {
   Dialog,
@@ -31,13 +32,14 @@ export type SketchDialogProps = {
 };
 export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, brushSize, setBrushSize, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, pasteFromClipboard, pickColorAt, commitSelection, deselect, canUndo, canRedo, undo, redo } =
+  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, brushSize, setBrushSize, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, pasteFromClipboard, pickColorAt, commitSelection, deselect, nudgeSelection, canUndo, canRedo, undo, redo } =
     useSketchCanvas({ getScrollContainer: () => scrollContainerRef.current });
   const [isSaving, setIsSaving] = useState(false);
   const isDesktop = useIsDesktop();
   useSketchViewportPan({ open, zoom, scrollRef: scrollContainerRef });
   useEffect(() => { if (!open) return; const onKey = (e: KeyboardEvent) => { const t=e.target; if(t instanceof HTMLInputElement||t instanceof HTMLTextAreaElement||t instanceof HTMLSelectElement||(t instanceof HTMLElement&&t.isContentEditable))return; if(e.key==='Escape'&&(floatingSelection||selectionMarquee)){e.preventDefault();deselect();return;} const key=e.key.toLowerCase(); if((e.metaKey||e.ctrlKey)&&key==='z'&&!e.shiftKey){e.preventDefault();undo();return;} if((e.metaKey||e.ctrlKey)&&((key==='z'&&e.shiftKey)||key==='y')){e.preventDefault();redo();return;} if((e.metaKey||e.ctrlKey)&&key==='v'){e.preventDefault();void pasteFromClipboard().catch(()=>toast.error('Nothing to paste'));return;} if(key==='i'){e.preventDefault();setTool('eyedropper');return;} if(key==='['){e.preventDefault();setBrushSize(brushSize-1);return;} if(key===']'){e.preventDefault();setBrushSize(brushSize+1);return;} if(!floatingSelection)return; if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelection();} if((e.metaKey||e.ctrlKey)&&key==='c'){e.preventDefault();void copySelection().catch(()=>toast.error('Failed to copy selection'));} }; window.addEventListener('keydown',onKey); return()=>window.removeEventListener('keydown',onKey); }, [open,floatingSelection,selectionMarquee,deselect,undo,redo,deleteSelection,copySelection,pasteFromClipboard,brushSize,setBrushSize,setTool]);
   const handleOpenChange = (next: boolean) => { if (!next) commitSelection(); onOpenChange(next); };
+  useEffect(() => { if (!open || !floatingSelection) return; const onKey = (e: KeyboardEvent) => { const t = e.target; if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement || (t instanceof HTMLElement && t.isContentEditable)) return; if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return; e.preventDefault(); const step = e.shiftKey ? SKETCH_NUDGE_SHIFT_STEP_PX : SKETCH_NUDGE_STEP_PX; nudgeSelection(e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0, e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0); }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [floatingSelection, nudgeSelection, open]);
   useEffect(() => {
     if (!open || !canvasRef.current) return;
     return bindCanvas(canvasRef.current);

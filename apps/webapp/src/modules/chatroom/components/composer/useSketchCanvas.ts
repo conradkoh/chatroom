@@ -49,6 +49,7 @@ export type UseSketchCanvasResult = {
   pickColorAt: (cssX: number, cssY: number) => string | null;
   commitSelection: () => void;
   deselect: () => void;
+  nudgeSelection: (dx: number, dy: number) => void;
   canUndo: boolean;
   canRedo: boolean;
   undo: () => void;
@@ -164,6 +165,7 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     [selection]
   );
   const deselect = useCallback(() => { selection.clearSelectionWithoutHistory(); }, [selection]);
+  const nudgeSelection = useCallback((dx: number, dy: number) => selection.nudgeSelection(dx, dy), [selection]);
   toolRef.current = tool;
   const clear = useCallback(() => {
     if (hasContentRef.current) {
@@ -378,6 +380,7 @@ export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLEleme
     pickColorAt,
     commitSelection: selection.commitSelection,
     deselect,
+    nudgeSelection,
     canUndo: history.canUndo,
     canRedo: history.canRedo,
     undo: undoHistory,
