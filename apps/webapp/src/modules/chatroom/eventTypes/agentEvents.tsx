@@ -1,5 +1,6 @@
 'use client';
 
+import { getAgentExitedRowDisplay } from './agentExitedRowDisplay';
 import type { EventTypeRegistry } from './registry';
 import { EventRow, EventDetails, DetailRow, MachineDetailRow } from './shared';
 import { formatTimestampFull } from '../viewModels/eventStreamViewModel';
@@ -36,13 +37,16 @@ import type {
 // ─── Agent Started ───────────────────────────────────────────────────────────
 
 function renderAgentStartedCell(event: AgentStartedEvent, isSelected: boolean): React.ReactNode {
+  const secondaryInfo =
+    event.reason === 'platform.task_start_in_new_session' ? 'new session' : event.model;
+
   return (
     <EventRow
       type="agent.started"
       badgeText="Started"
       badgeColor="success"
       primaryInfo={event.role}
-      secondaryInfo={event.model}
+      secondaryInfo={secondaryInfo}
       timestamp={event.timestamp}
       isSelected={isSelected}
     />
@@ -75,47 +79,7 @@ function renderAgentStartedDetails(event: AgentStartedEvent): React.ReactNode {
 // ─── Agent Exited ────────────────────────────────────────────────────────────
 
 function renderAgentExitedCell(event: AgentExitedEvent, isSelected: boolean): React.ReactNode {
-  let badgeText: string;
-  let badgeColor: 'info' | 'warning' | 'error';
-
-  switch (event.stopReason) {
-    case 'user.stop':
-    case 'platform.team_switch':
-      badgeText = 'Stopped';
-      badgeColor = 'info';
-      break;
-    case 'daemon.shutdown':
-      badgeText = 'Daemon Shutdown';
-      badgeColor = 'info';
-      break;
-    case 'agent_process.exited_clean':
-    case 'daemon.respawn':
-      badgeText = 'Exit';
-      badgeColor = 'warning';
-      break;
-    case 'platform.resume_storm':
-      badgeText = 'Resume Storm';
-      badgeColor = 'error';
-      break;
-    case 'agent_process.crashed':
-      badgeText = 'Crash';
-      badgeColor = 'error';
-      break;
-    case 'agent_process.signal':
-      badgeText = 'Signal';
-      badgeColor = 'error';
-      break;
-    default:
-      // Legacy events without stopReason — fall back to intentional field
-      badgeText = event.intentional ? 'Exit' : 'Crash';
-      badgeColor = 'error';
-      break;
-  }
-
-  const exitCodeStr = event.exitCode !== undefined ? `exit(${event.exitCode}) ` : '';
-  const secondaryInfo = event.stopReason
-    ? `${exitCodeStr}${event.stopReason}`
-    : (event.stopReason ?? 'unknown');
+  const { badgeText, badgeColor, secondaryInfo } = getAgentExitedRowDisplay(event);
 
   return (
     <EventRow
@@ -731,16 +695,16 @@ function renderAgentSessionAugmentedCell(
   event: AgentSessionAugmentedEvent,
   isSelected: boolean
 ): React.ReactNode {
-  const badgeText = event.newSessionStarted
-    ? 'New Session'
-    : sessionAugmentationModeLabel(event.mode);
+  const badgeText = event.newSessionStarted ? 'Session' : sessionAugmentationModeLabel(event.mode);
   return (
     <EventRow
       type="agent.sessionAugmented"
       badgeText={badgeText}
       badgeColor={event.newSessionStarted ? 'warning' : 'info'}
       primaryInfo={event.role}
-      secondaryInfo={sessionAugmentationModeLabel(event.mode)}
+      secondaryInfo={
+        event.newSessionStarted ? 'new session started' : sessionAugmentationModeLabel(event.mode)
+      }
       timestamp={event.timestamp}
       isSelected={isSelected}
     />
