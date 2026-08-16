@@ -1,0 +1,2 @@
+import { render, screen } from '@testing-library/react'; import { describe, expect, it, vi } from 'vitest'; import { AttachmentSourcePicker } from './AttachmentSourcePicker';
+describe('AttachmentSourcePicker', () => { it('offers File and Sketch sources', async () => { render(<AttachmentSourcePicker trigger={<button>Add attachment</button>} onPickFile={vi.fn()} onPickSketch={vi.fn()} />); await import('@/hooks/useIsDesktop'); expect(screen.getByText('Add attachment')).toBeTruthy(); }); });

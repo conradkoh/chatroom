@@ -4,15 +4,18 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { useSketchCanvas } from './useSketchCanvas';
-
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+  DialogScrollBody,
+} from '../ui/dialog';
+import {
+  chatroomIndustrialButtonPrimaryClassName,
+  chatroomIndustrialButtonSecondaryClassName,
+} from '../shared/industrialDialogStyles';
 
 export type SketchDialogProps = {
   open: boolean;
@@ -49,53 +52,56 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
           <DialogTitle>Sketch attachment</DialogTitle>
         </DialogHeader>
         <div className="flex gap-2">
-          <Button
+          <button
             type="button"
-            size="icon"
-            variant={tool === 'pen' ? 'secondary' : 'ghost'}
             aria-label="Pen"
             title="Pen"
             aria-pressed={tool === 'pen'}
             onClick={() => setTool('pen')}
           >
             <Pencil />
-          </Button>
-          <Button
+          </button>
+          <button
             type="button"
-            size="icon"
-            variant={tool === 'eraser' ? 'secondary' : 'ghost'}
             aria-label="Eraser"
             title="Eraser"
             aria-pressed={tool === 'eraser'}
             onClick={() => setTool('eraser')}
           >
             <Eraser />
-          </Button>
-          <Button
+          </button>
+          <button
             type="button"
-            size="icon"
-            variant="ghost"
             aria-label="Clear canvas"
             title="Clear canvas"
             onClick={clear}
           >
             <Trash2 />
-          </Button>
+          </button>
         </div>
-        <div className="min-h-[280px] w-full border-2 border-chatroom-border bg-white">
+        <DialogScrollBody className="min-h-[280px] w-full border-2 border-chatroom-border bg-white">
           <canvas
             ref={canvasRef}
             className="block w-full h-full min-h-[280px] touch-none"
             aria-label="Sketch canvas"
           />
-        </div>
+        </DialogScrollBody>
         <DialogFooter>
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+          <button
+            type="button"
+            className={chatroomIndustrialButtonSecondaryClassName}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
-          </Button>
-          <Button type="button" disabled={!hasContent || isSaving} onClick={save}>
+          </button>
+          <button
+            type="button"
+            className={chatroomIndustrialButtonPrimaryClassName}
+            disabled={!hasContent || isSaving}
+            onClick={save}
+          >
             Save
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

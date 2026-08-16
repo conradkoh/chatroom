@@ -38,70 +38,82 @@ export function useSketchCanvas(): UseSketchCanvasResult {
     setHasContent(false);
   }, []);
   const bindCanvas = useCallback((canvas: HTMLCanvasElement) => {
-    const rect = canvas.parentElement?.getBoundingClientRect();
-    if (!rect || rect.width <= 0 || rect.height <= 0) return () => {};
-    const dpr = window.devicePixelRatio || 1;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return () => {};
-    ctxRef.current = ctx;
-    ctx.scale(dpr, dpr);
-    ctx.fillStyle = SKETCH_CANVAS_COLORS.background;
-    ctx.fillRect(0, 0, rect.width, rect.height);
-    setHasContent(false);
-    canvas.style.touchAction = 'none';
-    let drawing = false;
-    let startX = 0;
-    let startY = 0;
-    const point = (e: PointerEvent) => {
-      const r = canvas.getBoundingClientRect();
-      return {
-        x: ((e.clientX - r.left) * (canvas.width / r.width)) / dpr,
-        y: ((e.clientY - r.top) * (canvas.height / r.height)) / dpr,
+    let cleanup: (() => void) | undefined;
+    const setup = (): boolean => {
+      const rect = canvas.parentElement?.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return true;
+      ctxRef.current = ctx;
+      ctx.scale(dpr, dpr);
+      ctx.fillStyle = SKETCH_CANVAS_COLORS.background;
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      setHasContent(false);
+      canvas.style.touchAction = 'none';
+      let drawing = false;
+      let startX = 0;
+      let startY = 0;
+      const point = (e: PointerEvent) => {
+        const r = canvas.getBoundingClientRect();
+        return {
+          x: ((e.clientX - r.left) * (canvas.width / r.width)) / dpr,
+          y: ((e.clientY - r.top) * (canvas.height / r.height)) / dpr,
+        };
       };
+      const down = (e: PointerEvent) => {
+        drawing = true;
+        const p = point(e);
+        startX = p.x;
+        startY = p.y;
+        canvas.setPointerCapture(e.pointerId);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+      };
+      const move = (e: PointerEvent) => {
+        if (!drawing) return;
+        const p = point(e);
+        ctx.strokeStyle =
+          toolRef.current === 'pen' ? SKETCH_CANVAS_COLORS.ink : SKETCH_CANVAS_COLORS.background;
+        ctx.lineWidth =
+          toolRef.current === 'pen' ? SKETCH_PEN_WIDTH_CSS_PX : SKETCH_ERASER_WIDTH_CSS_PX;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        if (
+          toolRef.current === 'pen' &&
+          Math.hypot(p.x - startX, p.y - startY) > SKETCH_MIN_STROKE_DISTANCE_CSS_PX
+        )
+          setHasContent(true);
+      };
+      const end = (e: PointerEvent) => {
+        drawing = false;
+        if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+      };
+      canvas.addEventListener('pointerdown', down);
+      canvas.addEventListener('pointermove', move);
+      canvas.addEventListener('pointerup', end);
+      canvas.addEventListener('pointercancel', end);
+      cleanup = () => {
+        canvas.removeEventListener('pointerdown', down);
+        canvas.removeEventListener('pointermove', move);
+        canvas.removeEventListener('pointerup', end);
+        canvas.removeEventListener('pointercancel', end);
+      };
+      return true;
     };
-    const down = (e: PointerEvent) => {
-      drawing = true;
-      const p = point(e);
-      startX = p.x;
-      startY = p.y;
-      canvas.setPointerCapture(e.pointerId);
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-    };
-    const move = (e: PointerEvent) => {
-      if (!drawing) return;
-      const p = point(e);
-      ctx.strokeStyle =
-        toolRef.current === 'pen' ? SKETCH_CANVAS_COLORS.ink : SKETCH_CANVAS_COLORS.background;
-      ctx.lineWidth =
-        toolRef.current === 'pen' ? SKETCH_PEN_WIDTH_CSS_PX : SKETCH_ERASER_WIDTH_CSS_PX;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-      if (
-        toolRef.current === 'pen' &&
-        Math.hypot(p.x - startX, p.y - startY) > SKETCH_MIN_STROKE_DISTANCE_CSS_PX
-      )
-        setHasContent(true);
-    };
-    const end = (e: PointerEvent) => {
-      drawing = false;
-      if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
-    };
-    canvas.addEventListener('pointerdown', down);
-    canvas.addEventListener('pointermove', move);
-    canvas.addEventListener('pointerup', end);
-    canvas.addEventListener('pointercancel', end);
+    if (setup()) return () => cleanup?.();
+    let rafId = requestAnimationFrame(() => {
+      setup();
+    });
     return () => {
-      canvas.removeEventListener('pointerdown', down);
-      canvas.removeEventListener('pointermove', move);
-      canvas.removeEventListener('pointerup', end);
-      canvas.removeEventListener('pointercancel', end);
+      cancelAnimationFrame(rafId);
+      cleanup?.();
     };
   }, []);
   const exportPngFile = useCallback(
