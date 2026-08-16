@@ -6,7 +6,10 @@ import {
   SKETCH_ERASER_WIDTH_CSS_PX,
   SKETCH_MIN_STROKE_DISTANCE_CSS_PX,
   SKETCH_PEN_WIDTH_CSS_PX,
-  SKETCH_BRUSH_PALETTE, SKETCH_ZOOM_DEFAULT, SKETCH_ZOOM_MAX, SKETCH_ZOOM_MIN,
+  SKETCH_BRUSH_PALETTE,
+  SKETCH_ZOOM_DEFAULT,
+  SKETCH_ZOOM_MAX,
+  SKETCH_ZOOM_MIN,
 } from './sketchConstants';
 import { buildSketchFileName } from './sketchFileName';
 
@@ -19,18 +22,37 @@ export type UseSketchCanvasResult = {
   clear: () => void;
   exportPngFile: () => Promise<File | null>;
   bindCanvas: (canvas: HTMLCanvasElement) => () => void;
-  brushColor: string; setBrushColor: (color: string) => void; zoom: number; setZoom: (value: number) => void;
+  brushColor: string;
+  setBrushColor: (color: string) => void;
+  zoom: number;
+  setZoom: (value: number) => void;
 };
 export function useSketchCanvas(): UseSketchCanvasResult {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const [tool, setTool] = useState<SketchTool>('pen');
   const [hasContent, setHasContent] = useState(false);
+  const hasContentRef = useRef(false);
+  const updateHasContent = useCallback((value: boolean) => {
+    hasContentRef.current = value;
+    setHasContent(value);
+  }, []);
   const toolRef = useRef(tool);
-  const [brushColor, setBrushColorState] = useState(SKETCH_BRUSH_PALETTE[0]); const brushColorRef = useRef(brushColor);
-  const setBrushColor = useCallback((color: string) => { brushColorRef.current = color; setBrushColorState(color); }, []);
-  const [zoom, setZoomState] = useState(SKETCH_ZOOM_DEFAULT); const zoomRef = useRef(zoom);
-  const setZoom = useCallback((value: number) => { const next = Number.isFinite(value) ? Math.min(SKETCH_ZOOM_MAX, Math.max(SKETCH_ZOOM_MIN, value)) : SKETCH_ZOOM_DEFAULT; zoomRef.current = next; setZoomState(next); }, []);
+  const [brushColor, setBrushColorState] = useState<string>(SKETCH_BRUSH_PALETTE[0]);
+  const brushColorRef = useRef<string>(brushColor);
+  const setBrushColor = useCallback((color: string) => {
+    brushColorRef.current = color;
+    setBrushColorState(color);
+  }, []);
+  const [zoom, setZoomState] = useState(SKETCH_ZOOM_DEFAULT);
+  const zoomRef = useRef(zoom);
+  const setZoom = useCallback((value: number) => {
+    const next = Number.isFinite(value)
+      ? Math.min(SKETCH_ZOOM_MAX, Math.max(SKETCH_ZOOM_MIN, value))
+      : SKETCH_ZOOM_DEFAULT;
+    zoomRef.current = next;
+    setZoomState(next);
+  }, []);
   toolRef.current = tool;
   const clear = useCallback(() => {
     const c = ctxRef.current;
@@ -41,7 +63,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
       c.fillRect(0, 0, c.canvas.width, c.canvas.height);
       c.restore();
     }
-    setHasContent(false);
+    updateHasContent(false);
   }, []);
   const bindCanvas = useCallback((canvas: HTMLCanvasElement) => {
     let cleanup: (() => void) | undefined;
@@ -59,13 +81,25 @@ export function useSketchCanvas(): UseSketchCanvasResult {
       ctx.scale(dpr, dpr);
       ctx.fillStyle = SKETCH_CANVAS_COLORS.background;
       ctx.fillRect(0, 0, rect.width, rect.height);
-      setHasContent(false);
+      updateHasContent(false);
       setZoom(SKETCH_ZOOM_DEFAULT);
       canvas.style.touchAction = 'none';
       let drawing = false;
       let startX = 0;
       let startY = 0;
-      const pointers = new Map<number, { clientX: number; clientY: number }>(); let pinchStart: number | null = null; let pinchZoom = 1;
+      let preStroke: ImageData | null = null;
+      let hadContentBeforeStroke = false;
+      const pointers = new Map<number, { clientX: number; clientY: number }>();
+      let pinchStart: number | null = null;
+      let pinchZoom = 1;
+      const restorePreStroke = () => {
+        if (preStroke) {
+          ctx.putImageData(preStroke, 0, 0);
+          updateHasContent(hadContentBeforeStroke);
+        }
+        drawing = false;
+        preStroke = null;
+      };
       const point = (e: PointerEvent) => {
         const r = canvas.getBoundingClientRect();
         return {
@@ -74,7 +108,16 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         };
       };
       const down = (e: PointerEvent) => {
-        pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY }); if (pointers.size >= 2) { drawing = false; const p = [...pointers.values()]; pinchStart = Math.hypot(p[0].clientX-p[1].clientX,p[0].clientY-p[1].clientY); pinchZoom = zoomRef.current; return; }
+        pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+        if (pointers.size >= 2) {
+          restorePreStroke();
+          const p = [...pointers.values()];
+          pinchStart = Math.hypot(p[0].clientX - p[1].clientX, p[0].clientY - p[1].clientY);
+          pinchZoom = zoomRef.current;
+          return;
+        }
+        preStroke = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        hadContentBeforeStroke = hasContentRef.current;
         drawing = true;
         const p = point(e);
         startX = p.x;
@@ -84,7 +127,13 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         ctx.moveTo(p.x, p.y);
       };
       const move = (e: PointerEvent) => {
-        pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY }); if (pointers.size >= 2) { const p = [...pointers.values()]; const d = Math.hypot(p[0].clientX-p[1].clientX,p[0].clientY-p[1].clientY); if (pinchStart) setZoom(pinchZoom*d/pinchStart); return; }
+        pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+        if (pointers.size >= 2) {
+          const p = [...pointers.values()];
+          const d = Math.hypot(p[0].clientX - p[1].clientX, p[0].clientY - p[1].clientY);
+          if (pinchStart) setZoom((pinchZoom * d) / pinchStart);
+          return;
+        }
         if (!drawing) return;
         const p = point(e);
         ctx.strokeStyle =
@@ -99,10 +148,12 @@ export function useSketchCanvas(): UseSketchCanvasResult {
           toolRef.current === 'pen' &&
           Math.hypot(p.x - startX, p.y - startY) > SKETCH_MIN_STROKE_DISTANCE_CSS_PX
         )
-          setHasContent(true);
+          updateHasContent(true);
       };
       const end = (e: PointerEvent) => {
-        pointers.delete(e.pointerId); if (pointers.size < 2) pinchStart = null;
+        pointers.delete(e.pointerId);
+        if (pointers.size < 2) pinchStart = null;
+        if (pointers.size === 0) preStroke = null;
         drawing = false;
         if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
       };
@@ -144,5 +195,17 @@ export function useSketchCanvas(): UseSketchCanvasResult {
       }),
     []
   );
-  return { canvasRef, tool, setTool, hasContent, clear, exportPngFile, bindCanvas, brushColor, setBrushColor, zoom, setZoom };
+  return {
+    canvasRef,
+    tool,
+    setTool,
+    hasContent,
+    clear,
+    exportPngFile,
+    bindCanvas,
+    brushColor,
+    setBrushColor,
+    zoom,
+    setZoom,
+  };
 }

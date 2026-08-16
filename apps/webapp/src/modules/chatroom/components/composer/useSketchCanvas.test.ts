@@ -12,7 +12,7 @@ describe('useSketchCanvas', () => {
     Object.defineProperty(canvas, 'setPointerCapture', { value: vi.fn() });
     Object.defineProperty(canvas, 'releasePointerCapture', { value: vi.fn() });
     Object.defineProperty(canvas, 'hasPointerCapture', { value: vi.fn().mockReturnValue(false) });
-    const ctx = { canvas, scale: vi.fn(), fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), save: vi.fn(), restore: vi.fn(), setTransform: vi.fn() } as unknown as CanvasRenderingContext2D;
+    const ctx = { canvas, scale: vi.fn(), fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), save: vi.fn(), restore: vi.fn(), setTransform: vi.fn(), getImageData: vi.fn(), putImageData: vi.fn() } as unknown as CanvasRenderingContext2D;
     vi.spyOn(canvas, 'getContext').mockReturnValue(ctx);
     vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ width: 100, height: 80, left: 10, top: 0, right: 110, bottom: 80, x: 10, y: 0, toJSON: () => ({}) });
     vi.spyOn(canvas, 'toBlob').mockImplementation((cb) => cb(new Blob(['png'], { type: 'image/png' })));
