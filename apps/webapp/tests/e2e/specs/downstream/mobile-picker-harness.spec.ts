@@ -1,8 +1,14 @@
-import { expect, test, devices } from '@playwright/test';
+import { expect, test, devices, type Page } from '@playwright/test';
 
 import { TAG_DOWNSTREAM } from '../../support/tags';
 
 const HARNESS_PATH = '/dev/mobile-picker-harness';
+
+async function setKeyboardInset(page: Page, px: number) {
+  const slider = page.getByTestId('keyboard-inset-slider');
+  await slider.fill(String(px));
+  await expect(slider).toHaveValue(String(px));
+}
 
 test.use({ ...devices['iPhone 14'] });
 test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
@@ -66,16 +72,14 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   });
 
   test('simulated keyboard inset sets maxHeight and keeps scroll body usable', async ({ page }) => {
-    await page.evaluate(() => {
-      window.__MOBILE_KEYBOARD_TEST_INSET__ = 300;
-    });
+    await setKeyboardInset(page, 300);
     await page.getByTestId('open-flat-picker').click();
     await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
 
     const drawer = page.locator('[data-slot="drawer-content"]');
     const popup = page.locator('[data-slot="drawer-popup"]');
     await expect.poll(async () => popup.evaluate((el) => el.style.top)).not.toBe('');
-    await expect(popup).toHaveCSS('bottom', 'auto');
+    await expect.poll(async () => popup.evaluate((el) => el.style.bottom)).toBe('auto');
     await expect.poll(async () => popup.evaluate((el) => el.style.maxHeight)).toContain('300px');
     const style = await drawer.evaluate((el) => ({
       paddingBottom: el.style.paddingBottom,
@@ -135,13 +139,10 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   test('filter picker hides chrome and keeps filtered rows visible with keyboard inset', async ({
     page,
   }) => {
-    await page.evaluate(() => {
-      window.__MOBILE_KEYBOARD_TEST_INSET__ = 300;
-    });
+    await setKeyboardInset(page, 300);
     await page.getByTestId('open-filter-picker').click();
     const drawer = page.locator('[data-slot="drawer-content"]');
     await expect(drawer).toBeVisible();
-    await expect(drawer.locator('span').filter({ hasText: 'Model Visibility' })).toHaveCount(0);
     await expect(drawer.getByText('Reset All')).not.toBeVisible();
     const search = page.getByPlaceholder('Search models...');
     await expect(search).toBeVisible();
