@@ -12,8 +12,9 @@ import {
   SKETCH_ZOOM_MIN,
 } from './sketchConstants';
 import { buildSketchFileName } from './sketchFileName';
+import { useSketchSelection } from './useSketchSelection';
 
-export type SketchTool = 'pen' | 'eraser';
+export type SketchTool = 'pen' | 'eraser' | 'select';
 export type UseSketchCanvasResult = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   tool: SketchTool;
@@ -26,6 +27,10 @@ export type UseSketchCanvasResult = {
   setBrushColor: (color: string) => void;
   zoom: number;
   setZoom: (value: number) => void;
+  selectionMarquee: import('./sketchSelectionTypes').SketchRect | null;
+  floatingSelection: import('./sketchSelectionTypes').SketchFloatingSelection | null;
+  onResizeHandlePointerDown: (handle: import('./sketchSelectionTypes').ResizeHandle, e: React.PointerEvent) => void;
+  deleteSelection: () => void; copySelection: () => Promise<void>; commitSelection: () => void;
 };
 export function useSketchCanvas(): UseSketchCanvasResult {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -46,13 +51,15 @@ export function useSketchCanvas(): UseSketchCanvasResult {
   }, []);
   const [zoom, setZoomState] = useState(SKETCH_ZOOM_DEFAULT);
   const zoomRef = useRef(zoom);
+  const selection = useSketchSelection({ getCtx: () => ctxRef.current, getCanvas: () => canvasRef.current, getDpr: () => window.devicePixelRatio || 1, updateHasContent, getHasContent: () => hasContentRef.current });
   const setZoom = useCallback((value: number) => {
+    selection.commitSelection();
     const next = Number.isFinite(value)
       ? Math.min(SKETCH_ZOOM_MAX, Math.max(SKETCH_ZOOM_MIN, value))
       : SKETCH_ZOOM_DEFAULT;
     zoomRef.current = next;
     setZoomState(next);
-  }, []);
+  }, [selection]);
   toolRef.current = tool;
   const clear = useCallback(() => {
     const c = ctxRef.current;
@@ -207,5 +214,11 @@ export function useSketchCanvas(): UseSketchCanvasResult {
     setBrushColor,
     zoom,
     setZoom,
+    selectionMarquee: selection.marquee,
+    floatingSelection: selection.selection,
+    onResizeHandlePointerDown: (handle, e) => selection.onResizeHandlePointerDown(handle, e.clientX, e.clientY),
+    deleteSelection: selection.deleteSelection,
+    copySelection: selection.copySelection,
+    commitSelection: selection.commitSelection,
   };
 }
