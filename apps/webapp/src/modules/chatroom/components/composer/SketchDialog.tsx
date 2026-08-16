@@ -1,5 +1,5 @@
 'use client';
-import { BoxSelect, Eraser, Pencil, Trash2, Undo2, Redo2, Pipette, RotateCw, FlipHorizontal2, FlipVertical2 } from 'lucide-react';
+import { BoxSelect, Eraser, Pencil, Trash2, Undo2, Redo2, Pipette, RotateCw, FlipHorizontal2, FlipVertical2, Crop } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -32,11 +32,12 @@ export type SketchDialogProps = {
 };
 export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, brushSize, setBrushSize, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, pasteFromClipboard, pickColorAt, commitSelection, deselect, nudgeSelection, rotateSelection90, flipSelectionHorizontal, flipSelectionVertical, canUndo, canRedo, undo, redo } =
+  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, brushSize, setBrushSize, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, pasteFromClipboard, pickColorAt, commitSelection, deselect, nudgeSelection, rotateSelection90, flipSelectionHorizontal, flipSelectionVertical, cropToSelection, canvasCssSize, resetCanvasLayout, canUndo, canRedo, undo, redo } =
     useSketchCanvas({ getScrollContainer: () => scrollContainerRef.current });
   const [isSaving, setIsSaving] = useState(false);
   const isDesktop = useIsDesktop();
   useSketchViewportPan({ open, zoom, scrollRef: scrollContainerRef });
+  useEffect(() => { if (!open) resetCanvasLayout(); }, [open, resetCanvasLayout]);
   useEffect(() => { if (!open) return; const onKey = (e: KeyboardEvent) => { const t=e.target; if(t instanceof HTMLInputElement||t instanceof HTMLTextAreaElement||t instanceof HTMLSelectElement||(t instanceof HTMLElement&&t.isContentEditable))return; if(e.key==='Escape'&&(floatingSelection||selectionMarquee)){e.preventDefault();deselect();return;} const key=e.key.toLowerCase(); if((e.metaKey||e.ctrlKey)&&key==='z'&&!e.shiftKey){e.preventDefault();undo();return;} if((e.metaKey||e.ctrlKey)&&((key==='z'&&e.shiftKey)||key==='y')){e.preventDefault();redo();return;} if((e.metaKey||e.ctrlKey)&&key==='v'){e.preventDefault();void pasteFromClipboard().catch(()=>toast.error('Nothing to paste'));return;} if(key==='i'){e.preventDefault();setTool('eyedropper');return;} if(key==='['){e.preventDefault();setBrushSize(brushSize-1);return;} if(key===']'){e.preventDefault();setBrushSize(brushSize+1);return;} if(!floatingSelection)return; if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelection();} if((e.metaKey||e.ctrlKey)&&key==='c'){e.preventDefault();void copySelection().catch(()=>toast.error('Failed to copy selection'));} }; window.addEventListener('keydown',onKey); return()=>window.removeEventListener('keydown',onKey); }, [open,floatingSelection,selectionMarquee,deselect,undo,redo,deleteSelection,copySelection,pasteFromClipboard,brushSize,setBrushSize,setTool]);
   const handleOpenChange = (next: boolean) => { if (!next) commitSelection(); onOpenChange(next); };
   useEffect(() => { if (!open || !floatingSelection) return; const onKey = (e: KeyboardEvent) => { const t = e.target; if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement || (t instanceof HTMLElement && t.isContentEditable)) return; if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return; e.preventDefault(); const step = e.shiftKey ? SKETCH_NUDGE_SHIFT_STEP_PX : SKETCH_NUDGE_STEP_PX; nudgeSelection(e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0, e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0); }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [floatingSelection, nudgeSelection, open]);
@@ -113,13 +114,14 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
             <button type="button" aria-label="Rotate 90 degrees" title="Rotate 90° (R)" onClick={rotateSelection90}><RotateCw /></button>
             <button type="button" aria-label="Flip horizontal" title="Flip horizontal (Shift+H)" onClick={flipSelectionHorizontal}><FlipHorizontal2 /></button>
             <button type="button" aria-label="Flip vertical" title="Flip vertical (Shift+V)" onClick={flipSelectionVertical}><FlipVertical2 /></button>
+            <button type="button" aria-label="Crop to selection" title="Crop to selection" onClick={() => { if (!cropToSelection()) toast.error('Select an area first'); }}><Crop /></button>
           </>}
           {tool !== 'select' && tool !== 'eraser' && tool !== 'eyedropper' && <SketchColorPicker value={brushColor} onChange={setBrushColor} />}
           {tool === 'pen' && <SketchBrushSizeControl value={brushSize} onChange={setBrushSize} />}
           <SketchZoomControls zoom={zoom} onZoomChange={setZoom} />
         </div>
         <DialogScrollBody ref={scrollContainerRef} className="relative w-full overflow-auto border-2 border-chatroom-border bg-white">
-          <div className="relative" style={{ width: zoom > 1 ? `${zoom * 100}%` : '100%', minHeight: SKETCH_CANVAS_MIN_HEIGHT_CSS_PX * zoom }}>
+          <div className="relative" style={{ width: canvasCssSize ? canvasCssSize.width * zoom : (zoom > 1 ? `${zoom * 100}%` : '100%'), minHeight: (canvasCssSize?.height ?? SKETCH_CANVAS_MIN_HEIGHT_CSS_PX) * zoom }}>
             <canvas
               ref={canvasRef}
               className="block h-full min-h-[280px] w-full touch-none"
