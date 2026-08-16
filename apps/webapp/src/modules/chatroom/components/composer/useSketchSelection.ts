@@ -118,7 +118,7 @@ export function useSketchSelection({
           start.current = p;
           drag.current = { x: s.bounds.x, y: s.bounds.y };
         } else {
-          if (s) commitSelection({ recordHistory: false });
+          if (s) clearSelectionWithoutHistory();
           mode.current = 'creating';
           start.current = p;
         }
@@ -180,7 +180,7 @@ export function useSketchSelection({
         canvas.removeEventListener('pointercancel', up);
       };
     },
-    [commitSelection, getCanvas, getCtx, isHistoryRecording, onBeforeLift, redraw]
+    [clearSelectionWithoutHistory, commitSelection, getCanvas, getCtx, isHistoryRecording, onBeforeLift, redraw]
   );
   const onResizeHandlePointerDown = useCallback(
     (handle: ResizeHandle, canvas: HTMLCanvasElement, e: PointerEvent, dpr: number) => {
