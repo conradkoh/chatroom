@@ -224,7 +224,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
     setZoom,
     selectionMarquee: selection.marquee,
     floatingSelection: selection.selection,
-    onResizeHandlePointerDown: (handle, e) => selection.onResizeHandlePointerDown(handle, e.clientX, e.clientY),
+    onResizeHandlePointerDown: (handle, e) => { const canvas = canvasRef.current; if (canvas) selection.onResizeHandlePointerDown(handle, canvas, e.nativeEvent, window.devicePixelRatio || 1); },
     deleteSelection: selection.deleteSelection,
     copySelection: selection.copySelection,
     commitSelection: selection.commitSelection,
