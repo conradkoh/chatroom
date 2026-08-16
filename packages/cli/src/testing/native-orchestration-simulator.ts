@@ -5,7 +5,7 @@
  */
 
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { resolveSessionAugmentationForRole } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
+import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { Effect } from 'effect';
 
@@ -87,7 +87,7 @@ export class NativeOrchestrationSimulator {
   expectedPrompt(task: AssignedTaskView, deliveryOutput: string): string {
     return buildNativeInjectionPrompt({
       taskDeliveryOutput: deliveryOutput,
-      augmentationMode: resolveSessionAugmentationForRole(task.taskContent, task.agentConfig.role),
+      augmentationMode: resolveSessionAugmentationForTask({ content: task.taskContent, startInNewSession: task.startInNewSession }, task.agentConfig.role),
     });
   }
 

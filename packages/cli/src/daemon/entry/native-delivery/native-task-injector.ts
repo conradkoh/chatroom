@@ -1,7 +1,6 @@
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { roleSupportsSessionAugmentation } from '@workspace/backend/src/domain/entities/team-agent-settings.js';
+import { shouldEmitSessionAugmentation, resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import {
-  resolveSessionAugmentationForRole,
   sessionAugmentationNewSessionStarted,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { Effect } from 'effect';
@@ -115,7 +114,7 @@ export function runNativeInjectionEffect(
     }
 
     const delivery = deliveryResult.right;
-    const augmentationMode = resolveSessionAugmentationForRole(taskContent, role);
+    const augmentationMode = resolveSessionAugmentationForTask({ content: taskContent, startInNewSession: task.startInNewSession }, role);
     const prompt = buildNativeInjectionPrompt({
       taskDeliveryOutput: delivery.fullCliOutput,
       augmentationMode,
@@ -146,7 +145,7 @@ export function runNativeInjectionEffect(
       catch: (err) => err,
     });
 
-    if (roleSupportsSessionAugmentation(role)) {
+    if (shouldEmitSessionAugmentation(role, augmentationMode)) {
       yield* Effect.tryPromise({
         try: () =>
           deps.backend.mutation(api.machines.emitSessionAugmented, {
