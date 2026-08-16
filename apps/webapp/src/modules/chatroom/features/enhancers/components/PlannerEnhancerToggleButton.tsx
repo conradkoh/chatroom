@@ -47,11 +47,7 @@ export function PlannerEnhancerToggleButton({
   const isUnsupported = teamSupportState === 'unsupported';
   const isLoading = teamSupportState === 'loading';
 
-  const label = isUnsupported
-    ? 'Enhancer'
-    : isActive
-      ? 'Enhancement Enabled'
-      : 'Enhancement Disabled';
+  const label = isUnsupported ? 'Enhancer' : 'Enhance';
 
   const handleClick = () => {
     if (isLoading) return;

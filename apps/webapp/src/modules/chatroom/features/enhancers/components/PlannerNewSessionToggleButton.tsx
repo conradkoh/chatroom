@@ -16,7 +16,7 @@ export function PlannerNewSessionToggleButton({
       data-testid="planner-new-session-toggle"
       aria-pressed={isActive}
       onClick={onToggle}
-      title={isActive ? 'Start in a new session' : 'Resume session'}
+      title={isActive ? 'New session enabled — click to disable' : 'New session disabled — click to enable'}
       className={cn(
         'w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer',
         isActive
@@ -25,7 +25,7 @@ export function PlannerNewSessionToggleButton({
       )}
     >
       <RotateCcw size={14} />
-      <span className="hidden sm:inline">{isActive ? 'New Session' : 'Resume Session'}</span>
+      <span className="hidden sm:inline">New Session</span>
     </button>
   );
 }
