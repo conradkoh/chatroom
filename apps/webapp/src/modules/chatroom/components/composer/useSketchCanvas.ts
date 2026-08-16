@@ -10,8 +10,10 @@ import {
 import {
   SKETCH_CANVAS_COLORS,
   SKETCH_ERASER_WIDTH_CSS_PX,
+  SKETCH_BRUSH_SIZE_DEFAULT,
+  SKETCH_BRUSH_SIZE_MIN,
+  SKETCH_BRUSH_SIZE_MAX,
   SKETCH_MIN_STROKE_DISTANCE_CSS_PX,
-  SKETCH_PEN_WIDTH_CSS_PX,
   SKETCH_BRUSH_PALETTE,
   SKETCH_ZOOM_DEFAULT,
   SKETCH_ZOOM_MAX,
@@ -33,6 +35,8 @@ export type UseSketchCanvasResult = {
   bindCanvas: (canvas: HTMLCanvasElement) => () => void;
   brushColor: string;
   setBrushColor: (color: string) => void;
+  brushSize: number;
+  setBrushSize: (size: number) => void;
   zoom: number;
   setZoom: (value: number) => void;
   selectionMarquee: SketchRect | null;
@@ -64,6 +68,13 @@ export function useSketchCanvas(): UseSketchCanvasResult {
   const setBrushColor = useCallback((color: string) => {
     brushColorRef.current = color;
     setBrushColorState(color);
+  }, []);
+  const [brushSize, setBrushSizeState] = useState(SKETCH_BRUSH_SIZE_DEFAULT);
+  const brushSizeRef = useRef(brushSize);
+  const setBrushSize = useCallback((size: number) => {
+    const next = Math.min(SKETCH_BRUSH_SIZE_MAX, Math.max(SKETCH_BRUSH_SIZE_MIN, Math.round(size)));
+    brushSizeRef.current = next;
+    setBrushSizeState(next);
   }, []);
   const [zoom, setZoomState] = useState(SKETCH_ZOOM_DEFAULT);
   const zoomRef = useRef(zoom);
@@ -241,7 +252,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         ctx.strokeStyle =
           toolRef.current === 'pen' ? brushColorRef.current : SKETCH_CANVAS_COLORS.background;
         ctx.lineWidth =
-          toolRef.current === 'pen' ? SKETCH_PEN_WIDTH_CSS_PX : SKETCH_ERASER_WIDTH_CSS_PX;
+          toolRef.current === 'pen' ? brushSizeRef.current : SKETCH_ERASER_WIDTH_CSS_PX;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.lineTo(p.x, p.y);
@@ -323,6 +334,8 @@ export function useSketchCanvas(): UseSketchCanvasResult {
     bindCanvas,
     brushColor,
     setBrushColor,
+    brushSize,
+    setBrushSize,
     zoom,
     setZoom,
     selectionMarquee: selection.marquee,

@@ -1,6 +1,10 @@
 export const SKETCH_CANVAS_COLORS = { background: '#ffffff', ink: '#171717' } as const;
 export const SKETCH_BRUSH_PALETTE = ['#171717', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'] as const;
-export const SKETCH_PEN_WIDTH_CSS_PX = 3;
+export const SKETCH_BRUSH_SIZE_MIN = 1;
+export const SKETCH_BRUSH_SIZE_MAX = 32;
+export const SKETCH_BRUSH_SIZE_DEFAULT = 3;
+export const SKETCH_BRUSH_SIZE_STEP = 1;
+export const SKETCH_PEN_WIDTH_CSS_PX = SKETCH_BRUSH_SIZE_DEFAULT;
 export const SKETCH_ERASER_WIDTH_CSS_PX = 20;
 export const SKETCH_MIN_STROKE_DISTANCE_CSS_PX = 2;
 export const SKETCH_ZOOM_MIN = 0.5;
