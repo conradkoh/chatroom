@@ -31,7 +31,7 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
     useSketchCanvas();
   const [isSaving, setIsSaving] = useState(false);
   const isDesktop = useIsDesktop();
-  useEffect(() => { if (!open) return; const onKey = (e: KeyboardEvent) => { if (!floatingSelection) return; if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); } if ((e.metaKey || e.ctrlKey) && e.key === 'c') { e.preventDefault(); void copySelection().catch(() => toast.error('Failed to copy selection')); } }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [open, floatingSelection, deleteSelection, copySelection]);
+  useEffect(() => { if (!open) return; const onKey = (e: KeyboardEvent) => { const t=e.target; if(t instanceof HTMLInputElement||t instanceof HTMLTextAreaElement||t instanceof HTMLSelectElement||(t instanceof HTMLElement&&t.isContentEditable))return; const key=e.key.toLowerCase(); if((e.metaKey||e.ctrlKey)&&key==='z'&&!e.shiftKey){e.preventDefault();undo();return;} if((e.metaKey||e.ctrlKey)&&((key==='z'&&e.shiftKey)||key==='y')){e.preventDefault();redo();return;} if(!floatingSelection)return; if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelection();} if((e.metaKey||e.ctrlKey)&&key==='c'){e.preventDefault();void copySelection().catch(()=>toast.error('Failed to copy selection'));} }; window.addEventListener('keydown',onKey); return()=>window.removeEventListener('keydown',onKey); }, [open,floatingSelection,undo,redo,deleteSelection,copySelection]);
   const handleOpenChange = (next: boolean) => { if (!next) commitSelection(); onOpenChange(next); };
   useEffect(() => {
     if (!open || !canvasRef.current) return;
