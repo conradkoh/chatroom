@@ -93,6 +93,7 @@ export const createTask = mutation({
       forceStatus: 'pending',
       sourceMessageId: args.sourceMessageId,
       queuePosition,
+      startInNewSession: undefined,
     });
 
     return { taskId, status: 'pending', queuePosition };

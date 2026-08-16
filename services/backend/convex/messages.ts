@@ -486,6 +486,7 @@ async function _sendMessageHandler(
       sourceMessageId: messageId,
       attachedTaskIds: args.attachedTaskIds,
       queuePosition,
+      startInNewSession: undefined,
     });
     await ctx.db.patch('chatroom_messages', messageId, { taskId });
   }
@@ -819,6 +820,7 @@ export async function runHandoffHandler(
       assignedTo: args.targetRole,
       sourceMessageId: messageId,
       queuePosition,
+      startInNewSession: undefined,
     });
     newTaskId = createdTaskId;
 
