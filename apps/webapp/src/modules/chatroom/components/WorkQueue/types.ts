@@ -8,6 +8,7 @@ export type { TaskStatus, TaskOrigin };
 export type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 
 export interface Task {
+  startInNewSession?: boolean;
   _id: Id<'chatroom_tasks'>;
   content: string;
   status: TaskStatus;
