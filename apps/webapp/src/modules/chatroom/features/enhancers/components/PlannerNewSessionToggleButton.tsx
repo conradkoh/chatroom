@@ -20,7 +20,7 @@ export function PlannerNewSessionToggleButton({
       className={cn(
         'w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer',
         isActive
-          ? 'text-blue-500 dark:text-blue-400 bg-blue-500/10'
+          ? 'text-yellow-500 dark:text-yellow-400 bg-yellow-500/10'
           : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover'
       )}
     >
