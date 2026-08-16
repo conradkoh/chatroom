@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { canvasPointFromEvent, normalizeRect, pointInRect } from './sketchCanvasCoords';
 import { drawImageDataAt, imageDataToPngBlob, liftPixels, scaleImageData } from './sketchSelectionUtils';
+// Resize uses canvas-space points so zoom does not affect geometry.
 import { SKETCH_MIN_SELECTION_CSS_PX, type ResizeHandle, type SketchFloatingSelection, type SketchRect } from './sketchSelectionTypes';
 type Mode = 'idle' | 'creating' | 'moving' | 'resizing';
 export function useSketchSelection({ getCtx, getCanvas, getDpr: _getDpr, updateHasContent, getHasContent: _getHasContent }: { getCtx: () => CanvasRenderingContext2D | null; getCanvas: () => HTMLCanvasElement | null; getDpr: () => number; updateHasContent: (v: boolean) => void; getHasContent: () => boolean }) {
