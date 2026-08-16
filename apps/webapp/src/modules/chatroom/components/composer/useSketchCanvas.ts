@@ -40,6 +40,7 @@ export type UseSketchCanvasResult = {
   onResizeHandlePointerDown: (handle: ResizeHandle, e: React.PointerEvent) => void;
   deleteSelection: () => void;
   copySelection: () => Promise<void>;
+  pasteFromClipboard: () => Promise<void>;
   commitSelection: () => void;
   canUndo: boolean;
   canRedo: boolean;
@@ -338,6 +339,7 @@ export function useSketchCanvas(): UseSketchCanvasResult {
     },
     deleteSelection: selection.deleteSelection,
     copySelection: selection.copySelection,
+    pasteFromClipboard: selection.pasteFromClipboard,
     commitSelection: selection.commitSelection,
     canUndo: history.canUndo,
     canRedo: history.canRedo,

@@ -14,6 +14,8 @@ import {
 import {
   drawImageDataAt,
   imageDataToPngBlob,
+  imageBlobToImageData,
+  fitImageDataToBounds,
   liftPixels,
   resizeBoundsFromHandle,
   scaleImageData,
@@ -211,6 +213,24 @@ export function useSketchSelection({
     if (!blob) throw new Error('copy failed');
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
   }, []);
+  const pasteFromClipboard = useCallback(async () => {
+    if (!navigator.clipboard?.read) throw new Error('clipboard unavailable');
+    const items = await navigator.clipboard.read();
+    let blob: Blob | null = null;
+    for (const item of items) { if (item.types.includes('image/png')) { blob = await item.getType('image/png'); break; } }
+    if (!blob) throw new Error('no image in clipboard');
+    const canvas = getCanvas(); const ctx = getCtx();
+    if (!canvas || !ctx) throw new Error('canvas unavailable');
+    if (selectionRef.current) commitSelection({ recordHistory: false });
+    const raw = await imageBlobToImageData(blob);
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.width / dpr; const cssH = canvas.height / dpr;
+    const fitted = fitImageDataToBounds(raw, cssW * 0.9, cssH * 0.9);
+    const bounds = { x: (cssW - fitted.width) / 2, y: (cssH - fitted.height) / 2, width: fitted.width, height: fitted.height };
+    baseRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    setSel({ imageData: fitted.imageData, bounds });
+    redraw();
+  }, [commitSelection, getCanvas, getCtx, redraw]);
   return {
     marquee,
     selection,
@@ -220,6 +240,7 @@ export function useSketchSelection({
     commitSelection,
     deleteSelection,
     copySelection,
+    pasteFromClipboard,
     clearSelectionWithoutHistory,
     captureCompositedSnapshot,
     hasActiveSelection: () => selectionRef.current !== null,
