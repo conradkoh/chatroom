@@ -21,6 +21,8 @@ import {
   useSnippetAttachments,
   useTaskAttachments,
 } from '../attachments';
+import { AttachmentSourcePicker } from './composer/AttachmentSourcePicker';
+import { SketchDialog } from './composer/SketchDialog';
 import { FileReferenceAutocomplete } from './FileReferenceAutocomplete';
 import type { FileEntry } from './FileSelector/useFileSelector';
 import {
@@ -155,6 +157,7 @@ export function MessageInput({
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [sketchOpen, setSketchOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formContainerRef = useRef<HTMLDivElement>(null);
   const snippetRefsRef = useRef<string[]>([]);
@@ -309,6 +312,7 @@ export function MessageInput({
     handleAttachClick,
     handleFileInputChange,
     handlePaste,
+    attachFiles,
   } = useChatInputFileDrop({
     machineId,
     workingDir,
@@ -538,13 +542,24 @@ export function MessageInput({
           aria-hidden
           tabIndex={-1}
         />
-        <ComposerAccessoryButton
-          onClick={handleAttachClick}
-          aria-label="Add attachment"
-          icon={<Paperclip size={14} aria-hidden />}
-        >
-          Add Attachment
-        </ComposerAccessoryButton>
+        <AttachmentSourcePicker
+          disabled={sending}
+          onPickFile={handleAttachClick}
+          onPickSketch={() => setSketchOpen(true)}
+          trigger={
+            <ComposerAccessoryButton
+              aria-label="Add attachment"
+              icon={<Paperclip size={14} aria-hidden />}
+            >
+              Add Attachment
+            </ComposerAccessoryButton>
+          }
+        />
+        <SketchDialog
+          open={sketchOpen}
+          onOpenChange={setSketchOpen}
+          onSave={(file) => attachFiles([file])}
+        />
       </div>
 
       {/* Input row */}
