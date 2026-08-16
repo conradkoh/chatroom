@@ -66,7 +66,14 @@ describe('PlannerEnhancerToggle', () => {
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
 
     expect(screen.getByTestId('planner-enhancer-toggle')).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByText('Enhancement Disabled')).toBeInTheDocument();
+    expect(screen.getByText('Enhance')).toBeInTheDocument();
+  });
+
+  it('keeps the Enhance label when active', () => {
+    mockIsActive = true;
+    render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
+    expect(screen.getByText('Enhance')).toBeInTheDocument();
+    expect(screen.queryByText('Enhancement Enabled')).not.toBeInTheDocument();
   });
 
   it('opens dialog when toggling without saved config', async () => {

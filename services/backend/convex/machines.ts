@@ -49,6 +49,7 @@ import {
 import { subscribeAssignedTaskPresenceForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-presence';
 import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
+import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -1239,7 +1240,6 @@ export const sendLocalAction = mutation({
       ...(args.chatroomId !== undefined ? { chatroomId: args.chatroomId } : {}),
       timestamp: Date.now(),
     });
-
     return { success: true };
   },
 });
@@ -2987,7 +2987,6 @@ export const emitAgentStopTimeout = mutation({
       durationMs: args.durationMs,
       timestamp: Date.now(),
     });
-
     return { success: true };
   },
 });
@@ -3069,6 +3068,7 @@ export const emitSessionAugmented = mutation({
       harnessSessionId: args.harnessSessionId,
       timestamp: Date.now(),
     });
+    if (args.newSessionStarted) await consumeTaskStartInNewSession(ctx, args.taskId);
 
     return { success: true };
   },

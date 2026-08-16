@@ -6,6 +6,7 @@ import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
 import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
+import { QueuedMessageNewSessionToggle } from './QueuedMessageNewSessionToggle';
 import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 import { MessageAttachmentChips } from '../../attachments';
 import type { Message } from '../../types/message';
@@ -130,10 +131,16 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
         {/* Inline quick actions — always visible. */}
         <div className="flex items-center gap-1" onClick={stopRowClick}>
           {teamSupportsEnhancer ? (
-            <QueuedMessageEnhancerToggle
-              queuedMessageId={message._id}
-              plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
-            />
+            <>
+              <QueuedMessageNewSessionToggle
+                queuedMessageId={message._id}
+                startInNewSession={message.startInNewSession ?? false}
+              />
+              <QueuedMessageEnhancerToggle
+                queuedMessageId={message._id}
+                plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
+              />
+            </>
           ) : null}
           <button
             type="button"

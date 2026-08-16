@@ -1,5 +1,6 @@
 import { Sparkles, Trash2 } from 'lucide-react';
 
+import { TaskNewSessionToggle } from './TaskNewSessionToggle';
 import type { Task } from './types';
 import { getStatusBadge } from './utils';
 import { WorkQueuePreviewText } from './WorkQueuePreviewText';
@@ -90,6 +91,13 @@ export function TaskItem({
       </div>
 
       <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        {task.status === 'pending' && !isProtected && (
+          <TaskNewSessionToggle
+            taskId={task._id}
+            status={task.status}
+            startInNewSession={task.startInNewSession ?? false}
+          />
+        )}
         {/* Cancel enhancer — rendered outside the !isProtected gate so it works for current tasks */}
         {showCancelEnhancer && onCancelEnhancer && (
           <button

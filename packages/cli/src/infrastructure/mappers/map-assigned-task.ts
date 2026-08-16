@@ -36,6 +36,7 @@ export function mapAssignedTaskView(row: BackendAssignedTaskView): AssignedTaskW
   return {
     ...mapAssignedTaskSnapshot(row),
     taskContent: row.taskContent,
+    startInNewSession: row.startInNewSession,
   };
 }
 

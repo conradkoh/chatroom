@@ -51,6 +51,7 @@ export interface CreateTaskArgs {
   attachedTaskIds?: Id<'chatroom_tasks'>[];
   queuePosition: number;
   plannerEnhancerEnabled?: boolean;
+  startInNewSession: boolean | undefined;
 }
 
 export interface CreateTaskResult {
@@ -127,6 +128,7 @@ export async function createTask(
     ...(args.plannerEnhancerEnabled !== undefined
       ? { plannerEnhancerEnabled: args.plannerEnhancerEnabled }
       : {}),
+    ...(args.startInNewSession !== undefined ? { startInNewSession: args.startInNewSession } : {}),
   });
 
   // Update materialized task counts

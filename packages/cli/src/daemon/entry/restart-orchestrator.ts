@@ -190,6 +190,9 @@ async function deliverOneTask(
           resumeTurnForSlot: async (args) => {
             await Effect.runPromise(deps.agentMgr.resumeTurnForSlot(args));
           },
+          stop: (opts) => Effect.runPromise(deps.agentMgr.stop(opts)),
+          ensureRunning: (opts) => Effect.runPromise(deps.agentMgr.ensureRunning(opts)),
+          getSlot: (chatroomId, role) => deps.agentMgr.getSlot(chatroomId, role),
         },
         onTaskDelivered: ({ chatroomId, role, taskId }) => {
           deliveredToHarness = true;

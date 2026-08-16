@@ -74,6 +74,7 @@ export async function promoteQueuedMessage(
     assignedTo: getTeamEntryPoint(chatroom) ?? undefined,
     sourceMessageId: messageId,
     queuePosition,
+    startInNewSession: queueRecord.startInNewSession,
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),
     ...(queueRecord.plannerEnhancerEnabled !== undefined
       ? { plannerEnhancerEnabled: queueRecord.plannerEnhancerEnabled }
