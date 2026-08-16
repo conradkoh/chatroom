@@ -14,6 +14,7 @@ export interface RecordedInjection {
 
 export class RecordingHarness {
   readonly injections: RecordedInjection[] = [];
+  harnessSessionId = 'sess_cold';
 
   resumeTurnForSlot = async (args: {
     chatroomId: string;
@@ -27,6 +28,15 @@ export class RecordingHarness {
       at: Date.now(),
     });
   };
+
+  stop = async (): Promise<{ success: boolean }> => ({ success: true });
+
+  ensureRunning = async (): Promise<{ success: boolean; pid: number }> => ({
+    success: true,
+    pid: 12345,
+  });
+
+  getSlot = (): { harnessSessionId: string } => ({ harnessSessionId: this.harnessSessionId });
 
   lastInjection(): RecordedInjection | undefined {
     return this.injections.at(-1);
