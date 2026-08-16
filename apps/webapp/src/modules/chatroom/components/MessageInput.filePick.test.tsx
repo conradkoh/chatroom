@@ -2,7 +2,7 @@
  * MessageInput — file picker (paperclip button) tests
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MessageInput } from './MessageInput';
@@ -31,6 +31,7 @@ beforeAll(() => {
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn().mockResolvedValue('msg-id'),
 }));
+vi.mock('@/hooks/useIsDesktop', () => ({ useIsDesktop: () => true }));
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
@@ -51,6 +52,8 @@ vi.mock('../hooks/useChatInputFileDrop', () => ({
     fileInputRef: mockFileInputRef,
     handleAttachClick: mockHandleAttachClick,
     handleFileInputChange: vi.fn(),
+    handlePaste: vi.fn(),
+    attachFiles: vi.fn(),
   }),
 }));
 
@@ -84,7 +87,7 @@ describe('MessageInput file picker', () => {
     expect(screen.getByRole('button', { name: 'Add attachment' })).toBeInTheDocument();
   });
 
-  it('clicking attach button triggers file input click', () => {
+  it('opens picker before triggering file input click', async () => {
     const { container } = render(
       <AttachmentsProvider>
         <MessageInput chatroomId="chatroom-1" />
@@ -95,8 +98,10 @@ describe('MessageInput file picker', () => {
     const clickSpy = vi.spyOn(input, 'click').mockImplementation(() => {});
 
     fireEvent.click(screen.getByRole('button', { name: 'Add attachment' }));
+    expect(mockHandleAttachClick).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByText('File'));
 
-    expect(mockHandleAttachClick).toHaveBeenCalled();
+    await waitFor(() => expect(mockHandleAttachClick).toHaveBeenCalled());
     expect(clickSpy).toHaveBeenCalled();
   });
 
