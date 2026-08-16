@@ -147,13 +147,32 @@ describe('runNativeInjectionEffect', () => {
       },
     });
     const augmentedCalls: Record<string, unknown>[] = [];
+    const order: string[] = [];
 
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockImplementation(
       async (_fn: unknown, args: Record<string, unknown>) => {
-        if ('mode' in args) augmentedCalls.push(args);
+        if ('mode' in args) {
+          augmentedCalls.push(args);
+          order.push('augmented');
+        } else if ('action' in args) order.push('join');
+        else if ('deliveryKind' in args) order.push('receipt');
+        else if ('machineId' in args && 'taskId' in args && !('error' in args))
+          order.push('delivered');
+        else if ('taskId' in args && 'role' in args) order.push('claim');
         return undefined;
       }
     );
+    (deps.agentMgr.stop as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      order.push('stop');
+      return { success: true };
+    });
+    (deps.agentMgr.ensureRunning as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      order.push('ensureRunning');
+      return { success: true, pid: 12345 };
+    });
+    (deps.agentMgr.resumeTurnForSlot as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      order.push('resume');
+    });
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
 
@@ -167,5 +186,23 @@ describe('runNativeInjectionEffect', () => {
       newSessionStarted: true,
       harnessSessionId: 'sess_cold',
     });
+    expect(order.indexOf('stop')).toBeLessThan(order.indexOf('augmented'));
+    expect(order.indexOf('augmented')).toBeLessThan(order.indexOf('resume'));
+  });
+
+  test('regression: planner without startInNewSession resumes existing session without cold restart', async () => {
+    const deps = createDeps();
+    const task = makeTask({
+      agentConfig: {
+        ...makeTask().agentConfig,
+        role: 'planner',
+      },
+    });
+
+    await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
+
+    expect(deps.agentMgr.stop).not.toHaveBeenCalled();
+    expect(deps.agentMgr.ensureRunning).not.toHaveBeenCalled();
+    expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
   });
 });
