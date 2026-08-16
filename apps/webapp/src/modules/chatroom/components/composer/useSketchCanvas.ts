@@ -180,16 +180,17 @@ export function useSketchCanvas(): UseSketchCanvasResult {
         drawing = false;
         if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
       };
+      const cancel = (e: PointerEvent) => { if (toolRef.current === 'select') return; pointers.delete(e.pointerId); if (pointers.size < 2) pinchStart = null; restorePreStroke(); if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId); };
       canvas.addEventListener('pointerdown', down);
       canvas.addEventListener('pointermove', move);
       canvas.addEventListener('pointerup', end);
-      canvas.addEventListener('pointercancel', end);
+      canvas.addEventListener('pointercancel', cancel);
       cleanup = () => {
         selectionCleanup();
         canvas.removeEventListener('pointerdown', down);
         canvas.removeEventListener('pointermove', move);
         canvas.removeEventListener('pointerup', end);
-        canvas.removeEventListener('pointercancel', end);
+        canvas.removeEventListener('pointercancel', cancel);
       };
       return true;
     };
