@@ -12,6 +12,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { agentExited } from './agent-exited';
+import { transitionAgentStatus } from './transition-agent-status';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
@@ -266,6 +267,84 @@ describe('agentExited use case', () => {
     const participant = await getParticipant(chatroomId, 'builder');
     expect(participant?.lastStatus).toBe('agent.resumeStormAborted');
     expect(participant?.lastDesiredState).toBe('stopped');
+  });
+
+  test('sets participant lastStatus to agent.restart for daemon.respawn', async () => {
+    const { sessionId } = await createTestSession('ae-daemon-respawn-1');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'machine-ae-respawn';
+    await setupAgentConfig(sessionId, chatroomId, machineId, 'builder', 12345);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.run(async (ctx) => {
+      await agentExited(ctx, {
+        chatroomId,
+        role: 'builder',
+        machineId,
+        pid: 12345,
+        stopReason: 'daemon.respawn',
+      });
+    });
+
+    const participant = await getParticipant(chatroomId, 'builder');
+    expect(participant?.lastStatus).toBe('agent.restart');
+    expect(participant?.lastDesiredState).toBe('running');
+
+    const count = await countExitedEvents(chatroomId, 'builder');
+    expect(count).toBe(1);
+  });
+
+  test('sets participant lastStatus to agent.restart for platform.task_start_in_new_session', async () => {
+    const { sessionId } = await createTestSession('ae-cold-session-1');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'machine-ae-cold';
+    await setupAgentConfig(sessionId, chatroomId, machineId, 'builder', 12345);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.run(async (ctx) => {
+      await agentExited(ctx, {
+        chatroomId,
+        role: 'builder',
+        machineId,
+        pid: 12345,
+        stopReason: 'platform.task_start_in_new_session',
+      });
+    });
+
+    const participant = await getParticipant(chatroomId, 'builder');
+    expect(participant?.lastStatus).toBe('agent.restart');
+    expect(participant?.lastDesiredState).toBe('running');
+
+    const count = await countExitedEvents(chatroomId, 'builder');
+    expect(count).toBe(1);
+  });
+
+  test('preserves agent.restart for user.restart (restart flow sets status upfront)', async () => {
+    const { sessionId } = await createTestSession('ae-user-restart-1');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'machine-ae-user-restart';
+    await setupAgentConfig(sessionId, chatroomId, machineId, 'builder', 12345);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.run(async (ctx) => {
+      await transitionAgentStatus(ctx, chatroomId, 'builder', 'agent.restart', 'running');
+    });
+
+    await t.run(async (ctx) => {
+      await agentExited(ctx, {
+        chatroomId,
+        role: 'builder',
+        machineId,
+        pid: 12345,
+        stopReason: 'user.restart',
+      });
+    });
+
+    const participant = await getParticipant(chatroomId, 'builder');
+    expect(participant?.lastStatus).toBe('agent.restart');
+    expect(participant?.lastDesiredState).toBe('running');
+    const count = await countExitedEvents(chatroomId, 'builder');
+    expect(count).toBe(1);
   });
 
   test('is idempotent (calling twice with same input is safe)', async () => {

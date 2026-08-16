@@ -111,13 +111,21 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
 
   if (shouldUpdateParticipant) {
     const isResumeStorm = stopReason === 'platform.resume_storm';
-    await transitionAgentStatus(
-      ctx,
-      chatroomId,
-      role,
-      isResumeStorm ? 'agent.resumeStormAborted' : 'agent.exited',
-      isResumeStorm ? 'stopped' : undefined
-    );
+    const isOrchestratedRestart =
+      stopReason === 'platform.task_start_in_new_session' ||
+      stopReason === 'daemon.respawn' ||
+      stopReason === 'user.restart';
+    const participantStatus = isResumeStorm
+      ? 'agent.resumeStormAborted'
+      : isOrchestratedRestart
+        ? 'agent.restart'
+        : 'agent.exited';
+    const participantDesiredState = isResumeStorm
+      ? 'stopped'
+      : isOrchestratedRestart
+        ? 'running'
+        : undefined;
+    await transitionAgentStatus(ctx, chatroomId, role, participantStatus, participantDesiredState);
 
     // Also mark the participant as exited and clear the connection (matching
     // the cleanup previously done by cleanupMachineAgent).
