@@ -8,7 +8,7 @@
 import { describe, expect, test } from 'vitest';
 
 import {
-  resolveSessionAugmentationForRole,
+  resolveSessionAugmentationForTask,
   sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from './parse-session-augmentation';
@@ -41,47 +41,87 @@ Follow-up fix
 
 describe('regression: duo roles and builder always-new-session enforcement', () => {
   test('planner user-task ack resolves to none (no new session)', () => {
-    expect(resolveSessionAugmentationForRole(USER_TASK_ACK, 'planner')).toBe('none');
+    expect(
+      resolveSessionAugmentationForTask(
+        { content: USER_TASK_ACK, startInNewSession: undefined },
+        'planner'
+      )
+    ).toBe('none');
     expect(
       sessionAugmentationNewSessionStarted(
-        resolveSessionAugmentationForRole(USER_TASK_ACK, 'planner')
+        resolveSessionAugmentationForTask(
+          { content: USER_TASK_ACK, startInNewSession: undefined },
+          'planner'
+        )
       )
     ).toBe(false);
     expect(
-      sessionAugmentationToWantResume(resolveSessionAugmentationForRole(USER_TASK_ACK, 'planner'))
+      sessionAugmentationToWantResume(
+        resolveSessionAugmentationForTask(
+          { content: USER_TASK_ACK, startInNewSession: undefined },
+          'planner'
+        )
+      )
     ).toBe(true);
   });
 
   test('planner builder handback resolves to none even with explicit tag', () => {
-    expect(resolveSessionAugmentationForRole(BUILDER_HANDBACK_TO_PLANNER, 'planner')).toBe('none');
-    expect(resolveSessionAugmentationForRole(PLANNER_DELEGATION_WITH_NONE, 'planner')).toBe('none');
+    expect(
+      resolveSessionAugmentationForTask(
+        { content: BUILDER_HANDBACK_TO_PLANNER, startInNewSession: undefined },
+        'planner'
+      )
+    ).toBe('none');
+    expect(
+      resolveSessionAugmentationForTask(
+        { content: PLANNER_DELEGATION_WITH_NONE, startInNewSession: undefined },
+        'planner'
+      )
+    ).toBe('none');
   });
 
   test('builder delegation always resolves to new_session even with explicit none tag', () => {
-    expect(resolveSessionAugmentationForRole(PLANNER_DELEGATION_WITH_NONE, 'builder')).toBe(
-      'new_session'
-    );
+    expect(
+      resolveSessionAugmentationForTask(
+        { content: PLANNER_DELEGATION_WITH_NONE, startInNewSession: undefined },
+        'builder'
+      )
+    ).toBe('new_session');
     expect(
       sessionAugmentationNewSessionStarted(
-        resolveSessionAugmentationForRole(PLANNER_DELEGATION_WITH_NONE, 'builder')
+        resolveSessionAugmentationForTask(
+          { content: PLANNER_DELEGATION_WITH_NONE, startInNewSession: undefined },
+          'builder'
+        )
       )
     ).toBe(true);
     expect(
       sessionAugmentationToWantResume(
-        resolveSessionAugmentationForRole(PLANNER_DELEGATION_WITH_NONE, 'builder')
+        resolveSessionAugmentationForTask(
+          { content: PLANNER_DELEGATION_WITH_NONE, startInNewSession: undefined },
+          'builder'
+        )
       )
     ).toBe(false);
   });
 
   test('builder delegation without section defaults to new_session', () => {
-    expect(resolveSessionAugmentationForRole(PLANNER_DELEGATION_NO_SECTION, 'builder')).toBe(
-      'new_session'
-    );
+    expect(
+      resolveSessionAugmentationForTask(
+        { content: PLANNER_DELEGATION_NO_SECTION, startInNewSession: undefined },
+        'builder'
+      )
+    ).toBe('new_session');
   });
 
   test('other non-augmentable roles resolve to none', () => {
     for (const role of ['architect', 'solo', 'reviewer']) {
-      expect(resolveSessionAugmentationForRole(PLANNER_DELEGATION_NO_SECTION, role)).toBe('none');
+      expect(
+        resolveSessionAugmentationForTask(
+          { content: PLANNER_DELEGATION_NO_SECTION, startInNewSession: undefined },
+          role
+        )
+      ).toBe('none');
     }
   });
 });

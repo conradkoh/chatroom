@@ -10,7 +10,7 @@ import { describe, expect, test } from 'vitest';
 import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
 import { generateNativeTaskDeliveryOutput } from '../../../prompts/native/task-delivery';
 import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
-import { resolveSessionAugmentationForRole } from '../../../src/domain/handoff/parse-session-augmentation';
+import { resolveSessionAugmentationForTask } from '../../../src/domain/handoff/parse-session-augmentation';
 
 describe('Delegation brief template — no Session Augmentation section', () => {
   test('planner → builder brief does not include Session Augmentation section', () => {
@@ -38,16 +38,19 @@ describe('Native task delivery — no Session Augmentation in brief', () => {
   });
 });
 
-describe('resolveSessionAugmentationForRole — builder always new_session', () => {
+describe('resolveSessionAugmentationForTask — builder always new_session', () => {
   test('builder task with no augmentation section resolves to new_session', () => {
-    expect(resolveSessionAugmentationForRole('## Goal\nImplement feature', 'builder')).toBe(
-      'new_session'
-    );
+    expect(
+      resolveSessionAugmentationForTask(
+        { content: '## Goal\nImplement feature', startInNewSession: undefined },
+        'builder'
+      )
+    ).toBe('new_session');
   });
 
   test('builder task with explicit none tag resolves to new_session', () => {
     expect(
-      resolveSessionAugmentationForRole(
+      resolveSessionAugmentationForTask(
         '## Goal\nFollow-up\n## Session Augmentation\n// data:agent.session_augmentation=none',
         'builder'
       )

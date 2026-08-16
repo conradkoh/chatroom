@@ -3,7 +3,7 @@ import {
   NATIVE_WAITING_ACTION,
 } from '@workspace/backend/src/domain/entities/participant.js';
 import {
-  resolveSessionAugmentationForRole,
+  resolveSessionAugmentationForTask,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import type { AssignedTaskView } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
@@ -101,7 +101,12 @@ describe('shouldNudgePendingTask', () => {
 
 describe('nudge wantResume from task content', () => {
   function resolveWantResume(taskContent: string, role = 'builder'): boolean {
-    return sessionAugmentationToWantResume(resolveSessionAugmentationForRole(taskContent, role));
+    return sessionAugmentationToWantResume(
+      resolveSessionAugmentationForTask(
+        { content: taskContent, startInNewSession: undefined },
+        role
+      )
+    );
   }
 
   test('builder → new_session always (wantResume false)', () => {
@@ -183,7 +188,10 @@ describe('native harness nudge', () => {
   test('builder always resolves to new_session → wantResume false (regression)', () => {
     expect(
       sessionAugmentationToWantResume(
-        resolveSessionAugmentationForRole('## Goal\nDo work', 'builder')
+        resolveSessionAugmentationForTask(
+          { content: '## Goal\nDo work', startInNewSession: undefined },
+          'builder'
+        )
       )
     ).toBe(false);
   });
