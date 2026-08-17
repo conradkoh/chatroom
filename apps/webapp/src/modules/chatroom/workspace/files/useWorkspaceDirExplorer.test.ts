@@ -32,6 +32,10 @@ vi.mock('./useWorkspaceFileTreeEntries', () => ({
   },
 }));
 
+vi.mock('./useWorkspaceFileTree', () => ({
+  useWorkspaceFileTree: vi.fn(),
+}));
+
 beforeEach(() => {
   mocks.treeRefresh.mockClear();
   mocks.isLoading = false;
@@ -180,5 +184,21 @@ describe('useWorkspaceDirExplorer', () => {
     );
 
     expect(mocks.treeRefresh).toHaveBeenCalledWith();
+  });
+
+  it('requests tree refresh when workspace key changes and store is empty', () => {
+    mocks.hasTree = false;
+    const { rerender } = renderHook(
+      ({ workingDir }) => useWorkspaceDirExplorer({ machineId: MACHINE_ID, workingDir }),
+      { initialProps: { workingDir: WORKING_DIR } }
+    );
+
+    expect(mocks.treeRefresh).toHaveBeenCalledTimes(1);
+    mocks.treeRefresh.mockClear();
+    mocks.hasTree = false;
+
+    rerender({ workingDir: '/other-workspace' });
+
+    expect(mocks.treeRefresh).toHaveBeenCalledTimes(1);
   });
 });

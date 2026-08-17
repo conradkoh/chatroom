@@ -109,6 +109,7 @@ export function useWorkspaceFileTree({
     api.workspaceFiles.getFileTreeManifestV3,
     enabled ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
   ) as FileTreeManifestV3 | null | undefined;
+  const manifestIncomplete = manifest != null && manifest.complete === false;
 
   const useV3 =
     manifest != null &&
@@ -117,9 +118,9 @@ export function useWorkspaceFileTree({
   const useV2 =
     checkpoint !== undefined &&
     !useV3 &&
-    (checkpoint?.snapshotKind === 'v2' || (checkpoint === null && manifest === null));
-  const manifestIncomplete = manifest != null && manifest.complete === false;
-
+    (checkpoint?.snapshotKind === 'v2' ||
+      (checkpoint === null && manifest === null) ||
+      manifestIncomplete);
   const shardsRaw = useSessionQuery(
     api.workspaceFiles.getFileTreeShardsV3,
     enabled && useV3
@@ -302,7 +303,9 @@ export function useWorkspaceFileTree({
   const v2Loading = useV2 && (rawV2 === undefined || (rawV2 !== null && jsonV2 === undefined));
   const v3Loading = useV3 && (shardsRaw === undefined || v3Entries === undefined);
   const isLoading =
-    enabled && !hasTree && (manifest === undefined || manifestIncomplete || v3Loading || v2Loading);
+    enabled &&
+    !hasTree &&
+    (manifest === undefined || (manifestIncomplete && !useV2) || v3Loading || v2Loading);
 
   return useMemo(
     () => ({

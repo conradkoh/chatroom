@@ -324,7 +324,7 @@ describe('useWorkspaceFileTree', () => {
     });
   });
 
-  it('does not upsert store while manifest incomplete', async () => {
+  it('falls back to V2 when manifest is incomplete', async () => {
     mocks.manifest = {
       syncGeneration: 'gen-partial',
       shardIds: ['src'],
@@ -350,12 +350,11 @@ describe('useWorkspaceFileTree', () => {
 
     const { result } = renderHook(() => useWorkspaceFileTree(args));
 
-    await act(async () => {
-      await Promise.resolve();
+    await waitFor(() => {
+      expect(getWorkspaceFileTreeEntries(KEY)).toEqual([{ path: 'stale.json', type: 'file' }]);
     });
 
-    expect(getWorkspaceFileTreeEntries(KEY)).toEqual([]);
-    expect(result.current.hasTree).toBe(false);
-    expect(result.current.isLoading).toBe(true);
+    expect(result.current.hasTree).toBe(true);
+    expect(result.current.isLoading).toBe(false);
   });
 });
