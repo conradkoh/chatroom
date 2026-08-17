@@ -6,7 +6,12 @@ import type {
   FileTree,
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files';
-import { resolveFileTreeHydrationMode } from '@workspace/backend/src/domain/workspace-file-tree/resolve-hydration';
+import {
+  isFileTreeHydrationLoading,
+  resolveFileTreeHydrationPlan,
+  type BlobHydrationStatus,
+  type ShardedHydrationStatus,
+} from '@workspace/backend/src/domain/workspace-file-tree/resolve-hydration-plan';
 import type { BlobSnapshotReadResult } from '@workspace/backend/src/domain/workspace-file-tree/transport/blob-snapshot';
 import type { FileTreeCheckpointTransport } from '@workspace/backend/src/domain/workspace-file-tree/transport/checkpoint';
 import type {
@@ -14,7 +19,7 @@ import type {
   ShardedSnapshotShard,
 } from '@workspace/backend/src/domain/workspace-file-tree/transport/sharded-snapshot';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import type { ExplorerTreeNode } from './explorer-tree';
 import {
@@ -23,6 +28,7 @@ import {
   mergeFileTreeShardPayloads,
   type FileTreeShardPayload,
 } from './fileTreeUtils';
+import { useFileTreeHydrationRecovery } from './useFileTreeHydrationRecovery';
 import { useRequestWorkspaceFileTree } from './useRequestWorkspaceFileTree';
 import { useWorkspaceFileTreeDeltaSync } from './useWorkspaceFileTreeDeltaSync';
 import { requestWorkspaceFileTreeRefresh } from './workspaceFileTreeRefreshCoordinator';
@@ -95,10 +101,13 @@ export function useWorkspaceFileTree({
     enabled ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
   ) as ShardedSnapshotManifest | null | undefined;
 
-  const hydrationMode = resolveFileTreeHydrationMode({ checkpoint, manifest });
-  const useSharded = hydrationMode === 'sharded';
-  const useBlob = hydrationMode === 'blob';
-  const manifestIncomplete = hydrationMode === 'pending';
+  const manifestComplete = manifest?.complete === true;
+  const useSharded =
+    manifestComplete && (checkpoint === null || checkpoint?.strategyId === 'sharded');
+  const useBlob =
+    checkpoint !== undefined &&
+    !useSharded &&
+    (checkpoint?.strategyId === 'blob' || (checkpoint === null && manifest === null));
 
   const shardsRaw = useSessionQuery(
     api.workspaceFiles.getFileTreeShardsV3,
@@ -263,31 +272,34 @@ export function useWorkspaceFileTree({
     [enabled, machineId, normalizedWorkingDir, requestTree, workspaceKey]
   );
 
-  const manifestResyncKeyRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!enabled || !manifestIncomplete || !manifest) return;
-    const key = `${workspaceKey}:${manifest.syncGeneration}`;
-    if (manifestResyncKeyRef.current === key) return;
-    manifestResyncKeyRef.current = key;
-    refresh({ force: true });
-  }, [enabled, manifest, manifestIncomplete, refresh, workspaceKey]);
+  const blobStatus = useMemo((): BlobHydrationStatus => {
+    if (!useBlob) return 'skip';
+    if (rawV2 === undefined) return 'queries-pending';
+    if (rawV2 !== null && jsonV2 === undefined) return 'decompressing';
+    return 'ready';
+  }, [jsonV2, rawV2, useBlob]);
 
-  const decompressionResyncKeyRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!enabled || !useSharded || shardsRaw === undefined || v3Entries !== null) return;
-    const key = `${workspaceKey}:${manifest?.syncGeneration ?? 'unknown'}:${shardsPayloadKey}`;
-    if (decompressionResyncKeyRef.current === key) return;
-    decompressionResyncKeyRef.current = key;
-    refresh({ force: true });
-  }, [
-    enabled,
-    manifest?.syncGeneration,
-    refresh,
-    shardsPayloadKey,
-    useSharded,
-    v3Entries,
-    workspaceKey,
-  ]);
+  const shardedStatus = useMemo((): ShardedHydrationStatus => {
+    if (!useSharded) return 'skip';
+    if (shardsRaw === undefined) return 'queries-pending';
+    if (v3Entries === undefined) return 'decompressing';
+    if (v3Entries === null) return 'decompression-failed';
+    return 'ready';
+  }, [shardsRaw, useSharded, v3Entries]);
+
+  const hydrationPlan = useMemo(
+    () =>
+      resolveFileTreeHydrationPlan({
+        checkpoint,
+        manifest,
+        blobStatus,
+        shardedStatus,
+        shardsPayloadKey,
+      }),
+    [blobStatus, checkpoint, manifest, shardedStatus, shardsPayloadKey]
+  );
+
+  useFileTreeHydrationRecovery(enabled, hydrationPlan, refresh);
 
   useEffect(() => {
     if (!enabled) return;
@@ -313,11 +325,7 @@ export function useWorkspaceFileTree({
     storeEntries.length > 0 ||
     (v3Entries?.length ?? 0) > 0 ||
     (parsedV2?.entries?.length ?? 0) > 0;
-  const blobLoading = useBlob && (rawV2 === undefined || (rawV2 !== null && jsonV2 === undefined));
-  const shardedLoading = useSharded && (shardsRaw === undefined || v3Entries === undefined);
-  const sourcesPending =
-    checkpointRaw === undefined || manifest === undefined || shardedLoading || blobLoading;
-  const isLoading = enabled && !hasTree && sourcesPending;
+  const isLoading = enabled && !hasTree && isFileTreeHydrationLoading(hydrationPlan);
 
   return useMemo(
     () => ({

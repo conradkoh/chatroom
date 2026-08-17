@@ -43,7 +43,6 @@ export function useWorkspaceDirExplorer({
 
   const {
     treeEntries,
-    isLoading: entriesLoading,
     hasTree: entriesHasTree,
     refresh: treeRefresh,
   } = useWorkspaceFileTreeEntries({
@@ -92,20 +91,11 @@ export function useWorkspaceDirExplorer({
     () => ({
       rootNodes,
       displayNodes,
-      isLoading: tree.isLoading || (!tree.hasTree && entriesLoading),
+      isLoading: tree.isLoading,
       hasTree: tree.hasTree || entriesHasTree,
       refresh,
       isSearchMode,
     }),
-    [
-      displayNodes,
-      entriesHasTree,
-      entriesLoading,
-      isSearchMode,
-      refresh,
-      rootNodes,
-      tree.hasTree,
-      tree.isLoading,
-    ]
+    [displayNodes, entriesHasTree, isSearchMode, refresh, rootNodes, tree.hasTree, tree.isLoading]
   );
 }
