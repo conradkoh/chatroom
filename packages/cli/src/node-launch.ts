@@ -2,7 +2,7 @@
 /**
  * Re-exec chatroom with Node flags required by @cursor/sdk@1.0.19+.
  *
- * Pinned to @cursor/sdk@1.0.26 (upgraded from 1.0.23). Re-check this wrapper when
+ * Pinned to @cursor/sdk@1.0.28 (upgraded from 1.0.26). Re-check this wrapper when
  * bumping the SDK pin in packages/cli/package.json.
  *
  * ## Why this wrapper exists
@@ -16,7 +16,7 @@
  * Daemon logs may show:
  *   ExperimentalWarning: SQLite is an experimental feature and might change at any time
  *
- * This is expected and harmless — not a daemon bug (verified with @cursor/sdk@1.0.26,
+ * This is expected and harmless — not a daemon bug (verified with @cursor/sdk@1.0.28,
  * 2026-08-05). Node still marks `node:sqlite` as experimental on v22–v24 even after
  * the `--experimental-sqlite` gate was removed. The warning fires when the daemon
  * probes the cursor-sdk harness, not on every command.

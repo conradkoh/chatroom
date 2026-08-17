@@ -7,7 +7,7 @@
  * events through CursorSdkStreamAdapter, and uses a lightweight keeper child
  * process so PID-based lifecycle management in the daemon continues to work.
  *
- * NOTE: @cursor/sdk@1.0.26 imports `node:sqlite` at load time and dynamically
+ * NOTE: @cursor/sdk@1.0.28 imports `node:sqlite` at load time and dynamically
  * imports `@connectrpc/connect-node` for agent streams. The CLI bin wrapper
  * (`node-launch.js`) enables `--experimental-sqlite` before startup. SDK import
  * is deferred via loadSdk() so load failures hide the harness instead of
@@ -21,8 +21,8 @@ import { randomUUID } from 'node:crypto';
 import type * as CursorSdkModule from '@cursor/sdk';
 import { Effect } from 'effect';
 
-import { fetchCursorSdkModelCatalog } from './cursor-sdk-model-catalog.js';
 import { resolveCursorSdkSpawnModelSelection } from './cursor-models.js';
+import { fetchCursorSdkModelCatalog } from './cursor-sdk-model-catalog.js';
 import {
   formatCursorSdkError,
   formatCursorSdkLoadError,
@@ -84,7 +84,6 @@ async function loadSdk(): Promise<LoadedCursorSdk> {
 export type CursorSdkAgentServiceDeps = CLIAgentServiceDeps;
 
 const CURSOR_SDK_COMMAND = 'cursor-sdk';
-const DEFAULT_MODEL = 'composer-2.5';
 const AGENT_CREATE_TIMEOUT_MS = 60_000;
 const SEND_TIMEOUT_MS = 60_000;
 const RUN_WAIT_TIMEOUT_MS = 3_600_000;
@@ -153,6 +152,7 @@ function buildLocalAgentOptions(cwd: string) {
   return {
     cwd,
     settingSources: [],
+    enableAgentRetries: true,
   };
 }
 

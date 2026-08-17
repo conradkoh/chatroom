@@ -16,8 +16,8 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
-import { fetchCursorSdkModelCatalog } from '../../services/cursor-sdk/cursor-sdk-model-catalog.js';
 import { resolveCursorSdkSpawnModelSelection } from '../../services/cursor-sdk/cursor-models.js';
+import { fetchCursorSdkModelCatalog } from '../../services/cursor-sdk/cursor-sdk-model-catalog.js';
 import {
   formatCursorSdkLoadError,
   importBundledCursorSdk,
@@ -100,7 +100,7 @@ export class CursorSdkHarness implements BoundHarness {
       Agent.create({
         apiKey,
         model: modelSelection,
-        local: { cwd: this.cwd, settingSources: [] },
+        local: { cwd: this.cwd, settingSources: [], enableAgentRetries: true },
       }),
       AGENT_CREATE_TIMEOUT_MS,
       'Agent.create'
@@ -133,7 +133,7 @@ export class CursorSdkHarness implements BoundHarness {
       Agent.resume(sessionId, {
         apiKey,
         model: resolveCursorSdkSpawnModelSelection(DEFAULT_MODEL),
-        local: { cwd: this.cwd, settingSources: [] },
+        local: { cwd: this.cwd, settingSources: [], enableAgentRetries: true },
       }),
       AGENT_CREATE_TIMEOUT_MS,
       'Agent.resume'

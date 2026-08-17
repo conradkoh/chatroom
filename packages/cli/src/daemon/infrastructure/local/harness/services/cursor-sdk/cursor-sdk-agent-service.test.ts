@@ -29,7 +29,7 @@ vi.mock('@cursor/sdk', () => ({
 
 vi.mock('./cursor-sdk-package.js', () => ({
   importBundledCursorSdk: vi.fn(async () => import('@cursor/sdk')),
-  getBundledCursorSdkVersion: vi.fn(() => '1.0.26'),
+  getBundledCursorSdkVersion: vi.fn(() => '1.0.28'),
   formatCursorSdkError: (err: unknown) => {
     if (err instanceof Error) {
       const sdkErr = err as Error & { code?: string; name?: string };
@@ -134,7 +134,7 @@ describe('CursorSdkAgentService', () => {
         apiKey: 'cursor_test_key',
         name: 'builder@c1',
         model: { id: 'composer-2.5' },
-        local: { cwd: '/tmp/work', settingSources: [] },
+        local: { cwd: '/tmp/work', settingSources: [], enableAgentRetries: true },
       });
     });
 
@@ -795,7 +795,7 @@ describe('CursorSdkAgentService', () => {
       expect(sharedAgentResumeFn).toHaveBeenCalledWith('agent-resume-1', {
         apiKey: 'cursor_test_key',
         model: { id: 'composer-2.5' },
-        local: { cwd: '/tmp/resume-wd', settingSources: [] },
+        local: { cwd: '/tmp/resume-wd', settingSources: [], enableAgentRetries: true },
       });
       expect(result.pid).toBe(4321);
       expect(result.harnessSessionId).toBe('agent-1');
