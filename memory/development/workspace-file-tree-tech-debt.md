@@ -24,4 +24,4 @@ Living checklist for file-tree sync, explorer hydration, and debug tooling. Upda
 ## Related
 
 - [Workspace file tree sync strategies](architecture/workspace-file-tree-sync-strategies.md)
-- Backlog item: workspace file-tree tech debt resolution (see chatroom backlog)
+- Backlog item `ps77aqheb1an53az65c446rfdd8cmtgd` — workspace file-tree tech debt resolution

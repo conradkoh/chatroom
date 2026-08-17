@@ -5,18 +5,20 @@ import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
 export type SubscriberHandle = { stop(): Promise<void> };
 
 interface PendingFileRequest {
-  _id: string | { toString(): string };
+  _id?: string | { toString(): string } | null;
   workingDir?: string;
   force?: boolean;
   updatedAt?: number;
 }
 
 function requestId(req: PendingFileRequest): string {
+  if (req._id == null) return 'unknown';
   return typeof req._id === 'string' ? req._id : req._id.toString();
 }
 
 function pendingRequestsSnapshot(requests: PendingFileRequest[]): string {
   return requests
+    .filter((req) => req != null && typeof req === 'object')
     .map(
       (req) =>
         `${requestId(req)}:${req.workingDir ?? ''}:${req.force ? '1' : '0'}:${req.updatedAt ?? 0}`
@@ -34,6 +36,7 @@ export function startFileTreeRequestSubscriber(
   const unsub = deps.wsClient.onUpdate(
     api.workspaceFiles.getPendingFileTreeRequests,
     { sessionId: deps.sessionId, machineId: deps.machineId },
+    // fallow-ignore-next-line complexity
     (requests: PendingFileRequest[] | null) => {
       if (!requests?.length) {
         lastSnapshot = '';
@@ -41,10 +44,13 @@ export function startFileTreeRequestSubscriber(
       }
 
       const snapshot = pendingRequestsSnapshot(requests);
-      if (snapshot === lastSnapshot) return;
+      if (!snapshot || snapshot === lastSnapshot) return;
       lastSnapshot = snapshot;
 
-      onEvent({ type: 'file-tree.request', requestId: requestId(requests[0]) });
+      const first = requests.find((req) => req != null && typeof req === 'object');
+      if (!first) return;
+
+      onEvent({ type: 'file-tree.request', requestId: requestId(first) });
     },
     (err: unknown) => {
       console.warn(
