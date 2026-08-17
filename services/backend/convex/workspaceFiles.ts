@@ -12,15 +12,13 @@ import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getSession } from './auth/session';
-import {
-  compactFileTreeDeltaOperationValidator,
-  expandFileTreeDeltaOperations,
-} from './lib/fileTreeDeltaOps';
+import { compactFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
 import * as blobSnapshots from './workspaceFileTree/repositories/blobSnapshotRepository';
-import { getCurrentRevision } from './workspaceFileTree/repositories/deltaRepository';
 import * as shardedSnapshots from './workspaceFileTree/repositories/shardedSnapshotRepository';
 import { publishFileTreeCheckpoint as publishCheckpointService } from './workspaceFileTree/services/checkpointPublishService';
 import { getFileTreeCheckpointForApi } from './workspaceFileTree/services/checkpointQueryService';
+import { applyFileTreeDeltaBatch as applyDeltaService } from './workspaceFileTree/services/deltaApplyService';
+import { getFileTreeDeltasForApi } from './workspaceFileTree/services/deltaQueryService';
 import { validateFileTreeRevision as validateWorkspaceFileTreeRevision } from './workspaceFileTree/validation';
 import {
   normalizeWorkingDir,
@@ -43,11 +41,6 @@ const MAX_TREE_JSON_BYTES = 900 * 1024;
 const MAX_SHARD_BATCH_SIZE = 8;
 
 /** Keep delta documents comfortably below Convex's document size limit. */
-const MAX_FILE_TREE_DELTA_OPERATIONS = 500;
-const MAX_FILE_TREE_DELTA_BYTES = 800 * 1024;
-const MAX_FILE_TREE_DELTAS_PER_QUERY = 100;
-const MAX_OPERATION_ID_LENGTH = 200;
-
 /** Max file content size: 512KB. */
 const MAX_CONTENT_BYTES = 512 * 1024;
 
@@ -870,67 +863,13 @@ export const applyFileTreeDeltaBatch = mutation({
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     const workingDir = normalizeWorkingDir(args.workingDir);
 
-    validateFileTreeRevision(args.baseRevision, 'baseRevision');
-    if (!args.operationId || args.operationId.length > MAX_OPERATION_ID_LENGTH) {
-      throw new Error(`operationId must be between 1 and ${MAX_OPERATION_ID_LENGTH} characters`);
-    }
-    if (args.operations.length === 0 || args.operations.length > MAX_FILE_TREE_DELTA_OPERATIONS) {
-      throw new Error(
-        `Delta batch must contain between 1 and ${MAX_FILE_TREE_DELTA_OPERATIONS} operations`
-      );
-    }
-    if (
-      new TextEncoder().encode(JSON.stringify(args.operations)).length > MAX_FILE_TREE_DELTA_BYTES
-    ) {
-      throw new Error('File tree delta batch too large');
-    }
-    for (const operation of args.operations) {
-      validateFilePath(operation.p);
-      if (operation.o === 'r') {
-        if ('e' in operation || 's' in operation || 'm' in operation) {
-          throw new Error('Remove operations must contain only a path');
-        }
-      } else if (!operation.e) {
-        throw new Error(`${operation.o} operations require entry type`);
-      }
-    }
-
-    const receipt = await ctx.db
-      .query('chatroom_workspaceFileTreeDeltaOperation')
-      .withIndex('by_machine_workingDir_operationId', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', workingDir)
-          .eq('operationId', args.operationId)
-      )
-      .first();
-    if (receipt) {
-      return { status: 'duplicate' as const, revision: receipt.revision };
-    }
-
-    const currentRevision = await getCurrentRevision(ctx, args.machineId, workingDir);
-    if (args.baseRevision !== currentRevision) {
-      return { status: 'resync-required' as const, expectedRevision: currentRevision };
-    }
-
-    const revision = currentRevision + 1;
-    const now = Date.now();
-    await ctx.db.insert('chatroom_workspaceFileTreeDelta', {
-      machineId: args.machineId,
-      workingDir,
-      baseRevision: args.baseRevision,
-      revision,
-      operations: args.operations,
-    });
-    await ctx.db.insert('chatroom_workspaceFileTreeDeltaOperation', {
+    return await applyDeltaService(ctx, {
       machineId: args.machineId,
       workingDir,
       operationId: args.operationId,
-      revision,
-      createdAt: now,
+      baseRevision: args.baseRevision,
+      operations: args.operations,
     });
-
-    return { status: 'applied' as const, revision };
   },
 });
 
@@ -973,56 +912,8 @@ export const getFileTreeDeltas = query({
     } catch {
       return null;
     }
-    validateFileTreeRevision(args.afterRevision, 'afterRevision');
     const workingDir = normalizeWorkingDir(args.workingDir);
-    const checkpoint = await ctx.db
-      .query('chatroom_workspaceFileTreeCheckpoint')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-    const checkpointRevision = checkpoint?.revision ?? 0;
-    const currentRevision = await getCurrentRevision(ctx, args.machineId, workingDir);
-
-    if (args.afterRevision < checkpointRevision) {
-      return {
-        status: 'checkpoint-required' as const,
-        checkpointRevision,
-        currentRevision,
-      };
-    }
-    if (args.afterRevision > currentRevision) {
-      return {
-        status: 'resync-required' as const,
-        expectedRevision: currentRevision,
-      };
-    }
-
-    const rows = await ctx.db
-      .query('chatroom_workspaceFileTreeDelta')
-      .withIndex('by_machine_workingDir_revision', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', workingDir)
-          .gt('revision', args.afterRevision)
-      )
-      .take(MAX_FILE_TREE_DELTAS_PER_QUERY + 1);
-    const hasMore = rows.length > MAX_FILE_TREE_DELTAS_PER_QUERY;
-    const deltaRows = rows.slice(0, MAX_FILE_TREE_DELTAS_PER_QUERY);
-    // Return null when caught up to suppress idle subscription bandwidth
-    if (deltaRows.length === 0) {
-      return null;
-    }
-    const deltas = deltaRows.map((row) => ({
-      baseRevision: row.baseRevision,
-      revision: row.revision,
-      operations: expandFileTreeDeltaOperations(row.operations),
-    }));
-    return {
-      status: 'ok' as const,
-      deltas,
-      ...(hasMore ? { hasMore: true as const } : {}),
-    };
+    return await getFileTreeDeltasForApi(ctx, args.machineId, workingDir, args.afterRevision);
   },
 });
 
