@@ -69,6 +69,16 @@ describe('PlannerEnhancerToggle', () => {
     expect(screen.getByText('Enhance')).toBeInTheDocument();
   });
 
+  it('uses compact icon-only sizing below sm and full width at sm+', () => {
+    render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
+
+    const button = screen.getByTestId('planner-enhancer-toggle');
+    expect(button.className).toContain('w-10');
+    expect(button.className).toContain('px-0');
+    expect(button.className).toContain('sm:w-full');
+    expect(button.className).toContain('sm:px-3');
+  });
+
   it('keeps the Enhance label when active', () => {
     mockIsActive = true;
     render(<PlannerEnhancerToggle chatroomId="room-1" machineId="machine-1" />);
