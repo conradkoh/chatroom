@@ -26,11 +26,13 @@ export function extendSelectionToLineBoundaryByCoords(
   const { selection } = view.state;
   const head = direction === 'backward' ? selection.from : selection.to;
   const coords = view.coordsAtPos(head);
-  const lineHeight = Math.max(coords.bottom - coords.top, 1);
-  const found = view.posAtCoords({
-    left: coords.left,
-    top: direction === 'backward' ? coords.top - lineHeight / 2 : coords.bottom + lineHeight / 2,
-  });
+  const found =
+    direction === 'backward'
+      ? findPosOnVisualLineAbove(view, head, coords)
+      : view.posAtCoords({
+          left: coords.left,
+          top: coords.bottom + Math.max(coords.bottom - coords.top, 1) / 2,
+        });
   if (!found || found.pos === head) return false;
   view.dispatch(
     view.state.tr.setSelection(
@@ -38,6 +40,24 @@ export function extendSelectionToLineBoundaryByCoords(
     )
   );
   return true;
+}
+
+// fallow-ignore-next-line complexity
+// fallow-ignore-next-line unused-exports
+export function findPosOnVisualLineAbove(
+  view: EditorView,
+  head: number,
+  coords: { top: number; bottom: number; left: number }
+): number | null {
+  const lineHeight = Math.max(coords.bottom - coords.top, 1);
+  const targetY = coords.top - lineHeight / 2;
+  const blockStart = view.state.doc.resolve ? view.state.doc.resolve(head).start() : 0;
+  const minLeft = (view.coordsAtPos(blockStart)?.left ?? 0) + 2;
+  for (let left = coords.left; left >= minLeft; left -= 8) {
+    const found = view.posAtCoords({ left, top: targetY });
+    if (found && found.pos < head) return found.pos;
+  }
+  return null;
 }
 
 // fallow-ignore-next-line complexity
