@@ -66,6 +66,7 @@ export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEve
       await handleWorkspaceGitInbound(deps.workspaceGit, event as WorkspaceGitInboundEvent);
       break;
     case 'file-tree.request':
+    case 'file-tree.release':
     case 'file-content.request':
     case 'file-write.request':
       await handleFileInbound(deps.file, event as FileInboundEvent);

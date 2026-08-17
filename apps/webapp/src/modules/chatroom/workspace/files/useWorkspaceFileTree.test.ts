@@ -35,7 +35,7 @@ const mocks = vi.hoisted(() => ({
   checkpoint: null as
     | {
         revision: number;
-        snapshotKind: 'v2' | 'v3';
+        strategyId: 'blob' | 'sharded';
         snapshotId: string;
         publishedAt: number;
       }
@@ -190,7 +190,7 @@ describe('useWorkspaceFileTree', () => {
   it('uses the checkpoint snapshot kind instead of a stale V3 manifest', () => {
     mocks.checkpoint = {
       revision: 8,
-      snapshotKind: 'v2',
+      strategyId: 'blob',
       snapshotId: 'latest-v2',
       publishedAt: 100,
     };
@@ -294,7 +294,7 @@ describe('useWorkspaceFileTree', () => {
     };
     mocks.checkpoint = {
       revision: 3,
-      snapshotKind: 'v2',
+      strategyId: 'blob',
       snapshotId: 'v2:50',
       publishedAt: 50,
     };
@@ -322,6 +322,34 @@ describe('useWorkspaceFileTree', () => {
     await waitFor(() => {
       expect(result.current.entries).toEqual([{ path: 'new.ts', type: 'file' }]);
     });
+  });
+
+  it('forces resync when manifest is incomplete and no blob snapshot exists', async () => {
+    mocks.manifest = {
+      syncGeneration: 'gen-partial',
+      shardIds: ['src'],
+      totalEntryCount: 1,
+      complete: false,
+      scannedAt: 1_700_000_000_000,
+    };
+    mocks.checkpoint = {
+      revision: 5,
+      strategyId: 'sharded',
+      snapshotId: 'gen-partial',
+      publishedAt: 1,
+    };
+    mocks.rawV2 = null;
+
+    renderHook(() => useWorkspaceFileTree(args));
+
+    await waitFor(() => {
+      expect(mocks.requestMutation).toHaveBeenCalledWith({
+        machineId: MACHINE_ID,
+        workingDir: WORKING_DIR,
+        force: true,
+      });
+    });
+    expect(mocks.rawV2).toBeNull();
   });
 
   it('does not upsert store while manifest incomplete', async () => {
@@ -357,5 +385,27 @@ describe('useWorkspaceFileTree', () => {
     expect(getWorkspaceFileTreeEntries(KEY)).toEqual([]);
     expect(result.current.hasTree).toBe(false);
     expect(result.current.isLoading).toBe(true);
+  });
+  it('recover plan times out with loadError when daemon never fulfills', async () => {
+    vi.useFakeTimers();
+    mocks.manifest = {
+      syncGeneration: 'gen-partial',
+      shardIds: [],
+      totalEntryCount: 0,
+      complete: false,
+      scannedAt: 1,
+    };
+    mocks.checkpoint = {
+      revision: 5,
+      strategyId: 'sharded',
+      snapshotId: 'gen-partial',
+      publishedAt: 1,
+    };
+    const { result } = renderHook(() => useWorkspaceFileTree(args));
+    await act(async () => {
+      vi.advanceTimersByTime(60_001);
+    });
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.loadError).toMatch(/timed out/i);
   });
 });

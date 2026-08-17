@@ -138,6 +138,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     enhancerWorkerHandle?.stop();
   };
 
+  // fallow-ignore-next-line complexity
   const shutdown = async (): Promise<void> => {
     if (isShuttingDown) return;
     isShuttingDown = true;
@@ -231,10 +232,14 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     const gitHandle = gitSubscriptionHandle;
     const fileTreeHandle = fileTreeSubscriptionHandle;
 
+    // fallow-ignore-next-line complexity
     registerFileInboundHandler(async (event) => {
       switch (event.type) {
         case 'file-tree.request':
           if (fileTreeHandle) await fileTreeHandle.drainPendingFileTreeRequests();
+          break;
+        case 'file-tree.release':
+          if (fileTreeHandle) await fileTreeHandle.drainPendingFileTreeReleaseRequests();
           break;
         case 'file-content.request':
           await drainPendingFileContentRequests(session);

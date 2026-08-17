@@ -3,15 +3,20 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { ArrowUp, Check, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide-react';
-import React, { memo, useCallback, useState } from 'react';
+import { Check, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide-react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
 
 import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
 import { MessageAttachmentChips, countMessageAttachments } from '../../attachments';
 import type { Message } from '../../types/message';
 import { chatroomRemarkPlugins } from '../chatroomRemarkPlugins';
-import { baseMarkdownComponents, messageFeedProseClassNames } from '../markdown-utils';
+import {
+  DetailModalMarkdownSurface,
+  detailModalRichTextEditorProseClassNames,
+} from '../detail-modal';
+import { RichTextEditor, isInteractiveClickTarget } from '../detail-modal-shared';
+import { modalMarkdownComponents } from '../markdown-utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 
+import { reserializeMarkdownBlankLines } from '@/components/markdown-editor/utils/reserializeMarkdownBlankLines';
 import {
   FixedModal,
   FixedModalBody,
@@ -40,7 +46,6 @@ interface QueuedMessageDetailModalProps {
   /** Called when the modal should close. */
   onClose: () => void;
   /** Called when the user promotes the message. */
-  onPromote: (queuedMessageId: string) => Promise<void>;
   /** Called when the user deletes the message. */
   onDelete: (queuedMessageId: string) => Promise<void>;
   teamSupportsEnhancer?: boolean;
@@ -71,8 +76,8 @@ function QueuedMessageAttachmentsSection({ message }: { message: Message }) {
  *
  * Features:
  * - Markdown preview of the queued message content.
- * - Tabbed Edit/Preview editor for in-modal editing.
- * - Primary "Promote" action + secondary Actions dropdown (Edit, Delete).
+ * - Click-to-edit WYSIWYG markdown editor.
+ * - Secondary Actions dropdown (Edit, Delete).
  * - Error strip (mirrors `BacklogItemDetailModal` + `TaskDetailModal` patterns).
  */
 export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
@@ -80,38 +85,58 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
   message,
   isOpen,
   onClose,
-  onPromote,
   onDelete,
   teamSupportsEnhancer,
 }: QueuedMessageDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(message.content);
-  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+  const [initialClickCoords, setInitialClickCoords] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+  const [initializedMessageId, setInitializedMessageId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
   const updateUserMessageOrTask = useSessionMutation(api.messages.updateUserMessageOrTask);
+
+  useEffect(() => {
+    if (isOpen && message._id !== initializedMessageId) {
+      setEditedContent(message.content);
+      setIsEditing(false);
+      setInitialClickCoords(null);
+      setEditError(null);
+      setInitializedMessageId(message._id);
+    } else if (!isOpen) {
+      setInitializedMessageId(null);
+      setInitialClickCoords(null);
+    }
+  }, [isOpen, message._id, message.content, initializedMessageId]);
 
   const formattedTime = new Date(message._creationTime).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
   });
 
-  const enterEdit = useCallback(() => {
-    setEditedContent(message.content);
-    setActiveTab('edit');
-    setEditError(null);
-    setIsEditing(true);
-  }, [message.content]);
+  const enterEdit = useCallback(
+    (coords?: { left: number; top: number } | null) => {
+      setEditedContent(message.content);
+      setEditError(null);
+      setInitialClickCoords(coords ?? null);
+      setIsEditing(true);
+    },
+    [message.content]
+  );
 
   const cancelEdit = useCallback(() => {
     setEditedContent(message.content);
     setEditError(null);
+    setInitialClickCoords(null);
     setIsEditing(false);
   }, [message.content]);
 
   const handleSave = useCallback(async () => {
-    const trimmed = editedContent.trim();
+    const trimmed = reserializeMarkdownBlankLines(editedContent).trim();
     if (!trimmed) {
       setEditError('Message cannot be empty.');
       return;
@@ -126,7 +151,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
       await updateUserMessageOrTask({
         type: 'message',
         messageId: message._id as Id<'chatroom_messageQueue'>,
-        content: trimmed,
+        content: reserializeMarkdownBlankLines(editedContent),
       });
       setIsEditing(false);
     } catch (err) {
@@ -182,67 +207,40 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
           </div>
         </FixedModalHeader>
 
-        <FixedModalBody>
+        <FixedModalBody className="flex flex-col min-h-0 p-0">
           {isEditing ? (
-            <div className="flex flex-col h-full">
-              <div className="flex border-b-2 border-chatroom-border-strong bg-chatroom-bg-tertiary flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('edit')}
-                  className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors border-b-2 -mb-[2px] ${
-                    activeTab === 'edit'
-                      ? 'border-chatroom-accent text-chatroom-text-primary bg-chatroom-bg-primary'
-                      : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
-                  }`}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('preview')}
-                  className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors border-b-2 -mb-[2px] ${
-                    activeTab === 'preview'
-                      ? 'border-chatroom-accent text-chatroom-text-primary bg-chatroom-bg-primary'
-                      : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
-                  }`}
-                >
-                  Preview
-                </button>
-              </div>
-              <div className="flex-1 flex flex-col overflow-hidden min-h-[260px]">
-                {activeTab === 'edit' ? (
-                  <textarea
-                    value={editedContent}
-                    onChange={(e) => setEditedContent(e.target.value)}
-                    onKeyDown={(e) => {
-                      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                        e.preventDefault();
-                        if (editedContent.trim()) void handleSave();
-                      }
-                    }}
-                    autoFocus
-                    placeholder="Write your markdown here..."
-                    className="flex-1 w-full bg-chatroom-bg-primary border-0 text-chatroom-text-primary text-sm p-4 resize-none focus:outline-none font-mono"
-                  />
-                ) : (
-                  <div className={`h-full overflow-y-auto p-4 ${messageFeedProseClassNames}`}>
-                    <Markdown
-                      remarkPlugins={chatroomRemarkPlugins}
-                      components={baseMarkdownComponents}
-                    >
-                      {editedContent || '*No content yet*'}
-                    </Markdown>
-                  </div>
-                )}
-              </div>
-            </div>
+            <RichTextEditor
+              value={editedContent}
+              onChange={setEditedContent}
+              placeholder="Write your markdown here..."
+              onCmdEnter={handleSave}
+              initialClickCoords={initialClickCoords}
+              className="flex-1 flex flex-col min-h-0"
+              proseClassName={detailModalRichTextEditorProseClassNames}
+            />
           ) : (
-            <div className={`p-4 ${messageFeedProseClassNames}`}>
-              <Markdown remarkPlugins={chatroomRemarkPlugins} components={baseMarkdownComponents}>
+            <DetailModalMarkdownSurface
+              data-testid="queued-detail-view-body"
+              interactive
+              onClick={(e) => {
+                if (isInteractiveClickTarget(e.target)) return;
+                enterEdit({ left: e.clientX, top: e.clientY });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  enterEdit(null);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              proseClassName={detailModalRichTextEditorProseClassNames}
+            >
+              <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
                 {message.content}
               </Markdown>
               <QueuedMessageAttachmentsSection message={message} />
-            </div>
+            </DetailModalMarkdownSurface>
           )}
         </FixedModalBody>
 
@@ -273,22 +271,9 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
                 <X size={12} />
                 Cancel
               </button>
-              <span className="ml-auto text-[10px] text-chatroom-text-muted">
-                ⌘ + Enter to save
-              </span>
             </>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={() => handleModalMutation(() => onPromote(message._id))}
-                disabled={isSaving}
-                className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-transparent bg-chatroom-accent text-chatroom-bg-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ArrowUp size={12} />
-                {isSaving ? 'Working...' : 'Promote'}
-              </button>
-
               {teamSupportsEnhancer ? (
                 <QueuedMessageEnhancerToggle
                   queuedMessageId={message._id}
@@ -310,7 +295,7 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[160px]">
                   <DropdownMenuItem
-                    onClick={enterEdit}
+                    onClick={() => enterEdit(null)}
                     className="flex items-center gap-2 cursor-pointer"
                   >
                     <Pencil size={14} />

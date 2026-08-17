@@ -26,7 +26,7 @@ function barClass(isActive: boolean, isEnhancing: boolean): string {
   return cn(
     'shrink-0 w-10 px-0 py-2 sm:w-full sm:px-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer',
     isActive
-      ? 'text-yellow-500 dark:text-yellow-400 bg-yellow-500/10'
+      ? 'text-blue-500 dark:text-blue-400 bg-blue-500/10'
       : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover',
     isEnhancing && 'animate-pulse'
   );

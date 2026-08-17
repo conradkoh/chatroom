@@ -31,7 +31,11 @@ vi.mock('./files/file-tree-subscription.js', async () => {
   const { Effect } = await import('effect');
   return {
     startFileTreeSubscriptionEffect: () =>
-      Effect.succeed({ stop: vi.fn(), drainPendingFileTreeRequests: vi.fn() }),
+      Effect.succeed({
+        stop: vi.fn(),
+        drainPendingFileTreeRequests: vi.fn(),
+        drainPendingFileTreeReleaseRequests: vi.fn(),
+      }),
   };
 });
 vi.mock('./workspace-git/workspace-list-subscription.js', async () => {
