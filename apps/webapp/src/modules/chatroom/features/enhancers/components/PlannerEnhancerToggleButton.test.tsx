@@ -18,7 +18,7 @@ describe('PlannerEnhancerToggleButton', () => {
     );
     const button = screen.getByTestId('planner-enhancer-toggle');
 
-    expect(button.className).toContain('w-10');
+    expect(button.className).toContain('w-[3.75rem]');
     expect(button.className).toContain('px-0');
     expect(button.className).toContain('sm:w-full');
     expect(button.className).toContain('sm:px-3');

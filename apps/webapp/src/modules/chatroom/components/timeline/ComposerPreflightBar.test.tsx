@@ -27,7 +27,7 @@ describe('ComposerPreflightBar', () => {
 
     expect(toggleColumns).toHaveLength(2);
     for (const column of toggleColumns) {
-      expect(column.className).toContain('w-10');
+      expect(column.className).toContain('w-[3.75rem]');
       expect(column.className).toContain('sm:min-w-[7rem]');
     }
   });

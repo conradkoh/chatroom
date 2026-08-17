@@ -8,7 +8,7 @@ describe('PlannerNewSessionToggleButton', () => {
     render(<PlannerNewSessionToggleButton isActive={false} onToggle={vi.fn()} />);
     const button = screen.getByTestId('planner-new-session-toggle');
 
-    expect(button.className).toContain('w-10');
+    expect(button.className).toContain('w-[3.75rem]');
     expect(button.className).toContain('px-0');
     expect(button.className).toContain('sm:w-full');
     expect(button.className).toContain('sm:px-3');
