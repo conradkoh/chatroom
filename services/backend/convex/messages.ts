@@ -23,6 +23,7 @@ import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
+import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueue-user-message-at-front';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
@@ -525,6 +526,40 @@ export const send = mutation({
   args: sendMessageMutationArgs,
   handler: async (ctx, args) => {
     return _sendMessageHandler(ctx, args);
+  },
+});
+
+export const enqueueMessageAtFront = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    content: v.string(),
+    attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
+    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+    attachedSnippets: v.optional(v.array(attachedSnippetArgsValidator)),
+    startInNewSession: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const result = await enqueueUserMessageAtFront(ctx, {
+      chatroomId: args.chatroomId,
+      content: args.content,
+      userId: session.userId,
+      startInNewSession: args.startInNewSession,
+      ...(args.attachedTaskIds?.length ? { attachedTaskIds: args.attachedTaskIds } : {}),
+      ...(args.attachedBacklogItemIds?.length
+        ? { attachedBacklogItemIds: args.attachedBacklogItemIds }
+        : {}),
+      ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
+      ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
+    });
+    if (!result.ok)
+      throw new ConvexError({
+        code: result.reason === 'empty_content' ? 'EMPTY_CONTENT' : 'CHATROOM_NOT_ACTIVE',
+        message: result.reason,
+      });
+    return result.messageId;
   },
 });
 
@@ -1224,12 +1259,22 @@ export const updateQueuedMessagePlannerEnhancer = mutation({
 });
 
 export const updateQueuedMessageStartInNewSession = mutation({
-  args: { ...SessionIdArg, queuedMessageId: v.id('chatroom_messageQueue'), startInNewSession: v.boolean() },
+  args: {
+    ...SessionIdArg,
+    queuedMessageId: v.id('chatroom_messageQueue'),
+    startInNewSession: v.boolean(),
+  },
   handler: async (ctx, args) => {
     const record = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
-    if (!record) throw new ConvexError({ code: 'QUEUED_MESSAGE_NOT_FOUND', message: 'Queued message not found' });
+    if (!record)
+      throw new ConvexError({
+        code: 'QUEUED_MESSAGE_NOT_FOUND',
+        message: 'Queued message not found',
+      });
     await requireChatroomAccess(ctx, args.sessionId, record.chatroomId);
-    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, { startInNewSession: args.startInNewSession });
+    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, {
+      startInNewSession: args.startInNewSession,
+    });
   },
 });
 
