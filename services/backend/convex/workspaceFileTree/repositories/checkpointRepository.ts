@@ -7,7 +7,7 @@ export async function findCheckpoint(
   workingDir: string
 ) {
   return await ctx.db
-    .query('chatroom_workspaceFileTreeCheckpoint')
+    .query('chatroom_workspaceFileTreeCheckpointV2')
     .withIndex('by_machine_workingDir', (q) =>
       q.eq('machineId', machineId).eq('workingDir', workingDir)
     )
@@ -16,8 +16,8 @@ export async function findCheckpoint(
 export async function upsertCheckpoint(ctx: MutationCtx, row: FileTreeCheckpointRow) {
   const existing = await findCheckpoint(ctx, row.machineId, row.workingDir);
   if (existing) {
-    await ctx.db.patch('chatroom_workspaceFileTreeCheckpoint', existing._id, row);
+    await ctx.db.patch('chatroom_workspaceFileTreeCheckpointV2', existing._id, row);
     return existing._id;
   }
-  return await ctx.db.insert('chatroom_workspaceFileTreeCheckpoint', row);
+  return await ctx.db.insert('chatroom_workspaceFileTreeCheckpointV2', row);
 }

@@ -1855,13 +1855,13 @@ export const purgeFileTreeV2 = mutation({
 
     // Delete incremental checkpoint (singleton)
     const checkpoint = await ctx.db
-      .query('chatroom_workspaceFileTreeCheckpoint')
+      .query('chatroom_workspaceFileTreeCheckpointV2')
       .withIndex('by_machine_workingDir', (q: any) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
     if (checkpoint) {
-      await ctx.db.delete('chatroom_workspaceFileTreeCheckpoint', checkpoint._id);
+      await ctx.db.delete('chatroom_workspaceFileTreeCheckpointV2', checkpoint._id);
     }
 
     // Delete deltas (batched)
