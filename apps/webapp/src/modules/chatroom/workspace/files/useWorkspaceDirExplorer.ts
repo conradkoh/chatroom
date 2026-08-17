@@ -69,8 +69,9 @@ export function useWorkspaceDirExplorer({
   }, [filterQuery, isSearchMode, rootNodes]);
 
   const refresh = useCallback(() => {
+    tree.refresh({ force: true });
     treeRefresh({ force: true });
-  }, [treeRefresh]);
+  }, [treeRefresh, tree]);
 
   useEffect(() => {
     if (refreshSignal > 0) refresh();

@@ -26,6 +26,7 @@ export function isFileTreeHydrationLoading(plan: FileTreeHydrationPlan): boolean
   if (plan.kind === 'awaiting-queries') return true;
   if (plan.kind === 'hydrate-blob') return plan.loading;
   if (plan.kind === 'hydrate-sharded') return plan.loading;
+  if (plan.kind === 'recover') return true;
   return false;
 }
 

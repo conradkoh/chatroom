@@ -15,6 +15,7 @@ const WORKSPACE_KEY = toWorkspaceFileTreeKey(MACHINE_ID, WORKING_DIR);
 
 const mocks = vi.hoisted(() => ({
   treeRefresh: vi.fn(),
+  treeHydrationRefresh: vi.fn(),
   isLoading: false,
   hasTree: false,
   hydrationLoading: false,
@@ -41,12 +42,13 @@ vi.mock('./useWorkspaceFileTree', () => ({
     entries: [],
     rootNodes: [],
     scannedAt: null,
-    refresh: vi.fn(),
+    refresh: mocks.treeHydrationRefresh,
   })),
 }));
 
 beforeEach(() => {
   mocks.treeRefresh.mockClear();
+  mocks.treeHydrationRefresh.mockClear();
   mocks.isLoading = false;
   mocks.hasTree = false;
   mocks.hydrationLoading = false;
@@ -148,7 +150,7 @@ describe('useWorkspaceDirExplorer', () => {
     ]);
   });
 
-  it('refresh calls tree refresh with force', () => {
+  it('refresh calls hydration and entries refresh with force', () => {
     const { result } = renderHook(() =>
       useWorkspaceDirExplorer({
         machineId: MACHINE_ID,
@@ -160,6 +162,7 @@ describe('useWorkspaceDirExplorer', () => {
       result.current.refresh();
     });
 
+    expect(mocks.treeHydrationRefresh).toHaveBeenCalledWith({ force: true });
     expect(mocks.treeRefresh).toHaveBeenCalledWith({ force: true });
   });
 

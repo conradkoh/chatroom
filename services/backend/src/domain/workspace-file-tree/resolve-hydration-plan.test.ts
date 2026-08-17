@@ -47,7 +47,7 @@ describe('resolveFileTreeHydrationPlan', () => {
       reason: 'incomplete-manifest',
       recoveryKey: 'gen-partial',
     });
-    expect(isFileTreeHydrationLoading(plan)).toBe(false);
+    expect(isFileTreeHydrationLoading(plan)).toBe(true);
   });
 
   it('hydrates blob when checkpoint is blob', () => {
@@ -83,23 +83,16 @@ describe('resolveFileTreeHydrationPlan', () => {
       reason: 'shard-decompression-failed',
       recoveryKey: 'gen-1:a:1|b:2',
     });
-    expect(isFileTreeHydrationLoading(plan)).toBe(false);
+    expect(isFileTreeHydrationLoading(plan)).toBe(true);
   });
 
-  it('never reports loading for recover or idle settled states', () => {
-    const recover = resolveFileTreeHydrationPlan({
-      checkpoint: { revision: 1, strategyId: 'sharded', snapshotId: 'g', publishedAt: 1 },
-      manifest: { syncGeneration: 'g', complete: false },
-      blobStatus: 'skip',
-      shardedStatus: 'skip',
-    });
+  it('never reports loading for idle settled state', () => {
     const idle = resolveFileTreeHydrationPlan({
       checkpoint: null,
       manifest: null,
       blobStatus: 'skip',
       shardedStatus: 'skip',
     });
-    expect(isFileTreeHydrationLoading(recover)).toBe(false);
     expect(isFileTreeHydrationLoading(idle)).toBe(false);
   });
 });
