@@ -26,6 +26,10 @@ import { requireAccess } from '../modules/auth/accessCheck';
 import { getInvalidChatAttachmentUploadPathReason } from '../src/domain/constants/chat-attachment-upload-path';
 import { MAX_WORKSPACE_UPLOAD_BYTES } from '../src/domain/constants/workspace-upload';
 import { getBlockedUploadTargetReason } from '../src/domain/constants/workspace-upload-path-policy';
+import {
+  snapshotKindToStrategyId,
+  strategyIdToSnapshotKind,
+} from '../src/domain/workspace-file-tree/types';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -1091,7 +1095,7 @@ export const getFileTreeCheckpoint = query({
     if (!checkpoint) return null;
     return {
       revision: checkpoint.revision,
-      snapshotKind: checkpoint.snapshotKind,
+      snapshotKind: strategyIdToSnapshotKind(checkpoint.strategyId),
       snapshotId: checkpoint.snapshotId,
       publishedAt: checkpoint.publishedAt,
     };
@@ -1199,7 +1203,8 @@ export const publishFileTreeCheckpoint = mutation({
       return { status: 'resync-required' as const, expectedRevision: currentRevision };
     }
 
-    if (args.snapshotKind === 'v2') {
+    const strategyId = snapshotKindToStrategyId(args.snapshotKind);
+    if (strategyId === 'blob') {
       const snapshot = await ctx.db
         .query('chatroom_workspaceFileTreeV2')
         .withIndex('by_machine_workingDir', (q: any) =>
@@ -1232,13 +1237,13 @@ export const publishFileTreeCheckpoint = mutation({
     }
     const unchanged =
       existing?.revision === args.revision &&
-      existing.snapshotKind === args.snapshotKind &&
+      existing.strategyId === strategyId &&
       existing.snapshotId === args.snapshotId;
     const row = {
       machineId: args.machineId,
       workingDir,
       revision: args.revision,
-      snapshotKind: args.snapshotKind,
+      strategyId,
       snapshotId: args.snapshotId,
       publishedAt: Date.now(),
     };
