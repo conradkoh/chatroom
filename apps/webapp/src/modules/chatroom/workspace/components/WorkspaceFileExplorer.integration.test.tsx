@@ -36,14 +36,17 @@ vi.mock('@tanstack/react-virtual', () => ({
 
 const treeRefresh = vi.hoisted(() => vi.fn());
 
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionMutation: () => vi.fn(() => Promise.resolve({ watchCount: 1 })),
+}));
+
+vi.mock('@/modules/chatroom/workspace/files/useFileTreeWatch', () => ({
+  useAcquireFileTreeWatch: vi.fn(),
+  useFileTreeWatchEnabled: () => true,
+}));
+
 vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTree', () => ({
-  useWorkspaceFileTree: ({
-    machineId,
-    workingDir,
-  }: {
-    machineId: string;
-    workingDir: string;
-  }) => {
+  useWorkspaceFileTree: ({ machineId, workingDir }: { machineId: string; workingDir: string }) => {
     const treeEntries = getWorkspaceFileTreeEntries(toWorkspaceFileTreeKey(machineId, workingDir));
     return {
       entries: [],
