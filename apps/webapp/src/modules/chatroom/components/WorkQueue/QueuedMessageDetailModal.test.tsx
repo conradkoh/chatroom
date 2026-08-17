@@ -24,6 +24,17 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionQuery: () => undefined,
 }));
 
+vi.mock('next/dynamic', () => ({
+  default: () =>
+    function MockRichTextEditor({
+      initialClickCoords,
+    }: {
+      initialClickCoords: { left: number; top: number } | null;
+    }) {
+      return <div data-testid="queued-rich-text-editor">{JSON.stringify(initialClickCoords)}</div>;
+    },
+}));
+
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
     messages: {
@@ -112,6 +123,32 @@ beforeEach(() => {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('QueuedMessageDetailModal', () => {
+  it('opens in view mode with rendered markdown and no editor', () => {
+    renderModal(makeMessage({ content: 'My queued message' }));
+
+    expect(screen.getByTestId('queued-detail-view-body')).toBeInTheDocument();
+    expect(screen.queryByTestId('queued-rich-text-editor')).not.toBeInTheDocument();
+    expect(screen.queryByText('Save')).not.toBeInTheDocument();
+  });
+
+  it('clicking the message body enters edit mode with click coordinates', () => {
+    renderModal(makeMessage());
+
+    fireEvent.click(screen.getByTestId('queued-detail-view-body'), { clientX: 42, clientY: 84 });
+
+    expect(screen.getByTestId('queued-rich-text-editor')).toHaveTextContent(
+      JSON.stringify({ left: 42, top: 84 })
+    );
+  });
+
+  it('keyboard activation enters edit mode without click coordinates', () => {
+    renderModal(makeMessage());
+
+    fireEvent.keyDown(screen.getByTestId('queued-detail-view-body'), { key: 'Enter' });
+
+    expect(screen.getByTestId('queued-rich-text-editor')).toHaveTextContent('null');
+  });
+
   it('renders the message content', () => {
     renderModal(makeMessage({ content: 'My queued message' }));
     expect(screen.getByText('My queued message')).toBeInTheDocument();
