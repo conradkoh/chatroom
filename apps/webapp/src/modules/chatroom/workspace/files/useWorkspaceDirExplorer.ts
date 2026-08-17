@@ -5,8 +5,10 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { isExplorerSearchMode } from './explorer-tree';
 import { filterFileTreeEntries, fileTreeEntriesToExplorerNodes } from './fileTreeUtils';
+import { useWorkspaceFileTree } from './useWorkspaceFileTree';
 import { useWorkspaceFileTreeEntries } from './useWorkspaceFileTreeEntries';
 import { filterExplorerTreeNodes, type ExplorerTreeNode } from '../components/explorerTreeFilter';
+import { toWorkspaceFileTreeKey } from '../stores/workspaceFileTreeStore';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 
@@ -34,12 +36,15 @@ export function useWorkspaceDirExplorer({
   isSearchMode: boolean;
 } {
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
-  const mountPullRef = useRef(false);
+  const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
+  const hydratedWorkspaceKeyRef = useRef<string | null>(null);
+
+  const tree = useWorkspaceFileTree({ machineId, workingDir: normalizedWorkingDir, enabled });
 
   const {
     treeEntries,
-    isLoading,
-    hasTree,
+    isLoading: entriesLoading,
+    hasTree: entriesHasTree,
     refresh: treeRefresh,
   } = useWorkspaceFileTreeEntries({
     machineId,
@@ -74,24 +79,33 @@ export function useWorkspaceDirExplorer({
 
   useEffect(() => {
     if (!enabled) {
-      mountPullRef.current = false;
+      hydratedWorkspaceKeyRef.current = null;
       return;
     }
-    if (mountPullRef.current) return;
-    mountPullRef.current = true;
-    if (hasTree) return;
+    if (hydratedWorkspaceKeyRef.current === workspaceKey) return;
+    hydratedWorkspaceKeyRef.current = workspaceKey;
+    if (tree.hasTree || entriesHasTree) return;
     treeRefresh();
-  }, [enabled, hasTree, treeRefresh]);
+  }, [enabled, entriesHasTree, tree.hasTree, treeRefresh, workspaceKey]);
 
   return useMemo(
     () => ({
       rootNodes,
       displayNodes,
-      isLoading,
-      hasTree,
+      isLoading: tree.isLoading || (!tree.hasTree && entriesLoading),
+      hasTree: tree.hasTree || entriesHasTree,
       refresh,
       isSearchMode,
     }),
-    [displayNodes, hasTree, isLoading, isSearchMode, refresh, rootNodes]
+    [
+      displayNodes,
+      entriesHasTree,
+      entriesLoading,
+      isSearchMode,
+      refresh,
+      rootNodes,
+      tree.hasTree,
+      tree.isLoading,
+    ]
   );
 }

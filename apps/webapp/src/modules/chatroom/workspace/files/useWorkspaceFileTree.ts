@@ -14,7 +14,7 @@ import type {
   ShardedSnapshotShard,
 } from '@workspace/backend/src/domain/workspace-file-tree/transport/sharded-snapshot';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import type { ExplorerTreeNode } from './explorer-tree';
 import {
@@ -263,6 +263,32 @@ export function useWorkspaceFileTree({
     [enabled, machineId, normalizedWorkingDir, requestTree, workspaceKey]
   );
 
+  const manifestResyncKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!enabled || !manifestIncomplete || !manifest) return;
+    const key = `${workspaceKey}:${manifest.syncGeneration}`;
+    if (manifestResyncKeyRef.current === key) return;
+    manifestResyncKeyRef.current = key;
+    refresh({ force: true });
+  }, [enabled, manifest, manifestIncomplete, refresh, workspaceKey]);
+
+  const decompressionResyncKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!enabled || !useSharded || shardsRaw === undefined || v3Entries !== null) return;
+    const key = `${workspaceKey}:${manifest?.syncGeneration ?? 'unknown'}:${shardsPayloadKey}`;
+    if (decompressionResyncKeyRef.current === key) return;
+    decompressionResyncKeyRef.current = key;
+    refresh({ force: true });
+  }, [
+    enabled,
+    manifest?.syncGeneration,
+    refresh,
+    shardsPayloadKey,
+    useSharded,
+    v3Entries,
+    workspaceKey,
+  ]);
+
   useEffect(() => {
     if (!enabled) return;
     refresh();
@@ -289,10 +315,9 @@ export function useWorkspaceFileTree({
     (parsedV2?.entries?.length ?? 0) > 0;
   const blobLoading = useBlob && (rawV2 === undefined || (rawV2 !== null && jsonV2 === undefined));
   const shardedLoading = useSharded && (shardsRaw === undefined || v3Entries === undefined);
-  const isLoading =
-    enabled &&
-    !hasTree &&
-    (manifest === undefined || manifestIncomplete || shardedLoading || blobLoading);
+  const sourcesPending =
+    checkpointRaw === undefined || manifest === undefined || shardedLoading || blobLoading;
+  const isLoading = enabled && !hasTree && sourcesPending;
 
   return useMemo(
     () => ({

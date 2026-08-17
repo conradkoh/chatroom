@@ -324,6 +324,34 @@ describe('useWorkspaceFileTree', () => {
     });
   });
 
+  it('forces resync when manifest is incomplete and no blob snapshot exists', async () => {
+    mocks.manifest = {
+      syncGeneration: 'gen-partial',
+      shardIds: ['src'],
+      totalEntryCount: 1,
+      complete: false,
+      scannedAt: 1_700_000_000_000,
+    };
+    mocks.checkpoint = {
+      revision: 5,
+      strategyId: 'sharded',
+      snapshotId: 'gen-partial',
+      publishedAt: 1,
+    };
+    mocks.rawV2 = null;
+
+    renderHook(() => useWorkspaceFileTree(args));
+
+    await waitFor(() => {
+      expect(mocks.requestMutation).toHaveBeenCalledWith({
+        machineId: MACHINE_ID,
+        workingDir: WORKING_DIR,
+        force: true,
+      });
+    });
+    expect(mocks.rawV2).toBeNull();
+  });
+
   it('does not upsert store while manifest incomplete', async () => {
     mocks.manifest = {
       syncGeneration: 'gen-partial',
@@ -356,6 +384,6 @@ describe('useWorkspaceFileTree', () => {
 
     expect(getWorkspaceFileTreeEntries(KEY)).toEqual([]);
     expect(result.current.hasTree).toBe(false);
-    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isLoading).toBe(false);
   });
 });
