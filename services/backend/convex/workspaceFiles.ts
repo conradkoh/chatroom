@@ -30,6 +30,7 @@ import { requireAccess } from '../modules/auth/accessCheck';
 import { getInvalidChatAttachmentUploadPathReason } from '../src/domain/constants/chat-attachment-upload-path';
 import { MAX_WORKSPACE_UPLOAD_BYTES } from '../src/domain/constants/workspace-upload';
 import { getBlockedUploadTargetReason } from '../src/domain/constants/workspace-upload-path-policy';
+import { requestWorkspaceFileTree as requestWorkspaceFileTreeUseCase } from '../src/domain/usecase/workspace/request-workspace-file-tree';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -384,9 +385,6 @@ export const fulfillFileContent = mutation({
 
 // ─── File Tree Request (frontend → daemon) ──────────────────────────────────
 
-/** Staleness window for ensuring the daemon-side cache is active. */
-const FILE_TREE_STALENESS_MS = 10 * 1000; // 10 seconds
-
 /**
  * Requests that the daemon ensure incremental synchronization for a workspace.
  * `force` is reserved for explicit recovery and performs a reconciliation walk.
@@ -407,75 +405,12 @@ export const requestFileTree = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
-    const workingDir = normalizeWorkingDir(args.workingDir);
 
-    if (!args.force) {
-      const existingTree = await ctx.db
-        .query('chatroom_workspaceFileTreeV2')
-        .withIndex('by_machine_workingDir', (q: any) =>
-          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-        )
-        .first();
-
-      if (existingTree && Date.now() - existingTree.scannedAt < FILE_TREE_STALENESS_MS) {
-        return { status: 'cached' as const };
-      }
-
-      const manifestV3 = await ctx.db
-        .query('chatroom_workspaceFileTreeManifestV3')
-        .withIndex('by_machine_workingDir', (q: any) =>
-          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-        )
-        .first();
-
-      if (
-        manifestV3 &&
-        manifestV3.complete &&
-        Date.now() - manifestV3.scannedAt < FILE_TREE_STALENESS_MS
-      ) {
-        return { status: 'cached' as const };
-      }
-    }
-
-    // Check for existing pending request
-    const existingRequest = await ctx.db
-      .query('chatroom_workspaceFileTreeRequests')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-
-    if (existingRequest && existingRequest.status === 'pending') {
-      if (args.force && existingRequest.force !== true) {
-        await ctx.db.patch('chatroom_workspaceFileTreeRequests', existingRequest._id, {
-          force: true,
-          updatedAt: Date.now(),
-        });
-      }
-      return { status: 'pending' as const };
-    }
-
-    const now = Date.now();
-
-    if (existingRequest) {
-      await ctx.db.patch('chatroom_workspaceFileTreeRequests', existingRequest._id, {
-        status: 'pending',
-        force: args.force === true,
-        requestedAt: now,
-        updatedAt: now,
-      });
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileTreeRequests', {
-        machineId: args.machineId,
-        workingDir,
-        status: 'pending',
-        force: args.force === true,
-        requestedAt: now,
-        updatedAt: now,
-      });
-    }
-
-    return { status: 'requested' as const };
+    return await requestWorkspaceFileTreeUseCase(ctx, {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      force: args.force,
+    });
   },
 });
 
@@ -513,6 +448,7 @@ export const getPendingFileTreeRequests = query({
       _id: r._id,
       workingDir: r.workingDir,
       force: r.force === true,
+      updatedAt: r.updatedAt,
     }));
   },
 });
