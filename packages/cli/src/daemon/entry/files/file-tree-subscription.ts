@@ -6,18 +6,19 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { gzipSync } from 'node:zlib';
 
-import {
-  selectFileTreeSnapshotStrategyId,
-  strategyIdToSnapshotKind,
-} from '@workspace/backend/src/domain/workspace-file-tree/index.js';
+import { selectFileTreeSnapshotStrategyId } from '@workspace/backend/src/domain/workspace-file-tree/index.js';
+import { toLegacyCheckpointPublishArgs } from '@workspace/backend/src/domain/workspace-file-tree/transport/checkpoint.js';
 import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
 import { computeFileTreeDataHash } from '../../../infrastructure/services/workspace/file-tree-data-hash.js';
-import { uploadFileTreeV3 } from '../../../infrastructure/services/workspace/file-tree-v3-upload.js';
 import { normalizeWorkingDirForLookup } from '../../../infrastructure/services/workspace/normalize-working-dir.js';
+import {
+  buildBlobSnapshotPayload,
+  publishBlobSnapshot,
+} from '../../../infrastructure/services/workspace/transport/blob-snapshot-publish.js';
+import { publishShardedSnapshot } from '../../../infrastructure/services/workspace/transport/sharded-snapshot-publish.js';
 import {
   startWorkspaceFileTreeCoordinator,
   type WorkspaceFileTreeCoordinator,
@@ -97,20 +98,15 @@ async function syncScannedFileTree(
   syncGeneration: string
 ): Promise<{ snapshotKind: 'v2' | 'v3'; snapshotId: string }> {
   if (selectFileTreeSnapshotStrategyId(tree) === 'sharded') {
-    await uploadFileTreeV3(session, normalizedWorkingDir, tree, syncGeneration);
-    return { snapshotKind: strategyIdToSnapshotKind('sharded'), snapshotId: syncGeneration };
+    const ref = await publishShardedSnapshot(session, normalizedWorkingDir, tree, syncGeneration);
+    return toLegacyCheckpointPublishArgs({ ...ref, revision: 0 });
   }
-  const treeJson = JSON.stringify(tree);
-  const compressed = gzipSync(Buffer.from(treeJson)).toString('base64');
-  await session.backend.mutation(api.workspaceFiles.syncFileTreeV2, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-    workingDir: normalizedWorkingDir,
-    data: { compression: 'gzip', content: compressed },
-    dataHash,
-    scannedAt: tree.scannedAt,
-  });
-  return { snapshotKind: strategyIdToSnapshotKind('blob'), snapshotId: dataHash };
+  const ref = await publishBlobSnapshot(
+    session,
+    normalizedWorkingDir,
+    buildBlobSnapshotPayload(tree, dataHash)
+  );
+  return toLegacyCheckpointPublishArgs({ ...ref, revision: 0 });
 }
 
 function toDeltaOperations(delta: WorkspacePendingDelta) {

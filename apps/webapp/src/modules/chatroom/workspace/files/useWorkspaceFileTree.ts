@@ -7,6 +7,15 @@ import type {
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files';
 import { resolveFileTreeHydrationMode } from '@workspace/backend/src/domain/workspace-file-tree/resolve-hydration';
+import type { BlobSnapshotReadResult } from '@workspace/backend/src/domain/workspace-file-tree/transport/blob-snapshot';
+import {
+  fromLegacyCheckpoint,
+  type LegacyFileTreeCheckpoint,
+} from '@workspace/backend/src/domain/workspace-file-tree/transport/checkpoint';
+import type {
+  ShardedSnapshotManifest,
+  ShardedSnapshotShard,
+} from '@workspace/backend/src/domain/workspace-file-tree/transport/sharded-snapshot';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
@@ -36,29 +45,6 @@ import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFi
 
 const EMPTY_FILE_ENTRIES: FileEntry[] = [];
 const EMPTY_ROOT_NODES: ExplorerTreeNode[] = [];
-
-type FileTreeManifestV3 = {
-  syncGeneration: string;
-  shardIds: string[];
-  totalEntryCount: number;
-  complete: boolean;
-  scannedAt: number;
-};
-
-type FileTreeShardV3Row = {
-  shardId: string;
-  data: { compression: 'gzip'; content: string };
-  dataHash: string;
-  scannedAt: number;
-  entryCount: number;
-};
-
-type FileTreeCheckpoint = {
-  revision: number;
-  snapshotKind: 'v2' | 'v3';
-  snapshotId: string;
-  publishedAt: number;
-};
 
 export interface UseWorkspaceFileTreeArgs {
   machineId: string;
@@ -100,16 +86,20 @@ export function useWorkspaceFileTree({
     enabled,
   });
 
-  const checkpoint = useSessionQuery(
+  const checkpointRaw = useSessionQuery(
     api.workspaceFiles.getFileTreeCheckpoint,
     enabled ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
-  ) as FileTreeCheckpoint | null | undefined;
+  ) as LegacyFileTreeCheckpoint | null | undefined;
+  const checkpoint = useMemo(
+    () => (checkpointRaw == null ? checkpointRaw : fromLegacyCheckpoint(checkpointRaw)),
+    [checkpointRaw]
+  );
   const checkpointRevision = checkpoint === undefined ? null : (checkpoint?.revision ?? 0);
 
   const manifest = useSessionQuery(
     api.workspaceFiles.getFileTreeManifestV3,
     enabled ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
-  ) as FileTreeManifestV3 | null | undefined;
+  ) as ShardedSnapshotManifest | null | undefined;
 
   const hydrationMode = resolveFileTreeHydrationMode({ checkpoint, manifest });
   const useSharded = hydrationMode === 'sharded';
@@ -125,12 +115,12 @@ export function useWorkspaceFileTree({
           syncGeneration: manifest?.syncGeneration ?? '',
         }
       : 'skip'
-  ) as FileTreeShardV3Row[] | null | undefined;
+  ) as ShardedSnapshotShard[] | null | undefined;
 
   const rawV2 = useSessionQuery(
     api.workspaceFiles.getFileTreeV2,
     enabled && useBlob ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
-  );
+  ) as BlobSnapshotReadResult | null | undefined;
   const jsonV2 = useDecompressedQueryJson(rawV2, enabled && useBlob);
 
   const parsedV2 = useMemo((): FileTree | null | undefined => {

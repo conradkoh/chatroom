@@ -1,4 +1,3 @@
-// fallow-ignore-file unused-export
 import {
   snapshotKindToStrategyId,
   strategyIdToSnapshotKind,
