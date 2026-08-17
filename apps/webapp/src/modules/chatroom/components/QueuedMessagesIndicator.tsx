@@ -48,8 +48,7 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isListModalOpen, setIsListModalOpen] = useState(false);
 
-  const { promoteQueuedMessage: handlePromote, deleteQueuedMessage: handleDelete } =
-    useQueuedMessageActions();
+  const { deleteQueuedMessage: handleDelete } = useQueuedMessageActions();
 
   // Return null when there are no queued messages — no indicator shown.
   if (queuedMessages.length === 0) return null;
@@ -109,7 +108,6 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
           messages={queuedMessages}
           teamSupportsEnhancer={teamSupportsEnhancerFlag}
           onClose={() => setIsListModalOpen(false)}
-          onPromote={handlePromote}
           onDelete={handleDelete}
         />
       )}
@@ -121,7 +119,6 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
         isOpen={isDetailModalOpen}
         teamSupportsEnhancer={teamSupportsEnhancerFlag}
         onClose={() => setIsDetailModalOpen(false)}
-        onPromote={handlePromote}
         onDelete={handleDelete}
       />
     </>

@@ -45,9 +45,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       deleteUserMessageOrTask: 'messages:deleteUserMessageOrTask',
       updateUserMessageOrTask: 'messages:updateUserMessageOrTask',
     },
-    tasks: {
-      promoteSpecificTask: 'tasks:promoteSpecificTask',
-    },
+    tasks: {},
   },
 }));
 

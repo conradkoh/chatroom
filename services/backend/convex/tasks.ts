@@ -21,8 +21,6 @@ import {
 } from '../src/domain/usecase/task/create-task';
 import { normalizeMarkdownContent, withMarkdownContent } from '../src/domain/entities/markdown-content';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
-import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
-import { canPromote } from './lib/promoteNextTaskDeps';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
 import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
@@ -706,47 +704,6 @@ export const promoteNextTask = mutation({
     return result.promoted
       ? { promoted: true, reason: 'success', taskId: result.promoted }
       : { promoted: false, reason: result.reason, taskId: null };
-  },
-});
-
-/**
- * Promotes a specific queued message to an active pending task.
- * User-triggered, bypasses areAllAgentsWaiting check.
- * Fails gracefully if there is already a pending or in_progress task.
- */
-export const promoteSpecificTask = mutation({
-  args: {
-    ...SessionIdArg,
-    queuedMessageId: v.id('chatroom_messageQueue'),
-  },
-  handler: async (ctx, args) => {
-    const queueRecord = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
-    if (!queueRecord) {
-      throw new ConvexError({
-        code: 'QUEUED_MESSAGE_NOT_FOUND',
-        message: 'Queued message not found',
-      });
-    }
-
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, queueRecord.chatroomId);
-
-    // Check for active tasks using shared canPromote guard
-    const promotable = await canPromote(ctx, queueRecord.chatroomId);
-    if (!promotable) {
-      return {
-        promoted: false,
-        reason: 'active_task_exists' as const,
-      };
-    }
-
-    // Promote: queue record → message + task (bypass areAllAgentsWaiting)
-    await promoteQueuedMessage(ctx, args.queuedMessageId);
-
-    return {
-      promoted: true,
-      reason: 'success' as const,
-    };
   },
 });
 
