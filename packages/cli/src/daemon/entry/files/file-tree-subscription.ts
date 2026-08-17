@@ -99,14 +99,24 @@ async function syncScannedFileTree(
 ): Promise<{ snapshotKind: 'v2' | 'v3'; snapshotId: string }> {
   if (selectFileTreeSnapshotStrategyId(tree) === 'sharded') {
     const ref = await publishShardedSnapshot(session, normalizedWorkingDir, tree, syncGeneration);
-    return toLegacyCheckpointPublishArgs({ ...ref, revision: 0 });
+    const legacy = toLegacyCheckpointPublishArgs({
+      revision: 0,
+      strategyId: ref.strategyId,
+      snapshotId: ref.snapshotId,
+    });
+    return { snapshotKind: legacy.snapshotKind, snapshotId: legacy.snapshotId };
   }
   const ref = await publishBlobSnapshot(
     session,
     normalizedWorkingDir,
     buildBlobSnapshotPayload(tree, dataHash)
   );
-  return toLegacyCheckpointPublishArgs({ ...ref, revision: 0 });
+  const legacy = toLegacyCheckpointPublishArgs({
+    revision: 0,
+    strategyId: ref.strategyId,
+    snapshotId: ref.snapshotId,
+  });
+  return { snapshotKind: legacy.snapshotKind, snapshotId: legacy.snapshotId };
 }
 
 function toDeltaOperations(delta: WorkspacePendingDelta) {
