@@ -26,17 +26,17 @@ export function extendSelectionToLineBoundaryByCoords(
   const { selection } = view.state;
   const head = direction === 'backward' ? selection.from : selection.to;
   const coords = view.coordsAtPos(head);
-  const found =
+  const newHead =
     direction === 'backward'
       ? findPosOnVisualLineAbove(view, head, coords)
-      : view.posAtCoords({
+      : (view.posAtCoords({
           left: coords.left,
           top: coords.bottom + Math.max(coords.bottom - coords.top, 1) / 2,
-        });
-  if (!found || found.pos === head) return false;
+        })?.pos ?? null);
+  if (newHead === null || newHead === head) return false;
   view.dispatch(
     view.state.tr.setSelection(
-      selection.constructor.create(view.state.doc, selection.anchor, found.pos)
+      selection.constructor.create(view.state.doc, selection.anchor, newHead)
     )
   );
   return true;

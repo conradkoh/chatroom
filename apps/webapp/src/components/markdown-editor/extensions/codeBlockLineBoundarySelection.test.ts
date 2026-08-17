@@ -15,8 +15,10 @@ describe('extendSelectionToLineBoundaryByCoords', () => {
       constructor: { create: vi.fn(() => ({ anchor: 10, head: 8 })) },
     };
     const view = {
-      state: { selection, doc: {}, tr: { setSelection } },
-      coordsAtPos: vi.fn(() => ({ top: 20, bottom: 30, left: 5 })),
+      state: { selection, doc: { resolve: () => ({ start: () => 1 }) }, tr: { setSelection } },
+      coordsAtPos: vi.fn((pos: number) =>
+        pos === 1 ? { top: 10, bottom: 20, left: 0 } : { top: 20, bottom: 30, left: 10 }
+      ),
       posAtCoords: vi.fn(() => ({ pos: 8 })),
       dispatch,
     };
@@ -41,7 +43,7 @@ describe('extendSelectionToLineBoundaryByCoords', () => {
     const dispatch = vi.fn();
     const setSelection = vi.fn().mockReturnThis();
     const selection = {
-      from: 10,
+      from: 500,
       to: 500,
       anchor: 10,
       head: 500,
