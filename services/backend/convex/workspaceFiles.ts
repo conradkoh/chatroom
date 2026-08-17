@@ -17,6 +17,7 @@ import {
   expandFileTreeDeltaOperations,
 } from './lib/fileTreeDeltaOps';
 import { getCurrentRevision } from './workspaceFileTree/repositories/deltaRepository';
+import { publishFileTreeCheckpoint as publishCheckpointService } from './workspaceFileTree/services/checkpointPublishService';
 import { getFileTreeCheckpointForApi } from './workspaceFileTree/services/checkpointQueryService';
 import { validateFileTreeRevision as validateWorkspaceFileTreeRevision } from './workspaceFileTree/validation';
 import {
@@ -1157,81 +1158,14 @@ export const publishFileTreeCheckpoint = mutation({
     validateFileTreeRevision(args.revision, 'revision');
     if (!args.snapshotId) throw new Error('snapshotId is required');
 
-    const currentRevision = await getCurrentRevision(ctx, args.machineId, workingDir);
-    // A checkpoint may compact the current revision or advance it by one when
-    // replacing a stale/missing local cache with a newly scanned authoritative snapshot.
-    if (args.revision !== currentRevision && args.revision !== currentRevision + 1) {
-      return { status: 'resync-required' as const, expectedRevision: currentRevision };
-    }
-
     const strategyId = snapshotKindToStrategyId(args.snapshotKind);
-    if (strategyId === 'blob') {
-      const snapshot = await ctx.db
-        .query('chatroom_workspaceFileTreeV2')
-        .withIndex('by_machine_workingDir', (q: any) =>
-          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-        )
-        .first();
-      if (!snapshot || snapshot.dataHash !== args.snapshotId) {
-        return { status: 'snapshot-missing' as const };
-      }
-    } else {
-      const manifest = await ctx.db
-        .query('chatroom_workspaceFileTreeManifestV3')
-        .withIndex('by_machine_workingDir', (q: any) =>
-          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-        )
-        .first();
-      if (!manifest || !manifest.complete || manifest.syncGeneration !== args.snapshotId) {
-        return { status: 'snapshot-missing' as const };
-      }
-    }
-
-    const existing = await ctx.db
-      .query('chatroom_workspaceFileTreeCheckpoint')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-    if (existing && args.revision < existing.revision) {
-      return { status: 'resync-required' as const, expectedRevision: currentRevision };
-    }
-    const unchanged =
-      existing?.revision === args.revision &&
-      existing.strategyId === strategyId &&
-      existing.snapshotId === args.snapshotId;
-    const row = {
+    return await publishCheckpointService(ctx, {
       machineId: args.machineId,
       workingDir,
       revision: args.revision,
       strategyId,
       snapshotId: args.snapshotId,
-      publishedAt: Date.now(),
-    };
-    if (existing) {
-      await ctx.db.patch('chatroom_workspaceFileTreeCheckpoint', existing._id, row);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileTreeCheckpoint', row);
-    }
-
-    const coveredDeltas = await ctx.db
-      .query('chatroom_workspaceFileTreeDelta')
-      .withIndex('by_machine_workingDir_revision', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', workingDir)
-          .lte('revision', args.revision)
-      )
-      .collect();
-    for (const delta of coveredDeltas) {
-      await ctx.db.delete('chatroom_workspaceFileTreeDelta', delta._id);
-    }
-
-    return {
-      status: unchanged ? ('unchanged' as const) : ('published' as const),
-      revision: args.revision,
-      prunedDeltaCount: coveredDeltas.length,
-    };
+    });
   },
 });
 
