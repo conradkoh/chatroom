@@ -18,6 +18,7 @@ import {
 } from './lib/fileTreeDeltaOps';
 import * as blobSnapshots from './workspaceFileTree/repositories/blobSnapshotRepository';
 import { getCurrentRevision } from './workspaceFileTree/repositories/deltaRepository';
+import * as shardedSnapshots from './workspaceFileTree/repositories/shardedSnapshotRepository';
 import { publishFileTreeCheckpoint as publishCheckpointService } from './workspaceFileTree/services/checkpointPublishService';
 import { getFileTreeCheckpointForApi } from './workspaceFileTree/services/checkpointQueryService';
 import { validateFileTreeRevision as validateWorkspaceFileTreeRevision } from './workspaceFileTree/validation';
@@ -37,9 +38,6 @@ import { snapshotKindToStrategyId } from '../src/domain/workspace-file-tree/type
 
 /** Max treeJson size: 900KB (stay under Convex's 1MB document limit). */
 const MAX_TREE_JSON_BYTES = 900 * 1024;
-
-/** Max compressed shard payload (base64 content string). */
-const MAX_SHARD_JSON_BYTES = 800 * 1024;
 
 /** Max shards per batch mutation. */
 const MAX_SHARD_BATCH_SIZE = 8;
@@ -722,49 +720,6 @@ export const getFileTreeV2 = query({
 
 // ─── File Tree Shard V3 (daemon → backend, large repos) ─────────────────────
 
-type FileTreeShardV3Row = {
-  machineId: string;
-  workingDir: string;
-  shardId: string;
-  syncGeneration: string;
-  data: { compression: 'gzip'; content: string };
-  dataHash: string;
-  scannedAt: number;
-  entryCount: number;
-};
-
-async function upsertFileTreeShardV3Row(
-  ctx: MutationCtx,
-  args: FileTreeShardV3Row
-): Promise<boolean> {
-  const workingDir = normalizeWorkingDir(args.workingDir);
-  const sizeBytes = new TextEncoder().encode(args.data.content).length;
-  if (sizeBytes > MAX_SHARD_JSON_BYTES) {
-    throw new Error(`File tree shard too large: ${args.shardId}`);
-  }
-
-  const existing = await ctx.db
-    .query('chatroom_workspaceFileTreeShardV3')
-    .withIndex('by_machine_workingDir_syncGeneration_shardId', (q: any) =>
-      q
-        .eq('machineId', args.machineId)
-        .eq('workingDir', workingDir)
-        .eq('syncGeneration', args.syncGeneration)
-        .eq('shardId', args.shardId)
-    )
-    .first();
-
-  if (existing && existing.dataHash === args.dataHash) return false;
-
-  const row = { ...args, workingDir };
-  if (existing) {
-    await ctx.db.patch('chatroom_workspaceFileTreeShardV3', existing._id, row);
-  } else {
-    await ctx.db.insert('chatroom_workspaceFileTreeShardV3', row);
-  }
-  return true;
-}
-
 /** Batch upsert file tree shards (v3). Returns { written, skipped }. */
 export const syncFileTreeShardV3Batch = mutation({
   args: {
@@ -791,17 +746,13 @@ export const syncFileTreeShardV3Batch = mutation({
       throw new Error(`Batch size exceeds max ${MAX_SHARD_BATCH_SIZE}`);
     }
 
-    let written = 0;
-    for (const item of args.items) {
-      const didWrite = await upsertFileTreeShardV3Row(ctx, {
-        machineId: args.machineId,
-        workingDir: args.workingDir,
-        syncGeneration: args.syncGeneration,
-        ...item,
-      });
-      if (didWrite) written++;
-    }
-    return { written, skipped: args.items.length - written };
+    return await shardedSnapshots.upsertShardBatch(
+      ctx,
+      args.machineId,
+      args.workingDir,
+      args.syncGeneration,
+      args.items
+    );
   },
 });
 
@@ -821,45 +772,15 @@ export const syncFileTreeManifestV3 = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await requireMachineAccess(ctx, args.machineId, auth.userId);
-    const workingDir = normalizeWorkingDir(args.workingDir);
-
-    const existing = await ctx.db
-      .query('chatroom_workspaceFileTreeManifestV3')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-
-    if (existing && existing.syncGeneration !== args.syncGeneration) {
-      const oldShards = await ctx.db
-        .query('chatroom_workspaceFileTreeShardV3')
-        .withIndex('by_machine_workingDir_syncGeneration', (q: any) =>
-          q
-            .eq('machineId', args.machineId)
-            .eq('workingDir', workingDir)
-            .eq('syncGeneration', existing.syncGeneration)
-        )
-        .collect();
-      for (const shard of oldShards) {
-        await ctx.db.delete('chatroom_workspaceFileTreeShardV3', shard._id);
-      }
-    }
-
-    const row = {
+    await shardedSnapshots.upsertManifest(ctx, {
       machineId: args.machineId,
-      workingDir,
+      workingDir: args.workingDir,
       syncGeneration: args.syncGeneration,
       shardIds: args.shardIds,
       totalEntryCount: args.totalEntryCount,
       complete: args.complete,
       scannedAt: args.scannedAt,
-    };
-
-    if (existing) {
-      await ctx.db.patch('chatroom_workspaceFileTreeManifestV3', existing._id, row);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileTreeManifestV3', row);
-    }
+    });
   },
 });
 
@@ -879,12 +800,7 @@ export const getFileTreeManifestV3 = query({
       return null;
     }
     const workingDir = normalizeWorkingDir(args.workingDir);
-    const manifest = await ctx.db
-      .query('chatroom_workspaceFileTreeManifestV3')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
+    const manifest = await shardedSnapshots.findManifest(ctx, args.machineId, workingDir);
     if (!manifest) return null;
     return {
       syncGeneration: manifest.syncGeneration,
@@ -913,15 +829,12 @@ export const getFileTreeShardsV3 = query({
       return null;
     }
     const workingDir = normalizeWorkingDir(args.workingDir);
-    const shards = await ctx.db
-      .query('chatroom_workspaceFileTreeShardV3')
-      .withIndex('by_machine_workingDir_syncGeneration', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', workingDir)
-          .eq('syncGeneration', args.syncGeneration)
-      )
-      .collect();
+    const shards = await shardedSnapshots.findShards(
+      ctx,
+      args.machineId,
+      workingDir,
+      args.syncGeneration
+    );
     return shards.map((s) => ({
       shardId: s.shardId,
       data: s.data,
