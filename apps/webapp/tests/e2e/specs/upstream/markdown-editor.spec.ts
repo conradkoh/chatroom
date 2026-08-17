@@ -61,7 +61,9 @@ test.describe('Markdown Editor Demo', { tag: [TAG_UPSTREAM, TAG_MARKDOWN] }, () 
     await expect(viewer.locator('li').filter({ hasText: 'Same typography' })).toBeVisible();
   });
 
-  test('interactive editor applies default prose classes to EditorContent wrapper', async ({ page }) => {
+  test('interactive editor applies default prose classes to EditorContent wrapper', async ({
+    page,
+  }) => {
     const markdownPage = new MarkdownEditorTestPage(page);
     await markdownPage.navigate();
     const editor = markdownPage.interactiveEditor;
@@ -69,6 +71,31 @@ test.describe('Markdown Editor Demo', { tag: [TAG_UPSTREAM, TAG_MARKDOWN] }, () 
     const wrapper = editor.locator('.p-4');
     await expect(wrapper).toHaveClass(/prose/);
     await expect(wrapper).toHaveClass(/prose-invert/);
+  });
+
+  test('extends selection upward from final soft-wrap tail in code block (Chromium)', async ({
+    page,
+  }) => {
+    const markdownPage = new MarkdownEditorTestPage(page);
+    await markdownPage.navigate();
+
+    const repro =
+      '[<div class="px-4 py-8 text-...">No files found. Ensure the workspace daemon is running.</div> in WorkspaceFileExplorer (at .../WorkspaceFileExplorer.tsx:68:12) in FileExplorerPanel (at .../FileExplorerPanel.tsx:494:13) in next in ChatroomDashboard (at .../ChatroomDashboard.tsx:1909:25)]';
+    const editable = markdownPage.interactiveEditorEditable;
+
+    await editable.locator('pre code').first().click();
+    await page.keyboard.press('Control+a');
+    await page.keyboard.insertText(repro);
+    await page.keyboard.press('Control+End');
+    await page.keyboard.press('Shift+Alt+ArrowUp');
+
+    const selection = await editable.evaluate(() => {
+      const current = window.getSelection();
+      return { isCollapsed: current?.isCollapsed, selectedText: current?.toString() ?? '' };
+    });
+
+    expect(selection.isCollapsed).toBe(false);
+    expect(selection.selectedText.length).toBeGreaterThan(0);
   });
 
   test('toolbar bold toggle applies formatting', async ({ page }) => {
