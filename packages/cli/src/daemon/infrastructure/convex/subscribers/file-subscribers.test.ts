@@ -57,6 +57,40 @@ describe('file v2 subscribers', () => {
     });
   });
 
+  it('file-tree subscriber re-emits when pending request updatedAt changes', async () => {
+    const events: InboundEvent[] = [];
+    const { wsClient, emitUpdate } = createMockWsClient();
+
+    const handle = startFileTreeRequestSubscriber(
+      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      (event) => events.push(event)
+    );
+
+    emitUpdate([
+      {
+        _id: FILE_TREE_REQUEST_ID,
+        workingDir: '/repo',
+        force: true,
+        updatedAt: 1,
+      },
+    ]);
+    emitUpdate([
+      {
+        _id: FILE_TREE_REQUEST_ID,
+        workingDir: '/repo',
+        force: true,
+        updatedAt: 2,
+      },
+    ]);
+    await handle.stop();
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toEqual({
+      type: 'file-tree.request',
+      requestId: FILE_TREE_REQUEST_ID,
+    });
+  });
+
   it('file-content subscriber emits file-content.request with requestId', async () => {
     const events: InboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
