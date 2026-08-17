@@ -34,6 +34,7 @@ export function useWorkspaceDirExplorer({
   hasTree: boolean;
   refresh: () => void;
   isSearchMode: boolean;
+  loadError: string | null;
 } {
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
@@ -96,7 +97,17 @@ export function useWorkspaceDirExplorer({
       hasTree: tree.hasTree || entriesHasTree,
       refresh,
       isSearchMode,
+      loadError: tree.loadError,
     }),
-    [displayNodes, entriesHasTree, isSearchMode, refresh, rootNodes, tree.hasTree, tree.isLoading]
+    [
+      displayNodes,
+      entriesHasTree,
+      isSearchMode,
+      refresh,
+      rootNodes,
+      tree.hasTree,
+      tree.isLoading,
+      tree.loadError,
+    ]
   );
 }

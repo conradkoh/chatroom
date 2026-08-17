@@ -19,7 +19,7 @@ import type {
   ShardedSnapshotShard,
 } from '@workspace/backend/src/domain/workspace-file-tree/transport/sharded-snapshot';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import type { ExplorerTreeNode } from './explorer-tree';
 import {
@@ -48,6 +48,7 @@ import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFi
 
 const EMPTY_FILE_ENTRIES: FileEntry[] = [];
 const EMPTY_ROOT_NODES: ExplorerTreeNode[] = [];
+const FILE_TREE_RECOVER_TIMEOUT_MS = 60_000;
 
 export interface UseWorkspaceFileTreeArgs {
   machineId: string;
@@ -62,6 +63,7 @@ export interface UseWorkspaceFileTreeResult {
   isLoading: boolean;
   hasTree: boolean;
   refresh: (options?: { force?: boolean }) => void;
+  loadError: string | null;
 }
 
 function resolveFileTreeEntries(
@@ -300,6 +302,8 @@ export function useWorkspaceFileTree({
   );
 
   useFileTreeHydrationRecovery(enabled, hydrationPlan, refresh);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const recoverStartedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -325,7 +329,23 @@ export function useWorkspaceFileTree({
     storeEntries.length > 0 ||
     (v3Entries?.length ?? 0) > 0 ||
     (parsedV2?.entries?.length ?? 0) > 0;
-  const isLoading = enabled && !hasTree && isFileTreeHydrationLoading(hydrationPlan);
+  useEffect(() => {
+    if (!enabled || hydrationPlan.kind !== 'recover') {
+      recoverStartedAtRef.current = null;
+      if (!enabled || loadError !== null) setLoadError(null);
+      return;
+    }
+    if (recoverStartedAtRef.current === null) recoverStartedAtRef.current = Date.now();
+    const timer = window.setTimeout(() => {
+      if (!hasTree)
+        setLoadError(
+          'File tree sync timed out. Ensure the workspace daemon is running, then retry.'
+        );
+    }, FILE_TREE_RECOVER_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [enabled, hydrationPlan.kind, hasTree, loadError]);
+  const isLoading =
+    enabled && !hasTree && loadError === null && isFileTreeHydrationLoading(hydrationPlan);
 
   return useMemo(
     () => ({
@@ -335,7 +355,8 @@ export function useWorkspaceFileTree({
       isLoading,
       hasTree,
       refresh,
+      loadError,
     }),
-    [entries, rootNodes, scannedAt, isLoading, hasTree, refresh]
+    [entries, rootNodes, scannedAt, isLoading, hasTree, refresh, loadError]
   );
 }
