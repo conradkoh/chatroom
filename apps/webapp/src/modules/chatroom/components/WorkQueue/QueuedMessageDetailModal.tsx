@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { ArrowUp, Check, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide-react';
+import { Check, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide-react';
 import React, { memo, useCallback, useState } from 'react';
 import Markdown from 'react-markdown';
 
@@ -40,7 +40,6 @@ interface QueuedMessageDetailModalProps {
   /** Called when the modal should close. */
   onClose: () => void;
   /** Called when the user promotes the message. */
-  onPromote: (queuedMessageId: string) => Promise<void>;
   /** Called when the user deletes the message. */
   onDelete: (queuedMessageId: string) => Promise<void>;
   teamSupportsEnhancer?: boolean;
@@ -72,7 +71,7 @@ function QueuedMessageAttachmentsSection({ message }: { message: Message }) {
  * Features:
  * - Markdown preview of the queued message content.
  * - Tabbed Edit/Preview editor for in-modal editing.
- * - Primary "Promote" action + secondary Actions dropdown (Edit, Delete).
+ * - Secondary Actions dropdown (Edit, Delete).
  * - Error strip (mirrors `BacklogItemDetailModal` + `TaskDetailModal` patterns).
  */
 export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
@@ -80,7 +79,6 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
   message,
   isOpen,
   onClose,
-  onPromote,
   onDelete,
   teamSupportsEnhancer,
 }: QueuedMessageDetailModalProps) {
@@ -279,16 +277,6 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
             </>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={() => handleModalMutation(() => onPromote(message._id))}
-                disabled={isSaving}
-                className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-transparent bg-chatroom-accent text-chatroom-bg-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ArrowUp size={12} />
-                {isSaving ? 'Working...' : 'Promote'}
-              </button>
-
               {teamSupportsEnhancer ? (
                 <QueuedMessageEnhancerToggle
                   queuedMessageId={message._id}

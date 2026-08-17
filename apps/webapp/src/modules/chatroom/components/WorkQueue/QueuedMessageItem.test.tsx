@@ -30,9 +30,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       updateUserMessageOrTask: 'messages:updateUserMessageOrTask',
       deleteUserMessageOrTask: 'messages:deleteUserMessageOrTask',
     },
-    tasks: {
-      promoteSpecificTask: 'tasks:promoteSpecificTask',
-    },
+    tasks: {},
   },
 }));
 
@@ -96,7 +94,6 @@ function renderItem(message: Message) {
     <QueuedMessageItem
       chatroomId={'test-room' as Id<'chatroom_rooms'>}
       message={message}
-      onPromote={noop}
       onDelete={noop}
     />
   );

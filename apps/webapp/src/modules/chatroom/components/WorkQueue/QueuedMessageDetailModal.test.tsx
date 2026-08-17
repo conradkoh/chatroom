@@ -97,7 +97,6 @@ function renderModal(message: Message, isOpen = true) {
       message={message}
       isOpen={isOpen}
       onClose={noop}
-      onPromote={noop}
       onDelete={noop}
     />
   );

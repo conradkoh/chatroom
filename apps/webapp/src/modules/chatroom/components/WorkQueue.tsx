@@ -157,8 +157,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   // Note: cancelTask mutation was removed in Phase 3 backlog cleanup
 
   // Queued messages mutations
-  const { promoteQueuedMessage: handleQueuedPromote, deleteQueuedMessage: handleQueuedDelete } =
-    useQueuedMessageActions();
+  const { deleteQueuedMessage: handleQueuedDelete } = useQueuedMessageActions();
 
   // Fetch queued messages
   const queuedMessagesRaw = useSessionQuery(api.messages.listQueued, {
@@ -393,7 +392,6 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
                 chatroomId={chatroomId}
                 message={message}
                 teamSupportsEnhancer={teamSupportsEnhancerFlag}
-                onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
               />
             ))}
@@ -554,7 +552,6 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
           messages={queuedMessages}
           teamSupportsEnhancer={teamSupportsEnhancerFlag}
           onClose={() => setIsQueuedMessagesModalOpen(false)}
-          onPromote={handleQueuedPromote}
           onDelete={handleQueuedDelete}
         />
       )}
