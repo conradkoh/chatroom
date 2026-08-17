@@ -20,6 +20,8 @@ vi.mock('../../../api.js', () => ({
       syncFileTreeShardV3Batch: 'sync-v3-shards',
       syncFileTreeManifestV3: 'sync-v3-manifest',
       fulfillFileTreeRequest: 'fulfill',
+      getPendingFileTreeReleaseRequests: 'pending-release',
+      fulfillFileTreeReleaseRequest: 'fulfill-release',
     },
   },
 }));
@@ -198,5 +200,33 @@ describe('startFileTreeSubscriptionEffect', () => {
     handle.stop();
 
     await vi.waitFor(() => expect(coordinatorHandle.stop).toHaveBeenCalled());
+  });
+
+  it('stops coordinator when a release request is drained', async () => {
+    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'pending') {
+        return Promise.resolve([{ _id: 'one', workingDir: '/workspace' }]);
+      }
+      if (endpoint === 'checkpoint') {
+        return Promise.resolve({ revision: 0 });
+      }
+      if (endpoint === 'pending-release') {
+        return Promise.resolve([{ _id: 'release-1', workingDir: '/workspace' }]);
+      }
+      return Promise.resolve(null);
+    });
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
+      backend: deps.backend,
+    });
+
+    await handle.drainPendingFileTreeRequests();
+    await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalled());
+
+    await handle.drainPendingFileTreeReleaseRequests();
+
+    await vi.waitFor(() => expect(coordinatorHandle.stop).toHaveBeenCalled());
+    expect(deps.backend.mutation).toHaveBeenCalledWith('fulfill-release', expect.any(Object));
   });
 });

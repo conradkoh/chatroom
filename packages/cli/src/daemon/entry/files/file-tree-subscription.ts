@@ -34,6 +34,7 @@ function logSubscriptionWarn(label: string, err: unknown): void {
 export interface FileTreeSubscriptionHandle {
   stop: () => void;
   drainPendingFileTreeRequests: () => Promise<void>;
+  drainPendingFileTreeReleaseRequests: () => Promise<void>;
 }
 
 type EnsureCoordinator = (
@@ -41,6 +42,53 @@ type EnsureCoordinator = (
   forceReconcile: boolean
 ) => Promise<WorkspaceFileTreeCoordinator>;
 
+async function stopCoordinatorForWorkingDir(
+  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
+  normalized: string
+): Promise<void> {
+  const coordinatorPromise = coordinators.get(normalized);
+  if (!coordinatorPromise) return;
+  coordinators.delete(normalized);
+  await coordinatorPromise.then((coordinator) => coordinator.stop()).catch(() => undefined);
+}
+
+async function drainPendingFileTreeReleaseRequests(
+  session: DaemonSessionServiceShape,
+  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>
+): Promise<void> {
+  const releases = await session.backend.query(
+    api.workspaceFiles.getPendingFileTreeReleaseRequests,
+    {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+    }
+  );
+  if (!releases?.length) return;
+
+  const releasesByDir = new Set<string>();
+  for (const release of releases) {
+    releasesByDir.add(normalizeWorkingDirForLookup(release.workingDir));
+  }
+
+  for (const normalized of releasesByDir) {
+    await stopCoordinatorForWorkingDir(coordinators, normalized)
+      .then(() =>
+        session.backend.mutation(api.workspaceFiles.fulfillFileTreeReleaseRequest, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          workingDir: normalized,
+        })
+      )
+      .then(() => {
+        console.log(`[${formatTimestamp()}] 🌳 File tree coordinator stopped: ${normalized}`);
+      })
+      .catch((err: unknown) => {
+        logSubscriptionWarn(`File tree release failed for ${normalized}`, err);
+      });
+  }
+}
+
+// fallow-ignore-next-line complexity
 async function processPendingFileTreeRequests(
   session: DaemonSessionServiceShape,
   coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
@@ -239,6 +287,8 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
     return {
       drainPendingFileTreeRequests: () =>
         drainPendingFileTreeRequests(session, coordinators, ensureCoordinator),
+      drainPendingFileTreeReleaseRequests: () =>
+        drainPendingFileTreeReleaseRequests(session, coordinators),
       stop: () => {
         void Promise.all(
           [...coordinators.values()].map((coordinator) =>
