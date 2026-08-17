@@ -240,6 +240,74 @@ describe('_sendMessageHandler — queued user message routing', () => {
   });
 });
 
+describe('enqueueMessageAtFront', () => {
+  test('puts new message before existing queued messages when active task exists', async () => {
+    const { sessionId } = await createTestSession('enqueue-front-order');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'existing',
+      type: 'message',
+    });
+    await t.mutation(api.messages.enqueueMessageAtFront, {
+      sessionId,
+      chatroomId,
+      content: 'front',
+    });
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.map((m) => m.content)).toEqual(['front', 'existing']);
+    expect(queued[0]!.queuePosition).toBeLessThan(queued[1]!.queuePosition);
+  });
+
+  test('reindexes when front queue item is at position 0', async () => {
+    const { sessionId } = await createTestSession('enqueue-front-reindex');
+    const chatroomId = await createChatroom(sessionId);
+    await seedActiveTask(chatroomId);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_messageQueue', {
+        chatroomId,
+        senderRole: 'user',
+        content: 'at-zero',
+        type: 'message',
+        queuePosition: 0,
+      });
+      await ctx.db.patch('chatroom_rooms', chatroomId, { nextQueuePosition: undefined });
+    });
+    await t.mutation(api.messages.enqueueMessageAtFront, {
+      sessionId,
+      chatroomId,
+      content: 'new-front',
+    });
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued.map((m) => m.content)).toEqual(['new-front', 'at-zero']);
+    expect(queued[0]!.queuePosition).toBe(0);
+    expect(queued[1]!.queuePosition).toBe(1);
+    const counter = await t.run(
+      async (ctx) => (await ctx.db.get('chatroom_rooms', chatroomId))?.nextQueuePosition
+    );
+    expect(counter).toBe(2);
+  });
+
+  test('idle chatroom creates direct pending task, not a queue row', async () => {
+    const { sessionId } = await createTestSession('enqueue-front-idle');
+    const chatroomId = await createChatroom(sessionId);
+    const messageId = await t.mutation(api.messages.enqueueMessageAtFront, {
+      sessionId,
+      chatroomId,
+      content: 'idle message',
+    });
+    const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
+    expect(queued).toHaveLength(0);
+    const message = await t.run(async (ctx) =>
+      ctx.db.get('chatroom_messages', messageId as Id<'chatroom_messages'>)
+    );
+    expect(message?.content).toBe('idle message');
+  });
+});
+
 describe('listQueued query', () => {
   test('returns queued messages for a chatroom in creation order', async () => {
     const { sessionId } = await createTestSession('list-queued-1');
