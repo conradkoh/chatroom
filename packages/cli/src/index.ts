@@ -683,6 +683,45 @@ skillCommand
   });
 
 // ============================================================================
+// WORKSPACE COMMANDS (auth required)
+// ============================================================================
+
+const workspaceCommand = program
+  .command('workspace')
+  .description('Workspace file tree debugging and maintenance');
+
+const workspaceFileTreeCommand = workspaceCommand
+  .command('file-tree')
+  .description('Workspace file tree daemon sync');
+
+workspaceFileTreeCommand
+  .command('request')
+  .description('Request daemon file tree sync (same mutation as webapp refresh)')
+  .requiredOption('--machine-id <id>', 'Machine identifier')
+  .requiredOption('--working-dir <path>', 'Workspace working directory')
+  .option('--force', 'Force reconciliation walk (explicit recovery)')
+  .action(async (options: { machineId: string; workingDir: string; force?: boolean }) => {
+    await maybeRequireAuth();
+    const { requestWorkspaceFileTreeFromCli } = await import('./commands/workspace/index.js');
+    const result = await requestWorkspaceFileTreeFromCli(options.machineId, options.workingDir, {
+      force: options.force,
+    });
+    console.log(`✅ File tree request: ${result.status}`);
+  });
+
+workspaceFileTreeCommand
+  .command('status')
+  .description('Show checkpoint, manifest, and pending daemon requests for debugging')
+  .requiredOption('--machine-id <id>', 'Machine identifier')
+  .requiredOption('--working-dir <path>', 'Workspace working directory')
+  .action(async (options: { machineId: string; workingDir: string }) => {
+    await maybeRequireAuth();
+    const { getWorkspaceFileTreeStatusFromCli } = await import('./commands/workspace/index.js');
+    const status = await getWorkspaceFileTreeStatusFromCli(options.machineId, options.workingDir);
+    console.log(JSON.stringify(status, null, 2));
+  });
+
+// ============================================================================
 // MESSAGES COMMANDS (auth required)
 // ============================================================================
 

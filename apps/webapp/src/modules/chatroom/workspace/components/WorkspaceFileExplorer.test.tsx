@@ -40,6 +40,10 @@ const mockDisplayNodes = [
   { name: 'package.json', path: 'package.json', type: 'file' as const, children: [] },
 ];
 
+vi.mock('@/modules/chatroom/workspace/files/useFileTreeWatch', () => ({
+  useAcquireFileTreeWatch: vi.fn(),
+}));
+
 vi.mock('@/modules/chatroom/workspace/files', () => ({
   useWorkspaceDirExplorer: () => ({
     rootNodes: mockDisplayNodes,

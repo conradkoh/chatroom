@@ -109,6 +109,10 @@ import { WorkspaceBottomBar } from './workspace/components/WorkspaceBottomBar';
 import { WorkspaceHeaderRow } from './workspace/components/WorkspaceTabBar';
 import { isMarkdownFile, shouldOpenInEditableExplorerPane } from './workspace/file-renderers';
 import { useMultiWorkspaceFileSync } from './workspace/files';
+import {
+  useMultiWorkspaceFileTreeWatch,
+  useAutocompleteWorkspaceFileTreeSync,
+} from './workspace/files/useFileTreeWatch';
 import { useAgenticQueryTabOpener } from './workspace/hooks/useAgenticQueryTab';
 import { useAgenticSearchShortcut } from './workspace/hooks/useAgenticSearchShortcut';
 import { useExplorerTabCloseShortcut } from './workspace/hooks/useExplorerTabCloseShortcut';
@@ -1165,6 +1169,8 @@ export function ChatroomDashboard({
   // Multi-workspace file tree: producer sync + store-backed autocomplete
   const { files: autocompleteFiles, refreshAll: refreshAutocompleteFiles } =
     useMultiWorkspaceFileSync(chatroomWorkspaces);
+  useMultiWorkspaceFileTreeWatch(chatroomWorkspaces);
+  useAutocompleteWorkspaceFileTreeSync(chatroomWorkspaces);
   const handleAtTriggerActivate = useCallback(() => {
     refreshAutocompleteFiles();
   }, [refreshAutocompleteFiles]);
