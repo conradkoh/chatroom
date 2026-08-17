@@ -355,6 +355,7 @@ export const getPendingFileContentRequests = query({
       _id: r._id,
       workingDir: r.workingDir,
       filePath: r.filePath,
+      updatedAt: r.updatedAt,
     }));
   },
 });
@@ -1420,6 +1421,7 @@ export const getPendingFileWriteRequests = query({
       storageId: r.storageId,
       targetFilePath: r.targetFilePath,
       uploadKind: r.uploadKind,
+      updatedAt: r.updatedAt,
     }));
   },
 });
