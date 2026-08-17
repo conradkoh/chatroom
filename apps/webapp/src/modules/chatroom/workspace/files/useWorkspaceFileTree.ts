@@ -8,10 +8,7 @@ import type {
 } from '@workspace/backend/src/domain/entities/workspace-files';
 import { resolveFileTreeHydrationMode } from '@workspace/backend/src/domain/workspace-file-tree/resolve-hydration';
 import type { BlobSnapshotReadResult } from '@workspace/backend/src/domain/workspace-file-tree/transport/blob-snapshot';
-import {
-  fromLegacyCheckpoint,
-  type LegacyFileTreeCheckpoint,
-} from '@workspace/backend/src/domain/workspace-file-tree/transport/checkpoint';
+import type { FileTreeCheckpointTransport } from '@workspace/backend/src/domain/workspace-file-tree/transport/checkpoint';
 import type {
   ShardedSnapshotManifest,
   ShardedSnapshotShard,
@@ -89,11 +86,8 @@ export function useWorkspaceFileTree({
   const checkpointRaw = useSessionQuery(
     api.workspaceFiles.getFileTreeCheckpoint,
     enabled ? { machineId, workingDir: normalizedWorkingDir } : 'skip'
-  ) as LegacyFileTreeCheckpoint | null | undefined;
-  const checkpoint = useMemo(
-    () => (checkpointRaw == null ? checkpointRaw : fromLegacyCheckpoint(checkpointRaw)),
-    [checkpointRaw]
-  );
+  ) as FileTreeCheckpointTransport | null | undefined;
+  const checkpoint = checkpointRaw;
   const checkpointRevision = checkpoint === undefined ? null : (checkpoint?.revision ?? 0);
 
   const manifest = useSessionQuery(

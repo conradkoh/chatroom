@@ -8,7 +8,6 @@
 import { randomUUID } from 'node:crypto';
 
 import { selectFileTreeSnapshotStrategyId } from '@workspace/backend/src/domain/workspace-file-tree/index.js';
-import { toLegacyCheckpointPublishArgs } from '@workspace/backend/src/domain/workspace-file-tree/transport/checkpoint.js';
 import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
@@ -96,27 +95,17 @@ async function syncScannedFileTree(
   tree: ReturnType<WorkspaceFileTreeCoordinator['getTree']>,
   dataHash: string,
   syncGeneration: string
-): Promise<{ snapshotKind: 'v2' | 'v3'; snapshotId: string }> {
+): Promise<{ strategyId: 'blob' | 'sharded'; snapshotId: string }> {
   if (selectFileTreeSnapshotStrategyId(tree) === 'sharded') {
     const ref = await publishShardedSnapshot(session, normalizedWorkingDir, tree, syncGeneration);
-    const legacy = toLegacyCheckpointPublishArgs({
-      revision: 0,
-      strategyId: ref.strategyId,
-      snapshotId: ref.snapshotId,
-    });
-    return { snapshotKind: legacy.snapshotKind, snapshotId: legacy.snapshotId };
+    return { strategyId: ref.strategyId, snapshotId: ref.snapshotId };
   }
   const ref = await publishBlobSnapshot(
     session,
     normalizedWorkingDir,
     buildBlobSnapshotPayload(tree, dataHash)
   );
-  const legacy = toLegacyCheckpointPublishArgs({
-    revision: 0,
-    strategyId: ref.strategyId,
-    snapshotId: ref.snapshotId,
-  });
-  return { snapshotKind: legacy.snapshotKind, snapshotId: legacy.snapshotId };
+  return { strategyId: ref.strategyId, snapshotId: ref.snapshotId };
 }
 
 function toDeltaOperations(delta: WorkspacePendingDelta) {

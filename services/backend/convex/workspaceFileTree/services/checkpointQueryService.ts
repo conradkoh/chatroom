@@ -1,4 +1,3 @@
-import { strategyIdToSnapshotKind } from '../../../src/domain/workspace-file-tree/types';
 import type { QueryCtx } from '../../_generated/server';
 import * as checkpoints from '../repositories/checkpointRepository';
 
@@ -11,7 +10,7 @@ export async function getFileTreeCheckpointForApi(
   return row
     ? {
         revision: row.revision,
-        snapshotKind: strategyIdToSnapshotKind(row.strategyId),
+        strategyId: row.strategyId,
         snapshotId: row.snapshotId,
         publishedAt: row.publishedAt,
       }

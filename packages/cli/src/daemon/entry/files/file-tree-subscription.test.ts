@@ -85,7 +85,7 @@ describe('startFileTreeSubscriptionEffect', () => {
       if (endpoint === 'checkpoint') {
         return Promise.resolve({
           revision: 0,
-          snapshotKind: 'v2',
+          strategyId: 'blob',
           snapshotId: 'hash',
         });
       }

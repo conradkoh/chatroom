@@ -30,7 +30,6 @@ import { requireAccess } from '../modules/auth/accessCheck';
 import { getInvalidChatAttachmentUploadPathReason } from '../src/domain/constants/chat-attachment-upload-path';
 import { MAX_WORKSPACE_UPLOAD_BYTES } from '../src/domain/constants/workspace-upload';
 import { getBlockedUploadTargetReason } from '../src/domain/constants/workspace-upload-path-policy';
-import { snapshotKindToStrategyId } from '../src/domain/workspace-file-tree/types';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -927,7 +926,7 @@ export const publishFileTreeCheckpoint = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     revision: v.number(),
-    snapshotKind: v.union(v.literal('v2'), v.literal('v3')),
+    strategyId: v.union(v.literal('blob'), v.literal('sharded')),
     /** V2 dataHash or V3 syncGeneration. */
     snapshotId: v.string(),
   },
@@ -939,12 +938,11 @@ export const publishFileTreeCheckpoint = mutation({
     validateFileTreeRevision(args.revision, 'revision');
     if (!args.snapshotId) throw new Error('snapshotId is required');
 
-    const strategyId = snapshotKindToStrategyId(args.snapshotKind);
     return await publishCheckpointService(ctx, {
       machineId: args.machineId,
       workingDir,
       revision: args.revision,
-      strategyId,
+      strategyId: args.strategyId,
       snapshotId: args.snapshotId,
     });
   },

@@ -35,7 +35,7 @@ const mocks = vi.hoisted(() => ({
   checkpoint: null as
     | {
         revision: number;
-        snapshotKind: 'v2' | 'v3';
+        strategyId: 'blob' | 'sharded';
         snapshotId: string;
         publishedAt: number;
       }
@@ -190,7 +190,7 @@ describe('useWorkspaceFileTree', () => {
   it('uses the checkpoint snapshot kind instead of a stale V3 manifest', () => {
     mocks.checkpoint = {
       revision: 8,
-      snapshotKind: 'v2',
+      strategyId: 'blob',
       snapshotId: 'latest-v2',
       publishedAt: 100,
     };
@@ -294,7 +294,7 @@ describe('useWorkspaceFileTree', () => {
     };
     mocks.checkpoint = {
       revision: 3,
-      snapshotKind: 'v2',
+      strategyId: 'blob',
       snapshotId: 'v2:50',
       publishedAt: 50,
     };

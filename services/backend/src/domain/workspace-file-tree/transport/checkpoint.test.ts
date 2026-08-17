@@ -1,19 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { fromLegacyCheckpoint, toLegacyCheckpointPublishArgs } from './checkpoint';
+import { snapshotKindToStrategyId, strategyIdToSnapshotKind } from '../types';
 
-describe('checkpoint adapters', () => {
+describe('snapshot kind mappers (migration)', () => {
   it.each([
     ['v2', 'blob'],
     ['v3', 'sharded'],
-  ])('maps %s', (kind, strategyId) => {
-    const value = fromLegacyCheckpoint({
-      revision: 1,
-      snapshotKind: kind as 'v2' | 'v3',
-      snapshotId: 'id',
-      publishedAt: 1,
-    });
-    expect(value.strategyId).toBe(strategyId);
-    expect(toLegacyCheckpointPublishArgs(value).snapshotKind).toBe(kind);
+  ] as const)('maps %s to %s and back', (kind, strategyId) => {
+    expect(snapshotKindToStrategyId(kind)).toBe(strategyId);
+    expect(strategyIdToSnapshotKind(strategyId)).toBe(kind);
   });
 });
