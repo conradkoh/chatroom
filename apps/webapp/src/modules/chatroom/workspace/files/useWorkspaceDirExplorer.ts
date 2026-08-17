@@ -1,6 +1,8 @@
 'use client';
 // fallow-ignore-file complexity
 
+import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { isExplorerSearchMode } from './explorer-tree';
@@ -12,6 +14,8 @@ import { filterExplorerTreeNodes, type ExplorerTreeNode } from '../components/ex
 import { toWorkspaceFileTreeKey } from '../stores/workspaceFileTreeStore';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
+
+export type WorkspaceExplorerEmptyState = 'loading' | 'error' | 'syncing' | 'never-synced' | null;
 
 export function useWorkspaceDirExplorer({
   machineId,
@@ -36,12 +40,25 @@ export function useWorkspaceDirExplorer({
   refresh: () => void;
   isSearchMode: boolean;
   loadError: string | null;
+  explorerEmptyState: WorkspaceExplorerEmptyState;
+  isNeverSynced: boolean;
 } {
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
   const hydratedWorkspaceKeyRef = useRef<string | null>(null);
   const watchEnabled = useFileTreeWatchEnabled(machineId, normalizedWorkingDir);
   const syncEnabled = enabled && watchEnabled;
+  const pendingRequestsRaw = useSessionQuery(
+    api.workspaceFiles.getPendingFileTreeRequests,
+    syncEnabled ? { machineId } : 'skip'
+  );
+  const hasPendingSync = useMemo(
+    () =>
+      !!pendingRequestsRaw?.some(
+        (request) => normalizeWorkspaceWorkingDir(request.workingDir) === normalizedWorkingDir
+      ),
+    [normalizedWorkingDir, pendingRequestsRaw]
+  );
 
   const tree = useWorkspaceFileTree({
     machineId,
@@ -81,6 +98,25 @@ export function useWorkspaceDirExplorer({
     treeRefresh({ force: true });
   }, [treeRefresh, tree]);
 
+  const explorerEmptyState = useMemo<WorkspaceExplorerEmptyState>(() => {
+    if (!enabled) return null;
+    if (tree.loadError) return 'error';
+    if (tree.isLoading) return 'loading';
+    if (!tree.hasTree && !entriesHasTree) {
+      if (hasPendingSync) return 'syncing';
+      if (tree.isNeverSynced) return 'never-synced';
+    }
+    return null;
+  }, [
+    enabled,
+    entriesHasTree,
+    hasPendingSync,
+    tree.hasTree,
+    tree.isLoading,
+    tree.isNeverSynced,
+    tree.loadError,
+  ]);
+
   useEffect(() => {
     if (refreshSignal > 0) refresh();
   }, [refreshSignal, refresh]);
@@ -105,6 +141,8 @@ export function useWorkspaceDirExplorer({
       refresh,
       isSearchMode,
       loadError: tree.loadError,
+      explorerEmptyState,
+      isNeverSynced: tree.isNeverSynced,
     }),
     [
       displayNodes,
@@ -115,6 +153,8 @@ export function useWorkspaceDirExplorer({
       tree.hasTree,
       tree.isLoading,
       tree.loadError,
+      explorerEmptyState,
+      tree.isNeverSynced,
     ]
   );
 }

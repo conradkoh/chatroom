@@ -62,6 +62,7 @@ export interface UseWorkspaceFileTreeResult {
   scannedAt: number | null;
   isLoading: boolean;
   hasTree: boolean;
+  isNeverSynced: boolean;
   refresh: (options?: { force?: boolean }) => void;
   loadError: string | null;
 }
@@ -329,6 +330,12 @@ export function useWorkspaceFileTree({
     storeEntries.length > 0 ||
     (v3Entries?.length ?? 0) > 0 ||
     (parsedV2?.entries?.length ?? 0) > 0;
+  const isNeverSynced =
+    checkpoint !== undefined &&
+    manifest !== undefined &&
+    checkpoint === null &&
+    manifest === null &&
+    !hasTree;
   useEffect(() => {
     if (!enabled || hydrationPlan.kind !== 'recover') {
       recoverStartedAtRef.current = null;
@@ -358,9 +365,10 @@ export function useWorkspaceFileTree({
       scannedAt,
       isLoading,
       hasTree,
+      isNeverSynced,
       refresh,
       loadError,
     }),
-    [entries, rootNodes, scannedAt, isLoading, hasTree, refresh, loadError]
+    [entries, rootNodes, scannedAt, isLoading, hasTree, isNeverSynced, refresh, loadError]
   );
 }
