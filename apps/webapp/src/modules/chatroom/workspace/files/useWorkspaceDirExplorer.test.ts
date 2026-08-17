@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   hasTree: false,
   hydrationLoading: false,
   hydrationHasTree: false,
+  loadError: null as string | null,
 }));
 
 vi.mock('./useWorkspaceFileTreeEntries', () => ({
@@ -43,7 +44,7 @@ vi.mock('./useWorkspaceFileTree', () => ({
     rootNodes: [],
     scannedAt: null,
     refresh: mocks.treeHydrationRefresh,
-    loadError: null,
+    loadError: mocks.loadError,
   })),
 }));
 
@@ -54,10 +55,18 @@ beforeEach(() => {
   mocks.hasTree = false;
   mocks.hydrationLoading = false;
   mocks.hydrationHasTree = false;
+  mocks.loadError = null;
   __resetWorkspaceFileTreeStoreForTests();
 });
 
 describe('useWorkspaceDirExplorer', () => {
+  it('forwards loadError from useWorkspaceFileTree', () => {
+    mocks.loadError = 'File tree sync timed out';
+    const { result } = renderHook(() =>
+      useWorkspaceDirExplorer({ machineId: MACHINE_ID, workingDir: WORKING_DIR })
+    );
+    expect(result.current.loadError).toMatch(/timed out/i);
+  });
   it('uses hydration hook loading state when it has tree data', () => {
     mocks.isLoading = true;
     mocks.hydrationHasTree = true;

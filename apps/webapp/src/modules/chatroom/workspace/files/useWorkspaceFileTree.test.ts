@@ -386,4 +386,26 @@ describe('useWorkspaceFileTree', () => {
     expect(result.current.hasTree).toBe(false);
     expect(result.current.isLoading).toBe(true);
   });
+  it('recover plan times out with loadError when daemon never fulfills', async () => {
+    vi.useFakeTimers();
+    mocks.manifest = {
+      syncGeneration: 'gen-partial',
+      shardIds: [],
+      totalEntryCount: 0,
+      complete: false,
+      scannedAt: 1,
+    };
+    mocks.checkpoint = {
+      revision: 5,
+      strategyId: 'sharded',
+      snapshotId: 'gen-partial',
+      publishedAt: 1,
+    };
+    const { result } = renderHook(() => useWorkspaceFileTree(args));
+    await act(async () => {
+      vi.advanceTimersByTime(60_001);
+    });
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.loadError).toMatch(/timed out/i);
+  });
 });
