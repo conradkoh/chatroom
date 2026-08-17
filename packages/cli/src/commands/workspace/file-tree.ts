@@ -2,6 +2,7 @@ import { api } from '../../api.js';
 import { getSessionId } from '../../infrastructure/auth/storage.js';
 import { getConvexClient } from '../../infrastructure/convex/client.js';
 import type { BackendOps } from '../../infrastructure/deps/index.js';
+import { normalizeWorkingDirForLookup } from '../../infrastructure/services/workspace/normalize-working-dir.js';
 
 export interface WorkspaceFileTreeDeps {
   backend: Pick<BackendOps, 'mutation' | 'query'>;
@@ -73,5 +74,16 @@ export async function getWorkspaceFileTreeStatusFromCli(
     }),
   ]);
 
-  return { checkpoint, manifest, pendingRequests };
+  const normalized = normalizeWorkingDirForLookup(workingDir);
+  const filtered = Array.isArray(pendingRequests)
+    ? pendingRequests.filter(
+        (r) =>
+          r &&
+          typeof r === 'object' &&
+          'workingDir' in r &&
+          normalizeWorkingDirForLookup(String((r as { workingDir: string }).workingDir)) ===
+            normalized
+      )
+    : pendingRequests;
+  return { checkpoint, manifest, pendingRequests: filtered };
 }
