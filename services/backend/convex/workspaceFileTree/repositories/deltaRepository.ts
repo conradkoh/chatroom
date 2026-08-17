@@ -1,4 +1,57 @@
 import type { MutationCtx, QueryCtx } from '../../_generated/server';
+import type { CompactFileTreeDeltaOp } from '../../lib/fileTreeDeltaOps';
+
+export async function findOperationReceipt(
+  ctx: QueryCtx | MutationCtx,
+  machineId: string,
+  workingDir: string,
+  operationId: string
+) {
+  return await ctx.db
+    .query('chatroom_workspaceFileTreeDeltaOperation')
+    .withIndex('by_machine_workingDir_operationId', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir).eq('operationId', operationId)
+    )
+    .first();
+}
+export async function insertDeltaBatch(
+  ctx: MutationCtx,
+  a: {
+    machineId: string;
+    workingDir: string;
+    baseRevision: number;
+    revision: number;
+    operations: CompactFileTreeDeltaOp[];
+  }
+) {
+  await ctx.db.insert('chatroom_workspaceFileTreeDelta', a);
+}
+export async function insertOperationReceipt(
+  ctx: MutationCtx,
+  a: {
+    machineId: string;
+    workingDir: string;
+    operationId: string;
+    revision: number;
+    createdAt: number;
+  }
+) {
+  await ctx.db.insert('chatroom_workspaceFileTreeDeltaOperation', a);
+}
+export async function queryDeltasAfterRevision(
+  ctx: QueryCtx,
+  machineId: string,
+  workingDir: string,
+  afterRevision: number,
+  limit: number
+) {
+  return await ctx.db
+    .query('chatroom_workspaceFileTreeDelta')
+    .withIndex('by_machine_workingDir_revision', (q) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir).gt('revision', afterRevision)
+    )
+    .take(limit + 1);
+}
 
 export async function getCurrentRevision(
   ctx: QueryCtx | MutationCtx,
