@@ -3,23 +3,9 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback } from 'react';
 
-/** Shared promote/delete handlers for queued message UI surfaces. */
+/** Shared delete handler for queued message UI surfaces. */
 export function useQueuedMessageActions() {
-  const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
   const deleteUserMessageOrTask = useSessionMutation(api.messages.deleteUserMessageOrTask);
-
-  const promoteQueuedMessage = useCallback(
-    async (queuedMessageId: string) => {
-      try {
-        await promoteSpecificTask({
-          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
-        });
-      } catch (error) {
-        console.error('Failed to promote queued message:', error);
-      }
-    },
-    [promoteSpecificTask]
-  );
 
   const deleteQueuedMessage = useCallback(
     async (queuedMessageId: string) => {
@@ -35,5 +21,5 @@ export function useQueuedMessageActions() {
     [deleteUserMessageOrTask]
   );
 
-  return { promoteQueuedMessage, deleteQueuedMessage };
+  return { deleteQueuedMessage };
 }

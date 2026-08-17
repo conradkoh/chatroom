@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { ArrowUp, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import { QueuedMessageDetailModal } from './QueuedMessageDetailModal';
@@ -44,7 +44,6 @@ function formatElapsed(creationTime: number): string {
 interface QueuedMessageItemProps {
   chatroomId: Id<'chatroom_rooms'>;
   message: Message;
-  onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
   teamSupportsEnhancer?: boolean;
 }
@@ -57,12 +56,10 @@ interface QueuedMessageItemProps {
 export const QueuedMessageItem = memo(function QueuedMessageItem({
   chatroomId,
   message,
-  onPromote,
   onDelete,
   teamSupportsEnhancer,
 }: QueuedMessageItemProps) {
   const elapsed = useElapsedTime(message._creationTime);
-  const [isPromoting, setIsPromoting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -74,25 +71,15 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
     setIsModalOpen(false);
   }, []);
 
-  const handleRowPromote = useCallback(async () => {
-    if (isPromoting || isDeleting) return;
-    setIsPromoting(true);
-    try {
-      await onPromote(message._id);
-    } finally {
-      setIsPromoting(false);
-    }
-  }, [message._id, onPromote, isPromoting, isDeleting]);
-
   const handleRowDelete = useCallback(async () => {
-    if (isDeleting || isPromoting) return;
+    if (isDeleting) return;
     setIsDeleting(true);
     try {
       await onDelete(message._id);
     } finally {
       setIsDeleting(false);
     }
-  }, [message._id, onDelete, isDeleting, isPromoting]);
+  }, [message._id, onDelete, isDeleting]);
 
   /** Stop the surrounding row click from firing when an action button is pressed. */
   const stopRowClick = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
@@ -144,17 +131,8 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
           ) : null}
           <button
             type="button"
-            onClick={handleRowPromote}
-            disabled={isPromoting || isDeleting}
-            className="p-1.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 disabled:opacity-50"
-            title="Promote to active"
-          >
-            <ArrowUp size={14} />
-          </button>
-          <button
-            type="button"
             onClick={handleRowDelete}
-            disabled={isDeleting || isPromoting}
+            disabled={isDeleting}
             className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 disabled:opacity-50"
             title="Delete"
           >
@@ -168,7 +146,6 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
         message={message}
         isOpen={isModalOpen}
         onClose={closeModal}
-        onPromote={onPromote}
         onDelete={onDelete}
         teamSupportsEnhancer={teamSupportsEnhancer}
       />

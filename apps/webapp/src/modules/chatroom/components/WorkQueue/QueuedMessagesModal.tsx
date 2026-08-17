@@ -18,17 +18,15 @@ export interface QueuedMessagesModalProps {
   messages: Message[];
   teamSupportsEnhancer?: boolean;
   onClose: () => void;
-  onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
 }
 
-/** Full list of queued messages — supports edit/promote/delete on every item. */
+/** Full list of queued messages — supports edit/delete on every item. */
 export function QueuedMessagesModal({
   chatroomId,
   messages,
   teamSupportsEnhancer,
   onClose,
-  onPromote,
   onDelete,
 }: QueuedMessagesModalProps) {
   return (
@@ -52,7 +50,6 @@ export function QueuedMessagesModal({
                 chatroomId={chatroomId}
                 message={message}
                 teamSupportsEnhancer={teamSupportsEnhancer}
-                onPromote={onPromote}
                 onDelete={onDelete}
               />
             ))

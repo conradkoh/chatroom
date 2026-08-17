@@ -24,7 +24,7 @@ interface PlannerEnhancerToggleButtonProps {
 
 function barClass(isActive: boolean, isEnhancing: boolean): string {
   return cn(
-    'w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer',
+    'shrink-0 w-[3.75rem] px-0 py-2 sm:w-full sm:px-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer',
     isActive
       ? 'text-blue-500 dark:text-blue-400 bg-blue-500/10'
       : 'text-chatroom-text-muted hover:bg-chatroom-bg-hover',
