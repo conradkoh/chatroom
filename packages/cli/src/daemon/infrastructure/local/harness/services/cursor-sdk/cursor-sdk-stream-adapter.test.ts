@@ -141,7 +141,7 @@ describe('CursorSdkStreamAdapter', () => {
   });
 
   it('writes bash/shell tool_call as a clean running: <command> line', () => {
-    const { adapter } = createAdapter();
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleMessage(bashToolCallMessage());
 
     expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} tool: bash] running: git status`);
@@ -149,7 +149,7 @@ describe('CursorSdkStreamAdapter', () => {
   });
 
   it('still logs non-bash tool_call as JSON (unchanged behavior)', () => {
-    const { adapter } = createAdapter();
+    const { adapter, onLogLine } = createAdapter();
     adapter.handleMessage(toolCallMessage());
 
     expect(onLogLine).toHaveBeenCalledWith(
