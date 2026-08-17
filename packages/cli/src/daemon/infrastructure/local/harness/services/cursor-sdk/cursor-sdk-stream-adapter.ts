@@ -22,6 +22,7 @@ type ToolCallStartedUpdate = Extract<InteractionUpdate, { type: 'tool-call-start
 
 export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
   private textBuffer = '';
+  private sawTextDelta = false;
 
   // fallow-ignore-next-line complexity
   handleMessage(message: SDKMessage): void {
@@ -107,6 +108,7 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
     this.notifyOutput();
     switch (update.type) {
       case 'text-delta':
+        this.sawTextDelta = true;
         this.appendAssistantText(update.text);
         break;
       case 'thinking-delta':
@@ -150,11 +152,12 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
   finish(): void {
     this.flushText();
     this.emitAgentEnd();
+    this.sawTextDelta = false;
   }
 
   private handleAssistant(message: Extract<SDKMessage, { type: 'assistant' }>): void {
     for (const block of message.message.content) {
-      if (block.type === 'text') {
+      if (block.type === 'text' && !this.sawTextDelta) {
         this.appendAssistantText(block.text);
       }
     }
@@ -173,6 +176,7 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
     const nested = update.taskUpdate;
     switch (nested.type) {
       case 'text-delta':
+        this.sawTextDelta = true;
         this.appendAssistantText(nested.text);
         break;
       case 'tool-call-started':
@@ -230,5 +234,4 @@ export class CursorSdkStreamAdapter extends NativeStreamAdapterBase {
     this.writeLine(formatAgentLogLine(this.logPrefix, 'agent_end'));
     for (const cb of this.agentEndCallbacks) cb();
   }
-
 }
