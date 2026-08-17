@@ -8,6 +8,7 @@ import { isExplorerSearchMode } from '../files/explorer-tree';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { useWorkspaceDirExplorer } from '@/modules/chatroom/workspace/files';
+import { useAcquireFileTreeWatch } from '@/modules/chatroom/workspace/files/useFileTreeWatch';
 
 const EMPTY_LOADING_DIRS = new Set<string>();
 
@@ -72,6 +73,8 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   onNodeContextMenu,
   onEmptyAreaContextMenu,
 }: WorkspaceFileExplorerProps) {
+  useAcquireFileTreeWatch(machineId, workingDir, true);
+
   const expandedPathsStorageKey = getExpandedPathsStorageKey(chatroomId, workingDir);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() =>
     readExpandedPaths(expandedPathsStorageKey)

@@ -35,6 +35,7 @@ import { useChatInputFileDrop } from '../hooks/useChatInputFileDrop';
 import { useFileReferenceAutocomplete } from '../hooks/useFileReferenceAutocomplete';
 import { useStartInNewSessionPreference } from '../hooks/useStartInNewSessionPreference';
 import { WorkspaceUploadProgressList } from '../workspace/components/WorkspaceUploadProgressList';
+import { setFileTreeAutocompleteVisible } from '../workspace/files/workspaceFileTreeAutocompleteVisible';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -299,6 +300,11 @@ export function MessageInput({
       setSendError(null);
     },
   });
+
+  useEffect(() => {
+    setFileTreeAutocompleteVisible(fileAutocomplete.autocompleteState.visible);
+    return () => setFileTreeAutocompleteVisible(false);
+  }, [fileAutocomplete.autocompleteState.visible]);
 
   const {
     uploadJobs,

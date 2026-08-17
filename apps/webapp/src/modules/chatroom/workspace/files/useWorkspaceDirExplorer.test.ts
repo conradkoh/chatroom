@@ -36,6 +36,10 @@ vi.mock('./useWorkspaceFileTreeEntries', () => ({
   },
 }));
 
+vi.mock('./useFileTreeWatch', () => ({
+  useFileTreeWatchEnabled: () => true,
+}));
+
 vi.mock('./useWorkspaceFileTree', () => ({
   useWorkspaceFileTree: vi.fn(() => ({
     isLoading: mocks.hydrationLoading,

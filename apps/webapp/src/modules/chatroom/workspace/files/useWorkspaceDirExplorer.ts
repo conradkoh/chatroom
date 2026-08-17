@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { isExplorerSearchMode } from './explorer-tree';
 import { filterFileTreeEntries, fileTreeEntriesToExplorerNodes } from './fileTreeUtils';
+import { useFileTreeWatchEnabled } from './useFileTreeWatch';
 import { useWorkspaceFileTree } from './useWorkspaceFileTree';
 import { useWorkspaceFileTreeEntries } from './useWorkspaceFileTreeEntries';
 import { filterExplorerTreeNodes, type ExplorerTreeNode } from '../components/explorerTreeFilter';
@@ -39,8 +40,14 @@ export function useWorkspaceDirExplorer({
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
   const hydratedWorkspaceKeyRef = useRef<string | null>(null);
+  const watchEnabled = useFileTreeWatchEnabled(machineId, normalizedWorkingDir);
+  const syncEnabled = enabled && watchEnabled;
 
-  const tree = useWorkspaceFileTree({ machineId, workingDir: normalizedWorkingDir, enabled });
+  const tree = useWorkspaceFileTree({
+    machineId,
+    workingDir: normalizedWorkingDir,
+    enabled: syncEnabled,
+  });
 
   const {
     treeEntries,
@@ -49,7 +56,7 @@ export function useWorkspaceDirExplorer({
   } = useWorkspaceFileTreeEntries({
     machineId,
     workingDir: normalizedWorkingDir,
-    enabled,
+    enabled: syncEnabled,
     includeDirectories: true,
   });
 
