@@ -7,6 +7,7 @@ import { createMarkdownEditorExtensions } from '../extensions/markdownEditorExte
 import type { MarkdownContentNormalizer } from '../types';
 import { getNormalizedEditorMarkdown } from '../utils/getNormalizedEditorMarkdown';
 import { handleModEnter } from '../utils/handleModEnter';
+import { shouldInterceptPasteForMarkdownConversion } from '../utils/pasteHandler';
 import { looksLikeMarkdown } from '../utils/pasteMarkdown';
 
 export interface UseMarkdownEditorOptions {
@@ -40,6 +41,7 @@ export function useMarkdownEditor({
     editorProps: {
       attributes: { class: 'outline-none focus:outline-none focus-visible:outline-none' },
       handlePaste(_view, event) {
+        if (!shouldInterceptPasteForMarkdownConversion(editor)) return false;
         const html = event.clipboardData?.getData('text/html');
         const text = event.clipboardData?.getData('text/plain');
         if (html) {
