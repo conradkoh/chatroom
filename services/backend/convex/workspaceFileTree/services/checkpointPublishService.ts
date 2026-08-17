@@ -4,7 +4,7 @@ import type { MutationCtx } from '../../_generated/server';
 import * as blobSnapshots from '../repositories/blobSnapshotRepository';
 import * as checkpoints from '../repositories/checkpointRepository';
 import * as deltas from '../repositories/deltaRepository';
-import * as verify from '../snapshotVerification';
+import * as shardedSnapshots from '../repositories/shardedSnapshotRepository';
 import type { PublishCheckpointResult } from '../types';
 
 export async function publishFileTreeCheckpoint(
@@ -28,7 +28,7 @@ export async function publishFileTreeCheckpoint(
           args.workingDir,
           args.snapshotId
         )
-      : await verify.verifyShardedSnapshotExists(
+      : await shardedSnapshots.verifyShardedSnapshotExists(
           ctx,
           args.machineId,
           args.workingDir,
