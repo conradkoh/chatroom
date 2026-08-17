@@ -141,7 +141,7 @@ describe('CursorSdkStreamAdapter', () => {
   });
 
   it('writes bash/shell tool_call as a clean running: <command> line', () => {
-    const { adapter, onLogLine } = createAdapter();
+    const { adapter } = createAdapter();
     adapter.handleMessage(bashToolCallMessage());
 
     expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} tool: bash] running: git status`);
@@ -149,7 +149,7 @@ describe('CursorSdkStreamAdapter', () => {
   });
 
   it('still logs non-bash tool_call as JSON (unchanged behavior)', () => {
-    const { adapter, onLogLine } = createAdapter();
+    const { adapter } = createAdapter();
     adapter.handleMessage(toolCallMessage());
 
     expect(onLogLine).toHaveBeenCalledWith(
@@ -171,7 +171,7 @@ describe('CursorSdkStreamAdapter', () => {
 
   it('calls onAgentEnd only once when finish() is invoked twice', () => {
     let count = 0;
-    const { adapter, onLogLine } = createAdapter();
+    const { adapter } = createAdapter();
     adapter.onAgentEnd(() => count++);
     adapter.finish();
     adapter.finish();
@@ -181,7 +181,7 @@ describe('CursorSdkStreamAdapter', () => {
 
   it('does not emit agent_end for duplicate terminal status messages before finish()', () => {
     let count = 0;
-    const { adapter, onLogLine } = createAdapter();
+    const { adapter } = createAdapter();
     adapter.onAgentEnd(() => count++);
     adapter.handleMessage(statusMessage('FINISHED'));
     adapter.handleMessage(statusMessage('FINISHED'));
@@ -303,6 +303,22 @@ describe('CursorSdkStreamAdapter', () => {
     expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} text] Hello delta`);
   });
 
+  it('does not duplicate text when both text-delta and assistant SDKMessage fire', () => {
+    const { adapter, onLogLine } = createAdapter();
+    adapter.handleInteractionDelta(textDelta('Hello world\n'));
+    adapter.handleMessage(assistantMessage('Hello world\n'));
+
+    expect(onLogLine).toHaveBeenCalledTimes(1);
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} text] Hello world`);
+  });
+
+  it('emits assistant text when no text-delta arrives (fallback path)', () => {
+    const { adapter, onLogLine } = createAdapter();
+    adapter.handleMessage(assistantMessage('Fallback only\n'));
+
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} text] Fallback only`);
+  });
+
   it('writes tool-call-started shell as a clean bash running line', () => {
     const { adapter, onLogLine } = createAdapter();
     adapter.handleInteractionDelta(shellToolCallStarted('pnpm test'));
@@ -314,9 +330,7 @@ describe('CursorSdkStreamAdapter', () => {
     const { adapter, onLogLine } = createAdapter();
     adapter.handleInteractionDelta(nonShellToolCallStarted());
 
-    expect(onLogLine).toHaveBeenCalledWith(
-      `${LOG_PREFIX} tool: call-4 read] {"path":"README.md"}`
-    );
+    expect(onLogLine).toHaveBeenCalledWith(`${LOG_PREFIX} tool: call-4 read] {"path":"README.md"}`);
   });
 
   it('handles tool-call-delta with a nested text-delta as buffered stdout text', () => {
