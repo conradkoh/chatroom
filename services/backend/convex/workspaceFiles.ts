@@ -16,6 +16,9 @@ import {
   compactFileTreeDeltaOperationValidator,
   expandFileTreeDeltaOperations,
 } from './lib/fileTreeDeltaOps';
+import { getCurrentRevision } from './workspaceFileTree/repositories/deltaRepository';
+import { getFileTreeCheckpointForApi } from './workspaceFileTree/services/checkpointQueryService';
+import { validateFileTreeRevision as validateWorkspaceFileTreeRevision } from './workspaceFileTree/validation';
 import {
   normalizeWorkingDir,
   requireRegisteredWorkspaceForMachine,
@@ -26,10 +29,7 @@ import { requireAccess } from '../modules/auth/accessCheck';
 import { getInvalidChatAttachmentUploadPathReason } from '../src/domain/constants/chat-attachment-upload-path';
 import { MAX_WORKSPACE_UPLOAD_BYTES } from '../src/domain/constants/workspace-upload';
 import { getBlockedUploadTargetReason } from '../src/domain/constants/workspace-upload-path-policy';
-import {
-  snapshotKindToStrategyId,
-  strategyIdToSnapshotKind,
-} from '../src/domain/workspace-file-tree/types';
+import { snapshotKindToStrategyId } from '../src/domain/workspace-file-tree/types';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -958,34 +958,7 @@ export const getFileTreeShardsV3 = query({
 // Incremental File Tree Sync — revisioned deltas over V2/V3 checkpoints
 // ═══════════════════════════════════════════════════════════════════════════════
 
-async function getCurrentFileTreeRevision(
-  ctx: QueryCtx | MutationCtx,
-  machineId: string,
-  workingDir: string
-): Promise<number> {
-  const latestDelta = await ctx.db
-    .query('chatroom_workspaceFileTreeDelta')
-    .withIndex('by_machine_workingDir_revision', (q: any) =>
-      q.eq('machineId', machineId).eq('workingDir', workingDir)
-    )
-    .order('desc')
-    .first();
-  if (latestDelta) return latestDelta.revision;
-
-  const checkpoint = await ctx.db
-    .query('chatroom_workspaceFileTreeCheckpoint')
-    .withIndex('by_machine_workingDir', (q: any) =>
-      q.eq('machineId', machineId).eq('workingDir', workingDir)
-    )
-    .first();
-  return checkpoint?.revision ?? 0;
-}
-
-function validateFileTreeRevision(revision: number, field: string): void {
-  if (!Number.isSafeInteger(revision) || revision < 0) {
-    throw new Error(`${field} must be a non-negative safe integer`);
-  }
-}
+const validateFileTreeRevision = validateWorkspaceFileTreeRevision;
 
 /**
  * Appends one ordered delta batch. A daemon may retry the same operationId
@@ -1044,7 +1017,7 @@ export const applyFileTreeDeltaBatch = mutation({
       return { status: 'duplicate' as const, revision: receipt.revision };
     }
 
-    const currentRevision = await getCurrentFileTreeRevision(ctx, args.machineId, workingDir);
+    const currentRevision = await getCurrentRevision(ctx, args.machineId, workingDir);
     if (args.baseRevision !== currentRevision) {
       return { status: 'resync-required' as const, expectedRevision: currentRevision };
     }
@@ -1086,19 +1059,7 @@ export const getFileTreeCheckpoint = query({
       return null;
     }
     const workingDir = normalizeWorkingDir(args.workingDir);
-    const checkpoint = await ctx.db
-      .query('chatroom_workspaceFileTreeCheckpoint')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-    if (!checkpoint) return null;
-    return {
-      revision: checkpoint.revision,
-      snapshotKind: strategyIdToSnapshotKind(checkpoint.strategyId),
-      snapshotId: checkpoint.snapshotId,
-      publishedAt: checkpoint.publishedAt,
-    };
+    return await getFileTreeCheckpointForApi(ctx, args.machineId, workingDir);
   },
 });
 
@@ -1130,7 +1091,7 @@ export const getFileTreeDeltas = query({
       )
       .first();
     const checkpointRevision = checkpoint?.revision ?? 0;
-    const currentRevision = await getCurrentFileTreeRevision(ctx, args.machineId, workingDir);
+    const currentRevision = await getCurrentRevision(ctx, args.machineId, workingDir);
 
     if (args.afterRevision < checkpointRevision) {
       return {
@@ -1196,7 +1157,7 @@ export const publishFileTreeCheckpoint = mutation({
     validateFileTreeRevision(args.revision, 'revision');
     if (!args.snapshotId) throw new Error('snapshotId is required');
 
-    const currentRevision = await getCurrentFileTreeRevision(ctx, args.machineId, workingDir);
+    const currentRevision = await getCurrentRevision(ctx, args.machineId, workingDir);
     // A checkpoint may compact the current revision or advance it by one when
     // replacing a stale/missing local cache with a newly scanned authoritative snapshot.
     if (args.revision !== currentRevision && args.revision !== currentRevision + 1) {
