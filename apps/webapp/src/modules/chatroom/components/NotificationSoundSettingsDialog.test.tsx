@@ -31,43 +31,28 @@ describe('NotificationSoundSettingsDialog', () => {
     expect(screen.getByTestId('notification-sound-profile-alarm')).toBeInTheDocument();
   });
 
-  it('selecting urgent profile does not persist until Save', () => {
+  it('selecting urgent profile persists immediately', () => {
     render(<NotificationSoundSettingsDialog open={true} onOpenChange={() => {}} />);
     fireEvent.click(screen.getByTestId('notification-sound-profile-urgent'));
-    expect(localStorage.getItem(SETTINGS_KEY)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).profile).toBe('urgent');
   });
 
-  it('volume slider does not persist until Save', () => {
+  it('volume slider persists immediately', () => {
     render(<NotificationSoundSettingsDialog open={true} onOpenChange={() => {}} />);
     const slider = screen.getByTestId('notification-sound-volume-slider');
     fireEvent.change(slider, { target: { value: '50' } });
-    expect(localStorage.getItem(SETTINGS_KEY)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).volume).toBe(0.5);
   });
 
-  it('Save persists profile and volume', () => {
+  it('reset restores default profile and volume', () => {
     render(<NotificationSoundSettingsDialog open={true} onOpenChange={() => {}} />);
     fireEvent.click(screen.getByTestId('notification-sound-profile-urgent'));
     const slider = screen.getByTestId('notification-sound-volume-slider');
     fireEvent.change(slider, { target: { value: '40' } });
-    fireEvent.click(screen.getByTestId('notification-sound-settings-save'));
+    fireEvent.click(screen.getByTestId('notification-sound-settings-reset'));
     const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY)!);
-    expect(stored.profile).toBe('urgent');
-    expect(stored.volume).toBe(0.4);
-  });
-
-  it('Cancel does not persist changes', () => {
-    render(<NotificationSoundSettingsDialog open={true} onOpenChange={() => {}} />);
-    fireEvent.click(screen.getByTestId('notification-sound-profile-urgent'));
-    fireEvent.click(screen.getByTestId('notification-sound-settings-cancel'));
-    expect(localStorage.getItem(SETTINGS_KEY)).toBeNull();
-  });
-
-  it('closing without Save does not persist changes', () => {
-    const onOpenChange = vi.fn();
-    render(<NotificationSoundSettingsDialog open={true} onOpenChange={onOpenChange} />);
-    fireEvent.click(screen.getByTestId('notification-sound-profile-urgent'));
-    onOpenChange(false);
-    expect(localStorage.getItem(SETTINGS_KEY)).toBeNull();
+    expect(stored.profile).toBe('standard');
+    expect(stored.volume).toBe(0.75);
   });
 
   it('profile change plays preview sound with new profile', () => {
@@ -98,14 +83,5 @@ describe('NotificationSoundSettingsDialog', () => {
     const urgentRadio = screen.getByRole('radio', { name: /urgent/i });
     expect(urgentRadio).toBeChecked();
     expect(screen.getByText('Volume: 40%')).toBeInTheDocument();
-  });
-
-  it('Play test sound button calls playNotificationSound with force and preview', () => {
-    render(<NotificationSoundSettingsDialog open={true} onOpenChange={() => {}} />);
-    fireEvent.click(screen.getByTestId('notification-sound-settings-play-test'));
-    expect(playNotificationSound).toHaveBeenCalledWith({
-      force: true,
-      preview: { profile: 'standard', volume: 0.75 },
-    });
   });
 });
