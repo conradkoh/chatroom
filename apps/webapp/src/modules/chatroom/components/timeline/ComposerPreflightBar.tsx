@@ -27,10 +27,10 @@ export function ComposerPreflightBar({ chatroomId }: { chatroomId: Id<'chatroom_
       <div className="flex-1 min-w-0 flex items-stretch">
         <StandingInstructionsBar chatroomId={chatroomId} />
       </div>
-      <div className="shrink-0 border-l border-chatroom-border flex items-stretch min-w-[7rem]">
+      <div className="shrink-0 border-l border-chatroom-border flex items-stretch w-10 sm:w-auto sm:min-w-[7rem]">
         <PlannerNewSessionToggle />
       </div>
-      <div className="shrink-0 border-l border-chatroom-border flex items-stretch min-w-[7rem]">
+      <div className="shrink-0 border-l border-chatroom-border flex items-stretch w-10 sm:w-auto sm:min-w-[7rem]">
         <PlannerEnhancerToggle
           chatroomId={chatroomId}
           machineId={activeWorkspace?.machineId ?? null}
