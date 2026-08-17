@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   treeRefresh: vi.fn(),
   isLoading: false,
   hasTree: false,
+  hydrationLoading: false,
+  hydrationHasTree: false,
 }));
 
 vi.mock('./useWorkspaceFileTreeEntries', () => ({
@@ -33,17 +35,38 @@ vi.mock('./useWorkspaceFileTreeEntries', () => ({
 }));
 
 vi.mock('./useWorkspaceFileTree', () => ({
-  useWorkspaceFileTree: vi.fn(),
+  useWorkspaceFileTree: vi.fn(() => ({
+    isLoading: mocks.hydrationLoading,
+    hasTree: mocks.hydrationHasTree,
+    entries: [],
+    rootNodes: [],
+    scannedAt: null,
+    refresh: vi.fn(),
+  })),
 }));
 
 beforeEach(() => {
   mocks.treeRefresh.mockClear();
   mocks.isLoading = false;
   mocks.hasTree = false;
+  mocks.hydrationLoading = false;
+  mocks.hydrationHasTree = false;
   __resetWorkspaceFileTreeStoreForTests();
 });
 
 describe('useWorkspaceDirExplorer', () => {
+  it('uses hydration hook loading state when it has tree data', () => {
+    mocks.isLoading = true;
+    mocks.hydrationHasTree = true;
+    mocks.hydrationLoading = false;
+
+    const { result } = renderHook(() =>
+      useWorkspaceDirExplorer({ machineId: MACHINE_ID, workingDir: WORKING_DIR })
+    );
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasTree).toBe(true);
+  });
   it('builds full tree nodes from store entries', () => {
     upsertWorkspaceFileTree(
       WORKSPACE_KEY,

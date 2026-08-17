@@ -324,7 +324,7 @@ describe('useWorkspaceFileTree', () => {
     });
   });
 
-  it('falls back to V2 when manifest is incomplete', async () => {
+  it('forces resync when manifest is incomplete and no V2 snapshot exists', async () => {
     mocks.manifest = {
       syncGeneration: 'gen-partial',
       shardIds: ['src'],
@@ -332,29 +332,23 @@ describe('useWorkspaceFileTree', () => {
       complete: false,
       scannedAt: 1_700_000_000_000,
     };
-    mocks.shardsRaw = [
-      {
-        shardId: 'src',
-        data: { compression: 'gzip', content: 'shard-a' },
-        dataHash: 'hash-a',
-        scannedAt: 1_700_000_000_000,
-        entryCount: 1,
-      },
-    ];
-    mocks.rawV2 = { scannedAt: 50, data: { compression: 'gzip', content: 'abc' } };
-    mocks.jsonV2 = JSON.stringify({
-      entries: [{ path: 'stale.json', type: 'file' }],
-      scannedAt: 50,
-      rootDir: WORKING_DIR,
-    });
+    mocks.checkpoint = {
+      revision: 5,
+      snapshotKind: 'v3',
+      snapshotId: 'gen-partial',
+      publishedAt: 1,
+    };
+    mocks.rawV2 = null;
 
-    const { result } = renderHook(() => useWorkspaceFileTree(args));
+    renderHook(() => useWorkspaceFileTree(args));
 
     await waitFor(() => {
-      expect(getWorkspaceFileTreeEntries(KEY)).toEqual([{ path: 'stale.json', type: 'file' }]);
+      expect(mocks.requestMutation).toHaveBeenCalledWith({
+        machineId: MACHINE_ID,
+        workingDir: WORKING_DIR,
+        force: true,
+      });
     });
-
-    expect(result.current.hasTree).toBe(true);
-    expect(result.current.isLoading).toBe(false);
+    expect(mocks.rawV2).toBeNull();
   });
 });

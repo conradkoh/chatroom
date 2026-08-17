@@ -39,12 +39,12 @@ export function useWorkspaceDirExplorer({
   const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
   const hydratedWorkspaceKeyRef = useRef<string | null>(null);
 
-  useWorkspaceFileTree({ machineId, workingDir: normalizedWorkingDir, enabled });
+  const tree = useWorkspaceFileTree({ machineId, workingDir: normalizedWorkingDir, enabled });
 
   const {
     treeEntries,
-    isLoading,
-    hasTree,
+    isLoading: entriesLoading,
+    hasTree: entriesHasTree,
     refresh: treeRefresh,
   } = useWorkspaceFileTreeEntries({
     machineId,
@@ -84,19 +84,28 @@ export function useWorkspaceDirExplorer({
     }
     if (hydratedWorkspaceKeyRef.current === workspaceKey) return;
     hydratedWorkspaceKeyRef.current = workspaceKey;
-    if (hasTree) return;
+    if (tree.hasTree || entriesHasTree) return;
     treeRefresh();
-  }, [enabled, hasTree, treeRefresh, workspaceKey]);
+  }, [enabled, entriesHasTree, tree.hasTree, treeRefresh, workspaceKey]);
 
   return useMemo(
     () => ({
       rootNodes,
       displayNodes,
-      isLoading,
-      hasTree,
+      isLoading: tree.isLoading || (!tree.hasTree && entriesLoading),
+      hasTree: tree.hasTree || entriesHasTree,
       refresh,
       isSearchMode,
     }),
-    [displayNodes, hasTree, isLoading, isSearchMode, refresh, rootNodes]
+    [
+      displayNodes,
+      entriesHasTree,
+      entriesLoading,
+      isSearchMode,
+      refresh,
+      rootNodes,
+      tree.hasTree,
+      tree.isLoading,
+    ]
   );
 }

@@ -7,7 +7,7 @@ import type {
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import type { ExplorerTreeNode } from './explorer-tree';
 import {
@@ -118,9 +118,7 @@ export function useWorkspaceFileTree({
   const useV2 =
     checkpoint !== undefined &&
     !useV3 &&
-    (checkpoint?.snapshotKind === 'v2' ||
-      (checkpoint === null && manifest === null) ||
-      manifestIncomplete);
+    (checkpoint?.snapshotKind === 'v2' || (checkpoint === null && manifest === null));
   const shardsRaw = useSessionQuery(
     api.workspaceFiles.getFileTreeShardsV3,
     enabled && useV3
@@ -276,6 +274,32 @@ export function useWorkspaceFileTree({
     [enabled, machineId, normalizedWorkingDir, requestTree, workspaceKey]
   );
 
+  const manifestResyncKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!enabled || !manifestIncomplete || !manifest) return;
+    const key = `${workspaceKey}:${manifest.syncGeneration}`;
+    if (manifestResyncKeyRef.current === key) return;
+    manifestResyncKeyRef.current = key;
+    refresh({ force: true });
+  }, [enabled, manifest, manifestIncomplete, refresh, workspaceKey]);
+
+  const decompressionResyncKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!enabled || !useV3 || shardsRaw === undefined || v3Entries !== null) return;
+    const key = `${workspaceKey}:${manifest?.syncGeneration ?? 'unknown'}:${shardsPayloadKey}`;
+    if (decompressionResyncKeyRef.current === key) return;
+    decompressionResyncKeyRef.current = key;
+    refresh({ force: true });
+  }, [
+    enabled,
+    manifest?.syncGeneration,
+    refresh,
+    shardsPayloadKey,
+    useV3,
+    v3Entries,
+    workspaceKey,
+  ]);
+
   useEffect(() => {
     if (!enabled) return;
     refresh();
@@ -302,10 +326,9 @@ export function useWorkspaceFileTree({
     (parsedV2?.entries?.length ?? 0) > 0;
   const v2Loading = useV2 && (rawV2 === undefined || (rawV2 !== null && jsonV2 === undefined));
   const v3Loading = useV3 && (shardsRaw === undefined || v3Entries === undefined);
-  const isLoading =
-    enabled &&
-    !hasTree &&
-    (manifest === undefined || (manifestIncomplete && !useV2) || v3Loading || v2Loading);
+  const sourcesPending =
+    checkpoint === undefined || manifest === undefined || v3Loading || v2Loading;
+  const isLoading = enabled && !hasTree && sourcesPending;
 
   return useMemo(
     () => ({

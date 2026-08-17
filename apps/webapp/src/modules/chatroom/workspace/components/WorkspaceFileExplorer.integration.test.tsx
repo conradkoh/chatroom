@@ -55,6 +55,20 @@ vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => 
   },
 }));
 
+vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTree', () => ({
+  useWorkspaceFileTree: ({ machineId, workingDir }: { machineId: string; workingDir: string }) => {
+    const entries = getWorkspaceFileTreeEntries(toWorkspaceFileTreeKey(machineId, workingDir));
+    return {
+      entries: [],
+      rootNodes: [],
+      scannedAt: null,
+      isLoading: false,
+      hasTree: entries.length > 0,
+      refresh: treeRefresh,
+    };
+  },
+}));
+
 const WORKSPACE_KEY = toWorkspaceFileTreeKey('machine-1', '/workspace');
 
 const defaultProps = {
