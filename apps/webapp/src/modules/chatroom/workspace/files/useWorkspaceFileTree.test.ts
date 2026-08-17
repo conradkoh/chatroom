@@ -384,6 +384,6 @@ describe('useWorkspaceFileTree', () => {
 
     expect(getWorkspaceFileTreeEntries(KEY)).toEqual([]);
     expect(result.current.hasTree).toBe(false);
-    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isLoading).toBe(true);
   });
 });
