@@ -8,7 +8,15 @@ vi.spyOn(TextSelection, 'create').mockImplementation(
   (_doc, anchor, head) => ({ anchor, head }) as TextSelection
 );
 
-function createCodeBlockView({ head, anchor = head }: { head: number; anchor?: number }) {
+function createCodeBlockView({
+  head,
+  anchor = head,
+  coordsAtPos = (pos: number) => ({ top: pos < 4 ? 10 : pos < 7 ? 30 : 50 }),
+}: {
+  head: number;
+  anchor?: number;
+  coordsAtPos?: (pos: number, side?: number) => { top: number };
+}) {
   const selection = Object.create(TextSelection.prototype) as TextSelection;
   Object.defineProperties(selection, {
     anchor: { value: anchor },
@@ -26,10 +34,11 @@ function createCodeBlockView({ head, anchor = head }: { head: number; anchor?: n
           start: () => 1,
           end: () => 9,
         }),
+        textBetween: () => 'x',
       },
       tr: { setSelection: vi.fn().mockReturnThis() },
     },
-    coordsAtPos: vi.fn((pos: number) => ({ top: pos < 4 ? 10 : pos < 7 ? 30 : 50 })),
+    coordsAtPos: vi.fn(coordsAtPos),
     dispatch,
   };
   return { view, dispatch, selection };
@@ -41,7 +50,7 @@ describe('extendSelectionToLineBoundary', () => {
 
     expect(extendSelectionToLineBoundary(view as never, 'backward')).toBe(true);
     expect(dispatch).toHaveBeenCalled();
-    expect(view.coordsAtPos).toHaveBeenCalledWith(9);
+    expect(view.coordsAtPos).toHaveBeenCalledWith(9, -1);
   });
 
   it('uses selection.head as the moving endpoint for reversed selections', () => {
@@ -49,7 +58,7 @@ describe('extendSelectionToLineBoundary', () => {
 
     expect(extendSelectionToLineBoundary(view as never, 'backward')).toBe(true);
     expect(dispatch).toHaveBeenCalled();
-    expect(view.coordsAtPos).toHaveBeenCalledWith(5);
+    expect(view.coordsAtPos).toHaveBeenCalledWith(5, 1);
   });
 
   it('swallows a no-op at the visual line start', () => {
@@ -68,6 +77,30 @@ describe('extendSelectionToLineBoundary', () => {
     });
 
     expect(extendSelectionToLineBoundary(view as never, 'backward')).toBe(false);
+  });
+
+  it('dispatches backward from blockEnd when WebKit terminal top mismatches', () => {
+    const { view, dispatch } = createCodeBlockView({
+      head: 9,
+      anchor: 2,
+      coordsAtPos: (pos) => ({ top: pos < 7 ? 10 : pos < 9 ? 50 : 80 }),
+    });
+
+    expect(extendSelectionToLineBoundary(view as never, 'backward')).toBe(true);
+    expect(TextSelection.create).toHaveBeenCalledWith(expect.anything(), 2, 7);
+    expect(dispatch).toHaveBeenCalled();
+  });
+
+  it('preserves selection.anchor for reversed selections with WebKit terminal map', () => {
+    const { view, dispatch } = createCodeBlockView({
+      head: 9,
+      anchor: 8,
+      coordsAtPos: (pos) => ({ top: pos < 7 ? 10 : pos < 9 ? 50 : 80 }),
+    });
+
+    expect(extendSelectionToLineBoundary(view as never, 'backward')).toBe(true);
+    expect(TextSelection.create).toHaveBeenCalledWith(expect.anything(), 8, 7);
+    expect(dispatch).toHaveBeenCalled();
   });
 });
 

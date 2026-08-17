@@ -21,7 +21,14 @@ export function extendSelectionToLineBoundary(view: EditorView, direction: LineD
 
   let lines;
   try {
-    lines = getVisualLines((pos) => view.coordsAtPos(pos), blockStart, blockEnd);
+    const charBeforeBlockEnd =
+      blockEnd > blockStart ? view.state.doc.textBetween(blockEnd - 1, blockEnd) : '';
+    lines = getVisualLines(
+      (pos, side) => view.coordsAtPos(pos, side),
+      blockStart,
+      blockEnd,
+      { charBeforeBlockEnd }
+    );
   } catch {
     return false;
   }

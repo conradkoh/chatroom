@@ -45,4 +45,28 @@ describe('code block visual line mapping', () => {
     ]);
     expect(visualLineBoundaryTarget(lines, 5, 'backward')).toBe(4);
   });
+
+  it('backward from blockEnd succeeds when WebKit reports mismatched terminal top', () => {
+    const coordsAtPos = (pos: number) => ({
+      top: pos < 7 ? 10 : pos < 9 ? 50 : 80,
+    });
+    const lines = getVisualLines(coordsAtPos, 1, 9, { charBeforeBlockEnd: ']' });
+
+    expect(lines).toEqual([
+      { start: 1, end: 7, top: 10 },
+      { start: 7, end: 9, top: 50 },
+    ]);
+    expect(visualLineBoundaryTarget(lines, 9, 'backward')).toBe(7);
+  });
+
+  it('preserves a genuine trailing blank line after logical newline', () => {
+    const coordsAtPos = (pos: number) => ({ top: pos <= 4 ? 10 : 30 });
+    const lines = getVisualLines(coordsAtPos, 1, 5, { charBeforeBlockEnd: '\n' });
+
+    expect(lines).toEqual([
+      { start: 1, end: 5, top: 10 },
+      { start: 5, end: 5, top: 30 },
+    ]);
+    expect(visualLineBoundaryTarget(lines, 5, 'backward')).toBeNull();
+  });
 });
