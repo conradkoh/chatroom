@@ -344,6 +344,10 @@ export function useWorkspaceFileTree({
     }, FILE_TREE_RECOVER_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [enabled, hydrationPlan.kind, hasTree, loadError]);
+
+  useEffect(() => {
+    if (hasTree && loadError !== null) setLoadError(null);
+  }, [hasTree, loadError]);
   const isLoading =
     enabled && !hasTree && loadError === null && isFileTreeHydrationLoading(hydrationPlan);
 

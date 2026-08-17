@@ -43,6 +43,7 @@ vi.mock('./useWorkspaceFileTree', () => ({
     rootNodes: [],
     scannedAt: null,
     refresh: mocks.treeHydrationRefresh,
+    loadError: null,
   })),
 }));
 
