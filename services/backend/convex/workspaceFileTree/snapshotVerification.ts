@@ -1,19 +1,5 @@
 import type { MutationCtx } from '../_generated/server';
 
-export async function verifyBlobSnapshotExists(
-  ctx: MutationCtx,
-  machineId: string,
-  workingDir: string,
-  dataHash: string
-) {
-  const row = await ctx.db
-    .query('chatroom_workspaceFileTreeV2')
-    .withIndex('by_machine_workingDir', (q) =>
-      q.eq('machineId', machineId).eq('workingDir', workingDir)
-    )
-    .first();
-  return row !== null && row.dataHash === dataHash;
-}
 export async function verifyShardedSnapshotExists(
   ctx: MutationCtx,
   machineId: string,

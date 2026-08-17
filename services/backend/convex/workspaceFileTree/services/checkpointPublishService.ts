@@ -1,6 +1,7 @@
 import type { FileTreeSnapshotStrategyId } from '../../../src/domain/workspace-file-tree/types';
 // fallow-ignore-file complexity
 import type { MutationCtx } from '../../_generated/server';
+import * as blobSnapshots from '../repositories/blobSnapshotRepository';
 import * as checkpoints from '../repositories/checkpointRepository';
 import * as deltas from '../repositories/deltaRepository';
 import * as verify from '../snapshotVerification';
@@ -21,7 +22,12 @@ export async function publishFileTreeCheckpoint(
     return { status: 'resync-required', expectedRevision: current };
   const exists =
     args.strategyId === 'blob'
-      ? await verify.verifyBlobSnapshotExists(ctx, args.machineId, args.workingDir, args.snapshotId)
+      ? await blobSnapshots.verifyBlobSnapshotExists(
+          ctx,
+          args.machineId,
+          args.workingDir,
+          args.snapshotId
+        )
       : await verify.verifyShardedSnapshotExists(
           ctx,
           args.machineId,
