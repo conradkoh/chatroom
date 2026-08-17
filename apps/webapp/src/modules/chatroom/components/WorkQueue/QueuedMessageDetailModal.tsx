@@ -77,7 +77,7 @@ function QueuedMessageAttachmentsSection({ message }: { message: Message }) {
  * Features:
  * - Markdown preview of the queued message content.
  * - Click-to-edit WYSIWYG markdown editor.
- * - Primary "Promote" action + secondary Actions dropdown (Edit, Delete).
+ * - Secondary Actions dropdown (Edit, Delete).
  * - Error strip (mirrors `BacklogItemDetailModal` + `TaskDetailModal` patterns).
  */
 export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
