@@ -242,7 +242,6 @@ describe('HandoffReportView', () => {
       expect(screen.getByText('Overview (2)')).toBeInTheDocument();
       expect(screen.getByText('Proofs (1)')).toBeInTheDocument();
       expect(screen.getByText('Direction (1)')).toBeInTheDocument();
-      expect(screen.getByText('Notes (1)')).toBeInTheDocument();
       expect(screen.getByText('Action required (1)')).toBeInTheDocument();
     });
   });
@@ -351,14 +350,14 @@ describe('HandoffReportView', () => {
       expect(screen.getByText('Direction (1)')).toBeInTheDocument();
     });
 
-    it('notes with paragraph shows count 1', () => {
+    it('legacy notes are not rendered', () => {
       render(<HandoffReportView content={CONTENT_WITH_SYSTEM_DESIGN} />);
-      expect(screen.getByText('Notes (1)')).toBeInTheDocument();
+      expect(screen.queryByText(/Notes/)).not.toBeInTheDocument();
     });
 
-    it('notes all N/A shows count 0', () => {
+    it('legacy notes marked N/A are not rendered', () => {
       render(<HandoffReportView content={CONTENT_WITH_NA_SYSTEM_DESIGN} />);
-      expect(screen.getByText('Notes (0)')).toBeInTheDocument();
+      expect(screen.queryByText(/Notes/)).not.toBeInTheDocument();
     });
   });
 

@@ -20,14 +20,7 @@ export interface HandoffReportViewProps {
 }
 
 type SectionKey =
-  | 'overview'
-  | 'proofs'
-  | 'direction'
-  | 'ux'
-  | 'defragmentation'
-  | 'systemDesign'
-  | 'notes'
-  | 'action';
+  'overview' | 'proofs' | 'direction' | 'ux' | 'defragmentation' | 'systemDesign' | 'action';
 
 interface SectionDef {
   id: string;
@@ -53,7 +46,6 @@ const STRUCTURED_SECTIONS: SectionDef[] = [
     key: 'systemDesign',
     defaultOpenWhenNonempty: true,
   },
-  { id: 'notes', label: 'Notes', key: 'notes', defaultOpenWhenNonempty: false },
   { id: 'action', label: 'Action required', key: 'action', defaultOpenWhenNonempty: true },
 ];
 
@@ -93,7 +85,6 @@ function computeSectionBodies(parsed: HandoffReportParseResult): {
     ux: parsed.ux,
     defragmentation: parsed.defragmentation,
     systemDesign: null,
-    notes: parsed.notes,
     action: parsed.action,
   };
   const isAbsent: Record<string, boolean> = {};

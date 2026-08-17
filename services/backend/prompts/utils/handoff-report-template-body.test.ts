@@ -11,8 +11,7 @@ describe('getHandoffReportTemplateBody', () => {
     expect(body).toContain('</handoff-proofs>');
     expect(body).toContain('<handoff-direction>');
     expect(body).toContain('</handoff-direction>');
-    expect(body).toContain('<handoff-notes>');
-    expect(body).toContain('</handoff-notes>');
+    expect(body).not.toContain('<handoff-notes>');
     expect(body).toContain('<handoff-action>');
     expect(body).toContain('</handoff-action>');
   });

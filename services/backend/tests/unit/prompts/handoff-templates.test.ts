@@ -135,7 +135,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <high-level view of what changed since the user's message>
       </handoff-overview>
 
-      <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
+      <!-- UI collapses proofs and direction by default; overview and action required are expanded -->
 
       <handoff-proofs>
       ## Template Disclosure Confirmation
@@ -219,12 +219,6 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
           A[Component] --> B[Component]
       \`\`\`
       </handoff-direction>
-
-      <handoff-notes>
-      ## Notes
-      <!-- REQUIRED. Write notes if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
-      <anything the user should know — context, caveats, or observations not covered above>
-      </handoff-notes>
 
       <handoff-action>
       ## Tech Debt Observed
@@ -712,7 +706,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <high-level view of what changed since the user's message>
       </handoff-overview>
 
-      <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
+      <!-- UI collapses proofs and direction by default; overview and action required are expanded -->
 
       <handoff-proofs>
       ## Template Disclosure Confirmation
@@ -796,12 +790,6 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
           A[Component] --> B[Component]
       \`\`\`
       </handoff-direction>
-
-      <handoff-notes>
-      ## Notes
-      <!-- REQUIRED. Write notes if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
-      <anything the user should know — context, caveats, or observations not covered above>
-      </handoff-notes>
 
       <handoff-action>
       ## Tech Debt Observed
