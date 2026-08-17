@@ -8,11 +8,14 @@
 import { randomUUID } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 
+import {
+  selectFileTreeSnapshotStrategyId,
+  strategyIdToSnapshotKind,
+} from '@workspace/backend/src/domain/workspace-file-tree/index.js';
 import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
 import { computeFileTreeDataHash } from '../../../infrastructure/services/workspace/file-tree-data-hash.js';
-import { shouldUseV3Upload } from '../../../infrastructure/services/workspace/file-tree-partition.js';
 import { uploadFileTreeV3 } from '../../../infrastructure/services/workspace/file-tree-v3-upload.js';
 import { normalizeWorkingDirForLookup } from '../../../infrastructure/services/workspace/normalize-working-dir.js';
 import {
@@ -93,9 +96,9 @@ async function syncScannedFileTree(
   dataHash: string,
   syncGeneration: string
 ): Promise<{ snapshotKind: 'v2' | 'v3'; snapshotId: string }> {
-  if (shouldUseV3Upload(tree)) {
+  if (selectFileTreeSnapshotStrategyId(tree) === 'sharded') {
     await uploadFileTreeV3(session, normalizedWorkingDir, tree, syncGeneration);
-    return { snapshotKind: 'v3', snapshotId: syncGeneration };
+    return { snapshotKind: strategyIdToSnapshotKind('sharded'), snapshotId: syncGeneration };
   }
   const treeJson = JSON.stringify(tree);
   const compressed = gzipSync(Buffer.from(treeJson)).toString('base64');
@@ -107,7 +110,7 @@ async function syncScannedFileTree(
     dataHash,
     scannedAt: tree.scannedAt,
   });
-  return { snapshotKind: 'v2', snapshotId: dataHash };
+  return { snapshotKind: strategyIdToSnapshotKind('blob'), snapshotId: dataHash };
 }
 
 function toDeltaOperations(delta: WorkspacePendingDelta) {

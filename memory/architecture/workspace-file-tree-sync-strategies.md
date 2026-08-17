@@ -35,6 +35,10 @@ The Convex checkpoint remains the source of truth for the active strategy and sn
 
 New storage formats become new strategies instead of new version branches. Existing V2/V3 tables remain available through strategy repositories during migration.
 
+## Pragmatic scope (2026-08)
+
+This wiring lands as a single PR. Convex continues to use ephemeral `snapshotKind` values (`v2`/`v3`) at the transport boundary, mapped with `strategyIdToSnapshotKind` and `snapshotKindToStrategyId`. No schema migration is needed for ephemeral snapshots, and decomposition of `workspaceFiles.ts` is deferred.
+
 ## Related
 
 - [OKF document taxonomy](okf-document-taxonomy.md)
