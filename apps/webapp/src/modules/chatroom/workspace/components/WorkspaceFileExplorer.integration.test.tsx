@@ -36,6 +36,26 @@ vi.mock('@tanstack/react-virtual', () => ({
 
 const treeRefresh = vi.hoisted(() => vi.fn());
 
+vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTree', () => ({
+  useWorkspaceFileTree: ({
+    machineId,
+    workingDir,
+  }: {
+    machineId: string;
+    workingDir: string;
+  }) => {
+    const treeEntries = getWorkspaceFileTreeEntries(toWorkspaceFileTreeKey(machineId, workingDir));
+    return {
+      entries: [],
+      rootNodes: [],
+      scannedAt: null,
+      isLoading: false,
+      hasTree: treeEntries.length > 0,
+      refresh: vi.fn(),
+    };
+  },
+}));
+
 vi.mock('@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries', () => ({
   useWorkspaceFileTreeEntries: ({
     machineId,
