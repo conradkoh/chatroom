@@ -37,7 +37,19 @@ New storage formats become new strategies instead of new version branches. Exist
 
 ## Pragmatic scope (2026-08)
 
-This wiring lands as a single PR. Convex continues to use ephemeral `snapshotKind` values (`v2`/`v3`) at the transport boundary, mapped with `strategyIdToSnapshotKind` and `snapshotKindToStrategyId`. No schema migration is needed for ephemeral snapshots, and decomposition of `workspaceFiles.ts` is deferred.
+This wiring lands as a single PR. Convex continues to use ephemeral `snapshotKind` values (`v2`/`v3`) at some transport boundaries, mapped with `strategyIdToSnapshotKind` and `snapshotKindToStrategyId`.
+
+**Checkpoint schema migration (required):** `chatroom_workspaceFileTreeCheckpoint` renamed `snapshotKind` → `strategyId` (`blob` / `sharded`). Existing rows must be migrated via `migrateFileTreeCheckpointToStrategyId` in `services/backend/convex/migrations.ts` (wired into `runAll`) before clients read checkpoints after deploy. Decomposition of `workspaceFiles.ts` is deferred.
+
+## Watch lifecycle (2026-08)
+
+File-tree sync and daemon coordinators are bound to UI watches, not ambient chatroom dashboard mount:
+
+- Explorer sidebar (`FileExplorerPanel` mounted)
+- File selector (Cmd+P modal open)
+- `@` file-reference autocomplete visible
+
+Webapp ref-counts watches per workspace and calls `adjustFileTreeWatch` (+1/-1). When the Convex watch count returns to zero, a release request stops the daemon coordinator for that working directory. Cached entries remain in `workspaceFileTreeStore` for stale reads until the next watch.
 
 ## Related
 
