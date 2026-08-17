@@ -12,6 +12,7 @@ minimumReleaseAgeStrict: true
 # 1.0.23: improved stream types, current docs alignment (pinned 2026-07-09).
 # 1.0.26: new InteractionUpdate deltas via SendOptions.onDelta — ToolCallDeltaUpdate with
 # nested NestedTaskUpdate (pinned 2026-08-05).
+# 1.0.28: latest stable; clearer errors and reliability fixes since 1.0.26 (pinned 2026-08-17).
 # @anthropic-ai/claude-agent-sdk — EBADF daemon errors; latest patch may include fixes (chore/backlog).
 minimumReleaseAgeExclude:
   - '@anthropic-ai/claude-agent-sdk'
