@@ -57,6 +57,40 @@ describe('file v2 subscribers', () => {
     });
   });
 
+  it('file-tree subscriber re-emits when pending request updatedAt changes', async () => {
+    const events: InboundEvent[] = [];
+    const { wsClient, emitUpdate } = createMockWsClient();
+
+    const handle = startFileTreeRequestSubscriber(
+      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      (event) => events.push(event)
+    );
+
+    emitUpdate([
+      {
+        _id: FILE_TREE_REQUEST_ID,
+        workingDir: '/repo',
+        force: true,
+        updatedAt: 1,
+      },
+    ]);
+    emitUpdate([
+      {
+        _id: FILE_TREE_REQUEST_ID,
+        workingDir: '/repo',
+        force: true,
+        updatedAt: 2,
+      },
+    ]);
+    await handle.stop();
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toEqual({
+      type: 'file-tree.request',
+      requestId: FILE_TREE_REQUEST_ID,
+    });
+  });
+
   it('file-content subscriber emits file-content.request with requestId', async () => {
     const events: InboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
@@ -91,6 +125,52 @@ describe('file v2 subscribers', () => {
       type: 'file-write.request',
       requestId: FILE_WRITE_REQUEST_ID,
     });
+  });
+
+  it('file-content subscriber re-emits when pending request updatedAt changes', async () => {
+    const events: InboundEvent[] = [];
+    const { wsClient, emitUpdate } = createMockWsClient();
+    const handle = startFileContentRequestSubscriber(
+      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      (event) => events.push(event)
+    );
+    emitUpdate([
+      { _id: FILE_CONTENT_REQUEST_ID, workingDir: '/repo', filePath: 'a.ts', updatedAt: 1 },
+    ]);
+    emitUpdate([
+      { _id: FILE_CONTENT_REQUEST_ID, workingDir: '/repo', filePath: 'a.ts', updatedAt: 2 },
+    ]);
+    await handle.stop();
+    expect(events).toHaveLength(2);
+  });
+
+  it('file-write subscriber re-emits when revision changes', async () => {
+    const events: InboundEvent[] = [];
+    const { wsClient, emitUpdate } = createMockWsClient();
+    const handle = startFileWriteRequestSubscriber(
+      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      (event) => events.push(event)
+    );
+    emitUpdate([
+      {
+        _id: FILE_WRITE_REQUEST_ID,
+        workingDir: '/repo',
+        filePath: 'b.ts',
+        revision: 1,
+        updatedAt: 1,
+      },
+    ]);
+    emitUpdate([
+      {
+        _id: FILE_WRITE_REQUEST_ID,
+        workingDir: '/repo',
+        filePath: 'b.ts',
+        revision: 2,
+        updatedAt: 2,
+      },
+    ]);
+    await handle.stop();
+    expect(events).toHaveLength(2);
   });
 
   it('registry routes file event to handler', async () => {

@@ -12,10 +12,14 @@ import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import type { QueryCtx, MutationCtx } from './_generated/server';
 import { getSession } from './auth/session';
-import {
-  compactFileTreeDeltaOperationValidator,
-  expandFileTreeDeltaOperations,
-} from './lib/fileTreeDeltaOps';
+import { compactFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
+import * as blobSnapshots from './workspaceFileTree/repositories/blobSnapshotRepository';
+import * as shardedSnapshots from './workspaceFileTree/repositories/shardedSnapshotRepository';
+import { publishFileTreeCheckpoint as publishCheckpointService } from './workspaceFileTree/services/checkpointPublishService';
+import { getFileTreeCheckpointForApi } from './workspaceFileTree/services/checkpointQueryService';
+import { applyFileTreeDeltaBatch as applyDeltaService } from './workspaceFileTree/services/deltaApplyService';
+import { getFileTreeDeltasForApi } from './workspaceFileTree/services/deltaQueryService';
+import { validateFileTreeRevision as validateWorkspaceFileTreeRevision } from './workspaceFileTree/validation';
 import {
   normalizeWorkingDir,
   requireRegisteredWorkspaceForMachine,
@@ -26,24 +30,17 @@ import { requireAccess } from '../modules/auth/accessCheck';
 import { getInvalidChatAttachmentUploadPathReason } from '../src/domain/constants/chat-attachment-upload-path';
 import { MAX_WORKSPACE_UPLOAD_BYTES } from '../src/domain/constants/workspace-upload';
 import { getBlockedUploadTargetReason } from '../src/domain/constants/workspace-upload-path-policy';
+import { requestWorkspaceFileTree as requestWorkspaceFileTreeUseCase } from '../src/domain/usecase/workspace/request-workspace-file-tree';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 /** Max treeJson size: 900KB (stay under Convex's 1MB document limit). */
 const MAX_TREE_JSON_BYTES = 900 * 1024;
 
-/** Max compressed shard payload (base64 content string). */
-const MAX_SHARD_JSON_BYTES = 800 * 1024;
-
 /** Max shards per batch mutation. */
 const MAX_SHARD_BATCH_SIZE = 8;
 
 /** Keep delta documents comfortably below Convex's document size limit. */
-const MAX_FILE_TREE_DELTA_OPERATIONS = 500;
-const MAX_FILE_TREE_DELTA_BYTES = 800 * 1024;
-const MAX_FILE_TREE_DELTAS_PER_QUERY = 100;
-const MAX_OPERATION_ID_LENGTH = 200;
-
 /** Max file content size: 512KB. */
 const MAX_CONTENT_BYTES = 512 * 1024;
 
@@ -358,6 +355,7 @@ export const getPendingFileContentRequests = query({
       _id: r._id,
       workingDir: r.workingDir,
       filePath: r.filePath,
+      updatedAt: r.updatedAt,
     }));
   },
 });
@@ -388,9 +386,6 @@ export const fulfillFileContent = mutation({
 
 // ─── File Tree Request (frontend → daemon) ──────────────────────────────────
 
-/** Staleness window for ensuring the daemon-side cache is active. */
-const FILE_TREE_STALENESS_MS = 10 * 1000; // 10 seconds
-
 /**
  * Requests that the daemon ensure incremental synchronization for a workspace.
  * `force` is reserved for explicit recovery and performs a reconciliation walk.
@@ -411,75 +406,12 @@ export const requestFileTree = mutation({
     }
 
     await requireMachineAccess(ctx, args.machineId, auth.userId);
-    const workingDir = normalizeWorkingDir(args.workingDir);
 
-    if (!args.force) {
-      const existingTree = await ctx.db
-        .query('chatroom_workspaceFileTreeV2')
-        .withIndex('by_machine_workingDir', (q: any) =>
-          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-        )
-        .first();
-
-      if (existingTree && Date.now() - existingTree.scannedAt < FILE_TREE_STALENESS_MS) {
-        return { status: 'cached' as const };
-      }
-
-      const manifestV3 = await ctx.db
-        .query('chatroom_workspaceFileTreeManifestV3')
-        .withIndex('by_machine_workingDir', (q: any) =>
-          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-        )
-        .first();
-
-      if (
-        manifestV3 &&
-        manifestV3.complete &&
-        Date.now() - manifestV3.scannedAt < FILE_TREE_STALENESS_MS
-      ) {
-        return { status: 'cached' as const };
-      }
-    }
-
-    // Check for existing pending request
-    const existingRequest = await ctx.db
-      .query('chatroom_workspaceFileTreeRequests')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-
-    if (existingRequest && existingRequest.status === 'pending') {
-      if (args.force && existingRequest.force !== true) {
-        await ctx.db.patch('chatroom_workspaceFileTreeRequests', existingRequest._id, {
-          force: true,
-          updatedAt: Date.now(),
-        });
-      }
-      return { status: 'pending' as const };
-    }
-
-    const now = Date.now();
-
-    if (existingRequest) {
-      await ctx.db.patch('chatroom_workspaceFileTreeRequests', existingRequest._id, {
-        status: 'pending',
-        force: args.force === true,
-        requestedAt: now,
-        updatedAt: now,
-      });
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileTreeRequests', {
-        machineId: args.machineId,
-        workingDir,
-        status: 'pending',
-        force: args.force === true,
-        requestedAt: now,
-        updatedAt: now,
-      });
-    }
-
-    return { status: 'requested' as const };
+    return await requestWorkspaceFileTreeUseCase(ctx, {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      force: args.force,
+    });
   },
 });
 
@@ -517,6 +449,7 @@ export const getPendingFileTreeRequests = query({
       _id: r._id,
       workingDir: r.workingDir,
       force: r.force === true,
+      updatedAt: r.updatedAt,
     }));
   },
 });
@@ -551,6 +484,183 @@ export const fulfillFileTreeRequest = mutation({
 
     if (request) {
       await ctx.db.patch('chatroom_workspaceFileTreeRequests', request._id, {
+        status: 'done',
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
+// ─── File Tree Watch Lifecycle ──────────────────────────────────────────────
+
+async function upsertPendingFileTreeReleaseRequest(
+  ctx: MutationCtx,
+  machineId: string,
+  workingDir: string
+): Promise<void> {
+  const existing = await ctx.db
+    .query('chatroom_workspaceFileTreeReleaseRequests')
+    .withIndex('by_machine_workingDir', (q: any) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .first();
+
+  const now = Date.now();
+  if (existing) {
+    if (existing.status !== 'pending') {
+      await ctx.db.patch('chatroom_workspaceFileTreeReleaseRequests', existing._id, {
+        status: 'pending',
+        requestedAt: now,
+        updatedAt: now,
+      });
+    }
+    return;
+  }
+
+  await ctx.db.insert('chatroom_workspaceFileTreeReleaseRequests', {
+    machineId,
+    workingDir,
+    status: 'pending',
+    requestedAt: now,
+    updatedAt: now,
+  });
+}
+
+async function clearPendingFileTreeReleaseRequest(
+  ctx: MutationCtx,
+  machineId: string,
+  workingDir: string
+): Promise<void> {
+  const existing = await ctx.db
+    .query('chatroom_workspaceFileTreeReleaseRequests')
+    .withIndex('by_machine_workingDir', (q: any) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .first();
+
+  if (existing && existing.status === 'pending') {
+    await ctx.db.delete('chatroom_workspaceFileTreeReleaseRequests', existing._id);
+  }
+}
+
+/**
+ * Adjust aggregated UI watch count for a workspace file tree.
+ * When count returns to zero, queues a daemon release request.
+ */
+export const adjustFileTreeWatch = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    delta: v.union(v.literal(1), v.literal(-1)),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    const now = Date.now();
+
+    const row = await ctx.db
+      .query('chatroom_workspaceFileTreeWatches')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+
+    const previousCount = row?.watchCount ?? 0;
+    const nextCount = args.delta === 1 ? previousCount + 1 : Math.max(0, previousCount - 1);
+
+    if (row) {
+      await ctx.db.patch('chatroom_workspaceFileTreeWatches', row._id, {
+        watchCount: nextCount,
+        updatedAt: now,
+      });
+    } else if (nextCount > 0) {
+      await ctx.db.insert('chatroom_workspaceFileTreeWatches', {
+        machineId: args.machineId,
+        workingDir,
+        watchCount: nextCount,
+        updatedAt: now,
+      });
+    }
+
+    if (previousCount > 0 && nextCount === 0) {
+      await upsertPendingFileTreeReleaseRequest(ctx, args.machineId, workingDir);
+    } else if (nextCount > 0) {
+      await clearPendingFileTreeReleaseRequest(ctx, args.machineId, workingDir);
+    }
+
+    return { watchCount: nextCount };
+  },
+});
+
+/**
+ * Returns pending file-tree coordinator release requests for a machine.
+ * Daemon subscribes to this reactively.
+ */
+export const getPendingFileTreeReleaseRequests = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return [];
+    }
+
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return [];
+    }
+
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileTreeReleaseRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
+      .take(MAX_PENDING_REQUESTS);
+
+    return requests.map((r) => ({
+      _id: r._id,
+      workingDir: r.workingDir,
+      updatedAt: r.updatedAt,
+    }));
+  },
+});
+
+/**
+ * Marks a file-tree release request as fulfilled after the daemon stops its coordinator.
+ */
+export const fulfillFileTreeReleaseRequest = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
+
+    const request = await ctx.db
+      .query('chatroom_workspaceFileTreeReleaseRequests')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+
+    if (request) {
+      await ctx.db.patch('chatroom_workspaceFileTreeReleaseRequests', request._id, {
         status: 'done',
         updatedAt: Date.now(),
       });
@@ -598,6 +708,26 @@ export const purgeFileTree = mutation({
       .collect();
     for (const req of requests) {
       await ctx.db.delete('chatroom_workspaceFileTreeRequests', req._id);
+    }
+
+    const watch = await ctx.db
+      .query('chatroom_workspaceFileTreeWatches')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (watch) {
+      await ctx.db.delete('chatroom_workspaceFileTreeWatches', watch._id);
+    }
+
+    const releaseRequests = await ctx.db
+      .query('chatroom_workspaceFileTreeReleaseRequests')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const req of releaseRequests) {
+      await ctx.db.delete('chatroom_workspaceFileTreeReleaseRequests', req._id);
     }
 
     // Delete file content cache
@@ -666,31 +796,13 @@ export const syncFileTreeV2 = mutation({
       throw new Error('File tree too large');
     }
 
-    const existing = await ctx.db
-      .query('chatroom_workspaceFileTreeV2')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-
-    // Server-side dedup: skip write if hash unchanged
-    if (existing && existing.dataHash === args.dataHash) {
-      return;
-    }
-
-    const row = {
+    await blobSnapshots.upsertBlobSnapshot(ctx, {
       machineId: args.machineId,
       workingDir,
       data: args.data,
       dataHash: args.dataHash,
       scannedAt: args.scannedAt,
-    };
-
-    if (existing) {
-      await ctx.db.patch('chatroom_workspaceFileTreeV2', existing._id, row);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileTreeV2', row);
-    }
+    });
   },
 });
 
@@ -720,13 +832,7 @@ export const getFileTreeV2 = query({
 
     const workingDir = normalizeWorkingDir(args.workingDir);
 
-    const tree = await ctx.db
-      .query('chatroom_workspaceFileTreeV2')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-
+    const tree = await blobSnapshots.findBlobSnapshot(ctx, args.machineId, workingDir);
     if (!tree) {
       return null;
     }
@@ -739,49 +845,6 @@ export const getFileTreeV2 = query({
 });
 
 // ─── File Tree Shard V3 (daemon → backend, large repos) ─────────────────────
-
-type FileTreeShardV3Row = {
-  machineId: string;
-  workingDir: string;
-  shardId: string;
-  syncGeneration: string;
-  data: { compression: 'gzip'; content: string };
-  dataHash: string;
-  scannedAt: number;
-  entryCount: number;
-};
-
-async function upsertFileTreeShardV3Row(
-  ctx: MutationCtx,
-  args: FileTreeShardV3Row
-): Promise<boolean> {
-  const workingDir = normalizeWorkingDir(args.workingDir);
-  const sizeBytes = new TextEncoder().encode(args.data.content).length;
-  if (sizeBytes > MAX_SHARD_JSON_BYTES) {
-    throw new Error(`File tree shard too large: ${args.shardId}`);
-  }
-
-  const existing = await ctx.db
-    .query('chatroom_workspaceFileTreeShardV3')
-    .withIndex('by_machine_workingDir_syncGeneration_shardId', (q: any) =>
-      q
-        .eq('machineId', args.machineId)
-        .eq('workingDir', workingDir)
-        .eq('syncGeneration', args.syncGeneration)
-        .eq('shardId', args.shardId)
-    )
-    .first();
-
-  if (existing && existing.dataHash === args.dataHash) return false;
-
-  const row = { ...args, workingDir };
-  if (existing) {
-    await ctx.db.patch('chatroom_workspaceFileTreeShardV3', existing._id, row);
-  } else {
-    await ctx.db.insert('chatroom_workspaceFileTreeShardV3', row);
-  }
-  return true;
-}
 
 /** Batch upsert file tree shards (v3). Returns { written, skipped }. */
 export const syncFileTreeShardV3Batch = mutation({
@@ -809,17 +872,13 @@ export const syncFileTreeShardV3Batch = mutation({
       throw new Error(`Batch size exceeds max ${MAX_SHARD_BATCH_SIZE}`);
     }
 
-    let written = 0;
-    for (const item of args.items) {
-      const didWrite = await upsertFileTreeShardV3Row(ctx, {
-        machineId: args.machineId,
-        workingDir: args.workingDir,
-        syncGeneration: args.syncGeneration,
-        ...item,
-      });
-      if (didWrite) written++;
-    }
-    return { written, skipped: args.items.length - written };
+    return await shardedSnapshots.upsertShardBatch(
+      ctx,
+      args.machineId,
+      args.workingDir,
+      args.syncGeneration,
+      args.items
+    );
   },
 });
 
@@ -839,45 +898,15 @@ export const syncFileTreeManifestV3 = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await requireMachineAccess(ctx, args.machineId, auth.userId);
-    const workingDir = normalizeWorkingDir(args.workingDir);
-
-    const existing = await ctx.db
-      .query('chatroom_workspaceFileTreeManifestV3')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-
-    if (existing && existing.syncGeneration !== args.syncGeneration) {
-      const oldShards = await ctx.db
-        .query('chatroom_workspaceFileTreeShardV3')
-        .withIndex('by_machine_workingDir_syncGeneration', (q: any) =>
-          q
-            .eq('machineId', args.machineId)
-            .eq('workingDir', workingDir)
-            .eq('syncGeneration', existing.syncGeneration)
-        )
-        .collect();
-      for (const shard of oldShards) {
-        await ctx.db.delete('chatroom_workspaceFileTreeShardV3', shard._id);
-      }
-    }
-
-    const row = {
+    await shardedSnapshots.upsertManifest(ctx, {
       machineId: args.machineId,
-      workingDir,
+      workingDir: args.workingDir,
       syncGeneration: args.syncGeneration,
       shardIds: args.shardIds,
       totalEntryCount: args.totalEntryCount,
       complete: args.complete,
       scannedAt: args.scannedAt,
-    };
-
-    if (existing) {
-      await ctx.db.patch('chatroom_workspaceFileTreeManifestV3', existing._id, row);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileTreeManifestV3', row);
-    }
+    });
   },
 });
 
@@ -897,12 +926,7 @@ export const getFileTreeManifestV3 = query({
       return null;
     }
     const workingDir = normalizeWorkingDir(args.workingDir);
-    const manifest = await ctx.db
-      .query('chatroom_workspaceFileTreeManifestV3')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
+    const manifest = await shardedSnapshots.findManifest(ctx, args.machineId, workingDir);
     if (!manifest) return null;
     return {
       syncGeneration: manifest.syncGeneration,
@@ -931,15 +955,12 @@ export const getFileTreeShardsV3 = query({
       return null;
     }
     const workingDir = normalizeWorkingDir(args.workingDir);
-    const shards = await ctx.db
-      .query('chatroom_workspaceFileTreeShardV3')
-      .withIndex('by_machine_workingDir_syncGeneration', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', workingDir)
-          .eq('syncGeneration', args.syncGeneration)
-      )
-      .collect();
+    const shards = await shardedSnapshots.findShards(
+      ctx,
+      args.machineId,
+      workingDir,
+      args.syncGeneration
+    );
     return shards.map((s) => ({
       shardId: s.shardId,
       data: s.data,
@@ -954,34 +975,7 @@ export const getFileTreeShardsV3 = query({
 // Incremental File Tree Sync — revisioned deltas over V2/V3 checkpoints
 // ═══════════════════════════════════════════════════════════════════════════════
 
-async function getCurrentFileTreeRevision(
-  ctx: QueryCtx | MutationCtx,
-  machineId: string,
-  workingDir: string
-): Promise<number> {
-  const latestDelta = await ctx.db
-    .query('chatroom_workspaceFileTreeDelta')
-    .withIndex('by_machine_workingDir_revision', (q: any) =>
-      q.eq('machineId', machineId).eq('workingDir', workingDir)
-    )
-    .order('desc')
-    .first();
-  if (latestDelta) return latestDelta.revision;
-
-  const checkpoint = await ctx.db
-    .query('chatroom_workspaceFileTreeCheckpoint')
-    .withIndex('by_machine_workingDir', (q: any) =>
-      q.eq('machineId', machineId).eq('workingDir', workingDir)
-    )
-    .first();
-  return checkpoint?.revision ?? 0;
-}
-
-function validateFileTreeRevision(revision: number, field: string): void {
-  if (!Number.isSafeInteger(revision) || revision < 0) {
-    throw new Error(`${field} must be a non-negative safe integer`);
-  }
-}
+const validateFileTreeRevision = validateWorkspaceFileTreeRevision;
 
 /**
  * Appends one ordered delta batch. A daemon may retry the same operationId
@@ -1002,67 +996,13 @@ export const applyFileTreeDeltaBatch = mutation({
     await requireMachineAccess(ctx, args.machineId, auth.userId);
     const workingDir = normalizeWorkingDir(args.workingDir);
 
-    validateFileTreeRevision(args.baseRevision, 'baseRevision');
-    if (!args.operationId || args.operationId.length > MAX_OPERATION_ID_LENGTH) {
-      throw new Error(`operationId must be between 1 and ${MAX_OPERATION_ID_LENGTH} characters`);
-    }
-    if (args.operations.length === 0 || args.operations.length > MAX_FILE_TREE_DELTA_OPERATIONS) {
-      throw new Error(
-        `Delta batch must contain between 1 and ${MAX_FILE_TREE_DELTA_OPERATIONS} operations`
-      );
-    }
-    if (
-      new TextEncoder().encode(JSON.stringify(args.operations)).length > MAX_FILE_TREE_DELTA_BYTES
-    ) {
-      throw new Error('File tree delta batch too large');
-    }
-    for (const operation of args.operations) {
-      validateFilePath(operation.p);
-      if (operation.o === 'r') {
-        if ('e' in operation || 's' in operation || 'm' in operation) {
-          throw new Error('Remove operations must contain only a path');
-        }
-      } else if (!operation.e) {
-        throw new Error(`${operation.o} operations require entry type`);
-      }
-    }
-
-    const receipt = await ctx.db
-      .query('chatroom_workspaceFileTreeDeltaOperation')
-      .withIndex('by_machine_workingDir_operationId', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', workingDir)
-          .eq('operationId', args.operationId)
-      )
-      .first();
-    if (receipt) {
-      return { status: 'duplicate' as const, revision: receipt.revision };
-    }
-
-    const currentRevision = await getCurrentFileTreeRevision(ctx, args.machineId, workingDir);
-    if (args.baseRevision !== currentRevision) {
-      return { status: 'resync-required' as const, expectedRevision: currentRevision };
-    }
-
-    const revision = currentRevision + 1;
-    const now = Date.now();
-    await ctx.db.insert('chatroom_workspaceFileTreeDelta', {
-      machineId: args.machineId,
-      workingDir,
-      baseRevision: args.baseRevision,
-      revision,
-      operations: args.operations,
-    });
-    await ctx.db.insert('chatroom_workspaceFileTreeDeltaOperation', {
+    return await applyDeltaService(ctx, {
       machineId: args.machineId,
       workingDir,
       operationId: args.operationId,
-      revision,
-      createdAt: now,
+      baseRevision: args.baseRevision,
+      operations: args.operations,
     });
-
-    return { status: 'applied' as const, revision };
   },
 });
 
@@ -1082,19 +1022,7 @@ export const getFileTreeCheckpoint = query({
       return null;
     }
     const workingDir = normalizeWorkingDir(args.workingDir);
-    const checkpoint = await ctx.db
-      .query('chatroom_workspaceFileTreeCheckpoint')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-    if (!checkpoint) return null;
-    return {
-      revision: checkpoint.revision,
-      snapshotKind: checkpoint.snapshotKind,
-      snapshotId: checkpoint.snapshotId,
-      publishedAt: checkpoint.publishedAt,
-    };
+    return await getFileTreeCheckpointForApi(ctx, args.machineId, workingDir);
   },
 });
 
@@ -1117,56 +1045,8 @@ export const getFileTreeDeltas = query({
     } catch {
       return null;
     }
-    validateFileTreeRevision(args.afterRevision, 'afterRevision');
     const workingDir = normalizeWorkingDir(args.workingDir);
-    const checkpoint = await ctx.db
-      .query('chatroom_workspaceFileTreeCheckpoint')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-    const checkpointRevision = checkpoint?.revision ?? 0;
-    const currentRevision = await getCurrentFileTreeRevision(ctx, args.machineId, workingDir);
-
-    if (args.afterRevision < checkpointRevision) {
-      return {
-        status: 'checkpoint-required' as const,
-        checkpointRevision,
-        currentRevision,
-      };
-    }
-    if (args.afterRevision > currentRevision) {
-      return {
-        status: 'resync-required' as const,
-        expectedRevision: currentRevision,
-      };
-    }
-
-    const rows = await ctx.db
-      .query('chatroom_workspaceFileTreeDelta')
-      .withIndex('by_machine_workingDir_revision', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', workingDir)
-          .gt('revision', args.afterRevision)
-      )
-      .take(MAX_FILE_TREE_DELTAS_PER_QUERY + 1);
-    const hasMore = rows.length > MAX_FILE_TREE_DELTAS_PER_QUERY;
-    const deltaRows = rows.slice(0, MAX_FILE_TREE_DELTAS_PER_QUERY);
-    // Return null when caught up to suppress idle subscription bandwidth
-    if (deltaRows.length === 0) {
-      return null;
-    }
-    const deltas = deltaRows.map((row) => ({
-      baseRevision: row.baseRevision,
-      revision: row.revision,
-      operations: expandFileTreeDeltaOperations(row.operations),
-    }));
-    return {
-      status: 'ok' as const,
-      deltas,
-      ...(hasMore ? { hasMore: true as const } : {}),
-    };
+    return await getFileTreeDeltasForApi(ctx, args.machineId, workingDir, args.afterRevision);
   },
 });
 
@@ -1180,7 +1060,7 @@ export const publishFileTreeCheckpoint = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     revision: v.number(),
-    snapshotKind: v.union(v.literal('v2'), v.literal('v3')),
+    strategyId: v.union(v.literal('blob'), v.literal('sharded')),
     /** V2 dataHash or V3 syncGeneration. */
     snapshotId: v.string(),
   },
@@ -1192,80 +1072,13 @@ export const publishFileTreeCheckpoint = mutation({
     validateFileTreeRevision(args.revision, 'revision');
     if (!args.snapshotId) throw new Error('snapshotId is required');
 
-    const currentRevision = await getCurrentFileTreeRevision(ctx, args.machineId, workingDir);
-    // A checkpoint may compact the current revision or advance it by one when
-    // replacing a stale/missing local cache with a newly scanned authoritative snapshot.
-    if (args.revision !== currentRevision && args.revision !== currentRevision + 1) {
-      return { status: 'resync-required' as const, expectedRevision: currentRevision };
-    }
-
-    if (args.snapshotKind === 'v2') {
-      const snapshot = await ctx.db
-        .query('chatroom_workspaceFileTreeV2')
-        .withIndex('by_machine_workingDir', (q: any) =>
-          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-        )
-        .first();
-      if (!snapshot || snapshot.dataHash !== args.snapshotId) {
-        return { status: 'snapshot-missing' as const };
-      }
-    } else {
-      const manifest = await ctx.db
-        .query('chatroom_workspaceFileTreeManifestV3')
-        .withIndex('by_machine_workingDir', (q: any) =>
-          q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-        )
-        .first();
-      if (!manifest || !manifest.complete || manifest.syncGeneration !== args.snapshotId) {
-        return { status: 'snapshot-missing' as const };
-      }
-    }
-
-    const existing = await ctx.db
-      .query('chatroom_workspaceFileTreeCheckpoint')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-    if (existing && args.revision < existing.revision) {
-      return { status: 'resync-required' as const, expectedRevision: currentRevision };
-    }
-    const unchanged =
-      existing?.revision === args.revision &&
-      existing.snapshotKind === args.snapshotKind &&
-      existing.snapshotId === args.snapshotId;
-    const row = {
+    return await publishCheckpointService(ctx, {
       machineId: args.machineId,
       workingDir,
       revision: args.revision,
-      snapshotKind: args.snapshotKind,
+      strategyId: args.strategyId,
       snapshotId: args.snapshotId,
-      publishedAt: Date.now(),
-    };
-    if (existing) {
-      await ctx.db.patch('chatroom_workspaceFileTreeCheckpoint', existing._id, row);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileTreeCheckpoint', row);
-    }
-
-    const coveredDeltas = await ctx.db
-      .query('chatroom_workspaceFileTreeDelta')
-      .withIndex('by_machine_workingDir_revision', (q: any) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', workingDir)
-          .lte('revision', args.revision)
-      )
-      .collect();
-    for (const delta of coveredDeltas) {
-      await ctx.db.delete('chatroom_workspaceFileTreeDelta', delta._id);
-    }
-
-    return {
-      status: unchanged ? ('unchanged' as const) : ('published' as const),
-      revision: args.revision,
-      prunedDeltaCount: coveredDeltas.length,
-    };
+    });
   },
 });
 
@@ -1805,6 +1618,7 @@ export const getPendingFileWriteRequests = query({
       storageId: r.storageId,
       targetFilePath: r.targetFilePath,
       uploadKind: r.uploadKind,
+      updatedAt: r.updatedAt,
     }));
   },
 });

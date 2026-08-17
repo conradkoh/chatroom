@@ -6,15 +6,18 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { gzipSync } from 'node:zlib';
 
+import { selectFileTreeSnapshotStrategyId } from '@workspace/backend/src/domain/workspace-file-tree/index.js';
 import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
 import { computeFileTreeDataHash } from '../../../infrastructure/services/workspace/file-tree-data-hash.js';
-import { shouldUseV3Upload } from '../../../infrastructure/services/workspace/file-tree-partition.js';
-import { uploadFileTreeV3 } from '../../../infrastructure/services/workspace/file-tree-v3-upload.js';
 import { normalizeWorkingDirForLookup } from '../../../infrastructure/services/workspace/normalize-working-dir.js';
+import {
+  buildBlobSnapshotPayload,
+  publishBlobSnapshot,
+} from '../../../infrastructure/services/workspace/transport/blob-snapshot-publish.js';
+import { publishShardedSnapshot } from '../../../infrastructure/services/workspace/transport/sharded-snapshot-publish.js';
 import {
   startWorkspaceFileTreeCoordinator,
   type WorkspaceFileTreeCoordinator,
@@ -31,6 +34,7 @@ function logSubscriptionWarn(label: string, err: unknown): void {
 export interface FileTreeSubscriptionHandle {
   stop: () => void;
   drainPendingFileTreeRequests: () => Promise<void>;
+  drainPendingFileTreeReleaseRequests: () => Promise<void>;
 }
 
 type EnsureCoordinator = (
@@ -38,6 +42,53 @@ type EnsureCoordinator = (
   forceReconcile: boolean
 ) => Promise<WorkspaceFileTreeCoordinator>;
 
+async function stopCoordinatorForWorkingDir(
+  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
+  normalized: string
+): Promise<void> {
+  const coordinatorPromise = coordinators.get(normalized);
+  if (!coordinatorPromise) return;
+  coordinators.delete(normalized);
+  await coordinatorPromise.then((coordinator) => coordinator.stop()).catch(() => undefined);
+}
+
+async function drainPendingFileTreeReleaseRequests(
+  session: DaemonSessionServiceShape,
+  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>
+): Promise<void> {
+  const releases = await session.backend.query(
+    api.workspaceFiles.getPendingFileTreeReleaseRequests,
+    {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+    }
+  );
+  if (!releases?.length) return;
+
+  const releasesByDir = new Set<string>();
+  for (const release of releases) {
+    releasesByDir.add(normalizeWorkingDirForLookup(release.workingDir));
+  }
+
+  for (const normalized of releasesByDir) {
+    await stopCoordinatorForWorkingDir(coordinators, normalized)
+      .then(() =>
+        session.backend.mutation(api.workspaceFiles.fulfillFileTreeReleaseRequest, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          workingDir: normalized,
+        })
+      )
+      .then(() => {
+        console.log(`[${formatTimestamp()}] 🌳 File tree coordinator stopped: ${normalized}`);
+      })
+      .catch((err: unknown) => {
+        logSubscriptionWarn(`File tree release failed for ${normalized}`, err);
+      });
+  }
+}
+
+// fallow-ignore-next-line complexity
 async function processPendingFileTreeRequests(
   session: DaemonSessionServiceShape,
   coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
@@ -92,22 +143,17 @@ async function syncScannedFileTree(
   tree: ReturnType<WorkspaceFileTreeCoordinator['getTree']>,
   dataHash: string,
   syncGeneration: string
-): Promise<{ snapshotKind: 'v2' | 'v3'; snapshotId: string }> {
-  if (shouldUseV3Upload(tree)) {
-    await uploadFileTreeV3(session, normalizedWorkingDir, tree, syncGeneration);
-    return { snapshotKind: 'v3', snapshotId: syncGeneration };
+): Promise<{ strategyId: 'blob' | 'sharded'; snapshotId: string }> {
+  if (selectFileTreeSnapshotStrategyId(tree) === 'sharded') {
+    const ref = await publishShardedSnapshot(session, normalizedWorkingDir, tree, syncGeneration);
+    return { strategyId: ref.strategyId, snapshotId: ref.snapshotId };
   }
-  const treeJson = JSON.stringify(tree);
-  const compressed = gzipSync(Buffer.from(treeJson)).toString('base64');
-  await session.backend.mutation(api.workspaceFiles.syncFileTreeV2, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-    workingDir: normalizedWorkingDir,
-    data: { compression: 'gzip', content: compressed },
-    dataHash,
-    scannedAt: tree.scannedAt,
-  });
-  return { snapshotKind: 'v2', snapshotId: dataHash };
+  const ref = await publishBlobSnapshot(
+    session,
+    normalizedWorkingDir,
+    buildBlobSnapshotPayload(tree, dataHash)
+  );
+  return { strategyId: ref.strategyId, snapshotId: ref.snapshotId };
 }
 
 function toDeltaOperations(delta: WorkspacePendingDelta) {
@@ -241,6 +287,8 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
     return {
       drainPendingFileTreeRequests: () =>
         drainPendingFileTreeRequests(session, coordinators, ensureCoordinator),
+      drainPendingFileTreeReleaseRequests: () =>
+        drainPendingFileTreeReleaseRequests(session, coordinators),
       stop: () => {
         void Promise.all(
           [...coordinators.values()].map((coordinator) =>

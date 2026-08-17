@@ -2358,6 +2358,30 @@ export default defineSchema({
     .index('by_machine_status', ['machineId', 'status'])
     .index('by_machine_workingDir', ['machineId', 'workingDir']),
 
+  /**
+   * Active UI watches per workspace working directory (aggregated across clients).
+   * Daemon coordinators run only while watchCount > 0.
+   */
+  chatroom_workspaceFileTreeWatches: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    watchCount: v.number(),
+    updatedAt: v.number(),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * Pending requests to stop daemon-side file-tree coordinators when watches end.
+   */
+  chatroom_workspaceFileTreeReleaseRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    status: v.string(), // 'pending' | 'done'
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir', ['machineId', 'workingDir']),
+
   // ─── Structured Workflows (DEPRECATED) ─────────────────────────────────────
   // DAG workflow feature removed. Tables retained for deployment/data compatibility.
   // Do not write new rows; drop after a one-time data cleanup migration.
@@ -2648,7 +2672,7 @@ export default defineSchema({
     machineId: v.string(),
     workingDir: v.string(),
     revision: v.number(),
-    snapshotKind: v.union(v.literal('v2'), v.literal('v3')),
+    strategyId: v.union(v.literal('blob'), v.literal('sharded')),
     /** V2 dataHash or V3 syncGeneration, used to verify the snapshot before publishing. */
     snapshotId: v.string(),
     publishedAt: v.number(),

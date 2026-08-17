@@ -15,6 +15,7 @@ export type InboundEvent =
   | { type: 'enhancer.job-assigned'; jobId: string }
   | { type: 'git.request'; requestId: string }
   | { type: 'file-tree.request'; requestId: string }
+  | { type: 'file-tree.release'; requestId: string }
   | { type: 'file-content.request'; requestId: string }
   | { type: 'file-write.request'; requestId: string }
   | { type: 'workspace.list-changed'; machineId: string }

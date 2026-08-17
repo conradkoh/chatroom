@@ -8,6 +8,7 @@ import { isExplorerSearchMode } from '../files/explorer-tree';
 
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { useWorkspaceDirExplorer } from '@/modules/chatroom/workspace/files';
+import { useAcquireFileTreeWatch } from '@/modules/chatroom/workspace/files/useFileTreeWatch';
 
 const EMPTY_LOADING_DIRS = new Set<string>();
 
@@ -72,13 +73,15 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   onNodeContextMenu,
   onEmptyAreaContextMenu,
 }: WorkspaceFileExplorerProps) {
+  useAcquireFileTreeWatch(machineId, workingDir, true);
+
   const expandedPathsStorageKey = getExpandedPathsStorageKey(chatroomId, workingDir);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() =>
     readExpandedPaths(expandedPathsStorageKey)
   );
 
   const trimmedFilter = filterQuery.trim();
-  const { rootNodes, displayNodes, isLoading } = useWorkspaceDirExplorer({
+  const { rootNodes, displayNodes, isLoading, loadError, refresh } = useWorkspaceDirExplorer({
     machineId,
     workingDir,
     searchQuery: isExplorerSearchMode(trimmedFilter) ? trimmedFilter : '',
@@ -155,6 +158,24 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
       >
         <ChatroomLoader size="sm" />
         Loading files…
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div
+        className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-8 text-center text-chatroom-text-muted text-xs"
+        onContextMenu={onEmptyAreaContextMenu}
+      >
+        <p>{loadError}</p>
+        <button
+          type="button"
+          className="rounded border border-chatroom-border px-3 py-1 text-chatroom-text hover:bg-chatroom-surface-hover"
+          onClick={refresh}
+        >
+          Retry
+        </button>
       </div>
     );
   }

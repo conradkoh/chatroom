@@ -1,19 +1,23 @@
 'use client';
-// fallow-ignore-file complexity
+// fallow-ignore-file code-duplication complexity
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
+import { fileTreeEntriesToFileEntries } from './fileTreeUtils';
 import {
   MAX_MULTI_WORKSPACE_SLOTS,
   multiWorkspaceSlotsKey,
   prepareMultiWorkspaceSlots,
   tagFileEntriesWithWorkspaceId,
 } from './multiWorkspaceSlots';
-import { useWorkspaceFileTree } from './useWorkspaceFileTree';
 import { requestWorkspaceFileTreeRefresh } from './workspaceFileTreeRefreshCoordinator';
-import { toWorkspaceFileTreeKey } from '../stores/workspaceFileTreeStore';
+import {
+  getWorkspaceFileTreeEntries,
+  subscribeWorkspaceFileTree,
+  toWorkspaceFileTreeKey,
+} from '../stores/workspaceFileTreeStore';
 
 import type { FileEntry } from '@/modules/chatroom/components/FileSelector/useFileSelector';
 import type { Workspace } from '@/modules/chatroom/types/workspace';
@@ -23,17 +27,29 @@ export interface UseMultiWorkspaceFileSyncResult {
   refreshAll: (options?: { force?: boolean }) => void;
 }
 
-function slotToProducerArgs(slot: ReturnType<typeof prepareMultiWorkspaceSlots>[number]) {
-  return {
-    machineId: slot?.machineId ?? '',
-    workingDir: slot?.workingDir ?? '',
-    enabled: !!slot,
-  };
+function useSlotStoreFiles(
+  machineId: string,
+  workingDir: string,
+  workspaceId: string | undefined,
+  slotActive: boolean
+): FileEntry[] {
+  const workspaceKey = toWorkspaceFileTreeKey(machineId, workingDir);
+
+  const storeEntries = useSyncExternalStore(
+    useCallback((listener) => subscribeWorkspaceFileTree(workspaceKey, listener), [workspaceKey]),
+    () => getWorkspaceFileTreeEntries(workspaceKey),
+    () => getWorkspaceFileTreeEntries(workspaceKey)
+  );
+
+  return useMemo(() => {
+    if (!slotActive) return [];
+    return tagFileEntriesWithWorkspaceId(fileTreeEntriesToFileEntries(storeEntries), workspaceId);
+  }, [slotActive, storeEntries, workspaceId]);
 }
 
 /**
- * Single dashboard hook: producer hydrates workspaceFileTreeStore from Convex;
- * `files` reads merged store entries; `refreshAll` nudges daemon via shared coordinator.
+ * Dashboard autocomplete hook: reads cached store entries without ambient producers.
+ * `refreshAll` nudges the daemon via the shared refresh coordinator.
  */
 export function useMultiWorkspaceFileSync(
   workspaces: Workspace[]
@@ -41,18 +57,90 @@ export function useMultiWorkspaceFileSync(
   const workspaceSlotsKey = multiWorkspaceSlotsKey(workspaces);
   const slots = useMemo(() => prepareMultiWorkspaceSlots(workspaces), [workspaceSlotsKey]);
 
-  const tree0 = useWorkspaceFileTree(slotToProducerArgs(slots[0]));
-  const tree1 = useWorkspaceFileTree(slotToProducerArgs(slots[1]));
-  const tree2 = useWorkspaceFileTree(slotToProducerArgs(slots[2]));
-  const tree3 = useWorkspaceFileTree(slotToProducerArgs(slots[3]));
-  const tree4 = useWorkspaceFileTree(slotToProducerArgs(slots[4]));
-  const tree5 = useWorkspaceFileTree(slotToProducerArgs(slots[5]));
-  const tree6 = useWorkspaceFileTree(slotToProducerArgs(slots[6]));
-  const tree7 = useWorkspaceFileTree(slotToProducerArgs(slots[7]));
-  const tree8 = useWorkspaceFileTree(slotToProducerArgs(slots[8]));
-  const tree9 = useWorkspaceFileTree(slotToProducerArgs(slots[9]));
+  const slot0 = slots[0];
+  const slot1 = slots[1];
+  const slot2 = slots[2];
+  const slot3 = slots[3];
+  const slot4 = slots[4];
+  const slot5 = slots[5];
+  const slot6 = slots[6];
+  const slot7 = slots[7];
+  const slot8 = slots[8];
+  const slot9 = slots[9];
 
-  const trees = [tree0, tree1, tree2, tree3, tree4, tree5, tree6, tree7, tree8, tree9];
+  const files0 = useSlotStoreFiles(
+    slot0?.machineId ?? '',
+    slot0?.workingDir ?? '',
+    slot0?.workspaceId,
+    !!slot0
+  );
+  const files1 = useSlotStoreFiles(
+    slot1?.machineId ?? '',
+    slot1?.workingDir ?? '',
+    slot1?.workspaceId,
+    !!slot1
+  );
+  const files2 = useSlotStoreFiles(
+    slot2?.machineId ?? '',
+    slot2?.workingDir ?? '',
+    slot2?.workspaceId,
+    !!slot2
+  );
+  const files3 = useSlotStoreFiles(
+    slot3?.machineId ?? '',
+    slot3?.workingDir ?? '',
+    slot3?.workspaceId,
+    !!slot3
+  );
+  const files4 = useSlotStoreFiles(
+    slot4?.machineId ?? '',
+    slot4?.workingDir ?? '',
+    slot4?.workspaceId,
+    !!slot4
+  );
+  const files5 = useSlotStoreFiles(
+    slot5?.machineId ?? '',
+    slot5?.workingDir ?? '',
+    slot5?.workspaceId,
+    !!slot5
+  );
+  const files6 = useSlotStoreFiles(
+    slot6?.machineId ?? '',
+    slot6?.workingDir ?? '',
+    slot6?.workspaceId,
+    !!slot6
+  );
+  const files7 = useSlotStoreFiles(
+    slot7?.machineId ?? '',
+    slot7?.workingDir ?? '',
+    slot7?.workspaceId,
+    !!slot7
+  );
+  const files8 = useSlotStoreFiles(
+    slot8?.machineId ?? '',
+    slot8?.workingDir ?? '',
+    slot8?.workspaceId,
+    !!slot8
+  );
+  const files9 = useSlotStoreFiles(
+    slot9?.machineId ?? '',
+    slot9?.workingDir ?? '',
+    slot9?.workspaceId,
+    !!slot9
+  );
+
+  const slotFiles = [
+    files0,
+    files1,
+    files2,
+    files3,
+    files4,
+    files5,
+    files6,
+    files7,
+    files8,
+    files9,
+  ];
 
   const requestMutation = useSessionMutation(api.workspaceFiles.requestFileTree);
 
@@ -81,26 +169,13 @@ export function useMultiWorkspaceFileSync(
 
   const files = useMemo(() => {
     const merged: FileEntry[] = [];
-    for (let i = 0; i < MAX_MULTI_WORKSPACE_SLOTS; i++) {
-      const tagged = tagFileEntriesWithWorkspaceId(trees[i]?.entries ?? [], slots[i]?.workspaceId);
-      if (tagged.length > 0) {
-        merged.push(...tagged);
+    for (const slotFilesGroup of slotFiles) {
+      if (slotFilesGroup.length > 0) {
+        merged.push(...slotFilesGroup);
       }
     }
     return merged;
-  }, [
-    tree0.entries,
-    tree1.entries,
-    tree2.entries,
-    tree3.entries,
-    tree4.entries,
-    tree5.entries,
-    tree6.entries,
-    tree7.entries,
-    tree8.entries,
-    tree9.entries,
-    slots,
-  ]);
+  }, [slotFiles]);
 
   return useMemo(() => ({ files, refreshAll }), [files, refreshAll]);
 }

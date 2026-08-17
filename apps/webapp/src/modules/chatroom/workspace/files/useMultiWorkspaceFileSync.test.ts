@@ -5,20 +5,18 @@ import { useMultiWorkspaceFileSync } from './useMultiWorkspaceFileSync';
 import { __resetWorkspaceFileTreeRefreshCoordinatorForTests } from './workspaceFileTreeRefreshCoordinator';
 
 import type { Workspace } from '@/modules/chatroom/types/workspace';
+import {
+  __resetWorkspaceFileTreeStoreForTests,
+  upsertWorkspaceFileTree,
+  toWorkspaceFileTreeKey,
+} from '@/modules/chatroom/workspace/stores/workspaceFileTreeStore';
 
 const mocks = vi.hoisted(() => ({
-  refreshFns: [] as ReturnType<typeof vi.fn>[],
-  treeEntries: [] as { path: string; type: 'file' | 'directory' }[],
   requestMutation: vi.fn(() => Promise.resolve({ status: 'requested' })),
-  useWorkspaceFileTree: vi.fn(),
 }));
 
 vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => mocks.requestMutation,
-}));
-
-vi.mock('./useWorkspaceFileTree', () => ({
-  useWorkspaceFileTree: mocks.useWorkspaceFileTree,
 }));
 
 function makeWorkspace(machineId: string, workingDir: string): Workspace {
@@ -33,21 +31,8 @@ function makeWorkspace(machineId: string, workingDir: string): Workspace {
 
 beforeEach(() => {
   __resetWorkspaceFileTreeRefreshCoordinatorForTests();
-  mocks.refreshFns = [];
-  mocks.treeEntries = [];
+  __resetWorkspaceFileTreeStoreForTests();
   mocks.requestMutation.mockClear();
-  mocks.useWorkspaceFileTree.mockImplementation(({ enabled }: { enabled?: boolean }) => {
-    const refresh = vi.fn();
-    if (enabled) mocks.refreshFns.push(refresh);
-    return {
-      entries: enabled ? mocks.treeEntries : [],
-      rootNodes: [],
-      scannedAt: null,
-      isLoading: false,
-      hasTree: enabled && mocks.treeEntries.length > 0,
-      refresh,
-    };
-  });
 });
 
 afterEach(() => {
@@ -56,19 +41,25 @@ afterEach(() => {
 });
 
 describe('useMultiWorkspaceFileSync', () => {
-  it('merges producer entries with workspaceId tags', () => {
-    mocks.treeEntries = [
-      { path: 'src/a.ts', type: 'file' },
-      { path: 'src', type: 'directory' },
-    ];
+  it('merges cached store entries with workspaceId tags', () => {
     const workspaces = [makeWorkspace('machine-1', '/repo-a/')];
+    const key = toWorkspaceFileTreeKey('machine-1', '/repo-a');
+    upsertWorkspaceFileTree(
+      key,
+      [
+        { path: 'src/a.ts', type: 'file' },
+        { path: 'src', type: 'directory' },
+      ],
+      100,
+      1
+    );
+
     const { result } = renderHook(() => useMultiWorkspaceFileSync(workspaces));
 
     expect(result.current.files).toEqual([
       expect.objectContaining({ path: 'src/a.ts', workspaceId: expect.any(String) }),
       expect.objectContaining({ path: 'src', workspaceId: expect.any(String) }),
     ]);
-    expect(mocks.useWorkspaceFileTree).toHaveBeenCalledTimes(10);
   });
 
   it('refreshAll uses shared coordinator and consumer-style mutation', async () => {
@@ -100,7 +91,6 @@ describe('useMultiWorkspaceFileSync', () => {
       workingDir: '/repo-b',
       force: true,
     });
-    expect(mocks.refreshFns[0]).not.toHaveBeenCalled();
   });
 
   it('refreshAll dedupes repeated calls within coordinator window', () => {

@@ -136,6 +136,8 @@ export const cleanupReadCursors = internalMutation({
  * - chatroom_workspaceDiffRequests
  * - chatroom_workspaceFileContentRequests
  * - chatroom_workspaceFileTreeRequests
+ * - chatroom_workspaceFileTreeWatches
+ * - chatroom_workspaceFileTreeReleaseRequests
  * - chatroom_workspaceCommitDetail
  * - chatroom_runnableCommands
  * - chatroom_commandRunsV2
@@ -271,6 +273,20 @@ export const cleanupMachines = internalMutation({
         .collect();
       for (const row of fileTreeReqs)
         await ctx.db.delete('chatroom_workspaceFileTreeRequests', row._id);
+
+      const fileTreeWatches = await ctx.db
+        .query('chatroom_workspaceFileTreeWatches')
+        .filter((q) => q.eq(q.field('machineId'), mid))
+        .collect();
+      for (const row of fileTreeWatches)
+        await ctx.db.delete('chatroom_workspaceFileTreeWatches', row._id);
+
+      const fileTreeReleases = await ctx.db
+        .query('chatroom_workspaceFileTreeReleaseRequests')
+        .filter((q) => q.eq(q.field('machineId'), mid))
+        .collect();
+      for (const row of fileTreeReleases)
+        await ctx.db.delete('chatroom_workspaceFileTreeReleaseRequests', row._id);
 
       const commitDetails = await ctx.db
         .query('chatroom_workspaceCommitDetail')

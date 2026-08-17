@@ -5,8 +5,11 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { isExplorerSearchMode } from './explorer-tree';
 import { filterFileTreeEntries, fileTreeEntriesToExplorerNodes } from './fileTreeUtils';
+import { useFileTreeWatchEnabled } from './useFileTreeWatch';
+import { useWorkspaceFileTree } from './useWorkspaceFileTree';
 import { useWorkspaceFileTreeEntries } from './useWorkspaceFileTreeEntries';
 import { filterExplorerTreeNodes, type ExplorerTreeNode } from '../components/explorerTreeFilter';
+import { toWorkspaceFileTreeKey } from '../stores/workspaceFileTreeStore';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 
@@ -32,19 +35,28 @@ export function useWorkspaceDirExplorer({
   hasTree: boolean;
   refresh: () => void;
   isSearchMode: boolean;
+  loadError: string | null;
 } {
   const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
-  const mountPullRef = useRef(false);
+  const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
+  const hydratedWorkspaceKeyRef = useRef<string | null>(null);
+  const watchEnabled = useFileTreeWatchEnabled(machineId, normalizedWorkingDir);
+  const syncEnabled = enabled && watchEnabled;
+
+  const tree = useWorkspaceFileTree({
+    machineId,
+    workingDir: normalizedWorkingDir,
+    enabled: syncEnabled,
+  });
 
   const {
     treeEntries,
-    isLoading,
-    hasTree,
+    hasTree: entriesHasTree,
     refresh: treeRefresh,
   } = useWorkspaceFileTreeEntries({
     machineId,
     workingDir: normalizedWorkingDir,
-    enabled,
+    enabled: syncEnabled,
     includeDirectories: true,
   });
 
@@ -65,8 +77,9 @@ export function useWorkspaceDirExplorer({
   }, [filterQuery, isSearchMode, rootNodes]);
 
   const refresh = useCallback(() => {
+    tree.refresh({ force: true });
     treeRefresh({ force: true });
-  }, [treeRefresh]);
+  }, [treeRefresh, tree]);
 
   useEffect(() => {
     if (refreshSignal > 0) refresh();
@@ -74,24 +87,34 @@ export function useWorkspaceDirExplorer({
 
   useEffect(() => {
     if (!enabled) {
-      mountPullRef.current = false;
+      hydratedWorkspaceKeyRef.current = null;
       return;
     }
-    if (mountPullRef.current) return;
-    mountPullRef.current = true;
-    if (hasTree) return;
+    if (hydratedWorkspaceKeyRef.current === workspaceKey) return;
+    hydratedWorkspaceKeyRef.current = workspaceKey;
+    if (tree.hasTree || entriesHasTree) return;
     treeRefresh();
-  }, [enabled, hasTree, treeRefresh]);
+  }, [enabled, entriesHasTree, tree.hasTree, treeRefresh, workspaceKey]);
 
   return useMemo(
     () => ({
       rootNodes,
       displayNodes,
-      isLoading,
-      hasTree,
+      isLoading: tree.isLoading,
+      hasTree: tree.hasTree || entriesHasTree,
       refresh,
       isSearchMode,
+      loadError: tree.loadError,
     }),
-    [displayNodes, hasTree, isLoading, isSearchMode, refresh, rootNodes]
+    [
+      displayNodes,
+      entriesHasTree,
+      isSearchMode,
+      refresh,
+      rootNodes,
+      tree.hasTree,
+      tree.isLoading,
+      tree.loadError,
+    ]
   );
 }

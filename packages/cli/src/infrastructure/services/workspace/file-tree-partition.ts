@@ -5,6 +5,7 @@ import type {
   FileTree,
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files.js';
+import { shouldUseShardedStrategy } from '@workspace/backend/src/domain/workspace-file-tree/index.js';
 
 /** Match services/backend/convex/workspaceFiles.ts */
 // fallow-ignore-next-line unused-export
@@ -38,8 +39,9 @@ export function shardIdForPath(path: string): string {
   return slash === -1 ? '__root__' : path.slice(0, slash);
 }
 
+// fallow-ignore-next-line unused-export
 export function shouldUseV3Upload(tree: FileTree): boolean {
-  return Buffer.byteLength(JSON.stringify(tree), 'utf8') > MAX_TREE_JSON_BYTES;
+  return shouldUseShardedStrategy(tree);
 }
 
 // fallow-ignore-next-line complexity
