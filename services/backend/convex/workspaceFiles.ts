@@ -491,6 +491,183 @@ export const fulfillFileTreeRequest = mutation({
   },
 });
 
+// ─── File Tree Watch Lifecycle ──────────────────────────────────────────────
+
+async function upsertPendingFileTreeReleaseRequest(
+  ctx: MutationCtx,
+  machineId: string,
+  workingDir: string
+): Promise<void> {
+  const existing = await ctx.db
+    .query('chatroom_workspaceFileTreeReleaseRequests')
+    .withIndex('by_machine_workingDir', (q: any) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .first();
+
+  const now = Date.now();
+  if (existing) {
+    if (existing.status !== 'pending') {
+      await ctx.db.patch('chatroom_workspaceFileTreeReleaseRequests', existing._id, {
+        status: 'pending',
+        requestedAt: now,
+        updatedAt: now,
+      });
+    }
+    return;
+  }
+
+  await ctx.db.insert('chatroom_workspaceFileTreeReleaseRequests', {
+    machineId,
+    workingDir,
+    status: 'pending',
+    requestedAt: now,
+    updatedAt: now,
+  });
+}
+
+async function clearPendingFileTreeReleaseRequest(
+  ctx: MutationCtx,
+  machineId: string,
+  workingDir: string
+): Promise<void> {
+  const existing = await ctx.db
+    .query('chatroom_workspaceFileTreeReleaseRequests')
+    .withIndex('by_machine_workingDir', (q: any) =>
+      q.eq('machineId', machineId).eq('workingDir', workingDir)
+    )
+    .first();
+
+  if (existing && existing.status === 'pending') {
+    await ctx.db.delete('chatroom_workspaceFileTreeReleaseRequests', existing._id);
+  }
+}
+
+/**
+ * Adjust aggregated UI watch count for a workspace file tree.
+ * When count returns to zero, queues a daemon release request.
+ */
+export const adjustFileTreeWatch = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    delta: v.union(v.literal(1), v.literal(-1)),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
+    const now = Date.now();
+
+    const row = await ctx.db
+      .query('chatroom_workspaceFileTreeWatches')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+
+    const previousCount = row?.watchCount ?? 0;
+    const nextCount = args.delta === 1 ? previousCount + 1 : Math.max(0, previousCount - 1);
+
+    if (row) {
+      await ctx.db.patch('chatroom_workspaceFileTreeWatches', row._id, {
+        watchCount: nextCount,
+        updatedAt: now,
+      });
+    } else if (nextCount > 0) {
+      await ctx.db.insert('chatroom_workspaceFileTreeWatches', {
+        machineId: args.machineId,
+        workingDir,
+        watchCount: nextCount,
+        updatedAt: now,
+      });
+    }
+
+    if (previousCount > 0 && nextCount === 0) {
+      await upsertPendingFileTreeReleaseRequest(ctx, args.machineId, workingDir);
+    } else if (nextCount > 0) {
+      await clearPendingFileTreeReleaseRequest(ctx, args.machineId, workingDir);
+    }
+
+    return { watchCount: nextCount };
+  },
+});
+
+/**
+ * Returns pending file-tree coordinator release requests for a machine.
+ * Daemon subscribes to this reactively.
+ */
+export const getPendingFileTreeReleaseRequests = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      return [];
+    }
+
+    try {
+      await requireMachineAccess(ctx, args.machineId, auth.userId);
+    } catch {
+      return [];
+    }
+
+    const requests = await ctx.db
+      .query('chatroom_workspaceFileTreeReleaseRequests')
+      .withIndex('by_machine_status', (q: any) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending')
+      )
+      .take(MAX_PENDING_REQUESTS);
+
+    return requests.map((r) => ({
+      _id: r._id,
+      workingDir: r.workingDir,
+      updatedAt: r.updatedAt,
+    }));
+  },
+});
+
+/**
+ * Marks a file-tree release request as fulfilled after the daemon stops its coordinator.
+ */
+export const fulfillFileTreeReleaseRequest = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) {
+      throw new Error('Authentication required');
+    }
+
+    await requireMachineAccess(ctx, args.machineId, auth.userId);
+    const workingDir = normalizeWorkingDir(args.workingDir);
+
+    const request = await ctx.db
+      .query('chatroom_workspaceFileTreeReleaseRequests')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
+      )
+      .first();
+
+    if (request) {
+      await ctx.db.patch('chatroom_workspaceFileTreeReleaseRequests', request._id, {
+        status: 'done',
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
 // ─── Purge Workspace Data ───────────────────────────────────────────────────
 
 /**
@@ -531,6 +708,26 @@ export const purgeFileTree = mutation({
       .collect();
     for (const req of requests) {
       await ctx.db.delete('chatroom_workspaceFileTreeRequests', req._id);
+    }
+
+    const watch = await ctx.db
+      .query('chatroom_workspaceFileTreeWatches')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .first();
+    if (watch) {
+      await ctx.db.delete('chatroom_workspaceFileTreeWatches', watch._id);
+    }
+
+    const releaseRequests = await ctx.db
+      .query('chatroom_workspaceFileTreeReleaseRequests')
+      .withIndex('by_machine_workingDir', (q: any) =>
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
+      )
+      .collect();
+    for (const req of releaseRequests) {
+      await ctx.db.delete('chatroom_workspaceFileTreeReleaseRequests', req._id);
     }
 
     // Delete file content cache
