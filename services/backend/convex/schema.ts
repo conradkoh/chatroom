@@ -2648,7 +2648,7 @@ export default defineSchema({
     machineId: v.string(),
     workingDir: v.string(),
     revision: v.number(),
-    snapshotKind: v.union(v.literal('v2'), v.literal('v3')),
+    strategyId: v.union(v.literal('blob'), v.literal('sharded')),
     /** V2 dataHash or V3 syncGeneration, used to verify the snapshot before publishing. */
     snapshotId: v.string(),
     publishedAt: v.number(),
