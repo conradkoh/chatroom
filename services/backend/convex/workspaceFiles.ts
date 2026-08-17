@@ -16,6 +16,7 @@ import {
   compactFileTreeDeltaOperationValidator,
   expandFileTreeDeltaOperations,
 } from './lib/fileTreeDeltaOps';
+import * as blobSnapshots from './workspaceFileTree/repositories/blobSnapshotRepository';
 import { getCurrentRevision } from './workspaceFileTree/repositories/deltaRepository';
 import { publishFileTreeCheckpoint as publishCheckpointService } from './workspaceFileTree/services/checkpointPublishService';
 import { getFileTreeCheckpointForApi } from './workspaceFileTree/services/checkpointQueryService';
@@ -671,31 +672,13 @@ export const syncFileTreeV2 = mutation({
       throw new Error('File tree too large');
     }
 
-    const existing = await ctx.db
-      .query('chatroom_workspaceFileTreeV2')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-
-    // Server-side dedup: skip write if hash unchanged
-    if (existing && existing.dataHash === args.dataHash) {
-      return;
-    }
-
-    const row = {
+    await blobSnapshots.upsertBlobSnapshot(ctx, {
       machineId: args.machineId,
       workingDir,
       data: args.data,
       dataHash: args.dataHash,
       scannedAt: args.scannedAt,
-    };
-
-    if (existing) {
-      await ctx.db.patch('chatroom_workspaceFileTreeV2', existing._id, row);
-    } else {
-      await ctx.db.insert('chatroom_workspaceFileTreeV2', row);
-    }
+    });
   },
 });
 
@@ -725,13 +708,7 @@ export const getFileTreeV2 = query({
 
     const workingDir = normalizeWorkingDir(args.workingDir);
 
-    const tree = await ctx.db
-      .query('chatroom_workspaceFileTreeV2')
-      .withIndex('by_machine_workingDir', (q: any) =>
-        q.eq('machineId', args.machineId).eq('workingDir', workingDir)
-      )
-      .first();
-
+    const tree = await blobSnapshots.findBlobSnapshot(ctx, args.machineId, workingDir);
     if (!tree) {
       return null;
     }
