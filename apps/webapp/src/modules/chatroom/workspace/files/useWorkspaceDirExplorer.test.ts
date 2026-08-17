@@ -15,8 +15,12 @@ const WORKSPACE_KEY = toWorkspaceFileTreeKey(MACHINE_ID, WORKING_DIR);
 
 const mocks = vi.hoisted(() => ({
   treeRefresh: vi.fn(),
+  treeHydrationRefresh: vi.fn(),
   isLoading: false,
   hasTree: false,
+  hydrationLoading: false,
+  hydrationHasTree: false,
+  loadError: null as string | null,
 }));
 
 vi.mock('./useWorkspaceFileTreeEntries', () => ({
@@ -32,14 +36,53 @@ vi.mock('./useWorkspaceFileTreeEntries', () => ({
   },
 }));
 
+vi.mock('./useFileTreeWatch', () => ({
+  useFileTreeWatchEnabled: () => true,
+}));
+
+vi.mock('./useWorkspaceFileTree', () => ({
+  useWorkspaceFileTree: vi.fn(() => ({
+    isLoading: mocks.hydrationLoading,
+    hasTree: mocks.hydrationHasTree,
+    entries: [],
+    rootNodes: [],
+    scannedAt: null,
+    refresh: mocks.treeHydrationRefresh,
+    loadError: mocks.loadError,
+  })),
+}));
+
 beforeEach(() => {
   mocks.treeRefresh.mockClear();
+  mocks.treeHydrationRefresh.mockClear();
   mocks.isLoading = false;
   mocks.hasTree = false;
+  mocks.hydrationLoading = false;
+  mocks.hydrationHasTree = false;
+  mocks.loadError = null;
   __resetWorkspaceFileTreeStoreForTests();
 });
 
 describe('useWorkspaceDirExplorer', () => {
+  it('forwards loadError from useWorkspaceFileTree', () => {
+    mocks.loadError = 'File tree sync timed out';
+    const { result } = renderHook(() =>
+      useWorkspaceDirExplorer({ machineId: MACHINE_ID, workingDir: WORKING_DIR })
+    );
+    expect(result.current.loadError).toMatch(/timed out/i);
+  });
+  it('uses hydration hook loading state when it has tree data', () => {
+    mocks.isLoading = true;
+    mocks.hydrationHasTree = true;
+    mocks.hydrationLoading = false;
+
+    const { result } = renderHook(() =>
+      useWorkspaceDirExplorer({ machineId: MACHINE_ID, workingDir: WORKING_DIR })
+    );
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasTree).toBe(true);
+  });
   it('builds full tree nodes from store entries', () => {
     upsertWorkspaceFileTree(
       WORKSPACE_KEY,
@@ -121,7 +164,7 @@ describe('useWorkspaceDirExplorer', () => {
     ]);
   });
 
-  it('refresh calls tree refresh with force', () => {
+  it('refresh calls hydration and entries refresh with force', () => {
     const { result } = renderHook(() =>
       useWorkspaceDirExplorer({
         machineId: MACHINE_ID,
@@ -133,6 +176,7 @@ describe('useWorkspaceDirExplorer', () => {
       result.current.refresh();
     });
 
+    expect(mocks.treeHydrationRefresh).toHaveBeenCalledWith({ force: true });
     expect(mocks.treeRefresh).toHaveBeenCalledWith({ force: true });
   });
 

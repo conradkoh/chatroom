@@ -6,3 +6,5 @@ export type ConvexSubscriberDeps = {
   sessionId: SessionId;
   machineId: string;
 };
+
+export type SubscriberHandle = { stop(): Promise<void> };

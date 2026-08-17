@@ -5,32 +5,52 @@ import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
 export type SubscriberHandle = { stop(): Promise<void> };
 
 interface PendingFileRequest {
-  _id: string | { toString(): string };
+  _id?: string | { toString(): string } | null;
+  workingDir?: string;
+  force?: boolean;
+  updatedAt?: number;
 }
 
 function requestId(req: PendingFileRequest): string {
+  if (req._id == null) return 'unknown';
   return typeof req._id === 'string' ? req._id : req._id.toString();
+}
+
+function pendingRequestsSnapshot(requests: PendingFileRequest[]): string {
+  return requests
+    .filter((req) => req != null && typeof req === 'object')
+    .map(
+      (req) =>
+        `${requestId(req)}:${req.workingDir ?? ''}:${req.force ? '1' : '0'}:${req.updatedAt ?? 0}`
+    )
+    .sort()
+    .join('|');
 }
 
 export function startFileTreeRequestSubscriber(
   deps: ConvexSubscriberDeps,
   onEvent: (event: InboundEvent) => void
 ): SubscriberHandle {
-  const seen = new Set<string>();
+  let lastSnapshot = '';
 
   const unsub = deps.wsClient.onUpdate(
     api.workspaceFiles.getPendingFileTreeRequests,
     { sessionId: deps.sessionId, machineId: deps.machineId },
     // fallow-ignore-next-line complexity
     (requests: PendingFileRequest[] | null) => {
-      if (!requests?.length) return;
-      for (const req of requests) {
-        if (req == null || typeof req !== 'object' || !('_id' in req)) continue;
-        const id = requestId(req);
-        if (seen.has(id)) continue;
-        seen.add(id);
-        onEvent({ type: 'file-tree.request', requestId: id });
+      if (!requests?.length) {
+        lastSnapshot = '';
+        return;
       }
+
+      const snapshot = pendingRequestsSnapshot(requests);
+      if (!snapshot || snapshot === lastSnapshot) return;
+      lastSnapshot = snapshot;
+
+      const first = requests.find((req) => req != null && typeof req === 'object');
+      if (!first) return;
+
+      onEvent({ type: 'file-tree.request', requestId: requestId(first) });
     },
     (err: unknown) => {
       console.warn(

@@ -6,9 +6,11 @@ import { dispatchFileInboundEvent } from '../file-inbound-registry.js';
 
 export function createFileRouterDeps(): HandleFileInboundDeps {
   return {
+    // fallow-ignore-next-line complexity
     deliverInbound: async (event) => {
       switch (event.type) {
         case 'file-tree.request':
+        case 'file-tree.release':
           await fulfillFileTreeRequest({ dispatchInbound: dispatchFileInboundEvent }, event);
           break;
         case 'file-content.request':

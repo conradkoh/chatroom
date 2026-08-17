@@ -171,7 +171,7 @@ describe('incremental workspace file tree', () => {
       machineId,
       workingDir: `${WORKING_DIR}/`,
       revision: 1,
-      snapshotKind: 'v2',
+      strategyId: 'blob',
       snapshotId: 'cache-checkpoint-hash',
     });
     expect(published).toEqual({
@@ -187,7 +187,7 @@ describe('incremental workspace file tree', () => {
     });
     expect(checkpoint).toMatchObject({
       revision: 1,
-      snapshotKind: 'v2',
+      strategyId: 'blob',
       snapshotId: 'cache-checkpoint-hash',
     });
 
@@ -250,7 +250,7 @@ describe('incremental workspace file tree', () => {
       machineId,
       workingDir: WORKING_DIR,
       revision: 1,
-      snapshotKind: 'v3',
+      strategyId: 'sharded',
       snapshotId: 'missing-generation',
     });
     expect(result).toEqual({ status: 'snapshot-missing' });
@@ -287,7 +287,7 @@ describe('incremental workspace file tree', () => {
       machineId,
       workingDir: WORKING_DIR,
       revision: 1,
-      snapshotKind: 'v2',
+      strategyId: 'blob',
       snapshotId: 'replacement-hash',
     });
 

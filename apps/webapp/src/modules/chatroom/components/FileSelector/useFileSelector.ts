@@ -2,7 +2,7 @@
 
 import type { Observable } from '@legendapp/state';
 import { useSelector } from '@legendapp/state/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import {
   acquireFileSelectorPartition,
@@ -14,7 +14,15 @@ import {
 } from './fileSelectorPartitionStore';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
+import {
+  getFileSelectorOpen,
+  subscribeActiveContextManagedDialog,
+} from '@/modules/chatroom/context/contextManagedDialogsController';
 import { fileTreeEntriesToFileEntries } from '@/modules/chatroom/workspace/files/fileTreeUtils';
+import {
+  useAcquireFileTreeWatch,
+  useFileTreeWatchEnabled,
+} from '@/modules/chatroom/workspace/files/useFileTreeWatch';
 import { useWorkspaceFileTreeEntries } from '@/modules/chatroom/workspace/files/useWorkspaceFileTreeEntries';
 import {
   getWorkspaceFileTreeEntries,
@@ -57,10 +65,19 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   const hasWorkspace = !!machineId && !!workingDir;
+  const fileSelectorOpen = useSyncExternalStore(
+    subscribeActiveContextManagedDialog,
+    getFileSelectorOpen,
+    () => false
+  );
+  const syncEnabled = hasWorkspace && fileSelectorOpen;
+  useAcquireFileTreeWatch(machineId, workingDir, syncEnabled);
+  const watchEnabled = useFileTreeWatchEnabled(machineId ?? '', workingDir ?? '');
+
   const { entries, refresh, hasTree } = useWorkspaceFileTreeEntries({
     machineId: machineId ?? '',
     workingDir: workingDir ?? '',
-    enabled: hasWorkspace,
+    enabled: syncEnabled && watchEnabled,
     includeDirectories: false,
   });
 
@@ -69,7 +86,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
 
   // fallow-ignore-next-line complexity
   useEffect(() => {
-    if (!chatroomId || !hasWorkspace || !machineId || !workingDir) return;
+    if (!chatroomId || !hasWorkspace || !machineId || !workingDir || !fileSelectorOpen) return;
 
     const normalizedWorkingDir = normalizeWorkspaceWorkingDir(workingDir);
     const workspaceKey = toWorkspaceFileTreeKey(machineId, normalizedWorkingDir);
@@ -96,13 +113,13 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
       typeof requestIdleCallback !== 'undefined'
         ? requestIdleCallback(
             () => {
-              refresh();
+              if (fileSelectorOpen) refresh();
               tryCommit();
             },
             { timeout: 2000 }
           )
         : setTimeout(() => {
-            refresh();
+            if (fileSelectorOpen) refresh();
             tryCommit();
           }, 0);
 
@@ -116,7 +133,7 @@ export function useFileSelector({ chatroomId, machineId, workingDir }: UseFileSe
       releaseFileSelectorPartition(chatroomId, machineId, workingDir);
       setPartitionState$(null);
     };
-  }, [chatroomId, machineId, workingDir, hasWorkspace, refresh]);
+  }, [chatroomId, machineId, workingDir, hasWorkspace, refresh, fileSelectorOpen]);
 
   const { preloadFiles, partitionStatus } = useSelector(() => {
     if (!partitionState$) {

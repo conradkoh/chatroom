@@ -1,36 +1,38 @@
+// fallow-ignore-file code-duplication
 import { api } from '../../../../api.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
-import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
+import type { ConvexSubscriberDeps, SubscriberHandle } from '../subscriber-deps.js';
+import {
+  drainPendingRequestSnapshotDedup,
+  pendingConvexId,
+  type PendingRowWithId,
+} from './pending-file-request-dedup.js';
 
-export type SubscriberHandle = { stop(): Promise<void> };
-
-interface PendingFileRequest {
-  _id: string | { toString(): string };
+interface PendingFileRequest extends PendingRowWithId {
+  workingDir?: string;
+  filePath?: string;
+  revision?: number;
+  updatedAt?: number;
 }
 
-function requestId(req: PendingFileRequest): string {
-  return typeof req._id === 'string' ? req._id : req._id.toString();
+// fallow-ignore-next-line complexity
+function writeRequestSnapshot(req: PendingFileRequest): string {
+  return `${pendingConvexId(req)}:${req.workingDir ?? ''}:${req.filePath ?? ''}:${req.revision ?? 0}:${req.updatedAt ?? 0}`;
 }
 
 export function startFileWriteRequestSubscriber(
   deps: ConvexSubscriberDeps,
   onEvent: (event: InboundEvent) => void
 ): SubscriberHandle {
-  const seen = new Set<string>();
+  const last = new Map<string, string>();
 
   const unsub = deps.wsClient.onUpdate(
     api.workspaceFiles.getPendingFileWriteRequests,
     { sessionId: deps.sessionId, machineId: deps.machineId },
     // fallow-ignore-next-line complexity
     (requests: PendingFileRequest[] | null) => {
-      if (!requests?.length) return;
-      for (const req of requests) {
-        if (req == null || typeof req !== 'object' || !('_id' in req)) continue;
-        const id = requestId(req);
-        if (seen.has(id)) continue;
-        seen.add(id);
+      for (const id of drainPendingRequestSnapshotDedup(requests, last, writeRequestSnapshot))
         onEvent({ type: 'file-write.request', requestId: id });
-      }
     },
     (err: unknown) => {
       console.warn(
