@@ -1,66 +1,73 @@
+import { TextSelection } from '@tiptap/pm/state';
 import { describe, expect, it, vi } from 'vitest';
 
-import { extendSelectionToLineBoundaryByCoords } from './codeBlockLineBoundarySelection';
+import { extendSelectionToLineBoundary } from './codeBlockLineBoundarySelection';
 import { createMarkdownEditorExtensions } from './markdownEditorExtensions';
 
-describe('extendSelectionToLineBoundaryByCoords', () => {
-  it('moves the head upward when a new position is found', () => {
-    const dispatch = vi.fn();
-    const setSelection = vi.fn().mockReturnThis();
-    const selection = {
-      from: 10,
-      to: 15,
-      anchor: 10,
-      head: 15,
-      constructor: { create: vi.fn(() => ({ anchor: 10, head: 8 })) },
-    };
-    const view = {
-      state: { selection, doc: { resolve: () => ({ start: () => 1 }) }, tr: { setSelection } },
-      coordsAtPos: vi.fn((pos: number) =>
-        pos === 1 ? { top: 10, bottom: 20, left: 0 } : { top: 20, bottom: 30, left: 10 }
-      ),
-      posAtCoords: vi.fn(() => ({ pos: 8 })),
-      dispatch,
-    };
+vi.spyOn(TextSelection, 'create').mockImplementation(
+  (_doc, anchor, head) => ({ anchor, head }) as TextSelection
+);
 
-    expect(extendSelectionToLineBoundaryByCoords(view as never, 'backward')).toBe(true);
-    expect(setSelection).toHaveBeenCalled();
+function createCodeBlockView({ head, anchor = head }: { head: number; anchor?: number }) {
+  const selection = Object.create(TextSelection.prototype) as TextSelection;
+  Object.defineProperties(selection, {
+    anchor: { value: anchor },
+    head: { value: head },
+    from: { value: Math.min(anchor, head) },
+    to: { value: Math.max(anchor, head) },
+  });
+  const dispatch = vi.fn();
+  const view = {
+    state: {
+      selection,
+      doc: {
+        resolve: () => ({
+          parent: { type: { name: 'codeBlock' } },
+          start: () => 1,
+          end: () => 9,
+        }),
+      },
+      tr: { setSelection: vi.fn().mockReturnThis() },
+    },
+    coordsAtPos: vi.fn((pos: number) => ({ top: pos < 4 ? 10 : pos < 7 ? 30 : 50 })),
+    dispatch,
+  };
+  return { view, dispatch, selection };
+}
+
+describe('extendSelectionToLineBoundary', () => {
+  it('moves backward from blockEnd to the final visual line start', () => {
+    const { view, dispatch } = createCodeBlockView({ head: 9, anchor: 2 });
+
+    expect(extendSelectionToLineBoundary(view as never, 'backward')).toBe(true);
     expect(dispatch).toHaveBeenCalled();
+    expect(view.coordsAtPos).toHaveBeenCalledWith(9);
   });
 
-  it('returns false when the fallback position is unchanged', () => {
-    const view = {
-      state: { selection: { from: 10, to: 15, anchor: 10 }, doc: {} },
-      coordsAtPos: () => ({ top: 20, bottom: 30, left: 5 }),
-      posAtCoords: () => ({ pos: 10 }),
-      dispatch: vi.fn(),
-    };
-    expect(extendSelectionToLineBoundaryByCoords(view as never, 'backward')).toBe(false);
-    expect(view.dispatch).not.toHaveBeenCalled();
+  it('uses selection.head as the moving endpoint for reversed selections', () => {
+    const { view, dispatch } = createCodeBlockView({ head: 5, anchor: 8 });
+
+    expect(extendSelectionToLineBoundary(view as never, 'backward')).toBe(true);
+    expect(dispatch).toHaveBeenCalled();
+    expect(view.coordsAtPos).toHaveBeenCalledWith(5);
   });
 
-  it('sweeps left when upward probe at current column returns the same position', () => {
-    const dispatch = vi.fn();
-    const setSelection = vi.fn().mockReturnThis();
-    const selection = {
-      from: 500,
-      to: 500,
-      anchor: 10,
-      head: 500,
-      constructor: { create: vi.fn(() => ({})) },
-    };
-    const posAtCoords = vi.fn().mockReturnValueOnce({ pos: 500 }).mockReturnValueOnce({ pos: 480 });
-    const view = {
-      state: { selection, doc: { resolve: () => ({ start: () => 1 }) }, tr: { setSelection } },
-      coordsAtPos: vi.fn((pos: number) =>
-        pos === 1 ? { top: 10, bottom: 20, left: 0 } : { top: 100, bottom: 110, left: 800 }
-      ),
-      posAtCoords,
-      dispatch,
-    };
-    expect(extendSelectionToLineBoundaryByCoords(view as never, 'backward')).toBe(true);
-    expect(posAtCoords).toHaveBeenCalledTimes(2);
-    expect(dispatch).toHaveBeenCalled();
+  it('swallows a no-op at the visual line start', () => {
+    const { view, dispatch } = createCodeBlockView({ head: 4 });
+
+    expect(extendSelectionToLineBoundary(view as never, 'backward')).toBe(true);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('does not intercept selections outside code blocks', () => {
+    const { view } = createCodeBlockView({ head: 5 });
+    view.state.doc.resolve = () => ({
+      parent: { type: { name: 'paragraph' } },
+      start: () => 1,
+      end: () => 9,
+    });
+
+    expect(extendSelectionToLineBoundary(view as never, 'backward')).toBe(false);
   });
 });
 
