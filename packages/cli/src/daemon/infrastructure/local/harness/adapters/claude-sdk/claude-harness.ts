@@ -4,6 +4,9 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { HARNESS_MODEL_CATALOG } from '@workspace/backend/src/domain/entities/harness/model-catalog.js';
+import { stripProviderPrefix } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
+
 import { ClaudeSdkSession } from './claude-session.js';
 import type {
   BoundHarness,
@@ -18,7 +21,6 @@ import type {
   PublishedAgent,
   PublishedProvider,
 } from '../../../../../domain/entities/machine-capabilities.js';
-import { HARNESS_MODEL_CATALOG } from '@workspace/backend/src/domain/entities/harness/model-catalog.js';
 import {
   formatClaudeSdkLoadError,
   importBundledClaudeSdk,
@@ -89,12 +91,16 @@ export class ClaudeSdkHarness implements BoundHarness {
 
   async listProviders(): Promise<readonly PublishedProvider[]> {
     const modelIds = HARNESS_MODEL_CATALOG['claude-sdk'];
+    const providerID = 'anthropic';
 
     return [
       {
-        providerID: 'anthropic',
+        providerID,
         name: 'Anthropic',
-        models: modelIds.map((modelID) => ({ modelID, name: modelID })),
+        models: modelIds.map((catalogId) => ({
+          modelID: stripProviderPrefix(providerID, catalogId),
+          name: catalogId,
+        })),
       },
     ];
   }
