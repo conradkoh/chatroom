@@ -1,3 +1,5 @@
+import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant';
+
 import {
   adaptProviderGroupsToModelGroups,
   aggregateFlatModelsByProvider,
@@ -6,6 +8,48 @@ import type { ModelGroup } from './types';
 import type { ProviderOption } from '../../direct-harness/components/harness-selectors/types';
 import { getModelDisplayLabel } from '../../types/machine';
 import { getModelProviderKey, UNPREFIXED_PROVIDER_KEY } from '../../utils/modelSelection';
+
+/** Param keys whose value is identical across every model in the group. */
+// fallow-ignore-next-line complexity
+function findUniformVariantParamKeys(modelIds: string[]): Set<string> {
+  if (modelIds.length <= 1) return new Set();
+
+  const decodedParams = modelIds.map((id) => {
+    try {
+      return decodeModelVariant(id).params;
+    } catch {
+      return {};
+    }
+  });
+
+  const allKeys = new Set<string>();
+  for (const params of decodedParams) {
+    for (const key of Object.keys(params)) allKeys.add(key);
+  }
+
+  const uniformKeys = new Set<string>();
+  for (const key of allKeys) {
+    const values = decodedParams.map((params) => params[key] ?? null);
+    const first = values[0];
+    if (values.every((value) => value === first)) {
+      uniformKeys.add(key);
+    }
+  }
+  return uniformKeys;
+}
+
+function relabelGroupWithUniformParamFilter(group: ModelGroup): ModelGroup {
+  const omitParamKeys = findUniformVariantParamKeys(group.options.map((option) => option.value));
+  if (omitParamKeys.size === 0) return group;
+
+  return {
+    ...group,
+    options: group.options.map((option) => ({
+      ...option,
+      label: getModelDisplayLabel(option.value, { omitParamKeys }),
+    })),
+  };
+}
 
 export function titleCaseProvider(provider: string): string {
   return provider
@@ -22,7 +66,7 @@ export function getProviderDisplayName(providerKey: string): string {
 /** Group flat model IDs (agent/multi-agent format) by provider key. */
 export function groupFlatModels(models: string[]): ModelGroup[] {
   if (models.length === 0) return [];
-  return aggregateFlatModelsByProvider(
+  const groups = aggregateFlatModelsByProvider(
     models.map((model) => {
       const providerKey = getModelProviderKey(model);
       return {
@@ -33,6 +77,7 @@ export function groupFlatModels(models: string[]): ModelGroup[] {
       };
     })
   );
+  return groups.map(relabelGroupWithUniformParamFilter);
 }
 
 /** Group ProviderOption[] (harness format) into ModelGroups. */

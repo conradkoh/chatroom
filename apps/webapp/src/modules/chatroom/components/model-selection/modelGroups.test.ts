@@ -47,8 +47,8 @@ describe('groupFlatModels', () => {
     expect(openai?.providerLabel).toBe('Openai');
     expect(openai?.options).toHaveLength(2);
     expect(openai?.options[0].value).toBe('openai/gpt-4o');
-    // getModelDisplayLabel transforms "openai/gpt-4o" to "OPENAI / GPT 4O"
-    expect(openai?.options[0].label).toContain('GPT 4O');
+    // getModelDisplayLabel transforms "openai/gpt-4o" to "Openai / Gpt 4o"
+    expect(openai?.options[0].label).toContain('Gpt 4o');
   });
 
   it('handles unprefixed models', () => {
@@ -68,7 +68,7 @@ describe('groupFlatModels', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].providerKey).toBe('sonnet');
     expect(groups[0].options).toHaveLength(2);
-    expect(groups[0].options[1].label).toBe('SONNET [effort=high]');
+    expect(groups[0].options[1].label).toBe('Sonnet [effort=high]');
   });
 
   it('groups claude catalog without duplicate base model provider keys', () => {
@@ -88,14 +88,34 @@ describe('groupFlatModels', () => {
       'claude-opus-4-8[effort=high]',
     ]);
     const labels = groups.flatMap((group) => group.options.map((option) => option.label));
-    expect(labels).toContain('CLAUDE OPUS 4 8');
-    expect(labels).toContain('CLAUDE OPUS 4 8 [effort=none]');
-    expect(labels).toContain('CLAUDE OPUS 4 8 [effort=high]');
+    expect(labels).toContain('Claude Opus 4 8');
+    expect(labels).toContain('Claude Opus 4 8 [effort=none]');
+    expect(labels).toContain('Claude Opus 4 8 [effort=high]');
     expect(new Set(labels).size).toBe(3);
   });
 
   it('returns empty array for empty input', () => {
     expect(groupFlatModels([])).toEqual([]);
+  });
+
+  it('drops variant params uniform across all models in a provider group', () => {
+    const sharedParams = 'cyber=false,thinking=false,context=300k,effort=low,fast=false';
+    const models = [
+      `cursor/claude-opus-5[${sharedParams}]`,
+      `cursor/claude-sonnet-4[${sharedParams}]`,
+    ];
+    const groups = groupFlatModels(models);
+    const cursor = groups.find((g) => g.providerKey === 'cursor');
+    expect(cursor?.options).toHaveLength(2);
+    expect(cursor?.options[0].label).toBe('Cursor / Claude Opus 5');
+    expect(cursor?.options[1].label).toBe('Cursor / Claude Sonnet 4');
+  });
+
+  it('keeps variant params that differ within a provider group', () => {
+    const models = ['sonnet', 'sonnet[effort=high]'];
+    const groups = groupFlatModels(models);
+    expect(groups[0].options[0].label).toBe('Sonnet');
+    expect(groups[0].options[1].label).toBe('Sonnet [effort=high]');
   });
 });
 
