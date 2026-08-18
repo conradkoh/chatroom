@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from 'react';
 
 import {
   SKETCH_CANVAS_COLORS,
@@ -10,8 +17,7 @@ import {
 } from './sketchConstants';
 import { buildSketchFileName } from './sketchFileName';
 
-import { resolveThemeAppearance } from '@/modules/theme/theme-utils';
-import { useTheme } from '@/modules/theme/ThemeProvider';
+import type { ThemeAppearance } from '@/modules/theme/theme-utils';
 
 export type UseSketchCanvasResult = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -25,6 +31,21 @@ export type UseSketchCanvasResult = {
 
 type SketchPoint = { x: number; y: number };
 type SketchStroke = { points: SketchPoint[]; size: number };
+
+function getSketchThemeAppearance(): ThemeAppearance {
+  if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
+    return 'dark';
+  }
+  return 'light';
+}
+
+function subscribeToSketchTheme(onThemeChange: () => void) {
+  if (typeof document === 'undefined') return () => {};
+
+  const observer = new MutationObserver(onThemeChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+  return () => observer.disconnect();
+}
 
 function drawSegment(
   context: CanvasRenderingContext2D,
@@ -70,8 +91,11 @@ function drawStroke(context: CanvasRenderingContext2D, stroke: SketchStroke, ink
  * Pointer events cover mouse, touch, and stylus without separate input paths.
  */
 export function useSketchCanvas(): UseSketchCanvasResult {
-  const { theme } = useTheme();
-  const appearance = resolveThemeAppearance(theme);
+  const appearance = useSyncExternalStore(
+    subscribeToSketchTheme,
+    getSketchThemeAppearance,
+    () => 'light' as ThemeAppearance
+  );
   const colors = SKETCH_CANVAS_COLORS[appearance];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
