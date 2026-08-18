@@ -27,7 +27,7 @@ export function getHandoffReportTemplateBody(
 <high-level view of what changed since the user's message>
 </handoff-overview>
 
-<!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
+<!-- UI collapses proofs and direction by default; overview and action required are expanded -->
 
 <handoff-proofs>
 ## Template Disclosure Confirmation
@@ -90,12 +90,6 @@ flowchart TD
     A[Component] --> B[Component]
 \`\`\`
 </handoff-direction>
-
-<handoff-notes>
-## Notes
-${getHandoffNotApplicableSectionComment('Write notes if none')}
-<anything the user should know — context, caveats, or observations not covered above>
-</handoff-notes>
 
 <handoff-action>
 ## Tech Debt Observed

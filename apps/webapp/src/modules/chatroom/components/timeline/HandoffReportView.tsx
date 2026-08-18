@@ -17,17 +17,12 @@ export type HandoffReportViewVariant = 'timeline' | 'detail';
 export interface HandoffReportViewProps {
   content: string;
   variant?: HandoffReportViewVariant;
+  /** When `user`, direction section opens by default for structured handoffs. */
+  targetRole?: string;
 }
 
 type SectionKey =
-  | 'overview'
-  | 'proofs'
-  | 'direction'
-  | 'ux'
-  | 'defragmentation'
-  | 'systemDesign'
-  | 'notes'
-  | 'action';
+  'overview' | 'proofs' | 'direction' | 'ux' | 'defragmentation' | 'systemDesign' | 'action';
 
 interface SectionDef {
   id: string;
@@ -53,21 +48,33 @@ const STRUCTURED_SECTIONS: SectionDef[] = [
     key: 'systemDesign',
     defaultOpenWhenNonempty: true,
   },
-  { id: 'notes', label: 'Notes', key: 'notes', defaultOpenWhenNonempty: false },
   { id: 'action', label: 'Action required', key: 'action', defaultOpenWhenNonempty: true },
 ];
 
+function isHandoffToUser(targetRole?: string): boolean {
+  return targetRole?.toLowerCase() === 'user';
+}
+
+function isSectionOpenByDefault(
+  section: SectionDef,
+  body: string | null,
+  targetRole?: string
+): boolean {
+  if (isHandoffSectionBodyEmpty(body ?? null)) return false;
+  if (section.key === 'direction' && isHandoffToUser(targetRole)) return true;
+  return section.defaultOpenWhenNonempty;
+}
+
 function computeInitialOpenSections(
   bodies: Record<SectionKey, string | null>,
-  isAbsent: Record<string, boolean>
+  isAbsent: Record<string, boolean>,
+  targetRole?: string
 ): Record<string, boolean> {
   const initial: Record<string, boolean> = {};
   for (const section of STRUCTURED_SECTIONS) {
     const body = bodies[section.key];
     if (shouldSkipSection(section, body, isAbsent)) continue;
-    initial[section.id] = isHandoffSectionBodyEmpty(body ?? null)
-      ? false
-      : section.defaultOpenWhenNonempty;
+    initial[section.id] = isSectionOpenByDefault(section, body, targetRole);
   }
   return initial;
 }
@@ -93,7 +100,6 @@ function computeSectionBodies(parsed: HandoffReportParseResult): {
     ux: parsed.ux,
     defragmentation: parsed.defragmentation,
     systemDesign: null,
-    notes: parsed.notes,
     action: parsed.action,
   };
   const isAbsent: Record<string, boolean> = {};
@@ -112,11 +118,17 @@ function computeSectionBodies(parsed: HandoffReportParseResult): {
   return { bodies, isAbsent };
 }
 
-function StructuredView({ parsed }: { parsed: HandoffReportParseResult }) {
+function StructuredView({
+  parsed,
+  targetRole,
+}: {
+  parsed: HandoffReportParseResult;
+  targetRole?: string;
+}) {
   const { bodies, isAbsent } = useMemo(() => computeSectionBodies(parsed), [parsed]);
 
   const [openSections, setOpenSections] = useState(() =>
-    computeInitialOpenSections(bodies, isAbsent)
+    computeInitialOpenSections(bodies, isAbsent, targetRole)
   );
 
   const toggleSection = (id: string) => {
@@ -193,6 +205,7 @@ function LegacyView({
 export const HandoffReportView = memo(function HandoffReportView({
   content,
   variant = 'timeline',
+  targetRole,
 }: HandoffReportViewProps) {
   const parsed = useMemo(() => parseHandoffReport(content), [content]);
   const [showRaw, setShowRaw] = useState(false);
@@ -231,7 +244,7 @@ export const HandoffReportView = memo(function HandoffReportView({
       </div>
 
       {parsed.format === 'structured' ? (
-        <StructuredView parsed={parsed} />
+        <StructuredView parsed={parsed} targetRole={targetRole} />
       ) : (
         <LegacyView parsed={parsed} variant={variant} />
       )}
