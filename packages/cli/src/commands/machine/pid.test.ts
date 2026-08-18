@@ -43,6 +43,7 @@ describe('pid lock', () => {
       intervalMs: 1,
       maxWaitMs: 10,
       sleep: async () => {},
+      listMatchingDaemonPids: () => [],
     });
     expect(acquired).toBe(true);
     expect(readFileSync(pidPath, 'utf-8')).toBe(String(process.pid));
@@ -57,6 +58,7 @@ describe('pid lock', () => {
       intervalMs: 1,
       maxWaitMs: 5,
       sleep: async () => {},
+      listMatchingDaemonPids: () => [],
     });
     expect(acquired).toBe(false);
     expect(errorSpy).toHaveBeenCalledWith(
@@ -67,40 +69,32 @@ describe('pid lock', () => {
     );
   });
 
-  it('retries until the previous daemon releases the lock', async () => {
-    const stalePid = 61_811;
-    writeFileSync(pidPath, String(stalePid), 'utf-8');
+  it('stops a leftover PID-file daemon then acquires the lock', async () => {
+    const leftoverPid = 61_811;
+    writeFileSync(pidPath, String(leftoverPid), 'utf-8');
 
-    let running = true;
-    const isRunningSpy = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
-      if (pid === stalePid && signal === 0 && !running) {
-        throw new Error('ESRCH');
-      }
-      return true;
-    });
-
-    const sleep = vi.fn(async (ms: number) => {
-      if (sleep.mock.calls.length === 1) {
-        running = false;
-      }
-      await Promise.resolve();
-      void ms;
-    });
+    const live = new Set([leftoverPid]);
+    const signals: (NodeJS.Signals | 0)[] = [];
 
     const acquired = await acquireLockWithRetry({
       intervalMs: 10,
       maxWaitMs: 100,
-      sleep,
+      sleep: async () => {},
+      listMatchingDaemonPids: () => [],
+      isRunning: (pid) => live.has(pid),
+      signal: (pid, signal) => {
+        signals.push(signal);
+        if (pid === leftoverPid && (signal === 'SIGTERM' || signal === 'SIGKILL')) {
+          live.delete(pid);
+        }
+      },
     });
 
     expect(acquired).toBe(true);
-    expect(errorSpy).toHaveBeenCalledWith(
-      `⏳ Waiting for previous daemon to shut down for https://chatroom-cloud.duskfare.com (PID: ${stalePid})...`
-    );
+    expect(signals).toContain('SIGTERM');
+    expect(errorSpy).toHaveBeenCalledWith(`Stopping previous daemon (PID: ${leftoverPid})...`);
     expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining('❌ Daemon already running'));
     expect(readFileSync(pidPath, 'utf-8')).toBe(String(process.pid));
-
-    isRunningSpy.mockRestore();
   });
 
   it('fails once after max wait when lock remains held', async () => {
@@ -110,6 +104,7 @@ describe('pid lock', () => {
       intervalMs: 1,
       maxWaitMs: 5,
       sleep: async () => {},
+      listMatchingDaemonPids: () => [],
     });
 
     expect(acquired).toBe(false);
@@ -125,5 +120,37 @@ describe('pid lock', () => {
     writeFileSync(pidPath, String(process.pid), 'utf-8');
     releaseLock();
     expect(existsSync(pidPath)).toBe(false);
+  });
+
+  it('replaces leftover daemons for this Convex URL before taking the lock', async () => {
+    const leftoverPid = 61_902;
+    const scannedPid = 61_903;
+    writeFileSync(pidPath, String(leftoverPid), 'utf-8');
+
+    const live = new Set([leftoverPid, scannedPid]);
+    const signals: { pid: number; signal: NodeJS.Signals | 0 }[] = [];
+
+    const acquired = await acquireLockWithRetry({
+      intervalMs: 1,
+      maxWaitMs: 50,
+      sleep: async () => {},
+      listMatchingDaemonPids: () => [scannedPid],
+      isRunning: (pid) => live.has(pid),
+      signal: (pid, signal) => {
+        signals.push({ pid, signal });
+        if (signal === 'SIGTERM' || signal === 'SIGKILL') live.delete(pid);
+      },
+    });
+
+    expect(acquired).toBe(true);
+    expect(signals).toEqual(
+      expect.arrayContaining([
+        { pid: leftoverPid, signal: 'SIGTERM' },
+        { pid: scannedPid, signal: 'SIGTERM' },
+      ])
+    );
+    expect(readFileSync(pidPath, 'utf-8')).toBe(String(process.pid));
+    expect(errorSpy).toHaveBeenCalledWith(`Stopping previous daemon (PID: ${leftoverPid})...`);
+    expect(errorSpy).toHaveBeenCalledWith(`Stopping previous daemon (PID: ${scannedPid})...`);
   });
 });

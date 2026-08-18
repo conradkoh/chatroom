@@ -4,6 +4,18 @@ Developer guide for diagnosing and fixing horizontal overflow of native HTML dat
 
 ---
 
+## Recommendation
+
+**Do not use native temporal HTML inputs in production UI.** Testing on iOS Safari has confirmed unreliable behavior even with the framework CSS fixes below:
+
+- **Width:** Dark mode does not respect parent width constraints.
+- **Text alignment:** Selected values are not properly centered vertically or horizontally.
+- **Auto-modification:** Values may change without user interaction.
+
+Use custom Popover + Calendar pickers (see the date-picker story in the Component Storybook at `/developer/components/date-picker`) instead. Native inputs in this doc are documented for diagnosis and regression comparison only.
+
+---
+
 ## Symptoms
 
 | Environment              | Typical behavior                                                 |
@@ -94,11 +106,13 @@ These approaches were tested and **did not reliably fix** overflow on a real iPh
 
 If native inputs remain problematic for a specific form, replace with a custom picker (e.g. the app's existing `DateRangePicker` / calendar component pattern). This trades native OS picker UX for fully controlled layout.
 
-Use native inputs when OS picker UX matters; use a custom picker when layout control is critical.
+**Default to custom pickers.** Native temporal inputs should not be used in production forms. The framework CSS below may partially address width overflow but does not fix alignment or auto-selection issues.
 
 ---
 
 ## Verification Checklist
+
+Use this checklist only when debugging legacy native temporal input usage — not for new features.
 
 - [ ] Real iPhone, dark mode, narrow viewport (e.g. iPhone SE or standard size)
 - [ ] Input fits within screen — no horizontal page scroll

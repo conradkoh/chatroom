@@ -50,22 +50,26 @@ export function NotificationSoundSettingsDialog({
 
   const handleProfileChange = (next: NotificationSoundProfile) => {
     setProfile(next);
+    setNotificationSoundSettings({ profile: next, volume });
     playNotificationSound({ force: true, preview: { profile: next, volume } });
   };
 
   const handleVolumeChange = (pct: number) => {
     const nextVolume = pct / 100;
     setVolume(nextVolume);
+    setNotificationSoundSettings({ profile, volume: nextVolume });
     playNotificationSound({ force: true, preview: { profile, volume: nextVolume } });
   };
 
-  const handleSave = () => {
-    setNotificationSoundSettings({ profile, volume });
-    onOpenChange(false);
-  };
-
-  const handleCancel = () => {
-    onOpenChange(false);
+  const handleReset = () => {
+    const defaults = DEFAULT_NOTIFICATION_SOUND_SETTINGS;
+    setProfile(defaults.profile);
+    setVolume(defaults.volume);
+    setNotificationSoundSettings({ profile: defaults.profile, volume: defaults.volume });
+    playNotificationSound({
+      force: true,
+      preview: { profile: defaults.profile, volume: defaults.volume },
+    });
   };
 
   return (
@@ -152,29 +156,11 @@ export function NotificationSoundSettingsDialog({
           <button
             type="button"
             disabled={!isHydrated}
-            onClick={handleCancel}
-            data-testid="notification-sound-settings-cancel"
+            onClick={handleReset}
+            data-testid="notification-sound-settings-reset"
             className="px-4 py-2 text-sm font-medium rounded-none border-2 border-chatroom-border-strong text-chatroom-text-primary bg-chatroom-bg-secondary hover:bg-chatroom-bg-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!isHydrated}
-            onClick={handleSave}
-            data-testid="notification-sound-settings-save"
-            className="px-4 py-2 text-sm font-medium rounded-none border-2 border-chatroom-accent text-chatroom-text-on-accent bg-chatroom-accent hover:bg-chatroom-accent/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            disabled={!isHydrated}
-            onClick={() => playNotificationSound({ force: true, preview: { profile, volume } })}
-            data-testid="notification-sound-settings-play-test"
-            className="px-4 py-2 text-sm font-medium rounded-none border-2 border-chatroom-border-strong text-chatroom-text-primary bg-chatroom-bg-secondary hover:bg-chatroom-bg-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Play test sound
+            Reset to defaults
           </button>
         </DialogFooter>
       </DialogContent>

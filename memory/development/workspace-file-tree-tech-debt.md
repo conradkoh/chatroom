@@ -4,12 +4,16 @@ Living checklist for file-tree sync, explorer hydration, and debug tooling. Upda
 
 ## Open
 
-- [ ] **Explorer empty-state vs loading** — `idle` with no cache still shows "No files found" instead of a distinct "never synced" state; consider dedicated `awaiting-daemon` plan kind when checkpoint/manifest are null and a pending request exists.
 - [ ] **useWorkspaceFileTreeEntries loading SSOT** — entries hook still computes `isLoading = !hasTree` independently; explorer should not rely on it (partially addressed via `useWorkspaceFileTree.isLoading`).
 - [ ] **FileTreeSyncStatus in UI** — deferred; user declined a debug panel.
 - [ ] **workspaceFiles decomposition** — transport/repos extracted but `workspaceFiles.ts` convex module remains large; continue phased extraction per memory/architecture/workspace-file-tree-sync-strategies.md.
 
 ## Resolved (this branch)
+
+- [x] **Orphan daemon checkpoint flood** — `daemon-process-scan.ts` + stop-before-start in PID lock, daemon-stop, and local process manager.
+- [x] **Parallel file-tree sync storms** — `enqueueFileTreeSync` wired into file-tree subscription with 5s per-workspace debounce and same-tick coalescing.
+- [x] **Heavy cache dirs in checkpoints** — `.nx` and `.convex` excluded in `workspace-visibility-policy.ts`.
+- [x] **Explorer empty-state vs loading** — `WorkspaceFileExplorer` distinguishes loading, error, syncing, never-synced, and truly-empty states.
 
 - [x] **Force refresh stuck pending** — `requestWorkspaceFileTree` bumps `updatedAt` on force; pending query returns `updatedAt`; daemon subscriber uses snapshot dedup instead of one-shot `seen` ids.
 - [x] **Silent mutation failures** — request failures surface a toast.

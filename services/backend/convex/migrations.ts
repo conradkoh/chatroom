@@ -553,16 +553,6 @@ export const migrateStandingInstructionsNameToTitle = migrations.define({
 
 // --- Workspace File Tree Migrations ---
 
-export const migrateFileTreeCheckpointToStrategyId = migrations.define({
-  table: 'chatroom_workspaceFileTreeCheckpoint',
-  migrateOne: async (_ctx, row) => {
-    const legacy = row as { strategyId?: 'blob' | 'sharded'; snapshotKind?: 'v2' | 'v3' };
-    if (legacy.strategyId === 'blob' || legacy.strategyId === 'sharded') return;
-    if (legacy.snapshotKind === 'v2') return { strategyId: 'blob' as const };
-    if (legacy.snapshotKind === 'v3') return { strategyId: 'sharded' as const };
-  },
-});
-
 /**
  * Migration: Compact legacy verbose file-tree delta operations to short-key format.
  * Required after PR #1122 changed the stored schema; production rows may still use
@@ -641,7 +631,6 @@ export const runAll = migrations.runner([
   internal.migrations.deduplicateTeamAgentConfigs,
   internal.migrations.purgeWorkspaceCommitDetails,
   // Workspace File Tree
-  internal.migrations.migrateFileTreeCheckpointToStrategyId,
   internal.migrations.compactWorkspaceFileTreeDeltaOperations,
   // Git State
   internal.migrations.dropEmbeddedRecentCommits,
