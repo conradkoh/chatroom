@@ -5,12 +5,17 @@ import {
   queryHistory,
   listDistinctSources,
   listLogDimensions,
+  appendChatroomEvent,
+  type ChatroomEventRecord,
   type StoredLogEntry,
   type LogDimensions,
 } from '../../../infrastructure/log-server/log-store.js';
 import type { LogHistoryReader } from '../../domain/usecase/list-log-history.js';
 
-export type LogRepository = LogHistoryReader & { listDimensions(limit?: number): LogDimensions };
+export type LogRepository = LogHistoryReader & {
+  listDimensions(limit?: number): LogDimensions;
+  writeChatroomEvent(event: ChatroomEventRecord): void;
+};
 export function createLogRepository(db: DatabaseSync): LogRepository {
   return {
     queryAfterId(
@@ -38,6 +43,9 @@ export function createLogRepository(db: DatabaseSync): LogRepository {
     },
     listDimensions(limit = 100): LogDimensions {
       return listLogDimensions(db, limit);
+    },
+    writeChatroomEvent(event: ChatroomEventRecord): void {
+      appendChatroomEvent(db, event);
     },
   };
 }

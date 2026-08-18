@@ -32,6 +32,10 @@ export type LogQuery = {
   limit?: number;
 };
 export type LogDimensions = { chatroomIds: string[]; roles: string[]; harnesses: string[] };
+export type ChatroomEventRecord = Record<string, unknown> & {
+  type: string;
+  timestamp: number;
+};
 const clamp = (n = 100) => Math.max(1, Math.min(1000, Math.floor(n)));
 const map = (row: LogEntryRow): StoredLogEntry => ({
   id: Number(row.id),
@@ -63,6 +67,18 @@ export function appendBatch(db: DatabaseSync, entries: LogEntry[]): void {
     db.exec('ROLLBACK');
     throw error;
   }
+}
+
+export function appendChatroomEvent(db: DatabaseSync, event: ChatroomEventRecord): void {
+  appendBatch(db, [
+    {
+      timestamp: event.timestamp,
+      level: 'info',
+      source: 'chatroom:event',
+      message: JSON.stringify(event),
+      metadata: event,
+    },
+  ]);
 }
 export function queryAfterId(
   db: DatabaseSync,

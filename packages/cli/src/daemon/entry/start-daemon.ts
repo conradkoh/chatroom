@@ -45,7 +45,6 @@ export async function startDaemon(): Promise<void> {
       persistence,
       streamHub: daemonDeps.streamHub,
       logRepo: createLogRepository(logServer.db),
-      logSink: logServer,
       logStreamHub,
       backend: init.backend,
       sessionId: init.sessionId,

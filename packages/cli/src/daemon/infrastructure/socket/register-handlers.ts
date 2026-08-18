@@ -22,14 +22,12 @@ import type { LogStreamEvent, LogStreamHub } from '../../local-web/server/log-st
 import type { HarnessStreamEvent, StreamHub } from '../../local-web/server/stream-hub.js';
 import type { HarnessStreamRepository } from '../repository/harness-stream-repository.js';
 import type { LogRepository } from '../repository/log-repository.js';
-import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
 
 export type RegisterSocketHandlersDeps = {
   port: number;
   harnessStreamRepo: HarnessStreamRepository;
   streamHub: StreamHub;
   logRepo?: LogRepository;
-  logSink?: AgentLogSink;
   logStreamHub?: LogStreamHub;
   backend?: BackendOps;
   sessionId?: string;
@@ -105,15 +103,9 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
     socket.on('logs.events.ingest', (...args) => {
       const { payload, ack } = extractAck(args);
       try {
-        if (!deps.logSink) throw new Error('log sink not configured');
+        if (!deps.logRepo) throw new Error('log repository not configured');
         const event = chatroomEventIngestInputSchema.parse(payload);
-        deps.logSink.write({
-          timestamp: event.timestamp,
-          level: 'info',
-          source: 'chatroom:event',
-          message: JSON.stringify(event),
-          metadata: event,
-        });
+        deps.logRepo.writeChatroomEvent(event);
         callAck(ack, { ok: true, data: { accepted: true } });
       } catch (err) {
         callAck(ack, { ok: false, error: normalizeError(err) });

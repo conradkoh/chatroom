@@ -14,7 +14,6 @@ import {
   createEmptyHarnessStreamRepository,
 } from '../../infrastructure/repository/index.js';
 import type { LogRepository } from '../../infrastructure/repository/log-repository.js';
-import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
 import { registerSocketHandlers } from '../../infrastructure/socket/register-handlers.js';
 
 export type LocalWebServerConfig = {
@@ -26,7 +25,6 @@ export type LocalWebServerDeps = {
   persistence?: PersistenceStore;
   streamHub?: StreamHub;
   logRepo?: LogRepository;
-  logSink?: AgentLogSink;
   logStreamHub?: LogStreamHub;
   backend?: BackendOps;
   sessionId?: string;
@@ -83,7 +81,6 @@ export async function startLocalWebServer(
     harnessStreamRepo,
     streamHub,
     logRepo: deps.logRepo,
-    logSink: deps.logSink,
     logStreamHub: deps.logStreamHub,
     backend: deps.backend,
     sessionId: deps.sessionId,
