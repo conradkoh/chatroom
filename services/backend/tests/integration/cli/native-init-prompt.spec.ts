@@ -153,6 +153,23 @@ describe('Native init prompt (integration)', () => {
     expect(output).toContain('messages download');
   });
 
+  test('native planner enhancer check-in tells agent to end turn without waiting', () => {
+    const output = generateHandoffOutput({
+      role: 'planner',
+      nextRole: 'enhancer',
+      chatroomId: 'test-chatroom-id',
+      convexUrl: 'http://127.0.0.1:3210',
+      supportsNativeIntegration: true,
+      enhancerCheckInQueued: true,
+    });
+
+    expect(output).toContain('queued for handoff enhancer');
+    expect(output).toContain('End your turn now');
+    expect(output).toContain('monitor the enhancer');
+    expect(output).not.toContain('get-next-task');
+    expect(output).not.toContain("delivers `enhancer`'s handback when they finish");
+  });
+
   test('native planner handoff to builder tells agent to end turn and wait for handback', () => {
     const output = generateHandoffOutput({
       role: 'planner',

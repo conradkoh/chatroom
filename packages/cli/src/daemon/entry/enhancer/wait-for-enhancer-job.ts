@@ -1,6 +1,7 @@
 import type { ConvexClient } from 'convex/browser';
 
 import { ENHANCER_AGENT_END_GRACE_MS } from './constants.js';
+import type { EnhancerLogWriter } from './enhancer-log.js';
 import { writeEnhancerLog } from './enhancer-log.js';
 import { subscribeToEnhancerJobOutcome } from './job-outcome-subscription.js';
 
@@ -11,6 +12,7 @@ export interface WaitForEnhancerJobParams {
   chatroomId: string;
   jobId: string;
   wsClient: ConvexClient;
+  log?: EnhancerLogWriter;
   onAssistantText?: (cb: (text: string) => void) => void;
   onAgentEnd?: (cb: () => void) => void;
   onExit: (cb: () => void) => void;
@@ -22,7 +24,8 @@ export interface WaitForEnhancerJobParams {
 export async function waitForEnhancerJobResolution(
   params: WaitForEnhancerJobParams
 ): Promise<EnhancerJobResolution> {
-  const { sessionId, chatroomId, jobId, wsClient, onFailure, onSalvageComplete } = params;
+  const { sessionId, chatroomId, jobId, wsClient, onFailure, onSalvageComplete, log } = params;
+  const writeLog = (message: string) => (log ? log.write(message) : writeEnhancerLog(message));
 
   let outcome: EnhancerJobResolution | null = null;
   let salvagedText = '';
@@ -46,7 +49,7 @@ export async function waitForEnhancerJobResolution(
   };
 
   const failAfterAgentEnd = (): void => {
-    writeEnhancerLog('agent_end: turn ended without complete — failing terminal');
+    writeLog('agent_end: turn ended without complete — failing terminal');
     void onFailure('Agent exited without completing enhancer job', true);
     finish('failed');
   };
@@ -55,12 +58,12 @@ export async function waitForEnhancerJobResolution(
     .then((state) => {
       if (outcome) return;
       const resolution = state.status === 'complete' ? 'complete' : 'failed';
-      if (resolution === 'complete') writeEnhancerLog(`completed job=${jobId}`);
+      if (resolution === 'complete') writeLog(`completed job=${jobId}`);
       finish(resolution);
     })
     .catch((error: unknown) => {
       if (outcome) return;
-      writeEnhancerLog(
+      writeLog(
         `enhancer outcome subscription failed: ${error instanceof Error ? error.message : String(error)}`
       );
       void onFailure('Enhancer job outcome subscription failed', false);

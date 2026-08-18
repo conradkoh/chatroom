@@ -74,7 +74,8 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('planner → enhancer → planner → builder');
     expect(output).toContain('You MUST check in with the enhancer');
     expect(output).toContain('--next-role="enhancer"');
-    expect(output).toContain('Run get-next-task immediately');
+    expect(output).toContain('get-next-task');
+    expect(output).toContain('End your turn immediately');
     expect(output).toContain(
       'user → [loop planner → enhancer → planner → builder → planner] → user'
     );

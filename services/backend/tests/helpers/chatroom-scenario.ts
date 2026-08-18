@@ -218,6 +218,7 @@ export class ChatroomScenario {
       chatroomId: this.chatroomId,
       convexUrl: this.convexUrl,
       supportsNativeIntegration: mutation.supportsNativeIntegration,
+      enhancerCheckInQueued: mutation.enhancerJobId != null,
     });
 
     return { mutation, cliOutput };
