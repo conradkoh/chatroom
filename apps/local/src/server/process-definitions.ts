@@ -120,7 +120,7 @@ function buildDaemonDefinition(repoRoot: string, convexUrl: string, webappUrl: s
     command: 'sh',
     args: [
       '-c',
-      'pnpm turbo run build --filter=chatroom-cli --cache=local:r,remote:r && pnpm exec chatroom machine daemon start',
+      'pnpm exec chatroom machine daemon stop || true; pnpm turbo run build --filter=chatroom-cli --cache=local:r,remote:r && pnpm exec chatroom machine daemon start',
     ],
     env: {
       CHATROOM_CONVEX_URL: convexUrl,

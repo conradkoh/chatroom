@@ -20,10 +20,12 @@ export const SHALLOW_SYNC_DIR_NAMES = new Set([
   'coverage',
   '__pycache__',
   '.turbo',
+  '.nx',
   '.cache',
   '.tmp',
   'tmp',
   '_generated', // Convex codegen and similar generated output dirs
+  '.convex', // Convex local deployment data
   '.vercel',
 ]);
 

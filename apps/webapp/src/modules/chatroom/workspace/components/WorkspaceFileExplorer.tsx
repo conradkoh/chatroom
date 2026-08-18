@@ -81,13 +81,14 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
   );
 
   const trimmedFilter = filterQuery.trim();
-  const { rootNodes, displayNodes, isLoading, loadError, refresh } = useWorkspaceDirExplorer({
-    machineId,
-    workingDir,
-    searchQuery: isExplorerSearchMode(trimmedFilter) ? trimmedFilter : '',
-    filterQuery: isExplorerSearchMode(trimmedFilter) ? '' : filterQuery,
-    refreshSignal,
-  });
+  const { rootNodes, displayNodes, isLoading, loadError, refresh, explorerEmptyState } =
+    useWorkspaceDirExplorer({
+      machineId,
+      workingDir,
+      searchQuery: isExplorerSearchMode(trimmedFilter) ? trimmedFilter : '',
+      filterQuery: isExplorerSearchMode(trimmedFilter) ? '' : filterQuery,
+      refreshSignal,
+    });
 
   const filterExpandedDirs = useMemo(() => {
     if (!filterQuery.trim()) return null;
@@ -150,14 +151,14 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
     setExpandedPaths(readExpandedPaths(expandedPathsStorageKey));
   }, [expandedPathsStorageKey]);
 
-  if (isLoading) {
+  if (isLoading || explorerEmptyState === 'syncing') {
     return (
       <div
         className="flex flex-1 flex-col items-center justify-center gap-2 text-chatroom-text-muted text-xs"
         onContextMenu={onEmptyAreaContextMenu}
       >
         <ChatroomLoader size="sm" />
-        Loading files…
+        {explorerEmptyState === 'syncing' ? 'Syncing workspace files…' : 'Loading files…'}
       </div>
     );
   }
@@ -186,7 +187,20 @@ export const WorkspaceFileExplorer = memo(function WorkspaceFileExplorer({
         className="px-4 py-8 text-center text-chatroom-text-muted text-xs"
         onContextMenu={onEmptyAreaContextMenu}
       >
-        No files found. Ensure the workspace daemon is running.
+        {explorerEmptyState === 'never-synced' ? (
+          <>
+            <p>Workspace files haven&apos;t synced yet.</p>
+            <button
+              type="button"
+              className="mt-3 rounded border border-chatroom-border px-3 py-1 text-chatroom-text hover:bg-chatroom-surface-hover"
+              onClick={refresh}
+            >
+              Sync now
+            </button>
+          </>
+        ) : (
+          'No files found.'
+        )}
       </div>
     );
   }
