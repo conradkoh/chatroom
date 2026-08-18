@@ -40,6 +40,10 @@ export class WorkingSnapshot<TRow, TSignal> {
     return this.rows.get(this.opts.signalKey(signal));
   }
 
+  listRows(): TRow[] {
+    return [...this.rows.values()];
+  }
+
   mergeSignal(signal: TSignal): TRow | undefined {
     const key = this.opts.signalKey(signal);
     const merged = this.opts.mergeSignal(this.rows.get(key), signal);

@@ -8,9 +8,7 @@ import {
   assignedTaskPresenceSubscribeTarget,
 } from '../../../../infrastructure/incremental-sync/feeds/assigned-task-presence.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
-import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
-
-export type SubscriberHandle = { stop(): Promise<void> };
+import type { ConvexSubscriberDeps, SubscriberHandle } from '../subscriber-deps.js';
 
 export function startAssignedTaskPresenceSubscriber(
   deps: ConvexSubscriberDeps,
@@ -30,7 +28,14 @@ export function startAssignedTaskPresenceSubscriber(
         Effect.sync(() => {
           if (stopped) return;
           ack();
-          onEvent({ type: 'assigned-task.presence', taskId: item.taskId, role: item.role });
+          onEvent({
+            type: 'assigned-task.presence',
+            taskId: item.taskId,
+            role: item.role,
+            // The task-monitor only needs the participant fields in this
+            // incremental row; the old full snapshot is no longer streamed.
+            presence: item,
+          });
         }),
       onError: (err) => {
         console.warn(`[daemon] assigned-task-presence subscriber error: ${String(err)}`);

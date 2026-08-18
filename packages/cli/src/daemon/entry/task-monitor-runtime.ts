@@ -1,7 +1,7 @@
 /**
  * Task Monitor — indexed snapshot projection + WS signal/presence subscribe.
  *
- * - Snapshot store: subscribed via wsClient.onUpdate (no HTTP poll on timer)
+ * - Snapshot store: hydrated once, then merged from incremental feed payloads
  * - Periodic reconcile reads the local store
  * - Signal feed: revisionKey cursor — revive/inject
  * - Presence feed: presenceUpdatedAt cursor — nudge timing (replaces 15s reconcile poll)
@@ -10,15 +10,18 @@
  * Dual-channel WorkingSnapshot hydrate still uses one-shot HTTP.
  */
 
-import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliability.js';
-import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { shouldEmitSessionAugmentation, resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import {
+  NATIVE_DELIVERY_RECONCILE_MS,
+  TASK_MONITOR_SNAPSHOT_RECONCILE_MS,
+} from '@workspace/backend/config/reliability.js';
+import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+import {
+  shouldEmitSessionAugmentation,
+  resolveSessionAugmentationForTask,
   sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
-import type { ConvexClient } from 'convex/browser';
 import { Effect, Runtime, type Context } from 'effect';
 
 import {
@@ -55,6 +58,7 @@ import {
   NudgeCooldown,
   shouldEscalateNativeNudgeToRestart,
 } from './task-monitor/task-monitor-logic.js';
+import { createTaskMonitorSnapshot } from './task-monitor/task-monitor-snapshot.js';
 import { api } from '../../api.js';
 import { isProcessAlive } from '../../infrastructure/deps/process.js';
 import {
@@ -82,7 +86,10 @@ type TaskMonitorPass = 'signal' | 'presence';
 
 function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
-  resolveSessionAugmentationForTask({ content: task.taskContent ?? '', startInNewSession: task.startInNewSession }, task.agentConfig.role)
+    resolveSessionAugmentationForTask(
+      { content: task.taskContent ?? '', startInNewSession: task.startInNewSession },
+      task.agentConfig.role
+    )
   );
 }
 
@@ -90,7 +97,10 @@ function buildCliNudgeLogLine(task: AssignedTaskWithContent): string {
   const { chatroomId, agentConfig } = task;
   const { role } = agentConfig;
   const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
-  const augmentationMode = resolveSessionAugmentationForTask({ content: task.taskContent ?? '', startInNewSession: task.startInNewSession }, role);
+  const augmentationMode = resolveSessionAugmentationForTask(
+    { content: task.taskContent ?? '', startInNewSession: task.startInNewSession },
+    role
+  );
   const wantResume = resolveTaskWantResume(task);
   return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, session_augmentation=${augmentationMode}, wantResume=${wantResume}`;
 }
@@ -128,7 +138,10 @@ function executeCliNudge(
   const ctx = resolveTaskRunnerContextFromFull(task);
   if (!ctx) return;
   const { chatroomId, agentConfig, role, workingDir, wantResume } = ctx;
-  const augmentationMode = resolveSessionAugmentationForTask({ content: task.taskContent ?? '', startInNewSession: task.startInNewSession }, role);
+  const augmentationMode = resolveSessionAugmentationForTask(
+    { content: task.taskContent ?? '', startInNewSession: task.startInNewSession },
+    role
+  );
 
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
@@ -245,6 +258,7 @@ async function clearStuckStoppingSlotIfNeeded(
   }
 }
 
+// fallow-ignore-next-line complexity
 async function nudgeStuckTasks(
   tasks: AssignedTaskSnapshotView[],
   now: number,
@@ -435,46 +449,39 @@ function runLocalStoreReconcilePass(params: {
   });
 }
 
-function subscribeAssignedTaskSnapshotStore(
-  wsClient: ConvexClient,
-  args: { sessionId: string; machineId: string },
-  isStopped: () => boolean
-): () => void {
-  return wsClient.onUpdate(
-    api.machines.listMachineAssignedTaskSnapshots,
-    args as never,
-    (result) => {
-      if (isStopped()) return;
-      const tasks = mapAssignedTaskSnapshotList(
-        parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? [])
-      );
-      replaceAssignedTaskSnapshots(tasks);
-    },
-    (err: unknown) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Assigned-task snapshot subscription error: ${getErrorMessage(err)}`
-      );
-    }
-  );
+function mergeInboundTaskEvent(
+  event: AssignedTaskInboundEvent,
+  snapshot: ReturnType<typeof createTaskMonitorSnapshot>
+): AssignedTaskSnapshotView | undefined {
+  switch (event.type) {
+    case 'assigned-task.signal':
+      return event.signal ? snapshot.mergeSignal(event.signal) : undefined;
+    case 'assigned-task.presence':
+      return event.presence ? snapshot.mergePresence(event.presence) : undefined;
+  }
 }
 
-// fallow-ignore-next-line unused-export
+// fallow-ignore-next-line unused-export complexity
 export function handleInboundAssignedTaskEvent(
   event: AssignedTaskInboundEvent,
-  runMonitorPass: (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass) => void
+  runMonitorPass: (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass) => void,
+  snapshot?: ReturnType<typeof createTaskMonitorSnapshot>
 ): void {
-  const row = listAssignedTaskSnapshots().find(
-    (snapshot) => snapshot.taskId === event.taskId && snapshot.agentConfig.role === event.role
-  );
+  const mergedRow = snapshot ? mergeInboundTaskEvent(event, snapshot) : undefined;
+  if (snapshot && mergedRow) replaceAssignedTaskSnapshots(snapshot.listRows());
+
+  const row =
+    mergedRow ??
+    listAssignedTaskSnapshots().find(
+      (stored) => stored.taskId === event.taskId && stored.agentConfig.role === event.role
+    );
   if (!row) return;
   const pass: TaskMonitorPass = event.type === 'assigned-task.signal' ? 'signal' : 'presence';
   runMonitorPass([row], pass);
 }
 
 // fallow-ignore-next-line complexity
-export const startTaskMonitorEffect = (
-  wsClient: ConvexClient
-): Effect.Effect<
+export const startTaskMonitorEffect = (): Effect.Effect<
   { stop: () => void },
   never,
   DaemonSessionService | DaemonAgentProcessManagerService
@@ -492,9 +499,12 @@ export const startTaskMonitorEffect = (
 
     console.log(`[${formatTimestamp()}] 📋 Starting task-monitor (incremental subscribe)`);
 
+    const taskSnapshot = createTaskMonitorSnapshot();
     const cooldown = new NudgeCooldown();
     let stopped = false;
     let monitorPassInFlight = false;
+    let snapshotHydrated = false;
+    const pendingTaskEvents: AssignedTaskInboundEvent[] = [];
 
     const sessionDeps: NativeTaskDeliverySessionDeps = {
       sessionId: session.sessionId,
@@ -515,12 +525,6 @@ export const startTaskMonitorEffect = (
       machineId: session.machineId,
     });
 
-    const unsubscribeSnapshotStore = subscribeAssignedTaskSnapshotStore(
-      wsClient,
-      { sessionId: session.sessionId, machineId: session.machineId },
-      () => stopped
-    );
-
     const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
       if (stopped || monitorPassInFlight || tasks.length === 0) return;
       monitorPassInFlight = true;
@@ -539,8 +543,35 @@ export const startTaskMonitorEffect = (
     };
 
     registerAssignedTaskMonitorHandler(async (event) => {
-      handleInboundAssignedTaskEvent(event, runMonitorPass);
+      if (!snapshotHydrated) {
+        pendingTaskEvents.push(event);
+        return;
+      }
+      handleInboundAssignedTaskEvent(event, runMonitorPass, taskSnapshot);
     });
+
+    const refreshSnapshot = async (): Promise<void> => {
+      const result = await session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      });
+      const tasks = mapAssignedTaskSnapshotList(
+        parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? [])
+      );
+      taskSnapshot.replaceAll(tasks);
+      replaceAssignedTaskSnapshots(tasks);
+    };
+
+    // Incremental feeds handle task and presence changes. A slow full refresh
+    // bounds the lifetime of rows removed by terminal task transitions without
+    // streaming the full snapshot on every projection invalidation.
+    const snapshotReconcileTimer = setInterval(() => {
+      void refreshSnapshot().catch((err: unknown) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Assigned-task snapshot reconcile failed: ${getErrorMessage(err)}`
+        );
+      });
+    }, TASK_MONITOR_SNAPSHOT_RECONCILE_MS);
 
     const reconcileTimer = setInterval(() => {
       runLocalStoreReconcilePass({
@@ -560,12 +591,17 @@ export const startTaskMonitorEffect = (
         machineId: session.machineId,
       })
     ).pipe(Effect.catchAll(() => Effect.void));
+    yield* Effect.tryPromise(refreshSnapshot).pipe(Effect.catchAll(() => Effect.void));
+    snapshotHydrated = true;
+    for (const event of pendingTaskEvents.splice(0)) {
+      handleInboundAssignedTaskEvent(event, runMonitorPass, taskSnapshot);
+    }
 
     return {
       stop() {
         stopped = true;
         unregisterAssignedTaskMonitorHandler();
-        unsubscribeSnapshotStore();
+        clearInterval(snapshotReconcileTimer);
         clearAssignedTaskSnapshots();
         unregisterNativeDeliverySession();
         clearInterval(reconcileTimer);

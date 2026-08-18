@@ -265,7 +265,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       }
     });
 
-    taskMonitorHandle = yield* startTaskMonitorEffect(deps.wsClient);
+    taskMonitorHandle = yield* startTaskMonitorEffect();
 
     logObserverSubscriptionHandle = startLogObserverSubscription(
       { sessionId: session.sessionId, machineId: session.machineId },

@@ -43,6 +43,7 @@ export function createTaskMonitorSnapshot(): WorkingSnapshot<
   AssignedTaskSignal
 > & {
   mergePresence(presence: AssignedTaskPresenceSignal): AssignedTaskSnapshotView | undefined;
+  listRows(): AssignedTaskSnapshotView[];
 } {
   const base = new WorkingSnapshot(taskMonitorSnapshotOptions);
   return Object.assign(base, {

@@ -82,6 +82,7 @@ describe('assigned-task v2 subscribers', () => {
       type: 'assigned-task.signal',
       taskId: TASK_ID,
       role: 'builder',
+      signal: makeSignalItem(),
     });
   });
 
@@ -108,6 +109,12 @@ describe('assigned-task v2 subscribers', () => {
       type: 'assigned-task.presence',
       taskId: TASK_ID,
       role: 'builder',
+      presence: {
+        ...makePresenceItem(),
+        chatroomId: '',
+        lastSeenAt: 1_000,
+        presenceUpdatedAt: 1_000,
+      },
     });
   });
 
@@ -147,6 +154,7 @@ describe('assigned-task v2 subscribers', () => {
       type: 'assigned-task.signal',
       taskId: TASK_ID,
       role: 'builder',
+      signal: makeSignalItem(),
     });
   });
 

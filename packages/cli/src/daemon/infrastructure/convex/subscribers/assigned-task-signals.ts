@@ -8,9 +8,7 @@ import {
   assignedTaskSignalsSubscribeTarget,
 } from '../../../../infrastructure/incremental-sync/feeds/assigned-task-signals.js';
 import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
-import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
-
-export type SubscriberHandle = { stop(): Promise<void> };
+import type { ConvexSubscriberDeps, SubscriberHandle } from '../subscriber-deps.js';
 
 export function startAssignedTaskSignalsSubscriber(
   deps: ConvexSubscriberDeps,
@@ -30,7 +28,14 @@ export function startAssignedTaskSignalsSubscriber(
         Effect.sync(() => {
           if (stopped) return;
           ack();
-          onEvent({ type: 'assigned-task.signal', taskId: item.taskId, role: item.role });
+          onEvent({
+            type: 'assigned-task.signal',
+            taskId: item.taskId,
+            role: item.role,
+            // The task-monitor can merge this incremental row locally without
+            // rehydrating the full machine snapshot subscription.
+            signal: item,
+          });
         }),
       onError: (err) => {
         console.warn(`[daemon] assigned-task-signals subscriber error: ${String(err)}`);

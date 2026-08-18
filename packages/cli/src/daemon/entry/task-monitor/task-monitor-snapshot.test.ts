@@ -82,6 +82,7 @@ describe('createTaskMonitorSnapshot', () => {
     expect(merged?.createdAt).toBe(1_000);
     expect(merged?.assignedTo).toBe('builder');
     expect(snapshot.getByKey('task_1:builder')?.participant?.lastSeenAction).toBe('task.injected');
+    expect(snapshot.listRows()).toHaveLength(1);
   });
 
   it('constructs a new row when merging a signal with no base row', () => {

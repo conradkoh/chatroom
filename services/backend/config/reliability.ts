@@ -35,6 +35,13 @@ export const HARNESS_SESSION_READY_TIMEOUT_MS = 5_000;
 /** Reconcile pending native task delivery when agent is ready (ms). */
 export const NATIVE_DELIVERY_RECONCILE_MS = 10_000;
 
+/**
+ * Reconcile the daemon's assigned-task snapshot store (ms).
+ * Incremental task/presence feeds handle normal updates; this slower refresh
+ * only bounds stale rows after terminal tasks are removed from the projection.
+ */
+export const TASK_MONITOR_SNAPSHOT_RECONCILE_MS = 5 * 60_000;
+
 // ─── Daemon Heartbeat ────────────────────────────────────────────────────────
 
 /** How often the daemon sends a heartbeat to refresh lastSeenAt (ms). */
