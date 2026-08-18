@@ -180,4 +180,14 @@ describe('QueuedMessageItem', () => {
     expect(screen.getByTestId('message-chip')).toBeInTheDocument();
     expect(screen.getByText('See this context')).toBeInTheDocument();
   });
+
+  it('shows new-session toggle even when team does not support enhancer (solo teams)', () => {
+    renderItem(makeMessage());
+    expect(screen.getByTestId('queued-message-new-session-toggle')).toBeInTheDocument();
+  });
+
+  it('hides enhancer toggle when team does not support enhancer', () => {
+    renderItem(makeMessage());
+    expect(screen.queryByTestId('queued-message-enhancer-toggle')).not.toBeInTheDocument();
+  });
 });

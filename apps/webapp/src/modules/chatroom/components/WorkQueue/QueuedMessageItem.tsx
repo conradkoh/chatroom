@@ -117,17 +117,15 @@ export const QueuedMessageItem = memo(function QueuedMessageItem({
 
         {/* Inline quick actions — always visible. */}
         <div className="flex items-center gap-1" onClick={stopRowClick}>
+          <QueuedMessageNewSessionToggle
+            queuedMessageId={message._id}
+            startInNewSession={message.startInNewSession ?? false}
+          />
           {teamSupportsEnhancer ? (
-            <>
-              <QueuedMessageNewSessionToggle
-                queuedMessageId={message._id}
-                startInNewSession={message.startInNewSession ?? false}
-              />
-              <QueuedMessageEnhancerToggle
-                queuedMessageId={message._id}
-                plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
-              />
-            </>
+            <QueuedMessageEnhancerToggle
+              queuedMessageId={message._id}
+              plannerEnhancerEnabled={message.plannerEnhancerEnabled ?? false}
+            />
           ) : null}
           <button
             type="button"
