@@ -168,6 +168,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
 
+      - **Proof of Documented Constraints:** <how this work demonstrates proof of documented constraints, or exactly "Not Applicable.">
+      <!-- Proof of Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
+
       ## Proof of Completion
       <!-- Entry-point proof-of-completion workflow — run before filling this section:
       1. \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages anchor --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\` — locate the user's last message (and prior user messages for context)
@@ -301,6 +304,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       - **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+      - **Proof of Documented Constraints:** <how this work demonstrates proof of documented constraints, or exactly "Not Applicable.">
+      <!-- Proof of Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
 
       ## Proof of Completion
       - [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
@@ -738,6 +744,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       - **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+      - **Proof of Documented Constraints:** <how this work demonstrates proof of documented constraints, or exactly "Not Applicable.">
+      <!-- Proof of Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
 
       ## Proof of Completion
       <!-- Entry-point proof-of-completion workflow — run before filling this section:

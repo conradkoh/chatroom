@@ -35,6 +35,11 @@ const HANDOFF_QUALITY_PRINCIPLES = [
     name: 'Leave It Better',
     description: 'leave the code in a slightly better state than before when touching files.',
   },
+  {
+    name: 'Proof of Documented Constraints',
+    description:
+      'the code written should also have documentation in comments that indicate the constraints that the code satisfies.',
+  },
 ] as const;
 
 /** H2 heading for builder→planner handback */
