@@ -159,5 +159,6 @@ export function useChatInputFileDrop({
     handleAttachClick,
     handleFileInputChange,
     handlePaste,
+    attachFiles,
   };
 }
