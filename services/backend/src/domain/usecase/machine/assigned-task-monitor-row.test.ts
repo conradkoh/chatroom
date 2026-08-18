@@ -138,6 +138,40 @@ describe('patchMonitorRowFromSignal', () => {
     expect(patched.agentConfig.spawnedAgentPid).toBe(999);
     expect(patched.participant?.lastSeenAction).toBe('task.injected');
   });
+
+  it('applies changed config fields and clears nullable fields from a full signal', () => {
+    const existing = monitorRowFromSnapshotDoc(
+      makeSnapshotDoc({
+        model: 'old-model',
+        circuitState: 'closed',
+        taskUpdatedAt: 1_000,
+      })
+    );
+    const patched = applyAssignedTaskSignal(
+      existing,
+      makeSignal({
+        updatedAt: 2_000,
+        agentHarness: 'cursor-sdk',
+        model: 'new-model',
+        workingDir: '/new/workspace',
+        assignedTo: 'planner',
+        spawnedAgentPid: null,
+        desiredState: 'stopped',
+        circuitState: 'open',
+      })
+    );
+
+    expect(patched.updatedAt).toBe(2_000);
+    expect(patched.assignedTo).toBe('planner');
+    expect(patched.agentConfig).toMatchObject({
+      agentHarness: 'cursor-sdk',
+      model: 'new-model',
+      workingDir: '/new/workspace',
+      spawnedAgentPid: undefined,
+      desiredState: 'stopped',
+      circuitState: 'open',
+    });
+  });
 });
 
 describe('applyAssignedTaskSignal', () => {

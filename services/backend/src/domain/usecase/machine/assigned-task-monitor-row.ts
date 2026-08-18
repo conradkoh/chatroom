@@ -14,6 +14,25 @@ import type { Doc } from '../../../../convex/_generated/dataModel';
 type RemoteAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 type SnapshotDoc = Doc<'chatroom_machineAssignedTaskSnapshots'>;
 
+function toOptional<T>(value: T | null | undefined): T | undefined {
+  return value ?? undefined;
+}
+
+function toNullable<T>(value: T | null | undefined): T | null {
+  return value ?? null;
+}
+
+function mergeOptional<T>(incoming: T | null | undefined, existing: T | undefined): T | undefined {
+  return incoming === null ? undefined : (incoming ?? existing);
+}
+
+function mergeNullable<T>(
+  incoming: T | null | undefined,
+  existing: T | null | undefined
+): T | null {
+  return incoming === null ? null : (incoming ?? existing ?? null);
+}
+
 /** Full row from projection doc (hydrate path). */
 export function monitorRowFromSnapshotDoc(doc: SnapshotDoc): AssignedTaskSnapshotView {
   const configStub = {
@@ -67,21 +86,23 @@ function bootstrapMonitorRowFromSignal(signal: AssignedTaskSignal): AssignedTask
     taskId: signal.taskId,
     chatroomId: signal.chatroomId,
     status: signal.status,
-    assignedTo: signal.assignedTo,
-    updatedAt: signal.createdAt,
+    assignedTo: toOptional(signal.assignedTo),
+    updatedAt: signal.updatedAt ?? signal.createdAt,
     createdAt: signal.createdAt,
     agentConfig: {
       role: signal.role,
       machineId: signal.machineId,
       agentHarness: signal.agentHarness,
-      workingDir: signal.workingDir,
-      spawnedAgentPid: signal.spawnedAgentPid,
-      desiredState: signal.desiredState,
+      model: toOptional(signal.model),
+      workingDir: toOptional(signal.workingDir),
+      spawnedAgentPid: toOptional(signal.spawnedAgentPid),
+      desiredState: toOptional(signal.desiredState),
+      circuitState: toOptional(signal.circuitState),
     },
     participant: {
-      lastSeenAction: signal.lastSeenAction ?? null,
+      lastSeenAction: toNullable(signal.lastSeenAction),
       lastSeenAt: null,
-      lastStatus: signal.lastStatus ?? null,
+      lastStatus: toNullable(signal.lastStatus),
     },
   };
 }
@@ -94,15 +115,21 @@ function patchMonitorRowFromSignal(
   return {
     ...existing,
     status: signal.status,
+    assignedTo: mergeOptional(signal.assignedTo, existing.assignedTo),
+    updatedAt: signal.updatedAt ?? existing.updatedAt,
     agentConfig: {
       ...existing.agentConfig,
-      spawnedAgentPid: signal.spawnedAgentPid ?? existing.agentConfig.spawnedAgentPid,
-      desiredState: signal.desiredState ?? existing.agentConfig.desiredState,
+      agentHarness: signal.agentHarness,
+      model: mergeOptional(signal.model, existing.agentConfig.model),
+      workingDir: mergeOptional(signal.workingDir, existing.agentConfig.workingDir),
+      spawnedAgentPid: mergeOptional(signal.spawnedAgentPid, existing.agentConfig.spawnedAgentPid),
+      desiredState: mergeOptional(signal.desiredState, existing.agentConfig.desiredState),
+      circuitState: mergeOptional(signal.circuitState, existing.agentConfig.circuitState),
     },
     participant: {
-      lastSeenAction: signal.lastSeenAction ?? existing.participant?.lastSeenAction ?? null,
+      lastSeenAction: mergeNullable(signal.lastSeenAction, existing.participant?.lastSeenAction),
       lastSeenAt: existing.participant?.lastSeenAt ?? null,
-      lastStatus: signal.lastStatus ?? existing.participant?.lastStatus ?? null,
+      lastStatus: mergeNullable(signal.lastStatus, existing.participant?.lastStatus),
     },
   };
 }

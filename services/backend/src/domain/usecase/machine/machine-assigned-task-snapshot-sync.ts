@@ -24,6 +24,10 @@ type RemoteAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 type SnapshotDoc = Doc<'chatroom_machineAssignedTaskSnapshots'>;
 type ActiveTaskStatus = SnapshotDoc['taskStatus'];
 
+function toNullable<T>(value: T | null | undefined): T | null {
+  return value ?? null;
+}
+
 const ACTIVE_TASK_STATUSES: ActiveTaskStatus[] = ['pending', 'acknowledged', 'in_progress'];
 
 type CollectCtx = QueryCtx | MutationCtx;
@@ -73,14 +77,17 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
     signalType: primaryAssignedTaskSignalType(doc.taskUpdatedAt, doc.configUpdatedAt),
     revisionKey: doc.revisionKey,
     sessionAugmentation: doc.sessionAugmentation,
-    lastSeenAction: doc.lastSeenAction ?? null,
-    lastStatus: doc.lastStatus ?? null,
-    spawnedAgentPid: doc.spawnedAgentPid,
-    desiredState: doc.desiredState as 'running' | 'stopped' | undefined,
+    updatedAt: doc.taskUpdatedAt,
+    lastSeenAction: toNullable(doc.lastSeenAction),
+    lastStatus: toNullable(doc.lastStatus),
+    spawnedAgentPid: toNullable(doc.spawnedAgentPid),
+    desiredState: toNullable(doc.desiredState),
+    circuitState: toNullable(doc.circuitState),
     machineId: doc.machineId,
     agentHarness: doc.agentHarness,
-    workingDir: doc.workingDir,
-    assignedTo: doc.taskAssignedTo,
+    model: toNullable(doc.model),
+    workingDir: toNullable(doc.workingDir),
+    assignedTo: toNullable(doc.taskAssignedTo),
     createdAt: doc.taskCreatedAt,
   };
 }
@@ -142,7 +149,10 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     taskAssignedTo: task.assignedTo,
     taskCreatedAt: task.createdAt ?? now,
     taskUpdatedAt,
-    sessionAugmentation: resolveSessionAugmentationForTask({ content: task.content, startInNewSession: task.startInNewSession }, config.role),
+    sessionAugmentation: resolveSessionAugmentationForTask(
+      { content: task.content, startInNewSession: task.startInNewSession },
+      config.role
+    ),
     agentHarness: config.agentHarness ?? 'opencode',
     model: config.model,
     workingDir: config.workingDir,

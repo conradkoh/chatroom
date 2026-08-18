@@ -61,15 +61,20 @@ export const assignedTaskSignalBootstrapFields = {
   status: activeTaskStatusSchema,
   signalType: assignedTaskSignalTypeSchema,
   revisionKey: z.string(),
+  // These fields keep an incremental signal equivalent to a changed snapshot
+  // row when the live full-snapshot subscription is not present.
+  updatedAt: z.number().optional(),
   machineId: z.string(),
   agentHarness: z.string(),
   createdAt: z.number(),
-  workingDir: z.string().optional(),
-  assignedTo: z.string().optional(),
+  model: z.string().nullable().optional(),
+  workingDir: z.string().nullable().optional(),
+  assignedTo: z.string().nullable().optional(),
   lastSeenAction: z.string().nullable().optional(),
   lastStatus: z.string().nullable().optional(),
-  spawnedAgentPid: z.number().optional(),
-  desiredState: agentDesiredStateSchema.optional(),
+  spawnedAgentPid: z.number().nullable().optional(),
+  desiredState: agentDesiredStateSchema.nullable().optional(),
+  circuitState: agentCircuitStateSchema.nullable().optional(),
   sessionAugmentation: sessionAugmentationSchema.optional(),
 } as const;
 
