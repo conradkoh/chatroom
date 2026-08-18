@@ -222,4 +222,43 @@ describe('updateTeam use case', () => {
 
     expect(result.stoppedAgentCount).toBeGreaterThanOrEqual(2);
   });
+
+  test('starts target-team agents after switch when configs exist', async () => {
+    const { sessionId } = await createTestSession('test-utu-start-1');
+    const machineId = 'machine-utu-start-1';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
+    const userId = await getOwnerUserId(chatroomId);
+
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+
+    const result = await t.run(async (ctx) => {
+      return updateTeam(ctx, {
+        chatroomId,
+        teamId: 'duo',
+        teamName: 'Duo Team',
+        teamRoles: ['planner', 'builder'],
+        teamEntryPoint: 'planner',
+        userId,
+      });
+    });
+
+    expect(result.startedAgentCount).toBeGreaterThanOrEqual(2);
+
+    const startEvents = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom_type', (q) =>
+          q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStart')
+        )
+        .collect();
+    });
+
+    const teamSwitchStarts = startEvents.filter(
+      (e) => e.type === 'agent.requestStart' && e.reason === 'platform.team_switch'
+    );
+    expect(teamSwitchStarts.length).toBeGreaterThanOrEqual(2);
+    expect(teamSwitchStarts.map((e) => e.role).sort()).toEqual(['builder', 'planner']);
+  });
 });
