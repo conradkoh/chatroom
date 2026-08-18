@@ -1,6 +1,7 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { HARNESS_MODEL_CATALOG } from '@workspace/backend/src/domain/entities/harness/model-catalog.js';
+import { stripProviderPrefix } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant.js';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 import { ClaudeSdkHarness, startClaudeSdkHarness } from './index.js';
 
@@ -182,11 +183,14 @@ describe('ClaudeSdkHarness', () => {
     expect(cached).toBe(resumed);
     await harness.close();
   });
-  it('lists canonical catalog models without duplicate base ids', async () => {
+  it('lists canonical catalog models with provider prefix stripped from model ids', async () => {
     const harness = new ClaudeSdkHarness('/tmp/work', { query: mockQuery } as never, '/tmp/claude');
     const providers = await harness.listProviders();
-    const ids = providers.find((provider) => provider.providerID === 'anthropic')!.models.map((model) => model.modelID);
-    expect(ids).toEqual([...HARNESS_MODEL_CATALOG['claude-sdk']]);
+    const ids = providers
+      .find((provider) => provider.providerID === 'anthropic')!
+      .models.map((model) => model.modelID);
+    const catalog = HARNESS_MODEL_CATALOG['claude-sdk'];
+    expect(ids).toEqual(catalog.map((id) => stripProviderPrefix('anthropic', id)));
     const bases = ids.map((id) => decodeModelVariant(id).model);
     expect(new Set(bases).size).toBe(4);
     expect(bases).not.toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku']));
