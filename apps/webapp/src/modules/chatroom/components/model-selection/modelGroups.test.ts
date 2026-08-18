@@ -169,6 +169,27 @@ describe('providerOptionsToFilterModelIds', () => {
   it('returns empty array for empty input', () => {
     expect(providerOptionsToFilterModelIds([])).toEqual([]);
   });
+
+  it('does not double-prefix catalog models that already include provider', () => {
+    const providers: ProviderOption[] = [
+      {
+        providerID: 'anthropic',
+        name: 'Anthropic',
+        models: [
+          { modelID: 'anthropic/claude-sonnet-4-6', name: 'anthropic/claude-sonnet-4-6' },
+          {
+            modelID: 'anthropic/claude-sonnet-4-6[effort=high]',
+            name: 'anthropic/claude-sonnet-4-6[effort=high]',
+          },
+        ],
+      },
+    ];
+
+    expect(providerOptionsToFilterModelIds(providers)).toEqual([
+      'anthropic/claude-sonnet-4-6',
+      'anthropic/claude-sonnet-4-6[effort=high]',
+    ]);
+  });
 });
 
 describe('findModelLabel', () => {
