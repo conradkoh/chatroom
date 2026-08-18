@@ -46,7 +46,9 @@ export function PickerOptionRow({
       onClick={onSelect}
       className={buttonClasses}
     >
-      <span className={cn('min-w-0 flex-1', multiline ? 'overflow-hidden' : 'truncate')}>
+      <span
+        className={cn('min-w-0 flex-1', multiline ? 'break-words whitespace-normal' : 'truncate')}
+      >
         {children}
       </span>
       {endAdornment}

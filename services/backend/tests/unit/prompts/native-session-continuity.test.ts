@@ -6,6 +6,7 @@ import { getDelegationGuidelinesSection } from '../../../prompts/cli/sections/de
 import { composeSystemPrompt } from '../../../prompts/generator';
 import {
   getHandoffContinuityRule,
+  getNativeEnhancerCheckInTurnEndGuidance,
   getNativeHandoffTurnEndGuidance,
   getNativePlannerDelegationWaitNote,
   getSessionContinuityLine,
@@ -149,6 +150,13 @@ describe('native session continuity', () => {
     expect(getNativeHandoffTurnEndGuidance('user')).not.toContain('messages download');
   });
 
+  test('getNativeEnhancerCheckInTurnEndGuidance', () => {
+    const guidance = getNativeEnhancerCheckInTurnEndGuidance();
+    expect(guidance).toContain('End your turn now');
+    expect(guidance).toContain('monitor the enhancer');
+    expect(guidance).not.toContain('messages download');
+  });
+
   test('getNativePlannerDelegationWaitNote', () => {
     expect(getNativePlannerDelegationWaitNote()).toMatch(/last action/i);
     expect(getNativePlannerDelegationWaitNote()).toContain('messages download');
@@ -165,7 +173,7 @@ describe('completion-gates guidance', () => {
     questionTarget: 'planner',
   } as const;
 
-  const plannerParams = {
+  const _plannerParams = {
     role: 'planner',
     teamRoles: ['planner', 'builder'],
     isEntryPoint: true,

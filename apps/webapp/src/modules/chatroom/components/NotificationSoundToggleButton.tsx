@@ -8,7 +8,6 @@ import {
   getNotificationSoundSettings,
   setNotificationSoundSettings,
 } from '../utils/notificationSoundSettings';
-import { playNotificationSound } from '../utils/playNotificationSound';
 
 import {
   ContextMenu,
@@ -55,13 +54,6 @@ export function NotificationSoundToggleButton() {
           {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
         </ContextMenuTrigger>
         <ContextMenuContent className="min-w-[160px] rounded-none">
-          <ContextMenuItem
-            className="rounded-none"
-            onSelect={() => playNotificationSound({ force: true })}
-            data-testid="notification-sound-play-test"
-          >
-            Play test sound
-          </ContextMenuItem>
           <ContextMenuItem
             className="rounded-none"
             onSelect={() => setSettingsOpen(true)}

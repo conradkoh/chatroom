@@ -8,6 +8,7 @@ import { DAEMON_HEARTBEAT_INTERVAL_MS } from '@workspace/backend/config/reliabil
 import type { ConvexClient } from 'convex/browser';
 import { Effect, type Layer } from 'effect';
 
+import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
 import {
   createDedupTracker,
   evictStaleDedupEntries,
@@ -17,6 +18,12 @@ import {
   registerCommandInboundHandler,
   unregisterCommandInboundHandler,
 } from './command-inbound-registry.js';
+import {
+  DaemonSessionService,
+  type DaemonAgentProcessManagerService,
+  type DaemonMutableStateService,
+} from './daemon-services.js';
+import { formatTimestamp } from './daemon-utils.js';
 import { startDirectHarnessSubscriptions } from './direct-harness/start-subscriptions.js';
 import { startEnhancerSubscriptions } from './enhancer/start-subscriptions.js';
 import {
@@ -33,28 +40,22 @@ import { forceKillAllCommands } from './handlers/command-runner.js';
 import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { drainActionableCommandRuns } from './handlers/process/command-run-subscription.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
+import { getActiveLogSink } from './init-daemon.js';
 import { startTaskMonitorEffect } from './task-monitor-runtime.js';
 import { drainGitStateSync } from './workspace-git/git-heartbeat.js';
 import {
   startGitRequestSubscriptionEffect,
   type GitSubscriptionHandle,
 } from './workspace-git/git-subscription.js';
-import {
-  registerWorkspaceGitInboundHandler,
-  unregisterWorkspaceGitInboundHandler,
-} from './workspace-git-inbound-registry.js';
 import { api } from '../../api.js';
-import { startAgenticQuerySubscriptions } from './agentic-query/start-subscriptions.js';
-import {
-  DaemonSessionService,
-  type DaemonAgentProcessManagerService,
-  type DaemonMutableStateService,
-} from './daemon-services.js';
-import { formatTimestamp } from './daemon-utils.js';
 import {
   startWorkspaceListSubscriptionEffect,
   reconcileWorkspaceList,
 } from './workspace-git/workspace-list-subscription.js';
+import {
+  registerWorkspaceGitInboundHandler,
+  unregisterWorkspaceGitInboundHandler,
+} from './workspace-git-inbound-registry.js';
 import { releaseLock } from '../../commands/machine/pid.js';
 import { onDaemonShutdownEffect } from '../../events/lifecycle/on-daemon-shutdown.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
@@ -302,7 +303,8 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
         session.convexUrl,
         deps.wsClient,
         session.backend,
-        session.agentServices
+        session.agentServices,
+        getActiveLogSink()
       );
     }
 

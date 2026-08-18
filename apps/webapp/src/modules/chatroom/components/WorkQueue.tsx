@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { type BacklogItem } from './backlog';
 import { BacklogCreateModal } from './BacklogCreateModal';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
+import { QueueFrontMessageModal } from './QueueFrontMessageModal';
 import { ReviewPanel } from './ReviewPanel';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
@@ -30,10 +31,10 @@ import {
 import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
 import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
 import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
+import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
 import { useActiveEnhancerJob } from '../features/enhancers/hooks/useActiveEnhancerJob';
 import { useQueuedMessageActions } from '../hooks/useQueuedMessageActions';
 import type { Message } from '../types/message';
-import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
 import { QueuedMessageItem } from './WorkQueue/QueuedMessageItem';
 import { QueuedMessagesModal } from './WorkQueue/QueuedMessagesModal';
 import { TaskItem } from './WorkQueue/TaskItem';
@@ -50,6 +51,7 @@ const CURRENT_TASKS_PREVIEW_LIMIT = 3;
 
 export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
+  const [isQueueFrontModalOpen, setIsQueueFrontModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
   const [isPendingReviewModalOpen, setIsPendingReviewModalOpen] = useState(false);
@@ -146,6 +148,14 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
 
   // Mutations
   const createBacklogItem = useSessionMutation(api.backlog.createBacklogItem);
+  const enqueueMessageAtFront = useSessionMutation(api.messages.enqueueMessageAtFront);
+  const handleQueueFrontSubmit = useCallback(
+    async (content: string) => {
+      await enqueueMessageAtFront({ chatroomId, content });
+      toast.success('Message added to front of queue');
+    },
+    [chatroomId, enqueueMessageAtFront]
+  );
   // TODO: remove once convex codegen catches up
   const completeAllPendingReview = useSessionMutation(
     (api.backlog as any).completeAllPendingReviewBacklogItems
@@ -309,6 +319,16 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
       {/* Header */}
       <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border flex items-center justify-between flex-shrink-0">
         <span>Task Queue</span>
+        <button
+          type="button"
+          onClick={() => setIsQueueFrontModalOpen(true)}
+          className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
+          aria-label="Add message to front of queue"
+          title="Add message to front of queue"
+          data-testid="queue-front-add-button"
+        >
+          <Plus size={14} />
+        </button>
       </div>
 
       {/* Scrollable Task List Container */}
@@ -524,6 +544,11 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
         isOpen={isBacklogCreateModalOpen}
         onClose={() => setIsBacklogCreateModalOpen(false)}
         onSubmit={handleAddTask}
+      />
+      <QueueFrontMessageModal
+        isOpen={isQueueFrontModalOpen}
+        onClose={() => setIsQueueFrontModalOpen(false)}
+        onSubmit={handleQueueFrontSubmit}
       />
 
       {/* Backlog Queue Modal - shows all backlog items */}

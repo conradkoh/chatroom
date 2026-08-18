@@ -71,17 +71,12 @@ describe('partitionFileTree', () => {
     expect(shards.find((s) => s.shardId === 'packages')?.entryCount).toBe(1);
   });
 
-  it('subdivides oversized shards by next path segment', { timeout: 15_000 }, () => {
+  it('subdivides oversized shards by next path segment', () => {
     const unique = 'segment'.repeat(80);
     const makeGroup = (prefix: string, count: number) =>
-      Array.from({ length: count }, (_, i) => ({
-        path: `${prefix}/${unique}-${i}/file.ts`,
-        type: 'file' as const,
-        size: 16384,
-        modifiedAt: 1_700_000_000_000 + i,
-      }));
+      makeEntries(count, (i) => `${prefix}/${unique}-${i}/file.ts`);
     const tree: FileTree = {
-      entries: [...makeGroup('src/components', 41_500), ...makeGroup('src/lib', 41_500)],
+      entries: [...makeGroup('src/components', 41_200), ...makeGroup('src/lib', 41_200)],
       scannedAt: 1_700_000_000_000,
       rootDir: '/workspace',
     };

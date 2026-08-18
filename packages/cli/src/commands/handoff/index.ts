@@ -105,6 +105,7 @@ export const handoffEffect = (
           suggestedTargets?: string[];
         };
         supportsNativeIntegration?: boolean;
+        enhancerJobId?: string | null;
       }>(api.messages.handoff, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -139,6 +140,7 @@ export const handoffEffect = (
           chatroomId,
           convexUrl,
           supportsNativeIntegration: result.supportsNativeIntegration,
+          enhancerCheckInQueued: result.enhancerJobId != null,
         })
       );
     });

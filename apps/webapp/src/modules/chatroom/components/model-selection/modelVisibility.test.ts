@@ -23,4 +23,19 @@ describe('isModelEffectivelyHidden', () => {
       )
     ).toBe(false);
   });
+
+  it('hides only tagless anthropic catalog model, not effort variants', () => {
+    const hiddenModels = new Set(['anthropic/claude-sonnet-4-6']);
+    expect(
+      isModelEffectivelyHidden('anthropic/claude-sonnet-4-6', 'anthropic', hiddenModels, new Set())
+    ).toBe(true);
+    expect(
+      isModelEffectivelyHidden(
+        'anthropic/claude-sonnet-4-6[effort=high]',
+        'anthropic',
+        hiddenModels,
+        new Set()
+      )
+    ).toBe(false);
+  });
 });

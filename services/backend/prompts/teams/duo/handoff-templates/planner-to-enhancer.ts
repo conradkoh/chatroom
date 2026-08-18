@@ -43,5 +43,7 @@ Follow the **Handoff to \`builder\`** template structure (Summary, Goal, approac
 </builder-handoff>
 \`\`\`
 
-After the enhancer returns **advisory** feedback, you make the **final call** — incorporate valid critiques, ignore what doesn't apply, then proceed to \`builder\` or \`user\`. Do not re-check with the enhancer for this slice; one round only.`;
+After handoff succeeds, **end your turn immediately** — do not monitor the enhancer or wait in this session. When review completes, enhancer → planner handoff delivers feedback as your next planner task.
+
+After you receive that feedback, you make the **final call** — incorporate valid critiques, ignore what doesn't apply, then proceed to \`builder\` or \`user\`. Do not re-check with the enhancer for this slice; one round only.`;
 }

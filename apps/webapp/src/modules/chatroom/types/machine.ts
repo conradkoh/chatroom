@@ -160,15 +160,18 @@ export function getMachineDisplayName(machine: { hostname: string; alias?: strin
 }
 
 /**
- * Convert a hyphenated slug to an uppercase display label.
- * Replaces hyphens with spaces and uppercases all characters.
+ * Convert a hyphenated slug to a title-cased display label.
+ * Replaces hyphens with spaces and capitalizes each segment.
  *
- * "github-copilot" → "GITHUB COPILOT"
- * "gpt-4o" → "GPT 4O"
- * "claude-sonnet-4.5" → "CLAUDE SONNET 4.5"
+ * "github-copilot" → "Github Copilot"
+ * "gpt-4o" → "Gpt 4o"
+ * "claude-sonnet-4.5" → "Claude Sonnet 4.5"
  */
 function slugToLabel(slug: string): string {
-  return slug.replace(/-/g, ' ').toUpperCase();
+  return slug
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 /** Friendly labels for bare model slugs (cursor-sdk / cursor CLI). */
@@ -181,7 +184,7 @@ const BARE_MODEL_DISPLAY_LABELS: Record<string, string> = {
  * Parse an OpenCode model ID (provider/model-slug format) into display parts.
  *
  * OpenCode models use the format "provider/model-slug", e.g.:
- *   "github-copilot/claude-sonnet-4.5" → { provider: "GITHUB COPILOT", model: "CLAUDE SONNET 4.5" }
+ *   "github-copilot/claude-sonnet-4.5" → { provider: "Github Copilot", model: "Claude Sonnet 4.5" }
  *   "opencode/big-pickle" → { provider: "OPENCODE", model: "BIG PICKLE" }
  *
  * For IDs without a slash, the entire string is treated as the model name.
@@ -204,18 +207,32 @@ function parseModelId(modelId: string): { provider: string; model: string } {
   };
 }
 
+export interface ModelDisplayLabelOptions {
+  /** Variant param keys to omit from the bracket suffix (e.g. uniform tags across a group). */
+  omitParamKeys?: ReadonlySet<string>;
+}
+
 /**
  * Get the full display label for a model, including its provider.
- * Returns an UPPERCASE label using slug-to-label normalization.
- * e.g. "github-copilot/gpt-4o" → "GITHUB COPILOT / GPT 4O"
+ * Uses title-cased slug-to-label normalization.
+ * e.g. "github-copilot/gpt-4o" → "Github Copilot / Gpt 4o"
  *
  * Variant params (effort, reasoning) are appended when present.
  */
-export function getModelDisplayLabel(modelId: string): string {
+function filterVariantParams(
+  params: Record<string, string>,
+  omitParamKeys?: ReadonlySet<string>
+): Record<string, string> {
+  if (!omitParamKeys) return params;
+  return Object.fromEntries(Object.entries(params).filter(([key]) => !omitParamKeys.has(key)));
+}
+
+export function getModelDisplayLabel(modelId: string, options?: ModelDisplayLabelOptions): string {
   try {
     const { model, params } = decodeModelVariant(modelId);
+    const filteredParams = filterVariantParams(params, options?.omitParamKeys);
     const { provider, model: modelPart } = parseModelId(model);
-    const suffix = formatModelVariantParamsSuffix(params);
+    const suffix = formatModelVariantParamsSuffix(filteredParams);
     const base = !provider ? modelPart : `${provider} / ${modelPart}`;
     return suffix ? `${base} ${suffix}` : base;
   } catch {

@@ -135,7 +135,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <high-level view of what changed since the user's message>
       </handoff-overview>
 
-      <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
+      <!-- UI collapses proofs and direction by default; overview and action required are expanded -->
 
       <handoff-proofs>
       ## Template Disclosure Confirmation
@@ -167,6 +167,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       - **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+      - **Documented Constraints:** <how this work demonstrates documented constraints, or exactly "Not Applicable.">
+      <!-- Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
 
       ## Proof of Completion
       <!-- Entry-point proof-of-completion workflow — run before filling this section:
@@ -219,12 +222,6 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
           A[Component] --> B[Component]
       \`\`\`
       </handoff-direction>
-
-      <handoff-notes>
-      ## Notes
-      <!-- REQUIRED. Write notes if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
-      <anything the user should know — context, caveats, or observations not covered above>
-      </handoff-notes>
 
       <handoff-action>
       ## Tech Debt Observed
@@ -307,6 +304,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       - **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+      - **Documented Constraints:** <how this work demonstrates documented constraints, or exactly "Not Applicable.">
+      <!-- Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
 
       ## Proof of Completion
       - [ ] I confirm the delegation brief is fully met: all (Required) files done, verified end-to-end, acceptance criteria pass
@@ -712,7 +712,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <high-level view of what changed since the user's message>
       </handoff-overview>
 
-      <!-- UI collapses proofs, direction, and notes by default; overview and action required are expanded -->
+      <!-- UI collapses proofs and direction by default; overview and action required are expanded -->
 
       <handoff-proofs>
       ## Template Disclosure Confirmation
@@ -744,6 +744,9 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       - **Leave It Better:** <how this work demonstrates leave it better, or exactly "Not Applicable.">
       <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+      - **Documented Constraints:** <how this work demonstrates documented constraints, or exactly "Not Applicable.">
+      <!-- Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
 
       ## Proof of Completion
       <!-- Entry-point proof-of-completion workflow — run before filling this section:
@@ -796,12 +799,6 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
           A[Component] --> B[Component]
       \`\`\`
       </handoff-direction>
-
-      <handoff-notes>
-      ## Notes
-      <!-- REQUIRED. Write notes if none, or write exactly "Not Applicable." with no explanation. Do not omit this section. -->
-      <anything the user should know — context, caveats, or observations not covered above>
-      </handoff-notes>
 
       <handoff-action>
       ## Tech Debt Observed

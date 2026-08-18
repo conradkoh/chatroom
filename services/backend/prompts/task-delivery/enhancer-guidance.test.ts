@@ -25,7 +25,10 @@ describe('appendTaskDeliveryEnhancerGuidance', () => {
     expect(output).toContain('<builder-handoff>');
     expect(output).toContain('may download chatroom message history and read files in the repo');
     expect(output).toContain('asynchronously');
-    expect(output).toContain('Run get-next-task immediately');
+    expect(output).toContain('get-next-task');
+    expect(output).toContain('End your turn immediately');
+    expect(output).toContain('monitor the enhancer');
+    expect(output).toContain('Enhancer → planner handoff is your resume trigger');
     expect(output).toContain('Do not hand off to enhancer again');
     expect(output).toContain('Do not hand off to builder or user');
     expect(output).not.toContain('one check-in per user instruction');

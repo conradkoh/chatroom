@@ -11,8 +11,7 @@ describe('getHandoffReportTemplateBody', () => {
     expect(body).toContain('</handoff-proofs>');
     expect(body).toContain('<handoff-direction>');
     expect(body).toContain('</handoff-direction>');
-    expect(body).toContain('<handoff-notes>');
-    expect(body).toContain('</handoff-notes>');
+    expect(body).not.toContain('<handoff-notes>');
     expect(body).toContain('<handoff-action>');
     expect(body).toContain('</handoff-action>');
   });
@@ -59,6 +58,7 @@ describe('getHandoffReportTemplateBody', () => {
     const proofs = body.match(/<handoff-proofs>[\s\S]*<\/handoff-proofs>/)?.[0] ?? '';
     expect(proofs).toContain('**Semantic Consistency:**');
     expect(proofs).toContain('**No Revisit:**');
+    expect(proofs).toContain('**Documented Constraints:**');
     expect(proofs).toContain('exactly "Not Applicable."');
   });
 
