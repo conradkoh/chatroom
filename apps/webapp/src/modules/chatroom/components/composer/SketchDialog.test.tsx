@@ -20,6 +20,10 @@ describe('SketchDialog', () => {
     render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sketch canvas').parentElement).toHaveClass(
+      'bg-chatroom-bg-primary'
+    );
+    expect(screen.getByLabelText('Sketch canvas').parentElement).not.toHaveClass('bg-white');
     expect(screen.getByRole('button', { name: 'Clear canvas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirm' })).toBeDisabled();

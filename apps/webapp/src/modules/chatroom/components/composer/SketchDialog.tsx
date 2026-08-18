@@ -68,7 +68,7 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
             </button>
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden border-2 border-chatroom-border bg-white">
+        <div className="min-h-0 flex-1 overflow-hidden border-2 border-chatroom-border bg-chatroom-bg-primary">
           <canvas
             ref={canvasRef}
             className="block h-full min-h-[320px] w-full touch-none"
