@@ -15,7 +15,7 @@ const PRINCIPLE_NAMES = [
   'Static Evaluability and Provability',
   'No Revisit',
   'Leave It Better',
-  'Proof of Documented Constraints',
+  'Documented Constraints',
 ];
 
 describe('handoff-quality-principles', () => {

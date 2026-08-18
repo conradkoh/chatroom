@@ -58,7 +58,7 @@ describe('getHandoffReportTemplateBody', () => {
     const proofs = body.match(/<handoff-proofs>[\s\S]*<\/handoff-proofs>/)?.[0] ?? '';
     expect(proofs).toContain('**Semantic Consistency:**');
     expect(proofs).toContain('**No Revisit:**');
-    expect(proofs).toContain('**Proof of Documented Constraints:**');
+    expect(proofs).toContain('**Documented Constraints:**');
     expect(proofs).toContain('exactly "Not Applicable."');
   });
 
