@@ -190,7 +190,6 @@
     "apps/webapp/src/modules/chatroom/components/ArtifactRenderer.tsx:AttachedArtifacts",
     "apps/webapp/src/modules/chatroom/components/CommandPalette/commandPaletteRows.ts:filterCommandsForSearchWithBlacklist",
     "apps/webapp/src/modules/chatroom/components/CommandPalette/index.ts:CommandOutputPanel",
-    "apps/webapp/src/modules/chatroom/components/composer/sketchSelectionUtils.ts:fillRectWithBackground",
     "apps/webapp/src/modules/chatroom/components/ErrorBoundary.tsx:ErrorBoundary",
     "apps/webapp/src/modules/chatroom/components/FeatureDetailModal.tsx:FeatureDetailModal",
     "apps/webapp/src/modules/chatroom/components/FileSelector/FileCopyActionsMenu.tsx:CopyFileContentButton",

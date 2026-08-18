@@ -1,46 +1,14 @@
-import { expect, test, devices, type Page } from '@playwright/test';
+import { expect, test, devices } from '@playwright/test';
 
 import { TAG_DOWNSTREAM } from '../../support/tags';
 
 const HARNESS_PATH = '/dev/mobile-picker-harness';
 
-/** Playwright fill() does not reliably fire React onChange on controlled range inputs. */
-async function setHarnessKeyboardInset(page: Page, insetPx: number): Promise<void> {
-  await expect(page.getByTestId('keyboard-controls')).toBeVisible();
-  const slider = page.getByTestId('keyboard-inset-slider');
-  await slider.evaluate((el, value) => {
-    const input = el as HTMLInputElement;
-    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-    setValue?.call(input, String(value));
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }, insetPx);
-  await expect
-    .poll(async () => page.getByText(`Keyboard inset: ${insetPx}px`).isVisible())
-    .toBe(true);
-}
-
-/** ResponsivePickerShell renders trigger-only until client hydration; clicks are no-ops before then. */
-async function waitForHarnessMobilePickersHydrated(page: Page): Promise<void> {
-  await expect(
-    page.locator('[data-testid="open-flat-picker"][data-slot="drawer-trigger"]')
-  ).toBeAttached();
-  await expect(
-    page.locator('[data-testid="open-filter-picker"][data-slot="drawer-trigger"]')
-  ).toBeAttached();
-  await expect(
-    page.locator('[data-testid="open-standing-instructions-bar"][data-slot="drawer-trigger"]')
-  ).toBeAttached();
-}
-
 test.use({ ...devices['iPhone 14'] });
 test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
-  test.describe.configure({ mode: 'serial' });
   test.beforeEach(async ({ page }) => {
     await page.goto(HARNESS_PATH);
     await expect(page.getByRole('heading', { name: 'Mobile Picker Harness' })).toBeVisible();
-    await expect(page.getByTestId('keyboard-controls')).toBeVisible();
-    await waitForHarnessMobilePickersHydrated(page);
   });
 
   test('flat picker opens drawer on mobile viewport', async ({ page }) => {
@@ -98,7 +66,7 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   });
 
   test('simulated keyboard inset sets maxHeight and keeps scroll body usable', async ({ page }) => {
-    await setHarnessKeyboardInset(page, 300);
+    await page.getByTestId('keyboard-inset-slider').fill('300');
     await page.getByTestId('open-flat-picker').click();
     await expect(page.locator('[data-slot="drawer-content"]')).toBeVisible();
 
@@ -165,12 +133,14 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   test('filter picker hides chrome and keeps filtered rows visible with keyboard inset', async ({
     page,
   }) => {
-    await setHarnessKeyboardInset(page, 300);
+    await page.getByTestId('keyboard-inset-slider').fill('300');
     await page.getByTestId('open-filter-picker').click();
     const drawer = page.locator('[data-slot="drawer-content"]');
     await expect(drawer).toBeVisible();
-    // Wait for harness keyboard inset + picker keyboard-open state (chrome hides asynchronously).
-    await expect(drawer.getByText('Reset All')).not.toBeVisible({ timeout: 10_000 });
+    await expect
+      .poll(() => drawer.locator('span').filter({ hasText: 'Model Visibility' }).count())
+      .toBe(0);
+    await expect(drawer.getByText('Reset All')).not.toBeVisible();
     const search = page.getByPlaceholder('Search models...');
     await expect(search).toBeVisible();
     await search.fill('model-01');
