@@ -43,6 +43,11 @@ vi.mock('../../../infrastructure/services/workspace/workspace-file-tree-coordina
     startCoordinator(options),
 }));
 
+vi.mock('../../../infrastructure/services/workspace/workspace-sync-queue.js', () => ({
+  enqueueFileTreeSync: (_machineId: string, _workingDir: string, task: () => Promise<void>) =>
+    task(),
+}));
+
 function makeSessionLayer(
   overrides?: Partial<DaemonSessionInit>
 ): Layer.Layer<DaemonSessionService> {
