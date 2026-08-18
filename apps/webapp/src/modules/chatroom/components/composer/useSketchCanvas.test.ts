@@ -3,12 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSketchCanvas } from './useSketchCanvas';
 
-let mockTheme: 'light' | 'dark' = 'light';
-
-vi.mock('@/modules/theme/ThemeProvider', () => ({
-  useTheme: () => ({ theme: mockTheme }),
-}));
-
 function createCanvasTestContext() {
   const fillColors: string[] = [];
   const strokeColors: string[] = [];
@@ -38,7 +32,7 @@ function createCanvasTestContext() {
 
 describe('useSketchCanvas theme colors', () => {
   beforeEach(() => {
-    mockTheme = 'light';
+    document.documentElement.classList.remove('dark');
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       callback(0);
       return 1;
@@ -83,7 +77,7 @@ describe('useSketchCanvas theme colors', () => {
     expect(fillColors.at(-1)).toBe('#ffffff');
     expect(strokeColors.at(-1)).toBe('#171717');
 
-    mockTheme = 'dark';
+    document.documentElement.classList.add('dark');
     act(() => rerender());
 
     expect(fillColors.at(-1)).toBe('#09090b');
