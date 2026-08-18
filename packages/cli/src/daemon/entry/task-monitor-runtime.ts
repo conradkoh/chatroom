@@ -449,6 +449,7 @@ function runLocalStoreReconcilePass(params: {
   });
 }
 
+// fallow-ignore-next-line complexity
 function mergeInboundTaskEvent(
   event: AssignedTaskInboundEvent,
   snapshot: ReturnType<typeof createTaskMonitorSnapshot>
@@ -504,6 +505,7 @@ export const startTaskMonitorEffect = (): Effect.Effect<
     let stopped = false;
     let monitorPassInFlight = false;
     let snapshotHydrated = false;
+    let snapshotRefreshInFlight = false;
     const pendingTaskEvents: AssignedTaskInboundEvent[] = [];
 
     const sessionDeps: NativeTaskDeliverySessionDeps = {
@@ -542,24 +544,42 @@ export const startTaskMonitorEffect = (): Effect.Effect<
       });
     };
 
+    // fallow-ignore-next-line complexity
+    const drainPendingTaskEvents = (): void => {
+      if (stopped || !snapshotHydrated || snapshotRefreshInFlight) return;
+      for (const event of pendingTaskEvents.splice(0)) {
+        handleInboundAssignedTaskEvent(event, runMonitorPass, taskSnapshot);
+      }
+    };
+
     registerAssignedTaskMonitorHandler(async (event) => {
-      if (!snapshotHydrated) {
+      if (stopped) return;
+      if (!snapshotHydrated || snapshotRefreshInFlight) {
         pendingTaskEvents.push(event);
         return;
       }
       handleInboundAssignedTaskEvent(event, runMonitorPass, taskSnapshot);
     });
 
+    // fallow-ignore-next-line complexity
     const refreshSnapshot = async (): Promise<void> => {
-      const result = await session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
-        sessionId: session.sessionId,
-        machineId: session.machineId,
-      });
-      const tasks = mapAssignedTaskSnapshotList(
-        parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? [])
-      );
-      taskSnapshot.replaceAll(tasks);
-      replaceAssignedTaskSnapshots(tasks);
+      if (stopped || snapshotRefreshInFlight) return;
+      snapshotRefreshInFlight = true;
+      try {
+        const result = await session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+        });
+        if (stopped) return;
+        const tasks = mapAssignedTaskSnapshotList(
+          parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? [])
+        );
+        taskSnapshot.replaceAll(tasks);
+        replaceAssignedTaskSnapshots(tasks);
+      } finally {
+        snapshotRefreshInFlight = false;
+        drainPendingTaskEvents();
+      }
     };
 
     // Incremental feeds handle task and presence changes. A slow full refresh
@@ -593,9 +613,7 @@ export const startTaskMonitorEffect = (): Effect.Effect<
     ).pipe(Effect.catchAll(() => Effect.void));
     yield* Effect.tryPromise(refreshSnapshot).pipe(Effect.catchAll(() => Effect.void));
     snapshotHydrated = true;
-    for (const event of pendingTaskEvents.splice(0)) {
-      handleInboundAssignedTaskEvent(event, runMonitorPass, taskSnapshot);
-    }
+    drainPendingTaskEvents();
 
     return {
       stop() {
