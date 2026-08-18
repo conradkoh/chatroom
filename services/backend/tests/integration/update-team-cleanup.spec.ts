@@ -98,6 +98,57 @@ describe('updateTeam — stop events', () => {
   });
 });
 
+// ─── Start events dispatched ─────────────────────────────────────────────────
+
+describe('updateTeam — start events', () => {
+  test('dispatches start events for target-team roles with configs', async () => {
+    const { sessionId } = await createTestSession('test-ut-start-1');
+    const machineId = 'machine-ut-start-1';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createThreeRoleChatroom(sessionId);
+
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.chatrooms.updateTeam, {
+      sessionId: sessionId as any,
+      chatroomId,
+      teamId: 'duo',
+      teamName: 'Duo Team',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'planner',
+    });
+
+    const startEvents = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom_type', (q) =>
+          q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStart')
+        )
+        .collect();
+    });
+
+    const teamSwitchStarts = startEvents.filter(
+      (e) => e.type === 'agent.requestStart' && e.reason === 'platform.team_switch'
+    );
+    expect(teamSwitchStarts.length).toBeGreaterThanOrEqual(2);
+
+    const duoPlannerKey = `chatroom_${chatroomId}#team_duo#role_planner`;
+    const duoBuilderKey = `chatroom_${chatroomId}#team_duo#role_builder`;
+    const configs = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+
+    const duoPlanner = configs.find((c) => c.teamRoleKey === duoPlannerKey);
+    const duoBuilder = configs.find((c) => c.teamRoleKey === duoBuilderKey);
+    expect(duoPlanner?.desiredState).toBe('running');
+    expect(duoBuilder?.desiredState).toBe('running');
+  });
+});
+
 // ─── Chatroom team fields updated ─────────────────────────────────────────────
 
 describe('updateTeam — chatroom fields', () => {

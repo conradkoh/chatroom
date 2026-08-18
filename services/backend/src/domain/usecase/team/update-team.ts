@@ -5,9 +5,11 @@
  *   1. Updates the chatroom's team configuration
  *   2. Dispatches stop events for running agents on outgoing team roles
  *   3. Preserves outgoing teamAgentConfigs, restores target-team rows, seeds missing ones
+ *   4. Starts target-team agents that have complete configs
  */
 
 import { buildSeedTeamAgentConfigFields } from './seed-team-config-on-switch';
+import { startTargetTeamAgentsOnSwitch } from './start-target-team-agents-on-switch';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -36,6 +38,8 @@ export interface UpdateTeamResult {
   preservedCount: number;
   restoredCount: number;
   seededCount: number;
+  /** Number of start events dispatched for target-team agents. */
+  startedAgentCount: number;
 }
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
@@ -149,10 +153,18 @@ export async function updateTeam(
 
   await projectAssignedTaskSnapshotsForMachines(ctx, affectedMachineIds);
 
+  const startedAgentCount = await startTargetTeamAgentsOnSwitch(ctx, {
+    chatroomId,
+    teamId,
+    teamRoles,
+    userId,
+  });
+
   return {
     stoppedAgentCount,
     preservedCount,
     restoredCount,
     seededCount,
+    startedAgentCount,
   };
 }
