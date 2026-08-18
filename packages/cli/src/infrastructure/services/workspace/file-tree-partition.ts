@@ -78,6 +78,9 @@ function groupEntriesByShardId(
   return groups;
 }
 
+/** Skip compressing parent shards that are too large to plausibly fit before subdividing. */
+const LARGE_SHARD_ENTRY_THRESHOLD = 50_000;
+
 function buildPreparedShard(shardId: string, payload: FileTreeShardPayload): PreparedFileTreeShard {
   const compressed = gzipSync(Buffer.from(JSON.stringify(payload))).toString('base64');
   return {
@@ -89,31 +92,45 @@ function buildPreparedShard(shardId: string, payload: FileTreeShardPayload): Pre
   };
 }
 
+function subdivideShardGroup(
+  subgroups: Map<string, FileTreeEntry[]>,
+  tree: FileTree
+): PreparedFileTreeShard[] {
+  const shards: PreparedFileTreeShard[] = [];
+  for (const [subId, subEntries] of subgroups) {
+    shards.push(...prepareShardGroup(subEntries, subId, tree));
+  }
+  return shards;
+}
+
+function shouldSkipParentCompression(
+  subgroups: Map<string, FileTreeEntry[]>,
+  entryCount: number
+): boolean {
+  return subgroups.size > 1 && entryCount > LARGE_SHARD_ENTRY_THRESHOLD;
+}
+
 function prepareShardGroup(
   entries: FileTreeEntry[],
   shardId: string,
   tree: FileTree
 ): PreparedFileTreeShard[] {
+  const subgroups = groupEntriesByShardId(entries, shardId);
+  if (shouldSkipParentCompression(subgroups, entries.length)) {
+    return subdivideShardGroup(subgroups, tree);
+  }
+
   const payload: FileTreeShardPayload = {
     entries,
     scannedAt: tree.scannedAt,
     rootDir: tree.rootDir,
   };
   const compressed = gzipSync(Buffer.from(JSON.stringify(payload))).toString('base64');
-  if (Buffer.byteLength(compressed, 'utf8') <= MAX_SHARD_JSON_BYTES) {
+  if (Buffer.byteLength(compressed, 'utf8') <= MAX_SHARD_JSON_BYTES || subgroups.size <= 1) {
     return [buildPreparedShard(shardId, payload)];
   }
 
-  const subgroups = groupEntriesByShardId(entries, shardId);
-  if (subgroups.size <= 1) {
-    return [buildPreparedShard(shardId, payload)];
-  }
-
-  const shards: PreparedFileTreeShard[] = [];
-  for (const [subId, subEntries] of subgroups) {
-    shards.push(...prepareShardGroup(subEntries, subId, tree));
-  }
-  return shards;
+  return subdivideShardGroup(subgroups, tree);
 }
 
 export function partitionFileTree(tree: FileTree): PreparedFileTreeShard[] {
