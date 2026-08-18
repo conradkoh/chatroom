@@ -128,6 +128,18 @@ describe('assignedTaskSignalSchema', () => {
     expect(expanded.lastSeenAt).toBe(1500);
   });
 
+  it('preserves the participant timestamp when a slim delta includes it', () => {
+    const parsed = parseAssignedTaskPresenceSignal({
+      taskId: 'task_1' as AssignedTaskSignal['taskId'],
+      role: 'builder',
+      lastSeenAt: 1_200,
+      presenceKey: '000000000001500:task_1:builder',
+    });
+
+    expect(parsed.lastSeenAt).toBe(1_200);
+    expect(parsed.presenceUpdatedAt).toBe(1_500);
+  });
+
   it('falls back to full presence wire payload when delta fields are absent', () => {
     const full = {
       taskId: 'task_1' as AssignedTaskSignal['taskId'],

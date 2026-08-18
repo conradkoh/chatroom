@@ -93,6 +93,8 @@ export const assignedTaskPresenceSignalSchema = z.object({
 export const assignedTaskPresenceDeltaSchema = z.object({
   taskId: chatroomTaskIdSchema,
   role: z.string(),
+  // Preserve the participant timestamp without restoring the full snapshot row.
+  lastSeenAt: z.number().nullable().optional(),
   presenceKey: z.string(),
 });
 
@@ -146,7 +148,7 @@ export function parseAssignedTaskPresenceSignal(raw: unknown): AssignedTaskPrese
       taskId: delta.data.taskId,
       chatroomId: '' as z.infer<typeof chatroomRoomIdSchema>,
       role: delta.data.role,
-      lastSeenAt: resolvedAt,
+      lastSeenAt: delta.data.lastSeenAt === undefined ? resolvedAt : delta.data.lastSeenAt,
       presenceUpdatedAt: resolvedAt,
       presenceKey: delta.data.presenceKey,
     };

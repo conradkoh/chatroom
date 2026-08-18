@@ -485,7 +485,7 @@ describe('machines.subscribeAssignedTaskPresenceSince', () => {
       role: 'builder',
       presenceKey: expect.any(String),
     });
-    expect(page.items[0]).not.toHaveProperty('lastSeenAt');
+    expect(page.items[0]).toHaveProperty('lastSeenAt');
     expect(page.items[0]).not.toHaveProperty('chatroomId');
     expect(page.highPresenceKey).toBeTruthy();
   });

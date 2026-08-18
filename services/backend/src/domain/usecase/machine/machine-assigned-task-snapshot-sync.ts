@@ -93,7 +93,12 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
 }
 
 export function snapshotDocToPresenceDelta(doc: SnapshotDoc): AssignedTaskPresenceDelta {
-  return { taskId: doc.taskId, role: doc.role, presenceKey: doc.presenceKey };
+  return {
+    taskId: doc.taskId,
+    role: doc.role,
+    lastSeenAt: doc.lastSeenAt ?? null,
+    presenceKey: doc.presenceKey,
+  };
 }
 
 interface SnapshotRowInput {
