@@ -11,7 +11,7 @@
 import type { ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
-import type { Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Effect } from 'effect';
 
 import {
@@ -23,6 +23,7 @@ import {
 import { ClaudeSdkStreamAdapter } from './claude-sdk-stream-adapter.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import { decodeClaudeVariant } from '../claude/claude-models.js';
 import { DetectionResult } from '../detection-result.js';
 import type {
   AgentStopOptions,
@@ -40,8 +41,13 @@ type LoadedClaudeSdk = Awaited<ReturnType<typeof importBundledClaudeSdk>>;
 
 const CLAUDE_SDK_COMMAND = 'claude-sdk';
 const DEFAULT_MAX_TURNS = 200;
-const DEFAULT_EFFORT = 'medium' as const;
+const DEFAULT_EFFORT: EffortLevel = 'medium';
 const TURN_TIMEOUT_MS = 3_600_000;
+
+function decodeClaudeSdkModel(model?: string): { model?: string; effort?: EffortLevel } {
+  const variant = decodeClaudeVariant(model);
+  return { model: variant?.model, effort: variant?.effort };
+}
 
 let _sdkCache: LoadedClaudeSdk | undefined;
 let _sdkLoadError: unknown;
@@ -260,6 +266,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     context: SpawnContext;
     workingDir: string;
     model?: string;
+    effort?: EffortLevel;
     initialPrompt: string;
     deferInitialTurn?: boolean;
     storedSystemPrompt?: string;
@@ -272,6 +279,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       context,
       workingDir,
       model,
+      effort,
       initialPrompt,
       deferInitialTurn = false,
       storedSystemPrompt,
@@ -330,6 +338,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       logPrefix,
       workingDir,
       model,
+      effort,
       executablePath,
       initialPrompt,
       deferInitialTurn,
@@ -380,6 +389,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     logPrefix: string;
     workingDir: string;
     model?: string;
+    effort?: EffortLevel;
     executablePath: string;
     initialPrompt: string;
     deferInitialTurn?: boolean;
@@ -396,6 +406,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       logPrefix,
       workingDir,
       model,
+      effort,
       executablePath,
       initialPrompt,
       deferInitialTurn = false,
@@ -416,6 +427,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       logPrefix,
       workingDir,
       model,
+      effort,
       executablePath,
       initialPrompt,
       deferInitialTurn,
@@ -450,6 +462,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
     logPrefix: string;
     workingDir: string;
     model?: string;
+    effort?: EffortLevel;
     executablePath: string;
     initialPrompt: string;
     deferInitialTurn: boolean;
@@ -469,6 +482,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       logPrefix,
       workingDir,
       model,
+      effort,
       executablePath,
       initialPrompt,
       deferInitialTurn,
@@ -521,7 +535,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
             prompt: nextPrompt,
             options: {
               cwd: workingDir,
-              model,
+              ...(model ? { model } : {}),
               maxTurns: DEFAULT_MAX_TURNS,
               pathToClaudeCodeExecutable: executablePath,
               includePartialMessages: true,
@@ -533,7 +547,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
               settingSources: [],
               permissionMode: 'bypassPermissions',
               allowDangerouslySkipPermissions: true,
-              effort: DEFAULT_EFFORT,
+              effort: effort ?? DEFAULT_EFFORT,
               canUseTool: async (_toolName, input) => ({ behavior: 'allow', updatedInput: input }),
             },
           });
@@ -595,6 +609,7 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
+    const { model, effort } = decodeClaudeSdkModel(options.model);
     const deferInitialTurn = options.deferInitialTurn ?? false;
     const keeper = this.spawnKeeper(options.workingDir);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- spawnKeeper validates pid
@@ -617,7 +632,8 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       keeper,
       context,
       workingDir: options.workingDir,
-      model: options.model,
+      model,
+      effort,
       initialPrompt: fullPrompt,
       deferInitialTurn,
       storedSystemPrompt: options.systemPrompt,
@@ -635,13 +651,15 @@ export class ClaudeSdkAgentService extends BaseCLIAgentService {
       const pid = keeper.pid!;
       await loadSdk();
       const executablePath = await resolvePathToClaudeCodeExecutable();
+      const { model, effort } = decodeClaudeSdkModel(options.model ?? stored.model);
 
       return this.startRunningSession({
         pid,
         keeper,
         context: options.context,
         workingDir: stored.workingDir,
-        model: options.model ?? stored.model,
+        model,
+        effort,
         initialPrompt: options.prompt,
         deferInitialTurn: false,
         storedSystemPrompt: options.systemPrompt,

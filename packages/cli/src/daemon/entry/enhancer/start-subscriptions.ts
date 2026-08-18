@@ -2,6 +2,7 @@ import type { ConvexClient } from 'convex/browser';
 
 import { startEnhancerJobSubscriber } from './job-subscriber.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
+import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
 import type { RemoteAgentService } from '../../infrastructure/local/harness/services/remote-agent-service.js';
 
 export function startEnhancerSubscriptions(
@@ -10,7 +11,8 @@ export function startEnhancerSubscriptions(
   convexUrl: string,
   wsClient: ConvexClient,
   backend: BackendOps,
-  agentServices: Map<string, RemoteAgentService>
+  agentServices: Map<string, RemoteAgentService>,
+  logSink?: AgentLogSink
 ): { stop: () => void } {
   return startEnhancerJobSubscriber(
     sessionId,
@@ -18,6 +20,7 @@ export function startEnhancerSubscriptions(
     convexUrl,
     wsClient,
     backend,
-    agentServices
+    agentServices,
+    logSink
   );
 }

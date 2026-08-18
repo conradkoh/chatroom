@@ -1,3 +1,4 @@
+import { stripProviderPrefix } from '@workspace/backend/src/domain/entities/harness/model-provider';
 import { decodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant';
 
 import {
@@ -108,7 +109,9 @@ export function groupProviderOptions(
 
 /** Flatten ProviderOption[] to filter-panel model IDs (`providerID/modelID`). */
 export function providerOptionsToFilterModelIds(providers: ProviderOption[]): string[] {
-  return providers.flatMap((p) => p.models.map((m) => `${p.providerID}/${m.modelID}`));
+  return providers.flatMap((p) =>
+    p.models.map((m) => `${p.providerID}/${stripProviderPrefix(p.providerID, m.modelID)}`)
+  );
 }
 
 /** Find the display label for a value within ModelGroup[]. */

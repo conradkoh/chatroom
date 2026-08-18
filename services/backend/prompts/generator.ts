@@ -24,7 +24,10 @@
 
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
-import { getNativeHandoffTurnEndGuidance } from './native/session-continuity';
+import {
+  getNativeEnhancerCheckInTurnEndGuidance,
+  getNativeHandoffTurnEndGuidance,
+} from './native/session-continuity';
 import { composeNativeSystemPrompt } from './native/system-prompt';
 import { getClassificationGuideSection } from './sections/classification-guide';
 import { getCommandsReferenceSection } from './sections/commands-reference';
@@ -230,12 +233,16 @@ function isEnhancerCheckInQueuedHandoff(params: {
   );
 }
 
-function getEnhancerCheckInQueuedConfirmationLines(): string[] {
+function getEnhancerCheckInQueuedConfirmationLines(nativeIntegration?: boolean): string[] {
+  const turnEndRule = nativeIntegration
+    ? '**End your turn now** — do not wait for feedback, poll, monitor the enhancer, or re-submit the handoff. The system delivers enhancer feedback as your next planner task when review completes.'
+    : '**Run get-next-task now and end your turn** — do not wait for feedback, poll, monitor the enhancer, or re-submit the handoff.';
+
   return [
     '✅ Planning check-in queued for handoff enhancer',
     '',
     'Your check-in was sent to the handoff enhancer (async). You will receive planning feedback back as a planner task when review completes.',
-    '**Run get-next-task now and end your turn** — do not wait for feedback, poll, or re-submit the handoff.',
+    turnEndRule,
   ];
 }
 
@@ -265,15 +272,20 @@ export function generateHandoffOutput(params: {
   } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
+  const enhancerCheckIn = isEnhancerCheckInQueuedHandoff({ role, nextRole, enhancerCheckInQueued });
   const lines: string[] = [];
-  if (isEnhancerCheckInQueuedHandoff({ role, nextRole, enhancerCheckInQueued })) {
-    lines.push(...getEnhancerCheckInQueuedConfirmationLines());
+  if (enhancerCheckIn) {
+    lines.push(...getEnhancerCheckInQueuedConfirmationLines(supportsNativeIntegration));
   } else {
     lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
   }
 
   if (supportsNativeIntegration) {
-    lines.push(getNativeHandoffTurnEndGuidance(nextRole));
+    lines.push(
+      enhancerCheckIn
+        ? getNativeEnhancerCheckInTurnEndGuidance()
+        : getNativeHandoffTurnEndGuidance(nextRole)
+    );
   } else {
     lines.push('');
     lines.push('✅ Level B complete (chatroom task handed off).');

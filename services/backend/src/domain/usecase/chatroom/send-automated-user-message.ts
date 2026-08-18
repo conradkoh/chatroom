@@ -1,11 +1,12 @@
+import { reserveFrontQueuePosition } from './reserve-front-queue-position';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
 import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agents-on-user-message';
+import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-planner-enhancer-enabled';
 import { createTask as createTaskUsecase, shouldEnqueueMessage } from '../task/create-task';
 import { adjustTaskCount } from '../task/task-counts';
-import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-planner-enhancer-enabled';
 
 export type SendAutomatedUserMessageResult =
   | { ok: true; messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> }
@@ -24,6 +25,7 @@ export async function sendAutomatedUserMessage(
     attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
     userId?: Id<'users'>;
     startInNewSession: boolean | undefined;
+    enqueueAtFront?: boolean;
   }
 ): Promise<SendAutomatedUserMessageResult> {
   const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
@@ -34,8 +36,11 @@ export async function sendAutomatedUserMessage(
   if (!trimmed) return { ok: false, reason: 'empty_content' };
 
   const targetRole = getTeamEntryPoint(chatroom) ?? undefined;
-  const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
   const enqueue = await shouldEnqueueMessage(ctx, args.chatroomId);
+  const queuePosition =
+    enqueue && args.enqueueAtFront
+      ? await reserveFrontQueuePosition(ctx, args.chatroomId, chatroom)
+      : await getAndIncrementQueuePosition(ctx, chatroom);
 
   let plannerEnhancerEnabled: boolean | undefined;
   if (args.userId) {
@@ -66,7 +71,9 @@ export async function sendAutomatedUserMessage(
       ...(args.sourcePlatform ? { sourcePlatform: args.sourcePlatform } : {}),
       ...(args.scheduledPromptId ? { scheduledPromptId: args.scheduledPromptId } : {}),
       ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
-      ...(args.startInNewSession !== undefined ? { startInNewSession: args.startInNewSession } : {}),
+      ...(args.startInNewSession !== undefined
+        ? { startInNewSession: args.startInNewSession }
+        : {}),
     });
     await adjustTaskCount(ctx, args.chatroomId, 'queueSize', 1);
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: Date.now() });

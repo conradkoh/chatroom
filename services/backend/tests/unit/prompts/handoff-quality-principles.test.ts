@@ -15,16 +15,17 @@ const PRINCIPLE_NAMES = [
   'Static Evaluability and Provability',
   'No Revisit',
   'Leave It Better',
+  'Proof of Documented Constraints',
 ];
 
 describe('handoff-quality-principles', () => {
-  test('getHandoffQualityPrinciplesTemplateBlock includes all 6 principle names as **Name:** bullets', () => {
+  test('getHandoffQualityPrinciplesTemplateBlock includes all 7 principle names as **Name:** bullets', () => {
     const block = getHandoffQualityPrinciplesTemplateBlock();
     for (const name of PRINCIPLE_NAMES) {
       expect(block).toContain(`**${name}:**`);
     }
     const bulletLines = block.split('\n').filter((line) => line.startsWith('- '));
-    expect(bulletLines).toHaveLength(6);
+    expect(bulletLines).toHaveLength(7);
   });
 
   test('each principle has its own HTML comment on the following line', () => {
@@ -37,7 +38,7 @@ describe('handoff-quality-principles', () => {
   test('each principle includes exactly "Not Applicable." placeholder', () => {
     const block = getHandoffQualityPrinciplesTemplateBlock();
     const occurrences = (block.match(/exactly "Not Applicable\."/g) || []).length;
-    expect(occurrences).toBe(6);
+    expect(occurrences).toBe(7);
   });
 
   test('block is NOT wrapped in a single combined HTML comment', () => {
@@ -53,7 +54,7 @@ describe('handoff-quality-principles', () => {
     expect(PROOF_OF_PRINCIPLES_MANDATORY_COMMENT).toContain('do not omit');
   });
 
-  test('getHandoffQualityPrinciplesSectionBlock includes mandatory comment and all 6 principles', () => {
+  test('getHandoffQualityPrinciplesSectionBlock includes mandatory comment and all 7 principles', () => {
     const block = getHandoffQualityPrinciplesSectionBlock();
     expect(block).toContain(PROOF_OF_PRINCIPLES_MANDATORY_COMMENT);
     expect(block).toContain('## Proof of Principles');

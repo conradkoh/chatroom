@@ -22,6 +22,23 @@ describe('cursor-sdk blacklist semantics', () => {
   });
 });
 
+describe('claude-sdk blacklist semantics', () => {
+  it('hides only the tagless anthropic catalog model, not effort variants', () => {
+    const filter = { hiddenModels: ['anthropic/claude-sonnet-4-6'], hiddenProviders: [] };
+    expect(isModelHidden('anthropic/claude-sonnet-4-6', filter)).toBe(true);
+    expect(isModelHidden('anthropic/claude-sonnet-4-6[effort=high]', filter)).toBe(false);
+    expect(isModelHidden('anthropic/claude-sonnet-4-6[effort=medium]', filter)).toBe(false);
+    expect(isModelHidden('anthropic/claude-opus-4-6', filter)).toBe(false);
+  });
+
+  it('matches harness model keys after :: normalization', () => {
+    const filter = { hiddenModels: ['anthropic/claude-sonnet-4-6'], hiddenProviders: [] };
+    const isHidden = (key: string) => isModelHidden(key.replace('::', '/'), filter);
+    expect(isHidden('anthropic::claude-sonnet-4-6')).toBe(true);
+    expect(isHidden('anthropic::claude-sonnet-4-6[effort=high]')).toBe(false);
+  });
+});
+
 // ─── getModelProviderKey ────────────────────────────────────────────
 
 describe('getModelProviderKey', () => {

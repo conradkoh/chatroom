@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import type {
   DirectHarnessSession,
@@ -8,10 +8,11 @@ import type {
   PromptInput,
 } from '../../../../../domain/entities/direct-harness-session.js';
 import type { OpenCodeSessionId } from '../../../../../domain/entities/harness-session.js';
+import { decodeClaudeVariant } from '../../services/claude/claude-models.js';
 import { withTimeout } from '../../services/with-timeout.js';
 
 const DEFAULT_MAX_TURNS = 200;
-const DEFAULT_EFFORT = 'medium' as const;
+const DEFAULT_EFFORT: EffortLevel = 'medium';
 const QUERY_TIMEOUT_MS = 3_600_000;
 
 type QueryFn = (args: { prompt: string; options: Record<string, unknown> }) => Query;
@@ -70,13 +71,16 @@ export class ClaudeSdkSession implements DirectHarnessSession {
     this._sessionTitle = title;
   }
 
-  // fallow-ignore-next-line unused-class-member complexity
+  // fallow-ignore-next-line unused-class-member complexity code-duplication
   async prompt(input: PromptInput): Promise<void> {
     if (this.closed) throw new Error('Session is closed');
 
     const text = input.parts.map((p) => p.text).join('\n');
     const messageId = randomUUID();
-    const model = resolveClaudeModel(this.defaultModel, input.model);
+    const variant = decodeClaudeVariant(
+      input.model ? `${input.model.providerID}/${input.model.modelID}` : this.defaultModel
+    );
+    const model = variant?.model;
 
     const useResume =
       Boolean(this.providerSessionId) && (!this.isFirstQuery || this.resumeOnFirstQuery);
@@ -88,7 +92,7 @@ export class ClaudeSdkSession implements DirectHarnessSession {
       prompt: text,
       options: {
         cwd: this.cwd,
-        model,
+        ...(model ? { model } : {}),
         maxTurns: DEFAULT_MAX_TURNS,
         pathToClaudeCodeExecutable: this.executablePath,
         includePartialMessages: true,
@@ -98,7 +102,7 @@ export class ClaudeSdkSession implements DirectHarnessSession {
         settingSources: [],
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
-        effort: DEFAULT_EFFORT,
+        effort: variant?.effort ?? DEFAULT_EFFORT,
         canUseTool: async (_toolName: string, toolInput: unknown) => ({
           behavior: 'allow',
           updatedInput: toolInput,
@@ -233,24 +237,4 @@ export class ClaudeSdkSession implements DirectHarnessSession {
         break;
     }
   }
-}
-
-// fallow-ignore-next-line complexity
-function resolveClaudeModel(
-  defaultModel?: string,
-  promptModel?: { readonly providerID: string; readonly modelID: string }
-): string {
-  if (promptModel) {
-    if (promptModel.providerID === 'anthropic') return promptModel.modelID;
-    return promptModel.modelID;
-  }
-  if (defaultModel) {
-    const slash = defaultModel.indexOf('/');
-    if (slash === -1) return defaultModel;
-    const provider = defaultModel.slice(0, slash);
-    const modelId = defaultModel.slice(slash + 1);
-    if (provider === 'anthropic') return modelId;
-    return modelId;
-  }
-  return 'sonnet';
 }
