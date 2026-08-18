@@ -2668,7 +2668,7 @@ export default defineSchema({
    * The payload remains in the compatibility tables above so old readers keep
    * working while incremental readers use this row as their starting point.
    */
-  chatroom_workspaceFileTreeCheckpoint: defineTable({
+  chatroom_workspaceFileTreeCheckpointV2: defineTable({
     machineId: v.string(),
     workingDir: v.string(),
     revision: v.number(),

@@ -21,6 +21,12 @@ const mocks = vi.hoisted(() => ({
   hydrationLoading: false,
   hydrationHasTree: false,
   loadError: null as string | null,
+  isNeverSynced: false,
+  pendingRequests: [] as { workingDir: string }[],
+}));
+
+vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: () => mocks.pendingRequests,
 }));
 
 vi.mock('./useWorkspaceFileTreeEntries', () => ({
@@ -49,6 +55,7 @@ vi.mock('./useWorkspaceFileTree', () => ({
     scannedAt: null,
     refresh: mocks.treeHydrationRefresh,
     loadError: mocks.loadError,
+    isNeverSynced: mocks.isNeverSynced,
   })),
 }));
 
@@ -60,6 +67,8 @@ beforeEach(() => {
   mocks.hydrationLoading = false;
   mocks.hydrationHasTree = false;
   mocks.loadError = null;
+  mocks.isNeverSynced = false;
+  mocks.pendingRequests = [];
   __resetWorkspaceFileTreeStoreForTests();
 });
 
@@ -224,5 +233,22 @@ describe('useWorkspaceDirExplorer', () => {
     );
 
     expect(mocks.treeRefresh).toHaveBeenCalledWith();
+  });
+
+  it('derives never-synced state without a pending request', () => {
+    mocks.isNeverSynced = true;
+    const { result } = renderHook(() =>
+      useWorkspaceDirExplorer({ machineId: MACHINE_ID, workingDir: WORKING_DIR })
+    );
+    expect(result.current.explorerEmptyState).toBe('never-synced');
+  });
+
+  it('derives syncing state when a pending request matches the directory', () => {
+    mocks.isNeverSynced = true;
+    mocks.pendingRequests = [{ workingDir: WORKING_DIR }];
+    const { result } = renderHook(() =>
+      useWorkspaceDirExplorer({ machineId: MACHINE_ID, workingDir: WORKING_DIR })
+    );
+    expect(result.current.explorerEmptyState).toBe('syncing');
   });
 });

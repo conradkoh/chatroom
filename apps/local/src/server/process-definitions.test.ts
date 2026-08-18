@@ -128,5 +128,8 @@ describe('buildProcessDefinitions', () => {
     expect(defs.find((def) => def.id === 'daemon')?.args[1]).toContain(
       'turbo run build --filter=chatroom-cli --cache=local:r,remote:r'
     );
+    expect(defs.find((def) => def.id === 'daemon')?.args[1]).toContain(
+      'chatroom machine daemon stop'
+    );
   });
 });

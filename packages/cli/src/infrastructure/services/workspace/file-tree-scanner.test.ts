@@ -27,6 +27,11 @@ describe('isExcluded', () => {
     expect(isExcluded('coverage/lcov.info')).toBe(true);
   });
 
+  it('excludes .nx and .convex generated trees', () => {
+    expect(isExcluded('.nx/cache/abc/services/backend/dist/foo.d.ts')).toBe(true);
+    expect(isExcluded('services/backend/.convex/local/default/config.json')).toBe(true);
+  });
+
   it('does not exclude normal paths', () => {
     expect(isExcluded('src/index.ts')).toBe(false);
     expect(isExcluded('packages/cli/src/main.ts')).toBe(false);
@@ -42,6 +47,7 @@ describe('isExcluded', () => {
 
   it('excludes .turbo paths', () => {
     expect(isExcluded('.turbo/cache/abc.json')).toBe(true);
+    expect(isExcluded('.nx/cache/abc.json')).toBe(true);
   });
 });
 

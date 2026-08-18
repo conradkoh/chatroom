@@ -22,6 +22,7 @@ import {
   startWorkspaceFileTreeCoordinator,
   type WorkspaceFileTreeCoordinator,
 } from '../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
+import { enqueueFileTreeSync } from '../../../infrastructure/services/workspace/workspace-sync-queue.js';
 import type { WorkspacePendingDelta } from '../../../infrastructure/services/workspace/workspace-sync-state.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
@@ -104,23 +105,25 @@ async function processPendingFileTreeRequests(
   }
 
   for (const [normalized, force] of requestsByDir) {
-    const start = Date.now();
-    await ensureCoordinator(normalized, force)
-      .then(() =>
-        session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
-          sessionId: session.sessionId,
-          machineId: session.machineId,
-          workingDir: normalized,
+    await enqueueFileTreeSync(session.machineId, normalized, async () => {
+      const start = Date.now();
+      await ensureCoordinator(normalized, force)
+        .then(() =>
+          session.backend.mutation(api.workspaceFiles.fulfillFileTreeRequest, {
+            sessionId: session.sessionId,
+            machineId: session.machineId,
+            workingDir: normalized,
+          })
+        )
+        .then(() => {
+          console.log(
+            `[${formatTimestamp()}] 🌳 File tree ready: ${normalized} (${Date.now() - start}ms${force ? ', reconciled' : ', cached'})`
+          );
         })
-      )
-      .then(() => {
-        console.log(
-          `[${formatTimestamp()}] 🌳 File tree ready: ${normalized} (${Date.now() - start}ms${force ? ', reconciled' : ', cached'})`
-        );
-      })
-      .catch((err: unknown) => {
-        logSubscriptionWarn(`File tree failed for ${normalized}`, err);
-      });
+        .catch((err: unknown) => {
+          logSubscriptionWarn(`File tree failed for ${normalized}`, err);
+        });
+    });
   }
 }
 

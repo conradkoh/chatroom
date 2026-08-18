@@ -19,6 +19,22 @@ import type {
   SessionPhase,
 } from '../shared/protocol.js';
 
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForPidExit(pid: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (isPidAlive(pid) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
 type ManagerEvents = {
   process: [ProcessInfo];
   log: [LogLine];
@@ -276,11 +292,12 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     }
   }
 
+  // fallow-ignore-next-line complexity
   async restart(id: ManagedProcessId): Promise<void> {
     if (id === 'convex') {
       if (!this._runtimeConfig) return;
       this.clearProcessLogs('convex');
-      this.stop('convex');
+      await this.stopAndWait('convex');
       this.updateState('convex', { health: 'checking', healthDetail: 'Restarting...' });
       const def = buildProcessDefinitions(
         this.repoRoot,
@@ -293,13 +310,13 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
       }
       return;
     }
-    this.stop(id);
     if (id === 'webapp') {
       this.updateState('webapp', { health: 'checking', healthDetail: 'Restarting...' });
     }
     if (id === 'daemon') {
       this.updateState('daemon', { health: 'checking', healthDetail: 'Restarting...' });
     }
+    await this.stopAndWait(id);
     const def = this._runtimeConfig
       ? buildProcessDefinitions(this.repoRoot, this._runtimeConfig).find((d) => d.id === id)
       : undefined;
@@ -327,10 +344,27 @@ export class ProcessManager extends EventEmitter<ManagerEvents> {
     this.updateState(id, { status: 'stopped', pid: null });
   }
 
-  async stopAll(): Promise<void> {
-    for (const id of this.children.keys()) {
-      this.stop(id);
+  private async stopAndWait(id: ManagedProcessId, timeoutMs = 8_000): Promise<void> {
+    const child = this.children.get(id);
+    const pid = child?.pid ?? null;
+    this.stop(id);
+    if (pid === null) return;
+    await waitForPidExit(pid, timeoutMs);
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // Already gone.
     }
+    try {
+      process.kill(-pid, 'SIGKILL');
+    } catch {
+      // Process group already gone, or pid was not a group leader.
+    }
+  }
+
+  async stopAll(): Promise<void> {
+    const ids = [...this.children.keys()];
+    await Promise.all(ids.map((id) => this.stopAndWait(id)));
   }
 
   private start(def: ProcessDefinition): void {
