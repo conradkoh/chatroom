@@ -14,6 +14,7 @@ import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from '
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { listMatchingDaemonPids } from './daemon-process-scan.js';
 import { getConvexUrl } from '../../infrastructure/convex/client.js';
 
 const CHATROOM_DIR = join(homedir(), '.chatroom');
@@ -142,6 +143,82 @@ const LOCK_RETRY_INTERVAL_MS = 500;
 /** Max time to wait for a previous daemon instance to release the lock on restart. */
 const LOCK_RETRY_MAX_WAIT_MS = 15_000;
 
+/** How long to wait after SIGTERM before escalating leftover daemons to SIGKILL. */
+const STOP_EXISTING_WAIT_MS = 8_000;
+
+const STOP_EXISTING_POLL_MS = 100;
+
+export type StopExistingDaemonsOptions = {
+  listMatchingDaemonPids?: () => number[];
+  isRunning?: (pid: number) => boolean;
+  signal?: (pid: number, signal: NodeJS.Signals | 0) => void;
+  sleep?: (ms: number) => Promise<void>;
+  log?: (message: string) => void;
+  waitMs?: number;
+};
+
+function defaultSignal(pid: number, signal: NodeJS.Signals | 0): void {
+  process.kill(pid, signal);
+}
+
+function uniquePositivePids(pids: Iterable<number>): number[] {
+  return [...new Set(pids)].filter((pid) => Number.isFinite(pid) && pid > 0);
+}
+
+function signalBestEffort(
+  pid: number,
+  signal: NodeJS.Signals | 0,
+  send: (pid: number, signal: NodeJS.Signals | 0) => void
+): void {
+  try {
+    send(pid, signal);
+  } catch {
+    // Process already gone.
+  }
+}
+
+/**
+ * SIGTERM (then SIGKILL) every leftover daemon for this Convex URL.
+ * Combines the PID-file holder with a process scan so orphaned copies die too.
+ */
+// fallow-ignore-next-line complexity
+export async function stopExistingDaemons(options?: StopExistingDaemonsOptions): Promise<number[]> {
+  const isRunning = options?.isRunning ?? isProcessRunning;
+  const send = options?.signal ?? defaultSignal;
+  const sleep =
+    options?.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const log = options?.log ?? ((message: string) => console.error(message));
+  const waitMs = options?.waitMs ?? STOP_EXISTING_WAIT_MS;
+  const listPids = options?.listMatchingDaemonPids ?? listMatchingDaemonPids;
+
+  const pidFilePid = readPid();
+  const targets = uniquePositivePids([
+    ...(pidFilePid !== null && isRunning(pidFilePid) ? [pidFilePid] : []),
+    ...listPids(),
+  ]).filter((pid) => pid !== process.pid && pid !== process.ppid);
+
+  if (targets.length === 0) return [];
+
+  for (const pid of targets) {
+    log(`Stopping previous daemon (PID: ${pid})...`);
+    signalBestEffort(pid, 'SIGTERM', send);
+  }
+
+  const deadline = Date.now() + waitMs;
+  let remaining = targets.filter((pid) => isRunning(pid));
+  while (remaining.length > 0 && Date.now() < deadline) {
+    await sleep(STOP_EXISTING_POLL_MS);
+    remaining = remaining.filter((pid) => isRunning(pid));
+  }
+
+  for (const pid of remaining) {
+    log(`Process did not exit gracefully, forcing PID ${pid}...`);
+    signalBestEffort(pid, 'SIGKILL', send);
+  }
+
+  return targets;
+}
+
 /**
  * Attempt to acquire the daemon lock without logging.
  */
@@ -192,10 +269,11 @@ async function waitForLockOrTimeout(
 }
 
 /**
- * Acquire the daemon lock, retrying while a previous instance shuts down.
+ * Acquire the daemon lock, replacing leftover instances for this Convex URL.
  *
- * On PM2/process-manager restart the old daemon may still hold the PID file
- * briefly. Retrying avoids a burst of duplicate "already running" errors.
+ * Local restarts used to wait and then refuse to start, leaving orphan daemons
+ * running. Start now SIGTERMs matching processes, retries the PID lock, and
+ * only fails if something still holds it.
  *
  * @returns true if lock acquired, false if still held after max wait
  */
@@ -204,13 +282,24 @@ export async function acquireLockWithRetry(options?: {
   intervalMs?: number;
   maxWaitMs?: number;
   sleep?: (ms: number) => Promise<void>;
+  listMatchingDaemonPids?: () => number[];
+  isRunning?: (pid: number) => boolean;
+  signal?: (pid: number, signal: NodeJS.Signals | 0) => void;
 }): Promise<boolean> {
   const intervalMs = options?.intervalMs ?? LOCK_RETRY_INTERVAL_MS;
   const maxWaitMs = options?.maxWaitMs ?? LOCK_RETRY_MAX_WAIT_MS;
   const sleep =
     options?.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-  const deadline = Date.now() + maxWaitMs;
 
+  await stopExistingDaemons({
+    listMatchingDaemonPids: options?.listMatchingDaemonPids,
+    isRunning: options?.isRunning,
+    signal: options?.signal,
+    sleep,
+    waitMs: maxWaitMs,
+  });
+
+  const deadline = Date.now() + maxWaitMs;
   if (await waitForLockOrTimeout(deadline, intervalMs, sleep)) {
     return true;
   }

@@ -12,14 +12,23 @@ describe('workspace-visibility-policy', () => {
   it('identifies always-excluded directory names', () => {
     expect(isAlwaysExcludedDirName('node_modules')).toBe(true);
     expect(isAlwaysExcludedDirName('.git')).toBe(true);
+    expect(isAlwaysExcludedDirName('.nx')).toBe(true);
+    expect(isAlwaysExcludedDirName('.convex')).toBe(true);
     expect(isAlwaysExcludedDirName('src')).toBe(false);
     expect(isAlwaysExcludedDirName('.gdp')).toBe(false);
   });
 
   it('classifies directories using known and heuristic signals', () => {
     expect(
-      classifyDirectorySyncMode('node_modules', {
-        relativePath: 'node_modules',
+      classifyDirectorySyncMode('.nx', {
+        relativePath: '.nx',
+        immediateSiblingCount: 10,
+        immediateChildCount: 20,
+      })
+    ).toBe('shallow');
+    expect(
+      classifyDirectorySyncMode('.convex', {
+        relativePath: 'services/backend/.convex',
         immediateSiblingCount: 10,
         immediateChildCount: 20,
       })
@@ -65,6 +74,8 @@ describe('workspace-visibility-policy', () => {
     expect(isPathVisible('node_modules/pkg/index.js')).toBe(false);
     expect(isPathVisible('dist/bundle.js')).toBe(false);
     expect(isPathVisible('.next/cache/webpack.json')).toBe(false);
+    expect(isPathVisible('.nx/cache/abc.json')).toBe(false);
+    expect(isPathVisible('services/backend/.convex/local/config.json')).toBe(false);
   });
 
   it('blocks secret file content reads', () => {
