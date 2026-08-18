@@ -6,13 +6,42 @@ import StarterKit from '@tiptap/starter-kit';
 
 import { CodeBlockLineBoundarySelection } from './codeBlockLineBoundarySelection';
 
-export const ParagraphWithBlankLinePreservation = Paragraph.extend({
+type ParagraphChild = { type: { name: string } | string; text?: string };
+
+// fallow-ignore-next-line complexity
+function isEmptyParagraphChild(child: ParagraphChild): boolean {
+  const typeName = typeof child.type === 'string' ? child.type : child.type.name;
+  if (typeName === 'hardBreak') return true;
+  if (typeName === 'text') {
+    const text = child.text ?? '';
+    return text.replace(/\s/g, '') === '' || text === '\u00A0';
+  }
+  return false;
+}
+
+function isEmptyParagraphContent(content: readonly ParagraphChild[]): boolean {
+  if (content.length === 0) return true;
+  return content.every(isEmptyParagraphChild);
+}
+
+const ParagraphWithBlankLinePreservation = Paragraph.extend({
+  // fallow-ignore-next-line complexity
   renderMarkdown(node, h) {
-    const content = Array.isArray(node.content) ? node.content : [];
-    return content.length === 0 ? '&nbsp;' : h.renderChildren(content);
+    const rawContent = node.content as unknown;
+    const content = Array.isArray(rawContent)
+      ? (rawContent as ParagraphChild[])
+      : ((rawContent as { content?: ParagraphChild[] } | null)?.content ?? []);
+    return isEmptyParagraphContent(content) ? '&nbsp;' : h.renderChildren(content);
   },
 });
 
 export function createMarkdownEditorExtensions(placeholder?: string) {
-  return [StarterKit.configure({ heading: { levels: [1, 2, 3] }, paragraph: false }), CodeBlockLineBoundarySelection, ParagraphWithBlankLinePreservation, ...(placeholder ? [Placeholder.configure({ placeholder })] : []), Link.configure({ openOnClick: false }), Markdown];
+  return [
+    StarterKit.configure({ heading: { levels: [1, 2, 3] }, paragraph: false }),
+    CodeBlockLineBoundarySelection,
+    ParagraphWithBlankLinePreservation,
+    ...(placeholder ? [Placeholder.configure({ placeholder })] : []),
+    Link.configure({ openOnClick: false }),
+    Markdown,
+  ];
 }
