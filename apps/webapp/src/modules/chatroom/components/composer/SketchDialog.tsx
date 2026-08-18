@@ -1,63 +1,33 @@
 'use client';
-import { BoxSelect, Eraser, Pencil, Trash2, Undo2, Redo2, Pipette, RotateCw, FlipHorizontal2, FlipVertical2, Crop, FlipHorizontal, PaintBucket } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+
+import { Pencil, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-import { useSketchCanvas } from './useSketchCanvas';
-import { SketchColorPicker } from './SketchColorPicker';
 import { SketchBrushSizeControl } from './SketchBrushSizeControl';
-import { SketchZoomControls } from './SketchZoomControls';
-import { SketchSelectionOverlay } from './SketchSelectionOverlay';
-import { useSketchViewportPan } from './useSketchViewportPan';
-import { SKETCH_CANVAS_MIN_HEIGHT_CSS_PX } from './sketchConstants';
-import { SKETCH_NUDGE_SHIFT_STEP_PX, SKETCH_NUDGE_STEP_PX } from './sketchConstants';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogScrollBody,
-} from '../ui/dialog';
+import { useSketchCanvas } from './useSketchCanvas';
 import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
 } from '../shared/industrialDialogStyles';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 
 export type SketchDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (file: File) => void;
 };
+
 export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const { canvasRef, bindCanvas, hasContent, clear, exportPngFile, tool, setTool, brushColor, setBrushColor, brushSize, setBrushSize, zoom, setZoom, selectionMarquee, floatingSelection, onResizeHandlePointerDown, deleteSelection, copySelection, pasteFromClipboard, pickColorAt, commitSelection, deselect, nudgeSelection, rotateSelection90, flipSelectionHorizontal, flipSelectionVertical, cropToSelection, invertSelection, canvasCssSize, resetCanvasLayout, transparentBackground, setTransparentBackground, canUndo, canRedo, undo, redo } =
-    useSketchCanvas({ getScrollContainer: () => scrollContainerRef.current });
+  const { canvasRef, bindCanvas, brushSize, setBrushSize, hasContent, clear, exportPngFile } =
+    useSketchCanvas();
   const [isSaving, setIsSaving] = useState(false);
-  const isDesktop = useIsDesktop();
-  useSketchViewportPan({ open, zoom, scrollRef: scrollContainerRef });
-  useEffect(() => { if (!open) resetCanvasLayout(); }, [open, resetCanvasLayout]);
-  useEffect(() => { if (!open) return; const onKey = (e: KeyboardEvent) => { const t=e.target; if(t instanceof HTMLInputElement||t instanceof HTMLTextAreaElement||t instanceof HTMLSelectElement||(t instanceof HTMLElement&&t.isContentEditable))return; if(e.key==='Escape'&&(floatingSelection||selectionMarquee)){e.preventDefault();deselect();return;} const key=e.key.toLowerCase(); if((e.metaKey||e.ctrlKey)&&key==='z'&&!e.shiftKey){e.preventDefault();undo();return;} if((e.metaKey||e.ctrlKey)&&((key==='z'&&e.shiftKey)||key==='y')){e.preventDefault();redo();return;} if((e.metaKey||e.ctrlKey)&&key==='v'){e.preventDefault();void pasteFromClipboard().catch(()=>toast.error('Nothing to paste'));return;} if(key==='i'){e.preventDefault();setTool('eyedropper');return;} if(key==='['){e.preventDefault();setBrushSize(brushSize-1);return;} if(key===']'){e.preventDefault();setBrushSize(brushSize+1);return;} if(!floatingSelection)return; if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelection();} if((e.metaKey||e.ctrlKey)&&key==='c'){e.preventDefault();void copySelection().catch(()=>toast.error('Failed to copy selection'));} }; window.addEventListener('keydown',onKey); return()=>window.removeEventListener('keydown',onKey); }, [open,floatingSelection,selectionMarquee,deselect,undo,redo,deleteSelection,copySelection,pasteFromClipboard,brushSize,setBrushSize,setTool]);
-  const handleOpenChange = (next: boolean) => { if (!next) commitSelection(); onOpenChange(next); };
-  useEffect(() => { if (!open || !floatingSelection) return; const onKey = (e: KeyboardEvent) => { const t = e.target; if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement || (t instanceof HTMLElement && t.isContentEditable)) return; if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return; e.preventDefault(); const step = e.shiftKey ? SKETCH_NUDGE_SHIFT_STEP_PX : SKETCH_NUDGE_STEP_PX; nudgeSelection(e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0, e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0); }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [floatingSelection, nudgeSelection, open]);
-  useEffect(() => { if (!open || !floatingSelection) return; const onKey = (e: KeyboardEvent) => { const t = e.target; if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement || (t instanceof HTMLElement && t.isContentEditable)) return; const key = e.key.toLowerCase(); if (key === 'r') { e.preventDefault(); rotateSelection90(); } else if (e.shiftKey && key === 'h') { e.preventDefault(); flipSelectionHorizontal(); } else if (e.shiftKey && key === 'v') { e.preventDefault(); flipSelectionVertical(); } }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey); }, [flipSelectionHorizontal, flipSelectionVertical, floatingSelection, open, rotateSelection90]);
+
   useEffect(() => {
     if (!open || !canvasRef.current) return;
     return bindCanvas(canvasRef.current);
-  }, [bindCanvas, open, canvasRef]);
-  useEffect(() => {
-    if (!open || isDesktop) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const clear = () => { if (timer) { window.clearTimeout(timer); timer = null; } };
-    let downX = 0; let downY = 0;
-    const onDown = (e: PointerEvent) => { clear(); const r = canvas.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1; downX = ((e.clientX - r.left) * (canvas.width / r.width)) / dpr; downY = ((e.clientY - r.top) * (canvas.height / r.height)) / dpr; timer = setTimeout(() => { if (tool === 'pen') { const hex = pickColorAt(downX, downY); if (hex) toast.success('Picked color'); else toast.error('Nothing to pick'); } else void pasteFromClipboard().catch(() => toast.error('Nothing to paste')); }, 500); };
-    const onUp = () => clear();
-    canvas.addEventListener('pointerdown', onDown); canvas.addEventListener('pointerup', onUp); canvas.addEventListener('pointercancel', onUp); canvas.addEventListener('pointermove', onUp);
-    return () => { clear(); canvas.removeEventListener('pointerdown', onDown); canvas.removeEventListener('pointerup', onUp); canvas.removeEventListener('pointercancel', onUp); canvas.removeEventListener('pointermove', onUp); };
-  }, [canvasRef, isDesktop, open, pasteFromClipboard, pickColorAt, tool]);
+  }, [bindCanvas, canvasRef, open]);
+
   const save = async () => {
     if (isSaving || !hasContent) return;
     setIsSaving(true);
@@ -73,74 +43,45 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
       setIsSaving(false);
     }
   };
+
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex flex-col min-h-0 max-h-[85vh] w-full max-w-lg">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex h-[min(85vh,760px)] w-[min(92vw,1100px)] max-w-none flex-col gap-4">
         <DialogHeader>
           <DialogTitle>Sketch attachment</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            aria-label="Pen"
-            title="Pen"
-            aria-pressed={tool === 'pen'}
-            onClick={() => setTool('pen')}
-          >
-            <Pencil />
-          </button>
-          <button type="button" aria-label="Undo" title="Undo" disabled={!canUndo} onClick={undo}><Undo2 /></button>
-          <button type="button" aria-label="Redo" title="Redo" disabled={!canRedo} onClick={redo}><Redo2 /></button>
-          <button
-            type="button"
-            aria-label="Eraser"
-            title="Eraser"
-            aria-pressed={tool === 'eraser'}
-            onClick={() => setTool('eraser')}
-          >
-            <Eraser />
-          </button>
-          <button type="button" aria-label="Eyedropper" title="Eyedropper (I)" aria-pressed={tool === 'eyedropper'} onClick={() => setTool('eyedropper')}><Pipette /></button>
-          <button type="button" aria-label="Fill bucket" title="Fill bucket" aria-pressed={tool === 'bucket'} onClick={() => setTool('bucket')}><PaintBucket /></button>
-          <button
-            type="button"
-            aria-label="Clear canvas"
-            title="Clear canvas"
-            onClick={clear}
-          >
-            <Trash2 />
-          </button>
-          {isDesktop && <button type="button" aria-label="Select" title="Select" aria-pressed={tool === 'select'} onClick={() => setTool('select')}><BoxSelect /></button>}
-          {isDesktop && tool === 'select' && floatingSelection && <>
-            <button type="button" aria-label="Rotate 90 degrees" title="Rotate 90° (R)" onClick={rotateSelection90}><RotateCw /></button>
-            <button type="button" aria-label="Flip horizontal" title="Flip horizontal (Shift+H)" onClick={flipSelectionHorizontal}><FlipHorizontal2 /></button>
-            <button type="button" aria-label="Flip vertical" title="Flip vertical (Shift+V)" onClick={flipSelectionVertical}><FlipVertical2 /></button>
-            <button type="button" aria-label="Crop to selection" title="Crop to selection" onClick={() => { if (!cropToSelection()) toast.error('Select an area first'); }}><Crop /></button>
-            <button type="button" aria-label="Invert selection" title="Invert selection" onClick={() => { if (!invertSelection()) toast.error('Select an area first'); }}><FlipHorizontal /></button>
-          </>}
-          {(tool === 'pen' || tool === 'bucket') && <SketchColorPicker value={brushColor} onChange={setBrushColor} />}
-          {tool === 'pen' && <SketchBrushSizeControl value={brushSize} onChange={setBrushSize} />}
-          <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-chatroom-text-muted"><input type="checkbox" checked={transparentBackground} onChange={e => setTransparentBackground(e.target.checked)} aria-label="Transparent background" /> Transparent</label>
-          <SketchZoomControls zoom={zoom} onZoomChange={setZoom} />
-        </div>
-        <DialogScrollBody ref={scrollContainerRef} className="relative w-full overflow-auto border-2 border-chatroom-border bg-white">
-          <div className="relative" style={{ ...(transparentBackground ? { backgroundImage: 'repeating-conic-gradient(#e5e7eb 0% 25%, #ffffff 0% 50%)', backgroundSize: '20px 20px', backgroundPosition: '50% 50%' } : {}), width: canvasCssSize ? canvasCssSize.width * zoom : (zoom > 1 ? `${zoom * 100}%` : '100%'), minHeight: (canvasCssSize?.height ?? SKETCH_CANVAS_MIN_HEIGHT_CSS_PX) * zoom }}>
-            <canvas
-              ref={canvasRef}
-              className="block h-full min-h-[280px] w-full touch-none"
-              aria-label="Sketch canvas"
-              style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
-            />
-            {isDesktop && tool === 'select' && <SketchSelectionOverlay zoom={zoom} marquee={selectionMarquee} selection={floatingSelection} onHandlePointerDown={(h,e) => onResizeHandlePointerDown(h,e)} />}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-chatroom-text-muted">
+            <Pencil size={16} aria-hidden />
+            <span className="text-xs">Draw with your pointer</span>
           </div>
-        </DialogScrollBody>
+          <div className="flex items-center gap-3">
+            <SketchBrushSizeControl value={brushSize} onChange={setBrushSize} />
+            <button
+              type="button"
+              aria-label="Clear canvas"
+              title="Clear canvas"
+              onClick={clear}
+              className="text-chatroom-text-muted hover:text-chatroom-text-primary"
+            >
+              <Trash2 size={16} aria-hidden />
+            </button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden border-2 border-chatroom-border bg-white">
+          <canvas
+            ref={canvasRef}
+            className="block h-full min-h-[320px] w-full touch-none"
+            aria-label="Sketch canvas"
+          />
+        </div>
         <DialogFooter>
           <button
             type="button"
             className={chatroomIndustrialButtonSecondaryClassName}
-            onClick={() => handleOpenChange(false)}
+            onClick={() => onOpenChange(false)}
           >
-            Cancel
+            Dismiss
           </button>
           <button
             type="button"
@@ -148,7 +89,7 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
             disabled={!hasContent || isSaving}
             onClick={save}
           >
-            Save
+            Confirm
           </button>
         </DialogFooter>
       </DialogContent>

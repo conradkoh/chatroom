@@ -1,2 +1,0 @@
-import { describe, expect, it } from 'vitest'; import { normalizeRect, toBackingRect, pointInRect } from './sketchCanvasCoords';
-describe('sketch coordinates',()=>{it('normalizes and scales rectangles',()=>{expect(normalizeRect(5,8,1,2)).toEqual({x:1,y:2,width:4,height:6});expect(toBackingRect({x:1,y:2,width:4,height:6},2)).toEqual({x:2,y:4,width:8,height:12});expect(pointInRect(3,4,{x:1,y:2,width:4,height:6})).toBe(true);});});

@@ -1,2 +1,0 @@
-export function rgbaToHex(r: number, g: number, b: number): string { const h = (n: number) => n.toString(16).padStart(2, '0'); return `#${h(r)}${h(g)}${h(b)}`; }
-export function samplePixelHex(imageData: ImageData, x: number, y: number): string | null { if (x < 0 || y < 0 || x >= imageData.width || y >= imageData.height) return null; const i = (y * imageData.width + x) * 4; const [r, g, b, a] = imageData.data.slice(i, i + 4); return a === 0 ? null : rgbaToHex(r, g, b); }

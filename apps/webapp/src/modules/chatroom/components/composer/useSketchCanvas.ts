@@ -1,440 +1,152 @@
 'use client';
+
 import { useCallback, useRef, useState, type RefObject } from 'react';
 
 import {
-  captureBackingSnapshot,
-  imageDataPixelsEqual,
-  sketchCanvasHasInk,
-  type SketchHistorySnapshot,
-} from './sketchCanvasSnapshot';
-import {
   SKETCH_CANVAS_COLORS,
-  SKETCH_ERASER_WIDTH_CSS_PX,
   SKETCH_BRUSH_SIZE_DEFAULT,
-  SKETCH_BRUSH_SIZE_MIN,
   SKETCH_BRUSH_SIZE_MAX,
-  SKETCH_MIN_STROKE_DISTANCE_CSS_PX,
-  SKETCH_BRUSH_PALETTE,
-  SKETCH_ZOOM_DEFAULT,
-  SKETCH_ZOOM_MAX,
-  SKETCH_ZOOM_MIN,
+  SKETCH_BRUSH_SIZE_MIN,
 } from './sketchConstants';
 import { buildSketchFileName } from './sketchFileName';
-import type { ResizeHandle, SketchFloatingSelection, SketchRect } from './sketchSelectionTypes';
-import { useSketchHistory } from './useSketchHistory';
-import { useSketchSelection } from './useSketchSelection';
-import { decideTwoFingerMode, twoFingerCenter } from './sketchViewportPan';
-import { applyCroppedCanvas, extractImageDataRegion } from './sketchCanvasCrop';
-import { canvasToTransparentPngBlob } from './sketchCanvasExport';
-import { floodFillImageData, hexToRgba } from './sketchFloodFill';
 
-export type SketchTool = 'pen' | 'eraser' | 'select' | 'eyedropper' | 'bucket';
 export type UseSketchCanvasResult = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
-  tool: SketchTool;
-  setTool: (tool: SketchTool) => void;
-  hasContent: boolean;
-  clear: () => void;
-  exportPngFile: () => Promise<File | null>;
-  bindCanvas: (canvas: HTMLCanvasElement) => () => void;
-  brushColor: string;
-  setBrushColor: (color: string) => void;
   brushSize: number;
   setBrushSize: (size: number) => void;
-  zoom: number;
-  setZoom: (value: number) => void;
-  selectionMarquee: SketchRect | null;
-  floatingSelection: SketchFloatingSelection | null;
-  onResizeHandlePointerDown: (handle: ResizeHandle, e: React.PointerEvent) => void;
-  deleteSelection: () => void;
-  copySelection: () => Promise<void>;
-  pasteFromClipboard: () => Promise<void>;
-  pickColorAt: (cssX: number, cssY: number) => string | null;
-  commitSelection: () => void;
-  deselect: () => void;
-  nudgeSelection: (dx: number, dy: number) => void;
-  rotateSelection90: () => void; flipSelectionHorizontal: () => void; flipSelectionVertical: () => void;
-  cropToSelection: () => boolean;
-  invertSelection: () => boolean;
-  canvasCssSize: { width: number; height: number } | null;
-  resetCanvasLayout: () => void;
-  transparentBackground: boolean;
-  setTransparentBackground: (value: boolean) => void;
-  canUndo: boolean;
-  canRedo: boolean;
-  undo: () => void;
-  redo: () => void;
+  hasContent: boolean;
+  clear: () => void;
+  bindCanvas: (canvas: HTMLCanvasElement) => () => void;
+  exportPngFile: () => Promise<File | null>;
 };
-export function useSketchCanvas(options?: { getScrollContainer?: () => HTMLElement | null }): UseSketchCanvasResult {
-  const history = useSketchHistory();
+
+/**
+ * The MVP sketch editor intentionally supports one tool: a black pen.
+ * Pointer events cover mouse, touch, and stylus without separate input paths.
+ */
+export function useSketchCanvas(): UseSketchCanvasResult {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const [tool, setToolState] = useState<SketchTool>('pen');
-  const [hasContent, setHasContent] = useState(false);
-  const hasContentRef = useRef(false);
-  const updateHasContent = useCallback((value: boolean) => {
-    hasContentRef.current = value;
-    setHasContent(value);
-  }, []);
-  const toolRef = useRef(tool);
-  const [brushColor, setBrushColorState] = useState<string>(SKETCH_BRUSH_PALETTE[0]);
-  const brushColorRef = useRef<string>(brushColor);
-  const setBrushColor = useCallback((color: string) => {
-    brushColorRef.current = color;
-    setBrushColorState(color);
-  }, []);
+  const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [brushSize, setBrushSizeState] = useState(SKETCH_BRUSH_SIZE_DEFAULT);
+  const [hasContent, setHasContent] = useState(false);
   const brushSizeRef = useRef(brushSize);
+  const hasContentRef = useRef(false);
+
   const setBrushSize = useCallback((size: number) => {
     const next = Math.min(SKETCH_BRUSH_SIZE_MAX, Math.max(SKETCH_BRUSH_SIZE_MIN, Math.round(size)));
     brushSizeRef.current = next;
     setBrushSizeState(next);
   }, []);
-  const [zoom, setZoomState] = useState(SKETCH_ZOOM_DEFAULT);
-  const customCanvasSizeRef = useRef<{ width: number; height: number } | null>(null);
-  const [canvasCssSize, setCanvasCssSize] = useState<{ width: number; height: number } | null>(null);
-  const [transparentBackground, setTransparentBackground] = useState(false);
-  const transparentBackgroundRef = useRef(false);
-  transparentBackgroundRef.current = transparentBackground;
-  const zoomRef = useRef(zoom);
-  const scrollGetterRef = useRef(options?.getScrollContainer);
-  scrollGetterRef.current = options?.getScrollContainer;
-  const historyRef = useRef(history);
-  historyRef.current = history;
-  const isApplyingHistoryRef = useRef(false);
-  const selectionApiRef = useRef<{
-    captureCompositedSnapshot?: () => SketchHistorySnapshot | null;
-  } | null>(null);
-  const captureSnapshot = useCallback(() => {
-    const ctx = ctxRef.current;
-    return ctx ? captureBackingSnapshot(ctx, hasContentRef.current) : null;
+
+  const updateHasContent = useCallback((value: boolean) => {
+    hasContentRef.current = value;
+    setHasContent(value);
   }, []);
-  const recordMutation = useCallback((snapshot: SketchHistorySnapshot) => {
-    if (!isApplyingHistoryRef.current) historyRef.current.pushSnapshot(snapshot);
-  }, []);
-  const selection = useSketchSelection({
-    getCtx: () => ctxRef.current,
-    getCanvas: () => canvasRef.current,
-    getDpr: () => window.devicePixelRatio || 1,
-    updateHasContent,
-    getHasContent: () => hasContentRef.current,
-    onBeforeLift: () => {
-      const snapshot = captureSnapshot();
-      if (snapshot) recordMutation(snapshot);
-    },
-    onBeforeSelectionWrite: () => {
-      const snapshot = selectionApiRef.current?.captureCompositedSnapshot?.();
-      if (snapshot) recordMutation(snapshot);
-    },
-    isHistoryRecording: () => !isApplyingHistoryRef.current,
-  });
-  selectionApiRef.current = selection;
-  const pickColorAt = useCallback((cssX: number, cssY: number) => { const hex = selection.sampleColorAt(cssX, cssY, window.devicePixelRatio || 1); if (hex) { setBrushColor(hex); setToolState('pen'); } return hex; }, [selection, setBrushColor]);
-  const applyHistory = useCallback(
-    (snapshot: SketchHistorySnapshot) => {
-      const ctx = ctxRef.current;
-      if (ctx) {
-        isApplyingHistoryRef.current = true;
-        try {
-          selection.clearSelectionWithoutHistory();
-          ctx.putImageData(snapshot.imageData, 0, 0);
-          updateHasContent(snapshot.hasContent);
-        } finally {
-          isApplyingHistoryRef.current = false;
-        }
-      }
-    },
-    [selection, updateHasContent]
-  );
-  const undoHistory = useCallback(() => {
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    const current = captureBackingSnapshot(ctx, hasContentRef.current);
-    const previous = historyRef.current.undo(current);
-    if (previous) applyHistory(previous);
-  }, [applyHistory]);
-  const redoHistory = useCallback(() => {
-    const ctx = ctxRef.current;
-    if (!ctx) return;
-    const current = captureBackingSnapshot(ctx, hasContentRef.current);
-    const next = historyRef.current.redo(current);
-    if (next) applyHistory(next);
-  }, [applyHistory]);
-  const setTool = useCallback(
-    (next: SketchTool) => {
-      if (toolRef.current === 'select' && next !== 'select')
-        selection.commitSelection({ recordHistory: false });
-      setToolState(next);
-    },
-    [selection]
-  );
-  const setZoom = useCallback(
-    (value: number) => {
-      selection.commitSelection({ recordHistory: false });
-      const next = Number.isFinite(value)
-        ? Math.min(SKETCH_ZOOM_MAX, Math.max(SKETCH_ZOOM_MIN, value))
-        : SKETCH_ZOOM_DEFAULT;
-      zoomRef.current = next;
-      setZoomState(next);
-    },
-    [selection]
-  );
-  const deselect = useCallback(() => { selection.clearSelectionWithoutHistory(); }, [selection]);
-  const nudgeSelection = useCallback((dx: number, dy: number) => selection.nudgeSelection(dx, dy), [selection]);
-  const resetCanvasLayout = useCallback(() => { customCanvasSizeRef.current = null; setCanvasCssSize(null); setTransparentBackground(false); }, []);
-  const cropToSelection = useCallback(() => {
-    const canvas = canvasRef.current;
-    const ctx = ctxRef.current;
-    const bounds = selection.getSelectionBounds();
-    if (!canvas || !ctx || !bounds) return false;
-    selection.prepareComposite();
-    const snapshot = selection.captureCompositedSnapshot();
-    if (snapshot) recordMutation(snapshot);
-    const dpr = window.devicePixelRatio || 1;
-    const cropped = extractImageDataRegion(ctx, bounds, dpr);
-    selection.clearSelectionWithoutHistory();
-    const hasInk = applyCroppedCanvas(canvas, ctx, cropped, bounds.width, bounds.height, dpr);
-    customCanvasSizeRef.current = { width: bounds.width, height: bounds.height };
-    setCanvasCssSize({ width: bounds.width, height: bounds.height });
-    zoomRef.current = SKETCH_ZOOM_DEFAULT;
-    setZoomState(SKETCH_ZOOM_DEFAULT);
-    updateHasContent(hasInk);
-    return true;
-  }, [recordMutation, selection, updateHasContent]);
-  toolRef.current = tool;
+
   const clear = useCallback(() => {
-    if (hasContentRef.current) {
-      const snapshot = captureSnapshot();
-      if (snapshot) recordMutation(snapshot);
-    }
-    selection.clearSelectionWithoutHistory();
-    const c = ctxRef.current;
-    if (c) {
-      c.save();
-      c.setTransform(1, 0, 0, 1, 0, 0);
-      c.fillStyle = SKETCH_CANVAS_COLORS.background;
-      c.fillRect(0, 0, c.canvas.width, c.canvas.height);
-      c.restore();
-    }
+    const canvas = canvasRef.current;
+    const context = contextRef.current;
+    if (!canvas || !context) return;
+    context.save();
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.fillStyle = SKETCH_CANVAS_COLORS.background;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.restore();
     updateHasContent(false);
-  }, [captureSnapshot, recordMutation, selection, updateHasContent]);
-  const bindCanvas = useCallback((canvas: HTMLCanvasElement) => {
-    let cleanup: (() => void) | undefined;
-    const setup = (): boolean => {
-      const rect = canvas.parentElement?.getBoundingClientRect();
-      const custom = customCanvasSizeRef.current;
-      const cssW = custom?.width ?? rect?.width ?? 0;
-      const cssH = custom?.height ?? rect?.height ?? 0;
-      if (cssW <= 0 || cssH <= 0) return false;
-      const dpr = window.devicePixelRatio || 1;
-      canvas.style.width = `${cssW}px`;
-      canvas.style.height = `${cssH}px`;
-      canvas.width = Math.round(cssW * dpr);
-      canvas.height = Math.round(cssH * dpr);
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return true;
-      ctxRef.current = ctx;
-      ctx.scale(dpr, dpr);
-      ctx.fillStyle = SKETCH_CANVAS_COLORS.background;
-      ctx.fillRect(0, 0, cssW, cssH);
-      historyRef.current.reset();
-      const selectionCleanup = selection.bindSelectionPointerHandlers(canvas, dpr);
-      updateHasContent(false);
-      setZoom(SKETCH_ZOOM_DEFAULT);
-      canvas.style.touchAction = 'none';
-      let drawing = false;
-      let startX = 0;
-      let startY = 0;
-      let preStroke: ImageData | null = null;
-      let hadContentBeforeStroke = false;
-      const pointers = new Map<number, { clientX: number; clientY: number }>();
-      let pinchStart: number | null = null;
-      let pinchZoom = 1;
-      let twoFingerMode: 'undecided' | 'pan' | 'zoom' = 'undecided';
-      let initialPinchDistance = 0;
-      let lastCenter = { x: 0, y: 0 };
-      const restorePreStroke = () => {
-        if (preStroke) {
-          ctx.putImageData(preStroke, 0, 0);
-          updateHasContent(hadContentBeforeStroke);
+  }, [updateHasContent]);
+
+  const bindCanvas = useCallback(
+    (canvas: HTMLCanvasElement) => {
+      let cleanup: (() => void) | undefined;
+      let frame = 0;
+
+      const setup = () => {
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+          frame = requestAnimationFrame(setup);
+          return;
         }
-        drawing = false;
-        preStroke = null;
-      };
-      const point = (e: PointerEvent) => {
-        const r = canvas.getBoundingClientRect();
-        return {
-          x: ((e.clientX - r.left) * (canvas.width / r.width)) / dpr,
-          y: ((e.clientY - r.top) * (canvas.height / r.height)) / dpr,
+
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        canvas.style.touchAction = 'none';
+        const context = canvas.getContext('2d');
+        if (!context) return;
+        contextRef.current = context;
+        context.scale(dpr, dpr);
+        context.fillStyle = SKETCH_CANVAS_COLORS.background;
+        context.fillRect(0, 0, rect.width, rect.height);
+        updateHasContent(false);
+
+        let drawing = false;
+        const point = (event: PointerEvent) => {
+          const bounds = canvas.getBoundingClientRect();
+          return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+        };
+        const start = (event: PointerEvent) => {
+          if (event.button !== 0) return;
+          drawing = true;
+          canvas.setPointerCapture(event.pointerId);
+          const { x, y } = point(event);
+          context.beginPath();
+          context.moveTo(x, y);
+          context.lineWidth = brushSizeRef.current;
+          context.lineCap = 'round';
+          context.lineJoin = 'round';
+          context.strokeStyle = SKETCH_CANVAS_COLORS.ink;
+          context.lineTo(x + 0.01, y + 0.01);
+          context.stroke();
+          updateHasContent(true);
+        };
+        const move = (event: PointerEvent) => {
+          if (!drawing) return;
+          const { x, y } = point(event);
+          context.lineWidth = brushSizeRef.current;
+          context.lineTo(x, y);
+          context.stroke();
+        };
+        const end = (event: PointerEvent) => {
+          drawing = false;
+          if (canvas.hasPointerCapture(event.pointerId))
+            canvas.releasePointerCapture(event.pointerId);
+        };
+
+        canvas.addEventListener('pointerdown', start);
+        canvas.addEventListener('pointermove', move);
+        canvas.addEventListener('pointerup', end);
+        canvas.addEventListener('pointercancel', end);
+        cleanup = () => {
+          canvas.removeEventListener('pointerdown', start);
+          canvas.removeEventListener('pointermove', move);
+          canvas.removeEventListener('pointerup', end);
+          canvas.removeEventListener('pointercancel', end);
+          contextRef.current = null;
         };
       };
-      const down = (e: PointerEvent) => {
-        if (toolRef.current === 'select') return;
-        if (toolRef.current === 'bucket') {
-          selection.commitSelection({ recordHistory: false });
-          const p = point(e); const bx = Math.floor(p.x * dpr); const by = Math.floor(p.y * dpr);
-          const pre = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const filled = floodFillImageData(pre, bx, by, hexToRgba(brushColorRef.current));
-          let changed = false; for (let i = 0; i < pre.data.length; i++) if (pre.data[i] !== filled.data[i]) { changed = true; break; }
-          if (changed) { recordMutation({ imageData: pre, hasContent: hasContentRef.current }); ctx.putImageData(filled, 0, 0); updateHasContent(sketchCanvasHasInk(filled)); }
-          return;
-        }
-        pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
-        if (pointers.size >= 2) {
-          restorePreStroke();
-          const p = [...pointers.values()];
-          pinchStart = Math.hypot(p[0].clientX - p[1].clientX, p[0].clientY - p[1].clientY);
-          pinchZoom = zoomRef.current;
-          twoFingerMode = 'undecided';
-          initialPinchDistance = pinchStart;
-          lastCenter = twoFingerCenter(p);
-          return;
-        }
-        preStroke = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        hadContentBeforeStroke = hasContentRef.current;
-        drawing = true;
-        const p = point(e);
-        if (toolRef.current === 'eyedropper' || e.altKey) { const hex = selection.sampleColorAt(p.x, p.y, dpr); if (hex) { brushColorRef.current = hex; setBrushColorState(hex); if (toolRef.current === 'eyedropper') setToolState('pen'); } return; }
-        startX = p.x;
-        startY = p.y;
-        canvas.setPointerCapture(e.pointerId);
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
+
+      frame = requestAnimationFrame(setup);
+      return () => {
+        cancelAnimationFrame(frame);
+        cleanup?.();
       };
-      const move = (e: PointerEvent) => {
-        if (toolRef.current === 'select') return;
-        pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
-        if (pointers.size >= 2) {
-          const p = [...pointers.values()];
-          const d = Math.hypot(p[0].clientX - p[1].clientX, p[0].clientY - p[1].clientY);
-          const center = twoFingerCenter(p);
-          if (twoFingerMode === 'undecided') twoFingerMode = decideTwoFingerMode(initialPinchDistance, d);
-          if (twoFingerMode === 'pan' && zoomRef.current > 1) {
-            const scrollEl = scrollGetterRef.current?.();
-            if (scrollEl) { scrollEl.scrollLeft -= center.x - lastCenter.x; scrollEl.scrollTop -= center.y - lastCenter.y; }
-          } else if (pinchStart) setZoom((pinchZoom * d) / pinchStart);
-          lastCenter = center;
-          return;
-        }
-        if (!drawing) return;
-        const p = point(e);
-        ctx.strokeStyle =
-          toolRef.current === 'pen' ? brushColorRef.current : SKETCH_CANVAS_COLORS.background;
-        ctx.lineWidth =
-          toolRef.current === 'pen' ? brushSizeRef.current : SKETCH_ERASER_WIDTH_CSS_PX;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.lineTo(p.x, p.y);
-        ctx.stroke();
-        if (
-          toolRef.current === 'pen' &&
-          Math.hypot(p.x - startX, p.y - startY) > SKETCH_MIN_STROKE_DISTANCE_CSS_PX
-        )
-          updateHasContent(true);
-      };
-      const end = (e: PointerEvent) => {
-        if (toolRef.current === 'select') return;
-        pointers.delete(e.pointerId);
-        if (pointers.size < 2) pinchStart = null;
-        if (pointers.size < 2) twoFingerMode = 'undecided';
-        if (drawing && preStroke) {
-          const final = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          if (!imageDataPixelsEqual(preStroke, final))
-            recordMutation({ imageData: preStroke, hasContent: hadContentBeforeStroke });
-          updateHasContent(sketchCanvasHasInk(final));
-        }
-        if (pointers.size === 0) preStroke = null;
-        drawing = false;
-        if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
-      };
-      const cancel = (e: PointerEvent) => {
-        if (toolRef.current === 'select') return;
-        pointers.delete(e.pointerId);
-        if (pointers.size < 2) pinchStart = null;
-        if (pointers.size < 2) twoFingerMode = 'undecided';
-        restorePreStroke();
-        if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
-      };
-      canvas.addEventListener('pointerdown', down);
-      canvas.addEventListener('pointermove', move);
-      canvas.addEventListener('pointerup', end);
-      canvas.addEventListener('pointercancel', cancel);
-      cleanup = () => {
-        selectionCleanup();
-        canvas.removeEventListener('pointerdown', down);
-        canvas.removeEventListener('pointermove', move);
-        canvas.removeEventListener('pointerup', end);
-        canvas.removeEventListener('pointercancel', cancel);
-      };
-      return true;
-    };
-    if (setup()) return () => cleanup?.();
-    const rafId = requestAnimationFrame(() => {
-      setup();
-    });
-    return () => {
-      cancelAnimationFrame(rafId);
-      cleanup?.();
-    };
-  }, []);
+    },
+    [updateHasContent]
+  );
+
   const exportPngFile = useCallback(
     () =>
       new Promise<File | null>((resolve) => {
         const canvas = canvasRef.current;
-        if (!canvas) return resolve(null);
-        try {
-          selection.commitSelection({ recordHistory: false });
-          const blobPromise = transparentBackgroundRef.current ? canvasToTransparentPngBlob(canvas) : new Promise<Blob | null>(resolveBlob => canvas.toBlob(resolveBlob, 'image/png'));
-          void blobPromise.then(blob => resolve(blob ? new File([blob], buildSketchFileName(), { type: 'image/png' }) : null));
-        } catch {
-          resolve(null);
-        }
-      }),
-    [selection]
-  );
-  return {
-    canvasRef,
-    tool,
-    setTool,
-    hasContent,
-    clear,
-    exportPngFile,
-    bindCanvas,
-    brushColor,
-    setBrushColor,
-    brushSize,
-    setBrushSize,
-    zoom,
-    setZoom,
-    selectionMarquee: selection.marquee,
-    floatingSelection: selection.selection,
-    onResizeHandlePointerDown: (handle, e) => {
-      const canvas = canvasRef.current;
-      if (canvas)
-        selection.onResizeHandlePointerDown(
-          handle,
-          canvas,
-          e.nativeEvent,
-          window.devicePixelRatio || 1
+        if (!canvas || !hasContentRef.current) return resolve(null);
+        canvas.toBlob(
+          (blob) =>
+            resolve(blob ? new File([blob], buildSketchFileName(), { type: 'image/png' }) : null),
+          'image/png'
         );
-    },
-    deleteSelection: selection.deleteSelection,
-    copySelection: selection.copySelection,
-    pasteFromClipboard: selection.pasteFromClipboard,
-    pickColorAt,
-    commitSelection: selection.commitSelection,
-    deselect,
-    nudgeSelection,
-    rotateSelection90: selection.rotateSelection90, flipSelectionHorizontal: selection.flipSelectionHorizontal, flipSelectionVertical: selection.flipSelectionVertical,
-    cropToSelection,
-    invertSelection: () => selection.invertSelection(),
-    canvasCssSize,
-    resetCanvasLayout,
-    transparentBackground,
-    setTransparentBackground,
-    canUndo: history.canUndo,
-    canRedo: history.canRedo,
-    undo: undoHistory,
-    redo: redoHistory,
-  };
+      }),
+    []
+  );
+
+  return { canvasRef, brushSize, setBrushSize, hasContent, clear, bindCanvas, exportPngFile };
 }
