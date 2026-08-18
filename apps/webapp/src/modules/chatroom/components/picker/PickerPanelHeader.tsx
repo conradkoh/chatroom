@@ -11,7 +11,6 @@ export interface PickerPanelHeaderProps {
 export function PickerPanelHeader({ title, children, className }: PickerPanelHeaderProps) {
   return (
     <div
-      data-picker-panel-header
       className={cn(
         'px-3 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary flex items-center justify-between',
         className
