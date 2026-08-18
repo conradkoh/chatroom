@@ -21,7 +21,7 @@ describe('EnhancerConfigFavoritesList', () => {
       />
     );
     expect(screen.getByTestId('enhancer-config-favorites-list')).toBeInTheDocument();
-    fireEvent.click(screen.getByText(/CLAUDE OPUS 4/));
+    fireEvent.click(screen.getByText(/Claude Opus 4/));
     expect(onApply).toHaveBeenCalledWith(favorite);
   });
 
@@ -51,9 +51,9 @@ describe('EnhancerConfigFavoritesList', () => {
         onMoveFavorite={vi.fn()}
       />
     );
-    expect(screen.getByText(/MINIMAX M2\.5 HIGHSPEED/)).toBeInTheDocument();
+    expect(screen.getByText(/MiniMax M2\.5 Highspeed/)).toBeInTheDocument();
     expect(screen.getByText(/OpenCode/)).toBeInTheDocument();
-    expect(screen.getByTitle(/OpenCode.*MINIMAX M2\.5 HIGHSPEED/)).toBeInTheDocument();
+    expect(screen.getByTitle(/OpenCode.*MiniMax M2\.5 Highspeed/)).toBeInTheDocument();
   });
 
   it('renders move up, move down, and remove buttons', () => {

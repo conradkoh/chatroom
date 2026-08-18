@@ -14,13 +14,13 @@ const entry = {
 describe('formatEnhancerConfigLabel', () => {
   it('formatEnhancerHarnessModelLabel returns harness and model only', () => {
     expect(formatEnhancerHarnessModelLabel(entry)).toBe(
-      'OpenCode (CLI) / ANTHROPIC / CLAUDE OPUS 4'
+      'OpenCode (CLI) / Anthropic / Claude Opus 4'
     );
   });
 
   it('formatEnhancerConfigLabel includes target prefix', () => {
     expect(formatEnhancerConfigLabel(entry)).toBe(
-      'Planning review (before builder) / OpenCode (CLI) / ANTHROPIC / CLAUDE OPUS 4'
+      'Planning review (before builder) / OpenCode (CLI) / Anthropic / Claude Opus 4'
     );
   });
 });
