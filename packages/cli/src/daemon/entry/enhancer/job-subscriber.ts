@@ -1,10 +1,11 @@
 import type { ConvexClient } from 'convex/browser';
 
 import { ENHANCER_AGENT_ROLE } from './constants.js';
-import { writeEnhancerLog } from './enhancer-log.js';
+import { createEnhancerLogWriter, type EnhancerLogWriter } from './enhancer-log.js';
 import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
 import { api, type Id } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
+import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
 import type { RemoteAgentService } from '../../infrastructure/local/harness/services/remote-agent-service.js';
 import { createSpawnPrompt } from '../../infrastructure/local/harness/services/spawn-prompt.js';
 import {
@@ -30,7 +31,8 @@ async function processEnhancerJobForSpawn(
   backend: BackendOps,
   agentServices: Map<string, RemoteAgentService>,
   job: PendingEnhancerJob,
-  inFlight: Set<string>
+  inFlight: Set<string>,
+  logSink?: AgentLogSink
 ): Promise<void> {
   if (inFlight.has(job.jobId)) return;
   inFlight.add(job.jobId);
@@ -40,6 +42,10 @@ async function processEnhancerJobForSpawn(
   let jobId = job.jobId;
   let spawnResult: Awaited<ReturnType<RemoteAgentService['spawn']>> | null = null;
   let service: RemoteAgentService | null = null;
+  let log: EnhancerLogWriter = createEnhancerLogWriter(logSink, {
+    chatroomId: job.chatroomId,
+    harness: 'unknown',
+  });
 
   try {
     const claim = (await backend.mutation(api.daemon.enhancer.index.claimForSpawn, {
@@ -49,7 +55,7 @@ async function processEnhancerJobForSpawn(
     })) as { claimed: boolean };
     if (!claim.claimed) return;
     claimed = true;
-    writeEnhancerLog(`claimed job=${job.jobId} chatroom=${job.chatroomId}`);
+    log.write(`claimed job=${job.jobId} chatroom=${job.chatroomId}`);
 
     const payload = (await backend.query(api.daemon.enhancer.index.getSpawnPayload, {
       sessionId,
@@ -65,8 +71,13 @@ async function processEnhancerJobForSpawn(
     };
     chatroomId = payload.chatroomId;
     jobId = payload.jobId;
+    log = createEnhancerLogWriter(logSink, {
+      chatroomId: payload.chatroomId,
+      harness: payload.agentHarness,
+      pid: undefined,
+    });
 
-    writeEnhancerLog(
+    log.write(
       `spawning harness=${payload.agentHarness} model=${payload.model} job=${payload.jobId}`
     );
 
@@ -94,9 +105,14 @@ async function processEnhancerJobForSpawn(
       resolvedConvexUrl: convexUrl,
     });
     spawnResult = spawned;
+    log = createEnhancerLogWriter(logSink, {
+      chatroomId: payload.chatroomId,
+      harness: payload.agentHarness,
+      pid: spawned.pid,
+    });
 
     spawned.onLogLine?.((line) => {
-      writeEnhancerLog(line);
+      log.write(line);
     });
 
     await waitForEnhancerJobResolution({
@@ -104,6 +120,7 @@ async function processEnhancerJobForSpawn(
       chatroomId: payload.chatroomId,
       jobId: payload.jobId,
       wsClient,
+      log,
       onAssistantText: spawned.onAssistantText ? (cb) => spawned.onAssistantText?.(cb) : undefined,
       onAgentEnd: spawned.onAgentEnd ? (cb) => spawned.onAgentEnd?.(cb) : undefined,
       onExit: (cb) => spawned.onExit(() => cb()),
@@ -126,9 +143,9 @@ async function processEnhancerJobForSpawn(
       },
     });
 
-    writeEnhancerLog(`completed job=${jobId}`);
+    log.write(`completed job=${jobId}`);
   } catch (err) {
-    writeEnhancerLog(`error: ${err instanceof Error ? err.message : String(err)}`);
+    log.write(`error: ${err instanceof Error ? err.message : String(err)}`);
     if (claimed) {
       await backend.mutation(api.web.enhancer.index.recordAttemptFailure, {
         sessionId,
@@ -157,7 +174,8 @@ function processEnhancerJobs(
   backend: BackendOps,
   agentServices: Map<string, RemoteAgentService>,
   jobs: PendingEnhancerJob[] | null | undefined,
-  inFlight: Set<string>
+  inFlight: Set<string>,
+  logSink?: AgentLogSink
 ): void {
   for (const job of jobs ?? []) {
     void processEnhancerJobForSpawn(
@@ -168,7 +186,8 @@ function processEnhancerJobs(
       backend,
       agentServices,
       job,
-      inFlight
+      inFlight,
+      logSink
     );
   }
 }
@@ -180,7 +199,8 @@ async function drainPendingEnhancerJobs(
   wsClient: ConvexClient,
   backend: BackendOps,
   agentServices: Map<string, RemoteAgentService>,
-  inFlight: Set<string>
+  inFlight: Set<string>,
+  logSink?: AgentLogSink
 ): Promise<void> {
   const jobs = (await backend.query(api.daemon.enhancer.index.pendingForMachine, {
     sessionId: sessionId as never,
@@ -196,7 +216,8 @@ async function drainPendingEnhancerJobs(
     backend,
     agentServices,
     jobs,
-    inFlight
+    inFlight,
+    logSink
   );
 }
 
@@ -206,7 +227,8 @@ export function startEnhancerJobSubscriber(
   convexUrl: string,
   wsClient: ConvexClient,
   backend: BackendOps,
-  agentServices: Map<string, RemoteAgentService>
+  agentServices: Map<string, RemoteAgentService>,
+  logSink?: AgentLogSink
 ): EnhancerJobSubscriberHandles {
   const inFlight = new Set<string>();
 
@@ -218,7 +240,8 @@ export function startEnhancerJobSubscriber(
       wsClient,
       backend,
       agentServices,
-      inFlight
+      inFlight,
+      logSink
     );
   });
 
@@ -234,7 +257,8 @@ export function startEnhancerJobSubscriber(
         wsClient,
         backend,
         agentServices,
-        inFlight
+        inFlight,
+        logSink
       ),
   };
 }
