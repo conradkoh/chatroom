@@ -137,14 +137,15 @@ describe('PickerOptionRow', () => {
     expect(option.querySelector('svg')).toBeNull();
   });
 
-  it('when multiline, label wrapper has overflow-hidden and not truncate', () => {
+  it('when multiline, label wrapper wraps text instead of truncating', () => {
     render(
       <PickerOptionRow multiline onSelect={vi.fn()}>
         Option A
       </PickerOptionRow>
     );
     const label = screen.getByText('Option A');
-    expect(label).toHaveClass('overflow-hidden');
+    expect(label).toHaveClass('break-words');
+    expect(label).toHaveClass('whitespace-normal');
     expect(label).not.toHaveClass('truncate');
   });
 
