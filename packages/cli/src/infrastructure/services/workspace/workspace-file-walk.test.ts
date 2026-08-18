@@ -69,6 +69,19 @@ describe('walkWorkspaceFiles', () => {
     expect(result.directoryStubs).toContain('node_modules');
   });
 
+  it('does not walk .nx cache trees but keeps a directory stub', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'file-walk-nx-'));
+    await mkdir(join(tmpDir, '.nx', 'cache', '123'), { recursive: true });
+    await writeFile(join(tmpDir, '.nx', 'cache', '123', 'out.js'), 'x');
+    await writeFile(join(tmpDir, 'app.ts'), 'app');
+
+    const result = await walkWorkspaceFiles(tmpDir);
+
+    expect(result.filePaths).toEqual(['app.ts']);
+    expect(result.directoryStubs).toContain('.nx');
+    expect(result.filePaths.some((path) => path.startsWith('.nx/'))).toBe(false);
+  });
+
   it('includes empty application directories such as .gdp', async () => {
     tmpDir = await mkdtemp(join(tmpdir(), 'file-walk-gdp-'));
     await mkdir(join(tmpDir, '.gdp'));
