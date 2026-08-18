@@ -76,6 +76,7 @@ export function ModelGroupedList(props: ModelGroupedListProps) {
                 <PickerOptionRow
                   key={option.value}
                   selected={isSelected}
+                  multiline
                   onSelect={() => {
                     onValueChange(isSelected && allowDeselect ? '' : option.value);
                     onClose();
@@ -140,11 +141,12 @@ export function ModelGroupedList(props: ModelGroupedListProps) {
                     }
                   />
                   <span
-                    className={
+                    className={cn(
+                      'text-xs min-w-0 flex-1 break-words whitespace-normal',
                       isEffectivelyHidden
-                        ? 'text-[10px] uppercase tracking-wider text-chatroom-text-muted flex-1 truncate opacity-50'
-                        : 'text-[10px] uppercase tracking-wider text-chatroom-text-primary flex-1 truncate'
-                    }
+                        ? 'text-chatroom-text-muted opacity-50'
+                        : 'text-chatroom-text-primary'
+                    )}
                   >
                     {option.label}
                   </span>
