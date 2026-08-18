@@ -1,21 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { NotificationSoundToggleButton } from './NotificationSoundToggleButton';
 
 const SETTINGS_KEY = 'chatroom:notification-sound-settings';
 
-vi.mock('../utils/playNotificationSound', () => ({
-  playNotificationSound: vi.fn(),
-}));
-
-import { playNotificationSound } from '../utils/playNotificationSound';
-
 describe('NotificationSoundToggleButton', () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.mocked(playNotificationSound).mockClear();
   });
 
   it('shows Volume2 icon when unmuted', () => {
@@ -57,10 +50,10 @@ describe('NotificationSoundToggleButton', () => {
     expect(screen.getByRole('button')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('shows Play test sound in context menu on right-click', () => {
+  it('does not show Play test sound in context menu on right-click', () => {
     render(<NotificationSoundToggleButton />);
     fireEvent.contextMenu(screen.getByTestId('notification-sound-toggle'));
-    expect(screen.getByTestId('notification-sound-play-test')).toHaveTextContent('Play test sound');
+    expect(screen.queryByTestId('notification-sound-play-test')).not.toBeInTheDocument();
   });
 
   it('shows Sound settings in context menu on right-click', () => {
@@ -77,13 +70,5 @@ describe('NotificationSoundToggleButton', () => {
     fireEvent.contextMenu(screen.getByTestId('notification-sound-toggle'));
     await user.click(screen.getByTestId('notification-sound-open-settings'));
     expect(screen.getByTestId('notification-sound-settings-dialog')).toBeInTheDocument();
-  });
-
-  it('calls playNotificationSound with force on Play test sound select', async () => {
-    const user = userEvent.setup();
-    render(<NotificationSoundToggleButton />);
-    fireEvent.contextMenu(screen.getByTestId('notification-sound-toggle'));
-    await user.click(screen.getByTestId('notification-sound-play-test'));
-    expect(playNotificationSound).toHaveBeenCalledWith({ force: true });
   });
 });

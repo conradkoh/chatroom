@@ -37,6 +37,7 @@ vi.mock('@tanstack/react-virtual', () => ({
 const treeRefresh = vi.hoisted(() => vi.fn());
 
 vi.mock('convex-helpers/react/sessions', () => ({
+  useSessionQuery: () => [],
   useSessionMutation: () => vi.fn(() => Promise.resolve({ watchCount: 1 })),
 }));
 

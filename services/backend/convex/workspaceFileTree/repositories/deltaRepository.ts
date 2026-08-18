@@ -67,7 +67,7 @@ export async function getCurrentRevision(
     .first();
   if (delta) return delta.revision;
   const checkpoint = await ctx.db
-    .query('chatroom_workspaceFileTreeCheckpoint')
+    .query('chatroom_workspaceFileTreeCheckpointV2')
     .withIndex('by_machine_workingDir', (q) =>
       q.eq('machineId', machineId).eq('workingDir', workingDir)
     )

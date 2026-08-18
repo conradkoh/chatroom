@@ -39,7 +39,7 @@ New storage formats become new strategies instead of new version branches. Exist
 
 This wiring lands as a single PR. Convex continues to use ephemeral `snapshotKind` values (`v2`/`v3`) at some transport boundaries, mapped with `strategyIdToSnapshotKind` and `snapshotKindToStrategyId`.
 
-**Checkpoint schema migration (required):** `chatroom_workspaceFileTreeCheckpoint` renamed `snapshotKind` → `strategyId` (`blob` / `sharded`). Existing rows must be migrated via `migrateFileTreeCheckpointToStrategyId` in `services/backend/convex/migrations.ts` (wired into `runAll`) before clients read checkpoints after deploy. Decomposition of `workspaceFiles.ts` is deferred.
+**Checkpoint schema migration (required):** the new `chatroom_workspaceFileTreeCheckpointV2` table stores `strategyId` (`blob` / `sharded`). The legacy `chatroom_workspaceFileTreeCheckpoint` table and rows are retained unchanged; new code does not read from it. Decomposition of `workspaceFiles.ts` is deferred.
 
 ## Watch lifecycle (2026-08)
 
