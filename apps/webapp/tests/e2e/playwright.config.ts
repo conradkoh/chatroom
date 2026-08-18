@@ -38,6 +38,11 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'webkit-markdown',
+      testMatch: /specs\/upstream\/markdown-editor\.spec\.ts/,
+      use: { ...devices['Desktop Safari'] },
+    },
   ],
 
   /* Run your local dev server before starting the tests */

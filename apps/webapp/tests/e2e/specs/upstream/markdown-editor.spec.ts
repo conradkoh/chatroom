@@ -61,7 +61,9 @@ test.describe('Markdown Editor Demo', { tag: [TAG_UPSTREAM, TAG_MARKDOWN] }, () 
     await expect(viewer.locator('li').filter({ hasText: 'Same typography' })).toBeVisible();
   });
 
-  test('interactive editor applies default prose classes to EditorContent wrapper', async ({ page }) => {
+  test('interactive editor applies default prose classes to EditorContent wrapper', async ({
+    page,
+  }) => {
     const markdownPage = new MarkdownEditorTestPage(page);
     await markdownPage.navigate();
     const editor = markdownPage.interactiveEditor;
@@ -69,6 +71,54 @@ test.describe('Markdown Editor Demo', { tag: [TAG_UPSTREAM, TAG_MARKDOWN] }, () 
     const wrapper = editor.locator('.p-4');
     await expect(wrapper).toHaveClass(/prose/);
     await expect(wrapper).toHaveClass(/prose-invert/);
+  });
+
+  test('extends selection upward from final soft-wrap tail in code block', async ({ page }) => {
+    const markdownPage = new MarkdownEditorTestPage(page);
+    await markdownPage.navigate();
+
+    const repro =
+      '[<div class="px-4 py-8 text-...">No files found. Ensure the workspace daemon is running.</div> in WorkspaceFileExplorer (at .../WorkspaceFileExplorer.tsx:68:12) in FileExplorerPanel (at .../FileExplorerPanel.tsx:494:13) in next in ChatroomDashboard (at .../ChatroomDashboard.tsx:1909:25)]';
+    const editable = markdownPage.interactiveEditorEditable;
+    const code = editable.locator('pre code').first();
+
+    await code.evaluate((node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      (node.closest('[contenteditable="true"]') as HTMLElement | null)?.focus();
+    });
+    await page.keyboard.insertText(repro);
+    await expect(code).toHaveText(repro);
+
+    await code.evaluate((node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    });
+    await page.keyboard.press('Shift+Alt+ArrowUp');
+
+    const selection = await code.evaluate((node) => {
+      const current = window.getSelection();
+      const anchorNode = current?.anchorNode;
+      const focusNode = current?.focusNode;
+      return {
+        isCollapsed: current?.isCollapsed ?? true,
+        selectedText: current?.toString() ?? '',
+        anchorInsideCode: anchorNode ? node.contains(anchorNode) : false,
+        focusInsideCode: focusNode ? node.contains(focusNode) : false,
+      };
+    });
+
+    expect(selection.isCollapsed).toBe(false);
+    expect(selection.selectedText.length).toBeGreaterThan(0);
+    expect(selection.anchorInsideCode).toBe(true);
+    expect(selection.focusInsideCode).toBe(true);
   });
 
   test('toolbar bold toggle applies formatting', async ({ page }) => {

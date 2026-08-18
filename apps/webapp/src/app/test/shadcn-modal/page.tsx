@@ -1,10 +1,10 @@
 'use client';
 
-import { CalendarIcon, MoreHorizontal, Plus } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { MoreHorizontal, Plus } from 'lucide-react';
+import { useState } from 'react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
+import { DatePicker } from '@/components/ui/date-picker';
 import {
   Dialog,
   DialogContent,
@@ -21,50 +21,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-
-const testSteps: {
-  number: number;
-  title: string;
-  description: ReactNode;
-  critical?: boolean;
-}[] = [
-  {
-    number: 1,
-    title: 'Open Action Menu',
-    description: 'Click the "Actions" button to open the dropdown menu.',
-  },
-  {
-    number: 2,
-    title: 'Test Click Outside',
-    description:
-      'Click outside the menu to close it, then verify the "Actions" button is still clickable.',
-  },
-  {
-    number: 3,
-    title: 'Test Dialog Flow',
-    description:
-      'Open action menu → click "Add" → click outside dialog to close → ensure "Actions" button remains clickable.',
-  },
-  {
-    number: 4,
-    title: 'Test iOS Calendar (Critical)',
-    critical: true,
-    description: (
-      <>
-        Open action menu → click "Add" → click date picker button →{' '}
-        <strong>verify calendar opens on iOS devices</strong>.
-      </>
-    ),
-  },
-  {
-    number: 5,
-    title: 'Final Verification',
-    description:
-      'After completing all interactions, click outside to close everything and ensure the "Actions" button is still clickable.',
-  },
-];
 
 export default function ShadcnModalTestPage() {
   const [date, setDate] = useState<Date>();
@@ -94,40 +50,36 @@ export default function ShadcnModalTestPage() {
         </div>
 
         {/* Known Issues */}
-        <div className="border rounded-lg p-6 space-y-4 bg-amber-50 dark:bg-amber-950/20">
-          <h2 className="text-xl font-semibold text-amber-900 dark:text-amber-100">
-            ⚠️ Known Issues (Post Base-UI Migration)
+        <div className="border rounded-lg p-6 space-y-4 bg-red-50 dark:bg-red-950/20">
+          <h2 className="text-xl font-semibold text-red-900 dark:text-red-100">
+            🚨 Known Issues with Shadcn Modals
           </h2>
           <div className="space-y-4 text-sm">
             <div>
-              <h3 className="font-medium text-amber-800 dark:text-amber-200 mb-2">
-                1. Body pointer-events stuck (Mitigated)
+              <h3 className="font-medium text-red-800 dark:text-red-200 mb-2">
+                1. Pointer Events Issue (Loss of Page Interactivity)
               </h3>
-              <p className="text-amber-800 dark:text-amber-300">
-                After closing a modal,{' '}
-                <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">
+              <p className="text-red-700 dark:text-red-300">
+                After opening and closing modal components (Dialog, DropdownMenu, Popover), the page
+                becomes unresponsive because{' '}
+                <code className="bg-red-100 dark:bg-red-900 px-1 rounded">
                   pointer-events: none
                 </code>{' '}
-                may remain on <code>body</code>, leaving the page unresponsive. This is now{' '}
-                <strong>mitigated</strong> by <code>releaseBodyPointerLock</code>, wired on the
-                close handlers of both the global <code>components/ui/dialog</code> root and the
-                chatroom <code>Dialog</code> root, which clears <code>pointer-events</code>,{' '}
-                <code>overflow</code>, and <code>data-scroll-locked</code> when a dialog closes.
-                Edge cases (e.g. dialogs unmounted without firing a close transition, or menus
-                opened outside a Dialog root) may still leave the lock; report any that reproduce.
+                remains applied to the body element. This is especially noticeable after dismissing
+                a modal that was opened from a dropdown menu item.
               </p>
             </div>
 
             <div>
-              <h3 className="font-medium text-amber-800 dark:text-amber-200 mb-2">
-                2. Nested Popover/Calendar (iOS)
+              <h3 className="font-medium text-red-800 dark:text-red-200 mb-2">
+                2. Nested Popover/Calendar Issue (iOS Specific)
               </h3>
-              <p className="text-amber-800 dark:text-amber-300">
-                Date pickers (Popover + Calendar) rendered inside a Dialog are the most complex
-                nesting on this page. With Base UI, popovers mount through the dialog's portal host
-                and stay at the modal z-index band; on iOS this path remains the least exercised —
-                verify the calendar opens and is interactive on-device. If it regresses, note the
-                repro steps here.
+              <p className="text-red-700 dark:text-red-300">
+                Components like date pickers (which use Popover internally) fail to open or become
+                unresponsive when rendered inside other modals, particularly the Calendar component
+                on <strong>iOS devices</strong>. The primary fix involves ensuring{' '}
+                <code className="bg-red-100 dark:bg-red-900 px-1 rounded">modal=true</code> is
+                correctly set on the Popover component.
               </p>
             </div>
           </div>
@@ -165,9 +117,9 @@ export default function ShadcnModalTestPage() {
                 2. Base UI migration
               </h3>
               <p className="text-green-700 dark:text-green-300 mb-2">
-                Modal primitives now use <code>@base-ui/react</code> instead of Radix UI. All{' '}
-                <code>@radix-ui/*</code> dependencies (including the former{' '}
-                <code>@radix-ui/react-dismissable-layer</code> pnpm override) have been removed.
+                Modal primitives now use <code>@base-ui/react</code> instead of Radix UI. The
+                previous <code>@radix-ui/react-dismissable-layer</code> pnpm override is no longer
+                required.
               </p>
             </div>
 
@@ -249,22 +201,16 @@ export default function ShadcnModalTestPage() {
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Date</Label>
+                <Label htmlFor="item-date" className="text-right">
+                  Date
+                </Label>
                 <div className="col-span-3">
-                  <Popover>
-                    <PopoverTrigger
-                      className={cn(
-                        buttonVariants({ variant: 'outline' }),
-                        'w-full justify-start text-left font-normal'
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date ? date.toDateString() : <span>Pick a date</span>}
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={date} onSelect={setDate} />
-                    </PopoverContent>
-                  </Popover>
+                  <DatePicker
+                    id="item-date"
+                    date={date}
+                    onSelect={setDate}
+                    placeholder="Pick a date"
+                  />
                 </div>
               </div>
             </div>
@@ -290,37 +236,71 @@ export default function ShadcnModalTestPage() {
             </p>
 
             <div className="space-y-3">
-              {testSteps.map((step) => (
-                <div key={step.number} className="flex gap-3">
-                  <span
-                    className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                      step.critical ? 'bg-orange-600' : 'bg-blue-600'
-                    }`}
-                  >
-                    {step.number}
-                  </span>
-                  <div>
-                    <p
-                      className={`font-medium ${
-                        step.critical
-                          ? 'text-orange-900 dark:text-orange-100'
-                          : 'text-blue-900 dark:text-blue-100'
-                      }`}
-                    >
-                      {step.title}
-                    </p>
-                    <p
-                      className={
-                        step.critical
-                          ? 'text-orange-800 dark:text-orange-200'
-                          : 'text-blue-800 dark:text-blue-200'
-                      }
-                    >
-                      {step.description}
-                    </p>
-                  </div>
+              <div className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                  1
+                </span>
+                <div>
+                  <p className="font-medium text-blue-900 dark:text-blue-100">Open Action Menu</p>
+                  <p className="text-blue-800 dark:text-blue-200">
+                    Click the "Actions" button to open the dropdown menu.
+                  </p>
                 </div>
-              ))}
+              </div>
+
+              <div className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                  2
+                </span>
+                <div>
+                  <p className="font-medium text-blue-900 dark:text-blue-100">Test Click Outside</p>
+                  <p className="text-blue-800 dark:text-blue-200">
+                    Click outside the menu to close it, then verify the "Actions" button is still
+                    clickable.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                  3
+                </span>
+                <div>
+                  <p className="font-medium text-blue-900 dark:text-blue-100">Test Dialog Flow</p>
+                  <p className="text-blue-800 dark:text-blue-200">
+                    Open action menu → click "Add" → click outside dialog to close → ensure
+                    "Actions" button remains clickable.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-orange-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                  4
+                </span>
+                <div>
+                  <p className="font-medium text-orange-900 dark:text-orange-100">
+                    Test iOS Calendar (Critical)
+                  </p>
+                  <p className="text-orange-800 dark:text-orange-200">
+                    Open action menu → click "Add" → click date picker button →{' '}
+                    <strong>verify calendar opens on iOS devices</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                  5
+                </span>
+                <div>
+                  <p className="font-medium text-blue-900 dark:text-blue-100">Final Verification</p>
+                  <p className="text-blue-800 dark:text-blue-200">
+                    After completing all interactions, click outside to close everything and ensure
+                    the "Actions" button is still clickable.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="mt-6 p-4 bg-green-100 dark:bg-green-900/30 rounded">
@@ -329,10 +309,7 @@ export default function ShadcnModalTestPage() {
               </h3>
               <ul className="list-disc list-inside space-y-1 text-green-800 dark:text-green-200 text-xs">
                 <li>All buttons and interactive elements remain clickable throughout the test</li>
-                <li>
-                  Body pointer-events is cleared on dialog close via{' '}
-                  <code>releaseBodyPointerLock</code> (report any remaining lock edge cases)
-                </li>
+                <li>No "pointer-events: none" issues after closing modals</li>
                 <li>Date picker opens correctly inside dialogs on all devices, including iOS</li>
                 <li>Smooth transitions between all modal states</li>
                 <li>Page remains fully responsive after all interactions</li>
