@@ -116,7 +116,11 @@ export const TimelineTeamMessage = memo(function TimelineTeamMessage({
         ) : message.type === 'handoff' && hasHandoffEnvelope(displayContent) ? (
           <HandoffEnvelopeView content={displayContent} variant="timeline" />
         ) : message.type === 'handoff' && hasHandoffReport(displayContent) ? (
-          <HandoffReportView content={displayContent} variant="timeline" />
+          <HandoffReportView
+            content={displayContent}
+            variant="timeline"
+            targetRole={message.targetRole}
+          />
         ) : (
           <TimelineMarkdownBody content={displayContent} />
         )}

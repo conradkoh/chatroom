@@ -232,6 +232,16 @@ describe('HandoffReportView', () => {
       expect(screen.queryByText('Used JWT')).not.toBeInTheDocument();
     });
 
+    it('direction expanded by default for handoffs to user', () => {
+      render(<HandoffReportView content={STRUCTURED_CONTENT} targetRole="user" />);
+      expect(screen.getByText('Used JWT')).toBeInTheDocument();
+    });
+
+    it('direction stays collapsed for non-user handoff targets', () => {
+      render(<HandoffReportView content={STRUCTURED_CONTENT} targetRole="builder" />);
+      expect(screen.queryByText('Used JWT')).not.toBeInTheDocument();
+    });
+
     it('notes collapsed by default', () => {
       render(<HandoffReportView content={STRUCTURED_CONTENT} />);
       expect(screen.queryByText('None')).not.toBeInTheDocument();
