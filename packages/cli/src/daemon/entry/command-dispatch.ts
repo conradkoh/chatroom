@@ -18,6 +18,7 @@ import {
   type DaemonSessionServiceShape,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
+import type { InboundCommandEventPayload } from '../domain/entities/inbound-event.js';
 import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
 import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
@@ -167,7 +168,9 @@ function handleLocalActionCommandEffect(
       `[${formatTimestamp()}] 🖥️  Local action: ${typedEvent.action} → ${typedEvent.workingDir}`
     );
     const result = yield* Effect.promise(() =>
-      executeLocalAction(typedEvent.action, typedEvent.workingDir, { chatroomId: typedEvent.chatroomId })
+      executeLocalAction(typedEvent.action, typedEvent.workingDir, {
+        chatroomId: typedEvent.chatroomId,
+      })
     );
     if (!result.success) {
       console.warn(`[${formatTimestamp()}] ⚠️  Local action failed: ${result.error}`);
@@ -292,13 +295,22 @@ export async function handleInboundCommandEvent(
   commandId: string,
   tracker: DedupTracker,
   effectContext: Context.Context<CommandDispatchDeps>,
-  session: DaemonSessionServiceShape
+  session: DaemonSessionServiceShape,
+  commandEvent?: InboundCommandEventPayload
 ): Promise<void> {
-  const result = await session.backend.query(api.machines.getCommandEvents, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-  });
-  const event = result?.events?.find((e: CommandEvent) => e._id.toString() === commandId);
+  let event: CommandEvent | undefined;
+  if (commandEvent?._id.toString() === commandId) {
+    // The subscriber already received the complete command payload. The cast
+    // only bridges the generic inbound transport shape to Convex's inferred
+    // discriminated return type; dispatch handlers validate the event type.
+    event = commandEvent as unknown as CommandEvent;
+  } else {
+    const result = await session.backend.query(api.machines.getCommandEvents, {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+    });
+    event = result?.events?.find((e: CommandEvent) => e._id.toString() === commandId);
+  }
   if (!event) return;
   await Effect.runPromise(
     dispatchCommandEventEffect(event, tracker).pipe(Effect.provide(effectContext))

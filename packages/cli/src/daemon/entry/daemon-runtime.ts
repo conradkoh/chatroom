@@ -316,7 +316,13 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     registerCommandInboundHandler(async (event) => {
       evictStaleDedupEntries(dedupTracker);
       if (event.type === 'command.received') {
-        await handleInboundCommandEvent(event.commandId, dedupTracker, effectContext, session);
+        await handleInboundCommandEvent(
+          event.commandId,
+          dedupTracker,
+          effectContext,
+          session,
+          event.commandEvent
+        );
       } else {
         await drainActionableCommandRuns(session, commandRunRuntime);
       }
