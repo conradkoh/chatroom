@@ -24,6 +24,65 @@ Reduce Convex read/write/sync bandwidth by:
 2. **Persisting events locally** on the daemon in SQLite (`event_stream_entries`).
 3. **Serving history on demand** via `eventStream.history` socket queries — not pushing events to subscribers.
 
+## End state
+
+All event stream **audit records produced by the daemon process** are written to daemon-local persistent storage (`event_stream_entries` SQLite via `logEvent` → `eventStream.ingest`), not to Convex `chatroom_eventStream`.
+
+| Stays on Convex | Moves to daemon SQLite |
+| --------------- | ---------------------- |
+| State mutations (PID, participant, task status, config) | Immutable audit/event log entries |
+| Backend-originated events (tasks, team, enhancer, etc.) | Daemon-originated lifecycle/delivery/session events |
+
+**Success criteria:** Zero daemon-originated `chatroom_eventStream` inserts remain; daemon local-web can query full history per chatroom via `eventStream.history`.
+
+## Progress tracker
+
+_Last updated: 2026-08-19 — Phase 1 merged at v1.98.1_
+
+### Infrastructure
+
+| Item | Status | Evidence |
+| ---- | ------ | -------- |
+| `event_stream_entries` SQLite table (schema v2) | ✅ Done | `log-schema.ts`, `log-store.ts` |
+| `eventStream.ingest` socket handler | ✅ Done | `register-handlers.ts` |
+| `eventStream.history` with required `chatroomId` | ✅ Done | `queryEventStream` + Zod schema |
+| Chatroom index on payload `chatroomId` | ✅ Done | `log-schema.ts` |
+| Domain use-case layer | ✅ Done | `event-stream-history.ts`, `log-event-ingestion.ts` |
+| Daemon local-web Event Stream tab + chatroom selector | ✅ Done | `EventStreamPage.tsx` |
+| Pull-based history only (no live rebroadcast) | ✅ Done | By design — see Primary goal |
+| Typed event renderers / pagination | ⬜ Not started | Future UX work |
+
+### Daemon-originated event types
+
+Events the daemon currently emits via `logEvent` (local) or `api.machines.emit*` (Convex — to migrate):
+
+| Event type | Status | Current write path | Notes |
+| ---------- | ------ | ------------------ | ----- |
+| `agent.exited` | ✅ Migrated | `logEvent` → `eventStream.ingest` | Reference impl `9f7908136` |
+| `agent.started` | ⬜ Pending | `updateSpawnedAgent` mutation | Spawn success |
+| `agent.startFailed` | ⬜ Pending | `emitAgentStartFailed` | APM, turn-completed, bridge |
+| `agent.providerUnavailable` | ⬜ Pending | `emitAgentProviderUnavailable` | APM |
+| `agent.stopTimeout` | ⬜ Pending | `emitAgentStopTimeout` | APM |
+| `agent.sessionResumeRequested` | ⬜ Pending | `emitSessionResumeRequested` | APM |
+| `agent.sessionResumed` | ⬜ Pending | `emitSessionResumed` | APM |
+| `agent.sessionResumeFailed` | ⬜ Pending | `emitSessionResumeFailed` | APM |
+| `agent.sessionReopenRetry` | ⬜ Pending | `emitSessionReopenRetry` | APM |
+| `agent.harnessSessionIdUpdated` | ⬜ Pending | `emitHarnessSessionIdUpdated` | APM |
+| `agent.restartLimitReached` | ⬜ Pending | `emitRestartLimitReached` | APM |
+| `agent.restartPhase` | ⬜ Pending | `emitRestartPhase` | restart-orchestrator |
+| `agent.restartCompleted` | ⬜ Pending | `emitRestartCompleted` | restart-orchestrator |
+| `agent.sessionAugmented` | ⬜ Pending | `emitSessionAugmented` | task-monitor, native-delivery |
+| `agent.taskDelivered` | ⬜ Pending | `emitTaskDelivered` | native-delivery, publishers |
+| `agent.taskDeliveryFailed` | ⬜ Pending | `emitTaskDeliveryFailed` | native-delivery, publishers |
+| `daemon.pong` | ⬜ Pending | `ackPing` mutation | command-dispatch |
+| `daemon.*` command events | ⬜ Pending | Convex command path | ping, gitRefresh, localAction, pickFolder, refreshCapabilities |
+
+**Progress:** 1 / 17 daemon-originated event paths migrated (~6%).
+
+### Phase 1 shipped (v1.98.1)
+
+Merged to master via PR. Includes: event ingestion API, SQLite persistence, `agent.exited` local routing, chatroom-scoped history API + UI, migration memory docs.
+
 > **Intentional non-goal:** Live event rebroadcast (e.g. `eventStream.stream.subscribe` or a `logStreamHub` equivalent for events) is **out of scope**. Pull-based history keeps bandwidth low. Do not flag missing live streaming as a gap.
 
 ## Scope: chatroom-level only
@@ -106,14 +165,6 @@ Recent commits establish this migration pattern:
 
 Retry queue for failed local event writes (`exitRetryQueue`) replaces Convex mutation retry for the audit record only.
 
-## In-progress work (uncommitted)
-
-The working tree extends the foundation with:
-
-- Dedicated `event_stream_entries` table (schema v2) — replaces storing events in `log_entries` with `source: chatroom:event`.
-- `eventStream.history` socket handler + `createEventStreamHistoryUseCase`.
-- Minimal `EventStreamPage` UI tab in daemon local-web (debug table; typed renderers and chatroom filter still needed).
-
 ## Dual display goals
 
 The daemon event stream UI serves two goals (not mutually exclusive):
@@ -147,4 +198,4 @@ Prior gap analysis incorrectly flagged these as missing:
 | No live stream hub for events     | **Intentional** — pull-based history saves bandwidth |
 | Global vs per-chatroom scope open | **Resolved** — must be chatroom-scoped               |
 
-Remaining valid gaps: `chatroomId` query filter, chatroom filter UI, typed event renderers, pagination, web UX parity.
+Remaining valid gaps: typed event renderers, pagination, web UX parity.
