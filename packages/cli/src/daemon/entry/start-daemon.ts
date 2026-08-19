@@ -13,9 +13,9 @@ import { createLogServer, resolveLogsDbPath } from '../../infrastructure/log-ser
 import { startBackgroundMachineCapabilitiesDiscovery } from '../domain/usecase/refresh-machine-capabilities.js';
 import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { createLogRepository } from '../infrastructure/repository/log-repository.js';
+import { ingestChatroomEvent } from '../local-web/client/lib/socket.js';
 import { startLocalWebServer } from '../local-web/server/create-local-web-server.js';
 import { createLogStreamHub } from '../local-web/server/log-stream-hub.js';
-import { ingestChatroomEvent } from '../local-web/client/lib/socket.js';
 
 export async function startDaemon(): Promise<void> {
   let resolveBoundPort!: (port: number) => void;
@@ -47,6 +47,7 @@ export async function startDaemon(): Promise<void> {
     backend: init.backend,
     sessionId: init.sessionId,
     machineId: init.machineId,
+    logEvent: init.logEvent,
   });
 
   const localWebPort = resolveLocalWebPort();
