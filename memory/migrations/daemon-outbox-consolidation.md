@@ -122,8 +122,7 @@ recover from the durable coalescing store on startup.
 
 Delta delivery uses one durable SQLite file per outbox type and machine under
 `~/.chatroom/daemon/{machineId}/`, partitioned by normalized working directory.
-Checkpoint delivery remains in memory in this slice. Checkpoint and delta
-outboxes do not share an in-flight mutex.
+Checkpoint and delta outboxes do not share an in-flight mutex.
 
 ## Progress tracker
 
