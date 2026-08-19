@@ -12,8 +12,9 @@
 
 import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliability.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import { shouldEmitSessionAugmentation, resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import {
+  shouldEmitSessionAugmentation,
+  resolveSessionAugmentationForTask,
   sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
@@ -74,6 +75,7 @@ import type {
 } from '../domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
 import type { AssignedTaskInboundEvent } from '../domain/usecase/handle-assigned-task-inbound.js';
+import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 
 type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
 type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
@@ -82,7 +84,10 @@ type TaskMonitorPass = 'signal' | 'presence';
 
 function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
-  resolveSessionAugmentationForTask({ content: task.taskContent ?? '', startInNewSession: task.startInNewSession }, task.agentConfig.role)
+    resolveSessionAugmentationForTask(
+      { content: task.taskContent ?? '', startInNewSession: task.startInNewSession },
+      task.agentConfig.role
+    )
   );
 }
 
@@ -90,7 +95,10 @@ function buildCliNudgeLogLine(task: AssignedTaskWithContent): string {
   const { chatroomId, agentConfig } = task;
   const { role } = agentConfig;
   const lastSeenAction = task.participant?.lastSeenAction ?? 'unknown';
-  const augmentationMode = resolveSessionAugmentationForTask({ content: task.taskContent ?? '', startInNewSession: task.startInNewSession }, role);
+  const augmentationMode = resolveSessionAugmentationForTask(
+    { content: task.taskContent ?? '', startInNewSession: task.startInNewSession },
+    role
+  );
   const wantResume = resolveTaskWantResume(task);
   return `[TaskMonitor] nudging ${role}@${chatroomId} — pending task ${task.taskId}, lastSeenAction=${lastSeenAction}, session_augmentation=${augmentationMode}, wantResume=${wantResume}`;
 }
@@ -128,7 +136,10 @@ function executeCliNudge(
   const ctx = resolveTaskRunnerContextFromFull(task);
   if (!ctx) return;
   const { chatroomId, agentConfig, role, workingDir, wantResume } = ctx;
-  const augmentationMode = resolveSessionAugmentationForTask({ content: task.taskContent ?? '', startInNewSession: task.startInNewSession }, role);
+  const augmentationMode = resolveSessionAugmentationForTask(
+    { content: task.taskContent ?? '', startInNewSession: task.startInNewSession },
+    role
+  );
 
   Runtime.runFork(runtime)(
     Effect.gen(function* () {
@@ -144,8 +155,17 @@ function executeCliNudge(
       });
       if (shouldEmitSessionAugmentation(role, augmentationMode)) {
         yield* Effect.tryPromise({
-          try: () =>
-            sessionDeps.backend.mutation(api.machines.emitSessionAugmented, {
+          try: async () => {
+            await logDaemonAuditEvent(sessionDeps.logEvent ?? (async () => undefined), {
+              type: 'agent.sessionAugmented',
+              chatroomId,
+              role,
+              machineId,
+              taskId: task.taskId,
+              mode: augmentationMode,
+              newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
+            });
+            await sessionDeps.backend.mutation(api.daemon.agentEvents.sessionAugmented, {
               sessionId: sessionDeps.sessionId,
               machineId,
               chatroomId,
@@ -153,7 +173,8 @@ function executeCliNudge(
               taskId: task.taskId,
               mode: augmentationMode,
               newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
-            }),
+            });
+          },
           catch: (err) => err,
         }).pipe(Effect.catchAll(() => Effect.void));
       }
@@ -500,6 +521,7 @@ export const startTaskMonitorEffect = (
       sessionId: session.sessionId,
       convexUrl: session.convexUrl,
       machineId: session.machineId,
+      logEvent: session.logEvent,
       backend: {
         mutation: (fn: unknown, args: Record<string, unknown>) =>
           session.backend.mutation(fn, args),

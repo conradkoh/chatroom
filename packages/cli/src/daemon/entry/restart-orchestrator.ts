@@ -4,7 +4,11 @@
 
 import { HARNESS_SESSION_READY_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
-import type { AgentRestartPhase } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
+import {
+  buildAgentRestartCompletedEvent,
+  buildAgentRestartPhaseEvent,
+  type AgentRestartPhase,
+} from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
 import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import { Effect } from 'effect';
 
@@ -28,6 +32,7 @@ import { getErrorMessage } from '../../utils/convex-error.js';
 import { isDeliverableTaskStatus } from '../domain/entities/assigned-task.js';
 import type { AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
+import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 
 interface RestartOrchestratorEvent {
   chatroomId: string;
@@ -43,6 +48,7 @@ export interface RestartOrchestratorSession {
   sessionId: string;
   machineId: string;
   convexUrl: string;
+  logEvent: (event: Record<string, unknown>) => Promise<void>;
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -60,15 +66,21 @@ async function emitPhase(
   phase: AgentRestartPhase | 'completed' | 'failed',
   detail?: string
 ): Promise<void> {
-  await deps.session.backend.mutation(api.machines.emitRestartPhase, {
-    sessionId: deps.session.sessionId,
-    machineId: deps.session.machineId,
-    chatroomId: event.chatroomId,
-    role: event.role,
-    correlationId: event.correlationId,
-    phase,
-    detail,
-  });
+  const now = Date.now();
+  await logDaemonAuditEvent(
+    deps.session.logEvent,
+    buildAgentRestartPhaseEvent(
+      {
+        chatroomId: event.chatroomId as never,
+        machineId: deps.session.machineId,
+        role: event.role,
+        correlationId: event.correlationId,
+        phase,
+        detail,
+      },
+      now
+    )
+  );
 }
 
 function sleep(ms: number): Promise<void> {
@@ -184,6 +196,7 @@ async function deliverOneTask(
       runNativeInjectionEffect(full, harnessSessionId, {
         sessionId: deps.session.sessionId,
         machineId: deps.session.machineId,
+        logEvent: deps.session.logEvent,
         backend: deps.session.backend,
         convexUrl: deps.session.convexUrl,
         agentMgr: {
@@ -281,14 +294,19 @@ export async function runRestartOrchestrator(
     const deliveredTaskIds = await deliverPendingTasks(deps, event);
 
     await emitPhase(deps, event, 'completed');
-    await deps.session.backend.mutation(api.machines.emitRestartCompleted, {
-      sessionId: deps.session.sessionId,
-      machineId: deps.session.machineId,
-      chatroomId,
-      role,
-      correlationId: event.correlationId,
-      deliveredTaskIds,
-    });
+    await logDaemonAuditEvent(
+      deps.session.logEvent,
+      buildAgentRestartCompletedEvent(
+        {
+          chatroomId: event.chatroomId as never,
+          machineId: deps.session.machineId,
+          role: event.role,
+          correlationId: event.correlationId,
+          deliveredTaskIds,
+        },
+        Date.now()
+      )
+    );
   } catch (err) {
     console.warn(`[RestartOrchestrator] failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`);
     await emitPhase(deps, event, 'failed', getErrorMessage(err));

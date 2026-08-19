@@ -6,9 +6,6 @@ import { runRestartOrchestrator } from './restart-orchestrator.js';
 vi.mock('../../api.js', () => ({
   api: {
     machines: {
-      emitRestartPhase: 'emitRestartPhase',
-      emitRestartCompleted: 'emitRestartCompleted',
-      emitHarnessSessionReady: 'emitHarnessSessionReady',
       syncMachineAssignedTaskSnapshotsMutation: 'syncMachineAssignedTaskSnapshotsMutation',
       listMachineAssignedTaskSnapshots: 'listMachineAssignedTaskSnapshots',
       getAssignedTaskForAction: 'getAssignedTaskForAction',
@@ -20,11 +17,12 @@ vi.mock('../../api.js', () => ({
 }));
 
 function createMockDeps(overrides?: { spawnSuccess?: boolean; harnessSessionId?: string | null }) {
-  const mutationLog: { fn: string; args: Record<string, unknown> }[] = [];
+  const auditLog: Record<string, unknown>[] = [];
+  const logEvent = vi.fn(async (event: Record<string, unknown>) => {
+    auditLog.push(event);
+  });
   const backend = {
-    mutation: vi.fn(async (fn: unknown, args: Record<string, unknown>) => {
-      mutationLog.push({ fn: fn as string, args });
-    }),
+    mutation: vi.fn(async () => undefined),
     query: vi.fn(async () => ({ tasks: [] })),
   };
   const agentMgr = {
@@ -53,11 +51,12 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean; harnessSessionId?:
         sessionId: 'test-session',
         machineId: 'test-machine',
         convexUrl: 'http://test:3210',
+        logEvent,
         backend,
       },
       agentMgr,
     },
-    mutationLog,
+    auditLog,
     agentMgrMock: agentMgr,
     backendMock: backend,
   };
@@ -65,7 +64,7 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean; harnessSessionId?:
 
 describe('runRestartOrchestrator', () => {
   test('success path emits ordered phases and completes once', async () => {
-    const { deps, mutationLog } = createMockDeps();
+    const { deps, auditLog } = createMockDeps();
 
     await runRestartOrchestrator(deps as any, {
       chatroomId: 'test-chatroom',
@@ -77,11 +76,11 @@ describe('runRestartOrchestrator', () => {
       wantResume: true,
     });
 
-    const restartCompletedCalls = mutationLog.filter((call) => call.fn === 'emitRestartCompleted');
-    expect(restartCompletedCalls).toHaveLength(1);
+    const restartCompleted = auditLog.filter((event) => event.type === 'agent.restartCompleted');
+    expect(restartCompleted).toHaveLength(1);
 
-    const phaseCalls = mutationLog.filter((call) => call.fn === 'emitRestartPhase');
-    expect(phaseCalls.map((call) => (call.args as { phase: string }).phase)).toEqual([
+    const phaseEvents = auditLog.filter((event) => event.type === 'agent.restartPhase');
+    expect(phaseEvents.map((event) => event.phase)).toEqual([
       'reset',
       'spawn',
       'await_session',
@@ -89,15 +88,11 @@ describe('runRestartOrchestrator', () => {
       'deliver',
       'completed',
     ]);
-    expect(
-      phaseCalls.every(
-        (call) => (call.args as { correlationId: string }).correlationId === 'test-correlation'
-      )
-    ).toBe(true);
+    expect(phaseEvents.every((event) => event.correlationId === 'test-correlation')).toBe(true);
   });
 
-  test('failure path calls emitRestartPhase with failed exactly once', async () => {
-    const { deps, mutationLog } = createMockDeps({ spawnSuccess: false });
+  test('failure path logs restartPhase failed exactly once', async () => {
+    const { deps, auditLog } = createMockDeps({ spawnSuccess: false });
 
     await runRestartOrchestrator(deps as any, {
       chatroomId: 'test-chatroom',
@@ -109,13 +104,12 @@ describe('runRestartOrchestrator', () => {
       wantResume: true,
     });
 
-    const phaseCalls = mutationLog.filter(
-      (call) =>
-        call.fn === 'emitRestartPhase' && (call.args as { phase?: string }).phase === 'failed'
+    const failedPhases = auditLog.filter(
+      (event) => event.type === 'agent.restartPhase' && event.phase === 'failed'
     );
-    expect(phaseCalls).toHaveLength(1);
+    expect(failedPhases).toHaveLength(1);
 
-    const restartCompletedCalls = mutationLog.filter((call) => call.fn === 'emitRestartCompleted');
-    expect(restartCompletedCalls).toHaveLength(0);
+    const restartCompleted = auditLog.filter((event) => event.type === 'agent.restartCompleted');
+    expect(restartCompleted).toHaveLength(0);
   });
 });

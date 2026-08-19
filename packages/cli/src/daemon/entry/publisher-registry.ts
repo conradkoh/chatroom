@@ -19,6 +19,7 @@ export type PublisherRegistryDeps = {
   backend?: ConvexPublisherDeps['backend'];
   sessionId?: string;
   machineId?: string;
+  logEvent?: ConvexPublisherDeps['logEvent'];
 };
 
 export type PublisherRegistry = {
@@ -75,11 +76,12 @@ function routeConvexEvent(
 
 export function createPublisherRegistry(deps: PublisherRegistryDeps = {}): PublisherRegistry {
   const convexDeps =
-    deps.backend && deps.sessionId && deps.machineId
+    deps.backend && deps.sessionId && deps.machineId && deps.logEvent
       ? {
           backend: deps.backend,
           sessionId: deps.sessionId,
           machineId: deps.machineId,
+          logEvent: deps.logEvent,
         }
       : undefined;
   const publishers = convexDeps ? createConvexPublishers(convexDeps) : undefined;

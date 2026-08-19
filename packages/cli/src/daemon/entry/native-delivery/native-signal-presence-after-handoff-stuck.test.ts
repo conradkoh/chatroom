@@ -168,6 +168,7 @@ describe('native signal-presence stuck after planner handoff', () => {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
         machineId: MACHINE_ID,
+        logEvent: async () => undefined,
         backend: { mutation: vi.fn(), query: vi.fn() },
       },
     });
@@ -204,6 +205,7 @@ describe('native signal-presence stuck after planner handoff', () => {
       sessionDeps: {
         sessionId: SESSION_ID,
         machineId: MACHINE_ID,
+        logEvent: async () => undefined,
         convexUrl: 'http://test:3210',
         backend: { mutation: vi.fn(), query: backendQuery },
       },
@@ -239,6 +241,7 @@ describe('native signal-presence stuck after planner handoff', () => {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
         machineId: MACHINE_ID,
+        logEvent: async () => undefined,
         backend: {
           mutation: vi.fn(),
           query: vi.fn(async () => ({ fullCliOutput: 'SHOULD NOT REACH' })),
@@ -297,6 +300,7 @@ describe('native signal-presence stuck after planner handoff', () => {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
         machineId: MACHINE_ID,
+        logEvent: async () => undefined,
         backend: {
           mutation: vi.fn().mockResolvedValue(undefined),
           query: vi.fn(async (_fn, args) => {
