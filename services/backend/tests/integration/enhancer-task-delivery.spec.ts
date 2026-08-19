@@ -30,6 +30,12 @@ async function enableEnhancer(
   });
 }
 
+async function setPlannerAsEntryPoint(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
+  await t.run(async (ctx) => {
+    await ctx.db.patch('chatroom_rooms', chatroomId, { teamEntryPoint: 'planner' });
+  });
+}
+
 async function createPlannerTaskFromUserMessage(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
@@ -76,6 +82,7 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
   test('planner user task includes enhancer guidance and enhancer as primary handoff', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupWorkspaceForSession('enh-delivery-enabled');
+    await setPlannerAsEntryPoint(chatroomId);
     await enableEnhancer(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
@@ -88,14 +95,13 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     const output = await getPlannerDeliveryPrompt(sessionId, chatroomId, taskId, messageId);
 
     expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('One check-in per builder delegation');
-    expect(output).toContain('planner → enhancer → planner → builder');
+    expect(output).toContain('Immediately hand off the user request');
+    expect(output).toContain('before planning, researching, or drafting');
+    expect(output).toContain('one-time per originating user message');
     expect(output).toContain('--next-role="enhancer"');
     expect(output).toContain('Handoff to `enhancer`');
     expect(output).toContain('**enhancer**');
-    expect(output).toContain(
-      'user → [loop planner → enhancer → planner → builder → planner] → user'
-    );
+    expect(output).toContain('user → enhancer → planner → [loop builder → planner] → user');
   });
 
   test('planner user task omits enhancer when snapshot true but no config', async () => {
@@ -142,6 +148,7 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
   test('planner enhancer feedback task uses review guidance and builder as primary handoff', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupWorkspaceForSession('enh-delivery-feedback');
+    await setPlannerAsEntryPoint(chatroomId);
     await enableEnhancer(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
@@ -215,7 +222,7 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
       feedbackMessage!._id
     );
 
-    expect(output).toContain('<enhancer-review>');
+    expect(output).toContain('<enhancer-input>');
     expect(output).not.toContain('<handoff-enhancer>');
     expect(output).not.toContain('Handoff to `enhancer`');
     expect(output).toContain('--next-role="builder"');

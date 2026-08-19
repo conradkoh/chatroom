@@ -6,7 +6,7 @@
  * delivers work; the agent completes it and hands off.
  */
 
-import { getNativeEnhancerReviewTaskIntake } from './enhancer-review-intake';
+import { getNativeEnhancerInputTaskIntake } from './enhancer-input-intake';
 import {
   getNativeTaskStartedPrompt,
   getNativeTaskStartedPromptForHandoffRecipient,
@@ -30,7 +30,7 @@ function resolveNativeTaskIntakeContent(
     return getNativeTaskStartedPromptForHandoffRecipient();
   }
   if (message?.senderRole.toLowerCase() === 'enhancer') {
-    return getNativeEnhancerReviewTaskIntake({ chatroomId, role, cliEnvPrefix });
+    return getNativeEnhancerInputTaskIntake({ chatroomId, role, cliEnvPrefix });
   }
   return getNativeTaskStartedPrompt({
     chatroomId,

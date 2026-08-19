@@ -76,7 +76,7 @@ describe('enhancer delegation-loop workflow', () => {
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: '<user-message>Build feature X</user-message>',
+      content: '<request>Build feature X</request>',
     });
 
     // Planner tasks completed — no active planner work
@@ -139,7 +139,7 @@ describe('enhancer delegation-loop workflow', () => {
       convexUrl: 'http://127.0.0.1:3210',
     });
     expect(fullCliOutput).toContain('next-role="builder"');
-    expect(fullCliOutput).toContain('<enhancer-review>');
+    expect(fullCliOutput).toContain('<enhancer-input>');
     expect(fullCliOutput).not.toContain('<handoff-enhancer>');
 
     // Planner can hand off to builder
@@ -153,7 +153,7 @@ describe('enhancer delegation-loop workflow', () => {
     expect(handoff.success).toBe(true);
   });
 
-  test('second enhancer check-in succeeds for next slice after first job completes', async () => {
+  test('second enhancer pass is rejected for the same originating user message', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-multi');
     await enableEnhancer(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
@@ -169,7 +169,7 @@ describe('enhancer delegation-loop workflow', () => {
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: '<user-message>Slice 1</user-message>',
+      content: '<request>Build multi-slice feature</request>',
     });
 
     await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
@@ -207,18 +207,14 @@ describe('enhancer delegation-loop workflow', () => {
       });
     });
 
-    const { jobId: secondJobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
-      sessionId,
-      chatroomId,
-      senderRole: 'planner',
-      targetRole: 'enhancer',
-      content: '<user-message>Slice 2</user-message>',
-    });
-
-    expect(secondJobId).toBeDefined();
-    expect(secondJobId).not.toBe(firstJobId);
-
-    const secondJob = await t.run(async (ctx) => ctx.db.get(secondJobId));
-    expect(secondJob!.originUserMessageId).toBe(userMessageId);
+    await expect(
+      t.mutation(api.web.enhancer.index.enqueueHandoff, {
+        sessionId,
+        chatroomId,
+        senderRole: 'planner',
+        targetRole: 'enhancer',
+        content: '<request>Continue the user request</request>',
+      })
+    ).rejects.toThrow(/ENHANCER_ALREADY_USED/i);
   });
 });

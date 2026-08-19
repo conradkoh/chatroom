@@ -1,49 +1,17 @@
-/**
- * Handoff template: Duo planner → enhancer (mandatory planning check-in).
- *
- * The planner must always check in with the enhancer when enabled, providing
- * full context the enhancer cannot see from the session. Three XML-delimited
- * sections remove ambiguity: user message, grounding, and draft builder handoff.
- */
-
-import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-visibility';
-import { getFileReferenceGuidanceComment } from '../../../utils/file-reference-guidance';
+/** Handoff template: Duo planner → enhancer (request-first advisory pass). */
 
 /**
- * Returns the markdown check-in template the planner uses when handing work
- * to the handoff enhancer for critical review.
+ * The planner forwards only the request. The enhancer recovers authoritative
+ * history from the origin message ID attached to its job.
  */
 export function getPlannerToEnhancerHandoffTemplate(): string {
-  return `${getHandoffRecipientVisibilityCallout('enhancer')}
-
-**Mandatory Planning Check-in (Planner → Enhancer)** — paste into the handoff message. **Do not skip this check-in** when the enhancer is enabled.
-
-The enhancer starts from this check-in — it may read files in the repo to verify your grounding. Use the three XML sections below **exactly** — they delimit what the enhancer will review.
+  return `**Request Forward (Planner → Enhancer)** — copy the user's request below, without adding a plan, research, or a builder draft.
 
 \`\`\`markdown
-<user-message>
-<verbatim or faithful quote of the user's request — include constraints, priorities, and classification context if relevant>
-</user-message>
-
-<grounding>
-<fully detailed research — include file paths and snippets the enhancer should verify; it may read the codebase to validate your proposal>
-
-Include:
-- **Existing code examples** — relevant snippets, patterns, and conventions already in the codebase
-- **File references** — paths to every file you investigated or plan to change
-- **Technology choices** — libraries, frameworks, APIs, and why they apply here
-- **Observations** — what you learned, edge cases, risks, and open questions from investigation
-${getFileReferenceGuidanceComment()}
-</grounding>
-
-<builder-handoff>
-<your complete, filled-in Delegation Brief for builder review — every section with real content, not placeholders>
-
-Follow the **Handoff to \`builder\`** template structure (Summary, Goal, approach, Requirements, etc.). The enhancer reviews **approach and scope** — not line-by-line file edits. Keep file references for context, but expect advisory feedback on risks and gaps, not a rewritten brief.
-</builder-handoff>
+<request>
+<the user's request, verbatim when practical>
+</request>
 \`\`\`
 
-After handoff succeeds, **end your turn immediately** — do not monitor the enhancer or wait in this session. When review completes, enhancer → planner handoff delivers feedback as your next planner task.
-
-After you receive that feedback, you make the **final call** — incorporate valid critiques, ignore what doesn't apply, then proceed to \`builder\` or \`user\`. Do not re-check with the enhancer for this slice; one round only.`;
+After handoff succeeds, **end your turn immediately**. The enhancer independently downloads the originating message history and returns planning input as your next planner task.`;
 }

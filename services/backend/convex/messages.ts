@@ -696,6 +696,43 @@ export async function runHandoffHandler(
     const userOriginTask =
       activePlannerTasks.find((t) => t.createdBy === 'user') ?? activePlannerTasks[0];
 
+    const originUserMessageId = userOriginTask?.sourceMessageId
+      ? await walkToUserMessageId(ctx, userOriginTask.sourceMessageId)
+      : null;
+    if (!originUserMessageId) {
+      return {
+        success: false,
+        error: {
+          code: 'NO_PLANNER_USER_TASK',
+          message: 'Cannot resolve the originating user message for enhancer analysis',
+        },
+        messageId: null,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+      };
+    }
+
+    const existingOriginJob = await ctx.db
+      .query('chatroom_enhancerJobs')
+      .withIndex('by_chatroom_originUserMessageId', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('originUserMessageId', originUserMessageId)
+      )
+      .first();
+    if (existingOriginJob) {
+      return {
+        success: false,
+        error: {
+          code: 'ENHANCER_ALREADY_USED',
+          message: 'Enhancer analysis already ran for this originating user message',
+        },
+        messageId: null,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+      };
+    }
+
     const handoffValidation = validatePlannerEnhancerHandoff({
       taskPlannerEnhancerEnabled: userOriginTask?.plannerEnhancerEnabled,
       config: enhancerConfig,
@@ -1608,7 +1645,7 @@ export const getTaskDeliveryPrompt = query({
       message && 'senderRole' in message ? message.senderRole.toLowerCase() : undefined;
 
     const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles, {
-      includeEnhancer: plannerEnhancerEnabled && deliveryMessageSenderRole !== 'enhancer',
+      includeEnhancer: plannerEnhancerEnabled && deliveryMessageSenderRole === 'user',
     });
 
     // Primary-delivery attachments resolve from the task source message only.

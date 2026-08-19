@@ -239,9 +239,9 @@ function getEnhancerCheckInQueuedConfirmationLines(nativeIntegration?: boolean):
     : '**Run get-next-task now and end your turn** — do not wait for feedback, poll, monitor the enhancer, or re-submit the handoff.';
 
   return [
-    '✅ Planning check-in queued for handoff enhancer',
+    '✅ User request queued for handoff enhancer',
     '',
-    'Your check-in was sent to the handoff enhancer (async). You will receive planning feedback back as a planner task when review completes.',
+    'The user request was sent to the handoff enhancer (async). You will receive independent planning input as a planner task when analysis completes.',
     turnEndRule,
   ];
 }

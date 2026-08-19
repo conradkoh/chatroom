@@ -1,15 +1,16 @@
 import { describe, expect, test } from 'vitest';
+
 import {
-  ENHANCER_DELEGATION_ROUND_WORKFLOW,
   ENHANCER_DISABLED_USER_WORKFLOW,
   ENHANCER_ENABLED_USER_WORKFLOW,
+  ENHANCER_REQUEST_FIRST_WORKFLOW,
 } from './enhancer-workflow';
 
 describe('enhancer-workflow constants', () => {
-  test('enabled user workflow embeds delegation round as loop body', () => {
-    expect(ENHANCER_ENABLED_USER_WORKFLOW).toContain(ENHANCER_DELEGATION_ROUND_WORKFLOW);
+  test('enabled workflow runs enhancer once before planner and builder loops', () => {
+    expect(ENHANCER_REQUEST_FIRST_WORKFLOW).toBe('user → enhancer → planner');
     expect(ENHANCER_ENABLED_USER_WORKFLOW).toBe(
-      `user → [loop ${ENHANCER_DELEGATION_ROUND_WORKFLOW}] → user`
+      'user → enhancer → planner → [loop builder → planner] → user'
     );
   });
 

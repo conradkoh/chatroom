@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { buildPlanningReviewOutcomeContent } from './build-planning-review-outcome';
 
 describe('buildPlanningReviewOutcomeContent', () => {
@@ -21,14 +22,11 @@ describe('buildPlanningReviewOutcomeContent', () => {
     expect(result).toContain('Timeout on attempt 3');
   });
 
-  test('includes delegation-loop workflow guidance for failed check-in', () => {
+  test('continues without retry after failed request analysis', () => {
     const result = buildPlanningReviewOutcomeContent('cancelled');
-    expect(result).toContain('Do not retry the enhancer for this check-in');
-    expect(result).toContain(
-      'user → [loop planner → enhancer → planner → builder → planner] → user'
-    );
-    expect(result).toContain('builder handback');
-    expect(result).not.toContain('strictly linear');
-    expect(result).not.toContain('for this user instruction');
+    expect(result).toContain('Do not retry the enhancer for this user message');
+    expect(result).toContain('user → enhancer → planner → [loop builder → planner] → user');
+    expect(result).toContain('without another enhancer pass');
+    expect(result).not.toContain('builder handback');
   });
 });

@@ -14,7 +14,7 @@ function buildHandoffRuleLines(
     lines.push('- **To delegate implementation** → Hand off to `builder` with clear requirements');
     if (plannerEnhancerActive) {
       lines.push(
-        '- **When enhancement is enabled** → See `<handoff-enhancer>` in task delivery before each builder delegation'
+        '- **When enhancement is enabled** → On the initial user task, follow `<handoff-enhancer>` and forward the request before planning'
       );
     }
     lines.push(
