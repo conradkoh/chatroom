@@ -1,15 +1,14 @@
-import { useState } from 'react';
-
 import { ChatroomSelect } from '@/components/logs/ChatroomSelect';
 import { useChatrooms } from '@/hooks/use-chatrooms';
 import { useEventStream } from '@/hooks/use-event-stream';
+import { useEventStreamUrl } from '@/hooks/use-event-stream-url';
 
 function formatTimestamp(timestamp: number): string {
   return new Date(timestamp).toISOString();
 }
 
 export function EventStreamPage() {
-  const [chatroomId, setChatroomId] = useState<string>();
+  const { chatroomId, setChatroomId } = useEventStreamUrl();
   const chatroomsQuery = useChatrooms();
   const { entries, isLoading, error } = useEventStream(chatroomId);
 
