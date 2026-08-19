@@ -6,10 +6,12 @@ import {
   eventStreamHistoryInputSchema,
   harnessHistoryInputSchema,
   logHistoryInputSchema,
+  logDimensionsInputSchema,
   logSourcesInputSchema,
 } from './schemas.js';
 import { api } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
+import type { EventStreamEntry } from '../../../infrastructure/log-server/log-store.js';
 import type { SocketAck } from '../../domain/entities/socket-ack.js';
 import { createEventStreamHistoryUseCase } from '../../domain/usecase/event-stream-history.js';
 import { getLocalWebHealth } from '../../domain/usecase/get-local-web-health.js';
@@ -18,12 +20,11 @@ import { createLogDimensionsUseCase } from '../../domain/usecase/log-dimensions.
 import { createLogEventIngestionUseCase } from '../../domain/usecase/log-event-ingestion.js';
 import { createLogHistoryUseCase } from '../../domain/usecase/log-history.js';
 import { createLogSourcesUseCase } from '../../domain/usecase/log-sources.js';
-import { createSubscribeLogStreamUseCase } from '../../domain/usecase/subscribe-log-stream.js';
 import { createSubscribeEventStreamUseCase } from '../../domain/usecase/subscribe-event-stream.js';
+import { createSubscribeLogStreamUseCase } from '../../domain/usecase/subscribe-log-stream.js';
 import { asConvexSessionId } from '../../entry/daemon-types.js';
-import type { LogStreamEvent, LogStreamHub } from '../../local-web/server/log-stream-hub.js';
 import type { EventStreamHub } from '../../local-web/server/event-stream-hub.js';
-import type { EventStreamEntry } from '../../../infrastructure/log-server/log-store.js';
+import type { LogStreamEvent, LogStreamHub } from '../../local-web/server/log-stream-hub.js';
 import type { HarnessStreamEvent, StreamHub } from '../../local-web/server/stream-hub.js';
 import type { HarnessStreamRepository } from '../repository/harness-stream-repository.js';
 import type { LogRepository } from '../repository/log-repository.js';
@@ -149,7 +150,9 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
       const { ack } = extractAck(args);
       try {
         if (!subscribeEventStream) throw new Error('event stream use case not configured');
-        const unsub = subscribeEventStream((event: EventStreamEntry) => socket.emit('eventStream.stream', event));
+        const unsub = subscribeEventStream((event: EventStreamEntry) =>
+          socket.emit('eventStream.stream', event)
+        );
         streamUnsubs.push(unsub);
         callAck(ack, { ok: true, data: { subscribed: true } });
       } catch (err) {
@@ -170,8 +173,8 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
       const { payload, ack } = extractAck(args);
       try {
         if (!logDimensions) throw new Error('log dimensions use case not configured');
-        const parsed = logSourcesInputSchema.parse(payload ?? {});
-        callAck(ack, { ok: true, data: logDimensions(parsed.limit) });
+        const parsed = logDimensionsInputSchema.parse(payload ?? {});
+        callAck(ack, { ok: true, data: logDimensions(parsed) });
       } catch (err) {
         callAck(ack, { ok: false, error: normalizeError(err) });
       }

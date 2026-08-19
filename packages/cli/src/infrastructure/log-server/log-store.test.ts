@@ -70,10 +70,13 @@ describe('log store', () => {
         (x) => x.message
       )
     ).toEqual(['three']);
-    expect(listLogDimensions(db)).toEqual({
-      chatroomIds: ['room-a', 'room-b'],
-      roles: ['builder', 'planner'],
-      harnesses: ['claude', 'codex', 'legacy'],
+    expect(listLogDimensions(db, 'room-a')).toEqual({
+      roles: ['builder'],
+      harnesses: ['claude'],
+    });
+    expect(listLogDimensions(db, 'room-b')).toEqual({
+      roles: ['planner'],
+      harnesses: ['codex'],
     });
     db.close();
   });
