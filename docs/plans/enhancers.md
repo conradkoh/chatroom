@@ -4,25 +4,33 @@
 
 ## Purpose
 
-The enhancer is an optional, high-intelligence first planning pass for duo teams. The planner is stateful and owns the durable plan, delegation, verification, and user delivery. The enhancer is memoryless and runs once per originating user request.
+The enhancer is an optional, high-intelligence first planning pass for Solo and Duo teams. The team entry point is stateful and owns durable memory, the final plan, execution or delegation, verification, and user delivery. The enhancer is memoryless and runs once per originating user request.
 
-This split is deliberate: use the more expensive enhancer for one context-grounded analysis, then let the planner retain and apply that input throughout the rest of the task. The enhancer does not review a planner draft and does not need to know downstream handoff formats.
+This split is deliberate: use the more expensive enhancer for one context-grounded analysis, then let the persistent entry-point agent retain and apply that input throughout the rest of the task. The enhancer does not review an agent draft and does not need to know downstream handoff formats.
 
 ## Workflow
 
-With enhancement enabled:
+With enhancement enabled in a Duo team:
 
 ```text
 user request → planner forwards request → enhancer analyzes → planner plans → [builder → planner] → user
 ```
 
-With enhancement disabled:
+With enhancement enabled in a Solo team:
+
+```text
+user request → solo forwards request → enhancer analyzes → solo plans and implements → user
+```
+
+With enhancement disabled, each team follows its normal workflow without the enhancer pass.
+
+For Duo:
 
 ```text
 user request → planner plans → [builder → planner] → user
 ```
 
-The planner's first action on a new user task is the planner→enhancer handoff. It must not research, draft a plan, or prepare a builder brief first. The handoff body is intentionally limited to:
+The entry point's first action on a new user task is its handoff to the enhancer. It must not research, draft a plan, or prepare implementation instructions first. The handoff body is intentionally limited to:
 
 ```xml
 <request>
@@ -30,7 +38,7 @@ The planner's first action on a new user task is the planner→enhancer handoff.
 </request>
 ```
 
-The backend permits only one enhancer job for a given `originUserMessageId`. Builder handbacks return directly to the planner and do not retrigger enhancement.
+The backend permits only one enhancer job for a given `originUserMessageId`. Enhancer output returns to the originating team entry point (`planner` or `solo`), and later work does not retrigger enhancement.
 
 ## Context recovery
 
@@ -50,14 +58,14 @@ After recovering history, the enhancer independently inspects the repository and
 The spawn payload contains only:
 
 - job, chatroom, and originating user-message identifiers;
-- the enhancer→planner output template;
+- the enhancer→entry-point output template;
 - the stripped forwarded request;
 - role constraints and the mandatory `chatroom enhancer complete` command.
 
 It deliberately excludes:
 
-- planner research, grounding, or a draft plan;
-- planner→builder and planner→user templates;
+- entry-point research, grounding, or a draft plan;
+- downstream implementation and user-delivery templates;
 - builder brief requirements or eventual user-report structure.
 
 The enhancer output is independent planning input organized around:
@@ -71,13 +79,13 @@ The enhancer output is independent planning input organized around:
 - recommended next steps;
 - implementation notes, last and only when useful.
 
-The output is advisory. The stateful planner reconciles it with persistent task context and owns the final plan.
+The output is advisory. The stateful entry-point agent reconciles it with persistent task context and owns the final plan and execution.
 
 ## Runtime architecture
 
 ```mermaid
 flowchart TD
-    U[User request] --> P[Stateful planner]
+    U[User request] --> P[Stateful team entry point<br/>planner or solo]
     P -->|stripped request, first action| E[Pending enhancer job]
     E --> D[Daemon claims and spawns]
     D --> H[Memoryless enhancer]
@@ -85,42 +93,49 @@ flowchart TD
     H -->|inspect| R[Repository]
     M --> A[Independent planning input]
     R --> A
-    A -->|chatroom enhancer complete| P2[Planner resumes with persistent memory]
-    P2 --> B[Builder delegation loop]
-    B --> P2
+    A -->|chatroom enhancer complete| P2[Entry point resumes with persistent memory]
+    P2 --> B{Team workflow}
+    B -->|Solo| I[Implement directly]
+    B -->|Duo| D2[Builder delegation loop]
+    D2 --> P2
+    I --> X[Verified user handoff]
     P2 --> X[Verified user handoff]
 ```
 
-The enhancer is a daemon worker, not a persistent chatroom team role. It runs one turn, completes through the CLI, and is disposed. Retries and terminal failure use the existing enhancer job lifecycle; no planner draft is available as a fallback.
+The enhancer is a daemon worker, not a persistent chatroom team role. It runs one turn, completes through the CLI, and is disposed. Retries and terminal failure use the same enhancer job lifecycle for both teams; no entry-point draft is available as a fallback.
 
 ## Key modules
 
-| Layer                     | Path                                                                          | Responsibility                                            |
-| ------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Initial planner guidance  | `services/backend/prompts/task-delivery/enhancer-guidance.ts`                 | Requires request forwarding as the planner's first action |
-| Planner→enhancer template | `services/backend/prompts/teams/duo/handoff-templates/planner-to-enhancer.ts` | Defines the stripped `<request>` body                     |
-| Workflow policy           | `services/backend/src/domain/usecase/enhancer/enhancer-workflow.ts`           | Limits enhancer availability to the initial user task     |
-| Handoff enforcement       | `services/backend/convex/messages.ts`                                         | Rejects duplicate jobs for an originating user message    |
-| Spawn payload             | `services/backend/convex/daemon/enhancer/spawnPayload.ts`                     | Supplies origin, request, output contract, and prompts    |
-| History guidance          | `services/backend/prompts/enhancer/history-retrieval.ts`                      | Renders anchor and origin-based download commands         |
-| Enhancer role             | `services/backend/prompts/enhancer/system-prompt.ts`                          | Defines independent, memoryless planning behavior         |
-| Task envelope             | `services/backend/prompts/enhancer/render-task-envelope.ts`                   | Excludes planner drafts and downstream templates          |
-| Enhancer→planner template | `services/backend/prompts/teams/duo/handoff-templates/enhancer-to-planner.ts` | Structures independent planning input                     |
-| Completion                | `packages/cli/src/commands/enhancer/complete.ts`                              | Returns planning input to the planner task queue          |
+| Layer                        | Path                                                                          | Responsibility                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Team capability              | `packages/shared/src/domain/enhancer-team-capability.ts`                      | Defines supported teams and their persistent entry-point roles  |
+| Initial entry-point guidance | `services/backend/prompts/task-delivery/enhancer-guidance.ts`                 | Requires request forwarding as the entry point's first action   |
+| Shared enhancer templates    | `services/backend/prompts/enhancer/handoff-templates.ts`                      | Defines request-only and advisory-input contracts               |
+| Team template routing        | `services/backend/prompts/teams/{duo,solo}/handoff-templates/index.ts`        | Maps planner/solo handoff pairs to shared contracts             |
+| Workflow policy              | `services/backend/src/domain/usecase/enhancer/enhancer-workflow.ts`           | Limits enhancer availability to the initial user task           |
+| Handoff enforcement          | `services/backend/convex/messages.ts`                                         | Authorizes entry points and rejects duplicate or early handoffs |
+| Entry-point status           | `services/backend/src/domain/usecase/enhancer/enhancer-entry-point-status.ts` | Tracks planner or solo while the transient enhancer is active   |
+| Spawn payload                | `services/backend/convex/daemon/enhancer/spawnPayload.ts`                     | Supplies origin, request, output contract, and prompts          |
+| History guidance             | `services/backend/prompts/enhancer/history-retrieval.ts`                      | Renders anchor and origin-based download commands               |
+| Enhancer role                | `services/backend/prompts/enhancer/system-prompt.ts`                          | Defines independent, memoryless planning behavior               |
+| Task envelope                | `services/backend/prompts/enhancer/render-task-envelope.ts`                   | Excludes entry-point drafts and downstream templates            |
+| Completion                   | `packages/cli/src/commands/enhancer/complete.ts`                              | Returns planning input to the owning planner or solo task queue |
 
 ## Compatibility constraints
 
 - `targetId: 'handoff:planner-to-builder'` remains the persisted configuration discriminator to avoid a schema/config migration. It is not exposed to the enhancer as workflow knowledge.
 - `draftContent` remains the persisted job-field name for compatibility, but request-first jobs store the forwarded user request there.
 - `inputTemplateSnapshot` remains optional in the schema so existing documents continue to validate; new jobs no longer populate or consume it.
-- Legacy XML tags remain renderable in the webapp for historical messages, but new planner→enhancer handoffs use only `<request>`.
+- The legacy `plannerEnhancerEnabled` field and helper names remain during this migration to avoid changing persisted task snapshots and public API shapes.
+- Legacy XML tags remain renderable in the webapp for historical messages, but new entry-point→enhancer handoffs use only `<request>`.
 
 ## Verification focus
 
 Tests should prove both required behavior and forbidden context:
 
 - enhancer is the first enabled workflow action and runs once per origin message;
-- builder handbacks cannot target enhancer;
+- Solo and Duo both route the initial user task to the enhancer, then return input to their own entry point;
+- later handbacks cannot target enhancer;
 - history commands include the exact `originUserMessageId`;
 - spawn payload includes the request and output contract;
 - spawn payload does not include downstream handoff templates, planner grounding, or a planner draft;
