@@ -48,3 +48,20 @@ export type LogHistoryResult = { entries: LogLine[] };
 export type LogSourcesResult = { sources: string[] };
 export type LogsHistoryAck = SocketAck<LogHistoryResult>;
 export type LogsSourcesAck = SocketAck<LogSourcesResult>;
+export type EventStreamEntry = {
+  id: number;
+  timestamp: number;
+  type: string;
+  payload: Record<string, unknown>;
+};
+export type EventStreamHistoryInput = {
+  chatroomId: string;
+  afterId?: number;
+  beforeId?: number;
+  type?: string;
+  fromTimestamp?: number;
+  toTimestamp?: number;
+  limit?: number;
+};
+export type EventStreamHistoryResult = { entries: EventStreamEntry[] };
+export type EventStreamHistoryAck = SocketAck<EventStreamHistoryResult>;

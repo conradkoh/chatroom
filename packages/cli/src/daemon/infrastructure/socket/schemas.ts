@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import type { EventStreamQuery } from '../../domain/entities/event-stream-query.js';
 import type { HarnessHistoryQuery } from '../../domain/entities/harness-history-query.js';
 import type { LogHistoryQuery } from '../../domain/entities/log-history-query.js';
 
@@ -23,3 +24,26 @@ export const logHistoryInputSchema = z.object({
 export const logSourcesInputSchema = z.object({
   limit: z.number().int().positive().max(1000).optional(),
 });
+export const eventStreamHistoryInputSchema = z.object({
+  chatroomId: z.string().min(1),
+  afterId: z.number().int().nonnegative().optional(),
+  beforeId: z.number().int().positive().optional(),
+  type: z.string().optional(),
+  fromTimestamp: z.number().int().nonnegative().optional(),
+  toTimestamp: z.number().int().nonnegative().optional(),
+  limit: z.number().int().positive().max(1000).optional(),
+}) satisfies z.ZodType<EventStreamQuery>;
+
+/**
+ * Wire contract for forwarding a chatroom_eventStream document to the daemon
+ * log server. The event stream is a discriminated union whose variants carry
+ * different fields, so the common envelope is validated here and the
+ * variant-specific fields are preserved unchanged.
+ */
+export const chatroomEventIngestInputSchema = z
+  .object({
+    type: z.string().min(1),
+    timestamp: z.number(),
+    chatroomId: z.string().min(1).optional(),
+  })
+  .passthrough();

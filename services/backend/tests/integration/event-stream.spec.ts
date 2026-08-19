@@ -358,18 +358,10 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
       .collect();
   });
 
-  expect(eventsAfter.length).toBeGreaterThan(countBefore);
+  expect(eventsAfter.length).toBe(countBefore);
 
   const exitedEvent = eventsAfter.find((e) => e.type === 'agent.exited');
-  expect(exitedEvent).toBeDefined();
-  if (exitedEvent && exitedEvent.type === 'agent.exited') {
-    expect(exitedEvent.chatroomId).toBe(chatroomId);
-    expect(exitedEvent.machineId).toBe(machineId);
-    expect(exitedEvent.role).toBe('builder');
-    expect(exitedEvent.pid).toBe(9999);
-    expect(exitedEvent.exitCode).toBe(1);
-    expect(typeof exitedEvent.timestamp).toBe('number');
-  }
+  expect(exitedEvent).toBeUndefined();
 
   // Also verify that the PID was cleared on the agent config
   const agentConfig = await t.run(async (ctx) => {
@@ -446,7 +438,7 @@ test('recordAgentExited does NOT emit agent.requestStart — daemon owns crash r
   const requestStartCountAfter = eventsAfter.filter((e) => e.type === 'agent.requestStart').length;
 
   expect(requestStartCountAfter).toBe(requestStartCountBefore); // no new requestStart events
-  expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined(); // exited event still recorded
+  expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeUndefined();
 });
 
 // ─── Test 8: Intentional stop does NOT schedule ensure-agent ─────────────────
@@ -857,8 +849,8 @@ describe('Eager crash recovery (idle agent restart)', () => {
     ).length;
     expect(requestStartCountAfter).toBe(requestStartCountBefore);
 
-    // agent.exited should still be recorded
-    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined();
+    // agent.exited is logged by the daemon, not Convex.
+    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeUndefined();
   });
 
   test('crash with no task + desiredState=stopped does NOT emit agent.requestStart', async () => {
@@ -1047,8 +1039,8 @@ describe('Eager crash recovery (idle agent restart)', () => {
     ).length;
     expect(requestStartCountAfter).toBe(requestStartCountBefore);
 
-    // agent.exited should still be recorded
-    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined();
+    // agent.exited is logged by the daemon, not Convex.
+    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeUndefined();
   });
 });
 

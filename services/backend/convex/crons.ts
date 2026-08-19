@@ -4,9 +4,6 @@ import { internal } from './_generated/api';
 
 const crons = cronJobs();
 
-// Clean up old event stream records every 15 minutes to prevent unbounded growth
-crons.interval('cleanup old events', { minutes: 15 }, internal.eventCleanup.cleanupOldEvents);
-
 // Storage cleanup — command output (7-day TTL, hourly)
 crons.interval(
   'cleanup command output',

@@ -4,7 +4,14 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { appendBatch, listLogDimensions, queryAfterId, queryHistory } from './log-store.js';
+import {
+  appendBatch,
+  appendChatroomEvent,
+  listLogDimensions,
+  queryAfterId,
+  queryEventStream,
+  queryHistory,
+} from './log-store.js';
 import { openLogDatabase } from './open-log-database.js';
 
 describe('log store', () => {
@@ -28,7 +35,11 @@ describe('log store', () => {
       { timestamp: 200, level: 'info', source: 'test', message: 'inside' },
       { timestamp: 300, level: 'info', source: 'test', message: 'after' },
     ]);
-    expect(queryHistory(db, undefined, 100, undefined, undefined, undefined, undefined, 150, 250).map((x) => x.message)).toEqual(['inside']);
+    expect(
+      queryHistory(db, undefined, 100, undefined, undefined, undefined, undefined, 150, 250).map(
+        (x) => x.message
+      )
+    ).toEqual(['inside']);
     db.close();
   });
 
@@ -64,6 +75,33 @@ describe('log store', () => {
       roles: ['builder', 'planner'],
       harnesses: ['claude', 'codex', 'legacy'],
     });
+    db.close();
+  });
+
+  it('stores migrated events in the dedicated event stream table', () => {
+    const db = openLogDatabase(join(tmpdir(), `logs-${randomUUID()}.sqlite`));
+    appendChatroomEvent(db, {
+      type: 'agent.exited',
+      timestamp: 42,
+      chatroomId: 'room-a',
+      role: 'builder',
+    });
+    appendChatroomEvent(db, {
+      type: 'agent.exited',
+      timestamp: 43,
+      chatroomId: 'room-b',
+      role: 'planner',
+    });
+
+    expect(queryEventStream(db, { chatroomId: 'room-a' })).toMatchObject([
+      {
+        timestamp: 42,
+        type: 'agent.exited',
+        payload: { chatroomId: 'room-a', role: 'builder' },
+      },
+    ]);
+    expect(queryEventStream(db, { chatroomId: 'room-a' })).toHaveLength(1);
+    expect(queryHistory(db)).toEqual([]);
     db.close();
   });
 });

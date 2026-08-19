@@ -2,6 +2,8 @@ import type { Server, Socket } from 'socket.io';
 
 import { normalizeError } from './normalize-error.js';
 import {
+  chatroomEventIngestInputSchema,
+  eventStreamHistoryInputSchema,
   harnessHistoryInputSchema,
   logHistoryInputSchema,
   logSourcesInputSchema,
@@ -9,13 +11,14 @@ import {
 import { api } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import type { SocketAck } from '../../domain/entities/socket-ack.js';
+import { createEventStreamHistoryUseCase } from '../../domain/usecase/event-stream-history.js';
 import { getLocalWebHealth } from '../../domain/usecase/get-local-web-health.js';
 import { listHarnessHistory } from '../../domain/usecase/list-harness-history.js';
-import {
-  listLogHistory,
-  listLogSources,
-  listLogDimensions,
-} from '../../domain/usecase/list-log-history.js';
+import { createLogDimensionsUseCase } from '../../domain/usecase/log-dimensions.js';
+import { createLogEventIngestionUseCase } from '../../domain/usecase/log-event-ingestion.js';
+import { createLogHistoryUseCase } from '../../domain/usecase/log-history.js';
+import { createLogSourcesUseCase } from '../../domain/usecase/log-sources.js';
+import { createSubscribeLogStreamUseCase } from '../../domain/usecase/subscribe-log-stream.js';
 import { asConvexSessionId } from '../../entry/daemon-types.js';
 import type { LogStreamEvent, LogStreamHub } from '../../local-web/server/log-stream-hub.js';
 import type { HarnessStreamEvent, StreamHub } from '../../local-web/server/stream-hub.js';
@@ -49,6 +52,20 @@ function extractAck(args: unknown[]): { payload: unknown; ack: unknown } {
 }
 
 export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersDeps): void {
+  const logHistory = deps.logRepo ? createLogHistoryUseCase({ reader: deps.logRepo }) : undefined;
+  const eventStreamHistory = deps.logRepo
+    ? createEventStreamHistoryUseCase({ reader: deps.logRepo })
+    : undefined;
+  const logEventIngestion = deps.logRepo
+    ? createLogEventIngestionUseCase({ writer: deps.logRepo })
+    : undefined;
+  const logSources = deps.logRepo ? createLogSourcesUseCase({ reader: deps.logRepo }) : undefined;
+  const logDimensions = deps.logRepo
+    ? createLogDimensionsUseCase({ reader: deps.logRepo })
+    : undefined;
+  const subscribeLogStream = deps.logStreamHub
+    ? createSubscribeLogStreamUseCase({ hub: deps.logStreamHub })
+    : undefined;
   io.on('connection', (socket: Socket) => {
     const streamUnsubs: (() => void)[] = [];
 
@@ -90,11 +107,31 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
     socket.on('logs.history', (...args) => {
       const { payload, ack } = extractAck(args);
       try {
-        if (!deps.logRepo) throw new Error('log repository not configured');
+        if (!logHistory) throw new Error('log history use case not configured');
         callAck(ack, {
           ok: true,
-          data: listLogHistory(deps.logRepo, logHistoryInputSchema.parse(payload ?? {})),
+          data: logHistory(logHistoryInputSchema.parse(payload ?? {})),
         });
+      } catch (err) {
+        callAck(ack, { ok: false, error: normalizeError(err) });
+      }
+    });
+    socket.on('eventStream.ingest', (...args) => {
+      const { payload, ack } = extractAck(args);
+      try {
+        if (!logEventIngestion) throw new Error('log event ingestion use case not configured');
+        const event = chatroomEventIngestInputSchema.parse(payload);
+        callAck(ack, { ok: true, data: logEventIngestion(event) });
+      } catch (err) {
+        callAck(ack, { ok: false, error: normalizeError(err) });
+      }
+    });
+    socket.on('eventStream.history', (...args) => {
+      const { payload, ack } = extractAck(args);
+      try {
+        if (!eventStreamHistory) throw new Error('event stream use case not configured');
+        const input = eventStreamHistoryInputSchema.parse(payload ?? {});
+        callAck(ack, { ok: true, data: eventStreamHistory(input) });
       } catch (err) {
         callAck(ack, { ok: false, error: normalizeError(err) });
       }
@@ -102,9 +139,9 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
     socket.on('logs.sources', (...args) => {
       const { payload, ack } = extractAck(args);
       try {
-        if (!deps.logRepo) throw new Error('log repository not configured');
+        if (!logSources) throw new Error('log sources use case not configured');
         const parsed = logSourcesInputSchema.parse(payload ?? {});
-        callAck(ack, { ok: true, data: listLogSources(deps.logRepo, parsed.limit) });
+        callAck(ack, { ok: true, data: logSources(parsed.limit) });
       } catch (err) {
         callAck(ack, { ok: false, error: normalizeError(err) });
       }
@@ -112,9 +149,9 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
     socket.on('logs.dimensions', (...args) => {
       const { payload, ack } = extractAck(args);
       try {
-        if (!deps.logRepo) throw new Error('log repository not configured');
+        if (!logDimensions) throw new Error('log dimensions use case not configured');
         const parsed = logSourcesInputSchema.parse(payload ?? {});
-        callAck(ack, { ok: true, data: listLogDimensions(deps.logRepo, parsed.limit) });
+        callAck(ack, { ok: true, data: logDimensions(parsed.limit) });
       } catch (err) {
         callAck(ack, { ok: false, error: normalizeError(err) });
       }
@@ -142,8 +179,8 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
     socket.on('logs.stream.subscribe', (...args) => {
       const { ack } = extractAck(args);
       try {
-        if (!deps.logStreamHub) throw new Error('log stream hub not configured');
-        const unsub = deps.logStreamHub.subscribe((event: LogStreamEvent) =>
+        if (!subscribeLogStream) throw new Error('log stream use case not configured');
+        const unsub = subscribeLogStream((event: LogStreamEvent) =>
           socket.emit('logs.stream', event)
         );
         streamUnsubs.push(unsub);
