@@ -658,6 +658,56 @@ export default defineSchema({
   }).index('by_chatroom_signalKey', ['chatroomId', 'signalKey']),
 
   /**
+   * Compact per-machine wake-up cursor for daemon assigned-task updates.
+   *
+   * The daemon will subscribe to this single row instead of the full assigned
+   * task snapshot list. `latestRevision` must be monotonic and is only a
+   * trigger/cursor; the durable task delta source will be added separately.
+   * One record is maintained per registered machine.
+   */
+  chatroom_machineTaskUpdateCursors: defineTable({
+    machineId: v.string(),
+    latestRevision: v.number(),
+    updatedAt: v.number(),
+  }).index('by_machineId', ['machineId']),
+
+  /** Durable numeric task deltas; the cursor above is only a wake-up signal. */
+  chatroom_machineAssignedTaskChanges: defineTable({
+    machineId: v.string(),
+    revision: v.number(),
+    op: v.union(v.literal('upsert'), v.literal('delete')),
+    taskId: v.id('chatroom_tasks'),
+    role: v.string(),
+    snapshot: v.optional(
+      v.object({
+        taskId: v.id('chatroom_tasks'),
+        chatroomId: v.id('chatroom_rooms'),
+        status: v.union(v.literal('pending'), v.literal('acknowledged'), v.literal('in_progress')),
+        assignedTo: v.optional(v.string()),
+        updatedAt: v.number(),
+        createdAt: v.number(),
+        agentConfig: v.object({
+          role: v.string(),
+          machineId: v.string(),
+          agentHarness: v.string(),
+          model: v.optional(v.string()),
+          workingDir: v.optional(v.string()),
+          spawnedAgentPid: v.optional(v.number()),
+          desiredState: v.optional(v.string()),
+          circuitState: v.optional(v.string()),
+        }),
+        participant: v.optional(
+          v.object({
+            lastSeenAction: v.string().nullable(),
+            lastSeenAt: v.number().nullable(),
+            lastStatus: v.string().nullable(),
+          })
+        ),
+      })
+    ),
+  }).index('by_machineId_revision', ['machineId', 'revision']),
+
+  /**
    * Slim daemon task-monitor rows — one per (machineId, taskId, role).
    * Written on task/config/participant mutations; read via indexed cursors (no task.content).
    */
