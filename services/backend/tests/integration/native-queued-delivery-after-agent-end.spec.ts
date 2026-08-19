@@ -148,7 +148,7 @@ describe('Native queued delivery after agent_end', () => {
     expect(promotedTask.assignedTo).toBe('builder');
 
     await syncMachineSnapshots(sessionId, machineId);
-    const snapshots = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+    const snapshots = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
       sessionId,
       machineId,
     });

@@ -7,7 +7,7 @@ vi.mock('../../api.js', () => ({
   api: {
     machines: {
       syncMachineAssignedTaskSnapshotsMutation: 'syncMachineAssignedTaskSnapshotsMutation',
-      listMachineAssignedTaskSnapshots: 'listMachineAssignedTaskSnapshots',
+      listMachineAssignedTaskChangesSince: 'listMachineAssignedTaskChangesSince',
       getAssignedTaskForAction: 'getAssignedTaskForAction',
     },
     participants: {

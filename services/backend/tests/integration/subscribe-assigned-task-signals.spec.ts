@@ -21,7 +21,7 @@ async function syncMachineSnapshots(sessionId: string, machineId: string): Promi
   });
 }
 
-describe('machines.listMachineAssignedTaskSnapshots', () => {
+describe('assigned-task current snapshots via changelog', () => {
   test('returns active tasks without task content', async () => {
     const { sessionId } = await createTestSession('test-lite-tasks-1');
     const machineId = 'machine-lite-tasks-1';
@@ -37,7 +37,7 @@ describe('machines.listMachineAssignedTaskSnapshots', () => {
       createdBy: 'user',
     });
 
-    const result = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+    const result = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
       sessionId,
       machineId,
     });
@@ -72,7 +72,7 @@ describe('machines.listMachineAssignedTaskSnapshots', () => {
       pid: 42_424,
     });
 
-    const result = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+    const result = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
       sessionId,
       machineId,
     });
@@ -94,7 +94,7 @@ describe('machines.listMachineAssignedTaskSnapshots', () => {
       createdBy: 'user',
     });
 
-    const running = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+    const running = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
       sessionId,
       machineId,
     });
@@ -107,7 +107,7 @@ describe('machines.listMachineAssignedTaskSnapshots', () => {
       payload: { chatroomId, role: 'builder' },
     });
 
-    const stopped = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+    const stopped = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
       sessionId,
       machineId,
     });
@@ -206,7 +206,7 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
     // Daemon startup: sync projection + hydrate empty working set.
     await syncMachineSnapshots(sessionId, machineId);
 
-    const hydrate = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+    const hydrate = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
       sessionId,
       machineId,
     });
@@ -248,7 +248,7 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
     expect(signal.revisionKey).toBeTruthy();
     expect(signal).not.toHaveProperty('taskContent');
 
-    const snapshots = await t.query(api.machines.listMachineAssignedTaskSnapshots, {
+    const snapshots = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
       sessionId,
       machineId,
     });
@@ -353,7 +353,11 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
       chatroomId,
       role: 'builder',
       taskId: (
-        await t.query(api.machines.listMachineAssignedTaskSnapshots, { sessionId, machineId })
+        await t.query(api.machines.listMachineAssignedTaskChangesSince, {
+          sessionId,
+          machineId,
+          limit: 50,
+        })
       ).tasks[0]!.taskId,
     });
 

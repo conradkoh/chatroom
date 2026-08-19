@@ -85,8 +85,9 @@ daemon subscribes to compact cursor
 
 ### Daemon
 
-- Retain one-shot startup hydrate from
-  `machines.listMachineAssignedTaskSnapshots`.
+- Startup syncs the projection, drains
+  `machines.listMachineAssignedTaskChangesSince` from revision 0, then subscribes
+  to `machines.subscribeMachineTaskUpdateCursor`.
 - Subscribe to the compact machine cursor instead of the full snapshot list.
 - Debounce cursor notifications and coalesce concurrent fetches into one
   delta request.

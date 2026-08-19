@@ -7,7 +7,7 @@
  * - Presence feed: presenceUpdatedAt cursor — nudge timing (replaces 15s reconcile poll)
  *
  * Fat task.content is fetched only when nudging, reviving, or injecting.
- * Dual-channel WorkingSnapshot hydrate still uses one-shot HTTP.
+ * Startup folds the changelog from revision 0; the compact cursor remains the WS wake-up.
  */
 
 import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliability.js';

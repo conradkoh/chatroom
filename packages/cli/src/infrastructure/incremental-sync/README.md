@@ -219,11 +219,11 @@ Unit-test merge rules in `daemon-start/<feed>-snapshot.test.ts`. Transport/orche
 
 ## Two channels
 
-| Channel         | Transport     | Carries                                 | Example                                       |
-| --------------- | ------------- | --------------------------------------- | --------------------------------------------- |
-| **Incremental** | WS `onUpdate` | Status, config, action changes (deltas) | `machines.subscribeAssignedTaskSignalsSince`  |
-| **Presence**    | WS `onUpdate` | `lastSeenAt` heartbeats (nudge timing)  | `machines.subscribeAssignedTaskPresenceSince` |
-| **Hydrate**     | HTTP once     | Full slim snapshot                      | `machines.listMachineAssignedTaskSnapshots`   |
+| Channel         | Transport            | Carries                                 | Example                                        |
+| --------------- | -------------------- | --------------------------------------- | ---------------------------------------------- |
+| **Incremental** | WS `onUpdate`        | Status, config, action changes (deltas) | `machines.subscribeAssignedTaskSignalsSince`   |
+| **Presence**    | WS `onUpdate`        | `lastSeenAt` heartbeats (nudge timing)  | `machines.subscribeAssignedTaskPresenceSince`  |
+| **Hydrate**     | HTTP changelog drain | Revisioned slim snapshot                | `machines.listMachineAssignedTaskChangesSince` |
 
 Do not put pure heartbeat fields in `revisionKey`; let reconcile handle them. Document which fields are signal-only vs reconcile-only for each feed.
 
@@ -303,7 +303,7 @@ If the subscribe query re-runs too often because it reads high-churn tables, wri
 
 ```
 Initial hydrate (HTTP)                    Presence subscribe (WS)
-listMachineAssignedTaskSnapshots ──► replaceAll(snapshot)
+listMachineAssignedTaskChangesSince ──► drainNow() ──► apply changes
          │
 Seed cursors (HTTP) ──► subscribeAssignedTaskSignalsSince + subscribeAssignedTaskPresenceSince
          │
@@ -321,7 +321,7 @@ getAssignedTaskForAction (full task.content)
 | Piece              | Location                                                                                      |
 | ------------------ | --------------------------------------------------------------------------------------------- |
 | Incremental query  | `services/backend/convex/machines.ts` → `subscribeAssignedTaskSignalsSince`                   |
-| Hydrate snapshot   | `services/backend/convex/machines.ts` → `listMachineAssignedTaskSnapshots`                    |
+| Hydrate snapshot   | `listMachineAssignedTaskChangesSince` changelog drain                                         |
 | Presence subscribe | `services/backend/convex/machines.ts` → `subscribeAssignedTaskPresenceSince`                  |
 | Action fetch       | `services/backend/convex/machines.ts` → `getAssignedTaskForAction`                            |
 | Backend core       | `services/backend/src/domain/usecase/machine/assigned-tasks-core.ts`                          |
