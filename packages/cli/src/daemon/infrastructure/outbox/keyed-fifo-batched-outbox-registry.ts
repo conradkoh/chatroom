@@ -16,6 +16,7 @@ export function createKeyedFifoBatchedOutboxRegistry<TItem, TResult>(o: {
   serialize: (i: TItem) => string;
   deserialize: (s: string) => TItem;
   onError?: (key: string, e: unknown) => void;
+  classifyOutcome?: (result: TResult, item: TItem) => { kind: 'success' } | { kind: 'retry'; item: TItem };
 }): KeyedFifoBatchedOutboxRegistry<TItem, TResult> {
   const boxes = new Map<string, FifoBatchedOutbox<TItem, TResult>>();
   const get = (key: string) => {
@@ -29,6 +30,7 @@ export function createKeyedFifoBatchedOutboxRegistry<TItem, TResult>(o: {
         serialize: o.serialize,
         deserialize: o.deserialize,
         onError: (e) => o.onError?.(key, e),
+        classifyOutcome: o.classifyOutcome,
       });
       boxes.set(key, b);
     }

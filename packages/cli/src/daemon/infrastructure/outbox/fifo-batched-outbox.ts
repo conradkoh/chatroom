@@ -1,4 +1,5 @@
 import type { DurableFifoQueueStore } from './durable-fifo-queue-store.js';
+export type FifoSendOutcome<TResult, TItem> = { kind: 'success' } | { kind: 'retry'; item: TItem };
 export type FifoBatchedOutboxOptions<TItem, TResult> = {
   batchSize: number;
   send: (items: TItem[]) => Promise<TResult[]>;
@@ -9,6 +10,7 @@ export type FifoBatchedOutboxOptions<TItem, TResult> = {
   retryDelayMs?: number;
   maxRetryDelayMs?: number;
   onError?: (error: unknown) => void;
+  classifyOutcome?: (result: TResult, item: TItem) => FifoSendOutcome<TResult, TItem>;
 };
 export type FifoBatchedOutbox<TItem, TResult> = {
   enqueue(item: TItem): Promise<TResult>;
@@ -24,6 +26,10 @@ export function createFifoBatchedOutbox<TItem, TResult>(
   >();
   let running: Promise<void> | undefined;
   let stopped = false;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let retryAttempt = 0;
+  const retryDelay = () => Math.min((o.retryDelayMs ?? 500) * 2 ** retryAttempt++, o.maxRetryDelayMs ?? 5000);
+  const scheduleRetry = () => { if (!stopped && !retryTimer) { retryTimer = setTimeout(() => { retryTimer = undefined; void drain().catch(() => undefined); }, retryDelay()); retryTimer.unref?.(); } };
   const drain = async () => {
     if (running) return running;
     running = (async () => {
@@ -32,16 +38,20 @@ export function createFifoBatchedOutbox<TItem, TResult>(
         if (!rows.length) break;
         try {
           const results = await o.send(rows.map((r) => o.deserialize(r.payloadJson)));
+          let hasRetry = false;
           for (let i = 0; i < results.length; i++) {
-            o.store.markDone(rows[i].id);
-            waiters.get(rows[i].id)?.resolve(results[i]);
-            waiters.delete(rows[i].id);
+            const item = o.deserialize(rows[i].payloadJson);
+            const outcome = o.classifyOutcome?.(results[i], item) ?? { kind: 'success' as const };
+            if (outcome.kind === 'retry') { o.store.updatePayload(rows[i].id, o.serialize(outcome.item)); o.store.markPending(rows[i].id); hasRetry = true; continue; }
+            o.store.markDone(rows[i].id); waiters.get(rows[i].id)?.resolve(results[i]); waiters.delete(rows[i].id);
           }
           for (let i = results.length; i < rows.length; i++) o.store.markPending(rows[i].id);
+          if (hasRetry) { scheduleRetry(); break; }
         } catch (e) {
           o.onError?.(e);
           for (const r of rows) o.store.markPendingRetry(r.id, e);
-          throw e;
+          scheduleRetry();
+          break;
         }
       }
     })().finally(() => {
@@ -63,6 +73,8 @@ export function createFifoBatchedOutbox<TItem, TResult>(
   };
   const stop = async () => {
     if (stopped) return;
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = undefined;
     await flushNow();
     stopped = true;
   };

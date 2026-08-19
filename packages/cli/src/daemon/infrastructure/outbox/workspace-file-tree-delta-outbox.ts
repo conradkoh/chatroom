@@ -31,12 +31,12 @@ export function createWorkspaceFileTreeDeltaOutboxRegistry(
       for (const u of units) {
         const r = await createSend(key)(u);
         out.push(r);
-        if (r.status === 'conflict') break;
       }
       return out;
     },
     serialize: JSON.stringify,
     deserialize: JSON.parse,
     onError: options?.onError,
+    classifyOutcome: (result, unit) => result.status === 'conflict' ? { kind: 'retry', item: { ...unit, baseRevision: result.revision } } : { kind: 'success' },
   });
 }

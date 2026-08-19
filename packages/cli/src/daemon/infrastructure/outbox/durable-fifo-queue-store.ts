@@ -13,6 +13,7 @@ export type DurableFifoQueueStore = {
   claimNextBatch(key: string, limit: number): DurableFifoQueueEntry[];
   markDone(id: number): void;
   markPending(id: number): void;
+  updatePayload(id: number, payloadJson: string): void;
   markPendingRetry(id: number, error: unknown): void;
   listPendingForRecovery(key: string): DurableFifoQueueEntry[];
   close(): void;
@@ -50,6 +51,9 @@ export function openDurableFifoQueueStore(dbPath: string): DurableFifoQueueStore
       db.prepare(
         "UPDATE fifo_outbox_entries SET status='pending', last_error=NULL, updated_at=? WHERE id=?"
       ).run(Date.now(), id);
+    },
+    updatePayload: (id, payloadJson) => {
+      db.prepare('UPDATE fifo_outbox_entries SET payload_json=?, updated_at=? WHERE id=?').run(payloadJson, Date.now(), id);
     },
     markPendingRetry: (id, error) => {
       db.prepare(
