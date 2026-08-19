@@ -9,11 +9,11 @@ import {
   queryEventStream,
   type ChatroomEventRecord,
   type EventStreamEntry,
-  type EventStreamQuery,
   type StoredLogEntry,
   type LogDimensions,
 } from '../../../infrastructure/log-server/log-store.js';
 import type { LogHistoryReader } from '../../domain/usecase/list-log-history.js';
+import type { EventStreamQuery } from '../../domain/entities/event-stream-query.js';
 
 export type LogRepository = LogHistoryReader & {
   listDimensions(limit?: number): LogDimensions;

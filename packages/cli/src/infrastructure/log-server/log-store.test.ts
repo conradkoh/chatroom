@@ -86,6 +86,12 @@ describe('log store', () => {
       chatroomId: 'room-a',
       role: 'builder',
     });
+    appendChatroomEvent(db, {
+      type: 'agent.exited',
+      timestamp: 43,
+      chatroomId: 'room-b',
+      role: 'planner',
+    });
 
     expect(queryEventStream(db, { chatroomId: 'room-a' })).toMatchObject([
       {
@@ -94,14 +100,8 @@ describe('log store', () => {
         payload: { chatroomId: 'room-a', role: 'builder' },
       },
     ]);
+    expect(queryEventStream(db, { chatroomId: 'room-a' })).toHaveLength(1);
     expect(queryHistory(db)).toEqual([]);
     db.close();
   });
-  appendChatroomEvent(db, {
-    type: 'agent.exited',
-    timestamp: 43,
-    chatroomId: 'room-b',
-    role: 'planner',
-  });
-  expect(queryEventStream(db, { chatroomId: 'room-a' })).toHaveLength(1);
 });
