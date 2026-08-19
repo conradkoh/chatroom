@@ -3,6 +3,7 @@ import type { Server, Socket } from 'socket.io';
 import { normalizeError } from './normalize-error.js';
 import {
   chatroomEventIngestInputSchema,
+  eventStreamHistoryInputSchema,
   harnessHistoryInputSchema,
   logHistoryInputSchema,
   logSourcesInputSchema,
@@ -10,6 +11,7 @@ import {
 import { api } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import type { SocketAck } from '../../domain/entities/socket-ack.js';
+import { createEventStreamHistoryUseCase } from '../../domain/usecase/event-stream-history.js';
 import { getLocalWebHealth } from '../../domain/usecase/get-local-web-health.js';
 import { listHarnessHistory } from '../../domain/usecase/list-harness-history.js';
 import { createLogDimensionsUseCase } from '../../domain/usecase/log-dimensions.js';
@@ -50,8 +52,9 @@ function extractAck(args: unknown[]): { payload: unknown; ack: unknown } {
 }
 
 export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersDeps): void {
-  const logHistory = deps.logRepo
-    ? createLogHistoryUseCase({ reader: deps.logRepo })
+  const logHistory = deps.logRepo ? createLogHistoryUseCase({ reader: deps.logRepo }) : undefined;
+  const eventStreamHistory = deps.logRepo
+    ? createEventStreamHistoryUseCase({ reader: deps.logRepo })
     : undefined;
   const logEventIngestion = deps.logRepo
     ? createLogEventIngestionUseCase({ writer: deps.logRepo })
@@ -113,12 +116,22 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
         callAck(ack, { ok: false, error: normalizeError(err) });
       }
     });
-    socket.on('logs.events.ingest', (...args) => {
+    socket.on('eventStream.ingest', (...args) => {
       const { payload, ack } = extractAck(args);
       try {
         if (!logEventIngestion) throw new Error('log event ingestion use case not configured');
         const event = chatroomEventIngestInputSchema.parse(payload);
         callAck(ack, { ok: true, data: logEventIngestion(event) });
+      } catch (err) {
+        callAck(ack, { ok: false, error: normalizeError(err) });
+      }
+    });
+    socket.on('eventStream.history', (...args) => {
+      const { payload, ack } = extractAck(args);
+      try {
+        if (!eventStreamHistory) throw new Error('event stream use case not configured');
+        const input = eventStreamHistoryInputSchema.parse(payload ?? {});
+        callAck(ack, { ok: true, data: eventStreamHistory(input) });
       } catch (err) {
         callAck(ack, { ok: false, error: normalizeError(err) });
       }
@@ -167,7 +180,9 @@ export function registerSocketHandlers(io: Server, deps: RegisterSocketHandlersD
       const { ack } = extractAck(args);
       try {
         if (!subscribeLogStream) throw new Error('log stream use case not configured');
-        const unsub = subscribeLogStream((event: LogStreamEvent) => socket.emit('logs.stream', event));
+        const unsub = subscribeLogStream((event: LogStreamEvent) =>
+          socket.emit('logs.stream', event)
+        );
         streamUnsubs.push(unsub);
         callAck(ack, { ok: true, data: { subscribed: true } });
       } catch (err) {

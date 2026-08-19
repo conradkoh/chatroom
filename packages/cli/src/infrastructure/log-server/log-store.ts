@@ -1,4 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
+
+import type { EventStreamQuery } from '../../daemon/domain/entities/event-stream-query.js';
+
 type LogEntryRow = {
   id: number | bigint;
   timestamp: number | bigint;
@@ -10,6 +13,12 @@ type LogEntryRow = {
 };
 type StringValueRow = { v: string | null };
 type SourceRow = { source: string };
+type EventStreamEntryRow = {
+  id: number | bigint;
+  timestamp: number | bigint;
+  type: string;
+  payload_json: string;
+};
 
 export type LogEntry = {
   timestamp: number;
@@ -35,6 +44,12 @@ export type LogDimensions = { chatroomIds: string[]; roles: string[]; harnesses:
 export type ChatroomEventRecord = Record<string, unknown> & {
   type: string;
   timestamp: number;
+};
+export type EventStreamEntry = {
+  id: number;
+  timestamp: number;
+  type: string;
+  payload: ChatroomEventRecord;
 };
 const clamp = (n = 100) => Math.max(1, Math.min(1000, Math.floor(n)));
 const map = (row: LogEntryRow): StoredLogEntry => ({
@@ -70,15 +85,39 @@ export function appendBatch(db: DatabaseSync, entries: LogEntry[]): void {
 }
 
 export function appendChatroomEvent(db: DatabaseSync, event: ChatroomEventRecord): void {
-  appendBatch(db, [
-    {
-      timestamp: event.timestamp,
-      level: 'info',
-      source: 'chatroom:event',
-      message: JSON.stringify(event),
-      metadata: event,
-    },
-  ]);
+  db.prepare('INSERT INTO event_stream_entries(timestamp,type,payload_json) VALUES(?,?,?)').run(
+    event.timestamp,
+    event.type,
+    JSON.stringify(event)
+  );
+}
+export function queryEventStream(db: DatabaseSync, input: EventStreamQuery): EventStreamEntry[] {
+  const filters = [
+    "AND json_extract(payload_json, '$.chatroomId') = ?",
+    input.afterId !== undefined ? 'AND id > ?' : '',
+    input.beforeId !== undefined ? 'AND id < ?' : '',
+    input.type ? 'AND type = ?' : '',
+    input.fromTimestamp !== undefined ? 'AND timestamp >= ?' : '',
+    input.toTimestamp !== undefined ? 'AND timestamp <= ?' : '',
+  ].join(' ');
+  const values = [
+    input.chatroomId,
+    ...(input.afterId !== undefined ? [input.afterId] : []),
+    ...(input.beforeId !== undefined ? [input.beforeId] : []),
+    ...(input.type ? [input.type] : []),
+    ...(input.fromTimestamp !== undefined ? [input.fromTimestamp] : []),
+    ...(input.toTimestamp !== undefined ? [input.toTimestamp] : []),
+    clamp(input.limit),
+  ];
+  const rows = db
+    .prepare(`SELECT * FROM event_stream_entries WHERE 1=1 ${filters} ORDER BY id DESC LIMIT ?`)
+    .all(...values) as EventStreamEntryRow[];
+  return rows.reverse().map((row) => ({
+    id: Number(row.id),
+    timestamp: Number(row.timestamp),
+    type: row.type,
+    payload: JSON.parse(row.payload_json) as ChatroomEventRecord,
+  }));
 }
 export function queryAfterId(
   db: DatabaseSync,
