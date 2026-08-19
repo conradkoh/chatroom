@@ -15,6 +15,7 @@ import { generateFullCliOutput } from '../../../../../prompts/cli/get-next-task/
 const BASE_PARAMS = {
   chatroomId: 'test-chatroom-id',
   role: 'planner',
+  teamId: 'duo',
   cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
   task: {
     _id: 'test-task-id',
