@@ -19,7 +19,7 @@ export type WalkWorkspaceFilesResult = {
 };
 
 /**
- * Walk workspace filesystem and collect file paths (repo-relative, forward-slash).
+ * Walk workspace filesystem breadth-first, collecting immediate files by depth.
  * Prunes hidden/ignored directories early. Heavy directories become shallow stubs.
  * Respects maxFilePaths cap.
  */
@@ -33,53 +33,56 @@ export async function walkWorkspaceFiles(
   const directoryStubs: string[] = [];
   let truncated = false;
 
-  // fallow-ignore-next-line complexity
-  async function visitDir(
-    relDir: string,
-    inheritedRuleSets: readonly WorkspaceIgnoreRuleSet[],
-    siblingCount: number
-  ): Promise<void> {
-    if (truncated || filePaths.length >= maxFilePaths) {
+  type WalkFrame = {
+    relDir: string;
+    inheritedRuleSets: readonly WorkspaceIgnoreRuleSet[];
+    siblingCount: number;
+  };
+  let currentLevel: WalkFrame[] = [{ relDir: '', inheritedRuleSets: [], siblingCount: 0 }];
+  while (currentLevel.length > 0) {
+    if (filePaths.length >= maxFilePaths) {
       truncated = true;
-      return;
+      break;
     }
-
-    const localRuleSets = await loadDirectoryIgnoreRuleSets(rootDir, relDir);
-    const ruleSets = mergeWorkspaceIgnoreRuleSets(inheritedRuleSets, localRuleSets);
-    const dirents = await readWorkspaceDirectoryDirents(rootDir, relDir);
-    if (!dirents) return;
-
-    for (const ent of dirents) {
-      if (truncated || filePaths.length >= maxFilePaths) {
+    const nextLevel: WalkFrame[] = [];
+    for (const frame of currentLevel) {
+      if (filePaths.length >= maxFilePaths) {
         truncated = true;
-        return;
+        break;
       }
-
-      const relativePath = relDir ? `${relDir}/${ent.name}` : ent.name;
-      if (!isPathVisible(relativePath)) continue;
-
-      if (ent.isDirectory()) {
-        if (isPathIgnoredByRuleSets(ruleSets, relativePath)) continue;
-
-        const syncMode = classifyDirectorySyncMode(ent.name, {
-          relativePath,
-          immediateSiblingCount: siblingCount,
-          immediateChildCount: dirents.length,
-        });
-        if (syncMode === 'hidden') continue;
-
-        directoryStubs.push(relativePath);
-        if (syncMode === 'shallow') continue;
-
-        await visitDir(relativePath, ruleSets, dirents.length);
-      } else if (ent.isFile()) {
-        if (isPathIgnoredByRuleSets(ruleSets, relativePath)) continue;
-        filePaths.push(relativePath);
-        if (filePaths.length >= maxFilePaths) truncated = true;
+      const localRuleSets = await loadDirectoryIgnoreRuleSets(rootDir, frame.relDir);
+      const ruleSets = mergeWorkspaceIgnoreRuleSets(frame.inheritedRuleSets, localRuleSets);
+      const dirents = await readWorkspaceDirectoryDirents(rootDir, frame.relDir);
+      if (!dirents) continue;
+      for (const ent of dirents) {
+        const relativePath = frame.relDir ? `${frame.relDir}/${ent.name}` : ent.name;
+        if (!isPathVisible(relativePath)) continue;
+        if (ent.isDirectory()) {
+          if (isPathIgnoredByRuleSets(ruleSets, relativePath)) continue;
+          const syncMode = classifyDirectorySyncMode(ent.name, {
+            relativePath,
+            immediateSiblingCount: frame.siblingCount,
+            immediateChildCount: dirents.length,
+          });
+          if (syncMode === 'hidden') continue;
+          directoryStubs.push(relativePath);
+          if (syncMode === 'full')
+            nextLevel.push({
+              relDir: relativePath,
+              inheritedRuleSets: ruleSets,
+              siblingCount: dirents.length,
+            });
+        } else if (ent.isFile() && !isPathIgnoredByRuleSets(ruleSets, relativePath)) {
+          if (filePaths.length >= maxFilePaths) {
+            truncated = true;
+            continue;
+          }
+          filePaths.push(relativePath);
+          if (filePaths.length >= maxFilePaths) truncated = true;
+        }
       }
     }
+    currentLevel = truncated ? [] : nextLevel;
   }
-
-  await visitDir('', [], 0);
   return { filePaths, directoryStubs, truncated };
 }

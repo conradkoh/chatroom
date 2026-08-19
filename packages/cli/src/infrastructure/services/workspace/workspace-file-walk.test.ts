@@ -49,6 +49,25 @@ describe('walkWorkspaceFiles', () => {
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
+  it('walks sibling directories breadth-first before deep dumps', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'file-walk-bfs-'));
+    await mkdir(join(tmpDir, '.chatroom', 'downloads', 'messages'), { recursive: true });
+    await mkdir(join(tmpDir, 'apps'));
+    await writeFile(join(tmpDir, 'README.md'), '# readme');
+    await writeFile(join(tmpDir, 'apps', 'app.ts'), 'export {}');
+    await Promise.all(
+      Array.from({ length: 40 }, (_, i) =>
+        writeFile(join(tmpDir, '.chatroom', 'downloads', 'messages', `msg-${i}.json`), '{}')
+      )
+    );
+    const result = await walkWorkspaceFiles(tmpDir, { maxFilePaths: 10 });
+    expect(result.filePaths).toContain('README.md');
+    expect(result.filePaths).toContain('apps/app.ts');
+    expect(result.directoryStubs).toContain('apps');
+    expect(result.directoryStubs).toContain('.chatroom');
+    expect(result.truncated).toBe(true);
+  });
+
   it('returns files from a non-git directory', async () => {
     tmpDir = await mkdtemp(join(tmpdir(), 'file-walk-'));
     await mkdir(join(tmpDir, 'src'));
