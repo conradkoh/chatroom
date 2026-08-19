@@ -661,8 +661,8 @@ export default defineSchema({
    * Compact per-machine wake-up cursor for daemon assigned-task updates.
    *
    * The daemon will subscribe to this single row instead of the full assigned
-   * task snapshot list. `latestRevision` must be monotonic and is only a
-   * trigger/cursor; the durable task delta source will be added separately.
+   * task snapshot list. `latestRevision` is monotonic and wake-up only;
+   * chatroom_machineAssignedTaskChanges is the durable delta log.
    * One record is maintained per registered machine.
    */
   chatroom_machineTaskUpdateCursors: defineTable({

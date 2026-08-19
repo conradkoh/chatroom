@@ -17,15 +17,13 @@ export async function listMachineAssignedTaskChanges(
       q.eq('machineId', input.machineId).gt('revision', input.afterRevision ?? 0)
     )
     .take(input.limit + 1);
-  const items = rows
-    .slice(0, input.limit)
-    .map((row) => ({
-      revision: row.revision,
-      op: row.op,
-      taskId: row.taskId,
-      role: row.role,
-      ...(row.snapshot ? { snapshot: row.snapshot as any } : {}),
-    }));
+  const items = rows.slice(0, input.limit).map((row) => ({
+    revision: row.revision,
+    op: row.op,
+    taskId: row.taskId,
+    role: row.role,
+    ...(row.snapshot ? { snapshot: row.snapshot } : {}),
+  })) as ListMachineAssignedTaskChangesResult['items'];
   return {
     items,
     highRevision: items.at(-1)?.revision ?? null,

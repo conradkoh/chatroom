@@ -22,6 +22,7 @@ export function shouldRecordTaskStateChange(previous: Snapshot | null, next: Sna
     'lastStatus',
   ].some((key) => previous[key as keyof Snapshot] !== next[key as keyof Snapshot]);
 }
+// fallow-ignore-next-line complexity
 async function append(
   ctx: MutationCtx,
   input: {

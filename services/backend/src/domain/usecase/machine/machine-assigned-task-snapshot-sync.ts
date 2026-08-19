@@ -184,6 +184,7 @@ async function findSnapshotDoc(
   );
 }
 
+// fallow-ignore-next-line complexity
 async function upsertSnapshotRow(ctx: MutationCtx, input: SnapshotRowInput): Promise<void> {
   if (!input.config.machineId) return;
   const machineId = input.config.machineId;
@@ -210,6 +211,10 @@ async function deleteSnapshotsForTask(
     .query('chatroom_machineAssignedTaskSnapshots')
     .withIndex('by_taskId', (q) => q.eq('taskId', taskId))
     .collect();
+  await deleteSnapshotRows(ctx, rows);
+}
+
+async function deleteSnapshotRows(ctx: MutationCtx, rows: SnapshotDoc[]): Promise<void> {
   for (const row of rows) {
     await recordAssignedTaskDeleteChange(ctx, {
       machineId: row.machineId,
@@ -225,14 +230,7 @@ async function deleteSnapshotsForMachine(ctx: MutationCtx, machineId: string): P
     .query('chatroom_machineAssignedTaskSnapshots')
     .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
     .collect();
-  for (const row of rows) {
-    await recordAssignedTaskDeleteChange(ctx, {
-      machineId: row.machineId,
-      taskId: row.taskId,
-      role: row.role,
-    });
-    await ctx.db.delete('chatroom_machineAssignedTaskSnapshots', row._id);
-  }
+  await deleteSnapshotRows(ctx, rows);
 }
 
 /** Rebuild projection rows for one machine (daemon startup / backfill). */
@@ -289,12 +287,7 @@ export async function projectAssignedTaskSnapshotsForMachine(
   for (const row of existing) {
     const key = `${row.machineId}:${row.taskId}:${row.role}`;
     if (!desiredKeys.has(key)) {
-      await recordAssignedTaskDeleteChange(ctx, {
-        machineId: row.machineId,
-        taskId: row.taskId,
-        role: row.role,
-      });
-      await ctx.db.delete('chatroom_machineAssignedTaskSnapshots', row._id);
+      await deleteSnapshotRows(ctx, [row]);
     }
   }
 }
