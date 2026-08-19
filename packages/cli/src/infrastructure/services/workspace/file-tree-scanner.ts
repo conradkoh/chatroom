@@ -62,10 +62,6 @@ export function buildEntries(
   maxEntries: number
 ): FileTreeEntry[] {
   const selected = new Map<string, FileTreeEntry>();
-  for (const dir of directoryStubs.sort(
-    (a, b) => entryDepth(a) - entryDepth(b) || a.localeCompare(b)
-  ))
-    if (selected.size < maxEntries) selected.set(dir, { path: dir, type: 'directory' });
   const data = countDataFilesByParent(filePaths);
   const ranked = [...filePaths].sort((a, b) =>
     compareRankedFiles(a, scoreFile(a, data), b, scoreFile(b, data))

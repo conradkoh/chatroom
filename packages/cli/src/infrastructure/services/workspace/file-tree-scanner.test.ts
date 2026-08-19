@@ -97,6 +97,15 @@ describe('buildEntries', () => {
     expect(entries.length).toBeLessThanOrEqual(8);
   });
 
+  it('does not let directory stubs starve a ranked source file', () => {
+    const stubs = Array.from({ length: 40 }, (_, i) => `deep/nested/dir${i}`);
+    const entries = buildEntries(['src/app.ts'], stubs, 8);
+    const paths = entries.map((entry) => entry.path);
+    expect(paths).toContain('src/app.ts');
+    expect(paths).toContain('src');
+    expect(entries.length).toBeLessThanOrEqual(8);
+  });
+
   it('returns empty array for empty input', () => {
     const entries = buildEntries([], [], 100);
     expect(entries).toHaveLength(0);
