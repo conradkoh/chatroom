@@ -89,4 +89,8 @@
   body {
     @apply bg-chatroom-bg-primary text-chatroom-text-primary antialiased;
   }
+  button,
+  [role='button'] {
+    cursor: pointer;
+  }
 }
