@@ -3,14 +3,19 @@ import { EventStreamFiltersBar } from '@/components/event-stream/EventStreamFilt
 import { EventStreamViewer } from '@/components/event-stream/EventStreamViewer';
 import { useChatrooms } from '@/hooks/use-chatrooms';
 import { useEventStream } from '@/hooks/use-event-stream';
-import { useEventStreamUrl } from '@/hooks/use-event-stream-url';
+import { useEventStreamFiltersFromUrl } from '@/hooks/use-event-stream-filters-url';
+import type { EventStreamEntry } from '@/api/types';
+import { EventStreamDetailPanel } from '@/components/event-stream/EventStreamDetailPanel';
 
 export function EventStreamPage() {
-  const { chatroomId, setChatroomId } = useEventStreamUrl();
+  const { filters, setFilters } = useEventStreamFiltersFromUrl();
   const chatroomsQuery = useChatrooms();
-  const { entries, isLoading, error } = useEventStream(chatroomId);
+  const { entries, isLoading, error } = useEventStream(filters);
+  const [selectedEntry, setSelectedEntry] = useState<EventStreamEntry | null>(null);
+  useEffect(() => { setSelectedEntry(null); }, [filters.chatroomId, filters.timeRange, filters.fromMs, filters.toMs]);
   return <section className="flex min-h-0 flex-1 flex-col gap-3 p-6">
-    <LogsPageHeader title="Event stream" actions={<EventStreamFiltersBar chatrooms={chatroomsQuery.data ?? []} chatroomsLoading={chatroomsQuery.isLoading} chatroomsError={chatroomsQuery.isError} values={{ chatroomId }} onChange={(v) => setChatroomId(v.chatroomId)} disabled={isLoading} />} />
-    <div className="flex min-h-0 flex-1 gap-0"><EventStreamViewer entries={entries} isLoading={isLoading} error={error} hasChatroom={Boolean(chatroomId)} /></div>
+    <LogsPageHeader title="Event stream" actions={<EventStreamFiltersBar chatrooms={chatroomsQuery.data ?? []} chatroomsLoading={chatroomsQuery.isLoading} chatroomsError={chatroomsQuery.isError} values={filters} onChange={setFilters} disabled={isLoading} />} />
+    <div className="flex min-h-0 flex-1 gap-0"><div className="flex min-w-0 flex-1 flex-col"><EventStreamViewer entries={entries} isLoading={isLoading} error={error} hasChatroom={Boolean(filters.chatroomId)} selectedEntry={selectedEntry} onSelectEntry={setSelectedEntry} /></div>{selectedEntry && <EventStreamDetailPanel entry={selectedEntry} onClose={() => setSelectedEntry(null)} />}</div>
   </section>;
 }
+import { useEffect, useState } from 'react';
