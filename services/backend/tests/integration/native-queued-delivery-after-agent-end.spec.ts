@@ -25,6 +25,35 @@ async function syncMachineSnapshots(sessionId: string, machineId: string): Promi
   });
 }
 
+async function currentAssignedTaskSnapshots(sessionId: string, machineId: string) {
+  await syncMachineSnapshots(sessionId, machineId);
+  const byKey = new Map<
+    string,
+    NonNullable<
+      Awaited<
+        ReturnType<typeof t.query<typeof api.machines.listMachineAssignedTaskChangesSince>>
+      >['items'][number]['snapshot']
+    >
+  >();
+  let afterRevision = 0;
+  for (;;) {
+    const page = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
+      sessionId,
+      machineId,
+      afterRevision,
+      limit: 50,
+    });
+    for (const item of page.items) {
+      const key = `${item.taskId}:${item.role}`;
+      if (item.op === 'delete') byKey.delete(key);
+      else if (item.snapshot) byKey.set(key, item.snapshot);
+    }
+    if (page.items.length === 0 || !page.hasMore) break;
+    afterRevision = page.highRevision ?? afterRevision;
+  }
+  return { tasks: [...byKey.values()] };
+}
+
 async function registerMachineWithCursorSdk(sessionId: string, machineId: string): Promise<void> {
   await t.mutation(api.machines.register, {
     sessionId,
@@ -147,15 +176,9 @@ describe('Native queued delivery after agent_end', () => {
     expect(promotedTask.content).toBe('Queued follow-up after agent_end');
     expect(promotedTask.assignedTo).toBe('builder');
 
-    await syncMachineSnapshots(sessionId, machineId);
-    const page = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
-      sessionId,
-      machineId,
-      afterRevision: 0,
-      limit: 50,
-    });
-    const snapshot = page.items.find((item) => item.op === 'upsert')?.snapshot;
-    expect(snapshot).toBeDefined();
+    const snapshots = await currentAssignedTaskSnapshots(sessionId, machineId);
+    expect(snapshots.tasks).toHaveLength(1);
+    const snapshot = snapshots.tasks[0]!;
     expect(snapshot.taskId).toBe(promotedTask._id);
     expect(snapshot.status).toBe('pending');
     expect(snapshot.agentConfig.role).toBe('builder');
