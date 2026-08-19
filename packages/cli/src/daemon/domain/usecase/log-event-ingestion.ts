@@ -1,10 +1,7 @@
-import type { ChatroomEventRecord } from '../../../infrastructure/log-server/log-store.js';
+import type { ChatroomEventRecord, EventStreamEntry } from '../../../infrastructure/log-server/log-store.js';
 
 export function createLogEventIngestionUseCase(deps: {
-  writer: { writeChatroomEvent(event: ChatroomEventRecord): void };
+  writer: { writeChatroomEvent(event: ChatroomEventRecord): EventStreamEntry };
 }) {
-  return (event: ChatroomEventRecord): { accepted: true } => {
-    deps.writer.writeChatroomEvent(event);
-    return { accepted: true };
-  };
+  return (event: ChatroomEventRecord): EventStreamEntry => deps.writer.writeChatroomEvent(event);
 }

@@ -98,6 +98,7 @@ describe('native duplicate task injection', () => {
       sessionDeps: {
         sessionId: 'session_dup',
         machineId: 'machine_dup',
+        logEvent: async () => undefined,
         convexUrl: 'http://test:3210',
         backend: { mutation: backendMutation, query: backendQuery },
       },

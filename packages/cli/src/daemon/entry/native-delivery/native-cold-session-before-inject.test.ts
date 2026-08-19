@@ -36,6 +36,7 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
   return {
     sessionId: 'session_1',
     machineId: 'machine_1',
+    logEvent: vi.fn().mockResolvedValue(undefined),
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),
       query: vi.fn(),

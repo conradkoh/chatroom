@@ -412,6 +412,7 @@ function assembleDaemonSessionInit(args: {
       config.harnessVersions as Record<string, unknown>
     ),
     logger: console,
+    logEvent: activeLogEvent ?? (async () => undefined),
   };
 }
 

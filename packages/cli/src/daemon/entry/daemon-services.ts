@@ -166,6 +166,9 @@ export interface DaemonSessionServiceShape {
   lastPushedModels: Record<string, string[]> | null;
   /** Fingerprint of harness list+versions last successfully pushed. */
   lastPushedHarnessFingerprint: string | null;
+
+  /** Persists structured chatroom events to daemon-local SQLite. */
+  logEvent: (event: Record<string, unknown>) => Promise<void>;
 }
 
 export class DaemonSessionService extends Context.Tag('DaemonSessionService')<

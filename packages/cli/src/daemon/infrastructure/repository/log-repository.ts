@@ -12,12 +12,12 @@ import {
   type StoredLogEntry,
   type LogDimensions,
 } from '../../../infrastructure/log-server/log-store.js';
-import type { LogHistoryReader } from '../../domain/usecase/list-log-history.js';
 import type { EventStreamQuery } from '../../domain/entities/event-stream-query.js';
+import type { LogHistoryReader } from '../../domain/usecase/list-log-history.js';
 
 export type LogRepository = LogHistoryReader & {
-  listDimensions(limit?: number): LogDimensions;
-  writeChatroomEvent(event: ChatroomEventRecord): void;
+  listDimensions(chatroomId: string, limit?: number): LogDimensions;
+  writeChatroomEvent(event: ChatroomEventRecord): EventStreamEntry;
   queryEventStream(input: EventStreamQuery): EventStreamEntry[];
 };
 export function createLogRepository(db: DatabaseSync): LogRepository {
@@ -69,11 +69,11 @@ export function createLogRepository(db: DatabaseSync): LogRepository {
     listSources(limit = 100): string[] {
       return listDistinctSources(db, limit);
     },
-    listDimensions(limit = 100): LogDimensions {
-      return listLogDimensions(db, limit);
+    listDimensions(chatroomId: string, limit = 100): LogDimensions {
+      return listLogDimensions(db, chatroomId, limit);
     },
-    writeChatroomEvent(event: ChatroomEventRecord): void {
-      appendChatroomEvent(db, event);
+    writeChatroomEvent(event: ChatroomEventRecord): EventStreamEntry {
+      return appendChatroomEvent(db, event);
     },
     queryEventStream(input: EventStreamQuery): EventStreamEntry[] {
       return queryEventStream(db, input);

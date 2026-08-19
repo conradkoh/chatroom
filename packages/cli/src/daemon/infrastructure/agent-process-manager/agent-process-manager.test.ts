@@ -929,12 +929,13 @@ describe('AgentProcessManager', () => {
         getLastHarnessSessions(manager).get(`${CHATROOM_ID}:${ROLE}`)?.resumableHarnessSessionId
       ).toBe(providerId);
 
-      const harnessSessionIdUpdatedCalls = getMutationCallsByArgs(
+      const harnessSessionIdUpdatedCalls = getLogEventCallsByArgs(
         deps,
         (args) => args.correlationId === provisionalId && args.resumableId === providerId
       );
       expect(harnessSessionIdUpdatedCalls).toHaveLength(1);
       expect(harnessSessionIdUpdatedCalls[0]).toMatchObject({
+        type: 'agent.harnessSessionIdUpdated',
         correlationId: provisionalId,
         resumableId: providerId,
         source: 'provider_allocated',
@@ -1158,10 +1159,10 @@ describe('AgentProcessManager', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe('crash_loop');
 
-      // Should have emitted event
-      expect(deps.backend.mutation).toHaveBeenCalledWith(
-        expect.objectContaining({}),
+      // Should have logged restart limit audit event
+      expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
+          type: 'agent.restartLimitReached',
           chatroomId: CHATROOM_ID,
           role: ROLE,
           restartCount: expect.any(Number),
@@ -1531,9 +1532,9 @@ describe('AgentProcessManager', () => {
         CHATROOM_ID,
         ROLE
       );
-      expect(deps.backend.mutation).toHaveBeenCalledWith(
-        expect.anything(),
+      expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
+          type: 'agent.stopTimeout',
           chatroomId: CHATROOM_ID,
           role: ROLE,
           pid: PID,
@@ -1542,6 +1543,7 @@ describe('AgentProcessManager', () => {
       );
       expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
+          type: 'agent.exited',
           chatroomId: CHATROOM_ID,
           role: ROLE,
           pid: PID,
@@ -1944,7 +1946,9 @@ describe('AgentProcessManager', () => {
       // Verify the log event was emitted with agent_process.crashed
       await vi.waitFor(() => {
         const exitCall = (deps.logEvent as ReturnType<typeof vi.fn>).mock.calls.find(
-          (c: unknown[]) => c[0] && typeof c[0] === 'object' &&
+          (c: unknown[]) =>
+            c[0] &&
+            typeof c[0] === 'object' &&
             (c[0] as Record<string, unknown>).stopReason !== undefined
         );
         expect(exitCall).toBeDefined();

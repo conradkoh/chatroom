@@ -1,27 +1,57 @@
 {
   "finding_counts": {
-    "packages/cli/src/daemon/infrastructure/socket/register-handlers.ts": {
+    "packages/cli/src/daemon/entry/command-dispatch.ts": {
       "crap_moderate": {
         "count": 1
       }
     },
-    "packages/cli/src/infrastructure/log-server/log-store.ts": {
+    "packages/cli/src/daemon/entry/native-delivery/native-task-delivery-coordinator.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/daemon/entry/publisher-registry.ts": {
       "crap_critical": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/daemon/entry/restart-orchestrator.ts": {
+      "crap_high": {
         "count": 2
       },
       "crap_moderate": {
         "count": 1
       }
     },
-    "services/backend/src/domain/usecase/agent/agent-exited.ts": {
-      "complexity_critical": {
+    "packages/cli/src/daemon/entry/task-monitor-runtime.ts": {
+      "crap_high": {
         "count": 1
-      },
-      "crap_critical": {
+      }
+    },
+    "packages/cli/src/daemon/infrastructure/convex/publishers/assigned-task-status.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "packages/cli/src/daemon/infrastructure/convex/publishers/command-result.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/convex/daemon/agentEvents.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "services/backend/src/domain/usecase/agent/record-agent-spawned-state.ts": {
+      "crap_high": {
         "count": 1
       }
     }
   },
   "runtime_coverage_findings": [],
-  "target_keys": []
+  "target_keys": ["services/backend/convex/machines.ts:complexity"]
 }

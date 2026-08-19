@@ -40,7 +40,7 @@ export type LogQuery = {
   toTimestamp?: number;
   limit?: number;
 };
-export type LogDimensions = { chatroomIds: string[]; roles: string[]; harnesses: string[] };
+export type LogDimensions = { roles: string[]; harnesses: string[] };
 export type ChatroomEventRecord = Record<string, unknown> & {
   type: string;
   timestamp: number;
@@ -84,12 +84,19 @@ export function appendBatch(db: DatabaseSync, entries: LogEntry[]): void {
   }
 }
 
-export function appendChatroomEvent(db: DatabaseSync, event: ChatroomEventRecord): void {
-  db.prepare('INSERT INTO event_stream_entries(timestamp,type,payload_json) VALUES(?,?,?)').run(
-    event.timestamp,
-    event.type,
-    JSON.stringify(event)
-  );
+export function appendChatroomEvent(
+  db: DatabaseSync,
+  event: ChatroomEventRecord
+): EventStreamEntry {
+  const result = db
+    .prepare('INSERT INTO event_stream_entries(timestamp,type,payload_json) VALUES(?,?,?)')
+    .run(event.timestamp, event.type, JSON.stringify(event));
+  return {
+    id: Number(result.lastInsertRowid),
+    timestamp: event.timestamp,
+    type: event.type,
+    payload: event,
+  };
 }
 export function queryEventStream(db: DatabaseSync, input: EventStreamQuery): EventStreamEntry[] {
   const filters = [
@@ -188,23 +195,24 @@ export function queryHistory(
     .all(...values);
   return (rows as LogEntryRow[]).map(map).reverse();
 }
-export function listLogDimensions(db: DatabaseSync, limit = 100): LogDimensions {
+export function listLogDimensions(
+  db: DatabaseSync,
+  chatroomId: string,
+  limit = 100
+): LogDimensions {
   const clamped = clamp(limit);
   const values = (sql: string) =>
-    (db.prepare(sql).all(clamped) as StringValueRow[]).map((r) => r.v as string);
-  const chatroomIds = values(
-    "SELECT DISTINCT json_extract(metadata_json, '$.chatroomId') AS v FROM log_entries WHERE json_extract(metadata_json, '$.chatroomId') IS NOT NULL ORDER BY v LIMIT ?"
-  );
+    (db.prepare(sql).all(chatroomId, clamped) as StringValueRow[]).map((r) => r.v as string);
   const roles = values(
-    "SELECT DISTINCT json_extract(metadata_json, '$.role') AS v FROM log_entries WHERE json_extract(metadata_json, '$.role') IS NOT NULL ORDER BY v LIMIT ?"
+    "SELECT DISTINCT json_extract(metadata_json, '$.role') AS v FROM log_entries WHERE json_extract(metadata_json, '$.chatroomId') = ? AND json_extract(metadata_json, '$.role') IS NOT NULL ORDER BY v LIMIT ?"
   );
   const meta = values(
-    "SELECT DISTINCT json_extract(metadata_json, '$.harness') AS v FROM log_entries WHERE json_extract(metadata_json, '$.harness') IS NOT NULL ORDER BY v LIMIT ?"
+    "SELECT DISTINCT json_extract(metadata_json, '$.harness') AS v FROM log_entries WHERE json_extract(metadata_json, '$.chatroomId') = ? AND json_extract(metadata_json, '$.harness') IS NOT NULL ORDER BY v LIMIT ?"
   );
   const source = values(
-    "SELECT DISTINCT substr(source, 9) AS v FROM log_entries WHERE source LIKE 'harness:%' ORDER BY v LIMIT ?"
+    "SELECT DISTINCT substr(source, 9) AS v FROM log_entries WHERE json_extract(metadata_json, '$.chatroomId') = ? AND source LIKE 'harness:%' ORDER BY v LIMIT ?"
   );
-  return { chatroomIds, roles, harnesses: [...new Set([...meta, ...source])].sort() };
+  return { roles, harnesses: [...new Set([...meta, ...source])].sort() };
 }
 export function listDistinctSources(db: DatabaseSync, limit = 100): string[] {
   return (

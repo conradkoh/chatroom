@@ -70,28 +70,33 @@ describe('log store', () => {
         (x) => x.message
       )
     ).toEqual(['three']);
-    expect(listLogDimensions(db)).toEqual({
-      chatroomIds: ['room-a', 'room-b'],
-      roles: ['builder', 'planner'],
-      harnesses: ['claude', 'codex', 'legacy'],
+    expect(listLogDimensions(db, 'room-a')).toEqual({
+      roles: ['builder'],
+      harnesses: ['claude'],
+    });
+    expect(listLogDimensions(db, 'room-b')).toEqual({
+      roles: ['planner'],
+      harnesses: ['codex'],
     });
     db.close();
   });
 
   it('stores migrated events in the dedicated event stream table', () => {
     const db = openLogDatabase(join(tmpdir(), `logs-${randomUUID()}.sqlite`));
-    appendChatroomEvent(db, {
+    const firstEvent = appendChatroomEvent(db, {
       type: 'agent.exited',
       timestamp: 42,
       chatroomId: 'room-a',
       role: 'builder',
     });
-    appendChatroomEvent(db, {
+    const secondEvent = appendChatroomEvent(db, {
       type: 'agent.exited',
       timestamp: 43,
       chatroomId: 'room-b',
       role: 'planner',
     });
+    expect(firstEvent.id).toBeGreaterThan(0);
+    expect(secondEvent.id).toBe(firstEvent.id + 1);
 
     expect(queryEventStream(db, { chatroomId: 'room-a' })).toMatchObject([
       {

@@ -34,6 +34,7 @@ export function createMockDaemonSessionInit(
     lastPushedGitState: new Map(),
     lastPushedModels: null,
     lastPushedHarnessFingerprint: null,
+    logEvent: async () => undefined,
     ...overrides,
   };
 }

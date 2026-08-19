@@ -10,6 +10,7 @@ import type {
   LogHistoryInput,
   EventStreamHistoryAck,
   EventStreamHistoryInput,
+  EventStreamEntry,
 } from '../api/types.js';
 
 let socket: Socket | null = null;
@@ -48,15 +49,18 @@ async function ensureConnected(s: Socket): Promise<void> {
     });
   }
 }
-export async function fetchLogHistory(input?: LogHistoryInput): Promise<LogsHistoryAck> {
+export async function fetchLogHistory(input: LogHistoryInput): Promise<LogsHistoryAck> {
   const s = getSocket();
   await ensureConnected(s);
-  return s.emitWithAck('logs.history', input ?? {}) as Promise<LogsHistoryAck>;
+  return s.emitWithAck('logs.history', input) as Promise<LogsHistoryAck>;
 }
-export async function fetchLogDimensions(limit?: number): Promise<LogsDimensionsAck> {
+export async function fetchLogDimensions(
+  chatroomId: string,
+  limit?: number
+): Promise<LogsDimensionsAck> {
   const s = getSocket();
   await ensureConnected(s);
-  return s.emitWithAck('logs.dimensions', { limit }) as Promise<LogsDimensionsAck>;
+  return s.emitWithAck('logs.dimensions', { chatroomId, limit }) as Promise<LogsDimensionsAck>;
 }
 export async function fetchChatrooms(): Promise<ChatroomsListAck> {
   const s = getSocket();
@@ -92,6 +96,13 @@ export async function fetchEventStreamHistory(
   const s = getSocket();
   await ensureConnected(s);
   return s.emitWithAck('eventStream.history', input ?? {}) as Promise<EventStreamHistoryAck>;
+}
+export function subscribeEventStream(onEntry: (entry: EventStreamEntry) => void): () => void {
+  const s = getSocket();
+  s.connect();
+  s.emit('eventStream.stream.subscribe');
+  s.on('eventStream.stream', onEntry);
+  return () => s.off('eventStream.stream', onEntry);
 }
 export function subscribeLogStream(onLine: (line: LogLine) => void): () => void {
   const s = getSocket();

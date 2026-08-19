@@ -46,4 +46,6 @@ Test fixtures also insert into the table in `services/backend/convex/getCommandE
 
 ## Migration implication
 
-There is no single Convex writer abstraction today. Migration must update these call sites individually or introduce a shared event-writing port. The daemon-side `eventStream.ingest` API captures event-shaped payloads locally in `event_stream_entries` (SQLite). It does not automatically redirect these backend call sites — see [Chatroom event stream daemon migration](/migrations/chatroom-event-stream-daemon-migration.md) for the migration pattern (`agent.exited` is the reference implementation in commit `9f7908136`).
+There is no single Convex writer abstraction today. Migration must update these call sites individually or introduce a shared event-writing port. The daemon-side `eventStream.ingest` API captures event-shaped payloads locally in `event_stream_entries` (SQLite). It does not automatically redirect these backend call sites.
+
+**How to migrate:** Follow the per-event guides and conventions in [Chatroom event stream daemon migration](/migrations/chatroom-event-stream-daemon-migration.md#migration-conventions). The `agent.exited` reference commit (`9f7908136`) demonstrates audit migration; state handlers belong in `services/backend/convex/daemon/agentEvents.ts`.

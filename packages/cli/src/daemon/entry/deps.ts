@@ -16,6 +16,7 @@ export function createDaemonDeps(
     backend?: BackendOps;
     sessionId?: string;
     machineId?: string;
+    logEvent?: (event: Record<string, unknown>) => Promise<void>;
   } = {}
 ): DaemonDeps {
   const streamHub = opts.streamHub ?? createStreamHub();
@@ -28,6 +29,7 @@ export function createDaemonDeps(
       backend: opts.backend,
       sessionId: opts.sessionId,
       machineId: opts.machineId,
+      logEvent: opts.logEvent,
     }),
   };
 }

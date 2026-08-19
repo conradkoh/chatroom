@@ -29,10 +29,10 @@ export type LogLine = {
   metadata?: LogMetadata;
 };
 export type LogHistoryInput = {
+  chatroomId: string;
   afterId?: number;
   beforeId?: number;
   source?: string;
-  chatroomId?: string;
   role?: string;
   harness?: string;
   fromTimestamp?: number;
@@ -42,7 +42,7 @@ export type LogHistoryInput = {
 export type ChatroomListItem = { id: string; displayName: string };
 export type ChatroomsListResult = { chatrooms: ChatroomListItem[] };
 export type ChatroomsListAck = SocketAck<ChatroomsListResult>;
-export type LogDimensionsResult = { chatroomIds: string[]; roles: string[]; harnesses: string[] };
+export type LogDimensionsResult = { roles: string[]; harnesses: string[] };
 export type LogsDimensionsAck = SocketAck<LogDimensionsResult>;
 export type LogHistoryResult = { entries: LogLine[] };
 export type LogSourcesResult = { sources: string[] };

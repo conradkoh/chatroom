@@ -11,7 +11,9 @@ export type LogHistoryReader = {
     source?: string,
     chatroomId?: string,
     role?: string,
-    harness?: string, fromTimestamp?: number, toTimestamp?: number
+    harness?: string,
+    fromTimestamp?: number,
+    toTimestamp?: number
   ): StoredLogEntry[];
   queryHistory(
     beforeId?: number,
@@ -19,15 +21,14 @@ export type LogHistoryReader = {
     source?: string,
     chatroomId?: string,
     role?: string,
-    harness?: string, fromTimestamp?: number, toTimestamp?: number
+    harness?: string,
+    fromTimestamp?: number,
+    toTimestamp?: number
   ): StoredLogEntry[];
   listSources(limit?: number): string[];
 };
 export type LogHistoryResult = { entries: StoredLogEntry[] };
-export function listLogHistory(
-  reader: LogHistoryReader,
-  input: LogHistoryQuery = {}
-): LogHistoryResult {
+export function listLogHistory(reader: LogHistoryReader, input: LogHistoryQuery): LogHistoryResult {
   const limit = input.limit ?? 500;
   const entries =
     input.afterId !== undefined
@@ -37,7 +38,9 @@ export function listLogHistory(
           input.source,
           input.chatroomId,
           input.role,
-          input.harness, input.fromTimestamp, input.toTimestamp
+          input.harness,
+          input.fromTimestamp,
+          input.toTimestamp
         )
       : reader.queryHistory(
           input.beforeId,
@@ -45,17 +48,22 @@ export function listLogHistory(
           input.source,
           input.chatroomId,
           input.role,
-          input.harness, input.fromTimestamp, input.toTimestamp
+          input.harness,
+          input.fromTimestamp,
+          input.toTimestamp
         );
   return { entries };
 }
 export function listLogDimensions(
-  reader: LogHistoryReader & { listDimensions?: (limit?: number) => LogDimensions },
+  reader: LogHistoryReader & {
+    listDimensions?: (chatroomId: string, limit?: number) => LogDimensions;
+  },
+  chatroomId: string,
   limit = 100
 ): LogDimensions {
   return reader.listDimensions
-    ? reader.listDimensions(limit)
-    : { chatroomIds: [], roles: [], harnesses: [] };
+    ? reader.listDimensions(chatroomId, limit)
+    : { roles: [], harnesses: [] };
 }
 export function listLogSources(reader: LogHistoryReader, limit = 100): { sources: string[] } {
   return { sources: reader.listSources(limit) };

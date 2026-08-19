@@ -22,6 +22,7 @@ describe('native-delivery-session-registry', () => {
       sessionDeps: {
         sessionId: 's',
         machineId: 'm',
+        logEvent: async () => undefined,
         convexUrl: 'http://x',
         backend: { mutation: vi.fn(), query: vi.fn() },
       },

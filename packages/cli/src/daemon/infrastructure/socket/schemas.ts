@@ -11,10 +11,10 @@ export const harnessHistoryInputSchema = z.object({
   limit: z.number().int().positive().max(5000).optional(),
 }) satisfies z.ZodType<HarnessHistoryQuery>;
 export const logHistoryInputSchema = z.object({
+  chatroomId: z.string().min(1),
   afterId: z.number().int().nonnegative().optional(),
   beforeId: z.number().int().positive().optional(),
   source: z.string().optional(),
-  chatroomId: z.string().optional(),
   role: z.string().optional(),
   harness: z.string().optional(),
   fromTimestamp: z.number().int().nonnegative().optional(),
@@ -22,6 +22,10 @@ export const logHistoryInputSchema = z.object({
   limit: z.number().int().positive().max(1000).optional(),
 }) satisfies z.ZodType<LogHistoryQuery>;
 export const logSourcesInputSchema = z.object({
+  limit: z.number().int().positive().max(1000).optional(),
+});
+export const logDimensionsInputSchema = z.object({
+  chatroomId: z.string().min(1),
   limit: z.number().int().positive().max(1000).optional(),
 });
 export const eventStreamHistoryInputSchema = z.object({

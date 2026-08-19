@@ -136,4 +136,7 @@ export interface DaemonSessionInit {
   lastPushedGitState: Map<string, string>;
   lastPushedModels: Record<string, string[]> | null;
   lastPushedHarnessFingerprint: string | null;
+
+  /** Persists structured chatroom events to daemon-local SQLite. */
+  logEvent: (event: Record<string, unknown>) => Promise<void>;
 }

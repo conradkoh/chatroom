@@ -14,6 +14,7 @@ import type { OperationResult } from '../../../infrastructure/services/agent-lif
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type { StopReason } from '../../domain/entities/stop-reason.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
+import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
 import type { AgentHarness } from '../daemon-types.js';
 
 export interface NativeInjectorAgentMgr {
@@ -38,6 +39,7 @@ export interface NativeInjectorAgentMgr {
 export interface NativeInjectorDeps {
   sessionId: string;
   machineId: string;
+  logEvent?: (event: Record<string, unknown>) => Promise<void>;
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -57,11 +59,11 @@ async function emitTaskDeliveryFailed(
   }
 ): Promise<void> {
   try {
-    await deps.backend.mutation(api.machines.emitTaskDeliveryFailed, {
-      sessionId: deps.sessionId,
-      machineId: deps.machineId,
+    await logDaemonAuditEvent(deps.logEvent ?? (async () => undefined), {
+      type: 'agent.taskDeliveryFailed',
       chatroomId: args.chatroomId,
       role: args.role,
+      machineId: deps.machineId,
       taskId: args.taskId,
       error: args.error,
     });
@@ -186,8 +188,18 @@ function emitSessionAugmentationIfNeeded(
   }
 
   return Effect.tryPromise({
-    try: () =>
-      deps.backend.mutation(api.machines.emitSessionAugmented, {
+    try: async () => {
+      await logDaemonAuditEvent(deps.logEvent ?? (async () => undefined), {
+        type: 'agent.sessionAugmented',
+        chatroomId,
+        role,
+        machineId: deps.machineId,
+        taskId,
+        mode: augmentationMode,
+        newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
+        harnessSessionId,
+      });
+      await deps.backend.mutation(api.daemon.agentEvents.sessionAugmented, {
         sessionId: deps.sessionId,
         machineId: deps.machineId,
         chatroomId,
@@ -196,7 +208,8 @@ function emitSessionAugmentationIfNeeded(
         mode: augmentationMode,
         newSessionStarted: sessionAugmentationNewSessionStarted(augmentationMode),
         harnessSessionId,
-      }),
+      });
+    },
     catch: (err) => err,
   }).pipe(Effect.catchAll(() => Effect.void));
 }
@@ -229,11 +242,11 @@ function resumeHarnessWithPrompt(
 
     yield* Effect.tryPromise({
       try: () =>
-        deps.backend.mutation(api.machines.emitTaskDelivered, {
-          sessionId: deps.sessionId,
-          machineId: deps.machineId,
+        logDaemonAuditEvent(deps.logEvent ?? (async () => undefined), {
+          type: 'agent.taskDelivered',
           chatroomId,
           role,
+          machineId: deps.machineId,
           taskId,
         }),
       catch: (err) => err,
