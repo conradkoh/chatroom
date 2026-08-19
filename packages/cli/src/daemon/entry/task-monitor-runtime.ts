@@ -51,6 +51,10 @@ import {
 } from './restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
 import {
+  createAssignedTaskCursorSync,
+  type AssignedTaskChangePage,
+} from './task-monitor/assigned-task-cursor-sync.js';
+import {
   listTasksReadyForNudge,
   listNativeTasksNeedingRevive,
   NudgeCooldown,
@@ -456,29 +460,6 @@ function runLocalStoreReconcilePass(params: {
   });
 }
 
-function subscribeAssignedTaskSnapshotStore(
-  wsClient: ConvexClient,
-  args: { sessionId: string; machineId: string },
-  isStopped: () => boolean
-): () => void {
-  return wsClient.onUpdate(
-    api.machines.listMachineAssignedTaskSnapshots,
-    args as never,
-    (result) => {
-      if (isStopped()) return;
-      const tasks = mapAssignedTaskSnapshotList(
-        parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? [])
-      );
-      replaceAssignedTaskSnapshots(tasks);
-    },
-    (err: unknown) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Assigned-task snapshot subscription error: ${getErrorMessage(err)}`
-      );
-    }
-  );
-}
-
 // fallow-ignore-next-line unused-export
 export function handleInboundAssignedTaskEvent(
   event: AssignedTaskInboundEvent,
@@ -537,10 +518,24 @@ export const startTaskMonitorEffect = (
       machineId: session.machineId,
     });
 
-    const unsubscribeSnapshotStore = subscribeAssignedTaskSnapshotStore(
-      wsClient,
-      { sessionId: session.sessionId, machineId: session.machineId },
-      () => stopped
+    const cursorSync = createAssignedTaskCursorSync({
+      isStopped: () => stopped,
+      fetchPage: async (afterRevision, limit) =>
+        session.backend.query(api.machines.listMachineAssignedTaskChangesSince, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          afterRevision,
+          limit,
+        }) as Promise<AssignedTaskChangePage>,
+    });
+    const unsubscribeCursor = wsClient.onUpdate(
+      api.machines.subscribeMachineTaskUpdateCursor,
+      { sessionId: session.sessionId, machineId: session.machineId } as never,
+      (result) => cursorSync.notifyCursor((result as { latestRevision: number }).latestRevision),
+      (err: unknown) =>
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Assigned-task cursor subscription error: ${getErrorMessage(err)}`
+        )
     );
 
     const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
@@ -576,18 +571,40 @@ export const startTaskMonitorEffect = (
       });
     }, NATIVE_DELIVERY_RECONCILE_MS);
 
-    yield* Effect.tryPromise(() =>
+    yield* Effect.tryPromise(async () => {
+      await session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      });
+      const revision = await session.backend.query(api.machines.subscribeMachineTaskUpdateCursor, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      });
+      const hydrate = await session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
+        sessionId: session.sessionId,
+        machineId: session.machineId,
+      });
+      replaceAssignedTaskSnapshots(
+        mapAssignedTaskSnapshotList(
+          parseAssignedTaskMonitorRows((hydrate as { tasks?: unknown }).tasks ?? [])
+        )
+      );
+      cursorSync.setLastProcessedRevision(revision.latestRevision);
+      await cursorSync.drainNow();
+    }).pipe(Effect.catchAll(() => Effect.void));
+    /*
       session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
         sessionId: session.sessionId,
         machineId: session.machineId,
       })
-    ).pipe(Effect.catchAll(() => Effect.void));
+    ).pipe(Effect.catchAll(() => Effect.void));*/
 
     return {
       stop() {
         stopped = true;
         unregisterAssignedTaskMonitorHandler();
-        unsubscribeSnapshotStore();
+        unsubscribeCursor();
+        cursorSync.stop();
         clearAssignedTaskSnapshots();
         unregisterNativeDeliverySession();
         clearInterval(reconcileTimer);

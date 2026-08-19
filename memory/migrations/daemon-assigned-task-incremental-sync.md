@@ -115,8 +115,8 @@ daemon subscribes to compact cursor
 - [x] Add compact per-machine cursor table to the Convex schema.
 - [x] Add durable task-change history/tombstones.
 - [x] Add cursor update and delta query use cases.
-- [ ] Switch daemon task monitor away from the full-list subscription.
-- [ ] Add debounce and restart-safe delta processing.
+- [x] Switch daemon task monitor away from the full-list subscription.
+- [x] Add debounce and restart-safe delta processing.
 - [ ] Remove obsolete full-list reactive wiring after rollout validation.
 
 ## Related code

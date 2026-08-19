@@ -1,113 +1,34 @@
-import { describe, expect, test, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   clearAssignedTaskSnapshots,
-  hasAssignedTaskSnapshot,
   listAssignedTaskSnapshots,
-  listAssignedTaskSnapshotsForRole,
-  replaceAssignedTaskSnapshots,
+  removeAssignedTaskSnapshot,
+  upsertAssignedTaskSnapshot,
 } from './assigned-task-snapshot-store.js';
 import type { AssignedTaskSnapshotView } from '../../daemon/domain/entities/assigned-task.js';
 
-function makeRow(overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSnapshotView {
-  return {
-    taskId: 'task_1' as never,
-    chatroomId: 'room_1' as never,
-    status: 'pending' as const,
-    assignedTo: 'builder',
-    updatedAt: 1_700_000_000_000,
-    createdAt: 1_700_000_000_000,
-    agentConfig: {
-      role: 'builder',
-      machineId: 'm',
-      agentHarness: 'cursor-sdk',
-      workingDir: '/test',
-      spawnedAgentPid: 42_424,
-      desiredState: 'running',
-    },
-    participant: {
-      lastSeenAction: 'native:waiting',
-      lastSeenAt: 1_700_000_000_000,
-      lastStatus: 'agent.waiting',
-    },
-    ...overrides,
-  } as AssignedTaskSnapshotView;
-}
-
-describe('assigned-task-snapshot-store', () => {
-  beforeEach(() => {
-    clearAssignedTaskSnapshots();
-  });
-
-  test('initially hasSnapshot is false', () => {
-    expect(hasAssignedTaskSnapshot()).toBe(false);
-  });
-
-  test('replace sets hasSnapshot and stores rows', () => {
-    const row = makeRow();
-    replaceAssignedTaskSnapshots([row]);
-    expect(hasAssignedTaskSnapshot()).toBe(true);
+const row = (role = 'Builder'): AssignedTaskSnapshotView => ({
+  taskId: 'task',
+  chatroomId: 'room',
+  status: 'pending',
+  assignedTo: undefined,
+  updatedAt: 1,
+  createdAt: 1,
+  agentConfig: { role, machineId: 'm', agentHarness: 'x' },
+});
+describe('assigned task snapshot store', () => {
+  beforeEach(() => clearAssignedTaskSnapshots());
+  it('inserts and replaces case-insensitively', () => {
+    upsertAssignedTaskSnapshot(row());
+    upsertAssignedTaskSnapshot({ ...row('builder'), updatedAt: 2 });
     expect(listAssignedTaskSnapshots()).toHaveLength(1);
+    expect(listAssignedTaskSnapshots()[0]?.updatedAt).toBe(2);
   });
-
-  test('list returns a copy (mutating the returned array must not corrupt store)', () => {
-    const row = makeRow();
-    replaceAssignedTaskSnapshots([row]);
-    const copy = listAssignedTaskSnapshots();
-    copy.push(makeRow({ taskId: 'task_2' as never }));
-    expect(listAssignedTaskSnapshots()).toHaveLength(1);
-  });
-
-  test('listAssignedTaskSnapshotsForRole filters by chatroomId and role (case-insensitive)', () => {
-    const row1 = makeRow({
-      taskId: 'task_1' as never,
-      chatroomId: 'room_1' as never,
-      agentConfig: { ...makeRow().agentConfig, role: 'builder' },
-    });
-    const row2 = makeRow({
-      taskId: 'task_2' as never,
-      chatroomId: 'room_1' as never,
-      agentConfig: { ...makeRow().agentConfig, role: 'planner' },
-    });
-    const row3 = makeRow({
-      taskId: 'task_3' as never,
-      chatroomId: 'room_2' as never,
-      agentConfig: { ...makeRow().agentConfig, role: 'builder' },
-    });
-    replaceAssignedTaskSnapshots([row1, row2, row3]);
-
-    const builderRoom1 = listAssignedTaskSnapshotsForRole('room_1', 'builder');
-    expect(builderRoom1).toHaveLength(1);
-    expect(builderRoom1[0].taskId).toBe('task_1');
-
-    const plannerRoom1 = listAssignedTaskSnapshotsForRole('room_1', 'planner');
-    expect(plannerRoom1).toHaveLength(1);
-    expect(plannerRoom1[0].taskId).toBe('task_2');
-
-    const builderRoom2 = listAssignedTaskSnapshotsForRole('room_2', 'builder');
-    expect(builderRoom2).toHaveLength(1);
-    expect(builderRoom2[0].taskId).toBe('task_3');
-
-    const empty = listAssignedTaskSnapshotsForRole('room_3', 'builder');
-    expect(empty).toHaveLength(0);
-  });
-
-  test('case-insensitive role matching', () => {
-    const row = makeRow({
-      chatroomId: 'room_1' as never,
-      agentConfig: { ...makeRow().agentConfig, role: 'Builder' },
-    });
-    replaceAssignedTaskSnapshots([row]);
-
-    const result = listAssignedTaskSnapshotsForRole('room_1', 'BUILDER');
-    expect(result).toHaveLength(1);
-  });
-
-  test('clear resets store', () => {
-    replaceAssignedTaskSnapshots([makeRow()]);
-    expect(hasAssignedTaskSnapshot()).toBe(true);
-    clearAssignedTaskSnapshots();
-    expect(hasAssignedTaskSnapshot()).toBe(false);
+  it('removes and ignores missing rows', () => {
+    upsertAssignedTaskSnapshot(row());
+    removeAssignedTaskSnapshot('task', 'BUILDER');
+    removeAssignedTaskSnapshot('missing', 'x');
     expect(listAssignedTaskSnapshots()).toHaveLength(0);
   });
 });

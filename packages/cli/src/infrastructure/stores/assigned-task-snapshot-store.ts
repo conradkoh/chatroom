@@ -7,6 +7,19 @@ export function replaceAssignedTaskSnapshots(next: readonly AssignedTaskSnapshot
   rows = [...next];
   hasSnapshot = true;
 }
+function sameTaskRole(row: AssignedTaskSnapshotView, taskId: string, role: string): boolean {
+  return row.taskId === taskId && row.agentConfig.role.toLowerCase() === role.toLowerCase();
+}
+export function upsertAssignedTaskSnapshot(row: AssignedTaskSnapshotView): void {
+  const idx = rows.findIndex((existing) =>
+    sameTaskRole(existing, row.taskId, row.agentConfig.role)
+  );
+  rows = idx === -1 ? [...rows, row] : rows.map((existing, i) => (i === idx ? row : existing));
+  hasSnapshot = true;
+}
+export function removeAssignedTaskSnapshot(taskId: string, role: string): void {
+  rows = rows.filter((row) => !sameTaskRole(row, taskId, role));
+}
 
 export function clearAssignedTaskSnapshots(): void {
   rows = [];
