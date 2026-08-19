@@ -66,8 +66,8 @@ async function stopCoordinatorForWorkingDir(
 async function drainPendingFileTreeReleaseRequests(
   session: DaemonSessionServiceShape,
   coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
-  checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry
-  ,deltaOutboxRegistry: WorkspaceFileTreeDeltaOutboxRegistry
+  checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry,
+  deltaOutboxRegistry: WorkspaceFileTreeDeltaOutboxRegistry
 ): Promise<void> {
   const releases = await session.backend.query(
     api.workspaceFiles.getPendingFileTreeReleaseRequests,
@@ -84,7 +84,12 @@ async function drainPendingFileTreeReleaseRequests(
   }
 
   for (const normalized of releasesByDir) {
-    await stopCoordinatorForWorkingDir(coordinators, checkpointOutboxRegistry, deltaOutboxRegistry, normalized)
+    await stopCoordinatorForWorkingDir(
+      coordinators,
+      checkpointOutboxRegistry,
+      deltaOutboxRegistry,
+      normalized
+    )
       .then(() =>
         session.backend.mutation(api.workspaceFiles.fulfillFileTreeReleaseRequest, {
           sessionId: session.sessionId,
@@ -232,19 +237,37 @@ async function publishCheckpoint(
   return { revision: checkpointRevision };
 }
 
-export const startFileTreeSubscriptionEffect = (): Effect.Effect<FileTreeSubscriptionHandle, never, DaemonSessionService> =>
+export const startFileTreeSubscriptionEffect = (): Effect.Effect<
+  FileTreeSubscriptionHandle,
+  never,
+  DaemonSessionService
+> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const coordinators = new Map<string, Promise<WorkspaceFileTreeCoordinator>>();
     const checkpointOutboxRegistry = createWorkspaceFileTreeCheckpointOutboxRegistry(
       (normalized) => (state) => publishCheckpoint(session, normalized, state.tree, state.revision),
-      { onError: (normalized, error) => logSubscriptionWarn(`File tree checkpoint outbox failed for ${normalized}`, error) }
+      {
+        onError: (normalized, error) =>
+          logSubscriptionWarn(`File tree checkpoint outbox failed for ${normalized}`, error),
+      }
     );
-    const deltaOutboxRegistry = createWorkspaceFileTreeDeltaOutboxRegistry(session.machineId, (normalized) => async (unit) => {
-      const result = await session.backend.mutation(api.workspaceFiles.applyFileTreeDeltaBatch, { sessionId: session.sessionId, machineId: session.machineId, workingDir: normalized, operationId: unit.delta.operationId, baseRevision: unit.baseRevision, operations: toDeltaOperations(unit.delta) });
-      if (result.status === 'resync-required') return { status: 'conflict', revision: result.expectedRevision };
-      return result;
-    });
+    const deltaOutboxRegistry = createWorkspaceFileTreeDeltaOutboxRegistry(
+      session.machineId,
+      (normalized) => async (unit) => {
+        const result = await session.backend.mutation(api.workspaceFiles.applyFileTreeDeltaBatch, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          workingDir: normalized,
+          operationId: unit.delta.operationId,
+          baseRevision: unit.baseRevision,
+          operations: toDeltaOperations(unit.delta),
+        });
+        if (result.status === 'resync-required')
+          return { status: 'conflict', revision: result.expectedRevision };
+        return result;
+      }
+    );
 
     const ensureCoordinator = (
       workingDir: string,
@@ -256,8 +279,10 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<FileTreeSubscri
         coordinatorPromise = startWorkspaceFileTreeCoordinator({
           machineId: session.machineId,
           workingDir: normalized,
-          onDelta: (delta, baseRevision) => deltaOutboxRegistry.enqueue(normalized, { delta, baseRevision }),
-          onCheckpoint: (tree, revision) => checkpointOutboxRegistry.enqueue(normalized, { tree, revision }),
+          onDelta: (delta, baseRevision) =>
+            deltaOutboxRegistry.enqueue(normalized, { delta, baseRevision }),
+          onCheckpoint: (tree, revision) =>
+            checkpointOutboxRegistry.enqueue(normalized, { tree, revision }),
           onError: (error) =>
             logSubscriptionWarn(`File tree coordinator failed for ${normalized}`, error),
           onReconciled: (correctedPathCount) => {
@@ -288,13 +313,26 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<FileTreeSubscri
       drainPendingFileTreeRequests: () =>
         drainPendingFileTreeRequests(session, coordinators, ensureCoordinator),
       drainPendingFileTreeReleaseRequests: () =>
-        drainPendingFileTreeReleaseRequests(session, coordinators, checkpointOutboxRegistry, deltaOutboxRegistry),
+        drainPendingFileTreeReleaseRequests(
+          session,
+          coordinators,
+          checkpointOutboxRegistry,
+          deltaOutboxRegistry
+        ),
       stop: () => {
         void (async () => {
           const keys = [...coordinators.keys()];
-          await Promise.all(keys.map((normalized) =>
-            stopCoordinatorForWorkingDir(coordinators, checkpointOutboxRegistry, deltaOutboxRegistry, normalized)
-          ));
+          await Promise.all(
+            keys.map((normalized) =>
+              stopCoordinatorForWorkingDir(
+                coordinators,
+                checkpointOutboxRegistry,
+                deltaOutboxRegistry,
+                normalized
+              )
+            )
+          );
+          await deltaOutboxRegistry.stopAll();
           coordinators.clear();
         })();
       },
