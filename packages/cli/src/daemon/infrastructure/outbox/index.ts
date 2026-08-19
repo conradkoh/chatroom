@@ -21,3 +21,5 @@ export * from './durable-fifo-queue-store.js';
 export * from './fifo-batched-outbox.js';
 export * from './keyed-fifo-batched-outbox-registry.js';
 export * from './workspace-file-tree-delta-outbox.js';
+export * from './durable-coalescing-state-schema.js';
+export * from './durable-coalescing-state-store.js';

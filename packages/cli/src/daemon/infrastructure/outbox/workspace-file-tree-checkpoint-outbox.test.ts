@@ -10,7 +10,7 @@ describe('workspace-file-tree-checkpoint-outbox', () => {
     const send = vi.fn(async (state: WorkspaceFileTreeCheckpointState) => ({
       revision: state.revision,
     }));
-    const outbox = createWorkspaceFileTreeCheckpointOutboxRegistry(() => send);
+    const outbox = createWorkspaceFileTreeCheckpointOutboxRegistry('test-machine', () => send);
     const state: WorkspaceFileTreeCheckpointState = {
       tree: {
         entries: [{ path: 'src/index.ts', type: 'file' }],

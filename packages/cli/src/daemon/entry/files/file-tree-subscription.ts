@@ -246,6 +246,7 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
     const session = yield* DaemonSessionService;
     const coordinators = new Map<string, Promise<WorkspaceFileTreeCoordinator>>();
     const checkpointOutboxRegistry = createWorkspaceFileTreeCheckpointOutboxRegistry(
+      session.machineId,
       (normalized) => (state) => publishCheckpoint(session, normalized, state.tree, state.revision),
       {
         onError: (normalized, error) =>
@@ -333,6 +334,7 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
             )
           );
           await deltaOutboxRegistry.stopAll();
+          await checkpointOutboxRegistry.stopAll();
           coordinators.clear();
         })();
       },
