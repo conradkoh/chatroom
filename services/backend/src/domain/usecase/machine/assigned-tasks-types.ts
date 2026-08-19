@@ -78,3 +78,25 @@ export interface SubscribeAssignedTaskPresenceInput extends MachineAssignedTasks
   afterPresenceKey?: string;
   limit: number;
 }
+
+export interface MachineTaskUpdateCursorResult {
+  latestRevision: number;
+  updatedAt: number;
+}
+export interface AssignedTaskChangeItem {
+  revision: number;
+  op: 'upsert' | 'delete';
+  taskId: Id<'chatroom_tasks'>;
+  role: string;
+  snapshot?: AssignedTaskSnapshotView;
+}
+export interface ListMachineAssignedTaskChangesResult {
+  items: AssignedTaskChangeItem[];
+  highRevision: number | null;
+  hasMore: boolean;
+}
+export interface ListMachineAssignedTaskChangesInput extends MachineAssignedTasksInput {
+  afterRevision?: number;
+  limit: number;
+}
+export interface GetMachineTaskUpdateCursorInput extends MachineAssignedTasksInput {}

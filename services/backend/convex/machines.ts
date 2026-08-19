@@ -33,6 +33,8 @@ import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
+import { getMachineTaskUpdateCursor } from '../src/domain/usecase/machine/get-machine-task-update-cursor';
+import { listMachineAssignedTaskChanges } from '../src/domain/usecase/machine/list-machine-assigned-task-changes';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
 import { projectAssignedTaskSnapshotsForMachine } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
@@ -2547,6 +2549,34 @@ export const listMachineAssignedTaskSnapshots = query({
     return listMachineAssignedTaskSnapshotsUseCase(ctx, {
       machineId: args.machineId,
       userId: auth.userId,
+    });
+  },
+});
+
+export const subscribeMachineTaskUpdateCursor = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { latestRevision: 0, updatedAt: 0 };
+    return getMachineTaskUpdateCursor(ctx, { machineId: args.machineId, userId: auth.userId });
+  },
+});
+
+export const listMachineAssignedTaskChangesSince = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    afterRevision: v.optional(v.number()),
+    limit: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return { items: [], highRevision: null, hasMore: false };
+    return listMachineAssignedTaskChanges(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      afterRevision: args.afterRevision,
+      limit: args.limit,
     });
   },
 });

@@ -698,9 +698,9 @@ export default defineSchema({
         }),
         participant: v.optional(
           v.object({
-            lastSeenAction: v.string().nullable(),
-            lastSeenAt: v.number().nullable(),
-            lastStatus: v.string().nullable(),
+            lastSeenAction: v.union(v.string(), v.null()),
+            lastSeenAt: v.union(v.number(), v.null()),
+            lastStatus: v.union(v.string(), v.null()),
           })
         ),
       })

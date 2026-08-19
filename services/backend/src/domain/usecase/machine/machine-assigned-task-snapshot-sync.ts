@@ -14,6 +14,11 @@ import {
   primaryAssignedTaskSignalType,
 } from './assigned-tasks-revision';
 import type { AssignedTaskSignal } from './assigned-tasks-types';
+import {
+  recordAssignedTaskDeleteChange,
+  recordAssignedTaskUpsertChange,
+  shouldRecordTaskStateChange,
+} from './machine-assigned-task-change-log';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
@@ -142,7 +147,10 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     taskAssignedTo: task.assignedTo,
     taskCreatedAt: task.createdAt ?? now,
     taskUpdatedAt,
-    sessionAugmentation: resolveSessionAugmentationForTask({ content: task.content, startInNewSession: task.startInNewSession }, config.role),
+    sessionAugmentation: resolveSessionAugmentationForTask(
+      { content: task.content, startInNewSession: task.startInNewSession },
+      config.role
+    ),
     agentHarness: config.agentHarness ?? 'opencode',
     model: config.model,
     workingDir: config.workingDir,
@@ -184,9 +192,14 @@ async function upsertSnapshotRow(ctx: MutationCtx, input: SnapshotRowInput): Pro
 
   if (existing) {
     await ctx.db.patch('chatroom_machineAssignedTaskSnapshots', existing._id, fields);
+    const next = await ctx.db.get('chatroom_machineAssignedTaskSnapshots', existing._id);
+    if (next && shouldRecordTaskStateChange(existing, next))
+      await recordAssignedTaskUpsertChange(ctx, next);
     return;
   }
-  await ctx.db.insert('chatroom_machineAssignedTaskSnapshots', fields);
+  const id = await ctx.db.insert('chatroom_machineAssignedTaskSnapshots', fields);
+  const next = await ctx.db.get('chatroom_machineAssignedTaskSnapshots', id);
+  if (next) await recordAssignedTaskUpsertChange(ctx, next);
 }
 
 async function deleteSnapshotsForTask(
@@ -198,6 +211,11 @@ async function deleteSnapshotsForTask(
     .withIndex('by_taskId', (q) => q.eq('taskId', taskId))
     .collect();
   for (const row of rows) {
+    await recordAssignedTaskDeleteChange(ctx, {
+      machineId: row.machineId,
+      taskId: row.taskId,
+      role: row.role,
+    });
     await ctx.db.delete('chatroom_machineAssignedTaskSnapshots', row._id);
   }
 }
@@ -208,6 +226,11 @@ async function deleteSnapshotsForMachine(ctx: MutationCtx, machineId: string): P
     .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
     .collect();
   for (const row of rows) {
+    await recordAssignedTaskDeleteChange(ctx, {
+      machineId: row.machineId,
+      taskId: row.taskId,
+      role: row.role,
+    });
     await ctx.db.delete('chatroom_machineAssignedTaskSnapshots', row._id);
   }
 }
@@ -266,6 +289,11 @@ export async function projectAssignedTaskSnapshotsForMachine(
   for (const row of existing) {
     const key = `${row.machineId}:${row.taskId}:${row.role}`;
     if (!desiredKeys.has(key)) {
+      await recordAssignedTaskDeleteChange(ctx, {
+        machineId: row.machineId,
+        taskId: row.taskId,
+        role: row.role,
+      });
       await ctx.db.delete('chatroom_machineAssignedTaskSnapshots', row._id);
     }
   }
@@ -410,6 +438,8 @@ async function patchSnapshotRowPresence(
       ...patch,
       signalUpdatedAt: now,
     });
+    const next = await ctx.db.get('chatroom_machineAssignedTaskSnapshots', row._id);
+    if (next) await recordAssignedTaskUpsertChange(ctx, next);
     return;
   }
 
