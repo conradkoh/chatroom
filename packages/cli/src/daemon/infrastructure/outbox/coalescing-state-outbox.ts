@@ -146,6 +146,7 @@ export function createCoalescingStateOutbox<TState, TResult>(
 
   const stop = async (): Promise<void> => {
     if (stopped) return;
+    await flushNow();
     stopped = true;
     clearTimer();
 

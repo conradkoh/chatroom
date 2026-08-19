@@ -39,6 +39,7 @@ export function createKeyedCoalescingStateOutboxRegistry<TState, TResult>(
   const stop = async (key: string): Promise<void> => {
     const outbox = outboxes.get(key);
     outboxes.delete(key);
+    await outbox?.flushNow().catch(() => undefined);
     await outbox?.stop().catch(() => undefined);
   };
   return {

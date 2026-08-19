@@ -82,8 +82,8 @@ wire-level mutex.
 
 ### Shutdown behavior (resolved)
 
-Shutdown does not flush pending outbox state. The persisted manifest remains
-authoritative; unsent pending delivery is discarded on `stop()`.
+Graceful shutdown flushes pending outbox state before `stop()` completes. The
+persisted manifest remains authoritative, and failed flushes propagate to the caller.
 
 ## Architecture diagram
 
@@ -107,11 +107,17 @@ Outboxes live under `packages/cli/src/daemon/infrastructure/outbox/`.
 - `coalescing-state-outbox.ts` — latest-state scheduling, rate limiting, retry/backoff, serialization, and shutdown rejection
 - `keyed-coalescing-state-outbox-registry.ts` — one coalescing outbox per delivery key
 - `workspace-file-tree-checkpoint-outbox.ts` — checkpoint adapter owning the 5s interval constant
+- `workspace-file-tree-delta-outbox.ts` — durable FIFO delta adapter with adapter-owned batch size
 
 Planned next: a FIFO delta primitive, a keyed
 `workspace-file-tree-delta-outbox.ts` adapter, and delta wiring in
 `file-tree-subscription.ts`. Subscription and daemon runtime APIs do not expose
 outbox interval configuration.
+
+Delta delivery uses one durable SQLite file per outbox type and machine under
+`~/.chatroom/daemon/{machineId}/`, partitioned by normalized working directory.
+Checkpoint delivery remains in memory in this slice. Checkpoint and delta
+outboxes do not share an in-flight mutex.
 
 ## Progress tracker
 
@@ -124,7 +130,7 @@ outbox interval configuration.
 | Release-path coordinator map cleanup | ✅ Done | `0bc97b2bf` |
 | System design recorded in memory | ✅ Done | this document |
 | FIFO ordered delta outbox primitive | ⬜ Pending | New file under `outbox/` |
-| Delta outbox adapter + wiring | ⬜ Pending | `file-tree-subscription.ts` `onDelta` path |
+| Delta outbox adapter + wiring | ✅ Done | `workspace-file-tree-delta-outbox.ts`, `file-tree-subscription.ts` |
 | Delta delivery policy | ⬜ Pending | Decide rate limit / backoff before implementation |
 | Durable SQLite outbox drain | ⬜ Pending | `daemon/infrastructure/persistence/outbox.ts` |
 | Buffered journal migration | ⬜ Pending | `infrastructure/repos/journal-factory.ts` |
@@ -149,6 +155,5 @@ coalescing. Only outbound projection concerns migrate to outboxes.
 
 ## Unresolved decisions
 
-- Delta delivery policy: FIFO retry/backoff; one `operationId` per send versus batching
-- Whether checkpoint and delta outboxes need a shared in-flight mutex per working directory
-- Whether durable delta outbox storage is needed sooner than checkpoints due to higher churn
+- Delta delivery policy: FIFO retry/backoff; one `operationId` per send, batched sequentially up to adapter batch size
+- Checkpoint SQLite durability remains pending; checkpoint delivery is currently in memory

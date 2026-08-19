@@ -27,14 +27,14 @@ describe('keyed coalescing state outbox registry', () => {
     await registry.stopAll();
   });
 
-  it('stops only the selected key and rejects its pending state', async () => {
+  it('stops only the selected key after flushing its pending state', async () => {
     const registry = createKeyedCoalescingStateOutboxRegistry<number, number>({
       createSend: () => async (state) => state,
       minIntervalMs: 100,
     });
     const pending = registry.enqueue('a', 1);
     await registry.stop('a');
-    await expect(pending).rejects.toThrow('Outbox stopped');
+    await expect(pending).resolves.toBe(1);
     await expect(registry.enqueue('b', 2)).resolves.toBe(2);
     await registry.stopAll();
   });

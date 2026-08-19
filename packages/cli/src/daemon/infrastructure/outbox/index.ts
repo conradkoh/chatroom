@@ -15,3 +15,9 @@ export {
   type WorkspaceFileTreeCheckpointSendResult,
   type WorkspaceFileTreeCheckpointState,
 } from './workspace-file-tree-checkpoint-outbox.js';
+export * from './outbox-db-path.js';
+export * from './durable-fifo-queue-schema.js';
+export * from './durable-fifo-queue-store.js';
+export * from './fifo-batched-outbox.js';
+export * from './keyed-fifo-batched-outbox-registry.js';
+export * from './workspace-file-tree-delta-outbox.js';

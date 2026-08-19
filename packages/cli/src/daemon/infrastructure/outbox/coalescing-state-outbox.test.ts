@@ -50,14 +50,14 @@ describe('coalescing-state-outbox', () => {
     await outbox.stop();
   });
 
-  it('rejects pending state on stop without flushing it', async () => {
+  it('flushes pending state on stop before completing', async () => {
     vi.useFakeTimers();
     const send = vi.fn(async (state: number) => state);
     const outbox = createCoalescingStateOutbox({ send, minIntervalMs: 100 });
     const pending = outbox.enqueue(1);
     await outbox.stop();
-    await expect(pending).rejects.toThrow('Outbox stopped');
-    expect(send).not.toHaveBeenCalled();
+    await expect(pending).resolves.toBe(1);
+    expect(send).toHaveBeenCalledWith(1);
   });
 
   it('retains the latest state and retries after a failed send', async () => {
