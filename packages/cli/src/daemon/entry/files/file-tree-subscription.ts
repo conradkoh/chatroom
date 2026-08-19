@@ -25,6 +25,12 @@ import {
 import { enqueueFileTreeSync } from '../../../infrastructure/services/workspace/workspace-sync-queue.js';
 import type { WorkspacePendingDelta } from '../../../infrastructure/services/workspace/workspace-sync-state.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import {
+  createWorkspaceFileTreeCheckpointOutboxRegistry,
+  createWorkspaceFileTreeDeltaOutboxRegistry,
+  type WorkspaceFileTreeDeltaOutboxRegistry,
+  type WorkspaceFileTreeCheckpointOutboxRegistry,
+} from '../../infrastructure/outbox/index.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
 import { formatTimestamp } from '../daemon-utils.js';
 
@@ -45,17 +51,23 @@ type EnsureCoordinator = (
 
 async function stopCoordinatorForWorkingDir(
   coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
+  checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry,
+  deltaOutboxRegistry: WorkspaceFileTreeDeltaOutboxRegistry,
   normalized: string
 ): Promise<void> {
   const coordinatorPromise = coordinators.get(normalized);
   if (!coordinatorPromise) return;
   coordinators.delete(normalized);
   await coordinatorPromise.then((coordinator) => coordinator.stop()).catch(() => undefined);
+  await checkpointOutboxRegistry.stop(normalized);
+  await deltaOutboxRegistry.stop(normalized);
 }
 
 async function drainPendingFileTreeReleaseRequests(
   session: DaemonSessionServiceShape,
-  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>
+  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
+  checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry,
+  deltaOutboxRegistry: WorkspaceFileTreeDeltaOutboxRegistry
 ): Promise<void> {
   const releases = await session.backend.query(
     api.workspaceFiles.getPendingFileTreeReleaseRequests,
@@ -72,7 +84,12 @@ async function drainPendingFileTreeReleaseRequests(
   }
 
   for (const normalized of releasesByDir) {
-    await stopCoordinatorForWorkingDir(coordinators, normalized)
+    await stopCoordinatorForWorkingDir(
+      coordinators,
+      checkpointOutboxRegistry,
+      deltaOutboxRegistry,
+      normalized
+    )
       .then(() =>
         session.backend.mutation(api.workspaceFiles.fulfillFileTreeReleaseRequest, {
           sessionId: session.sessionId,
@@ -228,6 +245,30 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const coordinators = new Map<string, Promise<WorkspaceFileTreeCoordinator>>();
+    const checkpointOutboxRegistry = createWorkspaceFileTreeCheckpointOutboxRegistry(
+      session.machineId,
+      (normalized) => (state) => publishCheckpoint(session, normalized, state.tree, state.revision),
+      {
+        onError: (normalized, error) =>
+          logSubscriptionWarn(`File tree checkpoint outbox failed for ${normalized}`, error),
+      }
+    );
+    const deltaOutboxRegistry = createWorkspaceFileTreeDeltaOutboxRegistry(
+      session.machineId,
+      (normalized) => async (unit) => {
+        const result = await session.backend.mutation(api.workspaceFiles.applyFileTreeDeltaBatch, {
+          sessionId: session.sessionId,
+          machineId: session.machineId,
+          workingDir: normalized,
+          operationId: unit.delta.operationId,
+          baseRevision: unit.baseRevision,
+          operations: toDeltaOperations(unit.delta),
+        });
+        if (result.status === 'resync-required')
+          return { status: 'conflict', revision: result.expectedRevision };
+        return result;
+      }
+    );
 
     const ensureCoordinator = (
       workingDir: string,
@@ -239,28 +280,10 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
         coordinatorPromise = startWorkspaceFileTreeCoordinator({
           machineId: session.machineId,
           workingDir: normalized,
-          onDelta: async (delta, baseRevision) => {
-            const operations = toDeltaOperations(delta);
-            const result = await session.backend.mutation(
-              api.workspaceFiles.applyFileTreeDeltaBatch,
-              {
-                sessionId: session.sessionId,
-                machineId: session.machineId,
-                workingDir: normalized,
-                operationId: delta.operationId,
-                baseRevision,
-                operations,
-              }
-            );
-            if (result.status === 'resync-required') {
-              return { status: 'conflict' as const, revision: result.expectedRevision };
-            }
-            console.log(
-              `[${formatTimestamp()}] 🌳 File tree delta: ${normalized} (${operations.length} operations, ${Buffer.byteLength(JSON.stringify(operations))} bytes, revision ${result.revision})`
-            );
-            return result;
-          },
-          onCheckpoint: (tree, revision) => publishCheckpoint(session, normalized, tree, revision),
+          onDelta: (delta, baseRevision) =>
+            deltaOutboxRegistry.enqueue(normalized, { delta, baseRevision }),
+          onCheckpoint: (tree, revision) =>
+            checkpointOutboxRegistry.enqueue(normalized, { tree, revision }),
           onError: (error) =>
             logSubscriptionWarn(`File tree coordinator failed for ${normalized}`, error),
           onReconciled: (correctedPathCount) => {
@@ -291,14 +314,29 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
       drainPendingFileTreeRequests: () =>
         drainPendingFileTreeRequests(session, coordinators, ensureCoordinator),
       drainPendingFileTreeReleaseRequests: () =>
-        drainPendingFileTreeReleaseRequests(session, coordinators),
+        drainPendingFileTreeReleaseRequests(
+          session,
+          coordinators,
+          checkpointOutboxRegistry,
+          deltaOutboxRegistry
+        ),
       stop: () => {
-        void Promise.all(
-          [...coordinators.values()].map((coordinator) =>
-            coordinator.then((handle) => handle.stop()).catch(() => undefined)
-          )
-        );
-        coordinators.clear();
+        void (async () => {
+          const keys = [...coordinators.keys()];
+          await Promise.all(
+            keys.map((normalized) =>
+              stopCoordinatorForWorkingDir(
+                coordinators,
+                checkpointOutboxRegistry,
+                deltaOutboxRegistry,
+                normalized
+              )
+            )
+          );
+          await deltaOutboxRegistry.stopAll();
+          await checkpointOutboxRegistry.stopAll();
+          coordinators.clear();
+        })();
       },
     };
   });

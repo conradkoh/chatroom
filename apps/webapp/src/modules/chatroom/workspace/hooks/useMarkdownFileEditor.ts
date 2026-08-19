@@ -8,6 +8,7 @@ import { useRequestWorkspaceFileContent } from './useRequestWorkspaceFileContent
 import { useWorkspaceFileSave } from './useWorkspaceFileSave';
 import {
   isPendingOptimisticNewFile,
+  isFileNotFoundError,
   isTransientNewFileReadError,
   isWorkspaceNotRegisteredError,
 } from '../utils/fileContentSentinels';
@@ -90,6 +91,11 @@ export function useMarkdownFileEditor({
     if (isDirty) return;
     if (isWorkspaceNotRegisteredError(loadedContent.content)) {
       setLoadError('Workspace is not registered on this machine.');
+      return;
+    }
+    if (isFileNotFoundError(loadedContent.content)) {
+      if (isTransientNewFileReadError(loadedContent.content, filePath)) return;
+      setLoadError('File not found.');
       return;
     }
     if (isTransientNewFileReadError(loadedContent.content, filePath)) return;

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { walkWorkspaceFiles } from './workspace-file-walk.js';
 
@@ -13,8 +13,59 @@ vi.mock('node:child_process', () => ({ spawn: spawnMock }));
 describe('walkWorkspaceFiles', () => {
   let tmpDir: string;
 
+  beforeEach(async () => {
+    const configDir = await mkdtemp(join(tmpdir(), 'gitconfig-empty-'));
+    const configPath = join(configDir, 'gitconfig');
+    await writeFile(configPath, '[core]\n');
+    vi.stubEnv('GIT_CONFIG_GLOBAL', configPath);
+  });
+
   afterEach(async () => {
+    vi.unstubAllEnvs();
     if (tmpDir) await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('does not walk directories ignored only by core.excludesFile', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'file-walk-global-home-'));
+    const ignorePath = join(home, '.gitignore_global');
+    const configPath = join(home, 'gitconfig');
+    await writeFile(ignorePath, '**/.chatroom/downloads/\n');
+    await writeFile(configPath, `[core]\n\texcludesfile = ${ignorePath}\n`);
+    vi.stubEnv('GIT_CONFIG_GLOBAL', configPath);
+    tmpDir = await mkdtemp(join(tmpdir(), 'file-walk-global-excludes-'));
+    await mkdir(join(tmpDir, '.chatroom', 'downloads', 'messages'), { recursive: true });
+    await mkdir(join(tmpDir, 'apps'));
+    await writeFile(join(tmpDir, '.gitignore'), '.chatroom/pi-sessions/\n');
+    await writeFile(join(tmpDir, 'apps', 'app.ts'), 'export {}\n');
+    await Promise.all(
+      Array.from({ length: 40 }, (_, i) =>
+        writeFile(join(tmpDir, '.chatroom', 'downloads', 'messages', `msg-${i}.json`), '{}')
+      )
+    );
+    const result = await walkWorkspaceFiles(tmpDir, { maxFilePaths: 20 });
+    expect(result.filePaths.some((p) => p.startsWith('.chatroom/downloads/'))).toBe(false);
+    expect(result.filePaths).toContain('apps/app.ts');
+    expect(result.truncated).toBe(false);
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('walks sibling directories breadth-first before deep dumps', async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'file-walk-bfs-'));
+    await mkdir(join(tmpDir, '.chatroom', 'downloads', 'messages'), { recursive: true });
+    await mkdir(join(tmpDir, 'apps'));
+    await writeFile(join(tmpDir, 'README.md'), '# readme');
+    await writeFile(join(tmpDir, 'apps', 'app.ts'), 'export {}');
+    await Promise.all(
+      Array.from({ length: 40 }, (_, i) =>
+        writeFile(join(tmpDir, '.chatroom', 'downloads', 'messages', `msg-${i}.json`), '{}')
+      )
+    );
+    const result = await walkWorkspaceFiles(tmpDir, { maxFilePaths: 10 });
+    expect(result.filePaths).toContain('README.md');
+    expect(result.filePaths).toContain('apps/app.ts');
+    expect(result.directoryStubs).toContain('apps');
+    expect(result.directoryStubs).toContain('.chatroom');
+    expect(result.truncated).toBe(true);
   });
 
   it('returns files from a non-git directory', async () => {

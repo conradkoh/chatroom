@@ -13,6 +13,7 @@ import {
 import { useRequestWorkspaceFileContent } from '../hooks/useRequestWorkspaceFileContent';
 import {
   FILE_READ_ERROR_PLACEHOLDER,
+  isFileNotFoundError,
   isPendingOptimisticNewFile,
   isTransientNewFileReadError,
 } from '../utils/fileContentSentinels';
@@ -141,6 +142,16 @@ const FileContentInner = memo(function FileContentInner({
         </div>
       );
     }
+  }
+
+  if (isFileNotFoundError(content.content) && !isPendingOptimisticNewFile(filePath)) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-chatroom-text-muted p-8">
+        <FileWarning size={40} className="text-chatroom-text-muted/50" />
+        <div className="text-sm">File not found</div>
+        <div className="text-xs text-chatroom-text-muted/70">{filePath}</div>
+      </div>
+    );
   }
 
   const isMd = isMarkdownFile(filePath);
