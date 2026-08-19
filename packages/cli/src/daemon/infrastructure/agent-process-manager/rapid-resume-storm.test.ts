@@ -32,6 +32,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
   const now = 1_000_000;
   const mockService = createMockService();
   return {
+    logEvent: vi.fn().mockResolvedValue(undefined),
     agentServices: new Map([['pi', mockService]]),
     backend: {
       query: vi.fn().mockResolvedValue({

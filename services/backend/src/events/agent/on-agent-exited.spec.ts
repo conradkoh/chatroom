@@ -140,7 +140,7 @@ async function countAgentExitedEvents(chatroomId: Id<'chatroom_rooms'>) {
 // ---------------------------------------------------------------------------
 
 describe('onAgentExited via recordAgentExited — stopReason handling', () => {
-  test('records agent.exited event for user.stop', async () => {
+  test('does not record agent.exited in Convex for user.stop', async () => {
     const { sessionId } = await createTestSession('oae-1');
     const chatroomId = await createChatroom(sessionId);
     await registerMachineAndConfig(sessionId, 'oae-m1', chatroomId, 'running');
@@ -150,10 +150,10 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
-    expect(exitEvents).toBe(1); // Event recorded but no restart scheduled
+    expect(exitEvents).toBe(0); // Event logging is owned by the daemon.
   });
 
-  test('records agent.exited event for agent_process.exited_clean', async () => {
+  test('does not record agent.exited in Convex for agent_process.exited_clean', async () => {
     const { sessionId } = await createTestSession('oae-2');
     const chatroomId = await createChatroom(sessionId);
     await registerMachineAndConfig(sessionId, 'oae-m2', chatroomId, 'running');
@@ -164,7 +164,7 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
-    expect(exitEvents).toBe(1); // Event recorded, restart scheduled (can't verify schedule in test)
+    expect(exitEvents).toBe(0); // Event logging is owned by the daemon.
   });
 
   test('records agent.exited event for agent_process.signal', async () => {
@@ -180,7 +180,7 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
-    expect(exitEvents).toBe(1);
+    expect(exitEvents).toBe(0);
   });
 
   test('records agent.exited event for agent_process.crashed', async () => {
@@ -194,7 +194,7 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
-    expect(exitEvents).toBe(1);
+    expect(exitEvents).toBe(0);
   });
 
   test('completes without error when desiredState is stopped', async () => {
@@ -209,7 +209,7 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
-    expect(exitEvents).toBe(1);
+    expect(exitEvents).toBe(0);
   });
 
   test('clears spawnedAgentPid after exit', async () => {
@@ -248,7 +248,7 @@ describe('onAgentExited — no backend restart (daemon owns restarts)', () => {
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
-    expect(exitEvents).toBe(1);
+    expect(exitEvents).toBe(0);
 
     // Daemon owns all restarts — no agent.requestStart emitted by backend
     const requestStartEvents = await countAgentRequestStartEvents(chatroomId);
@@ -266,7 +266,7 @@ describe('onAgentExited — no backend restart (daemon owns restarts)', () => {
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
-    expect(exitEvents).toBe(1);
+    expect(exitEvents).toBe(0);
 
     // Daemon owns restarts for all harnesses now
     const requestStartEvents = await countAgentRequestStartEvents(chatroomId);

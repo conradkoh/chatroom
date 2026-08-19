@@ -11,6 +11,7 @@ import type {
 } from '../api/types.js';
 
 let socket: Socket | null = null;
+let daemonSocket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
@@ -64,6 +65,24 @@ export async function fetchLogSources(limit?: number): Promise<LogsSourcesAck> {
   const s = getSocket();
   await ensureConnected(s);
   return s.emitWithAck('logs.sources', { limit }) as Promise<LogsSourcesAck>;
+}
+
+export async function ingestChatroomEvent(
+  event: Record<string, unknown>,
+  port: number
+): Promise<void> {
+  if (!daemonSocket) {
+    daemonSocket = io(`http://127.0.0.1:${port}`, { transports: ['websocket'], autoConnect: true });
+  }
+  const s = daemonSocket;
+  await ensureConnected(s);
+  const response = (await s.emitWithAck('logs.events.ingest', event)) as {
+    ok: boolean;
+    error?: { message?: string };
+  };
+  if (!response.ok) {
+    throw new Error(response.error?.message ?? 'Failed to ingest chatroom event');
+  }
 }
 export function subscribeLogStream(onLine: (line: LogLine) => void): () => void {
   const s = getSocket();

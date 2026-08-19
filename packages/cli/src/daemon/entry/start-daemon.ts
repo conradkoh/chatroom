@@ -15,15 +15,26 @@ import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { createLogRepository } from '../infrastructure/repository/log-repository.js';
 import { startLocalWebServer } from '../local-web/server/create-local-web-server.js';
 import { createLogStreamHub } from '../local-web/server/log-stream-hub.js';
+import { ingestChatroomEvent } from '../local-web/client/lib/socket.js';
 
 export async function startDaemon(): Promise<void> {
+  let resolveBoundPort!: (port: number) => void;
+  const localWebPortReady = new Promise<number>((resolve) => {
+    resolveBoundPort = resolve;
+  });
   const logStreamHub = createLogStreamHub();
   const logServer = createLogServer(resolveLogsDbPath(), {
     onWrite: (entry) => logStreamHub.publish(entry),
   });
   let init: Awaited<ReturnType<typeof initDaemon>>;
   try {
-    init = await initDaemon({ logSink: logServer });
+    init = await initDaemon({
+      logSink: logServer,
+      logEvent: async (event) => {
+        const port = await localWebPortReady;
+        return ingestChatroomEvent(event, port);
+      },
+    });
   } catch (error) {
     logServer.close();
     throw error;
@@ -50,6 +61,7 @@ export async function startDaemon(): Promise<void> {
       sessionId: init.sessionId,
     }
   );
+  resolveBoundPort(localWeb.port);
 
   const subscribers = startAllSubscribers({
     wsClient,
