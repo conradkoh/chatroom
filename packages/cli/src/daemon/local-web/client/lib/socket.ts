@@ -8,6 +8,8 @@ import type {
   LogsHistoryAck,
   LogsSourcesAck,
   LogHistoryInput,
+  EventStreamHistoryAck,
+  EventStreamHistoryInput,
 } from '../api/types.js';
 
 let socket: Socket | null = null;
@@ -76,13 +78,20 @@ export async function ingestChatroomEvent(
   }
   const s = daemonSocket;
   await ensureConnected(s);
-  const response = (await s.emitWithAck('logs.events.ingest', event)) as {
+  const response = (await s.emitWithAck('eventStream.ingest', event)) as {
     ok: boolean;
     error?: { message?: string };
   };
   if (!response.ok) {
     throw new Error(response.error?.message ?? 'Failed to ingest chatroom event');
   }
+}
+export async function fetchEventStreamHistory(
+  input?: EventStreamHistoryInput
+): Promise<EventStreamHistoryAck> {
+  const s = getSocket();
+  await ensureConnected(s);
+  return s.emitWithAck('eventStream.history', input ?? {}) as Promise<EventStreamHistoryAck>;
 }
 export function subscribeLogStream(onLine: (line: LogLine) => void): () => void {
   const s = getSocket();

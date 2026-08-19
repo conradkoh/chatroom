@@ -7,6 +7,7 @@ type Props = {
   disabled?: boolean;
   isLoading?: boolean;
   isError?: boolean;
+  allowAll?: boolean;
 };
 export function ChatroomSelect({
   chatrooms,
@@ -15,6 +16,7 @@ export function ChatroomSelect({
   disabled,
   isLoading,
   isError,
+  allowAll = true,
 }: Props) {
   return (
     <label className="flex items-center gap-2 text-xs">
@@ -26,8 +28,8 @@ export function ChatroomSelect({
         disabled={disabled}
         isLoading={isLoading}
         isError={isError}
-        placeholder="All chatrooms"
-        allLabel="All chatrooms"
+        placeholder={allowAll ? 'All chatrooms' : 'Select chatroom'}
+        allLabel={allowAll ? 'All chatrooms' : undefined}
         searchPlaceholder="Search chatrooms…"
         ariaLabel="Filter by chatroom"
         triggerClassName="min-w-[10rem]"
