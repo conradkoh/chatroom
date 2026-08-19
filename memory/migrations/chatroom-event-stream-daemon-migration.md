@@ -37,7 +37,7 @@ All event stream **audit records produced by the daemon process** are written to
 
 ## Progress tracker
 
-_Last updated: 2026-08-19 — conventions expanded for per-event migration (v1.98.1 baseline)_
+_Last updated: 2026-08-19 — daemon event stream migration complete (17/17)_
 
 ### Infrastructure
 
@@ -56,32 +56,32 @@ _Last updated: 2026-08-19 — conventions expanded for per-event migration (v1.9
 
 Events the daemon currently emits via `logEvent` (local) or `api.machines.emit*` (Convex — to migrate).
 
-| Event type                      | Status          | Class         | Current write path                                                    | Convex state side effects                                                         |
-| ------------------------------- | --------------- | ------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `agent.exited`                  | 🟡 Partial      | audit + state | `logEvent` (audit ✅); state handler exists but not wired from daemon | `agentExited` use case + `onAgentExited` — see [agent.exited guide](#agentexited) |
-| `agent.started`                 | ⬜ Pending      | audit + state | `updateSpawnedAgent`                                                  | PID/config patch, `transitionAgentStatus`, restart metrics                        |
-| `agent.startFailed`             | ⬜ Pending      | audit + state | `emitAgentStartFailed`                                                | `transitionAgentStatus`, `desiredState: stopped`                                  |
-| `agent.providerUnavailable`     | ⬜ Pending      | audit + state | `emitAgentProviderUnavailable`                                        | `transitionAgentStatus`, optional `desiredState: stopped`                         |
-| `agent.stopTimeout`             | ⬜ Pending      | audit only    | `emitAgentStopTimeout`                                                | none                                                                              |
-| `agent.sessionResumeRequested`  | ⬜ Pending      | audit + state | `emitSessionResumeRequested`                                          | `transitionAgentStatus`                                                           |
-| `agent.sessionResumed`          | ⬜ Pending      | audit + state | `emitSessionResumed`                                                  | `transitionAgentStatus`                                                           |
-| `agent.sessionResumeFailed`     | ⬜ Pending      | audit + state | `emitSessionResumeFailed`                                             | `transitionAgentStatus`                                                           |
-| `agent.sessionReopenRetry`      | ⬜ Pending      | audit only    | `emitSessionReopenRetry`                                              | none                                                                              |
-| `agent.harnessSessionIdUpdated` | ⬜ Pending      | audit only    | `emitHarnessSessionIdUpdated`                                         | none                                                                              |
-| `agent.restartLimitReached`     | ⬜ Pending      | audit only    | `emitRestartLimitReached`                                             | none                                                                              |
-| `agent.restartPhase`            | ⬜ Pending      | audit only    | `emitRestartPhase`                                                    | none                                                                              |
-| `agent.restartCompleted`        | ⬜ Pending      | audit only    | `emitRestartCompleted`                                                | none                                                                              |
-| `agent.sessionAugmented`        | ⬜ Pending      | audit + state | `emitSessionAugmented`                                                | `consumeTaskStartInNewSession` when `newSessionStarted`                           |
-| `agent.taskDelivered`           | ⬜ Pending      | audit only    | `emitTaskDelivered`                                                   | none                                                                              |
-| `agent.taskDeliveryFailed`      | ⬜ Pending      | audit only    | `emitTaskDeliveryFailed`                                              | none                                                                              |
-| `daemon.pong`                   | ⬜ Pending      | audit only    | `ackPing`                                                             | none (machine-scoped; no `chatroomId`)                                            |
-| `daemon.*` command events       | ⬜ Out of scope | —             | Convex/web command path                                               | Backend-originated; not daemon audit migration                                    |
+| Event type                      | Status          | Class         | Current write path                                                    | Convex state side effects                                            |
+| ------------------------------- | --------------- | ------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `agent.exited`                  | ✅ Done         | audit + state | `logEvent` + `api.daemon.agentEvents.agentExited`                     | `agentExited` use case + `onAgentExited`                             |
+| `agent.started`                 | ✅ Done         | audit + state | `logEvent` + `agentEvents.agentStarted`; PID via `updateSpawnedAgent` | `transitionAgentStatus`, restart metrics (`recordAgentSpawnedState`) |
+| `agent.startFailed`             | ✅ Done         | audit + state | `logEvent` + `agentEvents.agentStartFailed`                           | `transitionAgentStatus`, `desiredState: stopped`                     |
+| `agent.providerUnavailable`     | ✅ Done         | audit + state | `logEvent` + `agentEvents.agentProviderUnavailable`                   | `transitionAgentStatus`, optional `desiredState: stopped`            |
+| `agent.stopTimeout`             | ✅ Done         | audit only    | `logEvent` only (APM stop-timeout path)                               | none                                                                 |
+| `agent.sessionResumeRequested`  | ✅ Done         | audit + state | `logEvent` + `agentEvents.sessionResumeRequested`                     | `transitionAgentStatus`                                              |
+| `agent.sessionResumed`          | ✅ Done         | audit + state | `logEvent` + `agentEvents.sessionResumed`                             | `transitionAgentStatus`                                              |
+| `agent.sessionResumeFailed`     | ✅ Done         | audit + state | `logEvent` + `agentEvents.sessionResumeFailed`                        | `transitionAgentStatus`                                              |
+| `agent.sessionReopenRetry`      | ✅ Done         | audit + state | `logEvent` + `agentEvents.sessionReopenRetry`                         | `transitionAgentStatus`                                              |
+| `agent.harnessSessionIdUpdated` | ✅ Done         | audit only    | `logEvent` only (APM harness session update)                          | none                                                                 |
+| `agent.restartLimitReached`     | ✅ Done         | audit only    | `logEvent` only (APM crash-loop gate)                                 | none                                                                 |
+| `agent.restartPhase`            | ✅ Done         | audit only    | `logEvent` only (`restart-orchestrator`)                              | none                                                                 |
+| `agent.restartCompleted`        | ✅ Done         | audit only    | `logEvent` only (`restart-orchestrator`)                              | none                                                                 |
+| `agent.sessionAugmented`        | ✅ Done         | audit + state | `logEvent` + `agentEvents.sessionAugmented`                           | `consumeTaskStartInNewSession` when `newSessionStarted`              |
+| `agent.taskDelivered`           | ✅ Done         | audit only    | `logEvent` only (native injector, assigned-task publisher)            | none                                                                 |
+| `agent.taskDeliveryFailed`      | ✅ Done         | audit only    | `logEvent` only (native injector, assigned-task publisher)            | none                                                                 |
+| `daemon.pong`                   | ✅ Done         | audit only    | `logEvent` only (`command-dispatch`, `command-result` publisher)      | none (machine-scoped; no `chatroomId`)                               |
+| `daemon.*` command events       | ⬜ Out of scope | —             | Convex/web command path                                               | Backend-originated; not daemon audit migration                       |
 
 **Status legend:** ✅ Migrated (audit + state complete) · 🟡 Partial (audit or state only) · ⬜ Pending · ⬜ Out of scope
 
 **Class legend:** **audit only** = remove Convex insert, `logEvent` only · **audit + state** = split into `logEvent` + `api.daemon.agentEvents.*` state handler
 
-**Progress:** 0 / 17 fully migrated; 1 partial (`agent.exited` audit only, ~6% audit path).
+**Progress:** 17 / 17 fully migrated (100%).
 
 ### Phase 1 shipped (v1.98.1)
 
