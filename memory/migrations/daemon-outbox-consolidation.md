@@ -102,17 +102,17 @@ flowchart TD
 
 ## Decisions
 
-Outboxes live under `packages/cli/src/daemon/infrastructure/outbox/`.
+Reusable outbox primitives live under `packages/cli/src/daemon/infrastructure/outbox/lib/`, while file-tree adapters live at `packages/cli/src/daemon/infrastructure/outbox/`.
 
-- `coalescing-state-outbox.ts` — latest-state scheduling, rate limiting, retry/backoff, serialization, and shutdown rejection
-- `keyed-coalescing-state-outbox-registry.ts` — one coalescing outbox per delivery key
+- `lib/coalescing-state-outbox.ts` — latest-state scheduling, rate limiting, retry/backoff, serialization, and shutdown rejection
+- `lib/keyed-coalescing-state-outbox-registry.ts` — one coalescing outbox per delivery key
 - `workspace-file-tree-checkpoint-outbox.ts` — checkpoint adapter owning the 5s interval constant
 - `workspace-file-tree-delta-outbox.ts` — durable FIFO delta adapter with adapter-owned batch size
 
-- `fifo-batched-outbox.ts` — FIFO scheduling, partial batches, conflict classification, and exponential backoff retry
-- `durable-fifo-queue-store.ts` — per-machine delta SQLite persistence
-- `durable-coalescing-state-store.ts` — per-machine checkpoint SQLite persistence
-- `keyed-fifo-batched-outbox-registry.ts` — one FIFO outbox per delivery key
+- `lib/fifo-batched-outbox.ts` — FIFO scheduling, partial batches, conflict classification, and exponential backoff retry
+- `lib/durable-fifo-queue-store.ts` — per-machine delta SQLite persistence
+- `lib/durable-coalescing-state-store.ts` — per-machine checkpoint SQLite persistence
+- `lib/keyed-fifo-batched-outbox-registry.ts` — one FIFO outbox per delivery key
 
 Both outbox types use `resolveOutboxDbPath(machineId, kind)` under
 `~/.chatroom/daemon/{machineId}/`; subscription and daemon runtime APIs do not
@@ -128,15 +128,15 @@ Checkpoint and delta outboxes do not share an in-flight mutex.
 
 | Item | Status | Evidence / next location |
 | --- | --- | --- |
-| Coalescing-state outbox primitive | ✅ Done | `coalescing-state-outbox.ts` |
-| Keyed coalescing registry | ✅ Done | `keyed-coalescing-state-outbox-registry.ts` |
+| Coalescing-state outbox primitive | ✅ Done | `outbox/lib/coalescing-state-outbox.ts` |
+| Keyed coalescing registry | ✅ Done | `outbox/lib/keyed-coalescing-state-outbox-registry.ts` |
 | Checkpoint outbox adapter + wiring | ✅ Done | adapter and `file-tree-subscription.ts` |
 | Checkpoint outbox tests | ✅ Done | primitive, registry, adapter, subscription tests |
 | Release-path coordinator map cleanup | ✅ Done | `0bc97b2bf` |
 | System design recorded in memory | ✅ Done | this document |
-| FIFO ordered delta outbox primitive | ✅ Done | `fifo-batched-outbox.ts`, `durable-fifo-queue-store.ts` |
+| FIFO ordered delta outbox primitive | ✅ Done | `outbox/lib/fifo-batched-outbox.ts`, `outbox/lib/durable-fifo-queue-store.ts` |
 | Delta outbox adapter + wiring | ✅ Done | `workspace-file-tree-delta-outbox.ts`, `file-tree-subscription.ts` |
-| Delta delivery policy | ✅ Done | conflict retry in `fifo-batched-outbox.ts` via `classifyOutcome`; `c0038b039` |
+| Delta delivery policy | ✅ Done | conflict retry in `outbox/lib/fifo-batched-outbox.ts` via `classifyOutcome`; `c0038b039` |
 | Durable SQLite outbox drain | ✅ Done | checkpoint + delta stores; `68ab4b670`, `outbox-db-path.ts` |
 | Outbox durability + retry tests | ✅ Done | `01fb1f70f` |
 | Buffered journal migration | ⬜ Pending | `infrastructure/repos/journal-factory.ts` |

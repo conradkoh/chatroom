@@ -1,11 +1,11 @@
 import type { WorkspacePendingDelta } from '../../../infrastructure/services/workspace/workspace-sync-state.js';
 import type { DeltaPushResult } from '../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
 import { resolveOutboxDbPath } from './outbox-db-path.js';
-import { openDurableFifoQueueStore } from './durable-fifo-queue-store.js';
+import { openDurableFifoQueueStore } from './lib/durable-fifo-queue-store.js';
 import {
   createKeyedFifoBatchedOutboxRegistry,
   type KeyedFifoBatchedOutboxRegistry,
-} from './keyed-fifo-batched-outbox-registry.js';
+} from './lib/keyed-fifo-batched-outbox-registry.js';
 export const WORKSPACE_FILE_TREE_DELTA_OUTBOX_BATCH_SIZE = 5;
 export type WorkspaceFileTreeDeltaDeliveryUnit = {
   delta: WorkspacePendingDelta;

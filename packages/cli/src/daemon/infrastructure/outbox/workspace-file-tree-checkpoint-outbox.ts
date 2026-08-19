@@ -3,9 +3,9 @@ import type { FileTree } from '@workspace/backend/src/domain/entities/workspace-
 import {
   createKeyedCoalescingStateOutboxRegistry,
   type KeyedCoalescingStateOutboxRegistry,
-} from './keyed-coalescing-state-outbox-registry.js';
+} from './lib/keyed-coalescing-state-outbox-registry.js';
 import { resolveOutboxDbPath } from './outbox-db-path.js';
-import { openDurableCoalescingStateStore } from './durable-coalescing-state-store.js';
+import { openDurableCoalescingStateStore } from './lib/durable-coalescing-state-store.js';
 
 export const WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MIN_INTERVAL_MS = 5_000;
 
