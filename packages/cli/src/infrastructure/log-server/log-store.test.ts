@@ -80,18 +80,20 @@ describe('log store', () => {
 
   it('stores migrated events in the dedicated event stream table', () => {
     const db = openLogDatabase(join(tmpdir(), `logs-${randomUUID()}.sqlite`));
-    appendChatroomEvent(db, {
+    const firstEvent = appendChatroomEvent(db, {
       type: 'agent.exited',
       timestamp: 42,
       chatroomId: 'room-a',
       role: 'builder',
     });
-    appendChatroomEvent(db, {
+    const secondEvent = appendChatroomEvent(db, {
       type: 'agent.exited',
       timestamp: 43,
       chatroomId: 'room-b',
       role: 'planner',
     });
+    expect(firstEvent.id).toBeGreaterThan(0);
+    expect(secondEvent.id).toBe(firstEvent.id + 1);
 
     expect(queryEventStream(db, { chatroomId: 'room-a' })).toMatchObject([
       {

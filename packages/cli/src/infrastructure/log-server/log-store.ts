@@ -84,12 +84,13 @@ export function appendBatch(db: DatabaseSync, entries: LogEntry[]): void {
   }
 }
 
-export function appendChatroomEvent(db: DatabaseSync, event: ChatroomEventRecord): void {
-  db.prepare('INSERT INTO event_stream_entries(timestamp,type,payload_json) VALUES(?,?,?)').run(
+export function appendChatroomEvent(db: DatabaseSync, event: ChatroomEventRecord): EventStreamEntry {
+  const result = db.prepare('INSERT INTO event_stream_entries(timestamp,type,payload_json) VALUES(?,?,?)').run(
     event.timestamp,
     event.type,
     JSON.stringify(event)
   );
+  return { id: Number(result.lastInsertRowid), timestamp: event.timestamp, type: event.type, payload: event };
 }
 export function queryEventStream(db: DatabaseSync, input: EventStreamQuery): EventStreamEntry[] {
   const filters = [

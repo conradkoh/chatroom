@@ -17,7 +17,7 @@ import type { EventStreamQuery } from '../../domain/entities/event-stream-query.
 
 export type LogRepository = LogHistoryReader & {
   listDimensions(limit?: number): LogDimensions;
-  writeChatroomEvent(event: ChatroomEventRecord): void;
+  writeChatroomEvent(event: ChatroomEventRecord): EventStreamEntry;
   queryEventStream(input: EventStreamQuery): EventStreamEntry[];
 };
 export function createLogRepository(db: DatabaseSync): LogRepository {
@@ -72,8 +72,8 @@ export function createLogRepository(db: DatabaseSync): LogRepository {
     listDimensions(limit = 100): LogDimensions {
       return listLogDimensions(db, limit);
     },
-    writeChatroomEvent(event: ChatroomEventRecord): void {
-      appendChatroomEvent(db, event);
+    writeChatroomEvent(event: ChatroomEventRecord): EventStreamEntry {
+      return appendChatroomEvent(db, event);
     },
     queryEventStream(input: EventStreamQuery): EventStreamEntry[] {
       return queryEventStream(db, input);

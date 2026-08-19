@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { readChatroomIdFromSearch, readTabFromSearch, replaceAppUrlParams } from './app-url';
 
@@ -10,7 +10,15 @@ describe('app URL helpers', () => {
   });
 
   it('updates app params while preserving unrelated params', () => {
-    window.history.replaceState(null, '', '/?role=builder');
+    const location = { pathname: '/', search: '?role=builder' };
+    vi.stubGlobal('window', {
+      location,
+      history: { replaceState: (_state: unknown, _title: string, url: string) => {
+        const [pathname, search = ''] = url.split('?');
+        location.pathname = pathname;
+        location.search = search ? `?${search}` : '';
+      } },
+    });
     replaceAppUrlParams({ tab: 'event-stream', chatroomId: 'room-a' });
     expect(window.location.search).toBe('?role=builder&tab=event-stream&chatroomId=room-a');
     replaceAppUrlParams({ tab: 'logs', chatroomId: null });

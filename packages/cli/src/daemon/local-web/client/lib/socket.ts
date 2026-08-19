@@ -10,6 +10,7 @@ import type {
   LogHistoryInput,
   EventStreamHistoryAck,
   EventStreamHistoryInput,
+  EventStreamEntry,
 } from '../api/types.js';
 
 let socket: Socket | null = null;
@@ -92,6 +93,13 @@ export async function fetchEventStreamHistory(
   const s = getSocket();
   await ensureConnected(s);
   return s.emitWithAck('eventStream.history', input ?? {}) as Promise<EventStreamHistoryAck>;
+}
+export function subscribeEventStream(onEntry: (entry: EventStreamEntry) => void): () => void {
+  const s = getSocket();
+  s.connect();
+  s.emit('eventStream.stream.subscribe');
+  s.on('eventStream.stream', onEntry);
+  return () => s.off('eventStream.stream', onEntry);
 }
 export function subscribeLogStream(onLine: (line: LogLine) => void): () => void {
   const s = getSocket();
