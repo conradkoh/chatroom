@@ -1,12 +1,26 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createCoalescingStateOutbox } from './coalescing-state-outbox.js';
+import { openDurableCoalescingStateStore } from './durable-coalescing-state-store.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
 describe('coalescing-state-outbox', () => {
+  it('recovers pending state from durable storage without re-enqueue', async () => {
+    const store = openDurableCoalescingStateStore(join(mkdtempSync(join(tmpdir(), 'coalesce-')), 'cp.sqlite'));
+    store.upsertPending('wd', JSON.stringify({ revision: 1 }));
+    const send = vi.fn(async (state: { revision: number }) => state);
+    const outbox = createCoalescingStateOutbox({ store, deliveryKey: 'wd', serialize: JSON.stringify, deserialize: JSON.parse, send, minIntervalMs: 0 });
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith({ revision: 1 }));
+    expect(store.getPending('wd')).toBeNull();
+    await outbox.stop();
+    store.close();
+  });
   it('sends the first state immediately and coalesces a state queued in flight', async () => {
     let releaseFirst: (() => void) | undefined;
     const firstSend = new Promise<void>((resolve) => {

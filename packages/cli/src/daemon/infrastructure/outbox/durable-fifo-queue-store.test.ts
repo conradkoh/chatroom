@@ -18,4 +18,12 @@ describe('durable fifo queue store', () => {
     expect(s.listPendingForRecovery('a').length).toBe(1);
     s.close();
   });
+  it('updatePayload persists revised JSON for a pending row', () => {
+    const path = join(mkdtempSync(join(tmpdir(), 'outbox-')), 'q.sqlite');
+    const s = openDurableFifoQueueStore(path);
+    const id = s.enqueue('k', JSON.stringify({ baseRevision: 1 }));
+    s.updatePayload(id, JSON.stringify({ baseRevision: 99 }));
+    expect(JSON.parse(s.claimNextBatch('k', 1)[0]!.payloadJson)).toEqual({ baseRevision: 99 });
+    s.close();
+  });
 });
