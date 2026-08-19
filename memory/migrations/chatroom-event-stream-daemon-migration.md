@@ -298,11 +298,11 @@ Each guide lists **daemon write sites**, **Convex handler to split**, and **exac
 
 #### `agent.exited` {#agentexited}
 
-|                      |                                                   |
-| -------------------- | ------------------------------------------------- |
-| **Status**           | 🟡 Partial — audit migrated; state wiring pending |
-| **Class**            | audit + state                                     |
-| **Reference commit** | `9f7908136` (audit path)                          |
+|                      |                                                 |
+| -------------------- | ----------------------------------------------- |
+| **Status**           | ✅ Done — audit + state complete (`060e92777`)  |
+| **Class**            | audit + state                                   |
+| **Reference commit** | `9f7908136` (audit); `060e92777` (state wiring) |
 
 **Daemon write sites** (`packages/cli/src/daemon/infrastructure/agent-process-manager/agent-process-manager.ts`):
 
@@ -315,12 +315,11 @@ Each guide lists **daemon write sites**, **Convex handler to split**, and **exac
 - State: `api.daemon.agentEvents.agentExited` (wraps `agentExited` use case + `onAgentExited`)
 - Legacy combined: `api.machines.recordAgentExited` — keep for tests until daemon wired
 
-**Steps to finish:**
+**Completed steps:**
 
 1. ✅ `logEvent({ type: 'agent.exited', ... })` at all exit sites
-2. ⬜ After `logEvent`, call `api.daemon.agentEvents.agentExited` with same args (PID-gated cleanup, participant update, task release)
-3. ⬜ Update APM tests to expect both `logEvent` and `agentEvents.agentExited`
-4. ⬜ Mark ✅ when state path wired and integration tests pass
+2. ✅ `api.daemon.agentEvents.agentExited` after audit (PID-gated cleanup, participant update, task release)
+3. ✅ APM tests expect both `logEvent` and `agentEvents.agentExited`
 
 #### `agent.started`
 
