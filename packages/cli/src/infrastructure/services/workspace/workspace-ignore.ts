@@ -1,6 +1,7 @@
 // fallow-ignore-file complexity
 import { promises as fsPromises, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import path from 'node:path';
 
 import ignore, { type Ignore } from 'ignore';
@@ -22,6 +23,72 @@ function normalizeRelativePath(relativePath: string): string {
     .replace(/\/+$/, '');
 }
 
+function expandUserPath(filePath: string): string {
+  if (filePath === '~') return homedir();
+  if (filePath.startsWith('~/')) return path.join(homedir(), filePath.slice(2));
+  return filePath;
+}
+
+// fallow-ignore-next-line unused-export
+export function readExcludesFileFromGitconfig(content: string): string | null {
+  let inCore = false;
+  for (const line of content.split(/\r?\n/)) {
+    const section = line.match(/^\s*\[([^\]]+)\]/);
+    if (section) {
+      inCore = section[1].trim().toLowerCase() === 'core';
+      continue;
+    }
+    if (!inCore) continue;
+    const match = line.match(/^\s*excludesfile\s*=\s*(.*?)\s*(?:[#;].*)?$/i);
+    if (!match) continue;
+    const value = match[1].trim().replace(/^(["'])(.*)\1$/, '$2');
+    return value ? expandUserPath(value) : null;
+  }
+  return null;
+}
+
+async function readGitconfigExcludesFilePath(configPath: string): Promise<string | null> {
+  const content = await readIgnoreFile(configPath);
+  if (content === null) return null;
+  const raw = readExcludesFileFromGitconfig(content);
+  if (!raw) return null;
+  return path.isAbsolute(raw) ? expandUserPath(raw) : path.resolve(path.dirname(configPath), raw);
+}
+
+// fallow-ignore-next-line unused-export
+export async function resolveGitExtraExcludeFilePaths(rootDir: string): Promise<string[]> {
+  const globalConfig = process.env.GIT_CONFIG_GLOBAL?.length
+    ? process.env.GIT_CONFIG_GLOBAL
+    : path.join(homedir(), '.gitconfig');
+  const localConfig = path.join(rootDir, '.git', 'config');
+  let excludesFile =
+    (await readGitconfigExcludesFilePath(localConfig)) ??
+    (await readGitconfigExcludesFilePath(globalConfig));
+  if (!excludesFile) {
+    excludesFile = path.join(
+      process.env.XDG_CONFIG_HOME?.length
+        ? process.env.XDG_CONFIG_HOME
+        : path.join(homedir(), '.config'),
+      'git',
+      'ignore'
+    );
+  }
+  const candidates = [excludesFile, path.join(rootDir, '.git', 'info', 'exclude')];
+  const existing: string[] = [];
+  for (const candidate of candidates)
+    if ((await readIgnoreFile(candidate)) !== null) existing.push(candidate);
+  return existing;
+}
+
+async function loadGitExtraExcludeRuleSets(rootDir: string): Promise<WorkspaceIgnoreRuleSet[]> {
+  const result: WorkspaceIgnoreRuleSet[] = [];
+  for (const filePath of await resolveGitExtraExcludeFilePaths(rootDir)) {
+    const content = await readIgnoreFile(filePath);
+    if (content !== null) result.push({ baseDir: '', matcher: ignore().add(content) });
+  }
+  return result;
+}
+
 async function readIgnoreFile(filePath: string): Promise<string | null> {
   try {
     return await readFile(filePath, 'utf-8');
@@ -30,10 +97,14 @@ async function readIgnoreFile(filePath: string): Promise<string | null> {
   }
 }
 
-/** Load ignore rules from workspace root ignore files. Missing files are skipped. */
+/** Load git extra excludes and workspace root ignore files. Missing files are skipped. */
 // fallow-ignore-next-line unused-export
 export async function loadWorkspaceIgnore(rootDir: string): Promise<Ignore> {
   const ig = ignore();
+  for (const filePath of await resolveGitExtraExcludeFilePaths(rootDir)) {
+    const content = await readIgnoreFile(filePath);
+    if (content !== null) ig.add(content);
+  }
   for (const name of IGNORE_FILES) {
     const content = await readIgnoreFile(path.join(rootDir, name));
     if (content !== null) ig.add(content);
@@ -61,7 +132,9 @@ export async function loadDirectoryIgnoreRuleSets(
   const normalizedDir = normalizeRelativePath(relativeDir);
   const absoluteDir = normalizedDir ? path.join(rootDir, normalizedDir) : rootDir;
   const names = normalizedDir ? (['.gitignore'] as const) : IGNORE_FILES;
-  const result: WorkspaceIgnoreRuleSet[] = [];
+  const result: WorkspaceIgnoreRuleSet[] = normalizedDir
+    ? []
+    : await loadGitExtraExcludeRuleSets(rootDir);
 
   for (const name of names) {
     const content = await readIgnoreFile(path.join(absoluteDir, name));
@@ -152,7 +225,7 @@ export async function readWorkspaceDirectoryDirents(
 
 /**
  * Walk the workspace once and collect every applicable ignore rule set.
- * Prunes ignored directories so gitignored trees are not traversed.
+ * Prunes ignored directories, including git extra excludes, so ignored trees are not traversed.
  * Used to align chokidar watch scope with filesystem scan semantics.
  */
 export async function loadAllWorkspaceIgnoreRuleSets(

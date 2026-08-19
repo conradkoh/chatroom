@@ -2,7 +2,7 @@
  * File tree scanner for workspace directories.
  *
  * Uses a filesystem walk for every workspace and interprets root/nested
- * `.gitignore` plus root `.cursorignore` directly. Git is never invoked, so
+ * `.gitignore`, root `.cursorignore`, and git extra excludes directly. Git is never invoked, so
  * ordinary folders and repositories use the same discovery path.
  */
 
