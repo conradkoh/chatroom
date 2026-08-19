@@ -9,7 +9,6 @@ import {
   buildAgentRestartPhaseEvent,
   type AgentRestartPhase,
 } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
-import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import { Effect } from 'effect';
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
@@ -25,9 +24,12 @@ import {
   clearRestartOrchestratorInFlight,
 } from './restart-orchestrator-in-flight.js';
 import {
-  mapAssignedTaskSnapshotList,
-  mapAssignedTaskView,
-} from '../../infrastructure/mappers/map-assigned-task.js';
+  applyAssignedTaskChangeItems,
+  ASSIGNED_TASK_CHANGE_PAGE_LIMIT,
+  type AssignedTaskChangePage,
+} from './task-monitor/assigned-task-cursor-sync.js';
+import { mapAssignedTaskView } from '../../infrastructure/mappers/map-assigned-task.js';
+import { listAssignedTaskSnapshots } from '../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getErrorMessage } from '../../utils/convex-error.js';
 import { isDeliverableTaskStatus } from '../domain/entities/assigned-task.js';
 import type { AssignedTaskSnapshotView } from '../domain/entities/assigned-task.js';
@@ -138,13 +140,24 @@ async function listDeliverableSnapshots(
     machineId: deps.session.machineId,
   });
 
-  const result = (await deps.session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
-    sessionId: deps.session.sessionId,
-    machineId: deps.session.machineId,
-  })) as { tasks?: unknown };
+  let afterRevision = 0;
+  do {
+    const page = (await deps.session.backend.query(
+      api.machines.listMachineAssignedTaskChangesSince,
+      {
+        sessionId: deps.session.sessionId,
+        machineId: deps.session.machineId,
+        afterRevision,
+        limit: ASSIGNED_TASK_CHANGE_PAGE_LIMIT,
+      }
+    )) as AssignedTaskChangePage;
+    applyAssignedTaskChangeItems(page.items);
+    if (page.highRevision != null) afterRevision = page.highRevision;
+    if (!page.hasMore || page.items.length === 0) break;
+  } while (true);
 
   const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
-  return mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(result.tasks ?? []))
+  return listAssignedTaskSnapshots()
     .filter(
       (t) =>
         t.chatroomId === event.chatroomId &&

@@ -35,7 +35,6 @@ import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-ag
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { getMachineTaskUpdateCursor } from '../src/domain/usecase/machine/get-machine-task-update-cursor';
 import { listMachineAssignedTaskChanges } from '../src/domain/usecase/machine/list-machine-assigned-task-changes';
-import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
 import { projectAssignedTaskSnapshotsForMachine } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
   patchTeamAgentConfig,
@@ -2537,22 +2536,6 @@ export const getAgentOverviewForChatroom = query({
 /**
  * One-shot hydrate of slim assigned-task rows for this machine (no task.content).
  */
-export const listMachineAssignedTaskSnapshots = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return { tasks: [] };
-
-    return listMachineAssignedTaskSnapshotsUseCase(ctx, {
-      machineId: args.machineId,
-      userId: auth.userId,
-    });
-  },
-});
-
 export const subscribeMachineTaskUpdateCursor = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {

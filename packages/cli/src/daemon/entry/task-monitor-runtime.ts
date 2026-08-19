@@ -18,7 +18,6 @@ import {
   sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
-import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import type { ConvexClient } from 'convex/browser';
 import { Effect, Runtime, type Context } from 'effect';
 
@@ -62,10 +61,7 @@ import {
 } from './task-monitor/task-monitor-logic.js';
 import { api } from '../../api.js';
 import { isProcessAlive } from '../../infrastructure/deps/process.js';
-import {
-  mapAssignedTaskSnapshotList,
-  mapAssignedTaskView,
-} from '../../infrastructure/mappers/map-assigned-task.js';
+import { mapAssignedTaskView } from '../../infrastructure/mappers/map-assigned-task.js';
 import {
   clearAssignedTaskSnapshots,
   hasAssignedTaskSnapshot,
@@ -576,28 +572,9 @@ export const startTaskMonitorEffect = (
         sessionId: session.sessionId,
         machineId: session.machineId,
       });
-      const revision = await session.backend.query(api.machines.subscribeMachineTaskUpdateCursor, {
-        sessionId: session.sessionId,
-        machineId: session.machineId,
-      });
-      const hydrate = await session.backend.query(api.machines.listMachineAssignedTaskSnapshots, {
-        sessionId: session.sessionId,
-        machineId: session.machineId,
-      });
-      replaceAssignedTaskSnapshots(
-        mapAssignedTaskSnapshotList(
-          parseAssignedTaskMonitorRows((hydrate as { tasks?: unknown }).tasks ?? [])
-        )
-      );
-      cursorSync.setLastProcessedRevision(revision.latestRevision);
       await cursorSync.drainNow();
+      if (!hasAssignedTaskSnapshot()) replaceAssignedTaskSnapshots([]);
     }).pipe(Effect.catchAll(() => Effect.void));
-    /*
-      session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
-        sessionId: session.sessionId,
-        machineId: session.machineId,
-      })
-    ).pipe(Effect.catchAll(() => Effect.void));*/
 
     return {
       stop() {

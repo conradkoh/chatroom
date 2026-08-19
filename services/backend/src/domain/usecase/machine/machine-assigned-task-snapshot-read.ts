@@ -7,8 +7,6 @@ import { presenceKeyAfterTimestamp } from './assigned-tasks-revision';
 import type {
   AssignedTaskView,
   GetAssignedTaskForActionInput,
-  ListMachineAssignedTaskSnapshotsResult,
-  MachineAssignedTasksInput,
   SubscribeAssignedTaskPresenceInput,
   SubscribeAssignedTaskPresenceResult,
   SubscribeAssignedTaskSignalsInput,
@@ -69,21 +67,6 @@ function presenceFeedToResult(
     highPresenceKey: feed.high,
     hasMore: feed.hasMore,
   };
-}
-
-export async function listMachineAssignedTaskSnapshotsForMachine(
-  ctx: QueryCtx,
-  input: MachineAssignedTasksInput
-): Promise<ListMachineAssignedTaskSnapshotsResult> {
-  const allowed = await assertMachineSnapshotAccess(ctx, input.machineId, input.userId);
-  if (!allowed) return { tasks: [] };
-
-  const docs = await ctx.db
-    .query('chatroom_machineAssignedTaskSnapshots')
-    .withIndex('by_machineId', (q) => q.eq('machineId', input.machineId))
-    .collect();
-
-  return { tasks: docs.map(monitorRowFromSnapshotDoc) };
 }
 
 export async function subscribeAssignedTaskSignalsFromSnapshots(

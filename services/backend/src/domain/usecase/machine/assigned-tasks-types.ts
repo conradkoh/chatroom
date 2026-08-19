@@ -41,10 +41,6 @@ export interface AssignedTaskView extends AssignedTaskSnapshotView {
   startInNewSession?: boolean;
 }
 
-export interface ListMachineAssignedTaskSnapshotsResult {
-  tasks: AssignedTaskSnapshotView[];
-}
-
 export interface SubscribeAssignedTaskSignalsResult {
   items: AssignedTaskSignal[];
   highKey: string | null;
