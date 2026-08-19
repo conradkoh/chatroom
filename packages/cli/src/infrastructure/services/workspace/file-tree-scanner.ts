@@ -78,11 +78,17 @@ export function buildEntries(
     for (const p of needed) selected.set(p, { path: p, type: p === file ? 'file' : 'directory' });
   }
 
-  return Array.from(selected.values())
-    .sort((left, right) => {
-      const depthDelta = entryDepth(left.path) - entryDepth(right.path);
-      if (depthDelta !== 0) return depthDelta;
-      return left.path.localeCompare(right.path);
-    })
-    .slice(0, maxEntries);
+  for (const dir of [...directoryStubs].sort(
+    (a, b) => entryDepth(a) - entryDepth(b) || a.localeCompare(b)
+  )) {
+    if (selected.has(dir)) continue;
+    if (selected.size >= maxEntries) break;
+    selected.set(dir, { path: dir, type: 'directory' });
+  }
+
+  return Array.from(selected.values()).sort((left, right) => {
+    const depthDelta = entryDepth(left.path) - entryDepth(right.path);
+    if (depthDelta !== 0) return depthDelta;
+    return left.path.localeCompare(right.path);
+  });
 }
