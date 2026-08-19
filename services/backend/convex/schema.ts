@@ -3148,7 +3148,7 @@ export default defineSchema({
 
   /**
    * Per-user-per-chatroom enhancer configuration.
-   * Synced from webapp; read by handoff CLI when planner queues an enhancer check-in.
+   * Synced from webapp; read when the planner queues request-first enhancer analysis.
    */
   chatroom_enhancerConfigs: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -3164,8 +3164,7 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId']),
 
   /**
-   * One-shot enhancer job per planner→enhancer check-in.
-   * Populated in slice 2.3; schema now so migrations are stable.
+   * One-shot enhancer job per originating user request.
    */
   chatroom_enhancerJobs: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -3180,9 +3179,11 @@ export default defineSchema({
       v.literal('failed'),
       v.literal('cancelled')
     ),
+    /** Legacy field name; request-first jobs store the forwarded user request. */
     draftContent: v.string(),
     enhancedContent: v.optional(v.string()),
     templateSnapshot: v.string(),
+    /** Legacy planner-draft template snapshot; retained for existing job documents. */
     inputTemplateSnapshot: v.optional(v.string()),
     agentHarness: agentHarnessValidator,
     model: v.string(),

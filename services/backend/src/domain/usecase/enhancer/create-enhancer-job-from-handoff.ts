@@ -3,7 +3,6 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import {
   emitEnhancerEvent,
-  resolveEnhancerInputTemplateSnapshot,
   resolveHandoffTemplateSnapshot,
   resolveWorkspaceForEnhancer,
 } from '../../../../convex/web/enhancer/internal';
@@ -29,10 +28,6 @@ export async function createEnhancerJobFromHandoff(
 ): Promise<Id<'chatroom_enhancerJobs'>> {
   const workspace = await resolveWorkspaceForEnhancer(ctx, args.chatroomId, args.machineId);
   const templateSnapshot = resolveHandoffTemplateSnapshot(args.chatroom, args.chatroomId);
-  const inputTemplateSnapshot = resolveEnhancerInputTemplateSnapshot(
-    args.chatroom,
-    args.chatroomId
-  );
   const now = Date.now();
 
   const jobId = await ctx.db.insert('chatroom_enhancerJobs', {
@@ -44,7 +39,6 @@ export async function createEnhancerJobFromHandoff(
     status: 'pending',
     draftContent: args.content,
     templateSnapshot,
-    inputTemplateSnapshot,
     agentHarness: args.agentHarness,
     model: args.model,
     machineId: args.machineId,

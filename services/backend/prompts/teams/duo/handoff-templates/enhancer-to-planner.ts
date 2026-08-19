@@ -1,14 +1,8 @@
 /**
- * Handoff template: Duo enhancer → planner (planning feedback).
+ * Handoff template: Duo enhancer → planner (independent planning input).
  *
- * The enhancer reviews the planner's check-in and returns structured feedback
- * to tighten research and conclusions before the planner proceeds to builder
- * or user handoff.
- *
- * Maps 9 sections into 7 XML tags matching HandoffReportView.
- * → 2 in overview, 1 proofs, 1 direction, 1 ux (optional),
- * 1 defragmentation (optional), 1 notes, 2 in action
- * (Recommendations then Suggested edits last).
+ * The memoryless enhancer recovers user history, investigates the repository,
+ * and returns a fresh analysis before the stateful planner begins planning.
  */
 
 import { renderDefragmentationHandoffReference } from '../../../enhancer/defragmentation-reference.js';
@@ -17,18 +11,15 @@ import { getHandoffRecipientVisibilityCallout } from '../../../native/handoff-vi
 import { getEnhancerFeedbackTemplateBody } from '../../../utils/enhancer-feedback-template-body';
 import { getHandoffReportTemplateIntro } from '../../../utils/handoff-section-guidance';
 
-/**
- * Returns the markdown feedback template the enhancer uses when returning
- * review to the planner.
- */
+/** Returns the structured planning input the enhancer sends to the planner. */
 export function getEnhancerToPlannerHandoffTemplate(): string {
   return `${getHandoffRecipientVisibilityCallout('planner')}
 
-${getHandoffReportTemplateIntro('Planning Feedback (Enhancer → Planner)')}
+${getHandoffReportTemplateIntro('Planning Input (Enhancer → Planner)')}
 
-The planner sent you three XML sections. Your job is **advisory adversarial review** — raise risks, challenge assumptions, align with user intent. Be **specific and targeted**: cite concrete claims, files, UX choices, and gaps from the check-in so the planner can improve the plan without re-synthesizing vague feedback.
+Independently analyze the user's request. Recover the relevant conversation history, inspect the repository, and give the planner a concrete first input for its own planning. Focus on user intent, existing behavior, implementation direction, risks, and material unknowns. The planner owns persistent memory and the final plan.
 
-Give **concrete, actionable recommendations** in every section. End with **Recommendations** (second-last: summarized suggestions, tradeoffs, and considerations) then **Suggested edits** (last: proposed edits to grounding and the builder-handoff with file paths and code snippets). For UI work, complete the optional **UX** section using the reference below. For large or multi-surface revision work, complete the optional **Defragmentation** section using its reference below. **Do not rewrite their full builder brief.** The planner makes the final call.
+Ground every recommendation in user messages or codebase evidence. For UI work, complete the optional **UX** section using the reference below. For a large or multi-surface revision, complete the optional **Defragmentation** section. End with **Recommended next steps**, then **Implementation notes** for any file-level detail or short illustrative code that materially helps.
 
 ${renderWebappUxHandoffReference()}
 
@@ -38,5 +29,5 @@ ${renderDefragmentationHandoffReference()}
 ${getEnhancerFeedbackTemplateBody()}
 \`\`\`
 
-Return only the feedback markdown — no preamble. Follow this structure; omit sections that truly do not apply.`;
+Return only the planning input markdown — no preamble. Follow this structure; use "Not Applicable." where an optional section does not apply.`;
 }

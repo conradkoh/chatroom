@@ -44,7 +44,8 @@ async function createPlannerUserMessageAndTask(
 
 describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle', () => {
   test('rejects planner handoff to enhancer when enabled config is incomplete', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-incomplete-config');
+    const { sessionId, chatroomId, machineId } =
+      await setupWorkspaceForSession('enh-incomplete-config');
 
     await t.run(async (ctx) => {
       const session = await ctx.db
@@ -180,8 +181,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(enhancerTasks.length).toBe(1);
     expect(enhancerTasks[0]!._id).toBe(job!.taskId);
 
-    const { shouldEnqueueMessage } =
-      await import('../../../src/domain/usecase/task/create-task');
+    const { shouldEnqueueMessage } = await import('../../../src/domain/usecase/task/create-task');
     const shouldQueue = await t.run(async (ctx) => shouldEnqueueMessage(ctx, chatroomId));
     expect(shouldQueue).toBe(true);
   });
@@ -676,7 +676,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: '<user-message>test</user-message>',
+      content: '<request>test</request>',
     });
 
     const task = await t.run(async (ctx) => ctx.db.get(taskId!));
@@ -721,7 +721,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(pendingPlanner.find((t) => t.assignedTo === 'planner')!._id).not.toBe(taskId!);
   });
 
-  test('enqueueHandoff rejects second check-in after first job completes (no active task)', async () => {
+  test('enqueueHandoff rejects a second enhancer request after the first job completes', async () => {
     const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-no-double');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -742,7 +742,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: '<user-message>test</user-message>',
+      content: '<request>test</request>',
     });
 
     // Complete the job
@@ -765,7 +765,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         chatroomId,
         senderRole: 'planner',
         targetRole: 'enhancer',
-        content: '<user-message>another check-in</user-message>',
+        content: '<request>another request</request>',
       })
     ).rejects.toThrow(/NO_PLANNER_USER_TASK/i);
   });
@@ -806,7 +806,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: '<user-message>test</user-message>',
+      content: '<request>test</request>',
     });
 
     // Planner task should be completed
@@ -829,7 +829,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(enhancerTask!.status).toBe('pending');
   });
 
-  test('enqueueHandoff rejects second check-in after cancel', async () => {
+  test('enqueueHandoff rejects a second enhancer request after cancellation', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupWorkspaceForSession('enh-no-cancel-double');
 
@@ -851,7 +851,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: '<user-message>test</user-message>',
+      content: '<request>test</request>',
     });
 
     // Cancel the job
@@ -873,7 +873,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         chatroomId,
         senderRole: 'planner',
         targetRole: 'enhancer',
-        content: '<user-message>another check-in</user-message>',
+        content: '<request>another request</request>',
       })
     ).rejects.toThrow(/NO_PLANNER_USER_TASK/i);
   });

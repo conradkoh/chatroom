@@ -25,7 +25,7 @@
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
 import {
-  getNativeEnhancerCheckInTurnEndGuidance,
+  getNativeEnhancerRequestTurnEndGuidance,
   getNativeHandoffTurnEndGuidance,
 } from './native/session-continuity';
 import { composeNativeSystemPrompt } from './native/system-prompt';
@@ -221,22 +221,22 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   return composeSections(buildInitPromptSections(input, selectorCtx));
 }
 
-function isEnhancerCheckInQueuedHandoff(params: {
+function isEnhancerRequestQueuedHandoff(params: {
   role: string;
   nextRole: string;
-  enhancerCheckInQueued?: boolean;
+  enhancerRequestQueued?: boolean;
 }): boolean {
   return (
-    params.enhancerCheckInQueued === true &&
+    params.enhancerRequestQueued === true &&
     params.role.toLowerCase() === 'planner' &&
     params.nextRole.toLowerCase() === 'enhancer'
   );
 }
 
-function getEnhancerCheckInQueuedConfirmationLines(nativeIntegration?: boolean): string[] {
+function getEnhancerRequestQueuedConfirmationLines(nativeIntegration?: boolean): string[] {
   const turnEndRule = nativeIntegration
-    ? '**End your turn now** — do not wait for feedback, poll, monitor the enhancer, or re-submit the handoff. The system delivers enhancer feedback as your next planner task when review completes.'
-    : '**Run get-next-task now and end your turn** — do not wait for feedback, poll, monitor the enhancer, or re-submit the handoff.';
+    ? '**End your turn now** — do not wait for input, poll, monitor the enhancer, or re-submit the handoff. The system delivers independent planning input as your next planner task when analysis completes.'
+    : '**Run get-next-task now and end your turn** — do not wait for input, poll, monitor the enhancer, or re-submit the handoff.';
 
   return [
     '✅ User request queued for handoff enhancer',
@@ -259,8 +259,8 @@ export function generateHandoffOutput(params: {
   chatroomId: string;
   convexUrl?: string;
   supportsNativeIntegration?: boolean;
-  /** When true, planner→enhancer handoff queued async check-in. */
-  enhancerCheckInQueued?: boolean;
+  /** When true, planner→enhancer handoff queued request-first analysis. */
+  enhancerRequestQueued?: boolean;
 }): string {
   const {
     role,
@@ -268,22 +268,26 @@ export function generateHandoffOutput(params: {
     chatroomId,
     convexUrl,
     supportsNativeIntegration,
-    enhancerCheckInQueued,
+    enhancerRequestQueued,
   } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  const enhancerCheckIn = isEnhancerCheckInQueuedHandoff({ role, nextRole, enhancerCheckInQueued });
+  const enhancerRequest = isEnhancerRequestQueuedHandoff({
+    role,
+    nextRole,
+    enhancerRequestQueued,
+  });
   const lines: string[] = [];
-  if (enhancerCheckIn) {
-    lines.push(...getEnhancerCheckInQueuedConfirmationLines(supportsNativeIntegration));
+  if (enhancerRequest) {
+    lines.push(...getEnhancerRequestQueuedConfirmationLines(supportsNativeIntegration));
   } else {
     lines.push(`✅ Chatroom task completed and handed off to ${nextRole}`);
   }
 
   if (supportsNativeIntegration) {
     lines.push(
-      enhancerCheckIn
-        ? getNativeEnhancerCheckInTurnEndGuidance()
+      enhancerRequest
+        ? getNativeEnhancerRequestTurnEndGuidance()
         : getNativeHandoffTurnEndGuidance(nextRole)
     );
   } else {

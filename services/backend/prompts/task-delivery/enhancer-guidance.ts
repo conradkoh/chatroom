@@ -45,7 +45,7 @@ export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
   lines.push('');
   lines.push('**After handoff to enhancer returns success:**');
   lines.push(
-    '- **End your turn immediately** (CLI: run get-next-task) — do not wait for feedback, poll, monitor the enhancer, or re-submit.'
+    '- **End your turn immediately** (CLI: run get-next-task) — do not wait for input, poll, monitor the enhancer, or re-submit.'
   );
   lines.push(
     '- **Enhancer → planner delivery is your resume trigger** — planning input arrives as a new planner task.'

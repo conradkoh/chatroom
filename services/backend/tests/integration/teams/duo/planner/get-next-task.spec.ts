@@ -109,7 +109,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('Handoff to `builder`');
   });
 
-  test('enhancer feedback task includes review guidance and targets builder', () => {
+  test('enhancer input task includes planning guidance and targets builder', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       plannerEnhancerEnabled: true,

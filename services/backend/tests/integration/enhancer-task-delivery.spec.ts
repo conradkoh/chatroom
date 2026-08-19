@@ -2,7 +2,7 @@
  * Enhancer task delivery — Integration Tests
  *
  * End-to-end getTaskDeliveryPrompt with enhancer enabled vs disabled,
- * and enhancer feedback delivery shape.
+ * and enhancer planning-input delivery shape.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -145,7 +145,7 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     expect(output).toContain('--next-role="user"');
   });
 
-  test('planner enhancer feedback task uses review guidance and builder as primary handoff', async () => {
+  test('planner enhancer input task uses planning guidance and builder as primary handoff', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupWorkspaceForSession('enh-delivery-feedback');
     await setPlannerAsEntryPoint(chatroomId);

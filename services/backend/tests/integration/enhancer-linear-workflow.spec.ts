@@ -108,7 +108,7 @@ describe('enhancer delegation-loop workflow', () => {
       enhancedContent: '## Summary\nTighten scope',
     });
 
-    // New planner pending task from enhancer feedback
+    // New planner pending task from enhancer planning input
     const feedbackTask = await t.run(async (ctx) => {
       const pending = await ctx.db
         .query('chatroom_tasks')
@@ -129,7 +129,7 @@ describe('enhancer delegation-loop workflow', () => {
     expect(sourceMsg).toBeDefined();
     expect(sourceMsg!.senderRole).toBe('enhancer');
 
-    // Delivery prompt: builder primary, no enhancer check-in section
+    // Delivery prompt: builder primary, no repeated enhancer request section
     const { fullCliOutput } = await t.query(api.messages.getTaskDeliveryPrompt, {
       sessionId,
       chatroomId,

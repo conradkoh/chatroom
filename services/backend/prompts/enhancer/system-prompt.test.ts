@@ -7,76 +7,47 @@ describe('renderEnhancerSystemPrompt', () => {
     chatroomId: 'room-abc',
     jobId: 'job-123',
     cliEnvPrefix: '',
+    originUserMessageId: 'message-origin',
   };
 
-  it('contains CHATROOM_ENHANCER_END delimiter', () => {
+  it('frames the enhancer as a memoryless first-input planning advisor', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('CHATROOM_ENHANCER_END');
+    expect(result).toContain('single-turn, memoryless **planning advisor**');
+    expect(result).toContain('stateful planner');
+    expect(result).toContain('first planning input');
   });
 
-  it('contains enhancer complete command', () => {
+  it('requires independent history and repository grounding', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('enhancer complete');
+    expect(result).toContain('--since-message-id="message-origin"');
+    expect(result).toContain('messages download');
+    expect(result).toContain('Inspect the repository');
+    expect(result).toContain('actual user messages as authoritative');
   });
 
-  it('contains the job-id in complete command', () => {
+  it('keeps planner workflow details out of enhancer context', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('job-id=job-123');
+    expect(result).not.toContain('<handoff-templates>');
+    expect(result).not.toContain('<references>');
+    expect(result).not.toContain('planner→builder');
+    expect(result).not.toContain('planner→user');
+    expect(result).not.toContain('planner-authored draft');
+    expect(result).not.toContain('builder brief');
+    expect(result).not.toContain('user-report template');
+    expect(result).not.toContain('Suggested edits');
   });
 
-  it('encourages codebase investigation', () => {
-    const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('read those files');
-    expect(result).toContain('Use tools to investigate');
-    expect(result).not.toContain('Do NOT explore the codebase');
-  });
-
-  it('references handoff-templates and references', () => {
-    const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('<handoff-templates>');
-    expect(result).toContain('<references>');
-    expect(result).toContain('Handoff to `planner`');
-    expect(result).toContain('planner→builder');
-    expect(result).toContain('planner→user');
-  });
-
-  it('does not contain hard-coded role references with arrows in angle brackets', () => {
-    const result = renderEnhancerSystemPrompt(params);
-    expect(result).not.toContain('planner>builder');
-  });
-
-  it('scopes file-level edits to Suggested edits section only', () => {
-    const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('Suggested edits');
-    expect(result).not.toContain('Do NOT prescribe file-level edits, target code snippets');
-    expect(result).toContain('Do NOT rewrite');
-  });
-
-  it('frames role as advisory adversarial reviewer', () => {
-    const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('advisory');
-    expect(result).toContain('bar raiser');
-  });
-
-  it('includes UI/UX validation and output order guidance', () => {
+  it('requires structured UX, defragmentation, and implementation notes', () => {
     const result = renderEnhancerSystemPrompt(params);
     expect(result).toContain('optional **UX** section');
-    expect(result).toContain('Recommendations');
-    expect(result).toContain('Suggested edits');
-    expect(result).toContain('always last');
-    expect(result).toContain('specific, targeted');
-    expect(result).toContain('vague');
-    expect(result).not.toContain('<ux-reference>');
-    expect(result).not.toContain('abstract bullets');
-    expect(result).not.toContain('stay abstract');
+    expect(result).toContain('optional **Defragmentation** section');
+    expect(result).toContain('**Implementation notes** is the last section');
   });
 
-  it('includes message history download guidance', () => {
+  it('contains the mandatory completion command for this job', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('## Message history');
-    expect(result).toContain('messages download');
-    expect(result).toContain('--role="enhancer"');
-    expect(result).toContain('--chatroom-id="room-abc"');
-    expect(result).toContain('Do not rely solely');
+    expect(result).toContain('CHATROOM_ENHANCER_END');
+    expect(result).toContain('enhancer complete');
+    expect(result).toContain('job-id=job-123');
   });
 });

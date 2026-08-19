@@ -1,8 +1,8 @@
-/** Canonical workflow for reviewing large or multi-surface revisions. */
+/** Canonical workflow for planning large or multi-surface revisions. */
 export function renderDefragmentationHandoffReference(): string {
   return [
     '### Defragmentation workflow checklist',
-    'Complete the optional **Defragmentation** section when the planner check-in addresses a large or multi-surface system revision, including refactoring, consolidation, or consistency work. Write exactly "Not Applicable." only when no such revision is proposed.',
+    'Complete the optional **Defragmentation** section when the user request involves a large or multi-surface system revision, including refactoring, consolidation, or consistency work. Write exactly "Not Applicable." only when no such revision is requested.',
     '',
     '1. **Study surfaces** — map all call sites, use cases, and complexity variants before proposing slices; name every relevant file/module',
     '2. **Golden implementation** — build a standalone canonical solution first; introduce canonical domain entities/types only when the studied variants require them, then shared use cases, UI components, or utilities; do not patch duplicates in place',
@@ -24,5 +24,5 @@ export function renderDefragmentationHandoffReference(): string {
 }
 
 export function getDefragmentationReviewTriggerDescription(): string {
-  return 'when the planner check-in addresses a large or multi-surface system revision, including refactoring, consolidation, or consistency improvements';
+  return 'when the user request involves a large or multi-surface system revision, including refactoring, consolidation, or consistency improvements';
 }
