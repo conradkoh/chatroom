@@ -36,7 +36,7 @@ persisted workspace sync manifest as the source of truth.
 | Full vs delta sync strategy | Coordinator | `flushPending()`, cold start, reconcile, checkpoint cadence |
 | Delta → Convex wire format | Subscription (thin transport) | `toDeltaOperations()` in `file-tree-subscription.ts` |
 | Checkpoint snapshot upload | Subscription via checkpoint outbox | `publishCheckpoint()` |
-| Delta Convex mutation | Subscription via delta outbox (planned) | `applyFileTreeDeltaBatch` |
+| Delta Convex mutation | Subscription via delta outbox | `applyFileTreeDeltaBatch` |
 | Delivery scheduling / retry / rate limit | Outbox adapters | `daemon/infrastructure/outbox/` |
 
 The outbox owns delivery scheduling only. It does not store tree state, compute
@@ -49,13 +49,13 @@ instance. They share the keyed-registry pattern and delivery key:
 `normalizedWorkingDir`. File-tree Convex tables are workspace-scoped
 (`machineId + workingDir`), not chatroom-scoped.
 
-| | Checkpoint outbox | Delta outbox (planned) |
+| | Checkpoint outbox | Delta outbox |
 | --- | --- | --- |
 | Semantics | Latest-state coalescing | FIFO ordered delivery |
 | Supersede pending? | Yes — newer checkpoint replaces older | No — each delta is distinct |
 | Idempotency | Revision + snapshot identity | Per-delta `operationId` |
-| Rate limit | 5s (`WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MIN_INTERVAL_MS`) | TBD |
-| Status | ✅ Implemented | ⬜ Planned |
+| Rate limit | 5s (`WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MIN_INTERVAL_MS`) | Backoff on conflict/error (500ms–5s exponential); batch size 5 |
+| Status | ✅ Implemented | ✅ Implemented |
 
 Coalescing deltas would silently drop intermediate `operationId` operations.
 
@@ -68,7 +68,7 @@ Coalescing deltas would silently drop intermediate `operationId` operations.
 | Normal filesystem changes | Delta | `onDelta` via `flushPending()` |
 | Every N revisions (default 100) | Full checkpoint | `publishCheckpoint()` inside `flushPending()` |
 | Periodic reconcile / force request | Rescan → deltas and/or checkpoint | `reconcileNow()` / `forceReconcile` |
-| Backend `resync-required` | Adjust revision, retry | conflict handling in `flushPending()` |
+| Backend `resync-required` | Adjust revision, retry | conflict retry in delta FIFO outbox (updates baseRevision, exponential backoff) |
 
 “Full sync” is a V2 blob or V3 sharded snapshot plus
 `publishFileTreeCheckpoint`; “delta sync” is `applyFileTreeDeltaBatch`.
@@ -91,10 +91,10 @@ persisted manifest remains authoritative, and failed flushes propagate to the ca
 flowchart TD
   Watcher[fs watcher / reconcile scan] --> Manifest[(WorkspaceSyncManifest on disk)]
   Manifest --> BuildDelta[buildPendingDeltas] --> Flush[flushPending FIFO loop]
-  Flush --> Decide{checkpoint due? cold start? conflict?}
+  Flush --> Decide{checkpoint due? cold start?}
   Decide -->|delta| OnDelta[onDelta callback] --> DeltaOps[toDeltaOperations]
   Decide -->|full| OnCheckpoint[onCheckpoint callback]
-  DeltaOps --> DeltaOutbox[delta FIFO outbox planned]
+  DeltaOps --> DeltaOutbox[delta FIFO outbox]
   OnCheckpoint --> CheckpointOutbox[checkpoint coalescing outbox] --> PublishCP[publishCheckpoint]
   DeltaOutbox --> Convex[(Convex backend)]
   PublishCP --> Convex
@@ -109,10 +109,16 @@ Outboxes live under `packages/cli/src/daemon/infrastructure/outbox/`.
 - `workspace-file-tree-checkpoint-outbox.ts` — checkpoint adapter owning the 5s interval constant
 - `workspace-file-tree-delta-outbox.ts` — durable FIFO delta adapter with adapter-owned batch size
 
-Planned next: a FIFO delta primitive, a keyed
-`workspace-file-tree-delta-outbox.ts` adapter, and delta wiring in
-`file-tree-subscription.ts`. Subscription and daemon runtime APIs do not expose
-outbox interval configuration.
+- `fifo-batched-outbox.ts` — FIFO scheduling, partial batches, conflict classification, and exponential backoff retry
+- `durable-fifo-queue-store.ts` — per-machine delta SQLite persistence
+- `durable-coalescing-state-store.ts` — per-machine checkpoint SQLite persistence
+- `keyed-fifo-batched-outbox-registry.ts` — one FIFO outbox per delivery key
+
+Both outbox types use `resolveOutboxDbPath(machineId, kind)` under
+`~/.chatroom/daemon/{machineId}/`; subscription and daemon runtime APIs do not
+expose outbox interval configuration. Delta conflict retry is owned by the FIFO
+outbox via `classifyOutcome`, `updatePayload`, and timer retry. Checkpoint rows
+recover from the durable coalescing store on startup.
 
 Delta delivery uses one durable SQLite file per outbox type and machine under
 `~/.chatroom/daemon/{machineId}/`, partitioned by normalized working directory.
@@ -129,10 +135,11 @@ outboxes do not share an in-flight mutex.
 | Checkpoint outbox tests | ✅ Done | primitive, registry, adapter, subscription tests |
 | Release-path coordinator map cleanup | ✅ Done | `0bc97b2bf` |
 | System design recorded in memory | ✅ Done | this document |
-| FIFO ordered delta outbox primitive | ⬜ Pending | New file under `outbox/` |
+| FIFO ordered delta outbox primitive | ✅ Done | `fifo-batched-outbox.ts`, `durable-fifo-queue-store.ts` |
 | Delta outbox adapter + wiring | ✅ Done | `workspace-file-tree-delta-outbox.ts`, `file-tree-subscription.ts` |
-| Delta delivery policy | ⬜ Pending | Decide rate limit / backoff before implementation |
-| Durable SQLite outbox drain | ⬜ Pending | `daemon/infrastructure/persistence/outbox.ts` |
+| Delta delivery policy | ✅ Done | conflict retry in `fifo-batched-outbox.ts` via `classifyOutcome`; `c0038b039` |
+| Durable SQLite outbox drain | ✅ Done | checkpoint + delta stores; `68ab4b670`, `outbox-db-path.ts` |
+| Outbox durability + retry tests | ✅ Done | `01fb1f70f` |
 | Buffered journal migration | ⬜ Pending | `infrastructure/repos/journal-factory.ts` |
 | Workspace request queue consolidation | ⬜ Pending | `workspace-sync-queue.ts` |
 | Outbox metrics and diagnostics | ⬜ Pending | pending-state, retry, and coalescing visibility |
@@ -152,8 +159,3 @@ coalescing. Only outbound projection concerns migrate to outboxes.
 4. Bound payloads before sending to Convex.
 5. Add focused tests for coalescing/rate-limit/retry/shutdown and FIFO ordering/idempotency.
 6. Mark a tracker row complete only after the old direct send path is removed.
-
-## Unresolved decisions
-
-- Delta delivery policy: FIFO retry/backoff; one `operationId` per send, batched sequentially up to adapter batch size
-- Checkpoint SQLite durability remains pending; checkpoint delivery is currently in memory
