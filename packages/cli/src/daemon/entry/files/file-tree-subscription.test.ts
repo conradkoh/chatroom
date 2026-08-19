@@ -183,6 +183,47 @@ describe('startFileTreeSubscriptionEffect', () => {
     );
   });
 
+  it('routes workspace file-tree checkpoint publishing through its outbox', async () => {
+    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'pending') {
+        return Promise.resolve([{ _id: 'one', workingDir: '/workspace' }]);
+      }
+      if (endpoint === 'checkpoint') {
+        return Promise.resolve({ revision: 1 });
+      }
+      return Promise.resolve(null);
+    });
+    vi.mocked(deps.backend.mutation).mockResolvedValue({
+      status: 'published',
+      revision: 7,
+      prunedDeltaCount: 0,
+    });
+    const handle = await runWithSession(
+      startFileTreeSubscriptionEffect(),
+      { backend: deps.backend }
+    );
+
+    await handle.drainPendingFileTreeRequests();
+    await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalled());
+    const options = startCoordinator.mock.calls[0]![0];
+    const tree = {
+      entries: [{ path: 'src/index.ts', type: 'file' as const }],
+      rootDir: '/workspace',
+      scannedAt: 1,
+    };
+
+    await expect(options.onCheckpoint(tree, 7)).resolves.toEqual({ revision: 7 });
+    expect(deps.backend.mutation).toHaveBeenCalledWith('sync-v2', expect.anything());
+    expect(deps.backend.mutation).toHaveBeenCalledWith(
+      'publish',
+      expect.objectContaining({ revision: 7, strategyId: 'blob' })
+    );
+
+    handle.stop();
+  });
+
   it('stops all workspace coordinators with the subscription', async () => {
     const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
     const deps = createMockDaemonDeps();

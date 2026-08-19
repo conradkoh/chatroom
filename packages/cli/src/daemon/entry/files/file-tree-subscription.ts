@@ -25,6 +25,10 @@ import {
 import { enqueueFileTreeSync } from '../../../infrastructure/services/workspace/workspace-sync-queue.js';
 import type { WorkspacePendingDelta } from '../../../infrastructure/services/workspace/workspace-sync-state.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
+import {
+  createWorkspaceFileTreeCheckpointOutboxRegistry,
+  type WorkspaceFileTreeCheckpointOutboxRegistry,
+} from '../../infrastructure/outbox/index.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
 import { formatTimestamp } from '../daemon-utils.js';
 
@@ -45,17 +49,19 @@ type EnsureCoordinator = (
 
 async function stopCoordinatorForWorkingDir(
   coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
+  checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry,
   normalized: string
 ): Promise<void> {
   const coordinatorPromise = coordinators.get(normalized);
   if (!coordinatorPromise) return;
-  coordinators.delete(normalized);
   await coordinatorPromise.then((coordinator) => coordinator.stop()).catch(() => undefined);
+  await checkpointOutboxRegistry.stop(normalized);
 }
 
 async function drainPendingFileTreeReleaseRequests(
   session: DaemonSessionServiceShape,
-  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>
+  coordinators: Map<string, Promise<WorkspaceFileTreeCoordinator>>,
+  checkpointOutboxRegistry: WorkspaceFileTreeCheckpointOutboxRegistry
 ): Promise<void> {
   const releases = await session.backend.query(
     api.workspaceFiles.getPendingFileTreeReleaseRequests,
@@ -72,7 +78,7 @@ async function drainPendingFileTreeReleaseRequests(
   }
 
   for (const normalized of releasesByDir) {
-    await stopCoordinatorForWorkingDir(coordinators, normalized)
+    await stopCoordinatorForWorkingDir(coordinators, checkpointOutboxRegistry, normalized)
       .then(() =>
         session.backend.mutation(api.workspaceFiles.fulfillFileTreeReleaseRequest, {
           sessionId: session.sessionId,
@@ -220,14 +226,14 @@ async function publishCheckpoint(
   return { revision: checkpointRevision };
 }
 
-export const startFileTreeSubscriptionEffect = (): Effect.Effect<
-  FileTreeSubscriptionHandle,
-  never,
-  DaemonSessionService
-> =>
+export const startFileTreeSubscriptionEffect = (): Effect.Effect<FileTreeSubscriptionHandle, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
     const coordinators = new Map<string, Promise<WorkspaceFileTreeCoordinator>>();
+    const checkpointOutboxRegistry = createWorkspaceFileTreeCheckpointOutboxRegistry(
+      (normalized) => (state) => publishCheckpoint(session, normalized, state.tree, state.revision),
+      { onError: (normalized, error) => logSubscriptionWarn(`File tree checkpoint outbox failed for ${normalized}`, error) }
+    );
 
     const ensureCoordinator = (
       workingDir: string,
@@ -260,7 +266,7 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
             );
             return result;
           },
-          onCheckpoint: (tree, revision) => publishCheckpoint(session, normalized, tree, revision),
+          onCheckpoint: (tree, revision) => checkpointOutboxRegistry.enqueue(normalized, { tree, revision }),
           onError: (error) =>
             logSubscriptionWarn(`File tree coordinator failed for ${normalized}`, error),
           onReconciled: (correctedPathCount) => {
@@ -291,14 +297,15 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
       drainPendingFileTreeRequests: () =>
         drainPendingFileTreeRequests(session, coordinators, ensureCoordinator),
       drainPendingFileTreeReleaseRequests: () =>
-        drainPendingFileTreeReleaseRequests(session, coordinators),
+        drainPendingFileTreeReleaseRequests(session, coordinators, checkpointOutboxRegistry),
       stop: () => {
-        void Promise.all(
-          [...coordinators.values()].map((coordinator) =>
-            coordinator.then((handle) => handle.stop()).catch(() => undefined)
-          )
-        );
-        coordinators.clear();
+        void (async () => {
+          const keys = [...coordinators.keys()];
+          await Promise.all(keys.map((normalized) =>
+            stopCoordinatorForWorkingDir(coordinators, checkpointOutboxRegistry, normalized)
+          ));
+          coordinators.clear();
+        })();
       },
     };
   });
