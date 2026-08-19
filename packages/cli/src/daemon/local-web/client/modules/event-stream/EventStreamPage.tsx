@@ -3,9 +3,9 @@ import { EventStreamFiltersBar } from '@/components/event-stream/EventStreamFilt
 import { EventStreamViewer } from '@/components/event-stream/EventStreamViewer';
 import { useChatrooms } from '@/hooks/use-chatrooms';
 import { useEventStream } from '@/hooks/use-event-stream';
-import { useEventStreamFiltersFromUrl } from '@/hooks/use-event-stream-filters-url';
 import type { EventStreamEntry } from '@/api/types';
 import { EventStreamDetailPanel } from '@/components/event-stream/EventStreamDetailPanel';
+import { useEventStreamFiltersFromUrl } from '@/hooks/use-event-stream-filters-url';
 
 export function EventStreamPage() {
   const { filters, setFilters } = useEventStreamFiltersFromUrl();
