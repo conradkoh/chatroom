@@ -146,11 +146,10 @@ const FileContentInner = memo(function FileContentInner({
 
   if (isFileNotFoundError(content.content) && !isPendingOptimisticNewFile(filePath)) {
     return (
-      <div className="flex-1 flex items-center justify-center gap-2 text-chatroom-text-muted text-sm">
-        <FileWarning />{' '}
-        <span>
-          File not found <span className="text-xs">{filePath}</span>
-        </span>
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-chatroom-text-muted p-8">
+        <FileWarning size={40} className="text-chatroom-text-muted/50" />
+        <div className="text-sm">File not found</div>
+        <div className="text-xs text-chatroom-text-muted/70">{filePath}</div>
       </div>
     );
   }

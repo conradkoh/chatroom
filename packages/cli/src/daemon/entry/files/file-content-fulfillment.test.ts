@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { gunzipSync } from 'node:zlib';
 
 import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -39,7 +40,7 @@ describe('fulfillFileContentRequestsEffect', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
-  it('defers fulfillment when the file is not on disk yet (ENOENT)', async () => {
+  it('fulfills [File not found] when the file is missing on disk (ENOENT)', async () => {
     const workingDir = await mkdtemp(join(tmpdir(), 'chatroom-file-content-'));
     try {
       const deps = createMockDaemonDeps();
@@ -49,7 +50,16 @@ describe('fulfillFileContentRequestsEffect', () => {
 
       await runFulfillment(deps, workingDir);
 
-      expect(deps.backend.mutation).not.toHaveBeenCalled();
+      expect(deps.backend.mutation).toHaveBeenCalledWith(
+        'mock-fulfillFileContentV2',
+        expect.objectContaining({ filePath: 'notes.md', encoding: 'utf8', truncated: false })
+      );
+      const payload = vi.mocked(deps.backend.mutation).mock.calls[0][1] as {
+        data: { content: string };
+      };
+      expect(gunzipSync(Buffer.from(payload.data.content, 'base64')).toString('utf8')).toBe(
+        '[File not found]'
+      );
     } finally {
       await rm(workingDir, { recursive: true, force: true });
     }

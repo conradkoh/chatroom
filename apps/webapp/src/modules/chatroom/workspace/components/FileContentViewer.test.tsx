@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FileContentViewer } from './FileContentViewer';
 import { pendingOptimisticNewFilePaths } from '../hooks/pendingOptimisticNewFilePaths';
-import { FILE_READ_ERROR_PLACEHOLDER } from '../utils/fileContentSentinels';
+import {
+  FILE_NOT_FOUND_PLACEHOLDER,
+  FILE_READ_ERROR_PLACEHOLDER,
+} from '../utils/fileContentSentinels';
 
 const mockUseRequestWorkspaceFileContent = vi.fn();
 
@@ -58,5 +61,32 @@ describe('FileContentViewer', () => {
 
     expect(screen.getByText('Creating file…')).toBeInTheDocument();
     expect(screen.queryByText(FILE_READ_ERROR_PLACEHOLDER)).not.toBeInTheDocument();
+  });
+
+  it('shows file not found without rendering the sentinel', () => {
+    mockUseRequestWorkspaceFileContent.mockReturnValue({
+      content: FILE_NOT_FOUND_PLACEHOLDER,
+      encoding: 'utf8',
+      truncated: false,
+      fetchedAt: Date.now(),
+    });
+    render(<FileContentViewer machineId="machine-1" workingDir="/workspace" filePath="test.md" />);
+    expect(screen.getByText('File not found')).toBeInTheDocument();
+    expect(screen.getByText('test.md')).toBeInTheDocument();
+    expect(screen.queryByText(FILE_NOT_FOUND_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('syntax-highlighter')).not.toBeInTheDocument();
+  });
+
+  it('shows creating while optimistic file has not-found content', () => {
+    pendingOptimisticNewFilePaths.add('test.md');
+    mockUseRequestWorkspaceFileContent.mockReturnValue({
+      content: FILE_NOT_FOUND_PLACEHOLDER,
+      encoding: 'utf8',
+      truncated: false,
+      fetchedAt: Date.now(),
+    });
+    render(<FileContentViewer machineId="machine-1" workingDir="/workspace" filePath="test.md" />);
+    expect(screen.getByText('Creating file…')).toBeInTheDocument();
+    expect(screen.queryByText('File not found')).not.toBeInTheDocument();
   });
 });
