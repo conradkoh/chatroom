@@ -76,7 +76,7 @@ function routeConvexEvent(
 
 export function createPublisherRegistry(deps: PublisherRegistryDeps = {}): PublisherRegistry {
   const convexDeps =
-    deps.backend && deps.sessionId && deps.machineId && deps.logEvent
+    deps.backend && deps.sessionId && deps.machineId
       ? {
           backend: deps.backend,
           sessionId: deps.sessionId,
