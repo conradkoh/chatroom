@@ -25,7 +25,7 @@ describe('buildPlanningReviewOutcomeContent', () => {
   test('continues without retry after failed request analysis', () => {
     const result = buildPlanningReviewOutcomeContent('cancelled');
     expect(result).toContain('Do not retry the enhancer for this user message');
-    expect(result).toContain('user → enhancer → planner → [loop builder → planner] → user');
+    expect(result).toContain('user → enhancer → resume team workflow → user');
     expect(result).toContain('without another enhancer pass');
     expect(result).not.toContain('builder handback');
   });

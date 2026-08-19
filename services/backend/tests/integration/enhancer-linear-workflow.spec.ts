@@ -11,7 +11,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { joinParticipant } from '../helpers/integration';
-import { setupWorkspaceForSession } from './direct-harness/fixtures';
+import { setupPlannerWorkspaceForSession } from './direct-harness/fixtures';
 
 async function enableEnhancer(
   sessionId: SessionId,
@@ -60,7 +60,8 @@ async function createPlannerUserMessageAndTask(
 
 describe('enhancer delegation-loop workflow', () => {
   test('user task → enqueue → complete → planner feedback → builder handoff allowed', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-linear');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-linear');
     await enableEnhancer(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -154,7 +155,7 @@ describe('enhancer delegation-loop workflow', () => {
   });
 
   test('second enhancer pass is rejected for the same originating user message', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-multi');
+    const { sessionId, chatroomId, machineId } = await setupPlannerWorkspaceForSession('enh-multi');
     await enableEnhancer(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 

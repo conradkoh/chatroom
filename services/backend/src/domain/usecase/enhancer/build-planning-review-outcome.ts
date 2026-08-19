@@ -1,5 +1,3 @@
-import { ENHANCER_ENABLED_USER_WORKFLOW } from './enhancer-workflow';
-
 export type PlanningReviewOutcomeStatus = 'cancelled' | 'failed';
 
 export function buildPlanningReviewOutcomeContent(
@@ -20,13 +18,13 @@ export function buildPlanningReviewOutcomeContent(
     '',
     reasonLine,
     '',
-    '**Your job:** Proceed with planner-owned research and best judgment. **Do not retry the enhancer for this user message**:',
+    '**Your job:** Proceed with entry-point-owned research and best judgment. **Do not retry the enhancer for this user message**:',
     '',
     '```',
-    ENHANCER_ENABLED_USER_WORKFLOW,
+    'user → enhancer → resume team workflow → user',
     '```',
     '',
-    'Delegate to `builder` or deliver to `user` using the matching template. Continue any builder slices without another enhancer pass.',
+    'Resume the implementation, delegation, or delivery path for your team without another enhancer pass.',
     '</planning-review-outcome>',
   ].join('\n');
 }

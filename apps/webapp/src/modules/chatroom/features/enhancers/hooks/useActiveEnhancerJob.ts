@@ -7,7 +7,7 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
 /**
- * Job-only enhancer hook: exposes the active planner→enhancer job and a
+ * Job-only enhancer hook: exposes the active entry-point→enhancer job and a
  * cancel action. Disabling enhancement is a separate concern (config-level,
  * next-message only) and must NOT cancel the in-flight job.
  */

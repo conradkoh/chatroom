@@ -23,7 +23,7 @@ function getNativeDeliveryTemplateTargets(
 ): readonly string[] {
   const key = `${(teamId ?? 'duo').toLowerCase()}:${role.toLowerCase()}`;
   const base = NATIVE_DELIVERY_TEMPLATE_TARGETS[key] ?? [];
-  if (!includeEnhancerTemplate || role.toLowerCase() !== 'planner') {
+  if (!includeEnhancerTemplate) {
     return base;
   }
   return ['enhancer', ...base];

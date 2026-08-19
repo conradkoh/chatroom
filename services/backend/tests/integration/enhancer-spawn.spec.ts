@@ -16,7 +16,7 @@ import {
   joinParticipant,
   registerMachineWithDaemon,
 } from '../helpers/integration';
-import { setupWorkspaceForSession } from './direct-harness/fixtures';
+import { setupPlannerWorkspaceForSession } from './direct-harness/fixtures';
 
 async function createPlannerUserMessageAndTask(
   sessionId: string,
@@ -49,7 +49,8 @@ async function createPlannerUserMessageAndTask(
 
 describe('daemon.enhancer.index', () => {
   test('enqueueHandoff creates job with status pending', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-pending');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-pending');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -90,7 +91,7 @@ describe('daemon.enhancer.index', () => {
   });
 
   test('claimForSpawn transitions pending to running; second claim returns false', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-claim');
+    const { sessionId, chatroomId, machineId } = await setupPlannerWorkspaceForSession('enh-claim');
 
     await assertDuoTeamOnly(chatroomId);
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -142,7 +143,8 @@ describe('daemon.enhancer.index', () => {
   });
 
   test('getSpawnPayload returns prompt and envelope for running job', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-payload');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-payload');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,

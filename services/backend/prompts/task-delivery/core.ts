@@ -4,6 +4,8 @@
  * Used by both native and CLI task delivery paths.
  */
 
+import { isSupportedEnhancerRole } from '@workspace/shared/domain/enhancer-team-capability';
+
 import {
   appendPlanningReviewOutcomeGuidance,
   appendTaskDeliveryEnhancerGuidance,
@@ -27,7 +29,7 @@ export interface TaskDeliveryParams {
   isEntryPoint?: boolean;
   sourceAttachments?: PrimaryDeliveryAttachments;
   standingInstructions?: string | null;
-  /** When true, planner task delivery includes handoff-enhancer guidance. */
+  /** When true, entry-point task delivery includes handoff-enhancer guidance. */
   plannerEnhancerEnabled?: boolean;
 }
 
@@ -35,8 +37,7 @@ function appendPlannerEnhancerGuidanceForMessage(
   lines: string[],
   message: { senderRole: string; content?: string } | null | undefined,
   ctx: Pick<TaskDeliveryParams, 'chatroomId' | 'role' | 'cliEnvPrefix'>,
-  taskContent?: string,
-  plannerEnhancerEnabled?: boolean
+  taskContent?: string
 ): void {
   const senderRole = message?.senderRole.toLowerCase();
   if (senderRole === 'enhancer') {
@@ -48,29 +49,50 @@ function appendPlannerEnhancerGuidanceForMessage(
     }
     return;
   }
-  if (plannerEnhancerEnabled && senderRole === 'user') {
-    appendTaskDeliveryEnhancerGuidance(lines);
+}
+
+function appendEnabledEnhancerGuidance(
+  lines: string[],
+  params: Pick<
+    TaskDeliveryParams,
+    | 'chatroomId'
+    | 'role'
+    | 'cliEnvPrefix'
+    | 'plannerEnhancerEnabled'
+    | 'message'
+    | 'task'
+    | 'isEntryPoint'
+    | 'teamId'
+  >
+): void {
+  const senderRole = params.message?.senderRole.toLowerCase();
+  if (senderRole === 'user') {
+    appendTaskDeliveryEnhancerGuidance(lines, {
+      entryPointRole: params.role,
+      hasBuilder: params.teamId?.toLowerCase() === 'duo',
+    });
+    return;
   }
+  appendPlannerEnhancerGuidanceForMessage(lines, params.message, params, params.task?.content);
 }
 
 function appendTaskDeliveryEnhancerGuidanceIfEnabled(
   lines: string[],
   params: Pick<
     TaskDeliveryParams,
-    'chatroomId' | 'role' | 'cliEnvPrefix' | 'plannerEnhancerEnabled' | 'message' | 'task'
+    | 'chatroomId'
+    | 'role'
+    | 'cliEnvPrefix'
+    | 'plannerEnhancerEnabled'
+    | 'message'
+    | 'task'
+    | 'isEntryPoint'
+    | 'teamId'
   >
 ): void {
-  if (params.role.toLowerCase() !== 'planner') return;
-  if (params.plannerEnhancerEnabled) {
-    appendPlannerEnhancerGuidanceForMessage(
-      lines,
-      params.message,
-      params,
-      params.task?.content,
-      params.plannerEnhancerEnabled
-    );
-    return;
-  }
+  if (!params.isEntryPoint || !isSupportedEnhancerRole(params.teamId, params.role)) return;
+  if (params.plannerEnhancerEnabled) return appendEnabledEnhancerGuidance(lines, params);
+
   const senderRole = params.message?.senderRole?.toLowerCase();
   if (senderRole === 'user' || senderRole === 'builder') {
     appendTaskDeliveryEnhancerDisabledGuidance(lines);
@@ -232,6 +254,8 @@ export function appendTaskDeliveryHandoffSections(
     plannerEnhancerEnabled: params.plannerEnhancerEnabled,
     message: params.message,
     task: params.task,
+    isEntryPoint: params.isEntryPoint,
+    teamId: params.teamId,
   });
   appendTaskDeliveryHandoffTemplates(lines, {
     teamId: params.teamId,
@@ -240,7 +264,7 @@ export function appendTaskDeliveryHandoffSections(
     cliEnvPrefix: params.cliEnvPrefix,
     includeEnhancerTemplate:
       params.plannerEnhancerEnabled &&
-      params.role.toLowerCase() === 'planner' &&
+      params.isEntryPoint === true &&
       params.message?.senderRole.toLowerCase() === 'user',
   });
   appendTaskDeliveryHandoffTargets(lines, params);

@@ -38,12 +38,13 @@ export async function emitEnhancerEvent(
 
 export function resolveHandoffTemplateSnapshot(
   chatroom: Doc<'chatroom_rooms'>,
-  chatroomId: Id<'chatroom_rooms'>
+  chatroomId: Id<'chatroom_rooms'>,
+  entryPointRole: string
 ): string {
   const template = getHandoffTemplate({
     teamId: chatroom.teamId,
     fromRole: 'enhancer',
-    toRole: 'planner',
+    toRole: entryPointRole,
     nativeIntegration: false,
     chatroomId,
     role: 'enhancer',
@@ -51,7 +52,7 @@ export function resolveHandoffTemplateSnapshot(
   if (!template) {
     throw new ConvexError({
       code: 'TEMPLATE_NOT_FOUND',
-      message: 'No handoff template for enhancer→planner',
+      message: `No handoff template for enhancer→${entryPointRole}`,
     });
   }
   return template;

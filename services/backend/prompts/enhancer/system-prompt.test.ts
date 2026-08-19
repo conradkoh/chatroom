@@ -13,7 +13,7 @@ describe('renderEnhancerSystemPrompt', () => {
   it('frames the enhancer as a memoryless first-input planning advisor', () => {
     const result = renderEnhancerSystemPrompt(params);
     expect(result).toContain('single-turn, memoryless **planning advisor**');
-    expect(result).toContain('stateful planner');
+    expect(result).toContain('stateful team entry point');
     expect(result).toContain('first planning input');
   });
 

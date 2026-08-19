@@ -29,7 +29,7 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
     '- Independently identify user intent, missing context, risks, failure modes, and the strongest implementation approach.',
     '- Give concrete, evidence-backed planning input with repo-relative file references and targeted code snippets when useful.',
     '- Keep the user request as the north star. Tighten within its scope; do not invent requirements.',
-    '- Your output becomes the first planning input to the stateful planner, which owns the ongoing plan and execution.',
+    '- Your output becomes the first planning input to the stateful team entry point, which owns persistent memory, the ongoing plan, and execution.',
     '',
     getEnhancerHistoryRetrievalGuidance({
       chatroomId: params.chatroomId,
@@ -51,9 +51,9 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
     '- Output must match <output-template>. **Implementation notes** is the last section.',
     '',
     '## Complete command (MANDATORY — run as your final action)',
-    'Run this command after writing the complete planning input. Stdout alone does not deliver it to the planner.',
+    'Run this command after writing the complete planning input. Stdout alone does not deliver it to the team entry point.',
     'Even when the request is already clear, complete the template with concise, useful findings.',
-    'Failure to run complete means your work is lost and the planner is told the enhancer failed.',
+    'Failure to run complete means your work is lost and the team entry point is told the enhancer failed.',
     completeCmd,
   ].join('\n');
 }

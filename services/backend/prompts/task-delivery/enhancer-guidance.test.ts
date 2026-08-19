@@ -5,14 +5,16 @@ import {
   appendTaskDeliveryEnhancerInputGuidance,
 } from './enhancer-guidance';
 import {
-  ENHANCER_ENABLED_USER_WORKFLOW,
-  ENHANCER_REQUEST_FIRST_WORKFLOW,
+  getEnhancerEnabledUserWorkflow,
+  getEnhancerRequestFirstWorkflow,
 } from '../../src/domain/usecase/enhancer/enhancer-workflow';
+
+const PLANNER_WORKFLOW = { entryPointRole: 'planner', hasBuilder: true };
 
 describe('appendTaskDeliveryEnhancerGuidance', () => {
   test('requires an immediate, request-only, one-time enhancer handoff', () => {
     const lines: string[] = [];
-    appendTaskDeliveryEnhancerGuidance(lines);
+    appendTaskDeliveryEnhancerGuidance(lines, PLANNER_WORKFLOW);
     const output = lines.join('\n');
 
     expect(output).toContain('<handoff-enhancer>');
@@ -34,10 +36,10 @@ describe('appendTaskDeliveryEnhancerGuidance', () => {
 
   test('emits request-first workflow constants verbatim', () => {
     const lines: string[] = [];
-    appendTaskDeliveryEnhancerGuidance(lines);
+    appendTaskDeliveryEnhancerGuidance(lines, PLANNER_WORKFLOW);
     const output = lines.join('\n');
-    expect(output).toContain(ENHANCER_ENABLED_USER_WORKFLOW);
-    expect(output).toContain(ENHANCER_REQUEST_FIRST_WORKFLOW);
+    expect(output).toContain(getEnhancerEnabledUserWorkflow('planner', true));
+    expect(output).toContain(getEnhancerRequestFirstWorkflow('planner'));
   });
 });
 
@@ -54,11 +56,11 @@ describe('appendTaskDeliveryEnhancerInputGuidance', () => {
     expect(output).toContain('<enhancer-input>');
     expect(output).toContain('Enhancer Planning Input');
     expect(output).toContain('first planning input');
-    expect(output).toContain('not as a review of a planner-authored draft');
+    expect(output).toContain('not as a review of an entry-point-authored draft');
     expect(output).toContain(
       'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="room_1" --role="planner"'
     );
-    expect(output).toContain('delegate to `builder`');
+    expect(output).toContain('implement, delegate, or hand off to `user`');
     expect(output).toContain('advisory');
     expect(output).toContain('final call');
     expect(output).toContain('One enhancer pass per originating user message');

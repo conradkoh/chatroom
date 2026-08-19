@@ -83,6 +83,25 @@ describe('handoff-templates > resolver', () => {
     ).toBe(getSoloToUserReportTemplate(params));
   });
 
+  test('resolves the solo request-first enhancer handoff pair', () => {
+    const request = getHandoffTemplate({
+      teamId: 'solo',
+      fromRole: 'solo',
+      toRole: 'enhancer',
+    });
+    const input = getHandoffTemplate({
+      teamId: 'solo',
+      fromRole: 'enhancer',
+      toRole: 'solo',
+    });
+
+    expect(request).toContain('Request Forward (Solo → Enhancer)');
+    expect(request).toContain('<request>');
+    expect(request).not.toContain('<grounding>');
+    expect(input).toContain('Planning Input (Enhancer → Solo)');
+    expect(input).toContain('solo agent owns persistent memory, execution, and the final plan');
+  });
+
   test('delivery params match direct getter calls for duo planner → user', () => {
     const params = handoffTemplateDeliveryParams('planner');
     expect(
@@ -357,7 +376,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
 
-      Independently analyze the user's request. Recover the relevant conversation history, inspect the repository, and give the planner a concrete first input for its own planning. Focus on user intent, existing behavior, implementation direction, risks, and material unknowns. The planner owns persistent memory and the final plan.
+      Independently analyze the user's request. Recover the relevant conversation history, inspect the repository, and give the planner agent a concrete first input for its own planning. Focus on user intent, existing behavior, implementation direction, risks, and material unknowns. The planner agent owns persistent memory, execution, and the final plan.
 
       Ground every recommendation in user messages or codebase evidence. For UI work, complete the optional **UX** section using the reference below. For a large or multi-surface revision, complete the optional **Defragmentation** section. End with **Recommended next steps**, then **Implementation notes** for any file-level detail or short illustrative code that materially helps.
 

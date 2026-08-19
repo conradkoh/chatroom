@@ -11,11 +11,11 @@ import { StandingInstructionsBar } from '../StandingInstructionsBar';
 
 export function ComposerPreflightBar({ chatroomId }: { chatroomId: Id<'chatroom_rooms'> }) {
   const { activeWorkspace } = useChatroomLifecycle(chatroomId);
-  const { teamRoles, isLoading } = useAgentPanelData(chatroomId);
+  const { teamId, teamRoles, isLoading } = useAgentPanelData(chatroomId);
 
   const teamSupportState = isLoading
     ? 'loading'
-    : teamSupportsEnhancer(teamRoles)
+    : teamSupportsEnhancer(teamId, teamRoles)
       ? 'supported'
       : 'unsupported';
 

@@ -1,3 +1,7 @@
+import {
+  getEnhancerEntryPointRole,
+  isEnhancerEntryPointRole,
+} from '@workspace/shared/domain/enhancer-team-capability';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
@@ -28,12 +32,12 @@ import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-tea
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
-import { getEnhancerConfigForUser } from '../src/domain/usecase/enhancer/get-enhancer-config-for-user';
 import {
   hasActiveEnhancerWork,
-  transitionPlannerFromEnhancingToWaiting,
-  transitionPlannerToEnhancing,
-} from '../src/domain/usecase/enhancer/planner-enhancing-status';
+  transitionEnhancerEntryPointToEnhancing,
+  transitionEnhancerEntryPointToWaiting,
+} from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
+import { getEnhancerConfigForUser } from '../src/domain/usecase/enhancer/get-enhancer-config-for-user';
 import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import {
   resolvePlannerEnhancerEnabledFromConfig,
@@ -603,6 +607,8 @@ export async function runHandoffHandler(
   // Validate senderRole
   const normalizedSenderRole = args.senderRole.toLowerCase();
   const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
+  const enhancerEntryPointRole = getEnhancerEntryPointRole(chatroom);
+  const normalizedEnhancerEntryPointRole = enhancerEntryPointRole?.toLowerCase();
   const isEnhancerDelivery = normalizedSenderRole === 'enhancer';
   if (!isEnhancerDelivery && !normalizedTeamRoles.includes(normalizedSenderRole)) {
     return {
@@ -622,10 +628,7 @@ export async function runHandoffHandler(
   const isHandoffToUser = normalizedTargetRole === 'user';
   const isHandoffToEnhancer = normalizedTargetRole === 'enhancer';
 
-  if (
-    normalizedSenderRole === 'planner' &&
-    (normalizedTargetRole === 'builder' || isHandoffToUser)
-  ) {
+  if (normalizedSenderRole === normalizedEnhancerEntryPointRole && !isHandoffToEnhancer) {
     const enhancerReviewInProgress = await hasActiveEnhancerWork(ctx, args.chatroomId);
     if (enhancerReviewInProgress) {
       return {
@@ -633,7 +636,7 @@ export async function runHandoffHandler(
         error: {
           code: 'ENHANCER_REVIEW_IN_PROGRESS',
           message:
-            'Cannot hand off to builder or user while enhancer review is in progress. Run get-next-task and wait for planning feedback, then incorporate it before proceeding.',
+            'Cannot hand off while enhancer analysis is in progress. Run get-next-task and wait for planning input, then incorporate it before proceeding.',
         },
         messageId: null,
         completedTaskIds: [],
@@ -644,12 +647,12 @@ export async function runHandoffHandler(
   }
 
   if (isHandoffToEnhancer) {
-    if (normalizedSenderRole !== 'planner') {
+    if (!enhancerEntryPointRole || !isEnhancerEntryPointRole(chatroom, args.senderRole)) {
       return {
         success: false,
         error: {
           code: 'INVALID_ROLE',
-          message: 'Only planner can hand off to enhancer',
+          message: 'Only the supported team entry point can hand off to enhancer',
         },
         messageId: null,
         completedTaskIds: [],
@@ -675,16 +678,15 @@ export async function runHandoffHandler(
 
     const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
 
-    const activePlannerTasks = await collectActiveTasks(ctx, args.chatroomId, {
-      assignedTo: 'planner',
+    const activeEntryPointTasks = await collectActiveTasks(ctx, args.chatroomId, {
+      assignedTo: enhancerEntryPointRole,
     });
-    if (activePlannerTasks.length === 0) {
+    if (activeEntryPointTasks.length === 0) {
       return {
         success: false,
         error: {
-          code: 'NO_PLANNER_USER_TASK',
-          message:
-            'Cannot hand off to enhancer without an active planner task from a user instruction',
+          code: 'NO_ENTRY_POINT_USER_TASK',
+          message: `Cannot hand off to enhancer without an active ${enhancerEntryPointRole} task from a user instruction`,
         },
         messageId: null,
         completedTaskIds: [],
@@ -694,7 +696,7 @@ export async function runHandoffHandler(
     }
 
     const userOriginTask =
-      activePlannerTasks.find((t) => t.createdBy === 'user') ?? activePlannerTasks[0];
+      activeEntryPointTasks.find((t) => t.createdBy === 'user') ?? activeEntryPointTasks[0];
 
     const originUserMessageId = userOriginTask?.sourceMessageId
       ? await walkToUserMessageId(ctx, userOriginTask.sourceMessageId)
@@ -703,7 +705,7 @@ export async function runHandoffHandler(
       return {
         success: false,
         error: {
-          code: 'NO_PLANNER_USER_TASK',
+          code: 'NO_ENTRY_POINT_USER_TASK',
           message: 'Cannot resolve the originating user message for enhancer analysis',
         },
         messageId: null,
@@ -904,6 +906,12 @@ export async function runHandoffHandler(
 
   let enhancerJobId: Id<'chatroom_enhancerJobs'> | null = null;
   if (isHandoffToEnhancer && newTaskId) {
+    if (!enhancerEntryPointRole) {
+      throw new ConvexError({
+        code: 'INVALID_ROLE',
+        message: 'Enhancer handoff is missing a supported team entry point',
+      });
+    }
     const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
     if (!enhancerConfig) {
       throw new ConvexError({ code: 'ENHANCER_NOT_ENABLED', message: 'Enhancer not enabled' });
@@ -913,6 +921,7 @@ export async function runHandoffHandler(
       chatroomId: args.chatroomId,
       userId: session.userId,
       chatroom,
+      entryPointRole: enhancerEntryPointRole,
       content: args.content,
       taskId: newTaskId,
       messageId,
@@ -924,7 +933,7 @@ export async function runHandoffHandler(
     });
 
     await ctx.db.patch('chatroom_messages', messageId, { enhancerJobId });
-    await transitionPlannerToEnhancing(ctx, args.chatroomId);
+    await transitionEnhancerEntryPointToEnhancing(ctx, args.chatroomId, enhancerEntryPointRole);
   }
 
   // Step 4: Update sender's participant status to waiting (before checking queue promotion)
@@ -943,7 +952,10 @@ export async function runHandoffHandler(
   }
 
   if (args.enhancerJobId) {
-    await transitionPlannerFromEnhancingToWaiting(ctx, args.chatroomId);
+    const enhancerJob = await ctx.db.get('chatroom_enhancerJobs', args.enhancerJobId);
+    if (enhancerJob) {
+      await transitionEnhancerEntryPointToWaiting(ctx, args.chatroomId, enhancerJob.fromRole);
+    }
   }
 
   // Step 5: Attached backlog items remain in their current status on handoff.
@@ -1494,7 +1506,7 @@ export const getRolePrompt = query({
     const availableHandoffRoles = buildAvailableHandoffRoles(availableRoles);
 
     let plannerEnhancerActive: boolean | undefined;
-    if (args.role.toLowerCase() === 'planner') {
+    if (isEnhancerEntryPointRole(chatroom, args.role)) {
       const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
       plannerEnhancerActive = resolvePlannerEnhancerEnabledFromConfig(enhancerConfig);
     }
@@ -1639,6 +1651,7 @@ export const getTaskDeliveryPrompt = query({
       taskPlannerEnhancerEnabled: task.plannerEnhancerEnabled,
       liveConfig: enhancerConfig,
       role: args.role,
+      team: chatroom,
     });
 
     const deliveryMessageSenderRole =

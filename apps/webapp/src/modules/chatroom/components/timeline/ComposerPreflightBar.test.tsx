@@ -13,7 +13,7 @@ vi.mock('../StandingInstructionsBar', () => ({
   StandingInstructionsBar: () => <div data-testid="standing-instructions-bar" />,
 }));
 vi.mock('../../hooks/useAgentPanelData', () => ({
-  useAgentPanelData: () => ({ teamRoles: ['planner', 'builder'], isLoading: false }),
+  useAgentPanelData: () => ({ teamId: 'duo', teamRoles: ['planner', 'builder'], isLoading: false }),
 }));
 vi.mock('../../hooks/useChatroomLifecycle', () => ({
   useChatroomLifecycle: () => ({ activeWorkspace: { machineId: 'm1' } }),

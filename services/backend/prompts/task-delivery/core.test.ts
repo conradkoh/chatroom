@@ -71,6 +71,33 @@ describe('appendTaskDeliveryHandoffSections — enhancer enabled', () => {
     expect(output).toContain('--next-role="builder"');
     expect(output).toContain('Handoff to `builder`');
   });
+
+  test('solo uses enhancer first, then resumes implementation and user delivery', () => {
+    const userOutput = renderHandoffSections({
+      role: 'solo',
+      teamId: 'solo',
+      plannerEnhancerEnabled: true,
+      availableHandoffTargets: ['enhancer', 'user'],
+      message: { _id: 'user-msg', senderRole: 'user' },
+    });
+
+    expect(userOutput).toContain('--next-role="enhancer"');
+    expect(userOutput).toContain('Request Forward (Solo → Enhancer)');
+    expect(userOutput).toContain('user → enhancer → solo → user');
+    expect(userOutput).not.toContain('Handoff to `builder`');
+
+    const enhancerOutput = renderHandoffSections({
+      role: 'solo',
+      teamId: 'solo',
+      plannerEnhancerEnabled: true,
+      availableHandoffTargets: ['user'],
+      message: { _id: 'enh-msg', senderRole: 'enhancer' },
+    });
+
+    expect(enhancerOutput).toContain('<enhancer-input>');
+    expect(enhancerOutput).toContain('--next-role="user"');
+    expect(enhancerOutput).not.toContain('Handoff to `enhancer`');
+  });
 });
 
 describe('appendTaskDeliveryHandoffSections — enhancer disabled', () => {

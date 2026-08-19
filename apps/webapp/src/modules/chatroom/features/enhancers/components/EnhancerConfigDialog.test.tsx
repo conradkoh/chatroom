@@ -75,7 +75,7 @@ describe('EnhancerConfigDialog', () => {
     );
 
     expect(screen.getByText('Enhancer configuration')).toBeDefined();
-    expect(screen.getByText('Planning review (before builder)')).toBeDefined();
+    expect(screen.getByText('Request-first planning input')).toBeDefined();
   });
 
   it('shows helper text when no machineId provided', () => {
@@ -109,7 +109,7 @@ describe('EnhancerConfigDialog', () => {
       />
     );
 
-    const targetButton = screen.getByText('Planning review (before builder)');
+    const targetButton = screen.getByText('Request-first planning input');
     fireEvent.click(targetButton);
 
     const saveButton = screen.getByText('Save & Enable');

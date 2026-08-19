@@ -11,7 +11,7 @@ export interface EnhancerHistoryRetrievalParams {
 
 /**
  * The enhancer is memoryless, so every job reconstructs context from the
- * originating user message rather than relying on planner-authored summaries.
+ * originating user message rather than relying on entry-point-authored summaries.
  */
 export function getEnhancerHistoryRetrievalGuidance(
   params: EnhancerHistoryRetrievalParams

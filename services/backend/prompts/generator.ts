@@ -222,26 +222,21 @@ export function composeSystemPrompt(input: InitPromptInput): string {
 }
 
 function isEnhancerRequestQueuedHandoff(params: {
-  role: string;
   nextRole: string;
   enhancerRequestQueued?: boolean;
 }): boolean {
-  return (
-    params.enhancerRequestQueued === true &&
-    params.role.toLowerCase() === 'planner' &&
-    params.nextRole.toLowerCase() === 'enhancer'
-  );
+  return params.enhancerRequestQueued === true && params.nextRole.toLowerCase() === 'enhancer';
 }
 
 function getEnhancerRequestQueuedConfirmationLines(nativeIntegration?: boolean): string[] {
   const turnEndRule = nativeIntegration
-    ? '**End your turn now** — do not wait for input, poll, monitor the enhancer, or re-submit the handoff. The system delivers independent planning input as your next planner task when analysis completes.'
+    ? '**End your turn now** — do not wait for input, poll, monitor the enhancer, or re-submit the handoff. The system delivers independent planning input as your next task when analysis completes.'
     : '**Run get-next-task now and end your turn** — do not wait for input, poll, monitor the enhancer, or re-submit the handoff.';
 
   return [
     '✅ User request queued for handoff enhancer',
     '',
-    'The user request was sent to the handoff enhancer (async). You will receive independent planning input as a planner task when analysis completes.',
+    'The user request was sent to the handoff enhancer (async). You will receive independent planning input as your next task when analysis completes.',
     turnEndRule,
   ];
 }
@@ -259,7 +254,7 @@ export function generateHandoffOutput(params: {
   chatroomId: string;
   convexUrl?: string;
   supportsNativeIntegration?: boolean;
-  /** When true, planner→enhancer handoff queued request-first analysis. */
+  /** When true, the entry point queued request-first enhancer analysis. */
   enhancerRequestQueued?: boolean;
 }): string {
   const {
@@ -273,7 +268,6 @@ export function generateHandoffOutput(params: {
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   const enhancerRequest = isEnhancerRequestQueuedHandoff({
-    role,
     nextRole,
     enhancerRequestQueued,
   });
