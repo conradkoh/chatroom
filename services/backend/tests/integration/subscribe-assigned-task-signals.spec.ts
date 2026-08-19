@@ -21,6 +21,35 @@ async function syncMachineSnapshots(sessionId: string, machineId: string): Promi
   });
 }
 
+async function currentAssignedTaskSnapshots(sessionId: string, machineId: string) {
+  await syncMachineSnapshots(sessionId, machineId);
+  const byKey = new Map<
+    string,
+    NonNullable<
+      Awaited<
+        ReturnType<typeof t.query<typeof api.machines.listMachineAssignedTaskChangesSince>>
+      >['items'][number]['snapshot']
+    >
+  >();
+  let afterRevision = 0;
+  for (;;) {
+    const page = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
+      sessionId,
+      machineId,
+      afterRevision,
+      limit: 50,
+    });
+    for (const item of page.items) {
+      const key = `${item.taskId}:${item.role}`;
+      if (item.op === 'delete') byKey.delete(key);
+      else if (item.snapshot) byKey.set(key, item.snapshot);
+    }
+    if (page.items.length === 0 || !page.hasMore) break;
+    afterRevision = page.highRevision ?? afterRevision;
+  }
+  return { tasks: [...byKey.values()] };
+}
+
 describe('assigned-task current snapshots via changelog', () => {
   test('returns active tasks without task content', async () => {
     const { sessionId } = await createTestSession('test-lite-tasks-1');
@@ -37,10 +66,7 @@ describe('assigned-task current snapshots via changelog', () => {
       createdBy: 'user',
     });
 
-    const result = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
-      sessionId,
-      machineId,
-    });
+    const result = await currentAssignedTaskSnapshots(sessionId, machineId);
 
     expect(result.tasks).toHaveLength(1);
     const task = result.tasks[0]!;
@@ -72,10 +98,7 @@ describe('assigned-task current snapshots via changelog', () => {
       pid: 42_424,
     });
 
-    const result = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
-      sessionId,
-      machineId,
-    });
+    const result = await currentAssignedTaskSnapshots(sessionId, machineId);
 
     expect(result.tasks[0]?.agentConfig.spawnedAgentPid).toBe(42_424);
   });
@@ -94,10 +117,7 @@ describe('assigned-task current snapshots via changelog', () => {
       createdBy: 'user',
     });
 
-    const running = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
-      sessionId,
-      machineId,
-    });
+    const running = await currentAssignedTaskSnapshots(sessionId, machineId);
     expect(running.tasks[0]?.agentConfig.desiredState).toBe('running');
 
     await t.mutation(api.machines.sendCommand, {
@@ -107,10 +127,7 @@ describe('assigned-task current snapshots via changelog', () => {
       payload: { chatroomId, role: 'builder' },
     });
 
-    const stopped = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
-      sessionId,
-      machineId,
-    });
+    const stopped = await currentAssignedTaskSnapshots(sessionId, machineId);
     expect(stopped.tasks[0]?.agentConfig.desiredState).toBe('stopped');
     expect(stopped.tasks[0]?.agentConfig.spawnedAgentPid).toBeUndefined();
   });
@@ -206,10 +223,7 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
     // Daemon startup: sync projection + hydrate empty working set.
     await syncMachineSnapshots(sessionId, machineId);
 
-    const hydrate = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
-      sessionId,
-      machineId,
-    });
+    const hydrate = await currentAssignedTaskSnapshots(sessionId, machineId);
     expect(hydrate.tasks).toHaveLength(0);
 
     const baseline = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
@@ -248,10 +262,7 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
     expect(signal.revisionKey).toBeTruthy();
     expect(signal).not.toHaveProperty('taskContent');
 
-    const snapshots = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
-      sessionId,
-      machineId,
-    });
+    const snapshots = await currentAssignedTaskSnapshots(sessionId, machineId);
     expect(snapshots.tasks).toHaveLength(1);
     expect(snapshots.tasks[0]?.taskId).toBe(signal.taskId);
 
@@ -352,13 +363,7 @@ describe('machines.subscribeAssignedTaskSignalsSince', () => {
       sessionId,
       chatroomId,
       role: 'builder',
-      taskId: (
-        await t.query(api.machines.listMachineAssignedTaskChangesSince, {
-          sessionId,
-          machineId,
-          limit: 50,
-        })
-      ).tasks[0]!.taskId,
+      taskId: (await currentAssignedTaskSnapshots(sessionId, machineId)).tasks[0]!.taskId,
     });
 
     const afterClaim = await t.query(api.machines.subscribeAssignedTaskSignalsSince, {
