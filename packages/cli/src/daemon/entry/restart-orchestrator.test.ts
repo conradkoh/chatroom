@@ -23,7 +23,7 @@ function createMockDeps(overrides?: { spawnSuccess?: boolean; harnessSessionId?:
   });
   const backend = {
     mutation: vi.fn(async () => undefined),
-    query: vi.fn(async () => ({ tasks: [] })),
+    query: vi.fn(async () => ({ items: [], highRevision: null, hasMore: false })),
   };
   const agentMgr = {
     stop: vi.fn().mockResolvedValue(undefined),

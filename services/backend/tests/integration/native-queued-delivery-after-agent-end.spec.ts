@@ -148,13 +148,14 @@ describe('Native queued delivery after agent_end', () => {
     expect(promotedTask.assignedTo).toBe('builder');
 
     await syncMachineSnapshots(sessionId, machineId);
-    const snapshots = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
+    const page = await t.query(api.machines.listMachineAssignedTaskChangesSince, {
       sessionId,
       machineId,
+      afterRevision: 0,
+      limit: 50,
     });
-
-    expect(snapshots.tasks).toHaveLength(1);
-    const snapshot = snapshots.tasks[0]!;
+    const snapshot = page.items.find((item) => item.op === 'upsert')?.snapshot;
+    expect(snapshot).toBeDefined();
     expect(snapshot.taskId).toBe(promotedTask._id);
     expect(snapshot.status).toBe('pending');
     expect(snapshot.agentConfig.role).toBe('builder');
