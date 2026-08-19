@@ -274,5 +274,9 @@ describe('startFileTreeSubscriptionEffect', () => {
 
     await vi.waitFor(() => expect(coordinatorHandle.stop).toHaveBeenCalled());
     expect(deps.backend.mutation).toHaveBeenCalledWith('fulfill-release', expect.any(Object));
+
+    vi.mocked(startCoordinator).mockClear();
+    await handle.drainPendingFileTreeRequests();
+    await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalledTimes(1));
   });
 });

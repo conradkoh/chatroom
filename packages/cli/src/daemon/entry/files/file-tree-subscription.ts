@@ -54,6 +54,7 @@ async function stopCoordinatorForWorkingDir(
 ): Promise<void> {
   const coordinatorPromise = coordinators.get(normalized);
   if (!coordinatorPromise) return;
+  coordinators.delete(normalized);
   await coordinatorPromise.then((coordinator) => coordinator.stop()).catch(() => undefined);
   await checkpointOutboxRegistry.stop(normalized);
 }
