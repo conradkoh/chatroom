@@ -73,6 +73,7 @@ export function createFifoBatchedOutbox<TItem, TResult>(
             scheduleRetry();
             break;
           }
+          retryAttempt = 0;
         } catch (e) {
           o.onError?.(e);
           for (const r of rows) o.store.markPendingRetry(r.id, e);
