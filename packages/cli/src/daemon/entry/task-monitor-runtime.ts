@@ -77,8 +77,8 @@ import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
 import type { AssignedTaskInboundEvent } from '../domain/usecase/handle-assigned-task-inbound.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 
-type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
-type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
+export type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
+export type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
 
 type TaskMonitorPass = 'signal' | 'presence';
 
@@ -353,7 +353,7 @@ async function reviveNativeTasks(
   }
 }
 
-async function processTasksUpdate(
+export async function processTasksUpdate(
   tasks: AssignedTaskSnapshotView[],
   runtime: TaskMonitorRuntime,
   effectContext: TaskMonitorContext,

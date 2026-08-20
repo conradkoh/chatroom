@@ -11,6 +11,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 
 import type { Doc } from '../../../api.js';
 import { api } from '../../../api.js';
+import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 
 const DEFAULT_SIGNAL_PAGE_LIMIT = 100;
 const DEFAULT_TASK_PAGE_LIMIT = 500;
@@ -34,7 +35,7 @@ export interface TaskSignalPage {
 
 export interface TaskInboxUpdate {
   readonly signals: readonly TaskStatusSignal[];
-  readonly tasks: readonly Doc<'chatroom_tasks'>[];
+  readonly snapshots: readonly AssignedTaskSnapshotView[];
   readonly afterSignalKey: string;
   readonly throughSignalKey: string;
 }
@@ -157,11 +158,11 @@ export async function* createTaskSignalIterator(
   }
 }
 
-async function fetchFullTasksForSignalPage(
+async function fetchSnapshotsForSignalPage(
   options: TaskInboxOptions,
   page: TaskSignalPage
-): Promise<readonly Doc<'chatroom_tasks'>[]> {
-  const tasks: Doc<'chatroom_tasks'>[] = [];
+): Promise<readonly AssignedTaskSnapshotView[]> {
+  const snapshots: AssignedTaskSnapshotView[] = [];
   let afterSignalKey = page.afterSignalKey;
   while (true) {
     throwIfAborted(options.signal);
@@ -173,12 +174,12 @@ async function fetchFullTasksForSignalPage(
       limit: options.taskPageLimit ?? DEFAULT_TASK_PAGE_LIMIT,
     });
 
-    tasks.push(...result.tasks);
+    snapshots.push(...result.snapshots);
     if (!result.hasMore || !result.nextSignalKey) break;
     afterSignalKey = result.nextSignalKey;
   }
 
-  return tasks;
+  return snapshots;
 }
 
 /**
@@ -190,10 +191,10 @@ export async function runTaskInbox(
   onUpdate: TaskInboxHandler
 ): Promise<void> {
   for await (const page of createTaskSignalIterator(options)) {
-    const tasks = await fetchFullTasksForSignalPage(options, page);
+    const snapshots = await fetchSnapshotsForSignalPage(options, page);
     await onUpdate({
       signals: page.items,
-      tasks,
+      snapshots,
       afterSignalKey: page.afterSignalKey,
       throughSignalKey: page.highSignalKey,
     });

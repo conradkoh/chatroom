@@ -41,7 +41,7 @@ import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracke
 import { drainActionableCommandRuns } from './handlers/process/command-run-subscription.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { getActiveLogSink } from './init-daemon.js';
-import { startTaskMonitorEffect } from './task-monitor-runtime.js';
+import { startTaskInboxEffect } from './task-inbox-runtime.js';
 import { drainGitStateSync } from './workspace-git/git-heartbeat.js';
 import {
   startGitRequestSubscriptionEffect,
@@ -87,7 +87,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let directHarnessWorkerHandle: ReturnType<typeof startDirectHarnessSubscriptions> | null = null;
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
   let enhancerWorkerHandle: { stop: () => void } | null = null;
-  let taskMonitorHandle: { stop: () => void } | null = null;
+  let taskInboxHandle: { stop: () => void } | null = null;
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 
@@ -132,7 +132,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     gitSubscriptionHandle?.stop();
     fileTreeSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
-    taskMonitorHandle?.stop();
+    taskInboxHandle?.stop();
     logObserverSubscriptionHandle?.stop();
     directHarnessWorkerHandle?.stop();
     agenticQueryWorkerHandle?.stop();
@@ -265,7 +265,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       }
     });
 
-    taskMonitorHandle = yield* startTaskMonitorEffect(deps.wsClient);
+    taskInboxHandle = yield* startTaskInboxEffect(deps.wsClient);
 
     logObserverSubscriptionHandle = startLogObserverSubscription(
       { sessionId: session.sessionId, machineId: session.machineId },

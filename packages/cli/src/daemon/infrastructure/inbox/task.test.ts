@@ -5,7 +5,7 @@ import { runTaskInbox } from './task.js';
 describe('runTaskInbox', () => {
   it('subscribes at machine scope and hydrates task records through the signal page', async () => {
     const query = vi.fn().mockResolvedValue({
-      tasks: [{ _id: 'task-1', status: 'pending' }],
+      snapshots: [{ taskId: 'task-1' }],
       nextSignalKey: null,
       hasMore: false,
     });
