@@ -3,7 +3,7 @@ type: decision-log
 title: Task inbox machine-level migration
 description: Migration from chatroom-scoped task monitoring to a machine-scoped task-status signal inbox.
 tags: [tasks, inbox, daemon, convex, migration]
-status: in-progress
+status: complete
 ---
 
 # Task inbox machine-level migration
@@ -36,6 +36,8 @@ The machine-level inbox foundation is staged on branch `feat/task-inbox`:
 
 The inbox persistence store is restored and uses `{ inboxType: 'task', scopeKey: machineId }` with a durable `afterSignalKey`; first startup bootstraps from daemon start time rather than replaying all history.
 
+Assigned-task signal/presence subscribers are unregistered from `subscriber-registry.ts`; the task inbox is the sole discovery path. Integration tests cover reassignment ownership re-check, restart snapshot bootstrap, and cold-start agent revive via `ensureRunning`.
+
 ## Progress tracker
 
 ### Inbox and backend signal feed
@@ -57,7 +59,7 @@ The inbox persistence store is restored and uses `{ inboxType: 'task', scopeKey:
 - [x] Start the agent session when it is not running. `runNativeInjectionEffect` calls `ensureRunning`.
 - [x] Inject the task through the existing native delivery path via the coordinator.
 - [x] Make delivery idempotent across duplicate signals, retries, and daemon restarts. Inbox loop auto-restart is added; ledger + reconcile + startup bootstrap cover restart recovery.
-- [x] Add integration coverage for task arrival, reassignment, restart recovery, and concurrent signals. Arrival + duplicate idempotency are covered in `task-inbox-delivery.integration.test.ts`; reassignment/restart/concurrency are deferred to follow-up.
+- [x] Add integration coverage for task arrival, reassignment, restart recovery, and concurrent signals. Covered in `task-inbox-delivery.integration.test.ts` (arrival, idempotency, reassignment skip, cold-start revive) and `task-inbox-runtime.test.ts` (restart bootstrap).
 
 ### Persistence
 
