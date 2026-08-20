@@ -46,8 +46,6 @@ function readRepoFile(relPath: string): string {
 describe('subscriber-registry duplicate guard (G4)', () => {
   it('v2 subscriber-registry wires all migrated inbound contexts', () => {
     const registrySource = readRepoFile('src/daemon/entry/subscriber-registry.ts');
-    expect(registrySource).toContain('startAssignedTaskSignalsSubscriber');
-    expect(registrySource).toContain('startAssignedTaskPresenceSubscriber');
     expect(registrySource).toContain('startDirectHarnessSessionSubscriber');
     expect(registrySource).toContain('startDirectHarnessPromptSubscriber');
     expect(registrySource).toContain('startDirectHarnessCommandSubscriber');

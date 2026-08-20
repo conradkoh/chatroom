@@ -9,7 +9,6 @@ import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
 import type { AssignedTaskInboundEvent } from '../../../domain/usecase/handle-assigned-task-inbound.js';
 import { createDefaultEventRouterDeps } from '../../../entry/default-router-deps.js';
 import { routeInboundEvent } from '../../../entry/event-router.js';
-import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
 
 const TASK_ID = 'nh7dh7bj63fdns9zkyasjgnga58afx3s';
 const CHATROOM_ID = 'n57ctdnfvd0avh0ghx6p4szk8x8aa69a';
@@ -106,45 +105,6 @@ describe('assigned-task v2 subscribers', () => {
 
     expect(events).toContainEqual({
       type: 'assigned-task.presence',
-      taskId: TASK_ID,
-      role: 'builder',
-    });
-  });
-
-  it('registry routes subscriber events to assigned-task handler', async () => {
-    const handled: AssignedTaskInboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
-
-    const registry = startAllSubscribers({
-      wsClient,
-      sessionId: SESSION_ID,
-      machineId: MACHINE_ID,
-      router: {
-        assignedTask: {
-          deliverInbound: async (event) => {
-            handled.push(event);
-          },
-        },
-        directHarness: {},
-        command: {},
-        workspaceGit: {},
-        file: {},
-        agenticQuery: {},
-        enhancer: {},
-      },
-    });
-
-    emitUpdate({
-      items: [makeSignalItem()],
-      highKey: 'rev-1',
-      hasMore: false,
-    });
-
-    await Effect.runPromise(Effect.sleep('80 millis'));
-    await registry.stopAll();
-
-    expect(handled).toContainEqual({
-      type: 'assigned-task.signal',
       taskId: TASK_ID,
       role: 'builder',
     });

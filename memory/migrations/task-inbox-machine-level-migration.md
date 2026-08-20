@@ -79,7 +79,8 @@ The inbox persistence store is restored and uses `{ inboxType: 'task', scopeKey:
 
 After machine-level inbox delivery has parity and recovery coverage, remove the superseded discovery path:
 
-- Remove the old assigned-task signal and presence subscribers from the daemon subscriber registry.
+- [x] Remove the old assigned-task signal and presence subscribers from the daemon subscriber registry.
+      Assigned-task signal/presence subscribers are unregistered from `subscriber-registry.ts`; task inbox is the sole discovery path.
 - Remove the task-monitor runtime, local task snapshot store, and snapshot-only reconciliation/nudge/revive logic that the inbox replaces.
 - Remove chatroom-scoped daemon inbox endpoints and compatibility code once no consumers remain; retain the chatroom index if the webapp still uses it.
 - Remove obsolete signal fields, indexes, tests, and fixtures only after confirming their consumers are gone.
