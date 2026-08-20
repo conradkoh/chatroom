@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { FileTree } from '@workspace/backend/src/domain/entities/workspace-files.js';
 import { selectFileTreeSnapshotStrategyId } from '@workspace/backend/src/domain/workspace-file-tree/index.js';
-import type { PublishCheckpointResult } from '@workspace/backend/src/domain/workspace-file-tree/types.js';
+import type { PublishCheckpointResult } from '../../../../../../services/backend/convex/workspaceFileTree/types.js';
 
 import type {
   WorkspaceFileTreeCheckpointSendResult,
