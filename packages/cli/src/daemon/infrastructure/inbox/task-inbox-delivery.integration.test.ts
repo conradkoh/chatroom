@@ -30,7 +30,7 @@ const snapshot = () => ({
     spawnedAgentPid: 42,
     desiredState: 'running' as const,
   },
-  participant: { lastSeenAction: undefined, lastSeenAt: undefined, lastStatus: undefined },
+  participant: { lastSeenAction: null, lastSeenAt: null, lastStatus: null },
 });
 
 describe('task inbox delivery integration', () => {
@@ -42,14 +42,12 @@ describe('task inbox delivery integration', () => {
 
   test('delivers a pending snapshot through the native coordinator', async () => {
     const agentMgr = {
-      getSlot: vi
-        .fn()
-        .mockReturnValue({
-          state: 'running',
-          pid: 42,
-          harnessSessionId: 'harness-1',
-          nativeTurnPhase: 'idle',
-        }),
+      getSlot: vi.fn().mockReturnValue({
+        state: 'running',
+        pid: 42,
+        harnessSessionId: 'harness-1',
+        nativeTurnPhase: 'idle',
+      }),
       ensureRunning: vi.fn(),
       setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     } as never;
@@ -62,17 +60,17 @@ describe('task inbox delivery integration', () => {
     } as never;
     const row = snapshot();
     registerNativeDeliverySession({
-      runtime: Runtime.defaultRuntime,
-      effectContext: Context.empty(),
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
     });
     await handleTaskInboxUpdate(
-      { signals: [], snapshots: [row], afterSignalKey: 'a', throughSignalKey: 'b' },
+      { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
       {
-        runtime: Runtime.defaultRuntime,
-        effectContext: Context.empty(),
+        runtime: Runtime.defaultRuntime as never,
+        effectContext: Context.empty() as never,
         cooldown: new NudgeCooldown(0),
         agentMgr,
         sessionDeps,
@@ -84,14 +82,12 @@ describe('task inbox delivery integration', () => {
 
   test('does not inject a replayed inbox snapshot twice', async () => {
     const agentMgr = {
-      getSlot: vi
-        .fn()
-        .mockReturnValue({
-          state: 'running',
-          pid: 42,
-          harnessSessionId: 'harness-1',
-          nativeTurnPhase: 'idle',
-        }),
+      getSlot: vi.fn().mockReturnValue({
+        state: 'running',
+        pid: 42,
+        harnessSessionId: 'harness-1',
+        nativeTurnPhase: 'idle',
+      }),
       setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
     } as never;
     const sessionDeps = {
@@ -102,8 +98,8 @@ describe('task inbox delivery integration', () => {
       backend: { mutation: vi.fn(), query: vi.fn().mockResolvedValue({ taskContent: 'content' }) },
     } as never;
     const deps = {
-      runtime: Runtime.defaultRuntime,
-      effectContext: Context.empty(),
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
       cooldown: new NudgeCooldown(0),
       agentMgr,
       sessionDeps,
@@ -111,12 +107,12 @@ describe('task inbox delivery integration', () => {
     };
     const row = snapshot();
     await handleTaskInboxUpdate(
-      { signals: [], snapshots: [row], afterSignalKey: 'a', throughSignalKey: 'b' },
+      { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
       deps
     );
     await vi.waitFor(() => expect(runNativeInjectionEffect).toHaveBeenCalledOnce());
     await handleTaskInboxUpdate(
-      { signals: [], snapshots: [row], afterSignalKey: 'a', throughSignalKey: 'b' },
+      { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
       deps
     );
     await new Promise((resolve) => setImmediate(resolve));

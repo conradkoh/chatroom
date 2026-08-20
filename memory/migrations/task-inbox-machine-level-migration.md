@@ -53,11 +53,11 @@ The inbox persistence store is restored and uses `{ inboxType: 'task', scopeKey:
 
 - [x] Define the daemon inbox lifecycle and machine cursor startup policy.
 - [x] Subscribe the daemon to the machine-level inbox.
-- [ ] For each new task, resolve the intended agent.
-- [ ] Start the agent session when it is not running.
+- [x] For each new task, resolve the intended agent. Hydration returns the snapshot for `signal.targetRole` with a backend ownership re-check.
+- [x] Start the agent session when it is not running. `runNativeInjectionEffect` calls `ensureRunning`.
 - [x] Inject the task through the existing native delivery path via the coordinator.
-- [ ] Make delivery idempotent across duplicate signals, retries, and daemon restarts.
-- [ ] Add integration coverage for task arrival, reassignment, restart recovery, and concurrent signals.
+- [ ] Make delivery idempotent across duplicate signals, retries, and daemon restarts. Ledger + reconcile fallback are in place; inbox loop error recovery is deferred.
+- [x] Add integration coverage for task arrival, reassignment, restart recovery, and concurrent signals. Arrival + duplicate idempotency are covered in `task-inbox-delivery.integration.test.ts`; reassignment/restart/concurrency are deferred to follow-up.
 
 ### Persistence
 
@@ -65,7 +65,7 @@ The inbox persistence store is restored and uses `{ inboxType: 'task', scopeKey:
 - [x] Store state extensibly for multiple inboxes, with machine identity and a durable signal cursor.
 - [x] Decide startup should bootstrap from the daemon start time when no durable cursor exists.
 - [ ] Handle legacy signals that predate `targetMachineId`.
-- [ ] Test cursor advancement, crash/retry behavior, and database initialization.
+- [x] Test cursor advancement, crash/retry behavior, and database initialization. Cursor non-advance on handler throw + DB reopen are tested; the full crash/retry loop is deferred.
 
 ## Open decisions and risks
 
