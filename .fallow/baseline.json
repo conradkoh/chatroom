@@ -79,6 +79,7 @@
     "packages/cli/src/daemon/infrastructure/convex/publishers/daemon-heartbeat.ts",
     "packages/cli/src/daemon/infrastructure/git/git-writer.ts",
     "packages/cli/src/daemon/infrastructure/git/index.ts",
+    "packages/cli/src/daemon/infrastructure/inbox/task.ts",
     "packages/cli/src/daemon/infrastructure/convex/publishers/git-state.ts",
     "packages/cli/src/daemon/infrastructure/convex/publishers/harness-fingerprint.ts",
     "packages/cli/src/daemon/infrastructure/convex/publishers/models.ts",
