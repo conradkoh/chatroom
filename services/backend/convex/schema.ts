@@ -643,6 +643,9 @@ export default defineSchema({
   chatroom_timelineTaskStatusSignals: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     taskId: v.id('chatroom_tasks'),
+    /** Machine and role that should receive this historical task signal. */
+    targetMachineId: v.optional(v.string()),
+    targetRole: v.optional(v.string()),
     taskStatus: v.union(
       v.literal('pending'),
       v.literal('acknowledged'),
@@ -655,7 +658,9 @@ export default defineSchema({
     ),
     signalKey: v.string(),
     taskUpdatedAt: v.number(),
-  }).index('by_chatroom_signalKey', ['chatroomId', 'signalKey']),
+  })
+    .index('by_chatroom_signalKey', ['chatroomId', 'signalKey'])
+    .index('by_targetMachineId_signalKey', ['targetMachineId', 'signalKey']),
 
   /**
    * Slim daemon task-monitor rows — one per (machineId, taskId, role).

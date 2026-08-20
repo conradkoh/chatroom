@@ -23,6 +23,7 @@ import {
   hasActiveTaskFromSource,
   reconcileActiveTaskCountsFromSource,
 } from './task-counts';
+import { writeTimelineTaskStatusSignal } from './write-timeline-task-status-signal';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { normalizeMarkdownContent } from '../../entities/markdown-content';
@@ -150,6 +151,11 @@ export async function createTask(
   });
 
   await projectAssignedTaskSnapshotsForChatroom(ctx, args.chatroomId);
+
+  const createdTask = await ctx.db.get('chatroom_tasks', taskId);
+  if (createdTask) {
+    await writeTimelineTaskStatusSignal(ctx, createdTask);
+  }
 
   return { taskId, status };
 }
