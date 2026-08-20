@@ -1,7 +1,4 @@
-import {
-  openDurableFifoQueueStore,
-  type DurableFifoQueueStore,
-} from './durable-fifo-queue-store.js';
+import type { DurableFifoQueueStore } from './durable-fifo-queue-store.js';
 import { createFifoBatchedOutbox, type FifoBatchedOutbox } from './fifo-batched-outbox.js';
 
 export type KeyedFifoBatchedOutboxRegistry<TItem, TResult> = {
@@ -64,5 +61,3 @@ export function createKeyedFifoBatchedOutboxRegistry<TItem, TResult>(o: {
     },
   };
 }
-// fallow-ignore-next-line unused-export
-export { openDurableFifoQueueStore };

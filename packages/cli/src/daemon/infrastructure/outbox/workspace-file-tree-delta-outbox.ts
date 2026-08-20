@@ -7,12 +7,9 @@ import { resolveOutboxDbPath } from './outbox-db-path.js';
 import type { DeltaPushResult } from '../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
 import type { WorkspacePendingDelta } from '../../../infrastructure/services/workspace/workspace-sync-state.js';
 
-// fallow-ignore-next-line unused-export
 export const WORKSPACE_FILE_TREE_DELTA_OUTBOX_BATCH_SIZE = 5;
-// fallow-ignore-next-line unused-export
-export const WORKSPACE_FILE_TREE_DELTA_OUTBOX_RETRY_DELAY_MS = 5_000;
-// fallow-ignore-next-line unused-export
-export const WORKSPACE_FILE_TREE_DELTA_OUTBOX_MAX_RETRY_DELAY_MS = 5 * 60_000;
+const WORKSPACE_FILE_TREE_DELTA_OUTBOX_RETRY_DELAY_MS = 5_000;
+const WORKSPACE_FILE_TREE_DELTA_OUTBOX_MAX_RETRY_DELAY_MS = 5 * 60_000;
 export type WorkspaceFileTreeDeltaDeliveryUnit = {
   delta: WorkspacePendingDelta;
   baseRevision: number;

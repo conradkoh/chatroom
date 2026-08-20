@@ -7,12 +7,9 @@ import {
 } from './lib/keyed-coalescing-state-outbox-registry.js';
 import { resolveOutboxDbPath } from './outbox-db-path.js';
 
-// fallow-ignore-next-line unused-export
 export const WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MIN_INTERVAL_MS = 5_000;
-// fallow-ignore-next-line unused-export
-export const WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_RETRY_DELAY_MS = 5_000;
-// fallow-ignore-next-line unused-export
-export const WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MAX_RETRY_DELAY_MS = 5 * 60_000;
+const WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_RETRY_DELAY_MS = 5_000;
+const WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MAX_RETRY_DELAY_MS = 5 * 60_000;
 
 export type WorkspaceFileTreeCheckpointState = {
   tree: FileTree;
