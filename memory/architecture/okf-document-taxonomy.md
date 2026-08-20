@@ -12,6 +12,8 @@ This repository's agent memory lives in the `memory/` OKF bundle. To keep the co
 
 ## Allowed folders
 
+The bundle also supports a `migrations/` domain for migration inventories, plans, and transition records.
+
 Every concept file MUST live in exactly one of these top-level directories under `memory/`:
 
 | Folder          | Purpose                                                        |

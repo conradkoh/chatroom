@@ -38,21 +38,28 @@ function createMockWsClient() {
 }
 
 describe('command v2 subscribers', () => {
-  it('command-events subscriber emits command.received with commandId', async () => {
+  it('command-events subscriber forwards the event payload with command.received', async () => {
     const events: InboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
+    const commandEvent = {
+      _id: COMMAND_EVENT_ID,
+      type: 'agent.requestStart',
+      chatroomId: 'chatroom-1',
+      role: 'builder',
+    };
 
     const handle = startCommandEventsSubscriber(
       { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
       (event) => events.push(event)
     );
 
-    emitUpdate({ events: [{ _id: COMMAND_EVENT_ID }] });
+    emitUpdate({ events: [commandEvent] });
     await handle.stop();
 
     expect(events).toContainEqual({
       type: 'command.received',
       commandId: COMMAND_EVENT_ID,
+      commandEvent,
     });
   });
 
@@ -65,11 +72,25 @@ describe('command v2 subscribers', () => {
       (event) => events.push(event)
     );
 
-    emitUpdate({ events: [{ _id: COMMAND_EVENT_ID }] });
-    emitUpdate({ events: [{ _id: COMMAND_EVENT_ID }] });
+    emitUpdate({
+      events: [{ _id: COMMAND_EVENT_ID, type: 'agent.requestStop', chatroomId: 'chatroom-1' }],
+    });
+    emitUpdate({
+      events: [{ _id: COMMAND_EVENT_ID, type: 'agent.requestStop', chatroomId: 'chatroom-1' }],
+    });
     await handle.stop();
 
-    expect(events).toEqual([{ type: 'command.received', commandId: COMMAND_EVENT_ID }]);
+    expect(events).toEqual([
+      {
+        type: 'command.received',
+        commandId: COMMAND_EVENT_ID,
+        commandEvent: {
+          _id: COMMAND_EVENT_ID,
+          type: 'agent.requestStop',
+          chatroomId: 'chatroom-1',
+        },
+      },
+    ]);
   });
 
   it('command-run subscriber emits command-run.updated for pendingRuns', async () => {
@@ -131,12 +152,13 @@ describe('command v2 subscribers', () => {
       },
     });
 
-    emitUpdate({ events: [{ _id: COMMAND_EVENT_ID }] });
+    emitUpdate({ events: [{ _id: COMMAND_EVENT_ID, type: 'agent.requestStart' }] });
     await registry.stopAll();
 
     expect(handled).toContainEqual({
       type: 'command.received',
       commandId: COMMAND_EVENT_ID,
+      commandEvent: { _id: COMMAND_EVENT_ID, type: 'agent.requestStart' },
     });
   });
 

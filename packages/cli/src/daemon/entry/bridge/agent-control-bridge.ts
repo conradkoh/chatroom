@@ -7,6 +7,7 @@ import type { RecoverAgentStateDeps } from '../../domain/usecase/recover-agent-s
 import type { RestartAgentDeps } from '../../domain/usecase/restart-agent.js';
 import type { StartAgentDeps } from '../../domain/usecase/start-agent.js';
 import type { StopAgentDeps } from '../../domain/usecase/stop-agent.js';
+import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonSessionServiceShape,
@@ -39,7 +40,14 @@ export function createStartAgentDeps(
       hostname: session.config?.hostname ?? 'unknown',
       emitAgentStartFailed: async (args) => {
         try {
-          await session.backend.mutation(api.machines.emitAgentStartFailed, {
+          await logDaemonAuditEvent(session.logEvent, {
+            type: 'agent.startFailed',
+            chatroomId: args.chatroomId,
+            role: args.role,
+            machineId: session.machineId,
+            error: args.error,
+          });
+          await session.backend.mutation(api.daemon.agentEvents.agentStartFailed, {
             sessionId: session.sessionId,
             machineId: session.machineId,
             chatroomId: args.chatroomId as Id<'chatroom_rooms'>,
@@ -99,6 +107,7 @@ export function createRestartAgentDeps(
               sessionId: session.sessionId,
               machineId: session.machineId,
               convexUrl: session.convexUrl,
+              logEvent: session.logEvent,
               backend: session.backend,
             },
             agentMgr,

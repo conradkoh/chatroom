@@ -74,6 +74,9 @@ export async function getCurrentRevision(
     .first();
   return checkpoint?.revision ?? 0;
 }
+/** Keep checkpoint prune under Convex per-mutation read/write limits. */
+export const FILE_TREE_CHECKPOINT_PRUNE_BATCH_SIZE = 200;
+
 export async function deleteDeltasUpToRevision(
   ctx: MutationCtx,
   machineId: string,
@@ -85,7 +88,10 @@ export async function deleteDeltasUpToRevision(
     .withIndex('by_machine_workingDir_revision', (q) =>
       q.eq('machineId', machineId).eq('workingDir', workingDir).lte('revision', revision)
     )
-    .collect();
+    .take(FILE_TREE_CHECKPOINT_PRUNE_BATCH_SIZE);
   for (const row of rows) await ctx.db.delete('chatroom_workspaceFileTreeDelta', row._id);
-  return rows.length;
+  return {
+    prunedDeltaCount: rows.length,
+    pruneComplete: rows.length < FILE_TREE_CHECKPOINT_PRUNE_BATCH_SIZE,
+  };
 }

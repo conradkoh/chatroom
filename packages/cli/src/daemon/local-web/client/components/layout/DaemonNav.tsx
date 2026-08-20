@@ -3,7 +3,15 @@ import type { ReactNode } from 'react';
 export function DaemonNav({ children }: { children: ReactNode }) {
   return <nav className="flex gap-1 border-b border-chatroom-border px-6 py-2">{children}</nav>;
 }
-export function NavTab({ active = false, children }: { active?: boolean; children: ReactNode }) {
+export function NavTab({
+  active = false,
+  children,
+  onClick,
+}: {
+  active?: boolean;
+  children: ReactNode;
+  onClick?: () => void;
+}) {
   return (
     <span
       className={
@@ -11,6 +19,8 @@ export function NavTab({ active = false, children }: { active?: boolean; childre
           ? 'bg-chatroom-bg-secondary px-3 py-1.5 text-xs font-medium uppercase tracking-wide'
           : 'px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-chatroom-text-muted'
       }
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
     >
       {children}
     </span>

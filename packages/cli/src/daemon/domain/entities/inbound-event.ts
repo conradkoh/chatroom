@@ -8,6 +8,17 @@ import type {
   AssignedTaskSignal,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
+/**
+ * Command payload already delivered by the command-events subscription.
+ * Keeping it on the inbound event avoids fetching the same event list again
+ * before dispatching a command.
+ */
+export interface InboundCommandEventPayload {
+  _id: string;
+  type: string;
+  [key: string]: unknown;
+}
+
 export type InboundEvent =
   | {
       type: 'assigned-task.signal';
@@ -21,7 +32,11 @@ export type InboundEvent =
       role: string;
       presence?: AssignedTaskPresenceSignal;
     }
-  | { type: 'command.received'; commandId: string }
+  | {
+      type: 'command.received';
+      commandId: string;
+      commandEvent?: InboundCommandEventPayload;
+    }
   | { type: 'direct-harness.session-opened'; harnessSessionId: string }
   | { type: 'direct-harness.prompt'; harnessSessionId: string }
   | { type: 'direct-harness.command'; commandId: string }

@@ -67,6 +67,7 @@ function makeSession(): DaemonSessionServiceShape {
     lastPushedGitState: new Map(),
     lastPushedModels: null,
     lastPushedHarnessFingerprint: null,
+    logEvent: async () => undefined,
   };
 }
 

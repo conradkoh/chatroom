@@ -351,6 +351,7 @@ const connectOnceEffect = (
   });
 
 let activeLogSink: AgentLogSink | undefined;
+let activeLogEvent: ((event: Record<string, unknown>) => Promise<void>) | undefined;
 
 function assembleDaemonSessionInit(args: {
   client: ConvexHttpClient;
@@ -376,6 +377,7 @@ function assembleDaemonSessionInit(args: {
   deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
   deps.backend.query = (endpoint, args) => client.query(endpoint, args);
   deps.agentProcessManager = new AgentProcessManager({
+    logEvent: activeLogEvent ?? (async () => undefined),
     logSink: activeLogSink,
     agentServices,
     backend: deps.backend,
@@ -410,6 +412,7 @@ function assembleDaemonSessionInit(args: {
       config.harnessVersions as Record<string, unknown>
     ),
     logger: console,
+    logEvent: activeLogEvent ?? (async () => undefined),
   };
 }
 
@@ -631,11 +634,15 @@ export const initDaemonEffect: Effect.Effect<DaemonSessionInit, unknown, never> 
 );
 
 /** Thin wrapper — daemon-start/index.ts and tests still import this. */
-export type InitDaemonOptions = { logSink?: AgentLogSink };
+export type InitDaemonOptions = {
+  logSink?: AgentLogSink;
+  logEvent?: (event: Record<string, unknown>) => Promise<void>;
+};
 export function getActiveLogSink(): AgentLogSink | undefined {
   return activeLogSink;
 }
 export async function initDaemon(options: InitDaemonOptions = {}): Promise<DaemonSessionInit> {
   activeLogSink = options.logSink;
+  activeLogEvent = options.logEvent;
   return Effect.runPromise(initDaemonEffect);
 }

@@ -113,6 +113,7 @@ describe('native queued delivery after agent_end', () => {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
         machineId: MACHINE_ID,
+        logEvent: async () => undefined,
         backend: {
           mutation: backendMutation,
           query: vi.fn(async (fn, args) => {
@@ -233,6 +234,7 @@ describe('native queued delivery after agent_end', () => {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
         machineId: MACHINE_ID,
+        logEvent: async () => undefined,
         backend: {
           mutation: backendMutation,
           query: backendQuery,

@@ -30,6 +30,7 @@
   --color-chatroom-status-warning: var(--chatroom-status-warning);
   --color-chatroom-status-error: var(--chatroom-status-error);
   --color-chatroom-status-info: var(--chatroom-status-info);
+  --color-chatroom-status-purple: var(--chatroom-status-purple);
   --color-chatroom-accent: var(--chatroom-accent);
   --radius-sm: 0px;
   --radius-md: 0px;
@@ -68,6 +69,7 @@
   --chatroom-status-warning: #fbbf24;
   --chatroom-status-error: #f87171;
   --chatroom-status-info: #60a5fa;
+  --chatroom-status-purple: #a78bfa;
   --chatroom-accent: #fafafa;
   color-scheme: dark;
 }
@@ -88,5 +90,9 @@
   }
   body {
     @apply bg-chatroom-bg-primary text-chatroom-text-primary antialiased;
+  }
+  button,
+  [role='button'] {
+    cursor: pointer;
   }
 }

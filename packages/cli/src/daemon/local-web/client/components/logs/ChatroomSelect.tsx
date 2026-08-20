@@ -1,9 +1,10 @@
 import type { ChatroomListItem } from '@/api/types';
 import { SearchableSelect } from '@/components/picker';
+
 type Props = {
   chatrooms: ChatroomListItem[];
   value?: string;
-  onChange: (id: string | undefined) => void;
+  onChange: (id: string) => void;
   disabled?: boolean;
   isLoading?: boolean;
   isError?: boolean;
@@ -22,12 +23,14 @@ export function ChatroomSelect({
       <SearchableSelect
         options={chatrooms.map((c) => ({ value: c.id, label: c.displayName }))}
         value={value}
-        onChange={onChange}
+        onChange={(id) => {
+          if (id) onChange(id);
+        }}
         disabled={disabled}
         isLoading={isLoading}
         isError={isError}
-        placeholder="All chatrooms"
-        allLabel="All chatrooms"
+        placeholder="Select chatroom"
+        allowClear={false}
         searchPlaceholder="Search chatrooms…"
         ariaLabel="Filter by chatroom"
         triggerClassName="min-w-[10rem]"

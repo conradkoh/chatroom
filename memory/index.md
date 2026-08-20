@@ -12,6 +12,7 @@ Agent memory for this repository, stored as an [Open Knowledge Format (OKF)](htt
 - [Product](product/) — product requirements, features, and user-facing behavior
 - [Testing](testing/) — test strategy, coverage, and quality practices
 - [Development](development/) — developer workflows, tooling, and guides
+- [Migrations](migrations/) — migration inventories, plans, and transition records
 
 ## Key concepts
 

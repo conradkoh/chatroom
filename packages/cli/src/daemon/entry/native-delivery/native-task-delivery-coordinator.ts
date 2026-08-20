@@ -38,6 +38,7 @@ export interface NativeTaskDeliverySessionDeps {
   sessionId: string;
   convexUrl: string;
   machineId: string;
+  logEvent?: (event: Record<string, unknown>) => Promise<void>;
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
     query: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
@@ -176,6 +177,7 @@ export class NativeTaskDeliveryCoordinator {
           yield* runNativeInjectionEffect(full, harnessSessionId, {
             sessionId: sessionDeps.sessionId,
             machineId: sessionDeps.machineId,
+            logEvent: sessionDeps.logEvent,
             backend: sessionDeps.backend,
             agentMgr: {
               resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),

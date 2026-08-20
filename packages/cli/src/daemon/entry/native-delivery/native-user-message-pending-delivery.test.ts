@@ -143,6 +143,7 @@ describe('user message pending delivery path', () => {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
         machineId: MACHINE_ID,
+        logEvent: async () => undefined,
         backend: {
           mutation: backendMutation,
           query: vi.fn(async (fn, args) => {
@@ -218,6 +219,7 @@ describe('user message pending delivery path', () => {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
         machineId: MACHINE_ID,
+        logEvent: async () => undefined,
         backend: {
           mutation: vi.fn(),
           query: vi.fn(),
@@ -257,6 +259,7 @@ describe('user message pending delivery path', () => {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
         machineId: MACHINE_ID,
+        logEvent: async () => undefined,
         backend: {
           mutation: vi.fn(),
           query: vi.fn(),
@@ -296,6 +299,7 @@ describe('user message pending delivery path', () => {
         sessionId: SESSION_ID,
         convexUrl: 'http://test:3210',
         machineId: MACHINE_ID,
+        logEvent: async () => undefined,
         backend: {
           mutation: vi.fn(),
           query: vi.fn(),

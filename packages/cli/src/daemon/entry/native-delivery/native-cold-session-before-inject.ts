@@ -3,6 +3,7 @@ import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/pa
 
 import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
+import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
 import type { AgentHarness } from '../daemon-types.js';
 import type { NativeInjectorDeps } from './native-task-injector.js';
 
@@ -64,7 +65,17 @@ export async function ensureColdSessionBeforeNativeInject(
     taskId,
   });
 
-  await deps.backend.mutation(api.machines.emitSessionAugmented, {
+  await logDaemonAuditEvent(deps.logEvent ?? (async () => undefined), {
+    type: 'agent.sessionAugmented',
+    chatroomId,
+    role,
+    machineId: deps.machineId,
+    taskId,
+    mode: 'new_session',
+    newSessionStarted: true,
+    harnessSessionId,
+  });
+  await deps.backend.mutation(api.daemon.agentEvents.sessionAugmented, {
     sessionId: deps.sessionId,
     machineId: deps.machineId,
     chatroomId,

@@ -49,6 +49,7 @@ function createDeps(overrides?: Partial<NativeInjectorDeps>): NativeInjectorDeps
   return {
     sessionId: 'session_1',
     machineId: 'machine_1',
+    logEvent: vi.fn().mockResolvedValue(undefined),
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),
       query: vi.fn().mockResolvedValue({ fullCliOutput: 'DELIVERY OUTPUT' }),
@@ -64,13 +65,16 @@ describe('runNativeInjectionEffect', () => {
     const deps = createDeps();
     const task = makeTask();
     const order: string[] = [];
+    const auditOrder: string[] = [];
 
+    (deps.logEvent as ReturnType<typeof vi.fn>).mockImplementation(async (event) => {
+      if (event.type === 'agent.sessionAugmented') auditOrder.push('augmented');
+      if (event.type === 'agent.taskDelivered') auditOrder.push('delivered');
+    });
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockImplementation(
       async (_fn: unknown, args: Record<string, unknown>) => {
-        if ('error' in args) order.push('failed');
-        else if ('action' in args) order.push('join');
-        else if ('mode' in args) order.push('augmented');
-        else if ('machineId' in args && 'taskId' in args) order.push('delivered');
+        if ('action' in args) order.push('join');
+        else if ('mode' in args) order.push('augmented-state');
         else if ('deliveryKind' in args) order.push('receipt');
         else if ('taskId' in args && 'role' in args) order.push('claim');
         return undefined;
@@ -86,15 +90,8 @@ describe('runNativeInjectionEffect', () => {
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
 
-    expect(order).toEqual([
-      'claim',
-      'query',
-      'join',
-      'receipt',
-      'augmented',
-      'resume',
-      'delivered',
-    ]);
+    expect(order).toEqual(['claim', 'query', 'join', 'receipt', 'augmented-state', 'resume']);
+    expect(auditOrder).toEqual(['augmented', 'delivered']);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
   });
 
@@ -130,10 +127,12 @@ describe('runNativeInjectionEffect', () => {
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
 
-    const failCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
-      (call) => typeof call[1] === 'object' && call[1] !== null && 'error' in call[1]
+    expect(deps.logEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.taskDeliveryFailed',
+        error: 'resume failed',
+      })
     );
-    expect(failCalls.length).toBeGreaterThan(0);
   });
 
   test('startInNewSession cold-restarts before inject and emits sessionAugmented once', async () => {

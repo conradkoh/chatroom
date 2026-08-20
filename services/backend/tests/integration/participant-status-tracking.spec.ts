@@ -146,7 +146,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastDesiredState).toBe('running');
   });
 
-  test('agent.started via updateSpawnedAgent', async () => {
+  test('agent.started via daemon.agentEvents.agentStarted', async () => {
     const { sessionId } = await createTestSession('test-pst-spawned');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-spawned';
@@ -154,7 +154,7 @@ describe('Participant Status Tracking', () => {
     await joinParticipant(sessionId, chatroomId, 'builder');
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-    await t.mutation(api.machines.updateSpawnedAgent, {
+    await t.mutation(api.daemon.agentEvents.agentStarted, {
       sessionId,
       machineId,
       chatroomId,
@@ -611,8 +611,8 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('agent.requestStart');
     expect(status.lastDesiredState).toBe('running');
 
-    // 3. Agent spawned
-    await t.mutation(api.machines.updateSpawnedAgent, {
+    // 3. Agent spawned (state via daemon.agentEvents.agentStarted)
+    await t.mutation(api.daemon.agentEvents.agentStarted, {
       sessionId,
       machineId,
       chatroomId,
@@ -687,7 +687,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastDesiredState).toBe('stopped');
   });
 
-  test('emitSessionResumeRequested writes event stream row and updates lastStatus', async () => {
+  test('emitSessionResumeRequested updates lastStatus without event stream row', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resume-requested');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resume-requested';
@@ -712,11 +712,7 @@ describe('Participant Status Tracking', () => {
     });
 
     const requested = events.filter((e) => e.type === 'agent.sessionResumeRequested');
-    expect(requested).toHaveLength(1);
-    expect(requested[0]).toMatchObject({
-      agentHarness: 'cursor-sdk',
-      harnessSessionId: 'harness-sess-requested-xyz',
-    });
+    expect(requested).toHaveLength(0);
 
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('agent.sessionResumeRequested');
@@ -745,13 +741,13 @@ describe('Participant Status Tracking', () => {
     });
 
     const resumed = events.filter((e) => e.type === 'agent.sessionResumed');
-    expect(resumed).toHaveLength(1);
+    expect(resumed).toHaveLength(0);
 
     const status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('agent.sessionResumed');
   });
 
-  test('emitSessionResumed persists harnessSessionId on event stream row', async () => {
+  test('emitSessionResumed updates participant status without event stream row', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resumed-harness');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resumed-harness';
@@ -774,12 +770,13 @@ describe('Participant Status Tracking', () => {
         .collect();
     });
 
-    const resumed = events.filter((e) => e.type === 'agent.sessionResumed');
-    expect(resumed).toHaveLength(1);
-    expect(resumed[0].harnessSessionId).toBe('harness-sess-resumed-xyz');
+    expect(events.filter((e) => e.type === 'agent.sessionResumed')).toHaveLength(0);
+    expect((await getParticipantStatus(chatroomId, 'builder')).lastStatus).toBe(
+      'agent.sessionResumed'
+    );
   });
 
-  test('emitSessionAugmented writes event stream row with mode and newSessionStarted', async () => {
+  test('emitSessionAugmented applies state without event stream row', async () => {
     const { sessionId } = await createTestSession('test-pst-session-augmented');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-augmented';
@@ -806,16 +803,8 @@ describe('Participant Status Tracking', () => {
         .collect();
     });
 
-    const augmented = events.filter((e) => e.type === 'agent.sessionAugmented');
-    expect(augmented).toHaveLength(1);
-    expect(augmented[0]).toMatchObject({
-      taskId,
-      harnessSessionId: 'sess-2',
-      machineId,
-      role: 'builder',
-      mode: 'new_session',
-      newSessionStarted: true,
-    });
+    expect(events.filter((e) => e.type === 'agent.sessionAugmented')).toHaveLength(0);
+    expect((await getParticipantStatus(chatroomId, 'builder')).lastStatus).not.toBeUndefined();
   });
 
   test('emitSessionAugmented with newSessionStarted clears startInNewSession on planner task', async () => {
@@ -855,16 +844,10 @@ describe('Participant Status Tracking', () => {
         .collect();
     });
     const augmented = events.filter((e) => e.type === 'agent.sessionAugmented');
-    expect(augmented).toHaveLength(1);
-    expect(augmented[0]).toMatchObject({
-      role: 'planner',
-      newSessionStarted: true,
-      mode: 'new_session',
-      harnessSessionId: 'sess-planner-cold',
-    });
+    expect(augmented).toHaveLength(0);
   });
 
-  test('emitSessionResumeFailed persists harnessSessionId on event stream row', async () => {
+  test('emitSessionResumeFailed updates participant status without event stream row', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resume-failed-harness');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resume-failed-harness';
@@ -889,7 +872,9 @@ describe('Participant Status Tracking', () => {
     });
 
     const failed = events.filter((e) => e.type === 'agent.sessionResumeFailed');
-    expect(failed).toHaveLength(1);
-    expect(failed[0].harnessSessionId).toBe('harness-sess-failed-xyz');
+    expect(failed).toHaveLength(0);
+    expect((await getParticipantStatus(chatroomId, 'builder')).lastStatus).toBe(
+      'agent.sessionResumeFailed'
+    );
   });
 });
