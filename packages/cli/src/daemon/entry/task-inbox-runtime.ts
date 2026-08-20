@@ -44,7 +44,7 @@ export const startTaskInboxEffect = (
     registerNativeDeliverySession({ runtime, effectContext, agentMgr, sessionDeps, machineId: session.machineId });
     const cooldown = new NudgeCooldown();
     const inboxPromise = runTaskInbox(
-      { client: wsClient, sessionId: session.sessionId, machineId: session.machineId, serviceStartedAt: Date.now(), initialAfterSignalKey: persisted?.state.afterSignalKey, signal: abort.signal },
+      { client: wsClient, sessionId: session.sessionId as import('convex-helpers/server/sessions').SessionId, machineId: session.machineId, serviceStartedAt: Date.now(), initialAfterSignalKey: persisted?.state.afterSignalKey, signal: abort.signal },
       async (update) => {
         await handleTaskInboxUpdate(update, { runtime, effectContext, cooldown, agentMgr, sessionDeps, machineId: session.machineId });
         inboxStore.save({ inboxType: 'task', scopeKey: session.machineId }, { afterSignalKey: update.throughSignalKey });

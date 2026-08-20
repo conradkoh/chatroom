@@ -37,7 +37,7 @@ export async function handleTaskInboxUpdate(
   if (update.snapshots.length === 0) return;
   mergeSnapshotsIntoStore(update.snapshots);
   await processTasksUpdate(
-    update.snapshots,
+    [...update.snapshots],
     deps.runtime,
     deps.effectContext,
     deps.cooldown,
