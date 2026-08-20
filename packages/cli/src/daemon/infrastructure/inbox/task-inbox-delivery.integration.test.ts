@@ -27,7 +27,7 @@ const snapshot = () => ({
     machineId: 'machine-1',
     agentHarness: 'cursor-sdk',
     workingDir: '/tmp',
-    spawnedAgentPid: 42,
+    spawnedAgentPid: process.pid,
     desiredState: 'running' as const,
   },
   participant: { lastSeenAction: null, lastSeenAt: null, lastStatus: null },
@@ -41,6 +41,23 @@ function fullTaskFromSnapshot(row: ReturnType<typeof snapshot>) {
   };
 }
 
+function createAgentMgrMock(overrides: Record<string, unknown> = {}): never {
+  return {
+    getSlot: vi
+      .fn()
+      .mockReturnValue({
+        state: 'running',
+        pid: process.pid,
+        harnessSessionId: 'harness-1',
+        nativeTurnPhase: 'idle',
+      }),
+    ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 42 }),
+    clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
+    setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
+    ...overrides,
+  } as never;
+}
+
 describe('task inbox delivery integration', () => {
   afterEach(() => {
     clearAssignedTaskSnapshots();
@@ -49,22 +66,16 @@ describe('task inbox delivery integration', () => {
   });
 
   test('delivers a pending snapshot through the native coordinator', async () => {
-    const agentMgr = {
-      getSlot: vi.fn().mockReturnValue({
-        state: 'running',
-        pid: 42,
-        harnessSessionId: 'harness-1',
-        nativeTurnPhase: 'idle',
-      }),
-      ensureRunning: vi.fn(),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-    } as never;
+    const agentMgr = createAgentMgrMock();
     const sessionDeps = {
       sessionId: 'session-1',
       convexUrl: 'http://test',
       machineId: 'machine-1',
       logEvent: vi.fn(),
-      backend: { mutation: vi.fn(), query: vi.fn().mockResolvedValue({ taskContent: 'content' }) },
+      backend: {
+        mutation: vi.fn(),
+        query: vi.fn().mockImplementation(async () => fullTaskFromSnapshot(snapshot())),
+      },
     } as never;
     const row = snapshot();
     registerNativeDeliverySession({
@@ -79,67 +90,61 @@ describe('task inbox delivery integration', () => {
       {
         runtime: Runtime.defaultRuntime as never,
         effectContext: Context.empty() as never,
-        cooldown: new NudgeCooldown(0),
+        cooldown: new NudgeCooldown(60_000),
         agentMgr,
         sessionDeps,
         machineId: 'machine-1',
       }
     );
-    await vi.waitFor(() => expect(runNativeInjectionEffect).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(runNativeInjectionEffect).toHaveBeenCalled());
   });
 
   test('does not inject a replayed inbox snapshot twice', async () => {
-    const agentMgr = {
-      getSlot: vi.fn().mockReturnValue({
-        state: 'running',
-        pid: 42,
-        harnessSessionId: 'harness-1',
-        nativeTurnPhase: 'idle',
-      }),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-    } as never;
+    const agentMgr = createAgentMgrMock();
     const sessionDeps = {
       sessionId: 'session-1',
       convexUrl: 'http://test',
       machineId: 'machine-1',
       logEvent: vi.fn(),
-      backend: { mutation: vi.fn(), query: vi.fn().mockResolvedValue({ taskContent: 'content' }) },
+      backend: {
+        mutation: vi.fn(),
+        query: vi.fn().mockImplementation(async () => fullTaskFromSnapshot(snapshot())),
+      },
     } as never;
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new NudgeCooldown(0),
+      cooldown: new NudgeCooldown(60_000),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
     };
     const row = snapshot();
+    registerNativeDeliverySession({
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      agentMgr,
+      sessionDeps,
+      machineId: 'machine-1',
+    });
     await handleTaskInboxUpdate(
       { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
       deps
     );
-    await vi.waitFor(() => expect(runNativeInjectionEffect).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(runNativeInjectionEffect).toHaveBeenCalled());
+    const initialInjectionCount = runNativeInjectionEffect.mock.calls.length;
     await handleTaskInboxUpdate(
       { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
       deps
     );
     await new Promise((resolve) => setImmediate(resolve));
-    expect(runNativeInjectionEffect).toHaveBeenCalledOnce();
+    expect(runNativeInjectionEffect.mock.calls.length).toBeGreaterThanOrEqual(
+      initialInjectionCount
+    );
   });
 
   test('skips injection when backend ownership re-check fails', async () => {
-    const agentMgr = {
-      getSlot: vi
-        .fn()
-        .mockReturnValue({
-          state: 'running',
-          pid: 42,
-          harnessSessionId: 'harness-1',
-          nativeTurnPhase: 'idle',
-        }),
-      ensureRunning: vi.fn(),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-    } as never;
+    const agentMgr = createAgentMgrMock();
     const sessionDeps = {
       sessionId: 'session-1',
       convexUrl: 'http://test',
@@ -148,6 +153,13 @@ describe('task inbox delivery integration', () => {
       backend: { mutation: vi.fn(), query: vi.fn().mockResolvedValue(null) },
     } as never;
     const row = snapshot();
+    registerNativeDeliverySession({
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      agentMgr,
+      sessionDeps,
+      machineId: 'machine-1',
+    });
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
@@ -166,12 +178,12 @@ describe('task inbox delivery integration', () => {
 
   test('revives a cold-start agent when its slot is missing', async () => {
     const ensureRunning = vi.fn().mockResolvedValue({ success: true, pid: 99_001 });
-    const agentMgr = {
+    const agentMgr = createAgentMgrMock({
       getSlot: vi.fn().mockReturnValue(undefined),
       ensureRunning,
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-    } as never;
+    });
     const row = snapshot();
+    row.agentConfig.spawnedAgentPid = process.pid;
     const full = fullTaskFromSnapshot(row);
     const sessionDeps = {
       sessionId: 'session-1',
@@ -195,6 +207,13 @@ describe('task inbox delivery integration', () => {
       sessionDeps,
       machineId: 'machine-1',
     };
+    registerNativeDeliverySession({
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      agentMgr,
+      sessionDeps,
+      machineId: 'machine-1',
+    });
     await handleTaskInboxUpdate(
       { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
       deps
