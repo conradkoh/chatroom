@@ -4,4 +4,3 @@
 - [Developer page conventions](developer-page-conventions.md) — `/developer` route structure, Component Storybook registry, and navigation patterns
 - [Workspace file tree sync strategies](workspace-file-tree-sync-strategies.md) — pluggable blob/sharded snapshot strategies (replaces V2/V3)
 - [Workspace file-tree sync queue and daemon lifecycle](workspace-file-tree-sync-queue.md) — per-workspace queue, debounce, orphan reap, walk exclusions
-- [Task inbox machine-level migration](task-inbox-machine-level-migration.md) — machine-scoped task signals, daemon wiring, persistence, and cleanup tracker
