@@ -12,19 +12,19 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession } from './auth/session';
 import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
+import { normalizeMarkdownContent, withMarkdownContent } from '../src/domain/entities/markdown-content';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
+import { projectAssignedTaskSnapshotsForChatroom } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { acknowledgePendingTask } from '../src/domain/usecase/task/acknowledge-pending-task';
 import {
   createTask as createTaskUsecase,
   hasActiveTaskFromMaterializedCounts,
 } from '../src/domain/usecase/task/create-task';
-import { normalizeMarkdownContent, withMarkdownContent } from '../src/domain/entities/markdown-content';
+import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
-import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
-import { projectAssignedTaskSnapshotsForChatroom } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
   countActiveTasksFromSource,
   resolveActiveCountsForRead,
@@ -33,12 +33,15 @@ import {
   transitionTask,
   type TransitionTaskOptions,
 } from '../src/domain/usecase/task/transition-task';
+import { buildTimelineTaskStatusSignalKey } from '../src/domain/usecase/task/write-timeline-task-status-signal';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
 
 /** Maximum number of tasks to return in list queries. */
 const MAX_TASK_LIST_LIMIT = 100;
+/** Maximum number of full task rows returned by one inbox page. */
+const MAX_TASK_INBOX_PAGE_LIMIT = 500;
 
 /** Creates a new task in a chatroom (pending status). */
 export const createTask = mutation({
@@ -1066,6 +1069,55 @@ export const getTasksByIds = query({
         createdAt: task.createdAt,
         createdBy: task.createdBy,
       }));
+  },
+});
+
+/**
+ * Returns full task rows whose task-update cursor falls within a signal-key range.
+ *
+ * This is intentionally imperative: the task inbox subscribes only to
+ * chatroom_timelineTaskStatusSignals and uses this query to hydrate the full rows
+ * after a signal arrives.
+ */
+export const listTasksUpdatedBetweenSignalKeys = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    afterSignalKey: v.string(),
+    throughSignalKey: v.string(),
+    afterTaskKey: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const lowerKey = args.afterTaskKey ?? args.afterSignalKey;
+    const limit = Math.min(
+      Math.max(args.limit ?? MAX_TASK_INBOX_PAGE_LIMIT, 1),
+      MAX_TASK_INBOX_PAGE_LIMIT
+    );
+
+    const matchingTasks = (
+      await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .collect()
+    )
+      .map((task) => ({
+        task,
+        taskKey: buildTimelineTaskStatusSignalKey(task.updatedAt, task._id),
+      }))
+      .filter(({ taskKey }) => taskKey > lowerKey && taskKey <= args.throughSignalKey)
+      .sort((a, b) => a.taskKey.localeCompare(b.taskKey));
+
+    const page = matchingTasks.slice(0, limit);
+    const last = page.at(-1);
+
+    return {
+      tasks: page.map(({ task }) => task),
+      nextTaskKey: last?.taskKey ?? null,
+      hasMore: matchingTasks.length > limit,
+    };
   },
 });
 

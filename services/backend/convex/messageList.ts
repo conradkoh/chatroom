@@ -207,13 +207,18 @@ export const subscribeTaskStatusSignalsSince = query({
       taskId: row.taskId,
       taskStatus: row.taskStatus,
       signalKey: row.signalKey,
+      taskUpdatedAt: row.taskUpdatedAt,
     }));
     if (items.length === 0) {
       return null;
     }
+    const lastItem = items.at(-1);
+    if (!lastItem) {
+      return null;
+    }
     return {
       items,
-      highKey: items[items.length - 1]!.signalKey,
+      highKey: lastItem.signalKey,
       hasMore,
     };
   },
