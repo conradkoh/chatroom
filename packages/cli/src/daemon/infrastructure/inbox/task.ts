@@ -9,7 +9,7 @@
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import type { Doc, Id } from '../../../api.js';
+import type { Doc } from '../../../api.js';
 import { api } from '../../../api.js';
 
 const DEFAULT_SIGNAL_PAGE_LIMIT = 100;
@@ -17,7 +17,13 @@ const DEFAULT_TASK_PAGE_LIMIT = 500;
 
 export type TaskStatusSignal = Pick<
   Doc<'chatroom_timelineTaskStatusSignals'>,
-  'taskId' | 'taskStatus' | 'signalKey' | 'taskUpdatedAt'
+  | 'chatroomId'
+  | 'taskId'
+  | 'targetMachineId'
+  | 'targetRole'
+  | 'taskStatus'
+  | 'signalKey'
+  | 'taskUpdatedAt'
 >;
 
 export interface TaskSignalPage {
@@ -36,7 +42,7 @@ export interface TaskInboxUpdate {
 export interface TaskInboxOptions {
   readonly client: ConvexClient;
   readonly sessionId: SessionId;
-  readonly chatroomId: Id<'chatroom_rooms'>;
+  readonly machineId: string;
   /** Defaults to the time the iterator is created. */
   readonly serviceStartedAt?: number;
   /** Overrides the initial timeline signal cursor. */
@@ -103,7 +109,7 @@ function waitForTaskSignalPage(
       api.messageList.subscribeTaskStatusSignalsSince,
       {
         sessionId: options.sessionId,
-        chatroomId: options.chatroomId,
+        machineId: options.machineId,
         afterKey: afterSignalKey,
         limit: options.signalPageLimit ?? DEFAULT_SIGNAL_PAGE_LIMIT,
       },
@@ -156,22 +162,20 @@ async function fetchFullTasksForSignalPage(
   page: TaskSignalPage
 ): Promise<readonly Doc<'chatroom_tasks'>[]> {
   const tasks: Doc<'chatroom_tasks'>[] = [];
-  let afterTaskKey: string | undefined;
-
+  let afterSignalKey = page.afterSignalKey;
   while (true) {
     throwIfAborted(options.signal);
-    const result = await options.client.query(api.tasks.listTasksUpdatedBetweenSignalKeys, {
+    const result = await options.client.query(api.tasks.listTasksForMachineSignalRange, {
       sessionId: options.sessionId,
-      chatroomId: options.chatroomId,
-      afterSignalKey: page.afterSignalKey,
+      machineId: options.machineId,
+      afterSignalKey,
       throughSignalKey: page.highSignalKey,
-      afterTaskKey,
       limit: options.taskPageLimit ?? DEFAULT_TASK_PAGE_LIMIT,
     });
 
     tasks.push(...result.tasks);
-    if (!result.hasMore || !result.nextTaskKey) break;
-    afterTaskKey = result.nextTaskKey;
+    if (!result.hasMore || !result.nextSignalKey) break;
+    afterSignalKey = result.nextSignalKey;
   }
 
   return tasks;
