@@ -65,4 +65,21 @@ describe('createInboxStateStore', () => {
       store.close();
     }
   });
+
+  it('persists cursor across store close and reopen', () => {
+    const dbPath = tempDbPath();
+    const key = { inboxType: 'task', scopeKey: 'machine-1' } as const;
+    const store1 = createInboxStateStore(dbPath);
+    store1.save(key, { afterSignalKey: '0000000000000042:task-abc' }, 100);
+    store1.close();
+
+    const store2 = createInboxStateStore(dbPath);
+    try {
+      expect(store2.get<{ afterSignalKey: string }>(key)).toMatchObject({
+        state: { afterSignalKey: '0000000000000042:task-abc' },
+      });
+    } finally {
+      store2.close();
+    }
+  });
 });

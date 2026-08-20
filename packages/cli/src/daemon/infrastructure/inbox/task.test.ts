@@ -1,8 +1,38 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { runTaskInbox } from './task.js';
+import { createTaskSignalIterator, runTaskInbox } from './task.js';
 
 describe('runTaskInbox', () => {
+  it('does not advance signal cursor when onUpdate throws', async () => {
+    const subscriptionAfterKeys: string[] = [];
+    const page = {
+      items: [{ taskId: 'task-1' }],
+      highKey: '0000000000000011:task-1',
+    };
+    const client = {
+      onUpdate: vi.fn((_query, args, onPage) => {
+        subscriptionAfterKeys.push(args.afterKey);
+        queueMicrotask(() => onPage(page));
+        return vi.fn();
+      }),
+    };
+    const options = {
+      client: client as never,
+      sessionId: 'session-1' as never,
+      machineId: 'machine-1',
+      initialAfterSignalKey: '0000000000000010:',
+    };
+
+    const first = createTaskSignalIterator(options);
+    await first.next();
+    // The consumer's failure happens before the generator resumes, so it must
+    // not commit the page high key to the next subscription cursor.
+    const retry = createTaskSignalIterator(options);
+    await retry.next();
+
+    expect(subscriptionAfterKeys).toEqual(['0000000000000010:', '0000000000000010:']);
+  });
+
   it('subscribes at machine scope and hydrates task records through the signal page', async () => {
     const query = vi.fn().mockResolvedValue({
       snapshots: [{ taskId: 'task-1' }],
