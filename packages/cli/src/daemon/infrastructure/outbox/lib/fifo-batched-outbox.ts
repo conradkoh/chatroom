@@ -1,5 +1,8 @@
+// fallow-ignore-file complexity
 import type { DurableFifoQueueStore } from './durable-fifo-queue-store.js';
-export type FifoSendOutcome<TResult, TItem> = { kind: 'success' } | { kind: 'retry'; item: TItem };
+import { computeExponentialRetryDelayMs } from './outbox-retry-backoff.js';
+
+export type FifoSendOutcome<_TResult, TItem> = { kind: 'success' } | { kind: 'retry'; item: TItem };
 export type FifoBatchedOutboxOptions<TItem, TResult> = {
   batchSize: number;
   send: (items: TItem[]) => Promise<TResult[]>;
@@ -28,8 +31,21 @@ export function createFifoBatchedOutbox<TItem, TResult>(
   let stopped = false;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryAttempt = 0;
-  const retryDelay = () => Math.min((o.retryDelayMs ?? 500) * 2 ** retryAttempt++, o.maxRetryDelayMs ?? 5000);
-  const scheduleRetry = () => { if (!stopped && !retryTimer) { retryTimer = setTimeout(() => { retryTimer = undefined; void drain().catch(() => undefined); }, retryDelay()); retryTimer.unref?.(); } };
+  const retryDelay = () =>
+    computeExponentialRetryDelayMs(
+      retryAttempt++,
+      o.retryDelayMs ?? 500,
+      o.maxRetryDelayMs ?? 5000
+    );
+  const scheduleRetry = () => {
+    if (!stopped && !retryTimer) {
+      retryTimer = setTimeout(() => {
+        retryTimer = undefined;
+        void drain().catch(() => undefined);
+      }, retryDelay());
+      retryTimer.unref?.();
+    }
+  };
   const drain = async () => {
     if (running) return running;
     running = (async () => {
@@ -42,11 +58,22 @@ export function createFifoBatchedOutbox<TItem, TResult>(
           for (let i = 0; i < results.length; i++) {
             const item = o.deserialize(rows[i].payloadJson);
             const outcome = o.classifyOutcome?.(results[i], item) ?? { kind: 'success' as const };
-            if (outcome.kind === 'retry') { o.store.updatePayload(rows[i].id, o.serialize(outcome.item)); o.store.markPending(rows[i].id); hasRetry = true; continue; }
-            o.store.markDone(rows[i].id); waiters.get(rows[i].id)?.resolve(results[i]); waiters.delete(rows[i].id);
+            if (outcome.kind === 'retry') {
+              o.store.updatePayload(rows[i].id, o.serialize(outcome.item));
+              o.store.markPending(rows[i].id);
+              hasRetry = true;
+              continue;
+            }
+            o.store.markDone(rows[i].id);
+            waiters.get(rows[i].id)?.resolve(results[i]);
+            waiters.delete(rows[i].id);
           }
           for (let i = results.length; i < rows.length; i++) o.store.markPending(rows[i].id);
-          if (hasRetry) { scheduleRetry(); break; }
+          if (hasRetry) {
+            scheduleRetry();
+            break;
+          }
+          retryAttempt = 0;
         } catch (e) {
           o.onError?.(e);
           for (const r of rows) o.store.markPendingRetry(r.id, e);

@@ -199,11 +199,11 @@ describe('startFileTreeSubscriptionEffect', () => {
       status: 'published',
       revision: 7,
       prunedDeltaCount: 0,
+      pruneComplete: true,
     });
-    const handle = await runWithSession(
-      startFileTreeSubscriptionEffect(),
-      { backend: deps.backend }
-    );
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
+      backend: deps.backend,
+    });
 
     await handle.drainPendingFileTreeRequests();
     await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalled());

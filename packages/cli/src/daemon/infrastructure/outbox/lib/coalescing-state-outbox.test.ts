@@ -1,10 +1,11 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createCoalescingStateOutbox } from './coalescing-state-outbox.js';
 import { openDurableCoalescingStateStore } from './durable-coalescing-state-store.js';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -12,10 +13,19 @@ afterEach(() => {
 
 describe('coalescing-state-outbox', () => {
   it('recovers pending state from durable storage without re-enqueue', async () => {
-    const store = openDurableCoalescingStateStore(join(mkdtempSync(join(tmpdir(), 'coalesce-')), 'cp.sqlite'));
+    const store = openDurableCoalescingStateStore(
+      join(mkdtempSync(join(tmpdir(), 'coalesce-')), 'cp.sqlite')
+    );
     store.upsertPending('wd', JSON.stringify({ revision: 1 }));
     const send = vi.fn(async (state: { revision: number }) => state);
-    const outbox = createCoalescingStateOutbox({ store, deliveryKey: 'wd', serialize: JSON.stringify, deserialize: JSON.parse, send, minIntervalMs: 0 });
+    const outbox = createCoalescingStateOutbox({
+      store,
+      deliveryKey: 'wd',
+      serialize: JSON.stringify,
+      deserialize: JSON.parse,
+      send,
+      minIntervalMs: 0,
+    });
     await vi.waitFor(() => expect(send).toHaveBeenCalledWith({ revision: 1 }));
     expect(store.getPending('wd')).toBeNull();
     await outbox.stop();
@@ -98,5 +108,64 @@ describe('coalescing-state-outbox', () => {
     expect(send).toHaveBeenCalledTimes(2);
 
     await outbox.stop();
+  });
+
+  it('doubles the retry delay after consecutive failures', async () => {
+    vi.useFakeTimers();
+    const send = vi.fn<(state: number) => Promise<number>>().mockRejectedValue(new Error('fail'));
+    const outbox = createCoalescingStateOutbox({
+      send,
+      minIntervalMs: 0,
+      retryDelayMs: 10,
+      maxRetryDelayMs: 80,
+    });
+
+    void outbox.enqueue(1).catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(9);
+    expect(send).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(send).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(19);
+    expect(send).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(send).toHaveBeenCalledTimes(3);
+
+    await vi.advanceTimersByTimeAsync(40);
+    expect(send).toHaveBeenCalledTimes(4);
+
+    await outbox.stop().catch(() => undefined);
+  });
+
+  it('honors persisted attempts before the first recovered send', async () => {
+    vi.useFakeTimers();
+    const store = openDurableCoalescingStateStore(
+      join(mkdtempSync(join(tmpdir(), 'coalesce-')), 'cp.sqlite')
+    );
+    store.upsertPending('wd', JSON.stringify({ revision: 1 }));
+    store.markPendingRetry('wd', new Error('prior'));
+    store.markPendingRetry('wd', new Error('prior'));
+    const send = vi.fn(async (state: { revision: number }) => state);
+    const outbox = createCoalescingStateOutbox({
+      store,
+      deliveryKey: 'wd',
+      serialize: JSON.stringify,
+      deserialize: JSON.parse,
+      send,
+      minIntervalMs: 0,
+      retryDelayMs: 10,
+      maxRetryDelayMs: 80,
+    });
+
+    await vi.advanceTimersByTimeAsync(19);
+    expect(send).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(send).toHaveBeenCalledWith({ revision: 1 });
+
+    await outbox.stop();
+    store.close();
   });
 });
