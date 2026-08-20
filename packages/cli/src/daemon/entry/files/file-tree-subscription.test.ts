@@ -199,11 +199,11 @@ describe('startFileTreeSubscriptionEffect', () => {
       status: 'published',
       revision: 7,
       prunedDeltaCount: 0,
+      pruneComplete: true,
     });
-    const handle = await runWithSession(
-      startFileTreeSubscriptionEffect(),
-      { backend: deps.backend }
-    );
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
+      backend: deps.backend,
+    });
 
     await handle.drainPendingFileTreeRequests();
     await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalled());
@@ -220,6 +220,51 @@ describe('startFileTreeSubscriptionEffect', () => {
       'publish',
       expect.objectContaining({ revision: 7, strategyId: 'blob' })
     );
+
+    handle.stop();
+  });
+
+  it('retries checkpoint publish until pruneComplete', async () => {
+    const { startFileTreeSubscriptionEffect } = await import('./file-tree-subscription.js');
+    const deps = createMockDaemonDeps();
+    vi.mocked(deps.backend.query).mockImplementation((endpoint: string) => {
+      if (endpoint === 'pending') {
+        return Promise.resolve([{ _id: 'one', workingDir: '/workspace' }]);
+      }
+      if (endpoint === 'checkpoint') {
+        return Promise.resolve({ revision: 1 });
+      }
+      return Promise.resolve(null);
+    });
+    let publishCalls = 0;
+    vi.mocked(deps.backend.mutation).mockImplementation((endpoint: string) => {
+      if (endpoint === 'publish') {
+        publishCalls += 1;
+        return Promise.resolve(
+          publishCalls === 1
+            ? { status: 'published', revision: 7, prunedDeltaCount: 200, pruneComplete: false }
+            : { status: 'unchanged', revision: 7, prunedDeltaCount: 12, pruneComplete: true }
+        );
+      }
+      return Promise.resolve(undefined);
+    });
+    const handle = await runWithSession(startFileTreeSubscriptionEffect(), {
+      backend: deps.backend,
+    });
+
+    await handle.drainPendingFileTreeRequests();
+    await vi.waitFor(() => expect(startCoordinator).toHaveBeenCalled());
+    const options = startCoordinator.mock.calls[0]![0];
+    const tree = {
+      entries: [{ path: 'src/index.ts', type: 'file' as const }],
+      rootDir: '/workspace',
+      scannedAt: 1,
+    };
+
+    await expect(options.onCheckpoint(tree, 7)).resolves.toEqual({ revision: 7 });
+    expect(
+      vi.mocked(deps.backend.mutation).mock.calls.filter((call) => call[0] === 'publish')
+    ).toHaveLength(2);
 
     handle.stop();
   });

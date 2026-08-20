@@ -195,42 +195,68 @@ function toDeltaOperations(delta: WorkspacePendingDelta) {
   ];
 }
 
-async function publishCheckpoint(
+type FileTreeCheckpointSnapshot = { strategyId: 'blob' | 'sharded'; snapshotId: string };
+type FileTreeCheckpointPublishResult = Awaited<
+  ReturnType<DaemonSessionServiceShape['backend']['mutation']>
+>;
+
+function needsMoreCheckpointPrune(result: FileTreeCheckpointPublishResult): boolean {
+  return (
+    (result.status === 'published' || result.status === 'unchanged') &&
+    result.pruneComplete === false
+  );
+}
+
+function assertCheckpointAccepted(result: FileTreeCheckpointPublishResult): void {
+  if (result.status === 'snapshot-missing' || result.status === 'resync-required') {
+    throw new Error(`File tree checkpoint rejected: ${result.status}`);
+  }
+}
+
+async function publishCheckpointUntilPruned(
   session: DaemonSessionServiceShape,
   normalizedWorkingDir: string,
-  tree: ReturnType<WorkspaceFileTreeCoordinator['getTree']>,
+  snapshot: FileTreeCheckpointSnapshot,
   revision: number
-): Promise<{ revision: number }> {
-  const dataHash = computeFileTreeDataHash(tree);
-  const syncGeneration = randomUUID();
-  const snapshot = await syncScannedFileTree(
-    session,
-    normalizedWorkingDir,
-    tree,
-    dataHash,
-    syncGeneration
-  );
+): Promise<number> {
   let checkpointRevision = revision;
-  let result = await session.backend.mutation(api.workspaceFiles.publishFileTreeCheckpoint, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-    workingDir: normalizedWorkingDir,
-    revision: checkpointRevision,
-    ...snapshot,
-  });
-  if (result.status === 'resync-required') {
-    checkpointRevision = result.expectedRevision + 1;
-    result = await session.backend.mutation(api.workspaceFiles.publishFileTreeCheckpoint, {
+  const publish = () =>
+    session.backend.mutation(api.workspaceFiles.publishFileTreeCheckpoint, {
       sessionId: session.sessionId,
       machineId: session.machineId,
       workingDir: normalizedWorkingDir,
       revision: checkpointRevision,
       ...snapshot,
     });
+  let result = await publish();
+  if (result.status === 'resync-required') {
+    checkpointRevision = result.expectedRevision + 1;
+    result = await publish();
   }
-  if (result.status === 'snapshot-missing') {
-    throw new Error(`File tree checkpoint rejected: ${result.status}`);
-  }
+  while (needsMoreCheckpointPrune(result)) result = await publish();
+  assertCheckpointAccepted(result);
+  return checkpointRevision;
+}
+
+async function publishCheckpoint(
+  session: DaemonSessionServiceShape,
+  normalizedWorkingDir: string,
+  tree: ReturnType<WorkspaceFileTreeCoordinator['getTree']>,
+  revision: number
+): Promise<{ revision: number }> {
+  const snapshot = await syncScannedFileTree(
+    session,
+    normalizedWorkingDir,
+    tree,
+    computeFileTreeDataHash(tree),
+    randomUUID()
+  );
+  const checkpointRevision = await publishCheckpointUntilPruned(
+    session,
+    normalizedWorkingDir,
+    snapshot,
+    revision
+  );
   console.log(
     `[${formatTimestamp()}] 🌳 File tree checkpoint: ${normalizedWorkingDir} (${tree.entries.length} entries, revision ${checkpointRevision})`
   );
