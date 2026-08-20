@@ -1,8 +1,9 @@
-import { createFifoBatchedOutbox, type FifoBatchedOutbox } from './fifo-batched-outbox.js';
 import {
   openDurableFifoQueueStore,
   type DurableFifoQueueStore,
 } from './durable-fifo-queue-store.js';
+import { createFifoBatchedOutbox, type FifoBatchedOutbox } from './fifo-batched-outbox.js';
+
 export type KeyedFifoBatchedOutboxRegistry<TItem, TResult> = {
   enqueue(key: string, item: TItem): Promise<TResult>;
   flushNow(key?: string): Promise<void>;
@@ -15,8 +16,13 @@ export function createKeyedFifoBatchedOutboxRegistry<TItem, TResult>(o: {
   createSend: (key: string) => (items: TItem[]) => Promise<TResult[]>;
   serialize: (i: TItem) => string;
   deserialize: (s: string) => TItem;
+  retryDelayMs?: number;
+  maxRetryDelayMs?: number;
   onError?: (key: string, e: unknown) => void;
-  classifyOutcome?: (result: TResult, item: TItem) => { kind: 'success' } | { kind: 'retry'; item: TItem };
+  classifyOutcome?: (
+    result: TResult,
+    item: TItem
+  ) => { kind: 'success' } | { kind: 'retry'; item: TItem };
 }): KeyedFifoBatchedOutboxRegistry<TItem, TResult> {
   const boxes = new Map<string, FifoBatchedOutbox<TItem, TResult>>();
   const get = (key: string) => {
@@ -29,6 +35,8 @@ export function createKeyedFifoBatchedOutboxRegistry<TItem, TResult>(o: {
         deliveryKey: key,
         serialize: o.serialize,
         deserialize: o.deserialize,
+        retryDelayMs: o.retryDelayMs,
+        maxRetryDelayMs: o.maxRetryDelayMs,
         onError: (e) => o.onError?.(key, e),
         classifyOutcome: o.classifyOutcome,
       });
@@ -56,4 +64,5 @@ export function createKeyedFifoBatchedOutboxRegistry<TItem, TResult>(o: {
     },
   };
 }
+// fallow-ignore-next-line unused-export
 export { openDurableFifoQueueStore };

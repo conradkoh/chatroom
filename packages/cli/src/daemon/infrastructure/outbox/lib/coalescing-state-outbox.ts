@@ -1,3 +1,7 @@
+// fallow-ignore-file complexity
+import type { DurableCoalescingStateStore } from './durable-coalescing-state-store.js';
+import { computeExponentialRetryDelayMs } from './outbox-retry-backoff.js';
+
 export interface CoalescingStateOutboxOptions<TState, TResult> {
   /** Minimum time between successful sends. The first send is immediate. */
   minIntervalMs?: number;
@@ -7,7 +11,7 @@ export interface CoalescingStateOutboxOptions<TState, TResult> {
   maxRetryDelayMs?: number;
   send: (state: TState) => Promise<TResult>;
   onError?: (error: unknown) => void;
-  store?: import('./durable-coalescing-state-store.js').DurableCoalescingStateStore;
+  store?: DurableCoalescingStateStore;
   deliveryKey?: string;
   serialize?: (state: TState) => string;
   deserialize?: (json: string) => TState;
@@ -51,7 +55,8 @@ export function createCoalescingStateOutbox<TState, TResult>(
   options: CoalescingStateOutboxOptions<TState, TResult>
 ): CoalescingStateOutbox<TState, TResult> {
   const durable = [options.store, options.deliveryKey, options.serialize, options.deserialize];
-  if (durable.some(Boolean) && durable.some((value) => !value)) throw new Error('Durable outbox requires store, deliveryKey, serialize, and deserialize');
+  if (durable.some(Boolean) && durable.some((value) => !value))
+    throw new Error('Durable outbox requires store, deliveryKey, serialize, and deserialize');
   const minIntervalMs = options.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS;
   const retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
   const maxRetryDelayMs = options.maxRetryDelayMs ?? DEFAULT_MAX_RETRY_DELAY_MS;
@@ -62,7 +67,13 @@ export function createCoalescingStateOutbox<TState, TResult>(
   let lastSentAt = 0;
   let retryAttempt = 0;
   let stopped = false;
-  if (options.store && options.deliveryKey && options.deserialize) { const recovered=options.store.getPending(options.deliveryKey); if (recovered) pending={state:options.deserialize(recovered.payloadJson),waiters:[]}; }
+  if (options.store && options.deliveryKey && options.deserialize) {
+    const recovered = options.store.getPending(options.deliveryKey);
+    if (recovered) {
+      pending = { state: options.deserialize(recovered.payloadJson), waiters: [] };
+      retryAttempt = recovered.attempts;
+    }
+  }
 
   const rejectWaiters = (waiters: Waiter<TResult>[], error: unknown): void => {
     for (const waiter of waiters) waiter.reject(error);
@@ -92,7 +103,13 @@ export function createCoalescingStateOutbox<TState, TResult>(
     );
     timer.unref?.();
   };
-  if (pending) schedule(0);
+  if (pending) {
+    schedule(
+      retryAttempt > 0
+        ? computeExponentialRetryDelayMs(retryAttempt - 1, retryDelayMs, maxRetryDelayMs)
+        : 0
+    );
+  }
 
   async function drain(): Promise<void> {
     if (stopped || !pending || inFlight) return;
@@ -103,17 +120,19 @@ export function createCoalescingStateOutbox<TState, TResult>(
     inFlight = { ...batch, promise: sendPromise };
 
     let retryDelay: number | null = null;
+    const store = options.store;
+    const deliveryKey = options.deliveryKey;
     try {
       const result = await sendPromise;
       lastSentAt = Date.now();
       retryAttempt = 0;
-      options.store?.markDone(options.deliveryKey!);
+      if (store && deliveryKey) store.markDone(deliveryKey);
       for (const waiter of batch.waiters) waiter.resolve(result);
     } catch (error) {
       options.onError?.(error);
-      options.store?.markPendingRetry(options.deliveryKey!, error);
+      if (store && deliveryKey) store.markPendingRetry(deliveryKey, error);
       pending = mergePending(batch, pending);
-      retryDelay = Math.min(retryDelayMs * 2 ** retryAttempt, maxRetryDelayMs);
+      retryDelay = computeExponentialRetryDelayMs(retryAttempt, retryDelayMs, maxRetryDelayMs);
       retryAttempt++;
       throw error;
     } finally {
@@ -135,7 +154,9 @@ export function createCoalescingStateOutbox<TState, TResult>(
       } else {
         pending = { state, waiters: [waiter] };
       }
-      options.store?.upsertPending(options.deliveryKey!, options.serialize!(state));
+      if (options.store && options.deliveryKey && options.serialize) {
+        options.store.upsertPending(options.deliveryKey, options.serialize(state));
+      }
     });
 
     if (!inFlight && !timer) {

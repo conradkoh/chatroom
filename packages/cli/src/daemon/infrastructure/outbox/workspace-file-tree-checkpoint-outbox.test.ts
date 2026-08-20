@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createWorkspaceFileTreeCheckpointOutboxRegistry,
+  WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MAX_RETRY_DELAY_MS,
+  WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_RETRY_DELAY_MS,
   type WorkspaceFileTreeCheckpointState,
 } from './workspace-file-tree-checkpoint-outbox.js';
 
@@ -24,5 +26,10 @@ describe('workspace-file-tree-checkpoint-outbox', () => {
     expect(send).toHaveBeenCalledWith(state);
 
     await outbox.stop('/workspace');
+  });
+
+  it('backs off failed sends from 5s up to 5 minutes per workspace', () => {
+    expect(WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_RETRY_DELAY_MS).toBe(5_000);
+    expect(WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MAX_RETRY_DELAY_MS).toBe(5 * 60_000);
   });
 });
