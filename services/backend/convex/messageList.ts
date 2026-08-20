@@ -15,6 +15,7 @@ import type { Doc } from './_generated/dataModel';
 import type { QueryCtx } from './_generated/server';
 import { query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { getMachineOwner } from './auth/cli/machineAccess';
 import { enrichMessages } from './messages';
 
 /** Max rows for initial latest-window and load-older page requests. */
@@ -182,12 +183,13 @@ const DEFAULT_TASK_STATUS_SIGNALS_LIMIT = 100;
 export const subscribeTaskStatusSignalsSince = query({
   args: {
     ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
     afterKey: v.string(),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+    if (!auth) return null;
 
     const limit = Math.min(
       Math.max(args.limit ?? DEFAULT_TASK_STATUS_SIGNALS_LIMIT, 1),
@@ -195,8 +197,8 @@ export const subscribeTaskStatusSignalsSince = query({
     );
     const page = await ctx.db
       .query('chatroom_timelineTaskStatusSignals')
-      .withIndex('by_chatroom_signalKey', (q) =>
-        q.eq('chatroomId', args.chatroomId).gt('signalKey', args.afterKey)
+      .withIndex('by_targetMachineId_signalKey', (q) =>
+        q.eq('targetMachineId', args.machineId).gt('signalKey', args.afterKey)
       )
       .order('asc')
       .take(limit + 1);
@@ -204,7 +206,9 @@ export const subscribeTaskStatusSignalsSince = query({
     const hasMore = page.length > limit;
     const rows = page.slice(0, limit);
     const items = rows.map((row) => ({
+      chatroomId: row.chatroomId,
       taskId: row.taskId,
+      targetRole: row.targetRole ?? null,
       taskStatus: row.taskStatus,
       signalKey: row.signalKey,
       taskUpdatedAt: row.taskUpdatedAt,

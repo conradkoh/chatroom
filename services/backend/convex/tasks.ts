@@ -9,10 +9,14 @@ import {
 import { RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { getMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
 import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
-import { normalizeMarkdownContent, withMarkdownContent } from '../src/domain/entities/markdown-content';
+import {
+  normalizeMarkdownContent,
+  withMarkdownContent,
+} from '../src/domain/entities/markdown-content';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { projectAssignedTaskSnapshotsForChatroom } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
@@ -33,7 +37,7 @@ import {
   transitionTask,
   type TransitionTaskOptions,
 } from '../src/domain/usecase/task/transition-task';
-import { buildTimelineTaskStatusSignalKey } from '../src/domain/usecase/task/write-timeline-task-status-signal';
+import { writeTimelineTaskStatusSignal } from '../src/domain/usecase/task/write-timeline-task-status-signal';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
@@ -110,7 +114,10 @@ export const updateTaskStartInNewSession = mutation({
     if (!task) throw new Error('Task not found');
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
     if (task.status !== 'pending') throw new Error('Only pending tasks can be updated');
-    await ctx.db.patch('chatroom_tasks', args.taskId, { startInNewSession: args.startInNewSession, updatedAt: Date.now() });
+    await ctx.db.patch('chatroom_tasks', args.taskId, {
+      startInNewSession: args.startInNewSession,
+      updatedAt: Date.now(),
+    });
     await projectAssignedTaskSnapshotsForChatroom(ctx, task.chatroomId);
   },
 });
@@ -158,7 +165,10 @@ export const claimTask = mutation({
       }
       if (pendingTask.status === 'acknowledged') {
         if (pendingTask.assignedTo?.toLowerCase() === normalizedRole) {
-          return { taskId: pendingTask._id, content: normalizeMarkdownContent(pendingTask.content) };
+          return {
+            taskId: pendingTask._id,
+            content: normalizeMarkdownContent(pendingTask.content),
+          };
         }
         throw new Error(`Task must be pending to claim (current status: ${pendingTask.status})`);
       }
@@ -249,6 +259,10 @@ export const startTask = mutation({
             assignedTo: args.role,
             updatedAt: now,
           });
+          const reassignedTask = await ctx.db.get('chatroom_tasks', acknowledgedTask._id);
+          if (reassignedTask) {
+            await writeTimelineTaskStatusSignal(ctx, reassignedTask);
+          }
         }
         await ctx.db.insert('chatroom_eventStream', {
           type: 'task.inProgress',
@@ -258,7 +272,10 @@ export const startTask = mutation({
           timestamp: now,
         });
         await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
-        return { taskId: acknowledgedTask._id, content: normalizeMarkdownContent(acknowledgedTask.content) };
+        return {
+          taskId: acknowledgedTask._id,
+          content: normalizeMarkdownContent(acknowledgedTask.content),
+        };
       }
 
       if (acknowledgedTask.status !== 'acknowledged') {
@@ -294,7 +311,10 @@ export const startTask = mutation({
     // Patch participant status after transition
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
 
-        return { taskId: acknowledgedTask._id, content: normalizeMarkdownContent(acknowledgedTask.content) };
+    return {
+      taskId: acknowledgedTask._id,
+      content: normalizeMarkdownContent(acknowledgedTask.content),
+    };
   },
 });
 
@@ -1079,44 +1099,44 @@ export const getTasksByIds = query({
  * chatroom_timelineTaskStatusSignals and uses this query to hydrate the full rows
  * after a signal arrives.
  */
-export const listTasksUpdatedBetweenSignalKeys = query({
+export const listTasksForMachineSignalRange = query({
   args: {
     ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
     afterSignalKey: v.string(),
     throughSignalKey: v.string(),
-    afterTaskKey: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+    if (!auth) return { tasks: [], nextSignalKey: null, hasMore: false };
 
-    const lowerKey = args.afterTaskKey ?? args.afterSignalKey;
     const limit = Math.min(
       Math.max(args.limit ?? MAX_TASK_INBOX_PAGE_LIMIT, 1),
       MAX_TASK_INBOX_PAGE_LIMIT
     );
 
-    const matchingTasks = (
-      await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .collect()
-    )
-      .map((task) => ({
-        task,
-        taskKey: buildTimelineTaskStatusSignalKey(task.updatedAt, task._id),
-      }))
-      .filter(({ taskKey }) => taskKey > lowerKey && taskKey <= args.throughSignalKey)
-      .sort((a, b) => a.taskKey.localeCompare(b.taskKey));
-
-    const page = matchingTasks.slice(0, limit);
+    const signals = await ctx.db
+      .query('chatroom_timelineTaskStatusSignals')
+      .withIndex('by_targetMachineId_signalKey', (q) =>
+        q
+          .eq('targetMachineId', args.machineId)
+          .gt('signalKey', args.afterSignalKey)
+          .lte('signalKey', args.throughSignalKey)
+      )
+      .order('asc')
+      .take(limit + 1);
+    const page = signals.slice(0, limit);
+    const taskIds = [...new Set(page.map((signal) => signal.taskId))];
+    const tasks = (
+      await Promise.all(taskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId)))
+    ).filter((task): task is NonNullable<typeof task> => task !== null);
     const last = page.at(-1);
 
     return {
-      tasks: page.map(({ task }) => task),
-      nextTaskKey: last?.taskKey ?? null,
-      hasMore: matchingTasks.length > limit,
+      tasks,
+      nextSignalKey: last?.signalKey ?? null,
+      hasMore: signals.length > limit,
     };
   },
 });
