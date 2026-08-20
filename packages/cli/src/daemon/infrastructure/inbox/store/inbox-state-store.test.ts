@@ -42,7 +42,7 @@ describe('createInboxStateStore', () => {
         'machine-2',
         'machine-1',
       ]);
-      expect(store.query({ scopePrefix: 'machine-' })).toHaveLength(2);
+      expect(store.query({ scopePrefix: 'machine-' })).toHaveLength(3);
       expect(store.query({ updatedAfter: 20 }).map((row) => row.inboxType)).toEqual(['workspace']);
     } finally {
       store.close();
