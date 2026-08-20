@@ -19,6 +19,7 @@ import {
 } from '../src/domain/entities/markdown-content';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
+import { listTasksForMachineSignalRange as listTasksForMachineSignalRangeUsecase } from '../src/domain/usecase/machine/list-tasks-for-machine-signal-range';
 import { projectAssignedTaskSnapshotsForChatroom } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { acknowledgePendingTask } from '../src/domain/usecase/task/acknowledge-pending-task';
 import {
@@ -1109,35 +1110,20 @@ export const listTasksForMachineSignalRange = query({
   },
   handler: async (ctx, args) => {
     const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-    if (!auth) return { tasks: [], nextSignalKey: null, hasMore: false };
+    if (!auth) return { snapshots: [], nextSignalKey: null, hasMore: false };
 
     const limit = Math.min(
       Math.max(args.limit ?? MAX_TASK_INBOX_PAGE_LIMIT, 1),
       MAX_TASK_INBOX_PAGE_LIMIT
     );
 
-    const signals = await ctx.db
-      .query('chatroom_timelineTaskStatusSignals')
-      .withIndex('by_targetMachineId_signalKey', (q) =>
-        q
-          .eq('targetMachineId', args.machineId)
-          .gt('signalKey', args.afterSignalKey)
-          .lte('signalKey', args.throughSignalKey)
-      )
-      .order('asc')
-      .take(limit + 1);
-    const page = signals.slice(0, limit);
-    const taskIds = [...new Set(page.map((signal) => signal.taskId))];
-    const tasks = (
-      await Promise.all(taskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId)))
-    ).filter((task): task is NonNullable<typeof task> => task !== null);
-    const last = page.at(-1);
-
-    return {
-      tasks,
-      nextSignalKey: last?.signalKey ?? null,
-      hasMore: signals.length > limit,
-    };
+    return listTasksForMachineSignalRangeUsecase(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      afterSignalKey: args.afterSignalKey,
+      throughSignalKey: args.throughSignalKey,
+      limit,
+    });
   },
 });
 
