@@ -3,21 +3,24 @@ import { describe, expect, it, vi } from 'vitest';
 import { createCommandResultPublisher } from './command-result.js';
 
 describe('createCommandResultPublisher', () => {
-  it('acks ping events', async () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
+  it('logs daemon.pong for ping events', async () => {
+    const logEvent = vi.fn().mockResolvedValue(undefined);
     const publisher = createCommandResultPublisher({
-      backend: { mutation, query: vi.fn() },
+      backend: { mutation: vi.fn(), query: vi.fn() },
       sessionId: 'sess-1',
       machineId: 'machine-1',
+      logEvent,
     });
 
     await publisher.publish({ type: 'command.result.ping', pingEventId: 'ping-1' });
 
-    expect(mutation).toHaveBeenCalledWith(expect.anything(), {
-      sessionId: 'sess-1',
-      machineId: 'machine-1',
-      pingEventId: 'ping-1',
-    });
+    expect(logEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'daemon.pong',
+        machineId: 'machine-1',
+        pingEventId: 'ping-1',
+      })
+    );
   });
 
   it('reports folder picker results', async () => {
@@ -26,6 +29,7 @@ describe('createCommandResultPublisher', () => {
       backend: { mutation, query: vi.fn() },
       sessionId: 'sess-1',
       machineId: 'machine-1',
+      logEvent: vi.fn().mockResolvedValue(undefined),
     });
 
     await publisher.publish({
@@ -51,6 +55,7 @@ describe('createCommandResultPublisher', () => {
       backend: { mutation, query: vi.fn() },
       sessionId: 'sess-1',
       machineId: 'machine-1',
+      logEvent: vi.fn().mockResolvedValue(undefined),
     });
 
     await publisher.publish({

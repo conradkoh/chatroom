@@ -19,6 +19,7 @@ import {
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
 import type { InboundCommandEventPayload } from '../domain/entities/inbound-event.js';
+import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
 import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
@@ -125,8 +126,8 @@ function handlePingCommandEffect(
     handlePing();
     const session = yield* DaemonSessionService;
     yield* Effect.promise(() =>
-      session.backend.mutation(api.machines.ackPing, {
-        sessionId: session.sessionId,
+      logDaemonAuditEvent(session.logEvent, {
+        type: 'daemon.pong',
         machineId: session.machineId,
         pingEventId: event._id,
       })

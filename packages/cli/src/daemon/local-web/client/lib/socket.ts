@@ -8,9 +8,13 @@ import type {
   LogsHistoryAck,
   LogsSourcesAck,
   LogHistoryInput,
+  EventStreamHistoryAck,
+  EventStreamHistoryInput,
+  EventStreamEntry,
 } from '../api/types.js';
 
 let socket: Socket | null = null;
+let daemonSocket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
@@ -45,15 +49,18 @@ async function ensureConnected(s: Socket): Promise<void> {
     });
   }
 }
-export async function fetchLogHistory(input?: LogHistoryInput): Promise<LogsHistoryAck> {
+export async function fetchLogHistory(input: LogHistoryInput): Promise<LogsHistoryAck> {
   const s = getSocket();
   await ensureConnected(s);
-  return s.emitWithAck('logs.history', input ?? {}) as Promise<LogsHistoryAck>;
+  return s.emitWithAck('logs.history', input) as Promise<LogsHistoryAck>;
 }
-export async function fetchLogDimensions(limit?: number): Promise<LogsDimensionsAck> {
+export async function fetchLogDimensions(
+  chatroomId: string,
+  limit?: number
+): Promise<LogsDimensionsAck> {
   const s = getSocket();
   await ensureConnected(s);
-  return s.emitWithAck('logs.dimensions', { limit }) as Promise<LogsDimensionsAck>;
+  return s.emitWithAck('logs.dimensions', { chatroomId, limit }) as Promise<LogsDimensionsAck>;
 }
 export async function fetchChatrooms(): Promise<ChatroomsListAck> {
   const s = getSocket();
@@ -64,6 +71,38 @@ export async function fetchLogSources(limit?: number): Promise<LogsSourcesAck> {
   const s = getSocket();
   await ensureConnected(s);
   return s.emitWithAck('logs.sources', { limit }) as Promise<LogsSourcesAck>;
+}
+
+export async function ingestChatroomEvent(
+  event: Record<string, unknown>,
+  port: number
+): Promise<void> {
+  if (!daemonSocket) {
+    daemonSocket = io(`http://127.0.0.1:${port}`, { transports: ['websocket'], autoConnect: true });
+  }
+  const s = daemonSocket;
+  await ensureConnected(s);
+  const response = (await s.emitWithAck('eventStream.ingest', event)) as {
+    ok: boolean;
+    error?: { message?: string };
+  };
+  if (!response.ok) {
+    throw new Error(response.error?.message ?? 'Failed to ingest chatroom event');
+  }
+}
+export async function fetchEventStreamHistory(
+  input?: EventStreamHistoryInput
+): Promise<EventStreamHistoryAck> {
+  const s = getSocket();
+  await ensureConnected(s);
+  return s.emitWithAck('eventStream.history', input ?? {}) as Promise<EventStreamHistoryAck>;
+}
+export function subscribeEventStream(onEntry: (entry: EventStreamEntry) => void): () => void {
+  const s = getSocket();
+  s.connect();
+  s.emit('eventStream.stream.subscribe');
+  s.on('eventStream.stream', onEntry);
+  return () => s.off('eventStream.stream', onEntry);
 }
 export function subscribeLogStream(onLine: (line: LogLine) => void): () => void {
   const s = getSocket();

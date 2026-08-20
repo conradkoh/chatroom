@@ -52,6 +52,7 @@ function registerListeners(
         lastPushedGitState: new Map(),
         lastPushedModels: null,
         lastPushedHarnessFingerprint: null,
+        logEvent: async () => undefined,
       }),
       Effect.provideService(DaemonAgentProcessManagerService, {
         handleExit: (opts) => Effect.sync(() => init.agentProcessManager.handleExit(opts)),

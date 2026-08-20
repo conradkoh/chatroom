@@ -43,7 +43,7 @@ export async function publishFileTreeCheckpoint(
     old.strategyId === args.strategyId &&
     old.snapshotId === args.snapshotId;
   await checkpoints.upsertCheckpoint(ctx, { ...args, publishedAt: Date.now() });
-  const prunedDeltaCount = await deltas.deleteDeltasUpToRevision(
+  const prune = await deltas.deleteDeltasUpToRevision(
     ctx,
     args.machineId,
     args.workingDir,
@@ -52,6 +52,7 @@ export async function publishFileTreeCheckpoint(
   return {
     status: unchanged ? 'unchanged' : 'published',
     revision: args.revision,
-    prunedDeltaCount,
+    prunedDeltaCount: prune.prunedDeltaCount,
+    pruneComplete: prune.pruneComplete,
   };
 }

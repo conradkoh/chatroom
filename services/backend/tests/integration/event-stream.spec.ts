@@ -17,6 +17,7 @@ import { t } from '../../test.setup';
 import {
   createBuilderEntryDuoChatroom,
   createTestSession,
+  joinParticipant,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
@@ -358,18 +359,10 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
       .collect();
   });
 
-  expect(eventsAfter.length).toBeGreaterThan(countBefore);
+  expect(eventsAfter.length).toBe(countBefore);
 
   const exitedEvent = eventsAfter.find((e) => e.type === 'agent.exited');
-  expect(exitedEvent).toBeDefined();
-  if (exitedEvent && exitedEvent.type === 'agent.exited') {
-    expect(exitedEvent.chatroomId).toBe(chatroomId);
-    expect(exitedEvent.machineId).toBe(machineId);
-    expect(exitedEvent.role).toBe('builder');
-    expect(exitedEvent.pid).toBe(9999);
-    expect(exitedEvent.exitCode).toBe(1);
-    expect(typeof exitedEvent.timestamp).toBe('number');
-  }
+  expect(exitedEvent).toBeUndefined();
 
   // Also verify that the PID was cleared on the agent config
   const agentConfig = await t.run(async (ctx) => {
@@ -446,7 +439,7 @@ test('recordAgentExited does NOT emit agent.requestStart — daemon owns crash r
   const requestStartCountAfter = eventsAfter.filter((e) => e.type === 'agent.requestStart').length;
 
   expect(requestStartCountAfter).toBe(requestStartCountBefore); // no new requestStart events
-  expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined(); // exited event still recorded
+  expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeUndefined();
 });
 
 // ─── Test 8: Intentional stop does NOT schedule ensure-agent ─────────────────
@@ -529,9 +522,9 @@ test('recordAgentExited with crash but no active task does NOT schedule ensure-a
   expect(crashRecoveryCheck).toBeUndefined();
 });
 
-// ─── Test 10: updateSpawnedAgent writes agent.started event ──────────────────
+// ─── Test 10: updateSpawnedAgent patches PID only (agent.started audit is daemon-local) ─
 
-test('updateSpawnedAgent writes agent.started event to event stream', async () => {
+test('updateSpawnedAgent patches PID without writing agent.started to event stream', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-started-1');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
@@ -588,21 +581,57 @@ test('updateSpawnedAgent writes agent.started event to event stream', async () =
   );
 
   const startedEvents = after.filter((e) => (e as { type?: string }).type === 'agent.started');
-  expect(startedEvents.length).toBeGreaterThanOrEqual(1);
+  expect(startedEvents).toHaveLength(0);
+  expect(after.length).toBe(before.length);
 
-  const latestStarted = startedEvents[startedEvents.length - 1] as {
-    type: string;
-    pid: number;
-    role: string;
-    model: string;
-  };
-  expect(latestStarted.pid).toBe(42001);
-  expect(latestStarted.role).toBe('builder');
-  expect(latestStarted.model).toBe('test-model');
-  expect(after.length).toBeGreaterThan(before.length);
+  const agentConfig = await t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+      )
+      .first()
+  );
+  expect(agentConfig?.spawnedAgentPid).toBe(42001);
 });
 
-test('updateSpawnedAgent persists harnessSessionId on agent.started event', async () => {
+test('daemon.agentEvents.agentStarted transitions participant and upserts restart metrics', async () => {
+  const { sessionId } = await createTestSession('test-es-started-state');
+  const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+  const machineId = 'machine-es-started-state';
+  await registerMachineWithDaemon(sessionId, machineId);
+  await joinParticipant(sessionId, chatroomId, 'builder');
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+  await t.mutation(api.daemon.agentEvents.agentStarted, {
+    sessionId,
+    machineId,
+    chatroomId,
+    role: 'builder',
+    pid: 42001,
+    model: 'test-model',
+  });
+
+  const events = await t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect()
+  );
+  expect(events.filter((e) => e.type === 'agent.started')).toHaveLength(0);
+
+  const status = await t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', 'builder')
+      )
+      .unique()
+  );
+  expect(status?.lastStatus).toBe('agent.started');
+});
+
+test('daemon.agentEvents.agentStarted accepts harnessSessionId without event stream insert', async () => {
   const { sessionId } = await createTestSession('test-es-started-harness-session');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
   const machineId = 'machine-es-started-harness-session';
@@ -630,7 +659,7 @@ test('updateSpawnedAgent persists harnessSessionId on agent.started event', asyn
     );
   });
 
-  await t.mutation(api.machines.updateSpawnedAgent, {
+  await t.mutation(api.daemon.agentEvents.agentStarted, {
     sessionId,
     machineId,
     chatroomId,
@@ -647,17 +676,12 @@ test('updateSpawnedAgent persists harnessSessionId on agent.started event', asyn
       .collect()
   );
 
-  const startedEvents = after.filter((e) => (e as { type?: string }).type === 'agent.started');
-  const latestStarted = startedEvents[startedEvents.length - 1] as {
-    type: string;
-    harnessSessionId?: string;
-  };
-  expect(latestStarted.harnessSessionId).toBe('harness-sess-abc123');
+  expect(after.filter((e) => e.type === 'agent.started')).toHaveLength(0);
 });
 
-// ─── Test 11: updateSpawnedAgent upserts restart metric ──────────────────────
+// ─── Test 11: agentStarted upserts restart metric ──────────────────────────────
 
-test('updateSpawnedAgent upserts chatroom_agentRestartMetrics — increments on repeated starts', async () => {
+test('daemon.agentEvents.agentStarted upserts chatroom_agentRestartMetrics — increments on repeated starts', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-metrics-1');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
@@ -687,7 +711,7 @@ test('updateSpawnedAgent upserts chatroom_agentRestartMetrics — increments on 
   });
 
   // ===== ACTION: first start =====
-  await t.mutation(api.machines.updateSpawnedAgent, {
+  await t.mutation(api.daemon.agentEvents.agentStarted, {
     sessionId,
     machineId,
     chatroomId,
@@ -707,7 +731,7 @@ test('updateSpawnedAgent upserts chatroom_agentRestartMetrics — increments on 
   expect(row1!.count).toBe(1);
 
   // ===== ACTION: second start (same hour bucket, same model) =====
-  await t.mutation(api.machines.updateSpawnedAgent, {
+  await t.mutation(api.daemon.agentEvents.agentStarted, {
     sessionId,
     machineId,
     chatroomId,
@@ -857,8 +881,8 @@ describe('Eager crash recovery (idle agent restart)', () => {
     ).length;
     expect(requestStartCountAfter).toBe(requestStartCountBefore);
 
-    // agent.exited should still be recorded
-    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined();
+    // agent.exited is logged by the daemon, not Convex.
+    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeUndefined();
   });
 
   test('crash with no task + desiredState=stopped does NOT emit agent.requestStart', async () => {
@@ -1047,8 +1071,8 @@ describe('Eager crash recovery (idle agent restart)', () => {
     ).length;
     expect(requestStartCountAfter).toBe(requestStartCountBefore);
 
-    // agent.exited should still be recorded
-    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined();
+    // agent.exited is logged by the daemon, not Convex.
+    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeUndefined();
   });
 });
 

@@ -103,6 +103,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
       sessionId: 's',
       machineId: 'm',
       convexUrl: 'http://x',
+      logEvent: vi.fn().mockResolvedValue(undefined),
       backend: { mutation: backendMutation, query: backendQuery },
     };
 
@@ -160,6 +161,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
         sessionId: 's',
         machineId: 'm',
         convexUrl: 'http://x',
+        logEvent: async () => undefined,
         backend: { mutation: vi.fn(), query: vi.fn() },
       },
       machineId: 'm',

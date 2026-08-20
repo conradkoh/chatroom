@@ -341,6 +341,7 @@ describe('refreshModelsEffect', () => {
         config,
         lastPushedModels: { opencode: ['opencode/model-a'] },
         lastPushedHarnessFingerprint: null,
+        logEvent: async () => undefined,
       })
     );
 
@@ -354,33 +355,37 @@ describe('refreshModelsEffect', () => {
 // ---------------------------------------------------------------------------
 
 describe('dispatchCommandEventEffect', () => {
-  it('processes daemon.ping and calls ackPing mutation (ctx from DaemonSessionService)', async () => {
+  it('processes daemon.ping and logs daemon.pong via session.logEvent', async () => {
     const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
     const deps = createMockDaemonDeps();
+    const logEvent = vi.fn().mockResolvedValue(undefined);
     const event = { _id: 'evt-d5-ping-1', type: 'daemon.ping' } as any;
     const tracker = createDedupTracker();
 
-    await runDispatch(dispatchCommandEventEffect(event, tracker), withDeps(deps));
+    await runDispatch(dispatchCommandEventEffect(event, tracker), withDeps(deps, { logEvent }));
 
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'mock-ackPing',
-      expect.objectContaining({ sessionId: 'test-session-id', machineId: 'test-machine-id' })
+    expect(logEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'daemon.pong',
+        machineId: 'test-machine-id',
+        pingEventId: 'evt-d5-ping-1',
+      })
     );
   });
 
-  it('passes machineId from DaemonSessionService to the ackPing mutation', async () => {
+  it('passes machineId from DaemonSessionService to daemon.pong audit event', async () => {
     const { dispatchCommandEventEffect } = await import('./command-dispatch.js');
     const deps = createMockDaemonDeps();
+    const logEvent = vi.fn().mockResolvedValue(undefined);
     const event = { _id: 'evt-d5-ping-2', type: 'daemon.ping' } as any;
     const tracker = createDedupTracker();
 
     await runDispatch(
       dispatchCommandEventEffect(event, tracker),
-      withDeps(deps, { machineId: 'machine-dispatch' })
+      withDeps(deps, { machineId: 'machine-dispatch', logEvent })
     );
 
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'mock-ackPing',
+    expect(logEvent).toHaveBeenCalledWith(
       expect.objectContaining({ machineId: 'machine-dispatch' })
     );
   });

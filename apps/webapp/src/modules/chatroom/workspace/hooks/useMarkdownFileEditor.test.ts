@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { pendingOptimisticNewFilePaths } from './pendingOptimisticNewFilePaths';
 import { useMarkdownFileEditor } from './useMarkdownFileEditor';
-import { FILE_READ_ERROR_PLACEHOLDER } from '../utils/fileContentSentinels';
+import {
+  FILE_NOT_FOUND_PLACEHOLDER,
+  FILE_READ_ERROR_PLACEHOLDER,
+} from '../utils/fileContentSentinels';
 
 const mockRequestFileContent = vi.fn();
 const mockSaveToDisk = vi.fn();
@@ -179,6 +182,25 @@ describe('useMarkdownFileEditor workspace registration', () => {
     await waitFor(() => {
       expect(result.current.error).toBe('Workspace is not registered on this machine.');
     });
+    expect(result.current.content).toBe('');
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('surfaces a load error for a missing file sentinel', async () => {
+    mockLoadedContent = {
+      content: FILE_NOT_FOUND_PLACEHOLDER,
+      encoding: 'utf8',
+      truncated: false,
+      fetchedAt: Date.now(),
+    };
+    const { result } = renderHook(() =>
+      useMarkdownFileEditor({
+        machineId: 'machine-1',
+        workingDir: '/Users/alice/chatroom/',
+        filePath: 'missing.md',
+      })
+    );
+    await waitFor(() => expect(result.current.error).toBe('File not found.'));
     expect(result.current.content).toBe('');
     expect(result.current.isLoading).toBe(false);
   });

@@ -85,7 +85,7 @@ test('recordAgentExited records agent.exited event and does NOT emit agent.reque
   });
 
   const exitedEvent = await findExitedEvent(chatroomId);
-  expect(exitedEvent, 'agent.exited should be recorded').toBeDefined();
+  expect(exitedEvent, 'agent.exited is now logged by the daemon').toBeUndefined();
 
   const requestStartEvent = await findRequestStartEvent(chatroomId);
   expect(
@@ -121,7 +121,7 @@ test('recordAgentExited records agent.exited event and does NOT emit agent.reque
   });
 
   const exitedEvent = await findExitedEvent(chatroomId);
-  expect(exitedEvent, 'agent.exited should be recorded').toBeDefined();
+  expect(exitedEvent, 'agent.exited is now logged by the daemon').toBeUndefined();
 
   const requestStartEvent = await findRequestStartEvent(chatroomId);
   expect(

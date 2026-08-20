@@ -1,9 +1,11 @@
 import { api } from '../../../api.js';
 import type { TurnCompletedBackend } from '../../domain/usecase/handle-turn-completed.js';
+import { logDaemonAuditEvent } from '../event-stream/daemon-event-emitter.js';
 
 export function createTurnCompletedBackend(deps: {
   sessionId: string;
   machineId: string;
+  logEvent: (event: Record<string, unknown>) => Promise<void>;
   backend: {
     mutation: (fn: unknown, args: Record<string, unknown>) => Promise<unknown>;
   };
@@ -16,11 +18,17 @@ export function createTurnCompletedBackend(deps: {
         ...args,
       }) as Promise<void>,
 
-    emitAgentStartFailed: (args) =>
-      deps.backend.mutation(api.machines.emitAgentStartFailed, {
+    emitAgentStartFailed: async (args) => {
+      await logDaemonAuditEvent(deps.logEvent, {
+        type: 'agent.startFailed',
+        machineId: deps.machineId,
+        ...args,
+      });
+      await deps.backend.mutation(api.daemon.agentEvents.agentStartFailed, {
         sessionId: deps.sessionId,
         machineId: deps.machineId,
         ...args,
-      }) as Promise<void>,
+      });
+    },
   };
 }

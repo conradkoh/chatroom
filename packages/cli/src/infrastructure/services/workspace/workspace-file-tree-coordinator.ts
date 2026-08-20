@@ -240,11 +240,6 @@ export async function startWorkspaceFileTreeCoordinator(
       const delta = manifest.pendingDeltas[0];
       if (!delta) break;
       const result = await options.onDelta(delta, manifest.backendRevision);
-      if (result.status === 'conflict') {
-        manifest.backendRevision = result.revision;
-        await saveWorkspaceSyncManifest(manifest);
-        continue;
-      }
       manifest.backendRevision = result.revision;
       manifest.pendingDeltas.shift();
       await saveWorkspaceSyncManifest(manifest);

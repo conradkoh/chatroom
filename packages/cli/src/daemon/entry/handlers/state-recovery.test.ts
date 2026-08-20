@@ -48,6 +48,7 @@ function makeSessionLayer(overrides?: {
     lastPushedGitState: new Map(),
     lastPushedModels: null,
     lastPushedHarnessFingerprint: null,
+    logEvent: async () => undefined,
   });
 }
 
