@@ -12,7 +12,7 @@ status: in-progress
 
 The daemon is moving from the existing task monitor and local task snapshot flow to an inbox that receives task-status signals and hydrates full task records only when work changes. A machine-level inbox is preferred because subscribing to the full task list at machine scope would create too much bandwidth and update churn.
 
-The inbox should therefore subscribe only to `chatroom_timelineTaskStatusSignals` routed to its machine, keep one cursor per machine, and fetch full task records imperatively for the signal range. The inbox is not wired into task delivery yet; this migration currently covers the signal feed and its supporting backend behavior.
+The inbox should therefore subscribe only to `chatroom_timelineTaskStatusSignals` routed to its machine, keep one cursor per machine, and fetch snapshot rows imperatively for the signal range. The daemon now wires this feed through the existing native delivery coordinator.
 
 ## Decision
 
@@ -26,16 +26,15 @@ The inbox should therefore subscribe only to `chatroom_timelineTaskStatusSignals
 
 The machine-level inbox foundation is staged on branch `feat/task-inbox`:
 
-- `packages/cli/src/daemon/infrastructure/inbox/task.ts` accepts a `machineId`, listens to the machine-scoped signal endpoint, hydrates task records, and exposes the async-iterator loop.
+- `packages/cli/src/daemon/infrastructure/inbox/task.ts` accepts a `machineId`, listens to the machine-scoped signal endpoint, hydrates snapshot rows, and exposes the async-iterator loop.
 - `packages/cli/src/daemon/infrastructure/inbox/task.test.ts` covers the signal-to-hydration flow.
 - `services/backend/convex/schema.ts` adds optional `targetMachineId` and `targetRole` fields plus the machine signal index.
 - `services/backend/convex/messageList.ts` provides the machine-scoped signal subscription.
-- `services/backend/convex/tasks.ts` provides machine-authorized range hydration with task-id deduplication.
+- `services/backend/convex/tasks.ts` provides machine-authorized range hydration with ownership re-checks and snapshot projection rows.
+- `packages/cli/src/daemon/entry/task-inbox-runtime.ts` owns the daemon inbox lifecycle, machine cursor startup policy, persistence, and native delivery wiring.
 - Task creation, reassignment, release-on-agent-exit, and in-progress recovery now emit routed status signals.
 
-The earlier persistence refactor is intentionally stashed as `wip: inbox persistence refactor`. It will be restored after the inbox phase is committed and aligned with the machine-level cursor model.
-
-The inbox phase has not been committed because the repository hook currently treats the intentionally unwired inbox module and one helper export as unused code. Resolving that hook decision is separate from this migration design.
+The inbox persistence store is restored and uses `{ inboxType: 'task', scopeKey: machineId }` with a durable `afterSignalKey`; first startup bootstraps from daemon start time rather than replaying all history.
 
 ## Progress tracker
 
@@ -48,23 +47,23 @@ The inbox phase has not been committed because the repository hook currently tre
 - [x] Implement machine signal subscription with a signal cursor.
 - [x] Implement imperative task hydration for a machine signal range.
 - [x] Emit routed signals for task creation and direct assignment/reassignment paths.
-- [ ] Commit the machine-level inbox phase after resolving the intentional dead-code hook failure.
+- [x] Commit the machine-level inbox phase; daemon wiring resolves the intentional dead-code path.
 
 ### Daemon wiring
 
-- [ ] Define the daemon inbox lifecycle and machine cursor startup policy.
-- [ ] Subscribe the daemon to the machine-level inbox.
+- [x] Define the daemon inbox lifecycle and machine cursor startup policy.
+- [x] Subscribe the daemon to the machine-level inbox.
 - [ ] For each new task, resolve the intended agent.
 - [ ] Start the agent session when it is not running.
-- [ ] Inject the task through the existing native delivery path.
+- [x] Inject the task through the existing native delivery path via the coordinator.
 - [ ] Make delivery idempotent across duplicate signals, retries, and daemon restarts.
 - [ ] Add integration coverage for task arrival, reassignment, restart recovery, and concurrent signals.
 
 ### Persistence
 
-- [ ] Restore the stashed inbox persistence refactor.
-- [ ] Store state extensibly for multiple inboxes, with machine identity and a durable signal cursor.
-- [ ] Decide whether startup should replay from the durable cursor, bootstrap active tasks, or combine both.
+- [x] Restore the stashed inbox persistence refactor.
+- [x] Store state extensibly for multiple inboxes, with machine identity and a durable signal cursor.
+- [x] Decide startup should bootstrap from the daemon start time when no durable cursor exists.
 - [ ] Handle legacy signals that predate `targetMachineId`.
 - [ ] Test cursor advancement, crash/retry behavior, and database initialization.
 
