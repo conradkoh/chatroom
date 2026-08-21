@@ -29,7 +29,7 @@ import {
 import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import { createTaskMonitorSnapshot } from './test-fixtures/task-monitor-snapshot-fixture.js';
+import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
 
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';
@@ -67,7 +67,7 @@ function makePostAgentEndSnapshotDoc(
 }
 
 function makeFullTaskFromSnapshot(
-  row: NonNullable<ReturnType<ReturnType<typeof createTaskMonitorSnapshot>['mergeSignal']>>
+  row: NonNullable<ReturnType<ReturnType<typeof createTaskSnapshot>['mergeSignal']>>
 ): AssignedTaskWithContent {
   return {
     ...row,
@@ -77,7 +77,7 @@ function makeFullTaskFromSnapshot(
 
 describe('native queued delivery after agent_end', () => {
   test('coordinator injects promoted pending task when participant is idle-after-complete', async () => {
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makePostAgentEndSnapshotDoc()));
     expect(row).toBeDefined();
@@ -151,7 +151,7 @@ describe('native queued delivery after agent_end', () => {
   });
 
   test('shouldDeliverNativeTask true for post-agent_end participant shape', () => {
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makePostAgentEndSnapshotDoc()));
     expect(row).toBeDefined();
@@ -190,7 +190,6 @@ describe('native queued delivery after agent_end', () => {
         lastStatus: 'task.completed',
       },
     };
-
 
     const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
       const a = args as Record<string, unknown>;

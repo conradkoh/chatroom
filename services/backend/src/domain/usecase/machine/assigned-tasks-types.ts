@@ -2,11 +2,11 @@
  * Shared types for machine assigned-task queries.
  *
  * Wire shapes (signal, presence, snapshot row) are defined in
- * assigned-task-monitor-contract.ts (Zod source of truth) and re-exported here.
+ * assigned-task-snapshot-contract.ts (Zod source of truth) and re-exported here.
  */
 // fallow-ignore-file unused-type unused-export
 
-import type { AssignedTaskSnapshotView } from './assigned-task-monitor-contract';
+import type { AssignedTaskSnapshotView } from './assigned-task-snapshot-contract';
 import type { Id } from '../../../../convex/_generated/dataModel';
 
 export type {
@@ -21,7 +21,7 @@ export type {
   AssignedTaskSignalType,
   AssignedTaskSnapshotView,
   SessionAugmentationMode,
-} from './assigned-task-monitor-contract';
+} from './assigned-task-snapshot-contract';
 export {
   ACTIVE_TASK_STATUSES,
   AGENT_CIRCUIT_STATES,
@@ -29,7 +29,7 @@ export {
   SESSION_AUGMENTATION_MODES,
   isAgentDesiredRunning,
   isDeliverableTaskStatus,
-} from './assigned-task-monitor-contract';
+} from './assigned-task-snapshot-contract';
 
 /** Full view including task content — for one-shot action fetches. */
 export interface AssignedTaskView extends AssignedTaskSnapshotView {

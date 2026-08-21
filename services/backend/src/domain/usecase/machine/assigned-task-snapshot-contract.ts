@@ -4,7 +4,7 @@
  * Wire types are derived from these schemas (single source of truth).
  *
  * @see docs/conventions/domain-models.md
- * @see docs/design/assigned-task-monitor-contract-refactor-plan.md
+ * @see docs/design/assigned-task-snapshot-contract-refactor-plan.md
  */
 // fallow-ignore-file unused-export
 // fallow-ignore-file unused-type
@@ -93,7 +93,7 @@ export const assignedTaskPresenceDeltaSchema = z.object({
 
 export type AssignedTaskPresenceDelta = z.infer<typeof assignedTaskPresenceDeltaSchema>;
 
-export const assignedTaskMonitorRowSchema = z
+export const assignedTaskSnapshotRowSchema = z
   .object({
     taskId: chatroomTaskIdSchema,
     chatroomId: chatroomRoomIdSchema,
@@ -111,7 +111,7 @@ export const assignedTaskMonitorRowSchema = z
 
 export type AssignedTaskAgentConfigView = z.infer<typeof assignedTaskAgentConfigSchema>;
 export type AssignedTaskParticipantView = z.infer<typeof assignedTaskParticipantSchema>;
-export type AssignedTaskSnapshotView = z.output<typeof assignedTaskMonitorRowSchema>;
+export type AssignedTaskSnapshotView = z.output<typeof assignedTaskSnapshotRowSchema>;
 export type AssignedTaskSignal = z.infer<typeof assignedTaskSignalSchema>;
 export type AssignedTaskPresenceSignal = z.infer<typeof assignedTaskPresenceSignalSchema>;
 export function isDeliverableTaskStatus(status: ActiveTaskStatus): boolean {
@@ -150,14 +150,14 @@ export function parseAssignedTaskPresenceSignal(raw: unknown): AssignedTaskPrese
 }
 
 /** Parse one hydrate snapshot row; throws ZodError on mismatch. */
-function parseAssignedTaskMonitorRow(raw: unknown): AssignedTaskSnapshotView {
-  return assignedTaskMonitorRowSchema.parse(raw);
+function parseAssignedTaskSnapshotRow(raw: unknown): AssignedTaskSnapshotView {
+  return assignedTaskSnapshotRowSchema.parse(raw);
 }
 
 /** Parse hydrate snapshot row list; throws on non-array or invalid rows. */
-export function parseAssignedTaskMonitorRows(raw: unknown): AssignedTaskSnapshotView[] {
+export function parseAssignedTaskSnapshotRows(raw: unknown): AssignedTaskSnapshotView[] {
   if (!Array.isArray(raw)) {
     throw new Error('Expected hydrate tasks array');
   }
-  return raw.map((row) => parseAssignedTaskMonitorRow(row));
+  return raw.map((row) => parseAssignedTaskSnapshotRow(row));
 }

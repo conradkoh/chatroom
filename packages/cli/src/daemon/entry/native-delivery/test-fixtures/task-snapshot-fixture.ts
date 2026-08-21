@@ -6,7 +6,7 @@
 import {
   applyAssignedTaskPresence,
   applyAssignedTaskSignal,
-} from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-row.js';
+} from '@workspace/backend/src/domain/usecase/machine/assigned-task-snapshot-row.js';
 import type {
   AssignedTaskPresenceSignal,
   AssignedTaskSignal,
@@ -39,7 +39,7 @@ const taskMonitorSnapshotOptions: WorkingSnapshotOptions<
   },
 };
 
-export function createTaskMonitorSnapshot(): WorkingSnapshot<
+export function createTaskSnapshot(): WorkingSnapshot<
   AssignedTaskSnapshotView,
   AssignedTaskSignal
 > & {

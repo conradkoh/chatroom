@@ -2,7 +2,7 @@
  * Indexed reads from machine assigned-task snapshot projection.
  */
 
-import { monitorRowFromSnapshotDoc } from './assigned-task-monitor-row';
+import { assignedTaskSnapshotFromDoc } from './assigned-task-snapshot-row';
 import type {
   AssignedTaskView,
   GetAssignedTaskForActionInput,
@@ -24,7 +24,7 @@ export async function listMachineAssignedTaskSnapshotsForMachine(
     .withIndex('by_machineId', (q) => q.eq('machineId', input.machineId))
     .collect();
 
-  return { tasks: docs.map(monitorRowFromSnapshotDoc) };
+  return { tasks: docs.map(assignedTaskSnapshotFromDoc) };
 }
 
 export async function getAssignedTaskForActionFromSnapshots(
@@ -46,7 +46,7 @@ export async function getAssignedTaskForActionFromSnapshots(
   if (!task) return null;
 
   return {
-    ...monitorRowFromSnapshotDoc(snapshot),
+    ...assignedTaskSnapshotFromDoc(snapshot),
     taskContent: task.content,
     startInNewSession: task.startInNewSession,
   };

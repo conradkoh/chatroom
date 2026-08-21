@@ -1,5 +1,5 @@
-import type { AssignedTaskSnapshotView } from './assigned-task-monitor-contract';
-import { monitorRowFromSnapshotDoc } from './assigned-task-monitor-row';
+import type { AssignedTaskSnapshotView } from './assigned-task-snapshot-contract';
+import { assignedTaskSnapshotFromDoc } from './assigned-task-snapshot-row';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 
 export type ListTasksForMachineSignalRangeInput = {
@@ -46,7 +46,7 @@ export async function listTasksForMachineSignalRange(
     if (!snapshot) continue;
     const task = await ctx.db.get('chatroom_tasks', signal.taskId);
     if (!task || task.assignedTo?.toLowerCase() !== signal.targetRole.toLowerCase()) continue;
-    snapshots.push(monitorRowFromSnapshotDoc(snapshot));
+    snapshots.push(assignedTaskSnapshotFromDoc(snapshot));
   }
 
   return {

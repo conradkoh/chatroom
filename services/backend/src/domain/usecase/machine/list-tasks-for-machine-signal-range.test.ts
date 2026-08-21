@@ -1,7 +1,7 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import { monitorRowFromSnapshotDoc } from './assigned-task-monitor-row';
+import { assignedTaskSnapshotFromDoc } from './assigned-task-snapshot-row';
 import { listTasksForMachineSignalRange } from './list-tasks-for-machine-signal-range';
 import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
@@ -90,7 +90,7 @@ describe('listTasksForMachineSignalRange', () => {
     } = await seed('happy');
     const result = await query(machineId, '', row.key);
     expect(result.snapshots).toHaveLength(1);
-    expect(result.snapshots[0]).toEqual(monitorRowFromSnapshotDoc(row.snapshot!));
+    expect(result.snapshots[0]).toEqual(assignedTaskSnapshotFromDoc(row.snapshot!));
   });
   test('skips changed ownership', async () => {
     const {

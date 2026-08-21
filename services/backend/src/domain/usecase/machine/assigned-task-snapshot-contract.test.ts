@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  assignedTaskMonitorRowSchema,
+  assignedTaskSnapshotRowSchema,
   assignedTaskPresenceDeltaSchema,
   assignedTaskSignalBootstrapFields,
   assignedTaskSignalSchema,
-  parseAssignedTaskMonitorRows,
+  parseAssignedTaskSnapshotRows,
   parseAssignedTaskPresenceSignal,
   parseAssignedTaskSignal,
-} from './assigned-task-monitor-contract';
-import { applyAssignedTaskSignal } from './assigned-task-monitor-row';
+} from './assigned-task-snapshot-contract';
+import { applyAssignedTaskSignal } from './assigned-task-snapshot-row';
 import type { AssignedTaskSignal } from './assigned-tasks-types';
 
 function minimalSignal(): AssignedTaskSignal {
@@ -52,7 +52,7 @@ describe('assignedTaskSignalSchema', () => {
     expect(presence.taskId).toBe('task_1');
     expect(presence.role).toBe('builder');
 
-    const row = parseAssignedTaskMonitorRows([
+    const row = parseAssignedTaskSnapshotRows([
       {
         taskId: 'task_1',
         chatroomId: 'room_1',
@@ -66,8 +66,8 @@ describe('assignedTaskSignalSchema', () => {
         },
       },
     ])[0]!;
-    expect(assignedTaskMonitorRowSchema.safeParse(row).success).toBe(true);
-    expect(parseAssignedTaskMonitorRows([row])).toHaveLength(1);
+    expect(assignedTaskSnapshotRowSchema.safeParse(row).success).toBe(true);
+    expect(parseAssignedTaskSnapshotRows([row])).toHaveLength(1);
   });
 
   it('bootstrap helpers align with schema fields', () => {

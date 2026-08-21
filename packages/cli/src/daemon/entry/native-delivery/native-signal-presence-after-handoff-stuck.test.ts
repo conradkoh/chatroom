@@ -37,7 +37,7 @@ import {
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { listTasksReadyForNudge, RecoveryCooldown } from '../task-delivery/task-delivery-logic.js';
-import { createTaskMonitorSnapshot } from './test-fixtures/task-monitor-snapshot-fixture.js';
+import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
 
 const CHATROOM_ID = 'n57ctdnfvd0avh0ghx6p4szk8x8aa69a' as Id<'chatroom_rooms'>;
 const TASK_ID = 'nh7dh7bj63fdns9zkyasjgnga58afx3s' as Id<'chatroom_tasks'>;
@@ -131,7 +131,7 @@ describe('native inbox recovery after planner handoff', () => {
   });
 
   test('reproduces inbox reconcile while turn_in_flight does not inject', async () => {
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
 
     const signal = snapshotDocToSignal(makePostHandoffPendingSnapshotDoc());
@@ -219,7 +219,7 @@ describe('native inbox recovery after planner handoff', () => {
     );
     resumeTurnForSlot.mockClear();
 
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makePostHandoffPendingSnapshotDoc()));
     expect(row).toBeDefined();
@@ -261,7 +261,7 @@ describe('native inbox recovery after planner handoff', () => {
 
   test('native recovery predicate remains conservative after native:waiting', () => {
     const now = 1_700_000_000_000;
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     const pendingRow = snapshot.mergeSignal(
       snapshotDocToSignal(makePostHandoffPendingSnapshotDoc())
     );
@@ -274,7 +274,7 @@ describe('native inbox recovery after planner handoff', () => {
   });
 
   test('positive control: inbox reconcile injects when slot is idle after handoff', async () => {
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(
       snapshotDocToSignal(

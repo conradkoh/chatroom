@@ -1,4 +1,4 @@
-import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
+import { parseAssignedTaskSnapshotRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-snapshot-contract.js';
 
 import { api } from '../../../api.js';
 import { mapAssignedTaskSnapshotList } from '../../../infrastructure/mappers/map-assigned-task.js';
@@ -14,7 +14,7 @@ export async function fetchMachineAssignedTaskSnapshots(
     machineId,
   });
   return mapAssignedTaskSnapshotList(
-    parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? [])
+    parseAssignedTaskSnapshotRows((result as { tasks?: unknown })?.tasks ?? [])
   );
 }
 

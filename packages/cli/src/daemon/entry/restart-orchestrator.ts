@@ -9,7 +9,7 @@ import {
   buildAgentRestartPhaseEvent,
   type AgentRestartPhase,
 } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
-import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
+import { parseAssignedTaskSnapshotRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-snapshot-contract.js';
 import { Effect } from 'effect';
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
@@ -147,7 +147,7 @@ async function listDeliverableSnapshots(
   })) as { tasks?: unknown };
 
   const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
-  return mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(result.tasks ?? []))
+  return mapAssignedTaskSnapshotList(parseAssignedTaskSnapshotRows(result.tasks ?? []))
     .filter(
       (t) =>
         t.chatroomId === event.chatroomId &&
