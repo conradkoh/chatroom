@@ -113,9 +113,9 @@ flowchart TD
 
 - [x] Add schema tables and indexes
 - [x] Implement `derive-agent-operational-state.ts`
-- [ ] Implement `project-agent-operational-status.ts` (role + summary upsert and machine-scoped redrive)
-- [ ] Wire outbox drain to the projection mutation
-- [ ] Wire `updateDaemonStatus` to `projectAgentOperationalStatusForMachine`
+- [x] Implement `project-agent-operational-status.ts` (role + summary upsert and machine-scoped redrive)
+- [x] Wire outbox drain to the projection mutation
+- [x] Wire `updateDaemonStatus` to `projectAgentOperationalStatusForMachine`
 - [ ] Wire remaining mutation triggers
 - [ ] Add a backfill mutation for existing chatrooms
 - [ ] Add derivation-matrix integration tests
