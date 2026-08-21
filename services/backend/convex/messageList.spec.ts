@@ -232,19 +232,19 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
     const key1 = `${String(now).padStart(16, '0')}:${taskId}`;
     const key2 = `${String(now + 1).padStart(16, '0')}:${taskId}`;
     await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_timelineTaskStatusSignals', {
+      await ctx.db.insert('chatroom_machineTaskStatusSignals', {
         chatroomId,
         taskId: taskId as Id<'chatroom_tasks'>,
-        targetMachineId: machineId,
+        machineId: machineId,
         targetRole: 'planner',
         taskStatus: 'in_progress',
         signalKey: key1,
         taskUpdatedAt: now,
       });
-      await ctx.db.insert('chatroom_timelineTaskStatusSignals', {
+      await ctx.db.insert('chatroom_machineTaskStatusSignals', {
         chatroomId,
         taskId: taskId as Id<'chatroom_tasks'>,
-        targetMachineId: machineId,
+        machineId: machineId,
         targetRole: 'planner',
         taskStatus: 'completed',
         signalKey: key2,
@@ -317,10 +317,10 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
       });
       const key = `${String(now + i).padStart(16, '0')}:${taskId}`;
       await t.run(async (ctx) => {
-        await ctx.db.insert('chatroom_timelineTaskStatusSignals', {
+        await ctx.db.insert('chatroom_machineTaskStatusSignals', {
           chatroomId,
           taskId,
-          targetMachineId: machineId,
+          machineId: machineId,
           targetRole: 'planner',
           taskStatus: 'pending',
           signalKey: key,

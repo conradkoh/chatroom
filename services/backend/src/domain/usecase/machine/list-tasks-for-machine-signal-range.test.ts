@@ -55,10 +55,10 @@ async function seed(kind: 'happy' | 'mismatch' | 'missing' | 'norole' | 'page') 
               revisionKey: `r-${i}`,
               signalUpdatedAt: updatedAt,
             });
-      await ctx.db.insert('chatroom_timelineTaskStatusSignals', {
+      await ctx.db.insert('chatroom_machineTaskStatusSignals', {
         chatroomId,
         taskId,
-        targetMachineId: machineId,
+        machineId: machineId,
         targetRole: kind === 'norole' ? undefined : 'builder',
         taskStatus: 'pending',
         signalKey: key,
