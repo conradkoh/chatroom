@@ -45,6 +45,7 @@ import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 import { agentLifecycleFactValidator } from './validators/agent-lifecycle-fact';
 import { projectAgentLifecycleFact as projectAgentLifecycleFactUseCase } from '../src/domain/usecase/agent/project-agent-lifecycle-fact';
+import { projectAgentOperationalStatusForMachine } from '../src/domain/usecase/agent/project-agent-operational-status';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -1104,6 +1105,8 @@ export const updateDaemonStatus = mutation({
       });
     }
     // If status matches desired, do NOT write (write suppression)
+
+    await projectAgentOperationalStatusForMachine(ctx, args.machineId);
 
     return { success: true };
   },
