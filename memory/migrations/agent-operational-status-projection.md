@@ -12,14 +12,14 @@ status: active
 
 Agent operational state is currently derived at read time in four or more places, with inconsistent rules. This inconsistency was the root cause of the AgentPanel bugs addressed by PR #1475. Operational facts (whether a process is alive and whether its daemon is connected) must be separated from participant timeline labels.
 
-| Consumer                 | Query / hook                         | Fields derived                                  | File                                     |
-| ------------------------ | ------------------------------------ | ----------------------------------------------- | ---------------------------------------- |
-| AgentPanel quick actions | `machines.getAgentStatus`            | `AgentRoleView.state`                           | `get-agent-statuses.ts`                  |
-| Sidebar remote dots      | `machines.listChatroomAgentOverview` | `agentStatus`, `runningRoles`, `aliveRoles`     | `list-chatroom-agent-overview.ts`        |
-| Status labels + isAlive  | `participants.getTeamLifecycle`      | `isAlive`, participant timeline                 | `participants.ts`, `useAgentStatuses.ts` |
-| Single-room overview     | `machines.getChatroomAgentOverview`  | same as sidebar per-room                        | `machines.ts` ~L2480                     |
-| Chat list dots           | `ChatroomListingContext`             | merges overview + presence + `deriveChatStatus` | `ChatroomListingContext.tsx`             |
-| Bulk start/stop          | `ChatroomDashboard`                  | `hasRunningRemoteAgents` from panel state       | `ChatroomDashboard.tsx`                  |
+| Consumer                 | Query / hook                           | Fields derived                                  | File                                     |
+| ------------------------ | -------------------------------------- | ----------------------------------------------- | ---------------------------------------- |
+| AgentPanel quick actions | `machines.getAgentStatus`              | `AgentRoleView.state`                           | `get-agent-statuses.ts`                  |
+| Sidebar remote dots      | `machines.listAgentOverview`           | `agentStatus`, `runningRoles`, `aliveRoles`     | `list-chatroom-agent-overview.ts`        |
+| Status labels + isAlive  | `participants.getTeamLifecycle`        | `isAlive`, participant timeline                 | `participants.ts`, `useAgentStatuses.ts` |
+| Single-room overview     | `machines.getAgentOverviewForChatroom` | same as sidebar per-room                        | `machines.ts` ~L2480                     |
+| Chat list dots           | `ChatroomListingContext`               | merges overview + presence + `deriveChatStatus` | `ChatroomListingContext.tsx`             |
+| Bulk start/stop          | `ChatroomDashboard`                    | `hasRunningRemoteAgents` from panel state       | `ChatroomDashboard.tsx`                  |
 
 ## Decision
 
@@ -56,6 +56,7 @@ Indexes: `by_chatroom`, unique `by_chatroom_role`, and `by_machineId`.
 {
   chatroomId: Id<'chatroom_rooms'>,
   teamId: string,
+  remoteConfigCount: number,
   agentStatus: 'running' | 'stopped' | 'none',
   runningRoles: string[],
   aliveRoles: string[],
@@ -132,12 +133,12 @@ remote configuration count so `none` versus `stopped` can be maintained without
 reloading all configs.
 
 - [x] `getAgentStatusForChatroom` reads materialized role rows
-- [x] `listChatroomAgentOverview` reads summary rows
+- [x] `listAgentOverview` reads summary rows
 - [x] `getTeamLifecycle` reads `isAlive` from role rows
-- [x] `machines.getChatroomAgentOverview` reads the summary row
+- [x] `getAgentOverviewForChatroom` reads the summary row
 - [x] Production backfill migration wired into `migrations.runAll` (CI on master merge)
 - [ ] Verify AgentPanel, sidebar, and `deriveChatStatus` behavior is unchanged
-- [ ] Supersede or close tactical PR #1475
+- [x] Supersede or close tactical PR #1475 (closed as superseded by #1478)
 
 ### Phase 4 — Cleanup
 
