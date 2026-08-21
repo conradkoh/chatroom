@@ -135,10 +135,13 @@ reloading all configs.
 - [x] `listChatroomAgentOverview` reads summary rows
 - [x] `getTeamLifecycle` reads `isAlive` from role rows
 - [x] `machines.getChatroomAgentOverview` reads the summary row
+- [x] Production backfill migration wired into `migrations.runAll` (CI on master merge)
 - [ ] Verify AgentPanel, sidebar, and `deriveChatStatus` behavior is unchanged
 - [ ] Supersede or close tactical PR #1475
 
 ### Phase 4 — Cleanup
+
+See also [agent operational status tech debt tracker](../development/agent-operational-status-tech-debt.md).
 
 - [ ] Remove read-time derivation from migrated use cases
 - [ ] Remove duplicate daemon-connectivity joins in queries
