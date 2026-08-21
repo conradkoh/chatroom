@@ -114,6 +114,28 @@ export function listNativeTasksNeedingRevive(
   });
 }
 
+/** Pending native task assigned to this machine whose backend agent is stopped. */
+function isNativePendingTaskNeedingWake(task: AssignedTaskSnapshotView): boolean {
+  if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
+  if (task.status !== 'pending') return false;
+  if (isAgentDesiredRunning(task.agentConfig.desiredState)) return false;
+  return Boolean(task.agentConfig.workingDir);
+}
+
+export function listNativePendingTasksNeedingWake(
+  tasks: AssignedTaskSnapshotView[],
+  cooldown: NudgeCooldown,
+  now: number
+): AssignedTaskSnapshotView[] {
+  return tasks.filter((task) => {
+    if (!isNativePendingTaskNeedingWake(task)) return false;
+    const { chatroomId, agentConfig } = task;
+    if (!cooldown.canNudge(chatroomId, agentConfig.role, now)) return false;
+    cooldown.recordNudge(chatroomId, agentConfig.role, now);
+    return true;
+  });
+}
+
 function shouldNudgeCliPendingTask(
   task: AssignedTaskSnapshotView,
   now: number,

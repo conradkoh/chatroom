@@ -1,6 +1,6 @@
 // fallow-ignore-file complexity
 /**
- * Task Monitor — indexed snapshot projection + WS signal/presence subscribe.
+ * Task delivery processor for inbox updates and periodic reconciliation.
  *
  * - Snapshot store: subscribed via wsClient.onUpdate (no HTTP poll on timer)
  * - Periodic reconcile reads the local store
@@ -51,6 +51,7 @@ import { getRoleDeliveryState } from '../role-delivery-state.js';
 import {
   listTasksReadyForNudge,
   listNativeTasksNeedingRevive,
+  listNativePendingTasksNeedingWake,
   shouldEscalateNativeNudgeToRestart,
 } from '../task-monitor/task-monitor-logic.js';
 import type { NudgeCooldown } from '../task-monitor/task-monitor-logic.js';
@@ -211,6 +212,42 @@ function runNativeReviveEffect(
   );
 }
 
+function runNativeWakeEffect(
+  task: AssignedTaskWithContent,
+  runtime: TaskDeliveryRuntime,
+  effectContext: TaskDeliveryContext,
+  agentMgr: DaemonAgentProcessManagerServiceShape
+): void {
+  const ctx = resolveTaskRunnerContextFromFull(task);
+  if (!ctx) return;
+  const { chatroomId, agentConfig, role, workingDir, wantResume } = ctx;
+  console.log(
+    `[TaskMonitor] native wake ${role}@${chatroomId} — desiredState=stopped with pending task ${task.taskId}`
+  );
+  Runtime.runFork(runtime)(
+    Effect.gen(function* () {
+      yield* agentMgr.ensureRunning({
+        chatroomId,
+        role,
+        agentHarness: agentConfig.agentHarness as AgentHarness,
+        model: agentConfig.model,
+        workingDir,
+        reason: 'platform.pending_task_wake',
+        wantResume,
+      });
+    }).pipe(
+      Effect.provide(effectContext),
+      Effect.catchAll((err) =>
+        Effect.sync(() =>
+          console.warn(
+            `[TaskMonitor] native wake failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`
+          )
+        )
+      )
+    )
+  );
+}
+
 async function fetchTaskForAction(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
@@ -335,6 +372,25 @@ async function reviveNativeTasks(
   }
 }
 
+async function wakeStoppedAgentsForPendingTasks(
+  tasks: AssignedTaskSnapshotView[],
+  now: number,
+  cooldown: NudgeCooldown,
+  runtime: TaskDeliveryRuntime,
+  effectContext: TaskDeliveryContext,
+  agentMgr: DaemonAgentProcessManagerServiceShape,
+  sessionDeps: NativeTaskDeliverySessionDeps,
+  machineId: string
+): Promise<void> {
+  for (const row of listNativePendingTasksNeedingWake(tasks, cooldown, now)) {
+    if (isRestartOrchestratorInFlight(row.chatroomId, row.agentConfig.role)) continue;
+    await clearStuckStoppingSlotIfNeeded(agentMgr, row.chatroomId, row.agentConfig.role);
+    const full = await fetchTaskForAction(sessionDeps, machineId, row);
+    if (!full) continue;
+    runNativeWakeEffect(full, runtime, effectContext, agentMgr);
+  }
+}
+
 export async function processTasksUpdate(
   tasks: AssignedTaskSnapshotView[],
   runtime: TaskDeliveryRuntime,
@@ -353,6 +409,17 @@ export async function processTasksUpdate(
     getSlot: (chatroomId: string, role: string) => agentMgr.getSlot(chatroomId, role),
     isPidAlive: (pid: number) => isProcessAlive((p) => process.kill(p, 0), pid),
   };
+
+  await wakeStoppedAgentsForPendingTasks(
+    filteredTasks,
+    now,
+    cooldown,
+    runtime,
+    effectContext,
+    agentMgr,
+    sessionDeps,
+    machineId
+  );
 
   await reviveNativeTasks(
     filteredTasks,
