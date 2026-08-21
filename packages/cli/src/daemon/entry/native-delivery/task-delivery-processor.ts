@@ -24,11 +24,13 @@ import type {
 } from '../daemon-services.js';
 import type { AgentHarness } from '../daemon-types.js';
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
-import { getNativeTaskDeliveryCoordinator, type NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
+import {
+  getNativeTaskDeliveryCoordinator,
+  type NativeTaskDeliverySessionDeps,
+} from './native-task-delivery-coordinator.js';
 import { isNativeHarness } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
-import { fetchMachineAssignedTaskSnapshots } from '../../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type {
@@ -36,6 +38,7 @@ import type {
   AssignedTaskWithContent,
 } from '../../domain/entities/assigned-task.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
+import { fetchMachineAssignedTaskSnapshots } from '../../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import {
   filterSnapshotsExcludingRestartInFlight,
   isRestartOrchestratorInFlight,
@@ -44,8 +47,8 @@ import {
   listTasksReadyForNudge,
   listNativeTasksNeedingRevive,
   listNativePendingTasksNeedingWake,
-} from '../task-monitor/task-monitor-logic.js';
-import type { RecoveryCooldown } from '../task-monitor/task-monitor-logic.js';
+} from '../task-delivery/task-delivery-logic.js';
+import type { RecoveryCooldown } from '../task-delivery/task-delivery-logic.js';
 
 export type TaskDeliveryRuntime = Runtime.Runtime<
   DaemonSessionService | DaemonAgentProcessManagerService
@@ -391,12 +394,7 @@ export async function processTasksUpdate(
   );
   if (filteredTasks.length > 0) {
     const first = filteredTasks[0];
-    logNativeDeliveryFallback(
-      _pass,
-      first.agentConfig.role,
-      first.chatroomId,
-      first.taskId
-    );
+    logNativeDeliveryFallback(_pass, first.agentConfig.role, first.chatroomId, first.taskId);
   }
   getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
     tasks: filteredTasks,

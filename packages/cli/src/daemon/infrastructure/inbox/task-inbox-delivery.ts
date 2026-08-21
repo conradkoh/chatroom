@@ -6,7 +6,7 @@ import {
   type TaskDeliveryContext,
   type TaskDeliveryRuntime,
 } from '../../entry/native-delivery/task-delivery-processor.js';
-import type { RecoveryCooldown } from '../../entry/task-monitor/task-monitor-logic.js';
+import type { RecoveryCooldown } from '../../entry/task-delivery/task-delivery-logic.js';
 
 export type TaskInboxDeliveryDeps = {
   runtime: TaskDeliveryRuntime;

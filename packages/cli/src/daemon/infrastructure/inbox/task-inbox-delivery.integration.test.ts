@@ -7,7 +7,7 @@ import {
   registerNativeDeliverySession,
   unregisterNativeDeliverySession,
 } from '../../entry/native-delivery/native-delivery-session-registry.js';
-import { NudgeCooldown } from '../../entry/task-monitor/task-monitor-logic.js';
+import { RecoveryCooldown } from '../../entry/task-delivery/task-delivery-logic.js';
 
 const runNativeInjectionEffect = vi.hoisted(() => vi.fn(() => Effect.void));
 vi.mock('../../entry/native-delivery/native-task-injector.js', () => ({
@@ -42,14 +42,12 @@ function fullTaskFromSnapshot(row: ReturnType<typeof snapshot>) {
 
 function createAgentMgrMock(overrides: Record<string, unknown> = {}): never {
   return {
-    getSlot: vi
-      .fn()
-      .mockReturnValue({
-        state: 'running',
-        pid: process.pid,
-        harnessSessionId: 'harness-1',
-        nativeTurnPhase: 'idle',
-      }),
+    getSlot: vi.fn().mockReturnValue({
+      state: 'running',
+      pid: process.pid,
+      harnessSessionId: 'harness-1',
+      nativeTurnPhase: 'idle',
+    }),
     ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 42 }),
     clearStuckStoppingSlot: vi.fn().mockResolvedValue(false),
     setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
@@ -72,9 +70,11 @@ describe('task inbox delivery integration', () => {
       logEvent: vi.fn(),
       backend: {
         mutation: vi.fn(),
-        query: vi.fn().mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
-          'taskId' in args ? fullTaskFromSnapshot(snapshot()) : { tasks: [snapshot()] }
-        ),
+        query: vi
+          .fn()
+          .mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
+            'taskId' in args ? fullTaskFromSnapshot(snapshot()) : { tasks: [snapshot()] }
+          ),
       },
     } as never;
     const row = snapshot();
@@ -90,7 +90,7 @@ describe('task inbox delivery integration', () => {
       {
         runtime: Runtime.defaultRuntime as never,
         effectContext: Context.empty() as never,
-        cooldown: new NudgeCooldown(60_000),
+        cooldown: new RecoveryCooldown(60_000),
         agentMgr,
         sessionDeps,
         machineId: 'machine-1',
@@ -108,15 +108,17 @@ describe('task inbox delivery integration', () => {
       logEvent: vi.fn(),
       backend: {
         mutation: vi.fn(),
-        query: vi.fn().mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
-          'taskId' in args ? fullTaskFromSnapshot(snapshot()) : { tasks: [snapshot()] }
-        ),
+        query: vi
+          .fn()
+          .mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
+            'taskId' in args ? fullTaskFromSnapshot(snapshot()) : { tasks: [snapshot()] }
+          ),
       },
     } as never;
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new NudgeCooldown(60_000),
+      cooldown: new RecoveryCooldown(60_000),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
@@ -154,9 +156,11 @@ describe('task inbox delivery integration', () => {
       logEvent: vi.fn(),
       backend: {
         mutation: vi.fn(),
-        query: vi.fn().mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
-          'taskId' in args ? null : { tasks: [row] }
-        ),
+        query: vi
+          .fn()
+          .mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
+            'taskId' in args ? null : { tasks: [row] }
+          ),
       },
     } as never;
     const row = snapshot();
@@ -170,7 +174,7 @@ describe('task inbox delivery integration', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new NudgeCooldown(0),
+      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
@@ -209,7 +213,7 @@ describe('task inbox delivery integration', () => {
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new NudgeCooldown(0),
+      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
@@ -251,15 +255,17 @@ describe('task inbox delivery integration', () => {
       logEvent: vi.fn(),
       backend: {
         mutation: vi.fn(),
-        query: vi.fn().mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
-          'taskId' in args ? full : { tasks: [row] }
-        ),
+        query: vi
+          .fn()
+          .mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
+            'taskId' in args ? full : { tasks: [row] }
+          ),
       },
     } as never;
     const deps = {
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
-      cooldown: new NudgeCooldown(0),
+      cooldown: new RecoveryCooldown(0),
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',

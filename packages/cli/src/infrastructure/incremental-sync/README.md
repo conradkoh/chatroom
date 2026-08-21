@@ -329,7 +329,7 @@ getAssignedTaskForAction (full task.content)
 | Orchestration      | `packages/cli/src/infrastructure/incremental-sync/feed-runtime.ts` (`runDualChannelFeedLive`) |
 | Consumer           | `packages/cli/src/commands/machine/daemon-start/task-monitor.ts`                              |
 | Domain snapshot    | `packages/cli/src/commands/machine/daemon-start/task-monitor-snapshot.ts`                     |
-| Handler logic      | `packages/cli/src/commands/machine/daemon-start/task-monitor-logic.ts`                        |
+| Handler logic      | `packages/cli/src/daemon/entry/task-delivery/task-delivery-logic.ts`                          |
 
 Signal buffer: max 200, dedupe on. Subscribe page limit: 50. Reconcile interval: 15s (matches idle nudge threshold).
 

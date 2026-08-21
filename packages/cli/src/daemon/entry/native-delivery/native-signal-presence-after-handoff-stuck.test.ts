@@ -36,7 +36,7 @@ import {
 } from './native-task-delivery-coordinator.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import { listTasksReadyForNudge, NudgeCooldown } from '../task-monitor/task-monitor-logic.js';
+import { listTasksReadyForNudge, NudgeCooldown } from '../task-delivery/task-delivery-logic.js';
 import { createTaskMonitorSnapshot } from './test-fixtures/task-monitor-snapshot-fixture.js';
 
 const CHATROOM_ID = 'n57ctdnfvd0avh0ghx6p4szk8x8aa69a' as Id<'chatroom_rooms'>;
