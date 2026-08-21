@@ -644,10 +644,6 @@ export default defineSchema({
   chatroom_timelineTaskStatusSignals: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     taskId: v.id('chatroom_tasks'),
-    /** @deprecated — dev cleanup only; remove after cleanup strips legacy rows. */
-    targetMachineId: v.optional(v.string()),
-    /** @deprecated — dev cleanup only. */
-    targetRole: v.optional(v.string()),
     taskStatus: v.union(
       v.literal('pending'),
       v.literal('acknowledged'),

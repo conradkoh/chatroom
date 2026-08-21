@@ -88,30 +88,7 @@ import { internalMutation } from './_generated/server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const cleanup: any = internalMutation({
-  handler: async (ctx: any) => {
-    const rows = await ctx.db.query('chatroom_timelineTaskStatusSignals').collect();
-    let backfilled = 0;
-    let stripped = 0;
-    let skipped = 0;
-    for (const row of rows) {
-      const { targetMachineId, targetRole } = row as { targetMachineId?: string; targetRole?: string };
-      if (targetMachineId && targetRole) {
-        const existing = await ctx.db.query('chatroom_machineTaskStatusSignals')
-          .withIndex('by_machineId_signalKey', (q: any) => q.eq('machineId', targetMachineId).eq('signalKey', row.signalKey)).unique();
-        if (!existing) {
-          await ctx.db.insert('chatroom_machineTaskStatusSignals', {
-            machineId: targetMachineId, chatroomId: row.chatroomId, taskId: row.taskId,
-            targetRole, taskStatus: row.taskStatus, signalKey: row.signalKey, taskUpdatedAt: row.taskUpdatedAt,
-          });
-          backfilled++;
-        }
-      }
-      if (targetMachineId !== undefined || targetRole !== undefined) {
-        await ctx.db.patch(row._id, { targetMachineId: undefined, targetRole: undefined } as never);
-        stripped++;
-      } else skipped++;
-    }
-    console.log(`[dev:cleanup] timeline signals: backfilled=${backfilled} stripped=${stripped} skipped=${skipped} total=${rows.length}`);
-    return { backfilled, stripped, skipped, total: rows.length };
+  handler: async () => {
+    // no-op — see step-by-step workflow above when you need to run a migration.
   },
 });
