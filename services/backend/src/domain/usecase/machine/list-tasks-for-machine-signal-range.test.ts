@@ -59,7 +59,7 @@ async function seed(kind: 'happy' | 'mismatch' | 'missing' | 'norole' | 'page') 
         chatroomId,
         taskId,
         machineId: machineId,
-        targetRole: kind === 'norole' ? undefined : 'builder',
+        targetRole: 'builder',
         taskStatus: 'pending',
         signalKey: key,
         taskUpdatedAt: updatedAt,
