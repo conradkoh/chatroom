@@ -130,6 +130,54 @@ describe('getAgentStatusForChatroom — running agents', () => {
   });
 });
 
+describe('getAgentStatusForChatroom — daemon disconnected', () => {
+  test('returns stopped when agent has PID but daemon is disconnected', async () => {
+    const { sessionId } = await createTestSession('test-gas-disconn-1');
+    const machineId = 'machine-gas-disconn-1';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId: sessionId as any,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 88888,
+    });
+
+    await t.mutation(api.machines.updateDaemonStatus, {
+      sessionId: sessionId as any,
+      machineId,
+      connected: false,
+    });
+
+    const result = await runStatusQuery(chatroomId);
+    const builder = result!.agents.find((a) => a.role === 'builder');
+    expect(builder!.state).toBe('stopped');
+  });
+
+  test('returns stopped when desiredState running but daemon disconnected (no PID)', async () => {
+    const { sessionId } = await createTestSession('test-gas-disconn-2');
+    const machineId = 'machine-gas-disconn-2';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.machines.updateDaemonStatus, {
+      sessionId: sessionId as any,
+      machineId,
+      connected: false,
+    });
+
+    const result = await runStatusQuery(chatroomId);
+    const builder = result!.agents.find((a) => a.role === 'builder');
+    expect(builder!.state).toBe('stopped');
+  });
+});
+
 // ─── Circuit breaker ──────────────────────────────────────────────────────────
 
 describe('getAgentStatusForChatroom — circuit breaker', () => {
