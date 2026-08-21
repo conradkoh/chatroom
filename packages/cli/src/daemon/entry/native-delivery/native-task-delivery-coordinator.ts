@@ -31,8 +31,8 @@ import {
 } from '../restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
-type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
-type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
+type TaskDeliveryRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
+type TaskDeliveryContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
 
 export interface NativeTaskDeliverySessionDeps {
   sessionId: string;
@@ -88,8 +88,8 @@ export class NativeTaskDeliveryCoordinator {
   // fallow-ignore-next-line complexity
   reconcileAssignedTasks(params: {
     tasks: AssignedTaskSnapshotView[];
-    runtime: TaskMonitorRuntime;
-    effectContext: TaskMonitorContext;
+    runtime: TaskDeliveryRuntime;
+    effectContext: TaskDeliveryContext;
     agentMgr: DaemonAgentProcessManagerServiceShape;
     sessionDeps: NativeTaskDeliverySessionDeps;
     machineId: string;

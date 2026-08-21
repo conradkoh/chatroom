@@ -17,12 +17,12 @@ import {
   unregisterNativeDeliverySession,
 } from './native-delivery/native-delivery-session-registry.js';
 import type { NativeTaskDeliverySessionDeps } from './native-delivery/native-task-delivery-coordinator.js';
-import { NudgeCooldown } from './task-monitor/task-monitor-logic.js';
 import {
   processTasksUpdate,
-  type TaskMonitorContext,
-  type TaskMonitorRuntime,
-} from './task-monitor-runtime.js';
+  type TaskDeliveryContext,
+  type TaskDeliveryRuntime,
+} from './native-delivery/task-delivery-processor.js';
+import { NudgeCooldown } from './task-monitor/task-monitor-logic.js';
 import { mapAssignedTaskSnapshotList } from '../../infrastructure/mappers/map-assigned-task.js';
 import {
   clearAssignedTaskSnapshots,
@@ -40,8 +40,8 @@ const INBOX_RESTART_MAX_MS = 30_000;
 
 type TaskInboxDependencies = {
   sessionDeps: NativeTaskDeliverySessionDeps;
-  runtime: TaskMonitorRuntime;
-  effectContext: TaskMonitorContext;
+  runtime: TaskDeliveryRuntime;
+  effectContext: TaskDeliveryContext;
   cooldown: NudgeCooldown;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   machineId: string;

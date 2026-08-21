@@ -33,7 +33,7 @@ import {
   replaceAssignedTaskSnapshots,
 } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import { createTaskMonitorSnapshot } from '../task-monitor/task-monitor-snapshot.js';
+import { createTaskMonitorSnapshot } from './test-fixtures/task-monitor-snapshot-fixture.js';
 
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';

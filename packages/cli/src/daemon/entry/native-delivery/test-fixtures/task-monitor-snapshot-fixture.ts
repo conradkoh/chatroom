@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-file
 /**
  * Task-monitor working snapshot — domain merge rules over shared WorkingSnapshot.
  */
@@ -12,12 +13,12 @@ import type {
   AssignedTaskSnapshotView as BackendAssignedTaskSnapshotView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
-import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
+import type { AssignedTaskSnapshotView } from '../../../../daemon/domain/entities/assigned-task.js';
 import {
   WorkingSnapshot,
   type WorkingSnapshotOptions,
-} from '../../../infrastructure/incremental-sync/working-snapshot.js';
-import { mapAssignedTaskSnapshot } from '../../../infrastructure/mappers/map-assigned-task.js';
+} from '../../../../infrastructure/incremental-sync/working-snapshot.js';
+import { mapAssignedTaskSnapshot } from '../../../../infrastructure/mappers/map-assigned-task.js';
 
 function taskSnapshotKey(taskId: string, role: string): string {
   return `${taskId}:${role}`;

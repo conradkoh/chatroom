@@ -45,12 +45,6 @@ vi.mock('./workspace-git/workspace-list-subscription.js', async () => {
     reconcileWorkspaceList: vi.fn(),
   };
 });
-vi.mock('./task-monitor-runtime.js', async () => {
-  const { Effect } = await import('effect');
-  return {
-    startTaskMonitorEffect: () => Effect.succeed({ stop: vi.fn() }),
-  };
-});
 vi.mock('./handlers/process/log-observer-sync.js', () => ({
   startLogObserverSubscription: () => ({ stop: vi.fn() }),
 }));

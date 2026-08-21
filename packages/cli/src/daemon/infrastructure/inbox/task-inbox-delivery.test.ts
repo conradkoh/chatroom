@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { handleTaskInboxUpdate, mergeSnapshotsIntoStore } from './task-inbox-delivery.js';
 import {
   clearAssignedTaskSnapshots,
   listAssignedTaskSnapshots,
   replaceAssignedTaskSnapshots,
 } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
-import { handleTaskInboxUpdate, mergeSnapshotsIntoStore } from './task-inbox-delivery.js';
+import { processTasksUpdate } from '../../entry/native-delivery/task-delivery-processor.js';
 
-vi.mock('../../entry/task-monitor-runtime.js', () => ({
+vi.mock('../../entry/native-delivery/task-delivery-processor.js', () => ({
   processTasksUpdate: vi.fn().mockResolvedValue(undefined),
 }));
-import { processTasksUpdate } from '../../entry/task-monitor-runtime.js';
 
 function makeRow(overrides: Partial<AssignedTaskSnapshotView> = {}): AssignedTaskSnapshotView {
   return {
@@ -48,10 +49,27 @@ describe('task inbox delivery', () => {
 
   it('stores snapshots and processes them as signal delivery', async () => {
     const row = makeRow();
-    await handleTaskInboxUpdate({ snapshots: [row] } as never, {
-      runtime: {}, effectContext: {}, cooldown: {}, agentMgr: {}, sessionDeps: {}, machineId: 'machine-1',
-    } as never);
+    await handleTaskInboxUpdate(
+      { snapshots: [row] } as never,
+      {
+        runtime: {},
+        effectContext: {},
+        cooldown: {},
+        agentMgr: {},
+        sessionDeps: {},
+        machineId: 'machine-1',
+      } as never
+    );
     expect(listAssignedTaskSnapshots()).toEqual([row]);
-    expect(processTasksUpdate).toHaveBeenCalledWith(row ? [row] : [], expect.anything(), expect.anything(), expect.anything(), expect.anything(), expect.anything(), 'machine-1', 'signal');
+    expect(processTasksUpdate).toHaveBeenCalledWith(
+      row ? [row] : [],
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      'machine-1',
+      'signal'
+    );
   });
 });

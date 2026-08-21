@@ -32,7 +32,7 @@ import {
 import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import { createTaskMonitorSnapshot } from '../task-monitor/task-monitor-snapshot.js';
+import { createTaskMonitorSnapshot } from './test-fixtures/task-monitor-snapshot-fixture.js';
 
 const HARNESS_SESSION_ID = 'harness-user-message';
 const MACHINE_ID = 'machine-user-message-pending';

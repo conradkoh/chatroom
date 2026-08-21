@@ -9,7 +9,7 @@ import { runTaskInbox } from '../infrastructure/inbox/task.js';
 const processTasksUpdate = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('../infrastructure/inbox/task.js', () => ({ runTaskInbox: vi.fn() }));
-vi.mock('./task-monitor-runtime.js', () => ({ processTasksUpdate }));
+vi.mock('./native-delivery/task-delivery-processor.js', () => ({ processTasksUpdate }));
 
 beforeEach(() => vi.mocked(runTaskInbox).mockReset());
 

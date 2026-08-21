@@ -1,3 +1,4 @@
+// fallow-ignore-file complexity
 /**
  * Task Monitor — indexed snapshot projection + WS signal/presence subscribe.
  *
@@ -10,7 +11,6 @@
  * Dual-channel WorkingSnapshot hydrate still uses one-shot HTTP.
  */
 
-import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliability.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import {
   shouldEmitSessionAugmentation,
@@ -18,68 +18,51 @@ import {
   sessionAugmentationNewSessionStarted,
   sessionAugmentationToWantResume,
 } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
-import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
-import type { ConvexClient } from 'convex/browser';
 import { Effect, Runtime, type Context } from 'effect';
 
-import {
+import type {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
   type DaemonAgentProcessManagerServiceShape,
-} from './daemon-services.js';
-import type { AgentHarness } from './daemon-types.js';
-import { formatTimestamp } from './daemon-utils.js';
-import { logNativeDeliveryFallback } from './native-delivery/native-delivery-log.js';
-import {
-  registerNativeDeliverySession,
-  unregisterNativeDeliverySession,
-} from './native-delivery/native-delivery-session-registry.js';
-import { isAgentReadyForNativeDelivery } from './native-delivery/native-ready-invariant.js';
+} from '../daemon-services.js';
+import type { AgentHarness } from '../daemon-types.js';
+import { logNativeDeliveryFallback } from './native-delivery-log.js';
 import {
   getNativeTaskDeliveryCoordinator,
   resetRoleDeliveryState,
   type NativeTaskDeliverySessionDeps,
-} from './native-delivery/native-task-delivery-coordinator.js';
-import { isNativeHarness } from './native-delivery/native-task-injector-logic.js';
+} from './native-task-delivery-coordinator.js';
+import { isNativeHarness } from './native-task-injector-logic.js';
+import { api } from '../../../api.js';
+import { isProcessAlive } from '../../../infrastructure/deps/process.js';
+import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
+import type {
+  AssignedTaskSnapshotView,
+  AssignedTaskWithContent,
+} from '../../domain/entities/assigned-task.js';
+import { isTeamAgentRole } from '../../domain/entities/execution-kind.js';
+import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
 import {
   filterSnapshotsExcludingRestartInFlight,
   isRestartOrchestratorInFlight,
-} from './restart-orchestrator-in-flight.js';
-import { getRoleDeliveryState } from './role-delivery-state.js';
-import type { NudgeCooldown } from './task-monitor/task-monitor-logic.js';
+} from '../restart-orchestrator-in-flight.js';
+import { getRoleDeliveryState } from '../role-delivery-state.js';
 import {
   listTasksReadyForNudge,
   listNativeTasksNeedingRevive,
   shouldEscalateNativeNudgeToRestart,
-} from './task-monitor/task-monitor-logic.js';
-import { api } from '../../api.js';
-import { isProcessAlive } from '../../infrastructure/deps/process.js';
-import {
-  mapAssignedTaskSnapshotList,
-  mapAssignedTaskView,
-} from '../../infrastructure/mappers/map-assigned-task.js';
-import {
-  clearAssignedTaskSnapshots,
-  hasAssignedTaskSnapshot,
-  listAssignedTaskSnapshots,
-  replaceAssignedTaskSnapshots,
-} from '../../infrastructure/stores/assigned-task-snapshot-store.js';
-import { getErrorMessage } from '../../utils/convex-error.js';
-import type {
-  AssignedTaskSnapshotView,
-  AssignedTaskWithContent,
-} from '../domain/entities/assigned-task.js';
-import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
-import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
+} from '../task-monitor/task-monitor-logic.js';
+import type { NudgeCooldown } from '../task-monitor/task-monitor-logic.js';
 
-export type TaskMonitorRuntime = Runtime.Runtime<
+export type TaskDeliveryRuntime = Runtime.Runtime<
   DaemonSessionService | DaemonAgentProcessManagerService
 >;
-export type TaskMonitorContext = Context.Context<
+export type TaskDeliveryContext = Context.Context<
   DaemonSessionService | DaemonAgentProcessManagerService
 >;
 
-type TaskMonitorPass = 'signal' | 'presence';
+type TaskDeliveryPass = 'signal' | 'presence';
 
 function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
@@ -126,8 +109,8 @@ function resolveTaskRunnerContextFromFull(task: AssignedTaskWithContent):
 
 function executeCliNudge(
   task: AssignedTaskWithContent,
-  runtime: TaskMonitorRuntime,
-  effectContext: TaskMonitorContext,
+  runtime: TaskDeliveryRuntime,
+  effectContext: TaskDeliveryContext,
   agentMgr: DaemonAgentProcessManagerServiceShape,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string
@@ -192,8 +175,8 @@ function executeCliNudge(
 
 function runNativeReviveEffect(
   task: AssignedTaskWithContent,
-  runtime: TaskMonitorRuntime,
-  effectContext: TaskMonitorContext,
+  runtime: TaskDeliveryRuntime,
+  effectContext: TaskDeliveryContext,
   agentMgr: DaemonAgentProcessManagerServiceShape
 ): void {
   const ctx = resolveTaskRunnerContextFromFull(task);
@@ -244,8 +227,8 @@ async function fetchTaskForAction(
 
 function runCliNudgeEffect(
   task: AssignedTaskWithContent,
-  runtime: TaskMonitorRuntime,
-  effectContext: TaskMonitorContext,
+  runtime: TaskDeliveryRuntime,
+  effectContext: TaskDeliveryContext,
   agentMgr: DaemonAgentProcessManagerServiceShape,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string
@@ -269,8 +252,8 @@ async function nudgeStuckTasks(
   tasks: AssignedTaskSnapshotView[],
   now: number,
   cooldown: NudgeCooldown,
-  runtime: TaskMonitorRuntime,
-  effectContext: TaskMonitorContext,
+  runtime: TaskDeliveryRuntime,
+  effectContext: TaskDeliveryContext,
   agentMgr: DaemonAgentProcessManagerServiceShape,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string
@@ -337,8 +320,8 @@ async function reviveNativeTasks(
   },
   now: number,
   cooldown: NudgeCooldown,
-  runtime: TaskMonitorRuntime,
-  effectContext: TaskMonitorContext,
+  runtime: TaskDeliveryRuntime,
+  effectContext: TaskDeliveryContext,
   agentMgr: DaemonAgentProcessManagerServiceShape,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string
@@ -354,13 +337,13 @@ async function reviveNativeTasks(
 
 export async function processTasksUpdate(
   tasks: AssignedTaskSnapshotView[],
-  runtime: TaskMonitorRuntime,
-  effectContext: TaskMonitorContext,
+  runtime: TaskDeliveryRuntime,
+  effectContext: TaskDeliveryContext,
   cooldown: NudgeCooldown,
   agentMgr: DaemonAgentProcessManagerServiceShape,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
-  _pass: TaskMonitorPass
+  _pass: TaskDeliveryPass
 ): Promise<void> {
   const filteredTasks = filterSnapshotsExcludingRestartInFlight(tasks);
   if (filteredTasks.length === 0) return;
@@ -410,151 +393,3 @@ export async function processTasksUpdate(
     machineId
   );
 }
-
-function listDeliverablePendingFromStore(
-  agentMgr: DaemonAgentProcessManagerServiceShape
-): AssignedTaskSnapshotView[] {
-  if (!hasAssignedTaskSnapshot()) return [];
-  return listAssignedTaskSnapshots().filter((row) => {
-    if (row.status !== 'pending') return false;
-    const slot = agentMgr.getSlot(row.chatroomId, row.agentConfig.role);
-    return isAgentReadyForNativeDelivery(row, slot);
-  });
-}
-
-function runLocalStoreReconcilePass(params: {
-  stopped: boolean;
-  monitorPassInFlight: boolean;
-  agentMgr: DaemonAgentProcessManagerServiceShape;
-  runtime: TaskMonitorRuntime;
-  effectContext: TaskMonitorContext;
-  sessionDeps: NativeTaskDeliverySessionDeps;
-  machineId: string;
-}): void {
-  const { stopped, monitorPassInFlight, agentMgr, runtime, effectContext, sessionDeps, machineId } =
-    params;
-  if (stopped || monitorPassInFlight) return;
-  const deliverable = filterSnapshotsExcludingRestartInFlight(
-    listDeliverablePendingFromStore(agentMgr)
-  );
-  if (deliverable.length === 0) return;
-  const first = deliverable[0];
-  logNativeDeliveryFallback(
-    'periodic-reconcile',
-    first.agentConfig.role,
-    first.chatroomId,
-    first.taskId
-  );
-  getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
-    tasks: deliverable,
-    runtime,
-    effectContext,
-    agentMgr,
-    sessionDeps,
-    machineId,
-  });
-}
-
-function subscribeAssignedTaskSnapshotStore(
-  wsClient: ConvexClient,
-  args: { sessionId: string; machineId: string },
-  isStopped: () => boolean
-): () => void {
-  return wsClient.onUpdate(
-    api.machines.listMachineAssignedTaskSnapshots,
-    args as never,
-    (result) => {
-      if (isStopped()) return;
-      const tasks = mapAssignedTaskSnapshotList(
-        parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? [])
-      );
-      replaceAssignedTaskSnapshots(tasks);
-    },
-    (err: unknown) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Assigned-task snapshot subscription error: ${getErrorMessage(err)}`
-      );
-    }
-  );
-}
-
-// fallow-ignore-next-line complexity
-export const startTaskMonitorEffect = (
-  wsClient: ConvexClient
-): Effect.Effect<
-  { stop: () => void },
-  never,
-  DaemonSessionService | DaemonAgentProcessManagerService
-> =>
-  // fallow-ignore-next-line complexity
-  Effect.gen(function* () {
-    const session = yield* DaemonSessionService;
-    const agentMgr = yield* DaemonAgentProcessManagerService;
-    const effectContext = yield* Effect.context<
-      DaemonSessionService | DaemonAgentProcessManagerService
-    >();
-    const runtime = yield* Effect.runtime<
-      DaemonSessionService | DaemonAgentProcessManagerService
-    >();
-
-    console.log(`[${formatTimestamp()}] 📋 Starting task-monitor (incremental subscribe)`);
-
-    let stopped = false;
-    const monitorPassInFlight = false;
-
-    const sessionDeps: NativeTaskDeliverySessionDeps = {
-      sessionId: session.sessionId,
-      convexUrl: session.convexUrl,
-      machineId: session.machineId,
-      logEvent: session.logEvent,
-      backend: {
-        mutation: (fn: unknown, args: Record<string, unknown>) =>
-          session.backend.mutation(fn, args),
-        query: (fn: unknown, args: Record<string, unknown>) => session.backend.query(fn, args),
-      },
-    };
-
-    registerNativeDeliverySession({
-      runtime,
-      effectContext,
-      agentMgr,
-      sessionDeps,
-      machineId: session.machineId,
-    });
-
-    const unsubscribeSnapshotStore = subscribeAssignedTaskSnapshotStore(
-      wsClient,
-      { sessionId: session.sessionId, machineId: session.machineId },
-      () => stopped
-    );
-
-    const reconcileTimer = setInterval(() => {
-      runLocalStoreReconcilePass({
-        stopped,
-        monitorPassInFlight,
-        agentMgr,
-        runtime,
-        effectContext,
-        sessionDeps,
-        machineId: session.machineId,
-      });
-    }, NATIVE_DELIVERY_RECONCILE_MS);
-
-    yield* Effect.tryPromise(() =>
-      session.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
-        sessionId: session.sessionId,
-        machineId: session.machineId,
-      })
-    ).pipe(Effect.catchAll(() => Effect.void));
-
-    return {
-      stop() {
-        stopped = true;
-        unsubscribeSnapshotStore();
-        clearAssignedTaskSnapshots();
-        unregisterNativeDeliverySession();
-        clearInterval(reconcileTimer);
-        console.log(`[${formatTimestamp()}] 📋 Task-monitor stopped`);
-      },
-    };
-  });
