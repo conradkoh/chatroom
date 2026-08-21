@@ -623,6 +623,16 @@ export const migrateMachineTaskStatusSignals = migrations.define({
   },
 });
 
+export const stripTimelineMachineSignalFields = migrations.define({
+  table: 'chatroom_timelineTaskStatusSignals',
+  migrateOne: async (_ctx, row) => {
+    const r = row as { targetMachineId?: string; targetRole?: string };
+    if (r.targetMachineId !== undefined || r.targetRole !== undefined) {
+      return { targetMachineId: undefined, targetRole: undefined } as never;
+    }
+  },
+});
+
 /**
  * Run all migrations in order.
  * Usage: pnpm migrate  (from repo root; CI uses the same command with CONVEX_DEPLOY_KEY set)
@@ -648,6 +658,7 @@ export const runAll = migrations.runner([
   internal.migrations.deduplicateTeamAgentConfigs,
   internal.migrations.purgeWorkspaceCommitDetails,
   internal.migrations.migrateMachineTaskStatusSignals,
+  internal.migrations.stripTimelineMachineSignalFields,
   // Workspace File Tree
   internal.migrations.compactWorkspaceFileTreeDeltaOperations,
   // Git State
