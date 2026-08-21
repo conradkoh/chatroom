@@ -9,7 +9,7 @@
  * transitions, spawn/stop/exit brackets, restart decisions) is delegated
  * to AgentLifecycleService. APM retains: killExistingBeforeSpawn,
  * crash-loop gate, fs validation, init-prompt fetch, daemon-memory resume,
- * backend mutations and local event logging (updateSpawnedAgent, etc.),
+ * lifecycle outbox enqueue and local event logging (spawned/exited facts, etc.),
  * recover(), turn-end queue, exit retry queue, lastHarnessSessions.
  *
  * State model per (chatroomId, role):
