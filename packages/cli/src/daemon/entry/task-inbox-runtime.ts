@@ -21,7 +21,7 @@ import {
   type TaskDeliveryContext,
   type TaskDeliveryRuntime,
 } from './native-delivery/task-delivery-processor.js';
-import { NudgeCooldown } from './task-delivery/task-delivery-logic.js';
+import { RecoveryCooldown } from './task-delivery/task-delivery-logic.js';
 import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
 import { handleTaskInboxUpdate } from '../infrastructure/inbox/task-inbox-delivery.js';
@@ -128,7 +128,7 @@ export const startTaskInboxEffect = (
       sessionDeps,
       machineId: session.machineId,
     });
-    const cooldown = new NudgeCooldown();
+    const cooldown = new RecoveryCooldown();
     const inboxOptions: Parameters<typeof runTaskInbox>[0] = {
       client: wsClient,
       sessionId: session.sessionId as SessionId,

@@ -189,7 +189,6 @@ export class RecoveryCooldown {
   }
 }
 
-export { RecoveryCooldown as NudgeCooldown };
 
 function isTaskReadyForNudge(
   task: AssignedTaskSnapshotView,
