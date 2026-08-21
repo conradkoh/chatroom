@@ -122,6 +122,15 @@ flowchart TD
 
 ### Phase 3 — Reader migration (one PR commit per reader)
 
+### Bandwidth constraints
+
+Operational projection hot paths use role-scoped indexed reads and writes: config
+patches, lifecycle transitions, and daemon connectivity changes do not scan a
+whole chatroom. Full chatroom scans are reserved for team switches (where stale
+role rows must be pruned) and explicit machine backfill. Summary rows carry the
+remote configuration count so `none` versus `stopped` can be maintained without
+reloading all configs.
+
 - [ ] `getAgentStatusForChatroom` reads materialized role rows
 - [ ] `listChatroomAgentOverview` reads summary rows
 - [ ] `getTeamLifecycle` reads `isAlive` from role rows

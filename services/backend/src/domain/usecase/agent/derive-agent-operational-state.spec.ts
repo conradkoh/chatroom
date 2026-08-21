@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import {
+  applyRoleToSummary,
   deriveAgentOperationalState,
   deriveRoleOperationalState,
+  removeRoleFromSummary,
+  recomputeAgentStatus,
 } from './derive-agent-operational-state';
 const base = { role: 'builder', teamId: 'team', machineId: 'm' };
 describe('derive agent operational state', () => {
@@ -32,5 +35,34 @@ describe('derive agent operational state', () => {
     expect(result.summary.aliveRoles).toEqual(['builder']);
     expect(result.summary.runningRoles).toEqual([]);
     expect(result.summary.agentStatus).toBe('stopped');
+  });
+  test('applies and removes role deltas while preserving alive/running arrays', () => {
+    const summary = {
+      teamId: 'team',
+      agentStatus: 'none' as const,
+      runningRoles: [],
+      aliveRoles: [],
+      runningAgents: [],
+      remoteConfigCount: 0,
+    };
+    const projection = deriveRoleOperationalState({ ...base, spawnedAgentPid: 1 }, true);
+    const running = applyRoleToSummary(summary, projection);
+    expect(running.remoteConfigCount).toBe(1);
+    expect(running.agentStatus).toBe('running');
+    expect(running.runningRoles).toEqual(['builder']);
+    expect(running.aliveRoles).toEqual(['builder']);
+    expect(running.runningAgents).toEqual([{ role: 'builder', machineId: 'm' }]);
+    const removed = removeRoleFromSummary(running, 'builder');
+    expect(removed.remoteConfigCount).toBe(0);
+    expect(removed.agentStatus).toBe('none');
+    expect(removed.runningRoles).toEqual([]);
+    expect(removed.aliveRoles).toEqual([]);
+  });
+  test('recomputes none, stopped, and running statuses from summary deltas', () => {
+    expect(recomputeAgentStatus({ remoteConfigCount: 0, runningRoles: [] })).toBe('none');
+    expect(recomputeAgentStatus({ remoteConfigCount: 1, runningRoles: [] })).toBe('stopped');
+    expect(recomputeAgentStatus({ remoteConfigCount: 1, runningRoles: ['builder'] })).toBe(
+      'running'
+    );
   });
 });
