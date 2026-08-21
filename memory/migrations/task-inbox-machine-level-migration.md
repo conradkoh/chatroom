@@ -83,7 +83,7 @@ After machine-level inbox delivery has parity and recovery coverage, remove the 
 
 - [x] Remove the old assigned-task signal and presence subscribers from the daemon subscriber registry.
       Assigned-task signal/presence subscribers are unregistered from `subscriber-registry.ts`; task inbox is the sole discovery path.
-- [ ] Remove the task-monitor runtime, local task snapshot store, and snapshot-only reconciliation/nudge/revive logic that the inbox replaces. **→ Stages 2–3**
+- [ ] Remove the task-monitor runtime, local task snapshot store, and snapshot-only reconciliation/nudge/revive logic that the inbox replaces. **→ Stages 2–3** (monitor runtime removed in Stage 2; snapshot store remains for Stage 3)
 - [ ] Remove chatroom-scoped daemon inbox endpoints and compatibility code once no consumers remain; retain the chatroom index if the webapp still uses it. **→ Stage 4 (backend)**
 - [ ] Remove obsolete signal fields, indexes, tests, and fixtures only after confirming their consumers are gone. **→ Stage 4 (backend)**
 - [ ] Update daemon architecture documentation and memory records, then delete or mark completed migration-only tracking notes. **→ Stage 4 (docs)**
@@ -97,7 +97,7 @@ _Last updated: 2026-08-21 — four validation stages; production breakage is acc
 | Stage | Scope                                                                  | Maps to           | Risk        | Validation                      | Status     |
 | ----- | ---------------------------------------------------------------------- | ----------------- | ----------- | ------------------------------- | ---------- |
 | **1** | Delete dead WS discovery chain, bridge/router, and monitor-only tests  | Cleanup item 1    | Low         | Daemon starts and task delivers | ✅ Done    |
-| **2** | Extract `task-delivery-processor.ts`; delete `task-monitor-runtime.ts` | Cleanup item 2    | Medium      | Full delivery matrix            | ⬜ Pending |
+| **2** | Extract `task-delivery-processor.ts`; delete `task-monitor-runtime.ts` | Cleanup item 2    | Medium      | Full delivery matrix            | ✅ Done    |
 | **3** | Remove global snapshot store; coordinator rehydrates from backend      | Cleanup item 2    | Medium–high | Delivery, restart, idempotency  | ⬜ Pending |
 | **4** | Remove backend dead subscribe APIs and archive docs                    | Cleanup items 3–5 | Medium      | Backend + daemon deploy smoke   | ⬜ Pending |
 
@@ -110,6 +110,8 @@ Completed in this commit batch: `a72b634ee`, `df318ffab`, and the monitor-only t
 Delete the assigned-task signal/presence subscribers and feeds, assigned-task bridge and inbound use cases, assigned-task monitor registry, and monitor-only tests. Edit `event-router.ts`, `default-router-deps.ts`, their tests, and subscriber/incremental-sync READMEs. Acceptance: `rg 'assigned-task-bridge|startAssignedTask|assigned-task\.signal'` returns zero in production CLI; CLI tests pass.
 
 ### Stage 2 — Delivery refactor
+
+Completed in commit `c641d9a9d`; the monitor runtime was removed and delivery processing now lives in the native-delivery processor. The snapshot store remains for Stage 3.
 
 Create `packages/cli/src/daemon/entry/native-delivery/task-delivery-processor.ts` by moving `processTasksUpdate` and renaming runtime/context types. Delete `task-monitor-runtime.ts` and monitor snapshot implementation/tests; update inbox runtime/delivery and affected daemon tests. Keep `task-monitor-logic.ts` for `NudgeCooldown`. Acceptance: inbox integration/runtime tests pass and `rg 'startTaskMonitorEffect|task-monitor-runtime'` returns zero.
 
