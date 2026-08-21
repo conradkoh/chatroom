@@ -18,7 +18,11 @@ function pendingTaskTrustsLocalSlot(
   task: AssignedTaskSnapshotView,
   slot: AgentSlot | undefined
 ): boolean {
-  return task.status === 'pending' && isLocallyReadyNativeSlot(slot);
+  return (
+    task.status === 'pending' &&
+    !isAgentDesiredRunning(task.agentConfig.desiredState) &&
+    isLocallyReadyNativeSlot(slot)
+  );
 }
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
