@@ -11,3 +11,9 @@ export {
   type WorkspaceFileTreeDeltaDeliveryUnit,
   type WorkspaceFileTreeDeltaOutboxRegistry,
 } from './workspace-file-tree-delta-outbox.js';
+export {
+  createAgentLifecycleOutboxRegistry,
+  AGENT_LIFECYCLE_OUTBOX_BATCH_SIZE,
+  type AgentLifecycleOutboxRegistry,
+  type AgentLifecycleOutboxResult,
+} from './agent-lifecycle-outbox.js';
