@@ -194,7 +194,7 @@ describe('native queued delivery after agent_end', () => {
 
     const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
       const a = args as Record<string, unknown>;
-      if (a && 'machineId' in a) {
+      if (a && 'machineId' in a && !('taskId' in a)) {
         return { tasks: [baseRow] };
       }
       if (a && 'chatroomId' in a && 'taskId' in a) {

@@ -239,7 +239,7 @@ describe('native signal-presence stuck after planner handoff', () => {
         backend: {
           mutation: vi.fn(),
           query: vi.fn(async (_fn: unknown, args: unknown) => {
-            if (args && typeof args === 'object' && 'machineId' in args) {
+            if (args && typeof args === 'object' && 'machineId' in args && !('taskId' in args)) {
               return { tasks: [row] };
             }
             return { fullCliOutput: 'SHOULD NOT REACH' };

@@ -79,7 +79,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
 
     const row = makeRow();
     const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
-      if (args && typeof args === 'object' && 'machineId' in args) {
+      if (args && typeof args === 'object' && 'machineId' in args && !('taskId' in args)) {
         return { tasks: [row] };
       }
       if (args && typeof args === 'object' && 'chatroomId' in args) {
