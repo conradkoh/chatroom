@@ -35,10 +35,6 @@ import {
   notifyNativeTurnIdle,
 } from './native-task-delivery-coordinator.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
-import {
-  clearAssignedTaskSnapshots,
-  replaceAssignedTaskSnapshots,
-} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { listTasksReadyForNudge, NudgeCooldown } from '../task-monitor/task-monitor-logic.js';
 import { createTaskMonitorSnapshot } from './test-fixtures/task-monitor-snapshot-fixture.js';
@@ -189,7 +185,6 @@ describe('native signal-presence stuck after planner handoff', () => {
 
   test('reproduces stuck when notifyNativeTurnIdle already ran before pending task existed', async () => {
     unregisterNativeDeliverySession();
-    clearAssignedTaskSnapshots();
 
     const backendQuery = vi.fn(async () => ({ tasks: [] }));
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
@@ -214,12 +209,12 @@ describe('native signal-presence stuck after planner handoff', () => {
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    // Store empty when turn went idle — primary path finds nothing (no HTTP hydrate).
+    // Backend has no matching task when turn went idle.
     notifyNativeTurnIdle({ chatroomId: CHATROOM_ID, role: 'planner' });
-    expect(backendQuery).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(backendQuery).toHaveBeenCalled());
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining(
-        '[NativeDelivery:skip] planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a — no pending tasks for role'
+        '[NativeDelivery:primary] turn idle planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a — trying inject'
       )
     );
     resumeTurnForSlot.mockClear();
@@ -228,7 +223,6 @@ describe('native signal-presence stuck after planner handoff', () => {
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makePostHandoffPendingSnapshotDoc()));
     expect(row).toBeDefined();
-    replaceAssignedTaskSnapshots([row!]);
 
     simulateSignalPresenceReconcile({
       row: row!,
@@ -244,7 +238,12 @@ describe('native signal-presence stuck after planner handoff', () => {
         logEvent: async () => undefined,
         backend: {
           mutation: vi.fn(),
-          query: vi.fn(async () => ({ fullCliOutput: 'SHOULD NOT REACH' })),
+          query: vi.fn(async (_fn: unknown, args: unknown) => {
+            if (args && typeof args === 'object' && 'machineId' in args) {
+              return { tasks: [row] };
+            }
+            return { fullCliOutput: 'SHOULD NOT REACH' };
+          }),
         },
       },
     });
@@ -256,7 +255,6 @@ describe('native signal-presence stuck after planner handoff', () => {
       expect.stringContaining('[NativeDelivery:skip] planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a')
     );
 
-    clearAssignedTaskSnapshots();
     unregisterNativeDeliverySession();
     logSpy.mockRestore();
   });

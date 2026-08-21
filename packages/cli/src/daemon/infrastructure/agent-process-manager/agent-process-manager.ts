@@ -21,6 +21,7 @@
  */
 
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
+import { getNativeTaskDeliveryCoordinator } from '../../entry/native-delivery/native-task-delivery-coordinator.js';
 import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
@@ -2009,6 +2010,9 @@ export class AgentProcessManager {
       setNativeTurnPhase(slot, defaultNativeTurnPhase());
     }
     await this.emitNativeWaiting(opts.chatroomId, opts.role, opts.agentHarness);
+    if (getHarnessCapabilities(opts.agentHarness).supportsNativeIntegration) {
+      getNativeTaskDeliveryCoordinator().tryInjectNextForRole(opts.chatroomId, opts.role);
+    }
   }
 
   private async emitNativeWaiting(

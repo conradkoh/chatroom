@@ -28,10 +28,6 @@ import {
 } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
-import {
-  clearAssignedTaskSnapshots,
-  replaceAssignedTaskSnapshots,
-} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { createTaskMonitorSnapshot } from './test-fixtures/task-monitor-snapshot-fixture.js';
 
@@ -171,7 +167,6 @@ describe('native queued delivery after agent_end', () => {
 
   test('notifyNativeTurnIdle injects promoted pending task via event path', async () => {
     unregisterNativeDeliverySession();
-    clearAssignedTaskSnapshots();
     const now = 1_700_000_000_000;
 
     const baseRow = {
@@ -196,10 +191,12 @@ describe('native queued delivery after agent_end', () => {
       },
     };
 
-    replaceAssignedTaskSnapshots([baseRow]);
 
     const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
       const a = args as Record<string, unknown>;
+      if (a && 'machineId' in a) {
+        return { tasks: [baseRow] };
+      }
       if (a && 'chatroomId' in a && 'taskId' in a) {
         return { fullCliOutput: 'EVENT DRIVEN OUTPUT' };
       }
@@ -276,7 +273,6 @@ describe('native queued delivery after agent_end', () => {
     } finally {
       logSpy.mockRestore();
       unregisterNativeDeliverySession();
-      clearAssignedTaskSnapshots();
     }
   });
 });

@@ -3,7 +3,6 @@ import { Context, Effect, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { handleTaskInboxUpdate } from './task-inbox-delivery.js';
-import { clearAssignedTaskSnapshots } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import {
   registerNativeDeliverySession,
   unregisterNativeDeliverySession,
@@ -60,7 +59,6 @@ function createAgentMgrMock(overrides: Record<string, unknown> = {}): never {
 
 describe('task inbox delivery integration', () => {
   afterEach(() => {
-    clearAssignedTaskSnapshots();
     unregisterNativeDeliverySession();
     vi.clearAllMocks();
   });
@@ -74,7 +72,9 @@ describe('task inbox delivery integration', () => {
       logEvent: vi.fn(),
       backend: {
         mutation: vi.fn(),
-        query: vi.fn().mockImplementation(async () => fullTaskFromSnapshot(snapshot())),
+        query: vi.fn().mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
+          'taskId' in args ? fullTaskFromSnapshot(snapshot()) : { tasks: [snapshot()] }
+        ),
       },
     } as never;
     const row = snapshot();
@@ -108,7 +108,9 @@ describe('task inbox delivery integration', () => {
       logEvent: vi.fn(),
       backend: {
         mutation: vi.fn(),
-        query: vi.fn().mockImplementation(async () => fullTaskFromSnapshot(snapshot())),
+        query: vi.fn().mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
+          'taskId' in args ? fullTaskFromSnapshot(snapshot()) : { tasks: [snapshot()] }
+        ),
       },
     } as never;
     const deps = {
@@ -150,7 +152,12 @@ describe('task inbox delivery integration', () => {
       convexUrl: 'http://test',
       machineId: 'machine-1',
       logEvent: vi.fn(),
-      backend: { mutation: vi.fn(), query: vi.fn().mockResolvedValue(null) },
+      backend: {
+        mutation: vi.fn(),
+        query: vi.fn().mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
+          'taskId' in args ? null : { tasks: [row] }
+        ),
+      },
     } as never;
     const row = snapshot();
     registerNativeDeliverySession({
@@ -195,7 +202,7 @@ describe('task inbox delivery integration', () => {
         query: vi
           .fn()
           .mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
-            'taskId' in args && 'role' in args ? full : { taskContent: 'content' }
+            'taskId' in args && 'role' in args ? full : { tasks: [row] }
           ),
       },
     } as never;
@@ -244,7 +251,9 @@ describe('task inbox delivery integration', () => {
       logEvent: vi.fn(),
       backend: {
         mutation: vi.fn(),
-        query: vi.fn().mockResolvedValue(full),
+        query: vi.fn().mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
+          'taskId' in args ? full : { tasks: [row] }
+        ),
       },
     } as never;
     const deps = {
