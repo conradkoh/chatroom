@@ -221,4 +221,54 @@ describe('task inbox delivery integration', () => {
     await vi.waitFor(() => expect(ensureRunning).toHaveBeenCalledOnce());
     expect(runNativeInjectionEffect).not.toHaveBeenCalled();
   });
+
+  test('wakes agent when pending snapshot has desiredState stopped', async () => {
+    const ensureRunning = vi.fn().mockResolvedValue({ success: true, pid: 99_002 });
+    const agentMgr = createAgentMgrMock({
+      getSlot: vi.fn().mockReturnValue(undefined),
+      ensureRunning,
+    });
+    const row = {
+      ...snapshot(),
+      agentConfig: {
+        ...snapshot().agentConfig,
+        spawnedAgentPid: undefined,
+        desiredState: 'stopped' as const,
+      },
+    };
+    const full = fullTaskFromSnapshot(row as unknown as ReturnType<typeof snapshot>);
+    const sessionDeps = {
+      sessionId: 'session-1',
+      convexUrl: 'http://test',
+      machineId: 'machine-1',
+      logEvent: vi.fn(),
+      backend: {
+        mutation: vi.fn(),
+        query: vi.fn().mockResolvedValue(full),
+      },
+    } as never;
+    const deps = {
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      cooldown: new NudgeCooldown(0),
+      agentMgr,
+      sessionDeps,
+      machineId: 'machine-1',
+    };
+    registerNativeDeliverySession({
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      agentMgr,
+      sessionDeps,
+      machineId: 'machine-1',
+    });
+    await handleTaskInboxUpdate(
+      { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
+      deps
+    );
+    await vi.waitFor(() => expect(ensureRunning).toHaveBeenCalledOnce());
+    expect(ensureRunning).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'platform.pending_task_wake' })
+    );
+  });
 });

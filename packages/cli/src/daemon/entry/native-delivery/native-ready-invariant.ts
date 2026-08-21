@@ -8,6 +8,19 @@ import {
 import { isSlotRunning, isTurnPhaseIdle } from '../../../daemon/domain/usecase/check-agent-slot.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 
+function isLocallyReadyNativeSlot(slot: AgentSlot | undefined): boolean {
+  if (!slot || !isSlotRunning(slot.state)) return false;
+  if (typeof slot.harnessSessionId !== 'string' || slot.harnessSessionId.length === 0) return false;
+  return true;
+}
+
+function pendingTaskTrustsLocalSlot(
+  task: AssignedTaskSnapshotView,
+  slot: AgentSlot | undefined
+): boolean {
+  return task.status === 'pending' && isLocallyReadyNativeSlot(slot);
+}
+
 /** Agent is ready for native task delivery (post-restart or steady-state). */
 export function isAgentReadyForNativeDelivery(
   task: AssignedTaskSnapshotView,
@@ -26,11 +39,12 @@ export function explainAgentReadyForNativeDeliveryBlock(
   if (!isNativeHarness(agentConfig.agentHarness)) {
     return `not_native_harness (harness=${agentConfig.agentHarness})`;
   }
+  const trustsLocalSlot = pendingTaskTrustsLocalSlot(task, slot);
   if (!isAgentDesiredRunning(agentConfig.desiredState)) {
-    return `desired_state_not_running (desiredState=${agentConfig.desiredState})`;
+    if (!trustsLocalSlot) return `desired_state_not_running (desiredState=${agentConfig.desiredState})`;
   }
   if (agentConfig.spawnedAgentPid == null) {
-    return 'spawned_pid_missing';
+    if (!trustsLocalSlot) return 'spawned_pid_missing';
   }
   if (!slot) {
     return `slot_missing (expectedPid=${agentConfig.spawnedAgentPid})`;
@@ -39,7 +53,9 @@ export function explainAgentReadyForNativeDeliveryBlock(
     return `slot_not_running (slotState=${slot.state}, expectedPid=${agentConfig.spawnedAgentPid})`;
   }
   if (slot.pid !== agentConfig.spawnedAgentPid) {
-    return `pid_mismatch (slotPid=${slot.pid ?? 'none'}, snapshotPid=${agentConfig.spawnedAgentPid})`;
+    if (!trustsLocalSlot) {
+      return `pid_mismatch (slotPid=${slot.pid ?? 'none'}, snapshotPid=${agentConfig.spawnedAgentPid})`;
+    }
   }
   if (typeof slot.harnessSessionId !== 'string' || slot.harnessSessionId.length === 0) {
     return 'harness_session_missing';
