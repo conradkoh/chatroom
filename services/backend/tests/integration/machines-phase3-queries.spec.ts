@@ -18,6 +18,64 @@ import {
 } from '../helpers/integration';
 import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
+describe('machines.getAgentOverviewForChatroom', () => {
+  test('returns none for a fresh chatroom', async () => {
+    const { sessionId } = await createTestSession('phase3-overview-none');
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const result = await t.query(api.machines.getAgentOverviewForChatroom, {
+      sessionId: sessionId as any,
+      chatroomId,
+    });
+    expect(result?.agentStatus).toBe('none');
+  });
+
+  test('returns null for an invalid session', async () => {
+    const { sessionId } = await createTestSession('phase3-overview-invalid');
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const result = await t.query(api.machines.getAgentOverviewForChatroom, {
+      sessionId: 'invalid' as any,
+      chatroomId,
+    });
+    expect(result).toBeNull();
+  });
+
+  test('returns running agent from the operational summary', async () => {
+    const { sessionId } = await createTestSession('phase3-overview-running');
+    const machineId = 'phase3-overview-machine';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId: sessionId as any,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 62001,
+    });
+    const result = await t.query(api.machines.getAgentOverviewForChatroom, {
+      sessionId: sessionId as any,
+      chatroomId,
+    });
+    expect(result?.agentStatus).toBe('running');
+    expect(result?.runningRoles).toContain('builder');
+  });
+
+  test('preserves the public response keys', async () => {
+    const { sessionId } = await createTestSession('phase3-overview-shape');
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    const result = await t.query(api.machines.getAgentOverviewForChatroom, {
+      sessionId: sessionId as any,
+      chatroomId,
+    });
+    expect(Object.keys(result!).sort()).toEqual([
+      'agentStatus',
+      'chatroomId',
+      'runningAgents',
+      'runningRoles',
+    ]);
+  });
+});
+
 // ============================================================================
 // getAgentStatus
 // ============================================================================

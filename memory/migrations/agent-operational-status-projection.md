@@ -134,7 +134,7 @@ reloading all configs.
 - [x] `getAgentStatusForChatroom` reads materialized role rows
 - [x] `listChatroomAgentOverview` reads summary rows
 - [x] `getTeamLifecycle` reads `isAlive` from role rows
-- [ ] `machines.getChatroomAgentOverview` reads the summary row
+- [x] `machines.getChatroomAgentOverview` reads the summary row
 - [ ] Verify AgentPanel, sidebar, and `deriveChatStatus` behavior is unchanged
 - [ ] Supersede or close tactical PR #1475
 

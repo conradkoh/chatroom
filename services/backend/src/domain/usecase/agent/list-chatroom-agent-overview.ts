@@ -41,6 +41,70 @@ export interface ListChatroomAgentOverviewInput {
   userId: Id<'users'>;
 }
 
+export type OverviewMachineMap = Map<string, { machineId: string }>;
+
+/** Resolve one room; summary rows are the primary source and legacy derivation is fallback. */
+export async function getChatroomAgentOverviewForRoom(
+  ctx: QueryCtx,
+  room: { _id: Id<'chatroom_rooms'>; teamId?: string | null },
+  machineMap: OverviewMachineMap
+): Promise<ChatroomAgentOverview> {
+  const summary = await ctx.db
+    .query('chatroom_agentOperationalSummary')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+    .first();
+  if (summary) {
+    const runningAgents = summary.runningAgents.filter((agent) => machineMap.has(agent.machineId));
+    const runningRoles = runningAgents.map((agent) => agent.role);
+    const aliveRoles: string[] = [];
+    for (const role of summary.aliveRoles) {
+      const row = await ctx.db
+        .query('chatroom_agentRoleOperationalStatus')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', room._id).eq('role', role.toLowerCase())
+        )
+        .first();
+      if (row?.machineId && machineMap.has(row.machineId)) aliveRoles.push(role);
+    }
+    const agentStatus =
+      summary.remoteConfigCount === 0
+        ? ('none' as const)
+        : runningRoles.length > 0
+          ? ('running' as const)
+          : ('stopped' as const);
+    return { chatroomId: room._id, agentStatus, runningRoles, aliveRoles, runningAgents };
+  }
+  const allConfigs = await ctx.db
+    .query('chatroom_teamAgentConfigs')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+    .collect();
+  const configs = allConfigs.filter((c) => {
+    if (!c.machineId || !machineMap.has(c.machineId)) return false;
+    if (room.teamId && c.teamRoleKey)
+      return c.teamRoleKey.includes(`#team_${room.teamId.toLowerCase()}#`);
+    return true;
+  });
+  const statusMap = new Map<string, boolean>();
+  for (const config of configs) {
+    if (!config.machineId || statusMap.has(config.machineId)) continue;
+    const status = await ctx.db
+      .query('chatroom_machineStatus')
+      .withIndex('by_machineId', (q) => q.eq('machineId', config.machineId!))
+      .first();
+    statusMap.set(config.machineId, status?.status === 'online');
+  }
+  const runningConfigs = configs.filter(
+    (c) => c.spawnedAgentPid != null && c.machineId != null && statusMap.get(c.machineId) === true
+  );
+  return {
+    chatroomId: room._id,
+    agentStatus: configs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped',
+    runningRoles: runningConfigs.map((c) => c.role),
+    aliveRoles: configs.filter((c) => isAgentAlive(c.spawnedAgentPid)).map((c) => c.role),
+    runningAgents: runningConfigs.map((c) => ({ role: c.role, machineId: c.machineId ?? '' })),
+  };
+}
+
 // ─── Use Case ────────────────────────────────────────────────────────────────
 
 export async function listChatroomAgentOverview(
@@ -61,6 +125,10 @@ export async function listChatroomAgentOverview(
   const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
   const results = await Promise.all(
+    userChatrooms.map((room) => getChatroomAgentOverviewForRoom(ctx, room, machineMap))
+  );
+  return results;
+  /*
     userChatrooms.map(async (room) => {
       const summary = await ctx.db
         .query('chatroom_agentOperationalSummary')
@@ -160,6 +228,5 @@ export async function listChatroomAgentOverview(
       };
     })
   );
-
-  return results;
+  */
 }

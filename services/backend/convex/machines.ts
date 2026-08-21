@@ -25,7 +25,10 @@ import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/a
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
-import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
+import {
+  getChatroomAgentOverviewForRoom,
+  listChatroomAgentOverview,
+} from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
 import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
@@ -2498,46 +2501,13 @@ export const getAgentOverviewForChatroom = query({
       .collect();
     const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
-    // Read status from materialized machineStatus table
-    const statusMap = new Map<string, { daemonConnected: boolean }>();
-    for (const machine of userMachines) {
-      const machineStatus = await ctx.db
-        .query('chatroom_machineStatus')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
-        .first();
-      statusMap.set(machine.machineId, { daemonConnected: machineStatus?.status === 'online' });
-    }
-
-    const allConfigs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const currentTeamId = chatroom.teamId;
-    const configs = allConfigs.filter((c) => {
-      if (!c.machineId || !machineMap.has(c.machineId)) return false;
-      if (currentTeamId && c.teamRoleKey) {
-        return c.teamRoleKey.includes(`#team_${currentTeamId}#`);
-      }
-      return true;
-    });
-
-    const runningConfigs = configs.filter((c) => {
-      if (c.spawnedAgentPid == null || c.machineId == null) return false;
-      const status = statusMap.get(c.machineId);
-      return status?.daemonConnected === true;
-    });
+    const overview = await getChatroomAgentOverviewForRoom(ctx, chatroom, machineMap);
 
     return {
       chatroomId: args.chatroomId as string,
-      agentStatus:
-        configs.length === 0
-          ? ('none' as const)
-          : runningConfigs.length > 0
-            ? ('running' as const)
-            : ('stopped' as const),
-      runningRoles: runningConfigs.map((c) => c.role),
-      runningAgents: runningConfigs.map((c) => ({ role: c.role, machineId: c.machineId ?? '' })),
+      agentStatus: overview.agentStatus,
+      runningRoles: overview.runningRoles,
+      runningAgents: overview.runningAgents,
     };
   },
 });
