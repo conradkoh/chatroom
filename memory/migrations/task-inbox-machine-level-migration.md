@@ -90,16 +90,16 @@ After machine-level inbox delivery has parity and recovery coverage, remove the 
 
 ## Post-migration cleanup action plan
 
-_Last updated: 2026-08-21 — four validation stages; Stage 4 includes backend cleanup plus daemon follow-ups; production breakage is accepted for Stages 3–4._
+_Last updated: 2026-08-21 — duplicate native re-delivery guard done (c8c03213f); Stage 4 backend + rename/cooldown remain._
 
 **Prerequisite:** Merge PR #1471 before cleanup commits. Separate commits by functionality within each stage and validate with a clean pushed tree.
 
-| Stage | Scope                                                                                                      | Maps to                               | Risk        | Validation                      | Status     |
-| ----- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------- | ----------- | ------------------------------- | ---------- |
-| **1** | Delete dead WS discovery chain, bridge/router, and monitor-only tests                                      | Cleanup item 1                        | Low         | Daemon starts and task delivers | ✅ Done    |
-| **2** | Extract `task-delivery-processor.ts`; delete `task-monitor-runtime.ts`                                     | Cleanup item 2                        | Medium      | Full delivery matrix            | ✅ Done    |
-| **3** | Remove global snapshot store; coordinator rehydrates from backend                                          | Cleanup item 2                        | Medium–high | Delivery, restart, idempotency  | ✅ Done    |
-| **4** | Remove backend dead subscribe APIs; daemon naming/cooldown cleanup; turn-phase investigation; archive docs | Cleanup items 3–5 + post-Stage-3 debt | Medium      | Backend + daemon deploy smoke   | ⬜ Pending |
+| Stage | Scope                                                                                                   | Maps to                               | Risk        | Validation                      | Status     |
+| ----- | ------------------------------------------------------------------------------------------------------- | ------------------------------------- | ----------- | ------------------------------- | ---------- |
+| **1** | Delete dead WS discovery chain, bridge/router, and monitor-only tests                                   | Cleanup item 1                        | Low         | Daemon starts and task delivers | ✅ Done    |
+| **2** | Extract `task-delivery-processor.ts`; delete `task-monitor-runtime.ts`                                  | Cleanup item 2                        | Medium      | Full delivery matrix            | ✅ Done    |
+| **3** | Remove global snapshot store; coordinator rehydrates from backend                                       | Cleanup item 2                        | Medium–high | Delivery, restart, idempotency  | ✅ Done    |
+| **4** | Remove backend dead subscribe APIs; daemon rename/cooldown cleanup; turn-phase monitoring; archive docs | Cleanup items 3–5 + post-Stage-3 debt | Medium      | Backend + daemon deploy smoke   | ⬜ Pending |
 
 **End state:** Inbox-only daemon discovery; no task-monitor runtime or global snapshot store; no legacy subscribe APIs. Keep `listMachineAssignedTaskSnapshots`, machine signal hydration, and the `chatroom_timelineTaskStatusSignals` chatroom index.
 
@@ -128,7 +128,8 @@ Completed in commits `3d2b3014e` and `54ee436b6`. Deleted `assigned-task-snapsho
 
 **Daemon follow-ups (from post-Stage-3 tech debt):**
 
-- [medium] **Turn-phase / claimTask investigation** — If task-received stuck recurs while agent output continues, investigate turn-phase updates in `session-event-forwarder` and `claimTask` path (not nudge/re-inject). Add regression test if root cause found.
+- [x] **Duplicate native re-delivery guard** — Fixed in `c8c03213f` / `82efdad7c`: reset native turn phase on agent exit; block re-inject of acknowledged tasks matching `slot.lastInFlightTaskId` (survives harness session change); clear marker on successful agent_end or pending reclaim.
+- [medium] **Turn-phase stuck monitoring** — If task-received stuck recurs while agent output continues (distinct from duplicate delivery), investigate `session-event-forwarder` idle path and `claimTask` timing. Prior fix: `session.status idle` → agent_end in session-event-forwarder. Add regression test only if issue recurs.
 - [low] **Rename `task-monitor-logic.ts` → `task-delivery-logic.ts`** — File name still references removed monitor runtime; update imports and test file names.
 - [low] **Remove `NudgeCooldown` alias** — Migrate remaining test callers to `RecoveryCooldown` and delete the compatibility alias in `task-monitor-logic.ts` (or `task-delivery-logic.ts` after rename).
 
