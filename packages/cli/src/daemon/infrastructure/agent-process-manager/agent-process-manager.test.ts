@@ -820,7 +820,7 @@ describe('AgentProcessManager', () => {
       });
     });
 
-    test('opencode-sdk spawn passes harnessSessionId to updateSpawnedAgent', async () => {
+    test('opencode-sdk spawn passes harnessSessionId to lifecycle outbox', async () => {
       const opencodeSdkService = {
         ...createMockService(),
         id: 'opencode-sdk',
@@ -838,15 +838,11 @@ describe('AgentProcessManager', () => {
 
       await manager.ensureRunning(createOpts({ agentHarness: 'opencode-sdk', wantResume: false }));
 
-      const updateSpawnedCalls = getMutationCallsByArgs(
-        deps,
-        (args) => args.pid === PID && args.reason === 'user.start'
-      );
-      expect(updateSpawnedCalls).toHaveLength(1);
-      expect(updateSpawnedCalls[0]).toMatchObject({
+      expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+        kind: 'spawned',
         pid: PID,
         harnessSessionId: 'sess-opencode-start',
-      });
+      }));
     });
 
     test('claude-sdk spawn stores provisional UUID harnessSessionId for native delivery', async () => {
@@ -872,14 +868,10 @@ describe('AgentProcessManager', () => {
         provisionalId
       );
 
-      const updateSpawnedCalls = getMutationCallsByArgs(
-        deps,
-        (args) => args.pid === PID && args.reason === 'user.start'
-      );
-      expect(updateSpawnedCalls).toHaveLength(1);
-      expect(updateSpawnedCalls[0]).toMatchObject({
+      expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+        kind: 'spawned',
         harnessSessionId: provisionalId,
-      });
+      }));
     });
 
     test('claude-sdk onHarnessSessionIdUpdated updates slot and emits backend event', async () => {
