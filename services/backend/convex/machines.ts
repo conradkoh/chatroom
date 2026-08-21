@@ -2580,6 +2580,21 @@ export const syncMachineAssignedTaskSnapshotsMutation = mutation({
   },
 });
 
+/** Rebuild operational status projection rows for this machine. */
+export const backfillAgentOperationalStatusForMachine = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new ConvexError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+    await projectAgentOperationalStatusForMachine(ctx, args.machineId);
+    return { success: true };
+  },
+});
+
 /**
  * Full assigned task row for a single nudge/inject action (includes task.content).
  */
@@ -3126,6 +3141,7 @@ export const clearAllSpawnedPids = mutation({
       }
     }
     await projectAssignedTaskSnapshotsForMachine(ctx, args.machineId);
+    await projectAgentOperationalStatusForMachine(ctx, args.machineId);
 
     return { clearedCount };
   },

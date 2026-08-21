@@ -6,6 +6,7 @@
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKeyFilter';
+import { projectAgentOperationalStatusForChatroom } from './project-agent-operational-status';
 
 export type ConfigRemovalReason = 'team_switch' | 'stale_duplicate' | 'manual';
 
@@ -91,5 +92,6 @@ export async function processConfigRemoval(
   if (!hasRemovalRequest) return false;
 
   await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+  await projectAgentOperationalStatusForChatroom(ctx, opts.chatroomId);
   return true;
 }
