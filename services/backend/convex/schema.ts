@@ -1164,6 +1164,7 @@ export default defineSchema({
   chatroom_agentOperationalSummary: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     teamId: v.string(),
+    remoteConfigCount: v.number(),
     agentStatus: v.union(v.literal('running'), v.literal('stopped'), v.literal('none')),
     runningRoles: v.array(v.string()),
     aliveRoles: v.array(v.string()),

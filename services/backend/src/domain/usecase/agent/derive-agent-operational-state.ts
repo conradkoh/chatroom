@@ -20,6 +20,7 @@ export type ChatroomOperationalSummary = {
   runningRoles: string[];
   aliveRoles: string[];
   runningAgents: Array<{ role: string; machineId: string }>;
+  remoteConfigCount: number;
 };
 export function deriveRoleOperationalState(
   config: RoleConfigSnapshot,
@@ -52,6 +53,62 @@ export function deriveChatroomOperationalSummary(
     runningAgents: running
       .filter((p) => p.machineId)
       .map((p) => ({ role: p.role, machineId: p.machineId! })),
+    remoteConfigCount: hasAnyConfig ? roles.length : 0,
+  };
+}
+
+export function recomputeAgentStatus(
+  summary: Pick<ChatroomOperationalSummary, 'runningRoles'> & { remoteConfigCount: number }
+): ChatroomOperationalSummary['agentStatus'] {
+  if (summary.remoteConfigCount === 0) return 'none';
+  return summary.runningRoles.length > 0 ? 'running' : 'stopped';
+}
+
+export function applyRoleToSummary(
+  summary: ChatroomOperationalSummary,
+  projection: RoleOperationalProjection,
+  options?: { isNewConfig?: boolean }
+): ChatroomOperationalSummary {
+  void options;
+  const role = projection.role.toLowerCase();
+  const withoutRole = removeRoleFromSummary(summary, role);
+  const runningRoles = projection.isRunning
+    ? [...withoutRole.runningRoles, role]
+    : withoutRole.runningRoles;
+  const aliveRoles = projection.isAlive
+    ? [...withoutRole.aliveRoles, role]
+    : withoutRole.aliveRoles;
+  const runningAgents =
+    projection.isRunning && projection.machineId
+      ? [...withoutRole.runningAgents, { role, machineId: projection.machineId }]
+      : withoutRole.runningAgents;
+  const remoteConfigCount = withoutRole.remoteConfigCount + 1;
+  const next = {
+    ...withoutRole,
+    teamId: projection.teamId,
+    runningRoles,
+    aliveRoles,
+    runningAgents,
+    remoteConfigCount,
+  };
+  return { ...next, agentStatus: recomputeAgentStatus(next) };
+}
+
+export function removeRoleFromSummary(
+  summary: ChatroomOperationalSummary,
+  role: string
+): ChatroomOperationalSummary {
+  const key = role.toLowerCase();
+  return {
+    ...summary,
+    runningRoles: summary.runningRoles.filter((item) => item.toLowerCase() !== key),
+    aliveRoles: summary.aliveRoles.filter((item) => item.toLowerCase() !== key),
+    runningAgents: summary.runningAgents.filter((item) => item.role.toLowerCase() !== key),
+    remoteConfigCount: Math.max(0, summary.remoteConfigCount - 1),
+    agentStatus: recomputeAgentStatus({
+      runningRoles: summary.runningRoles.filter((item) => item.toLowerCase() !== key),
+      remoteConfigCount: Math.max(0, summary.remoteConfigCount - 1),
+    }),
   };
 }
 export function deriveAgentOperationalState(args: {
