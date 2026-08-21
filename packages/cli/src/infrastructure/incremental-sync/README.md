@@ -325,7 +325,7 @@ getAssignedTaskForAction (full task.content)
 | Presence subscribe | `services/backend/convex/machines.ts` → `subscribeAssignedTaskPresenceSince`                  |
 | Action fetch       | `services/backend/convex/machines.ts` → `getAssignedTaskForAction`                            |
 | Backend core       | `services/backend/src/domain/usecase/machine/assigned-tasks-core.ts`                          |
-| Feed def           | `packages/cli/src/infrastructure/incremental-sync/feeds/assigned-task-signals.ts`             |
+| Feed def           | Removed in Stage 1 cleanup; task inbox uses machine-scoped signals via `messageList.ts`       |
 | Orchestration      | `packages/cli/src/infrastructure/incremental-sync/feed-runtime.ts` (`runDualChannelFeedLive`) |
 | Consumer           | `packages/cli/src/commands/machine/daemon-start/task-monitor.ts`                              |
 | Domain snapshot    | `packages/cli/src/commands/machine/daemon-start/task-monitor-snapshot.ts`                     |

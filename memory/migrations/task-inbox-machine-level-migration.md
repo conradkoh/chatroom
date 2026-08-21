@@ -96,7 +96,7 @@ _Last updated: 2026-08-21 — four validation stages; production breakage is acc
 
 | Stage | Scope                                                                  | Maps to           | Risk        | Validation                      | Status     |
 | ----- | ---------------------------------------------------------------------- | ----------------- | ----------- | ------------------------------- | ---------- |
-| **1** | Delete dead WS discovery chain, bridge/router, and monitor-only tests  | Cleanup item 1    | Low         | Daemon starts and task delivers | ⬜ Pending |
+| **1** | Delete dead WS discovery chain, bridge/router, and monitor-only tests  | Cleanup item 1    | Low         | Daemon starts and task delivers | ✅ Done    |
 | **2** | Extract `task-delivery-processor.ts`; delete `task-monitor-runtime.ts` | Cleanup item 2    | Medium      | Full delivery matrix            | ⬜ Pending |
 | **3** | Remove global snapshot store; coordinator rehydrates from backend      | Cleanup item 2    | Medium–high | Delivery, restart, idempotency  | ⬜ Pending |
 | **4** | Remove backend dead subscribe APIs and archive docs                    | Cleanup items 3–5 | Medium      | Backend + daemon deploy smoke   | ⬜ Pending |
@@ -104,6 +104,8 @@ _Last updated: 2026-08-21 — four validation stages; production breakage is acc
 **End state:** Inbox-only daemon discovery; no task-monitor runtime or global snapshot store; no legacy subscribe APIs. Keep `listMachineAssignedTaskSnapshots`, machine signal hydration, and the `chatroom_timelineTaskStatusSignals` chatroom index.
 
 ### Stage 1 — Dead path removal
+
+Completed in this commit batch: `a72b634ee`, `df318ffab`, and the monitor-only test cleanup commit.
 
 Delete the assigned-task signal/presence subscribers and feeds, assigned-task bridge and inbound use cases, assigned-task monitor registry, and monitor-only tests. Edit `event-router.ts`, `default-router-deps.ts`, their tests, and subscriber/incremental-sync READMEs. Acceptance: `rg 'assigned-task-bridge|startAssignedTask|assigned-task\.signal'` returns zero in production CLI; CLI tests pass.
 
