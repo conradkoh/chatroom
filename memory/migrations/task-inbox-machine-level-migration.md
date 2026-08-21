@@ -16,7 +16,7 @@ The inbox should therefore subscribe only to `chatroom_timelineTaskStatusSignals
 
 ## Decision
 
-- Subscribe at machine scope using `targetMachineId` on task-status signals.
+- Subscribe at machine scope using `chatroom_machineTaskStatusSignals`.
 - Keep the existing chatroom-scoped signal index for webapp consumers; add a machine-scoped index for daemon consumers.
 - Treat signals as historical routing events. Before delivering a hydrated task, re-check its current assignment so a task that moved after the signal is not sent to the wrong agent.
 - Use an async iterator around the signal subscription. For each signal, hydrate all full task records since the stored cursor or service start, advance the cursor after successful processing, and resume listening.
@@ -75,7 +75,7 @@ Assigned-task signal/presence subscribers are unregistered from `subscriber-regi
 - Signals can be duplicated or arrive out of order; cursor advancement and delivery must tolerate both.
 - Every status-changing assignment path must emit a machine-routed signal, including paths outside the currently covered use cases.
 - Historical routing fields may no longer match the task's current assignment, so delivery must validate current ownership.
-- Existing signal rows without a target machine are excluded from the machine index; startup snapshot bootstrap is the compatibility policy.
+- Legacy chatroom-only rows remain in the timeline table; the daemon reads the machine signal table exclusively.
 
 ## Cleanup plan
 
@@ -149,4 +149,4 @@ Completed in commits `3d2b3014e` and `54ee436b6`. Deleted `assigned-task-snapsho
 - Rename assigned-task monitor contract to snapshot contract naming (if any references remain after backend cleanup).
 - Add concurrent-signal integration coverage beyond existing inbox tests.
 - Audit and remove obsolete timeline signal fields/indexes after confirming zero consumers (cleanup item 88 deferred).
-- Consumer audit completed in `docs/design/timeline-task-status-signal-consumer-audit.md`; schema removal remains deferred.
+- [x] Physical schema split: machine signals in `chatroom_machineTaskStatusSignals`; timeline table stripped of `targetMachineId`/`targetRole` and `by_targetMachineId_signalKey` (cleanup item 88 complete).

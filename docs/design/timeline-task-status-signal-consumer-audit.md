@@ -1,16 +1,18 @@
 # Timeline task-status signal consumer audit
 
-_Audited: 2026-08-21_
+_Audited: 2026-08-21. Physical schema split completed 2026-08-21._
 
-| Artifact                                              | Consumers                                                                       | Verdict                                                             |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `chatroom_timelineTaskStatusSignals` table            | Webapp and daemon                                                               | **KEEP**                                                            |
-| `by_chatroom_signalKey`                               | `messageList.ts` `getLatestTaskStatusSignalKey`, webapp timeline                | **KEEP**                                                            |
-| `by_targetMachineId_signalKey`                        | `messageList.ts` machine subscription, `list-tasks-for-machine-signal-range.ts` | **KEEP**                                                            |
-| `targetMachineId`, `targetRole`                       | Signal write paths and machine inbox                                            | **KEEP**                                                            |
-| Legacy rows missing `targetMachineId`                 | Excluded from machine index; startup snapshot bootstrap                         | **DEFER** migration/backfill                                        |
-| `assignedTaskSignalSchema`, `parseAssignedTaskSignal` | Snapshot sync helpers and test fixtures                                         | **KEEP** as snapshot projection contract; not daemon subscribe APIs |
+| Artifact | Consumers | Verdict |
+|---|---|---|
+| `chatroom_timelineTaskStatusSignals` table | Webapp timeline cursor (`getLatestTaskStatusSignalKey`) | **KEEP** — chatroom-scoped only |
+| `by_chatroom_signalKey` | `messageList.ts` `getLatestTaskStatusSignalKey` | **KEEP** |
+| `chatroom_machineTaskStatusSignals` table | Daemon inbox subscribe + range hydration | **KEEP** — machine-scoped |
+| `by_machineId_signalKey` | `messageList.ts` subscribe and range hydration | **KEEP** |
+| `targetMachineId`, `targetRole` on timeline table | None | **REMOVED** |
+| `by_targetMachineId_signalKey` on timeline table | None | **REMOVED** |
+| Legacy timeline rows | Webapp timeline cursor only | **KEEP** — historical chatroom events |
+| `assignedTaskSignalSchema`, `parseAssignedTaskSignal` | Snapshot sync helpers and fixtures | **KEEP** as snapshot projection contract |
 
-## When to remove schema artifacts
+## Schema split rationale
 
-Consider removal only after PR #1471 is merged and the daemon inbox is deployed to all machines. Run a fresh `rg` consumer audit and require zero production consumers for two release cycles. The webapp timeline must migrate off any index first. Field/index removal requires a Convex migration; historical rows must either be backfilled with `targetMachineId` or explicitly accepted as bootstrap-only compatibility. Bundle this work with the next schema cleanup sprint rather than doing it ad hoc.
+The timeline table is chatroom-scoped for webapp cursor seeding. The machine table has required `machineId` and `targetRole` for daemon subscription and hydration. `migrateMachineTaskStatusSignals` backfills routed history before `stripTimelineMachineSignalFields` removes legacy routing fields.
