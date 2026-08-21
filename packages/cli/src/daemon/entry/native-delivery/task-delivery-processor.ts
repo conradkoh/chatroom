@@ -35,6 +35,7 @@ import {
 import { isNativeHarness } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
+import { fetchMachineAssignedTaskSnapshots } from '../../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type {
@@ -62,6 +63,9 @@ export type TaskDeliveryRuntime = Runtime.Runtime<
 export type TaskDeliveryContext = Context.Context<
   DaemonSessionService | DaemonAgentProcessManagerService
 >;
+export type ProcessTasksUpdateOptions = {
+  snapshots?: readonly AssignedTaskSnapshotView[];
+};
 
 type TaskDeliveryPass = 'signal' | 'presence';
 
@@ -392,15 +396,18 @@ async function wakeStoppedAgentsForPendingTasks(
 }
 
 export async function processTasksUpdate(
-  tasks: AssignedTaskSnapshotView[],
   runtime: TaskDeliveryRuntime,
   effectContext: TaskDeliveryContext,
   cooldown: NudgeCooldown,
   agentMgr: DaemonAgentProcessManagerServiceShape,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
-  _pass: TaskDeliveryPass
+  _pass: TaskDeliveryPass,
+  options?: ProcessTasksUpdateOptions
 ): Promise<void> {
+  const tasks = options?.snapshots
+    ? [...options.snapshots]
+    : await fetchMachineAssignedTaskSnapshots(sessionDeps, machineId);
   const filteredTasks = filterSnapshotsExcludingRestartInFlight(tasks);
   if (filteredTasks.length === 0) return;
 

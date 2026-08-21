@@ -1,6 +1,5 @@
 // fallow-ignore-file code-duplication
 import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliability.js';
-import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { Effect } from 'effect';
@@ -23,16 +22,9 @@ import {
   type TaskDeliveryRuntime,
 } from './native-delivery/task-delivery-processor.js';
 import { NudgeCooldown } from './task-monitor/task-monitor-logic.js';
-import { mapAssignedTaskSnapshotList } from '../../infrastructure/mappers/map-assigned-task.js';
-import {
-  clearAssignedTaskSnapshots,
-  listAssignedTaskSnapshots,
-} from '../../infrastructure/stores/assigned-task-snapshot-store.js';
+import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
-import {
-  handleTaskInboxUpdate,
-  mergeSnapshotsIntoStore,
-} from '../infrastructure/inbox/task-inbox-delivery.js';
+import { handleTaskInboxUpdate } from '../infrastructure/inbox/task-inbox-delivery.js';
 import { runTaskInbox } from '../infrastructure/inbox/task.js';
 
 const INBOX_RESTART_INITIAL_MS = 1_000;
@@ -55,27 +47,17 @@ export async function bootstrapMachineAssignedTaskSnapshots(
     sessionId: deps.sessionDeps.sessionId,
     machineId: deps.machineId,
   });
-  const result = await deps.sessionDeps.backend.query(
-    api.machines.listMachineAssignedTaskSnapshots,
-    {
-      sessionId: deps.sessionDeps.sessionId,
-      machineId: deps.machineId,
-    }
-  );
-  const tasks = mapAssignedTaskSnapshotList(
-    parseAssignedTaskMonitorRows((result as { tasks?: unknown })?.tasks ?? [])
-  );
+  const tasks = await fetchMachineAssignedTaskSnapshots(deps.sessionDeps, deps.machineId);
   if (!tasks.length) return;
-  mergeSnapshotsIntoStore(tasks);
   await processTasksUpdate(
-    tasks,
     deps.runtime,
     deps.effectContext,
     deps.cooldown,
     deps.agentMgr,
     deps.sessionDeps,
     deps.machineId,
-    'presence'
+    'presence',
+    { snapshots: tasks }
   );
 }
 
@@ -171,10 +153,7 @@ export const startTaskInboxEffect = (
     };
     const reconcileTimer = setInterval(() => {
       if (stopped) return;
-      const snapshots = listAssignedTaskSnapshots();
-      if (snapshots.length)
-        void processTasksUpdate(
-          snapshots,
+      void processTasksUpdate(
           runtime,
           effectContext,
           cooldown,
@@ -207,7 +186,6 @@ export const startTaskInboxEffect = (
         clearInterval(reconcileTimer);
         unregisterNativeDeliverySession();
         inboxStore.close();
-        clearAssignedTaskSnapshots();
       },
     };
   });

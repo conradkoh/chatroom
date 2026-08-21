@@ -18,7 +18,10 @@ import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
-import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
+import {
+  fetchMachineAssignedTaskSnapshots,
+  filterSnapshotsForRole,
+} from '../../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
@@ -70,19 +73,27 @@ export class NativeTaskDeliveryCoordinator {
     if (!session) return;
 
     const { runtime, effectContext, agentMgr, sessionDeps, machineId } = session;
-    const tasks = listAssignedTaskSnapshotsForRole(chatroomId, role);
-    if (tasks.length === 0) {
-      logNativeDeliveryNoTasks(role, chatroomId);
-      return;
-    }
-    this.reconcileAssignedTasks({
-      tasks,
-      runtime,
-      effectContext,
-      agentMgr,
-      sessionDeps,
-      machineId,
-    });
+    void fetchMachineAssignedTaskSnapshots(sessionDeps, machineId)
+      .then((all) => {
+        const tasks = filterSnapshotsForRole(all, chatroomId, role);
+        if (tasks.length === 0) {
+          logNativeDeliveryNoTasks(role, chatroomId);
+          return;
+        }
+        this.reconcileAssignedTasks({
+          tasks,
+          runtime,
+          effectContext,
+          agentMgr,
+          sessionDeps,
+          machineId,
+        });
+      })
+      .catch((err) => {
+        console.warn(
+          `[NativeTaskDelivery] rehydrate failed for ${role}@${chatroomId}: ${getErrorMessage(err)}`
+        );
+      });
   }
 
   // fallow-ignore-next-line complexity
