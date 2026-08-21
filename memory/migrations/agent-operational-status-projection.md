@@ -111,8 +111,8 @@ flowchart TD
 
 ### Phase 2 — Write-time projection (Convex)
 
-- [ ] Add schema tables and indexes
-- [ ] Implement `derive-agent-operational-state.ts`
+- [x] Add schema tables and indexes
+- [x] Implement `derive-agent-operational-state.ts`
 - [ ] Implement `project-agent-operational-status.ts` (role + summary upsert and machine-scoped redrive)
 - [ ] Wire outbox drain to the projection mutation
 - [ ] Wire `updateDaemonStatus` to `projectAgentOperationalStatusForMachine`
