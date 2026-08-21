@@ -702,6 +702,4 @@ export const runAll = migrations.runner([
   // RBAC
   internal.migrations.backfillUserRoleNames,
   internal.migrations.stripManagerRoleNames,
-  // Agent operational status projection
-  internal.migrations.backfillAgentOperationalStatus,
 ]);
