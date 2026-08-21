@@ -606,6 +606,23 @@ export const stripManagerRoleNames = migrations.define({
 // Batch Runners
 // ========================================
 
+export const migrateMachineTaskStatusSignals = migrations.define({
+  table: 'chatroom_timelineTaskStatusSignals',
+  migrateOne: async (ctx, row) => {
+    const targetMachineId = (row as { targetMachineId?: string }).targetMachineId;
+    const targetRole = (row as { targetRole?: string }).targetRole;
+    if (!targetMachineId || !targetRole) return;
+    const existing = await ctx.db.query('chatroom_machineTaskStatusSignals')
+      .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', targetMachineId).eq('signalKey', row.signalKey))
+      .unique();
+    if (existing) return;
+    await ctx.db.insert('chatroom_machineTaskStatusSignals', {
+      machineId: targetMachineId, chatroomId: row.chatroomId, taskId: row.taskId,
+      targetRole, taskStatus: row.taskStatus, signalKey: row.signalKey, taskUpdatedAt: row.taskUpdatedAt,
+    });
+  },
+});
+
 /**
  * Run all migrations in order.
  * Usage: pnpm migrate  (from repo root; CI uses the same command with CONVEX_DEPLOY_KEY set)
@@ -630,6 +647,7 @@ export const runAll = migrations.runner([
   // Cleanup
   internal.migrations.deduplicateTeamAgentConfigs,
   internal.migrations.purgeWorkspaceCommitDetails,
+  internal.migrations.migrateMachineTaskStatusSignals,
   // Workspace File Tree
   internal.migrations.compactWorkspaceFileTreeDeltaOperations,
   // Git State
