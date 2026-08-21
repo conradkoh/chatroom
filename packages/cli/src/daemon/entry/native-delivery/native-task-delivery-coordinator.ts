@@ -3,12 +3,14 @@ import { Effect, Runtime, type Context } from 'effect';
 import { getNativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   logNativeDeliveryInjecting,
+  logNativeDeliveryFallback,
   logNativeDeliveryMutexSkip,
   logNativeDeliveryNoTasks,
   logNativeDeliveryPrimary,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
 import { getNativeDeliverySession } from './native-delivery-session-registry.js';
+import { isStaleTurnInFlightWhileWaiting } from './native-stale-turn-phase.js';
 import {
   explainLedgerDeliveryBlock,
   explainNativeDeliveryBlock,
@@ -18,11 +20,11 @@ import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
+import { getErrorMessage } from '../../../utils/convex-error.js';
 import {
   fetchMachineAssignedTaskSnapshots,
   filterSnapshotsForRole,
 } from '../../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
-import { getErrorMessage } from '../../../utils/convex-error.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,
@@ -123,7 +125,15 @@ export class NativeTaskDeliveryCoordinator {
       if (row.status === 'pending' && slot?.lastInFlightTaskId === row.taskId) {
         Effect.runSync(agentMgr.clearLastInFlightTaskIfMatches(row.chatroomId, role, row.taskId));
       }
-      const blockReason = explainNativeDeliveryBlock(row, { slot });
+      if (isStaleTurnInFlightWhileWaiting(row, slot)) {
+        if (agentMgr.reconcileNativeTurnPhaseIdle) {
+          Effect.runSync(agentMgr.reconcileNativeTurnPhaseIdle(row.chatroomId, role));
+        }
+        logNativeDeliveryFallback('stale-turn-phase', role, row.chatroomId, row.taskId);
+      }
+      const blockReason = explainNativeDeliveryBlock(row, {
+        slot: agentMgr.getSlot(row.chatroomId, role),
+      });
       if (blockReason) {
         if (isDeliverableTaskStatus(row.status)) {
           logNativeDeliverySkip(role, row.chatroomId, row.taskId, blockReason);

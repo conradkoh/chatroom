@@ -21,7 +21,6 @@
  */
 
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
-import { getNativeTaskDeliveryCoordinator } from '../../entry/native-delivery/native-task-delivery-coordinator.js';
 import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
@@ -86,6 +85,7 @@ import {
 import { untrackChildPid } from '../../entry/handlers/orphan-tracker.js';
 import { notifyNativeHarnessSessionLostOnExit } from '../../entry/native-delivery/native-harness-session-exit.js';
 import {
+  getNativeTaskDeliveryCoordinator,
   notifyNativeSessionLost,
   notifyNativeTurnIdle,
 } from '../../entry/native-delivery/native-task-delivery-coordinator.js';
@@ -1065,6 +1065,11 @@ export class AgentProcessManager {
   clearLastInFlightTaskIfMatches(chatroomId: string, role: string, taskId: string): void {
     const slot = this.slots.get(agentKey(chatroomId, role));
     if (slot?.lastInFlightTaskId === taskId) slot.lastInFlightTaskId = undefined;
+  }
+
+  reconcileNativeTurnPhaseIdle(chatroomId: string, role: string): void {
+    const slot = this.getSlot(chatroomId, role);
+    if (slot) setNativeTurnPhase(slot, defaultNativeTurnPhase());
   }
 
   clearLastInFlightTask(chatroomId: string, role: string): void {
