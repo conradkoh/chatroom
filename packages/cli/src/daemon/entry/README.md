@@ -2,6 +2,10 @@
 
 Composition root — wiring only. **No business logic.**
 
+## Task discovery
+
+Daemon task discovery uses the machine-scoped task inbox (`infrastructure/inbox/task.ts` + `entry/task-inbox-runtime.ts`), not legacy assigned-task subscribe queries. Snapshots hydrate via `listMachineAssignedTaskSnapshots`; delivery runs through `native-delivery/` coordinator.
+
 ## Belongs here
 
 | File                     | Role                                                                                             |

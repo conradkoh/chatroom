@@ -1,9 +1,9 @@
 ---
 type: decision-log
 title: Task inbox machine-level migration
-description: Migration from chatroom-scoped task monitoring to a machine-scoped task-status signal inbox. Implementation complete; post-migration cleanup in progress.
+description: Migration from chatroom-scoped task monitoring to a machine-scoped task-status signal inbox. Complete — archived after Stage 4 cleanup.
 tags: [tasks, inbox, daemon, convex, migration]
-status: active
+status: archived
 ---
 
 # Task inbox machine-level migration
@@ -84,22 +84,22 @@ After machine-level inbox delivery has parity and recovery coverage, remove the 
 - [x] Remove the old assigned-task signal and presence subscribers from the daemon subscriber registry.
       Assigned-task signal/presence subscribers are unregistered from `subscriber-registry.ts`; task inbox is the sole discovery path.
 - [x] Remove the task-monitor runtime, local task snapshot store, and snapshot-only reconciliation/nudge/revive logic that the inbox replaces. **→ Stages 2–3** (monitor runtime and snapshot store removed; delivery rehydrates from backend)
-- [ ] Remove chatroom-scoped daemon inbox endpoints and compatibility code once no consumers remain; retain the chatroom index if the webapp still uses it. **→ Stage 4 (backend)**
-- [ ] Remove obsolete signal fields, indexes, tests, and fixtures only after confirming their consumers are gone. **→ Stage 4 (backend)**
-- [ ] Update daemon architecture documentation and memory records, then delete or mark completed migration-only tracking notes. **→ Stage 4 (docs)**
+- [x] Remove chatroom-scoped daemon inbox endpoints and compatibility code once no consumers remain; retain the chatroom index if the webapp still uses it. **→ Stage 4 (backend)** — Done in `bca484790` (removed `subscribeAssignedTaskSignalsSince` / `subscribeAssignedTaskPresenceSince`).
+- [ ] Remove obsolete signal fields, indexes, tests, and fixtures only after confirming their consumers are gone. **→ Deferred** (consumer audit pending; chatroom signal index retained for webapp).
+- [x] Update daemon architecture documentation and memory records, then delete or mark completed migration-only tracking notes. **→ Stage 4 (docs)** — This archive commit.
 
 ## Post-migration cleanup action plan
 
-_Last updated: 2026-08-21 — duplicate native re-delivery guard done (c8c03213f); Stage 4 backend + rename/cooldown remain._
+_Last updated: 2026-08-21 — Stage 4 complete; archived. Commits: daemon rename 060895ba4/20797a19e, backend subscribe removal bca484790, duplicate-delivery c8c03213f._
 
 **Prerequisite:** Merge PR #1471 before cleanup commits. Separate commits by functionality within each stage and validate with a clean pushed tree.
 
-| Stage | Scope                                                                                                   | Maps to                               | Risk        | Validation                      | Status     |
-| ----- | ------------------------------------------------------------------------------------------------------- | ------------------------------------- | ----------- | ------------------------------- | ---------- |
-| **1** | Delete dead WS discovery chain, bridge/router, and monitor-only tests                                   | Cleanup item 1                        | Low         | Daemon starts and task delivers | ✅ Done    |
-| **2** | Extract `task-delivery-processor.ts`; delete `task-monitor-runtime.ts`                                  | Cleanup item 2                        | Medium      | Full delivery matrix            | ✅ Done    |
-| **3** | Remove global snapshot store; coordinator rehydrates from backend                                       | Cleanup item 2                        | Medium–high | Delivery, restart, idempotency  | ✅ Done    |
-| **4** | Remove backend dead subscribe APIs; daemon rename/cooldown cleanup; turn-phase monitoring; archive docs | Cleanup items 3–5 + post-Stage-3 debt | Medium      | Backend + daemon deploy smoke   | ⬜ Pending |
+| Stage | Scope                                                                                     | Maps to                               | Risk        | Validation                      | Status  |
+| ----- | ----------------------------------------------------------------------------------------- | ------------------------------------- | ----------- | ------------------------------- | ------- |
+| **1** | Delete dead WS discovery chain, bridge/router, and monitor-only tests                     | Cleanup item 1                        | Low         | Daemon starts and task delivers | ✅ Done |
+| **2** | Extract `task-delivery-processor.ts`; delete `task-monitor-runtime.ts`                    | Cleanup item 2                        | Medium      | Full delivery matrix            | ✅ Done |
+| **3** | Remove global snapshot store; coordinator rehydrates from backend                         | Cleanup item 2                        | Medium–high | Delivery, restart, idempotency  | ✅ Done |
+| **4** | Backend subscribe removal; daemon rename/cooldown; duplicate-delivery guard; archive docs | Cleanup items 3–5 + post-Stage-3 debt | Medium      | Backend + daemon deploy smoke   | ✅ Done |
 
 **End state:** Inbox-only daemon discovery; no task-monitor runtime or global snapshot store; no legacy subscribe APIs. Keep `listMachineAssignedTaskSnapshots`, machine signal hydration, and the `chatroom_timelineTaskStatusSignals` chatroom index.
 
@@ -113,7 +113,7 @@ Delete the assigned-task signal/presence subscribers and feeds, assigned-task br
 
 Completed in commit `c641d9a9d`; the monitor runtime was removed and delivery processing now lives in the native-delivery processor. The snapshot store remains for Stage 3.
 
-Create `packages/cli/src/daemon/entry/native-delivery/task-delivery-processor.ts` by moving `processTasksUpdate` and renaming runtime/context types. Delete `task-monitor-runtime.ts` and monitor snapshot implementation/tests; update inbox runtime/delivery and affected daemon tests. Keep `task-monitor-logic.ts` for `NudgeCooldown`. Acceptance: inbox integration/runtime tests pass and `rg 'startTaskMonitorEffect|task-monitor-runtime'` returns zero.
+Create `packages/cli/src/daemon/entry/native-delivery/task-delivery-processor.ts` by moving `processTasksUpdate` and renaming runtime/context types. Delete `task-monitor-runtime.ts` and monitor snapshot implementation/tests; update inbox runtime/delivery and affected daemon tests. Delivery logic now lives in `task-delivery/task-delivery-logic.ts` (renamed in Stage 4). Acceptance: inbox integration/runtime tests pass and `rg 'startTaskMonitorEffect|task-monitor-runtime'` returns zero.
 
 ### Stage 3 — Snapshot store removal
 
@@ -123,20 +123,20 @@ Completed in commits `3d2b3014e` and `54ee436b6`. Deleted `assigned-task-snapsho
 
 **Backend (existing scope):**
 
-- Delete `subscribeAssignedTaskSignalsSince` / `subscribeAssignedTaskPresenceSince`, their use cases/helpers, and obsolete integration tests.
+- [x] Delete `subscribeAssignedTaskSignalsSince` / `subscribeAssignedTaskPresenceSince`, their use cases/helpers, and obsolete integration tests. — Done in `bca484790`.
 - Keep `listMachineAssignedTaskSnapshots`, `syncMachineAssignedTaskSnapshotsMutation`, machine signal subscription, signal table/chatroom index, snapshot contract, and range hydration.
 
 **Daemon follow-ups (from post-Stage-3 tech debt):**
 
 - [x] **Duplicate native re-delivery guard** — Fixed in `c8c03213f` / `82efdad7c`: reset native turn phase on agent exit; block re-inject of acknowledged tasks matching `slot.lastInFlightTaskId` (survives harness session change); clear marker on successful agent_end or pending reclaim.
 - [medium] **Turn-phase stuck monitoring** — If task-received stuck recurs while agent output continues (distinct from duplicate delivery), investigate `session-event-forwarder` idle path and `claimTask` timing. Prior fix: `session.status idle` → agent_end in session-event-forwarder. Add regression test only if issue recurs.
-- [low] **Rename `task-monitor-logic.ts` → `task-delivery-logic.ts`** — File name still references removed monitor runtime; update imports and test file names.
-- [low] **Remove `NudgeCooldown` alias** — Migrate remaining test callers to `RecoveryCooldown` and delete the compatibility alias in `task-monitor-logic.ts` (or `task-delivery-logic.ts` after rename).
+- [x] **Rename `task-monitor-logic.ts` → `task-delivery-logic.ts`** — Done in `060895ba4`.
+- [x] **Remove `NudgeCooldown` alias** — Done in `20797a19e`.
 
 **Docs:**
 
 - Check off cleanup items 2–5 in the Cleanup plan section above.
-- Set this document `status: archived` when Stage 4 is complete.
+- Set this document `status: archived` when Stage 4 is complete. — Done in this archive commit.
 - Update daemon architecture/README records.
 
 **Acceptance:**
@@ -148,3 +148,4 @@ Completed in commits `3d2b3014e` and `54ee436b6`. Deleted `assigned-task-snapsho
 
 - Rename assigned-task monitor contract to snapshot contract naming (if any references remain after backend cleanup).
 - Add concurrent-signal integration coverage beyond existing inbox tests.
+- Audit and remove obsolete timeline signal fields/indexes after confirming zero consumers (cleanup item 88 deferred).
