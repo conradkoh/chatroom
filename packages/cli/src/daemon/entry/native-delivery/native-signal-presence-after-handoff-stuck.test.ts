@@ -3,7 +3,7 @@
  *
  * Observed daemon log pattern (user's full logs, 2026-07-13):
  *   role:planner status] idle
- *   [NativeDelivery:fallback] signal-presence planner@... task nh73a2nkkx65bg5z5dk403gm9s8afrz0 — reconcile
+ *   [NativeDelivery:fallback] inbox-signal planner@... task nh73a2nkkx65bg5z5dk403gm9s8afrz0 — reconcile
  *   (no agent_end, no inject — task stuck)
  *
  * Compare to working builder path in same logs:
@@ -104,7 +104,7 @@ function simulateSignalPresenceReconcile(params: {
 }): NativeTaskDeliveryCoordinator {
   const coordinator = new NativeTaskDeliveryCoordinator();
   logNativeDeliveryFallback(
-    'signal-presence',
+    'inbox-signal',
     params.row.agentConfig.role,
     params.row.chatroomId,
     params.row.taskId
@@ -124,13 +124,13 @@ function simulateSignalPresenceReconcile(params: {
   return coordinator;
 }
 
-describe('native signal-presence stuck after planner handoff', () => {
+describe('native inbox recovery after planner handoff', () => {
   afterEach(() => {
     unregisterNativeDeliverySession();
     vi.restoreAllMocks();
   });
 
-  test('reproduces user log: signal-presence reconcile while turn_in_flight does not inject', async () => {
+  test('reproduces inbox reconcile while turn_in_flight does not inject', async () => {
     const snapshot = createTaskMonitorSnapshot();
     snapshot.replaceAll([]);
 
@@ -173,7 +173,7 @@ describe('native signal-presence stuck after planner handoff', () => {
 
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(
-      '[NativeDelivery:fallback] signal-presence planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a task nh7dh7bj63fdns9zkyasjgnga58afx3s — reconcile'
+      '[NativeDelivery:fallback] inbox-signal planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a task nh7dh7bj63fdns9zkyasjgnga58afx3s — reconcile'
     );
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining(
@@ -259,7 +259,7 @@ describe('native signal-presence stuck after planner handoff', () => {
     logSpy.mockRestore();
   });
 
-  test('native nudge does not rescue within 15s when agent just went native:waiting', () => {
+  test('native recovery predicate remains conservative after native:waiting', () => {
     const now = 1_700_000_000_000;
     const snapshot = createTaskMonitorSnapshot();
     const pendingRow = snapshot.mergeSignal(
@@ -273,7 +273,7 @@ describe('native signal-presence stuck after planner handoff', () => {
     expect(ready).toHaveLength(0);
   });
 
-  test('positive control: signal-presence reconcile injects when slot is idle after handoff', async () => {
+  test('positive control: inbox reconcile injects when slot is idle after handoff', async () => {
     const snapshot = createTaskMonitorSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(

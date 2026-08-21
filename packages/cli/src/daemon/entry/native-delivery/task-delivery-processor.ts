@@ -2,16 +2,13 @@
 /**
  * Task delivery processor for inbox updates and periodic reconciliation.
  *
- * - Snapshot store: subscribed via wsClient.onUpdate (no HTTP poll on timer)
- * - Periodic reconcile reads the local store
- * - Signal feed: revisionKey cursor — revive/inject
- * - Presence feed: presenceUpdatedAt cursor — nudge timing (replaces 15s reconcile poll)
+ * - Inbox signal delivery rehydrates current machine snapshots from the backend.
+ * - Periodic reconciliation rehydrates the same snapshots to recover missed signals.
  *
  * Fat task.content is fetched only when nudging, reviving, or injecting.
  * Dual-channel WorkingSnapshot hydrate still uses one-shot HTTP.
  */
 
-import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import {
   shouldEmitSessionAugmentation,
   resolveSessionAugmentationForTask,
@@ -27,11 +24,7 @@ import type {
 } from '../daemon-services.js';
 import type { AgentHarness } from '../daemon-types.js';
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
-import {
-  getNativeTaskDeliveryCoordinator,
-  resetRoleDeliveryState,
-  type NativeTaskDeliverySessionDeps,
-} from './native-task-delivery-coordinator.js';
+import { getNativeTaskDeliveryCoordinator, type NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
 import { isNativeHarness } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
@@ -42,20 +35,17 @@ import type {
   AssignedTaskSnapshotView,
   AssignedTaskWithContent,
 } from '../../domain/entities/assigned-task.js';
-import { isTeamAgentRole } from '../../domain/entities/execution-kind.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
 import {
   filterSnapshotsExcludingRestartInFlight,
   isRestartOrchestratorInFlight,
 } from '../restart-orchestrator-in-flight.js';
-import { getRoleDeliveryState } from '../role-delivery-state.js';
 import {
   listTasksReadyForNudge,
   listNativeTasksNeedingRevive,
   listNativePendingTasksNeedingWake,
-  shouldEscalateNativeNudgeToRestart,
 } from '../task-monitor/task-monitor-logic.js';
-import type { NudgeCooldown } from '../task-monitor/task-monitor-logic.js';
+import type { RecoveryCooldown } from '../task-monitor/task-monitor-logic.js';
 
 export type TaskDeliveryRuntime = Runtime.Runtime<
   DaemonSessionService | DaemonAgentProcessManagerService
@@ -67,7 +57,7 @@ export type ProcessTasksUpdateOptions = {
   snapshots?: readonly AssignedTaskSnapshotView[];
 };
 
-type TaskDeliveryPass = 'signal' | 'presence';
+type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap';
 
 function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
@@ -292,7 +282,7 @@ async function clearStuckStoppingSlotIfNeeded(
 async function nudgeStuckTasks(
   tasks: AssignedTaskSnapshotView[],
   now: number,
-  cooldown: NudgeCooldown,
+  cooldown: RecoveryCooldown,
   runtime: TaskDeliveryRuntime,
   effectContext: TaskDeliveryContext,
   agentMgr: DaemonAgentProcessManagerServiceShape,
@@ -301,49 +291,9 @@ async function nudgeStuckTasks(
 ): Promise<void> {
   const getSlot = (chatroomId: string, role: string) => agentMgr.getSlot(chatroomId, role);
 
-  for (const row of listTasksReadyForNudge(tasks, now, cooldown, getSlot)) {
+  const cliTasks = tasks.filter((task) => !isNativeHarness(task.agentConfig.agentHarness));
+  for (const row of listTasksReadyForNudge(cliTasks, now, cooldown, getSlot)) {
     await clearStuckStoppingSlotIfNeeded(agentMgr, row.chatroomId, row.agentConfig.role);
-
-    if (isNativeHarness(row.agentConfig.agentHarness)) {
-      const { chatroomId, agentConfig } = row;
-      const { role } = agentConfig;
-      if (!isTeamAgentRole(role)) continue;
-      const deliveryState = getRoleDeliveryState();
-      const failures = deliveryState.recordNativeNudgeFailure(chatroomId, role);
-
-      if (shouldEscalateNativeNudgeToRestart(chatroomId, role, failures)) {
-        const full = await fetchTaskForAction(sessionDeps, machineId, row);
-        if (!full) continue;
-        console.log(
-          `[TaskMonitor] native nudge escalate restart ${role}@${chatroomId} — pending task ${row.taskId}`
-        );
-        runCliNudgeEffect(full, runtime, effectContext, agentMgr, sessionDeps, machineId);
-        deliveryState.clearNativeNudgeFailures(chatroomId, role);
-        continue;
-      }
-
-      resetRoleDeliveryState(chatroomId, role);
-      await sessionDeps.backend.mutation(api.participants.join, {
-        sessionId: sessionDeps.sessionId,
-        chatroomId,
-        role,
-        action: NATIVE_WAITING_ACTION,
-      });
-      console.log(
-        `[TaskMonitor] native light nudge ${role}@${chatroomId} — redeliver pending task ${row.taskId}`
-      );
-      logNativeDeliveryFallback('native-light-nudge', role, chatroomId, row.taskId);
-      getNativeTaskDeliveryCoordinator().reconcileAssignedTasks({
-        tasks: [row],
-        runtime,
-        effectContext,
-        agentMgr,
-        sessionDeps,
-        machineId,
-      });
-      continue;
-    }
-
     const full = await fetchTaskForAction(sessionDeps, machineId, row);
     if (!full) continue;
     runCliNudgeEffect(full, runtime, effectContext, agentMgr, sessionDeps, machineId);
@@ -360,7 +310,7 @@ async function reviveNativeTasks(
     isPidAlive: (pid: number) => boolean;
   },
   now: number,
-  cooldown: NudgeCooldown,
+  cooldown: RecoveryCooldown,
   runtime: TaskDeliveryRuntime,
   effectContext: TaskDeliveryContext,
   agentMgr: DaemonAgentProcessManagerServiceShape,
@@ -379,7 +329,7 @@ async function reviveNativeTasks(
 async function wakeStoppedAgentsForPendingTasks(
   tasks: AssignedTaskSnapshotView[],
   now: number,
-  cooldown: NudgeCooldown,
+  cooldown: RecoveryCooldown,
   runtime: TaskDeliveryRuntime,
   effectContext: TaskDeliveryContext,
   agentMgr: DaemonAgentProcessManagerServiceShape,
@@ -398,7 +348,7 @@ async function wakeStoppedAgentsForPendingTasks(
 export async function processTasksUpdate(
   runtime: TaskDeliveryRuntime,
   effectContext: TaskDeliveryContext,
-  cooldown: NudgeCooldown,
+  cooldown: RecoveryCooldown,
   agentMgr: DaemonAgentProcessManagerServiceShape,
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
@@ -442,7 +392,7 @@ export async function processTasksUpdate(
   if (filteredTasks.length > 0) {
     const first = filteredTasks[0];
     logNativeDeliveryFallback(
-      'signal-presence',
+      _pass,
       first.agentConfig.role,
       first.chatroomId,
       first.taskId

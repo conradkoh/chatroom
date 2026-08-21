@@ -21,7 +21,7 @@ import {
   type TaskDeliveryContext,
   type TaskDeliveryRuntime,
 } from './native-delivery/task-delivery-processor.js';
-import { NudgeCooldown } from './task-monitor/task-monitor-logic.js';
+import { RecoveryCooldown } from './task-monitor/task-monitor-logic.js';
 import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
 import { handleTaskInboxUpdate } from '../infrastructure/inbox/task-inbox-delivery.js';
@@ -34,7 +34,7 @@ type TaskInboxDependencies = {
   sessionDeps: NativeTaskDeliverySessionDeps;
   runtime: TaskDeliveryRuntime;
   effectContext: TaskDeliveryContext;
-  cooldown: NudgeCooldown;
+  cooldown: RecoveryCooldown;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   machineId: string;
 };
@@ -56,7 +56,7 @@ export async function bootstrapMachineAssignedTaskSnapshots(
     deps.agentMgr,
     deps.sessionDeps,
     deps.machineId,
-    'presence',
+    'bootstrap',
     { snapshots: tasks }
   );
 }
@@ -128,7 +128,7 @@ export const startTaskInboxEffect = (
       sessionDeps,
       machineId: session.machineId,
     });
-    const cooldown = new NudgeCooldown();
+    const cooldown = new RecoveryCooldown();
     const inboxOptions: Parameters<typeof runTaskInbox>[0] = {
       client: wsClient,
       sessionId: session.sessionId as SessionId,
@@ -160,7 +160,7 @@ export const startTaskInboxEffect = (
           agentMgr,
           sessionDeps,
           session.machineId,
-          'presence'
+          'periodic-reconcile'
         );
     }, NATIVE_DELIVERY_RECONCILE_MS);
     yield* Effect.tryPromise(() =>

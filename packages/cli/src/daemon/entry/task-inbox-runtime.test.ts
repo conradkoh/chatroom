@@ -46,7 +46,7 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
       machineId: 'machine-1',
     });
     expect(processTasksUpdate).toHaveBeenCalledOnce();
-    expect(processTasksUpdate.mock.calls[0]?.[6]).toBe('presence');
+    expect(processTasksUpdate.mock.calls[0]?.[6]).toBe('bootstrap');
   });
 
   it('syncs and does not deliver when no snapshots exist', async () => {

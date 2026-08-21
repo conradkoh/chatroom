@@ -6,12 +6,12 @@ import {
   type TaskDeliveryContext,
   type TaskDeliveryRuntime,
 } from '../../entry/native-delivery/task-delivery-processor.js';
-import type { NudgeCooldown } from '../../entry/task-monitor/task-monitor-logic.js';
+import type { RecoveryCooldown } from '../../entry/task-monitor/task-monitor-logic.js';
 
 export type TaskInboxDeliveryDeps = {
   runtime: TaskDeliveryRuntime;
   effectContext: TaskDeliveryContext;
-  cooldown: NudgeCooldown;
+  cooldown: RecoveryCooldown;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   sessionDeps: NativeTaskDeliverySessionDeps;
   machineId: string;
@@ -29,6 +29,6 @@ export async function handleTaskInboxUpdate(
     deps.agentMgr,
     deps.sessionDeps,
     deps.machineId,
-    'signal'
+    'inbox-signal'
   );
 }

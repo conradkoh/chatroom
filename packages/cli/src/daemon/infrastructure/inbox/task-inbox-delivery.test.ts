@@ -52,7 +52,7 @@ describe('task inbox delivery', () => {
       expect.anything(),
       expect.anything(),
       'machine-1',
-      'signal'
+      'inbox-signal'
     );
   });
 });

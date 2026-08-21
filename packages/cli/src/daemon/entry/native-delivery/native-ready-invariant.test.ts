@@ -38,13 +38,27 @@ describe('native-ready-invariant', () => {
     );
   });
 
-  it('trusts a locally ready slot for a pending task with stale stopped state', () => {
-    expect(explainAgentReadyForNativeDeliveryBlock(task(), idleSlot())).toBeNull();
+  it('blocks a pending task when its fresh snapshot says stopped', () => {
+    expect(explainAgentReadyForNativeDeliveryBlock(task(), idleSlot())).toBe(
+      'desired_state_not_running (desiredState=stopped)'
+    );
   });
 
   it('still blocks when the locally running slot has a turn in flight', () => {
     expect(
-      explainAgentReadyForNativeDeliveryBlock(task(), idleSlot({ nativeTurnPhase: 'turn_in_flight' }))
+      explainAgentReadyForNativeDeliveryBlock(
+        task({
+          agentConfig: {
+            role: 'builder',
+            machineId: 'machine-1',
+            agentHarness: 'cursor-sdk',
+            workingDir: '/tmp',
+            spawnedAgentPid: 42,
+            desiredState: 'running',
+          },
+        }),
+        idleSlot({ pid: 42, nativeTurnPhase: 'turn_in_flight' })
+      )
     ).toBe('turn_not_idle (nativeTurnPhase=turn_in_flight)');
   });
 });
