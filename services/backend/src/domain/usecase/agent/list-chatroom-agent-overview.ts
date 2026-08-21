@@ -8,9 +8,8 @@
  * An agent is considered "running" only if it has a spawned PID AND its
  * daemon is connected. This matches the frontend AgentConfigTabs logic.
  *
- * Reads from chatroom_teamAgentConfigs + chatroom_machines (daemon connectivity).
- * Replaces `listRemoteAgentRunningStatus` which exposed raw machineId+role
- * tuples to the frontend.
+ * Reads materialized chatroom summaries first, filtering machine ownership at
+ * read time. A config-based fallback remains for pre-backfill chatrooms.
  */
 
 import { isAgentAlive } from './is-agent-alive';
@@ -61,18 +60,38 @@ export async function listChatroomAgentOverview(
     .collect();
   const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
-  // Read status from materialized machineStatus table
-  const statusMap = new Map<string, { daemonConnected: boolean }>();
-  for (const machine of userMachines) {
-    const machineStatus = await ctx.db
-      .query('chatroom_machineStatus')
-      .withIndex('by_machineId', (q: any) => q.eq('machineId', machine.machineId))
-      .first();
-    statusMap.set(machine.machineId, { daemonConnected: machineStatus?.status === 'online' });
-  }
-
   const results = await Promise.all(
     userChatrooms.map(async (room) => {
+      const summary = await ctx.db
+        .query('chatroom_agentOperationalSummary')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+        .first();
+
+      if (summary) {
+        const runningAgents = summary.runningAgents.filter((agent) =>
+          machineMap.has(agent.machineId)
+        );
+        const runningRoles = runningAgents.map((agent) => agent.role);
+        const aliveRoles: string[] = [];
+        for (const role of summary.aliveRoles) {
+          const row = await ctx.db
+            .query('chatroom_agentRoleOperationalStatus')
+            .withIndex('by_chatroom_role', (q) =>
+              q.eq('chatroomId', room._id).eq('role', role.toLowerCase())
+            )
+            .first();
+          if (row?.machineId && machineMap.has(row.machineId)) aliveRoles.push(role);
+        }
+        const agentStatus =
+          summary.remoteConfigCount === 0
+            ? ('none' as const)
+            : runningRoles.length > 0
+              ? ('running' as const)
+              : ('stopped' as const);
+        return { chatroomId: room._id, agentStatus, runningRoles, aliveRoles, runningAgents };
+      }
+
+      // Fallback for chatrooms that have not been backfilled yet.
       const allConfigs = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
@@ -94,13 +113,23 @@ export async function listChatroomAgentOverview(
         return true;
       });
 
+      const statusMap = new Map<string, boolean>();
+      for (const config of configs) {
+        if (!config.machineId || statusMap.has(config.machineId)) continue;
+        const machineStatus = await ctx.db
+          .query('chatroom_machineStatus')
+          .withIndex('by_machineId', (q) => q.eq('machineId', config.machineId!))
+          .first();
+        statusMap.set(config.machineId, machineStatus?.status === 'online');
+      }
+
       // An agent is only considered running if it has a PID AND its daemon is connected.
       // This matches the frontend AgentConfigTabs check (spawnedAgentPid && daemonConnected)
       // and prevents stale "running" status when a daemon disconnects without cleanup.
       const runningConfigs = configs.filter((c) => {
         if (c.spawnedAgentPid == null) return false;
         if (c.machineId == null) return false;
-        return statusMap.get(c.machineId)?.daemonConnected === true;
+        return statusMap.get(c.machineId) === true;
       });
 
       let agentStatus: ChatroomAgentOverview['agentStatus'];

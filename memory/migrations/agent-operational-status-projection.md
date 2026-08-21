@@ -131,8 +131,8 @@ role rows must be pruned) and explicit machine backfill. Summary rows carry the
 remote configuration count so `none` versus `stopped` can be maintained without
 reloading all configs.
 
-- [ ] `getAgentStatusForChatroom` reads materialized role rows
-- [ ] `listChatroomAgentOverview` reads summary rows
+- [x] `getAgentStatusForChatroom` reads materialized role rows
+- [x] `listChatroomAgentOverview` reads summary rows
 - [ ] `getTeamLifecycle` reads `isAlive` from role rows
 - [ ] `machines.getChatroomAgentOverview` reads the summary row
 - [ ] Verify AgentPanel, sidebar, and `deriveChatStatus` behavior is unchanged
