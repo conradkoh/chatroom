@@ -10,6 +10,7 @@ import {
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { deleteStaleTeamAgentConfigs } from '../../../../convex/utils/teamRoleKey';
+import { projectAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
 
 type TeamAgentConfigPatch = Partial<
   Omit<Doc<'chatroom_teamAgentConfigs'>, '_id' | '_creationTime'>
@@ -142,11 +143,14 @@ async function projectTeamAgentConfigPatch(
 ): Promise<void> {
   if (scope === 'chatroom') {
     await projectAssignedTaskSnapshotsForChatroom(ctx, existing.chatroomId);
+    await projectAgentOperationalStatusForChatroom(ctx, existing.chatroomId);
     return;
   }
   if (existing.machineId) {
     await projectAssignedTaskSnapshotsForMachine(ctx, existing.machineId);
+    await projectAgentOperationalStatusForChatroom(ctx, existing.chatroomId);
     return;
   }
   await projectAssignedTaskSnapshotsForChatroom(ctx, existing.chatroomId);
+  await projectAgentOperationalStatusForChatroom(ctx, existing.chatroomId);
 }

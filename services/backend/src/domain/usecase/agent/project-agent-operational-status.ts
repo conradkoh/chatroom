@@ -75,6 +75,16 @@ export async function projectAgentOperationalStatusForChatroom(
     if (existing) await ctx.db.patch(existing._id, fields);
     else await ctx.db.insert('chatroom_agentRoleOperationalStatus', fields);
   }
+  const derivedRoles = new Set(roles.map((p) => p.role.toLowerCase()));
+  const existingRoleRows = await ctx.db
+    .query('chatroom_agentRoleOperationalStatus')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+    .collect();
+  for (const row of existingRoleRows) {
+    if (!derivedRoles.has(row.role)) {
+      await ctx.db.delete('chatroom_agentRoleOperationalStatus', row._id);
+    }
+  }
   const existingSummary = await ctx.db
     .query('chatroom_agentOperationalSummary')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
