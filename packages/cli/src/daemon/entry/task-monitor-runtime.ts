@@ -23,10 +23,6 @@ import type { ConvexClient } from 'convex/browser';
 import { Effect, Runtime, type Context } from 'effect';
 
 import {
-  registerAssignedTaskMonitorHandler,
-  unregisterAssignedTaskMonitorHandler,
-} from './assigned-task-monitor-registry.js';
-import {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
   type DaemonAgentProcessManagerServiceShape,
@@ -50,10 +46,10 @@ import {
   isRestartOrchestratorInFlight,
 } from './restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from './role-delivery-state.js';
+import type { NudgeCooldown } from './task-monitor/task-monitor-logic.js';
 import {
   listTasksReadyForNudge,
   listNativeTasksNeedingRevive,
-  NudgeCooldown,
   shouldEscalateNativeNudgeToRestart,
 } from './task-monitor/task-monitor-logic.js';
 import { api } from '../../api.js';
@@ -74,11 +70,14 @@ import type {
   AssignedTaskWithContent,
 } from '../domain/entities/assigned-task.js';
 import { isTeamAgentRole } from '../domain/entities/execution-kind.js';
-import type { AssignedTaskInboundEvent } from '../domain/usecase/handle-assigned-task-inbound.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 
-export type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
-export type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
+export type TaskMonitorRuntime = Runtime.Runtime<
+  DaemonSessionService | DaemonAgentProcessManagerService
+>;
+export type TaskMonitorContext = Context.Context<
+  DaemonSessionService | DaemonAgentProcessManagerService
+>;
 
 type TaskMonitorPass = 'signal' | 'presence';
 
@@ -479,19 +478,6 @@ function subscribeAssignedTaskSnapshotStore(
   );
 }
 
-// fallow-ignore-next-line unused-export
-export function handleInboundAssignedTaskEvent(
-  event: AssignedTaskInboundEvent,
-  runMonitorPass: (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass) => void
-): void {
-  const row = listAssignedTaskSnapshots().find(
-    (snapshot) => snapshot.taskId === event.taskId && snapshot.agentConfig.role === event.role
-  );
-  if (!row) return;
-  const pass: TaskMonitorPass = event.type === 'assigned-task.signal' ? 'signal' : 'presence';
-  runMonitorPass([row], pass);
-}
-
 // fallow-ignore-next-line complexity
 export const startTaskMonitorEffect = (
   wsClient: ConvexClient
@@ -513,9 +499,8 @@ export const startTaskMonitorEffect = (
 
     console.log(`[${formatTimestamp()}] 📋 Starting task-monitor (incremental subscribe)`);
 
-    const cooldown = new NudgeCooldown();
     let stopped = false;
-    let monitorPassInFlight = false;
+    const monitorPassInFlight = false;
 
     const sessionDeps: NativeTaskDeliverySessionDeps = {
       sessionId: session.sessionId,
@@ -543,27 +528,6 @@ export const startTaskMonitorEffect = (
       () => stopped
     );
 
-    const runMonitorPass = (tasks: AssignedTaskSnapshotView[], pass: TaskMonitorPass): void => {
-      if (stopped || monitorPassInFlight || tasks.length === 0) return;
-      monitorPassInFlight = true;
-      void processTasksUpdate(
-        tasks,
-        runtime,
-        effectContext,
-        cooldown,
-        agentMgr,
-        sessionDeps,
-        session.machineId,
-        pass
-      ).finally(() => {
-        monitorPassInFlight = false;
-      });
-    };
-
-    registerAssignedTaskMonitorHandler(async (event) => {
-      handleInboundAssignedTaskEvent(event, runMonitorPass);
-    });
-
     const reconcileTimer = setInterval(() => {
       runLocalStoreReconcilePass({
         stopped,
@@ -586,7 +550,6 @@ export const startTaskMonitorEffect = (
     return {
       stop() {
         stopped = true;
-        unregisterAssignedTaskMonitorHandler();
         unsubscribeSnapshotStore();
         clearAssignedTaskSnapshots();
         unregisterNativeDeliverySession();

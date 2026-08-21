@@ -15,8 +15,6 @@ export interface InboundCommandEventPayload {
 }
 
 export type InboundEvent =
-  | { type: 'assigned-task.signal'; taskId: string; role: string }
-  | { type: 'assigned-task.presence'; taskId: string; role: string }
   | {
       type: 'command.received';
       commandId: string;
