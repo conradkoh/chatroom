@@ -209,9 +209,9 @@ describe('native inbox recovery after planner handoff', () => {
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    // Backend has no matching task when turn went idle.
+    // Idle delivery consults the inbox-owned state and does not query Convex.
     notifyNativeTurnIdle({ chatroomId: CHATROOM_ID, role: 'planner' });
-    await vi.waitFor(() => expect(backendQuery).toHaveBeenCalled());
+    expect(backendQuery).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(
       expect.stringContaining(
         '[NativeDelivery:primary] turn idle planner@n57ctdnfvd0avh0ghx6p4szk8x8aa69a — trying inject'

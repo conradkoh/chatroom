@@ -1,9 +1,10 @@
 // fallow-ignore-file complexity
+// fallow-ignore-file code-duplication
 /**
  * Task delivery processor for inbox updates and periodic reconciliation.
  *
- * - Inbox signal delivery rehydrates current machine snapshots from the backend.
- * - Periodic reconciliation rehydrates the same snapshots to recover missed signals.
+ * - Inbox signal delivery processes snapshots hydrated by the machine inbox.
+ * - Periodic reconciliation retries delivery decisions from the inbox-owned state.
  *
  * Fat task.content is fetched only when nudging, reviving, or injecting.
  * Dual-channel WorkingSnapshot hydrate still uses one-shot HTTP.
@@ -38,7 +39,6 @@ import type {
   AssignedTaskWithContent,
 } from '../../domain/entities/assigned-task.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
-import { fetchMachineAssignedTaskSnapshots } from '../../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import {
   filterSnapshotsExcludingRestartInFlight,
   isRestartOrchestratorInFlight,
@@ -57,7 +57,7 @@ export type TaskDeliveryContext = Context.Context<
   DaemonSessionService | DaemonAgentProcessManagerService
 >;
 export type ProcessTasksUpdateOptions = {
-  snapshots?: readonly AssignedTaskSnapshotView[];
+  snapshots: readonly AssignedTaskSnapshotView[];
 };
 
 type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap';
@@ -356,11 +356,9 @@ export async function processTasksUpdate(
   sessionDeps: NativeTaskDeliverySessionDeps,
   machineId: string,
   _pass: TaskDeliveryPass,
-  options?: ProcessTasksUpdateOptions
+  options: ProcessTasksUpdateOptions
 ): Promise<void> {
-  const tasks = options?.snapshots
-    ? [...options.snapshots]
-    : await fetchMachineAssignedTaskSnapshots(sessionDeps, machineId);
+  const tasks = [...options.snapshots];
   const filteredTasks = filterSnapshotsExcludingRestartInFlight(tasks);
   if (filteredTasks.length === 0) return;
 

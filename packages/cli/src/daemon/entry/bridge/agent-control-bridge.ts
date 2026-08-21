@@ -13,6 +13,7 @@ import type {
   DaemonSessionServiceShape,
 } from '../daemon-services.js';
 import type { AgentHarness, StartAgentReason } from '../daemon-types.js';
+import { getNativeDeliverySession } from '../native-delivery/native-delivery-session-registry.js';
 import { runRestartOrchestrator } from '../restart-orchestrator.js';
 
 export function createStartAgentDeps(
@@ -21,8 +22,10 @@ export function createStartAgentDeps(
 ): StartAgentDeps {
   return {
     agentProcessManager: {
-      ensureRunning: async (args) =>
-        Effect.runPromise(
+      ensureRunning: async (args) => {
+        const taskSnapshotState = getNativeDeliverySession()?.taskSnapshotState;
+        taskSnapshotState?.setDesiredState(args.chatroomId, args.role, 'running');
+        const result = await Effect.runPromise(
           agentMgr.ensureRunning({
             chatroomId: args.chatroomId as Id<'chatroom_rooms'>,
             role: args.role,
@@ -32,7 +35,12 @@ export function createStartAgentDeps(
             reason: args.reason as StartAgentReason,
             wantResume: args.wantResume,
           })
-        ),
+        );
+        if (!result.success) {
+          taskSnapshotState?.setDesiredState(args.chatroomId, args.role, 'stopped');
+        }
+        return result;
+      },
     },
     session: {
       sessionId: session.sessionId,
