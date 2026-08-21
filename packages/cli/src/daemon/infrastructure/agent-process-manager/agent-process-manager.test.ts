@@ -85,6 +85,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
         transitionedToWaiting: true,
       }),
     },
+    lifecycleOutbox: { enqueue: vi.fn().mockResolvedValue({ success: true }) },
     sessionId: 'test-session',
     machineId: 'test-machine',
     processes: { kill: vi.fn() },

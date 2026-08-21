@@ -102,12 +102,12 @@ flowchart TD
 
 ### Phase 1 — Agent lifecycle outbox (daemon, BEFORE projection)
 
-- [ ] Add `agent.lifecycle` outbound event types to `outbound-event.ts`
-- [ ] Create `agent-lifecycle-outbox.ts` (T3 immediate, keyed by `{machineId}:{chatroomId}:{role}`)
-- [ ] Route `agent-process-manager` PID/exited/restart facts through outbox
-- [ ] Route daemon-restart-cleanup `clearAllSpawnedPids` through outbox
-- [ ] Add Convex receive mutation stub (`machines.projectAgentLifecycleFact`)
-- [ ] Add integration tests for enqueue, drain, and retry on failure
+- [x] Add `agent.lifecycle` outbound event types to `outbound-event.ts`
+- [x] Create `agent-lifecycle-outbox.ts` (T3 immediate, keyed by `{machineId}:{chatroomId}:{role}`)
+- [x] Route `agent-process-manager` PID/exited/restart facts through outbox
+- [x] Route daemon-restart-cleanup `clearAllSpawnedPids` through outbox
+- [x] Add Convex receive mutation stub (`machines.projectAgentLifecycleFact`)
+- [x] Add integration tests for enqueue, drain, and retry on failure
 
 ### Phase 2 — Write-time projection (Convex)
 

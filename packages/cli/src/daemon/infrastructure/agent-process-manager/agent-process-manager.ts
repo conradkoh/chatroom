@@ -27,7 +27,10 @@ import { Effect } from 'effect';
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
-import { buildAgentLifecycleRevisionKey, type AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
+import {
+  buildAgentLifecycleRevisionKey,
+  type AgentLifecycleFact,
+} from '../../domain/entities/agent-lifecycle-fact.js';
 import type { AgentLifecycleOutboxResult } from '../outbox/agent-lifecycle-outbox.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
@@ -170,7 +173,7 @@ export interface AgentSlot {
 }
 
 export interface AgentProcessManagerDeps {
-  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<AgentLifecycleOutboxResult> };
+  lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<AgentLifecycleOutboxResult> };
   logEvent: (event: Record<string, unknown>) => Promise<void>;
   logSink?: AgentLogSink;
   agentServices: Map<string, RemoteAgentService>;
@@ -1330,7 +1333,21 @@ export class AgentProcessManager {
       }
     );
     const emittedAt = this.deps.clock.now();
-    void this.deps.lifecycleOutbox?.enqueue({ kind: 'exited', ...exitArgs, revisionKey: buildAgentLifecycleRevisionKey('exited', { chatroomId: exitArgs.chatroomId, role: exitArgs.role, pid: exitArgs.pid, emittedAt }), emittedAt }).catch((err: Error) => console.log(`   ⚠️  Failed to enqueue agent exited lifecycle fact: ${err.message}`));
+    void this.deps.lifecycleOutbox
+      .enqueue({
+        kind: 'exited',
+        ...exitArgs,
+        revisionKey: buildAgentLifecycleRevisionKey('exited', {
+          chatroomId: exitArgs.chatroomId,
+          role: exitArgs.role,
+          pid: exitArgs.pid,
+          emittedAt,
+        }),
+        emittedAt,
+      })
+      .catch((err: Error) =>
+        console.log(`   ⚠️  Failed to enqueue agent exited lifecycle fact: ${err.message}`)
+      );
   }
 
   private async clearAgentPidQuietly(chatroomId: string, role: string): Promise<void> {
@@ -1902,7 +1919,26 @@ export class AgentProcessManager {
     });
 
     const emittedAt = this.deps.clock.now();
-    void this.deps.lifecycleOutbox?.enqueue({ kind: 'spawned', chatroomId: opts.chatroomId, role: opts.role, pid, model: opts.model, reason: opts.reason, ...(spawnResult.harnessSessionId ? { harnessSessionId: spawnResult.harnessSessionId } : {}), revisionKey: buildAgentLifecycleRevisionKey('spawned', { chatroomId: opts.chatroomId, role: opts.role, pid, emittedAt }), emittedAt }).catch((err: Error) => console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`));
+    void this.deps.lifecycleOutbox
+      .enqueue({
+        kind: 'spawned',
+        chatroomId: opts.chatroomId,
+        role: opts.role,
+        pid,
+        model: opts.model,
+        reason: opts.reason,
+        ...(spawnResult.harnessSessionId ? { harnessSessionId: spawnResult.harnessSessionId } : {}),
+        revisionKey: buildAgentLifecycleRevisionKey('spawned', {
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          pid,
+          emittedAt,
+        }),
+        emittedAt,
+      })
+      .catch((err: Error) =>
+        console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`)
+      );
   }
 
   private registerSpawnCallbacks(

@@ -8,7 +8,7 @@ import { agentLifecycleDeliveryKey } from '../../domain/entities/agent-lifecycle
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 
 export const AGENT_LIFECYCLE_OUTBOX_BATCH_SIZE = 1;
-export type AgentLifecycleOutboxResult = { success: true };
+export type AgentLifecycleOutboxResult = { success: true; skipped?: boolean; clearedCount?: number };
 export type AgentLifecycleOutboxRegistry = KeyedFifoBatchedOutboxRegistry<
   AgentLifecycleFact,
   AgentLifecycleOutboxResult
