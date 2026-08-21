@@ -23,7 +23,7 @@ import { Effect, Runtime, type Context } from 'effect';
 import type {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
-  type DaemonAgentProcessManagerServiceShape,
+  DaemonAgentProcessManagerServiceShape,
 } from '../daemon-services.js';
 import type { AgentHarness } from '../daemon-types.js';
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
