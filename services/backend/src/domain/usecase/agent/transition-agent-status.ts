@@ -16,7 +16,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { projectAgentOperationalStatusForChatroom } from './project-agent-operational-status';
+import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 
 const STARTING_INFERENCE_STATUSES = new Set([
   'agent.requestStart',
@@ -92,6 +92,6 @@ export async function transitionAgentStatus(
   // Future: 2. Update chatroom_teamAgentConfigs.status field when schema is updated
   // This would make teamAgentConfigs the single source of truth for agent status.
   if (STARTING_INFERENCE_STATUSES.has(lastStatus)) {
-    await projectAgentOperationalStatusForChatroom(ctx, chatroomId);
+    await projectAgentOperationalStatusForRole(ctx, chatroomId, role);
   }
 }

@@ -8,10 +8,7 @@ import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { onAgentExited } from '../../../events/agent/on-agent-exited';
 import { projectAssignedTaskSnapshotsForMachine } from '../machine/machine-assigned-task-snapshot-sync';
 import type { Id } from '../../../../convex/_generated/dataModel';
-import {
-  projectAgentOperationalStatusForChatroom,
-  projectAgentOperationalStatusForMachine,
-} from './project-agent-operational-status';
+import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 
 export type AgentLifecycleFactInput =
   | {
@@ -63,13 +60,20 @@ export async function projectAgentLifecycleFact(
         clearedCount++;
       }
     await projectAssignedTaskSnapshotsForMachine(ctx, machineId);
-    await projectAgentOperationalStatusForMachine(ctx, machineId, fact.revisionKey);
+    for (const config of configs) {
+      await projectAgentOperationalStatusForRole(
+        ctx,
+        config.chatroomId,
+        config.role,
+        fact.revisionKey,
+        { config }
+      );
+    }
     return { success: true, clearedCount };
   }
   if (fact.kind === 'exited') {
     await agentExitedUseCase(ctx, { ...fact, machineId });
     await onAgentExited(ctx, fact);
-    await projectAgentOperationalStatusForChatroom(ctx, fact.chatroomId, fact.revisionKey);
     return { success: true };
   }
   await assertMachineBelongsToChatroom(ctx, {
@@ -95,6 +99,5 @@ export async function projectAgentLifecycleFact(
     ...(fact.model !== undefined ? { model: fact.model } : {}),
   });
   await recordAgentSpawnedState(ctx, { ...fact, machineId });
-  await projectAgentOperationalStatusForChatroom(ctx, fact.chatroomId, fact.revisionKey);
   return { success: true };
 }

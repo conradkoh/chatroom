@@ -45,7 +45,11 @@ import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 import { agentLifecycleFactValidator } from './validators/agent-lifecycle-fact';
 import { projectAgentLifecycleFact as projectAgentLifecycleFactUseCase } from '../src/domain/usecase/agent/project-agent-lifecycle-fact';
-import { projectAgentOperationalStatusForMachine } from '../src/domain/usecase/agent/project-agent-operational-status';
+import {
+  projectDaemonConnectivityForMachine,
+  projectAgentOperationalStatusForRole,
+  rebuildAgentOperationalStatusForMachine,
+} from '../src/domain/usecase/agent/project-agent-operational-status';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -1106,7 +1110,7 @@ export const updateDaemonStatus = mutation({
     }
     // If status matches desired, do NOT write (write suppression)
 
-    await projectAgentOperationalStatusForMachine(ctx, args.machineId);
+    await projectDaemonConnectivityForMachine(ctx, args.machineId, args.connected);
 
     return { success: true };
   },
@@ -2590,7 +2594,7 @@ export const backfillAgentOperationalStatusForMachine = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new ConvexError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    await projectAgentOperationalStatusForMachine(ctx, args.machineId);
+    await rebuildAgentOperationalStatusForMachine(ctx, args.machineId);
     return { success: true };
   },
 });
@@ -3141,7 +3145,11 @@ export const clearAllSpawnedPids = mutation({
       }
     }
     await projectAssignedTaskSnapshotsForMachine(ctx, args.machineId);
-    await projectAgentOperationalStatusForMachine(ctx, args.machineId);
+    for (const config of allConfigs) {
+      await projectAgentOperationalStatusForRole(ctx, config.chatroomId, config.role, undefined, {
+        config,
+      });
+    }
 
     return { clearedCount };
   },
