@@ -43,6 +43,8 @@ import {
 } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
+import { agentLifecycleFactValidator } from './validators/agent-lifecycle-fact';
+import { projectAgentLifecycleFact as projectAgentLifecycleFactUseCase } from '../src/domain/usecase/agent/project-agent-lifecycle-fact';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -1553,6 +1555,14 @@ export const updateSpawnedAgent = mutation({
     });
 
     return { success: true };
+  },
+});
+
+export const projectAgentLifecycleFact = mutation({
+  args: { ...SessionIdArg, machineId: v.string(), fact: agentLifecycleFactValidator },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    return projectAgentLifecycleFactUseCase(ctx, { machineId: args.machineId, fact: args.fact });
   },
 });
 

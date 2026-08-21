@@ -17,3 +17,4 @@ export {
   type AgentLifecycleOutboxRegistry,
   type AgentLifecycleOutboxResult,
 } from './agent-lifecycle-outbox.js';
+export { createAgentLifecycleSend } from './agent-lifecycle-send.js';
