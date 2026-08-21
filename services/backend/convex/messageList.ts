@@ -196,9 +196,9 @@ export const subscribeTaskStatusSignalsSince = query({
       MAX_TASK_STATUS_SIGNALS_LIMIT
     );
     const page = await ctx.db
-      .query('chatroom_timelineTaskStatusSignals')
-      .withIndex('by_targetMachineId_signalKey', (q) =>
-        q.eq('targetMachineId', args.machineId).gt('signalKey', args.afterKey)
+      .query('chatroom_machineTaskStatusSignals')
+      .withIndex('by_machineId_signalKey', (q) =>
+        q.eq('machineId', args.machineId).gt('signalKey', args.afterKey)
       )
       .order('asc')
       .take(limit + 1);
@@ -208,7 +208,7 @@ export const subscribeTaskStatusSignalsSince = query({
     const items = rows.map((row) => ({
       chatroomId: row.chatroomId,
       taskId: row.taskId,
-      targetRole: row.targetRole ?? null,
+      targetRole: row.targetRole,
       taskStatus: row.taskStatus,
       signalKey: row.signalKey,
       taskUpdatedAt: row.taskUpdatedAt,

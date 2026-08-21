@@ -22,10 +22,10 @@ export async function listTasksForMachineSignalRange(
 ): Promise<ListTasksForMachineSignalRangeResult> {
   void input.userId;
   const signals = await ctx.db
-    .query('chatroom_timelineTaskStatusSignals')
-    .withIndex('by_targetMachineId_signalKey', (q) =>
+    .query('chatroom_machineTaskStatusSignals')
+    .withIndex('by_machineId_signalKey', (q) =>
       q
-        .eq('targetMachineId', input.machineId)
+        .eq('machineId', input.machineId)
         .gt('signalKey', input.afterSignalKey)
         .lte('signalKey', input.throughSignalKey)
     )
@@ -35,7 +35,6 @@ export async function listTasksForMachineSignalRange(
   const snapshots: AssignedTaskSnapshotView[] = [];
 
   for (const signal of page) {
-    if (!signal.targetRole) continue;
     const targetRole = signal.targetRole;
     const snapshot = await ctx.db
       .query('chatroom_machineAssignedTaskSnapshots')

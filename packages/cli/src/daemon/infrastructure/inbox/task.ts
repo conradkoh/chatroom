@@ -17,10 +17,9 @@ const DEFAULT_SIGNAL_PAGE_LIMIT = 100;
 const DEFAULT_TASK_PAGE_LIMIT = 500;
 
 export type TaskStatusSignal = Pick<
-  Doc<'chatroom_timelineTaskStatusSignals'>,
+  Doc<'chatroom_machineTaskStatusSignals'>,
   | 'chatroomId'
   | 'taskId'
-  | 'targetMachineId'
   | 'targetRole'
   | 'taskStatus'
   | 'signalKey'

@@ -62,4 +62,15 @@ export async function writeTimelineTaskStatusSignal(
     signalKey: buildTimelineTaskStatusSignalKey(taskUpdatedAt, task._id),
     taskUpdatedAt,
   });
+  if (routing.targetMachineId && routing.targetRole) {
+    await ctx.db.insert('chatroom_machineTaskStatusSignals', {
+      machineId: routing.targetMachineId,
+      chatroomId: task.chatroomId,
+      taskId: task._id,
+      targetRole: routing.targetRole,
+      taskStatus: task.status,
+      signalKey: buildTimelineTaskStatusSignalKey(taskUpdatedAt, task._id),
+      taskUpdatedAt,
+    });
+  }
 }
