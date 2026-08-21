@@ -191,6 +191,7 @@ describe('DaemonSessionService', () => {
       lastPushedGitState: new Map(),
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
+      logEvent: async () => undefined,
     });
 
     const { sessionId, machineId } = Effect.runSync(
@@ -221,6 +222,7 @@ describe('DaemonSessionService', () => {
       lastPushedGitState: new Map(),
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
+      logEvent: async () => undefined,
     });
 
     const { backend, fs } = Effect.runSync(
@@ -251,6 +253,7 @@ describe('DaemonSessionService', () => {
       lastPushedGitState,
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
+      logEvent: async () => undefined,
     });
 
     const result = Effect.runSync(

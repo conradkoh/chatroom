@@ -54,9 +54,9 @@ async function setupAgentAndSeedMetrics(opts: {
     );
   });
 
-  // Record N agent starts to seed the metric
+  // Record N agent starts to seed the metric (state via agentEvents, not updateSpawnedAgent)
   for (let i = 0; i < startCount; i++) {
-    await t.mutation(api.machines.updateSpawnedAgent, {
+    await t.mutation(api.daemon.agentEvents.agentStarted, {
       sessionId,
       machineId,
       chatroomId,
@@ -144,7 +144,7 @@ test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data"
 
   // Seed 5 starts in chatroom 2
   for (let i = 0; i < 5; i++) {
-    await t.mutation(api.machines.updateSpawnedAgent, {
+    await t.mutation(api.daemon.agentEvents.agentStarted, {
       sessionId,
       machineId,
       chatroomId: chatroomId2,
@@ -260,7 +260,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
 
   // 2 starts with model-alpha
   for (let i = 0; i < 2; i++) {
-    await t.mutation(api.machines.updateSpawnedAgent, {
+    await t.mutation(api.daemon.agentEvents.agentStarted, {
       sessionId,
       machineId,
       chatroomId,
@@ -272,7 +272,7 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
 
   // 3 starts with model-beta
   for (let i = 0; i < 3; i++) {
-    await t.mutation(api.machines.updateSpawnedAgent, {
+    await t.mutation(api.daemon.agentEvents.agentStarted, {
       sessionId,
       machineId,
       chatroomId,

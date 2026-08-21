@@ -4,7 +4,14 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { appendBatch, listLogDimensions, queryAfterId, queryHistory } from './log-store.js';
+import {
+  appendBatch,
+  appendChatroomEvent,
+  listLogDimensions,
+  queryAfterId,
+  queryEventStream,
+  queryHistory,
+} from './log-store.js';
 import { openLogDatabase } from './open-log-database.js';
 
 describe('log store', () => {
@@ -28,7 +35,11 @@ describe('log store', () => {
       { timestamp: 200, level: 'info', source: 'test', message: 'inside' },
       { timestamp: 300, level: 'info', source: 'test', message: 'after' },
     ]);
-    expect(queryHistory(db, undefined, 100, undefined, undefined, undefined, undefined, 150, 250).map((x) => x.message)).toEqual(['inside']);
+    expect(
+      queryHistory(db, undefined, 100, undefined, undefined, undefined, undefined, 150, 250).map(
+        (x) => x.message
+      )
+    ).toEqual(['inside']);
     db.close();
   });
 
@@ -59,11 +70,43 @@ describe('log store', () => {
         (x) => x.message
       )
     ).toEqual(['three']);
-    expect(listLogDimensions(db)).toEqual({
-      chatroomIds: ['room-a', 'room-b'],
-      roles: ['builder', 'planner'],
-      harnesses: ['claude', 'codex', 'legacy'],
+    expect(listLogDimensions(db, 'room-a')).toEqual({
+      roles: ['builder'],
+      harnesses: ['claude'],
     });
+    expect(listLogDimensions(db, 'room-b')).toEqual({
+      roles: ['planner'],
+      harnesses: ['codex'],
+    });
+    db.close();
+  });
+
+  it('stores migrated events in the dedicated event stream table', () => {
+    const db = openLogDatabase(join(tmpdir(), `logs-${randomUUID()}.sqlite`));
+    const firstEvent = appendChatroomEvent(db, {
+      type: 'agent.exited',
+      timestamp: 42,
+      chatroomId: 'room-a',
+      role: 'builder',
+    });
+    const secondEvent = appendChatroomEvent(db, {
+      type: 'agent.exited',
+      timestamp: 43,
+      chatroomId: 'room-b',
+      role: 'planner',
+    });
+    expect(firstEvent.id).toBeGreaterThan(0);
+    expect(secondEvent.id).toBe(firstEvent.id + 1);
+
+    expect(queryEventStream(db, { chatroomId: 'room-a' })).toMatchObject([
+      {
+        timestamp: 42,
+        type: 'agent.exited',
+        payload: { chatroomId: 'room-a', role: 'builder' },
+      },
+    ]);
+    expect(queryEventStream(db, { chatroomId: 'room-a' })).toHaveLength(1);
+    expect(queryHistory(db)).toEqual([]);
     db.close();
   });
 });

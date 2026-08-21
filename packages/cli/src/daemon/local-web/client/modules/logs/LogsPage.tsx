@@ -2,14 +2,13 @@ import { useMemo, useState } from 'react';
 
 import type { LogLine } from '@/api/types';
 import { LogDetailPanel } from '@/components/logs/LogDetailPanel';
-import type { LogFilterValues } from '@/components/logs/LogFiltersBar';
 import { LogFiltersBar } from '@/components/logs/LogFiltersBar';
 import { LogsPageHeader } from '@/components/logs/LogsPageHeader';
 import { LogViewer } from '@/components/logs/LogViewer';
 import { useChatrooms } from '@/hooks/use-chatrooms';
 import { useDaemonLogs } from '@/hooks/use-daemon-logs';
-import { getLogChatroomId } from '@/lib/log-line';
 import { useLogFiltersFromUrl } from '@/hooks/use-log-filters-url';
+import { getLogChatroomId } from '@/lib/log-line';
 
 export function LogsPage() {
   const { filters, setFilters } = useLogFiltersFromUrl();
@@ -47,6 +46,7 @@ export function LogsPage() {
             lines={lines}
             isLoading={isLoading}
             error={error}
+            hasChatroom={Boolean(filters.chatroomId)}
             autoScroll={!selectedLine}
             selectedLine={selectedLine}
             onSelectLine={setSelectedLine}

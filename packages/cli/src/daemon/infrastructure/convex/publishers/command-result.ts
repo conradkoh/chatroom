@@ -2,14 +2,15 @@ import type { ConvexPublisherDeps } from './publisher-deps.js';
 import type { Publisher } from './publisher.js';
 import { api } from '../../../../api.js';
 import type { OutboundEvent } from '../../../domain/entities/outbound-event.js';
+import { logDaemonAuditEvent } from '../../event-stream/daemon-event-emitter.js';
 
 export function createCommandResultPublisher(deps: ConvexPublisherDeps): Publisher {
   return {
     async publish(event: OutboundEvent): Promise<void> {
       switch (event.type) {
         case 'command.result.ping':
-          await deps.backend.mutation(api.machines.ackPing, {
-            sessionId: deps.sessionId,
+          await logDaemonAuditEvent(deps.logEvent ?? (async () => undefined), {
+            type: 'daemon.pong',
             machineId: deps.machineId,
             pingEventId: event.pingEventId,
           });

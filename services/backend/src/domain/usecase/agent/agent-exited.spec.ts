@@ -129,7 +129,7 @@ async function countExitedEvents(chatroomId: Id<'chatroom_rooms'>, role: string)
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('agentExited use case', () => {
-  test('inserts agent.exited event (audit trail)', async () => {
+  test('does not insert agent.exited event into the Convex event stream', async () => {
     const { sessionId } = await createTestSession('ae-audit-1');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'machine-ae-1';
@@ -146,7 +146,7 @@ describe('agentExited use case', () => {
     });
 
     const count = await countExitedEvents(chatroomId, 'builder');
-    expect(count).toBe(1);
+    expect(count).toBe(0);
   });
 
   test('clears PID only when config.spawnedAgentPid matches input.pid', async () => {
@@ -291,7 +291,7 @@ describe('agentExited use case', () => {
     expect(participant?.lastDesiredState).toBe('running');
 
     const count = await countExitedEvents(chatroomId, 'builder');
-    expect(count).toBe(1);
+    expect(count).toBe(0);
   });
 
   test('sets participant lastStatus to agent.restart for platform.task_start_in_new_session', async () => {
@@ -316,7 +316,7 @@ describe('agentExited use case', () => {
     expect(participant?.lastDesiredState).toBe('running');
 
     const count = await countExitedEvents(chatroomId, 'builder');
-    expect(count).toBe(1);
+    expect(count).toBe(0);
   });
 
   test('preserves agent.restart for user.restart (restart flow sets status upfront)', async () => {
@@ -344,7 +344,7 @@ describe('agentExited use case', () => {
     expect(participant?.lastStatus).toBe('agent.restart');
     expect(participant?.lastDesiredState).toBe('running');
     const count = await countExitedEvents(chatroomId, 'builder');
-    expect(count).toBe(1);
+    expect(count).toBe(0);
   });
 
   test('is idempotent (calling twice with same input is safe)', async () => {
@@ -372,9 +372,9 @@ describe('agentExited use case', () => {
       await agentExited(ctx, input);
     });
 
-    // Two audit events should exist (one per call)
+    // No Convex audit events should exist; the daemon owns event logging.
     const count = await countExitedEvents(chatroomId, 'builder');
-    expect(count).toBe(2);
+    expect(count).toBe(0);
 
     // Config PID should still be cleared
     const config = await getConfig(chatroomId, 'builder');

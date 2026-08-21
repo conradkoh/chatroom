@@ -13,7 +13,12 @@ export type FileTreeCheckpointRow = {
   publishedAt: number;
 };
 export type PublishCheckpointResult =
-  | { status: 'published' | 'unchanged'; revision: number; prunedDeltaCount: number }
+  | {
+      status: 'published' | 'unchanged';
+      revision: number;
+      prunedDeltaCount: number;
+      pruneComplete: boolean;
+    }
   | { status: 'resync-required'; expectedRevision: number }
   | { status: 'snapshot-missing' };
 

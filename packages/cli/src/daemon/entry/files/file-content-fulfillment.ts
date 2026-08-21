@@ -184,8 +184,16 @@ export const fulfillFileContentRequestsEffect: Effect.Effect<void, never, Daemon
       );
 
       if (fileNotFound) {
+        // ENOENT is terminal (deleted or never written); optimistic create is handled in the UI.
+        yield* fulfillGzippedContentEffect(
+          session,
+          workingDir,
+          filePath,
+          '[File not found]',
+          false
+        );
         console.log(
-          `[${formatTimestamp()}] ⏳ File not on disk yet, deferring content sync: ${filePath}`
+          `[${formatTimestamp()}] 📄 File not found, fulfilled content request: ${filePath}`
         );
         continue;
       }

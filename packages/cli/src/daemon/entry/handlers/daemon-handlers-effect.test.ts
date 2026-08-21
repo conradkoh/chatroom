@@ -66,6 +66,7 @@ function makeSessionLayer(config: MachineConfig | null = null): Layer.Layer<Daem
     lastPushedGitState: new Map(),
     lastPushedModels: null,
     lastPushedHarnessFingerprint: null,
+    logEvent: async () => undefined,
   });
 }
 
@@ -174,6 +175,7 @@ describe('executeStopAgentEffect', () => {
       whenTurnEndsIdle: vi.fn(),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
       setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
+      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
     });
 
     const effect = executeStopAgentEffect({
@@ -201,6 +203,7 @@ describe('executeStopAgentEffect', () => {
       whenTurnEndsIdle: vi.fn(),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
       setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
+      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
     });
 
     const effect = executeStopAgentEffect({
@@ -234,6 +237,7 @@ describe('handleStopAgentEffect', () => {
       whenTurnEndsIdle: vi.fn(),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
       setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
+      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
     });
 
     const command = {

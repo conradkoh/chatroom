@@ -1051,8 +1051,9 @@ export const getFileTreeDeltas = query({
 });
 
 /**
- * Publishes the current V2/V3 snapshot as a checkpoint, then prunes only the
- * delta payloads it covers. Idempotency receipts are intentionally retained.
+ * Publishes the current V2/V3 snapshot as a checkpoint, then prunes a bounded
+ * batch of covered delta payloads. Call again until `pruneComplete` is true.
+ * Idempotency receipts are intentionally retained.
  */
 export const publishFileTreeCheckpoint = mutation({
   args: {

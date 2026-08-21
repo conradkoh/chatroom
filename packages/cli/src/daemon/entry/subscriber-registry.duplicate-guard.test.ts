@@ -32,7 +32,6 @@ const LEGACY_INIT_FILES_TO_GUARD = [
   'src/daemon/entry/agentic-query/start-subscriptions.ts',
   'src/daemon/entry/enhancer/job-subscriber.ts',
   'src/daemon/entry/daemon-runtime.ts',
-  'src/daemon/entry/task-monitor-runtime.ts',
 ] as const;
 
 const ALLOWED_LEGACY_WS = [
@@ -46,8 +45,6 @@ function readRepoFile(relPath: string): string {
 describe('subscriber-registry duplicate guard (G4)', () => {
   it('v2 subscriber-registry wires all migrated inbound contexts', () => {
     const registrySource = readRepoFile('src/daemon/entry/subscriber-registry.ts');
-    expect(registrySource).toContain('startAssignedTaskSignalsSubscriber');
-    expect(registrySource).toContain('startAssignedTaskPresenceSubscriber');
     expect(registrySource).toContain('startDirectHarnessSessionSubscriber');
     expect(registrySource).toContain('startDirectHarnessPromptSubscriber');
     expect(registrySource).toContain('startDirectHarnessCommandSubscriber');

@@ -52,6 +52,7 @@ function registerListeners(
         lastPushedGitState: new Map(),
         lastPushedModels: null,
         lastPushedHarnessFingerprint: null,
+        logEvent: async () => undefined,
       }),
       Effect.provideService(DaemonAgentProcessManagerService, {
         handleExit: (opts) => Effect.sync(() => init.agentProcessManager.handleExit(opts)),
@@ -70,6 +71,7 @@ function registerListeners(
         resumeTurnForSlot: (args) =>
           Effect.promise(() => init.agentProcessManager.resumeTurnForSlot(args)),
         setLastInFlightTask: () => Effect.void,
+        clearLastInFlightTaskIfMatches: () => Effect.void,
       })
     )
   );

@@ -66,6 +66,7 @@ export function daemonSessionToLayers(init: DaemonSessionInit) {
       lastPushedGitState: init.lastPushedGitState,
       lastPushedModels: init.lastPushedModels,
       lastPushedHarnessFingerprint: init.lastPushedHarnessFingerprint,
+      logEvent: init.logEvent,
     })
   );
 }

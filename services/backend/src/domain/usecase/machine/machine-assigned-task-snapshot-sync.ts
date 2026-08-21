@@ -2,7 +2,7 @@
  * Write-time projection sync for machine assigned-task snapshots.
  */
 
-import type { AssignedTaskPresenceDelta } from './assigned-task-monitor-contract';
+import type { AssignedTaskPresenceDelta } from './assigned-task-snapshot-contract';
 import {
   getParticipantForChatroomRole,
   loadRemoteAgentConfigsForMachine,
@@ -142,7 +142,10 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     taskAssignedTo: task.assignedTo,
     taskCreatedAt: task.createdAt ?? now,
     taskUpdatedAt,
-    sessionAugmentation: resolveSessionAugmentationForTask({ content: task.content, startInNewSession: task.startInNewSession }, config.role),
+    sessionAugmentation: resolveSessionAugmentationForTask(
+      { content: task.content, startInNewSession: task.startInNewSession },
+      config.role
+    ),
     agentHarness: config.agentHarness ?? 'opencode',
     model: config.model,
     workingDir: config.workingDir,

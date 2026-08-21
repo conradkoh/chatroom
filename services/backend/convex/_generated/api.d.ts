@@ -49,6 +49,7 @@ import type * as connections from "../connections.js";
 import type * as contexts from "../contexts.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
+import type * as daemon_agentEvents from "../daemon/agentEvents.js";
 import type * as daemon_agenticQuery_index from "../daemon/agenticQuery/index.js";
 import type * as daemon_agenticQuery_insertUserTurn from "../daemon/agenticQuery/insertUserTurn.js";
 import type * as daemon_agenticQuery_messages from "../daemon/agenticQuery/messages.js";
@@ -210,6 +211,7 @@ declare const fullApi: ApiFromModules<{
   contexts: typeof contexts;
   crons: typeof crons;
   crypto: typeof crypto;
+  "daemon/agentEvents": typeof daemon_agentEvents;
   "daemon/agenticQuery/index": typeof daemon_agenticQuery_index;
   "daemon/agenticQuery/insertUserTurn": typeof daemon_agenticQuery_insertUserTurn;
   "daemon/agenticQuery/messages": typeof daemon_agenticQuery_messages;

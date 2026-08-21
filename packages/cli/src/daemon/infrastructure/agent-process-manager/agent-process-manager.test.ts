@@ -72,6 +72,7 @@ function createMockService() {
 function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessManagerDeps {
   const mockService = createMockService();
   return {
+    logEvent: vi.fn().mockResolvedValue(undefined),
     agentServices: new Map([['opencode', mockService]]),
     backend: {
       query: vi.fn().mockResolvedValue({
@@ -141,6 +142,15 @@ function getMutationCallsByArgs(
 ): Record<string, unknown>[] {
   return (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls
     .map((call: unknown[]) => call[1] as Record<string, unknown>)
+    .filter(match);
+}
+
+function getLogEventCallsByArgs(
+  deps: AgentProcessManagerDeps,
+  match: (args: Record<string, unknown>) => boolean
+): Record<string, unknown>[] {
+  return (deps.logEvent as ReturnType<typeof vi.fn>).mock.calls
+    .map((call: unknown[]) => call[0] as Record<string, unknown>)
     .filter(match);
 }
 
@@ -919,12 +929,13 @@ describe('AgentProcessManager', () => {
         getLastHarnessSessions(manager).get(`${CHATROOM_ID}:${ROLE}`)?.resumableHarnessSessionId
       ).toBe(providerId);
 
-      const harnessSessionIdUpdatedCalls = getMutationCallsByArgs(
+      const harnessSessionIdUpdatedCalls = getLogEventCallsByArgs(
         deps,
         (args) => args.correlationId === provisionalId && args.resumableId === providerId
       );
       expect(harnessSessionIdUpdatedCalls).toHaveLength(1);
       expect(harnessSessionIdUpdatedCalls[0]).toMatchObject({
+        type: 'agent.harnessSessionIdUpdated',
         correlationId: provisionalId,
         resumableId: providerId,
         source: 'provider_allocated',
@@ -1021,7 +1032,7 @@ describe('AgentProcessManager', () => {
       });
       (service.stop as ReturnType<typeof vi.fn>).mockClear();
       (service.spawn as ReturnType<typeof vi.fn>).mockClear();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
 
       const result = await manager.ensureRunning(createOpts());
 
@@ -1030,8 +1041,7 @@ describe('AgentProcessManager', () => {
       expect(service.spawn).toHaveBeenCalledOnce();
       expect(manager.getSlot(CHATROOM_ID, ROLE)!.pid).toBe(NEW_PID);
 
-      expect(deps.backend.mutation).toHaveBeenCalledWith(
-        expect.anything(),
+      expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           pid: PID,
           stopReason: 'daemon.respawn',
@@ -1056,8 +1066,7 @@ describe('AgentProcessManager', () => {
         CHATROOM_ID,
         ROLE
       );
-      expect(deps.backend.mutation).toHaveBeenCalledWith(
-        expect.anything(),
+      expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           pid: ORPHAN_PID,
           stopReason: 'daemon.respawn',
@@ -1150,10 +1159,10 @@ describe('AgentProcessManager', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe('crash_loop');
 
-      // Should have emitted event
-      expect(deps.backend.mutation).toHaveBeenCalledWith(
-        expect.objectContaining({}),
+      // Should have logged restart limit audit event
+      expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
+          type: 'agent.restartLimitReached',
           chatroomId: CHATROOM_ID,
           role: ROLE,
           restartCount: expect.any(Number),
@@ -1226,6 +1235,7 @@ describe('AgentProcessManager', () => {
 
     test('ensureRunning clears stuck stopping slot beyond timeout before spawning', async () => {
       await manager.ensureRunning(createOpts());
+      (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
       const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
       slot.state = 'stopping';
       slot.stoppingSince = Date.now() - STOPPING_TIMEOUT_MS - 1_000;
@@ -1238,7 +1248,7 @@ describe('AgentProcessManager', () => {
       expect(slot.pid).toBe(PID);
       expect(slot.stoppingSince).toBeUndefined();
 
-      const timeoutExits = getMutationCallsByArgs(
+      const timeoutExits = getLogEventCallsByArgs(
         deps,
         (args) => args.stopReason === 'daemon.stop_timeout' && args.pid === PID
       );
@@ -1391,9 +1401,7 @@ describe('AgentProcessManager', () => {
 
       expect(result).toEqual({ success: true });
 
-      // Verify that recordAgentExited was called for idle cleanup
-      expect(deps.backend.mutation).toHaveBeenCalledWith(
-        expect.anything(), // api.machines.recordAgentExited
+      expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           sessionId: 'test-session',
           machineId: 'test-machine',
@@ -1419,8 +1427,7 @@ describe('AgentProcessManager', () => {
       expect(deps.processes.kill).toHaveBeenCalledWith(12345, 'SIGTERM');
 
       // Should report exit with the event PID, not 0
-      expect(deps.backend.mutation).toHaveBeenCalledWith(
-        expect.anything(),
+      expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           pid: 12345,
           stopReason: 'user.stop',
@@ -1438,8 +1445,7 @@ describe('AgentProcessManager', () => {
       expect(result).toEqual({ success: true });
 
       // Should report exit with pid 0 (no PID available)
-      expect(deps.backend.mutation).toHaveBeenCalledWith(
-        expect.anything(),
+      expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           pid: 0,
           stopReason: 'user.stop',
@@ -1473,7 +1479,7 @@ describe('AgentProcessManager', () => {
     test('stop + onExit callback does NOT produce duplicate exit events', async () => {
       // This tests the fix for the double agent.exited bug:
       // When stop() kills a process, the onExit callback also fires.
-      // Only ONE recordAgentExited call should be made (from doStop), not two.
+      // Only ONE log event should be made (from doStop), not two.
       await manager.ensureRunning(createOpts());
 
       // Capture the onExit callback registered during spawn
@@ -1483,8 +1489,8 @@ describe('AgentProcessManager', () => {
       const registeredOnExit = (resolvedSpawn.onExit as ReturnType<typeof vi.fn>).mock
         .calls[0]?.[0];
 
-      // Reset the backend mutation mock to track calls from here
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      // Reset the log event mock to track calls from here
+      (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
 
       // service.stop may trigger onExit while doStop owns the lifecycle
       (service.stop as ReturnType<typeof vi.fn>).mockImplementation(async () => {
@@ -1499,10 +1505,9 @@ describe('AgentProcessManager', () => {
         reason: 'user.stop',
       });
 
-      // Count all backend.mutation calls — should be exactly 1 (from doStop only)
+      // Count all log event calls — should be exactly 1 (from doStop only)
       // Before the fix, handleExit would also fire, producing 2 calls
-      const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
-      expect(mutationCalls).toHaveLength(1);
+      expect(deps.logEvent).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1514,7 +1519,7 @@ describe('AgentProcessManager', () => {
       slot.stoppingSince = Date.now() - 31_000;
       slot.pendingOperation = new Promise(() => {});
 
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
 
       const cleared = await manager.clearStuckStoppingSlot(CHATROOM_ID, ROLE);
 
@@ -1527,18 +1532,20 @@ describe('AgentProcessManager', () => {
         CHATROOM_ID,
         ROLE
       );
-      expect(deps.backend.mutation).toHaveBeenCalledWith(
-        expect.anything(),
+      expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
+          type: 'agent.stopTimeout',
           chatroomId: CHATROOM_ID,
           role: ROLE,
           pid: PID,
           durationMs: expect.any(Number),
         })
       );
-      expect(deps.backend.mutation).toHaveBeenCalledWith(
-        expect.anything(),
+      expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
+          type: 'agent.exited',
+          chatroomId: CHATROOM_ID,
+          role: ROLE,
           pid: PID,
           stopReason: 'daemon.stop_timeout',
           signal: 'SIGKILL',
@@ -1579,7 +1586,7 @@ describe('AgentProcessManager', () => {
       expect(slot.state).toBe('stopping');
       slot.stoppingSince = Date.now() - 31_000;
 
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
 
       const cleared = await manager.clearStuckStoppingSlot(CHATROOM_ID, ROLE);
       expect(cleared).toBe(true);
@@ -1595,13 +1602,13 @@ describe('AgentProcessManager', () => {
       expect(slot.state).toBe('running');
       expect(slot.pid).toBe(NEW_PID);
 
-      const userStopExits = getMutationCallsByArgs(
+      const userStopExits = getLogEventCallsByArgs(
         deps,
         (args) => args.stopReason === 'user.stop' && args.pid === PID
       );
       expect(userStopExits).toHaveLength(0);
 
-      const timeoutExits = getMutationCallsByArgs(
+      const timeoutExits = getLogEventCallsByArgs(
         deps,
         (args) => args.stopReason === 'daemon.stop_timeout' && args.pid === PID
       );
@@ -1673,7 +1680,7 @@ describe('AgentProcessManager', () => {
         createOpts({ agentHarness: 'cursor-sdk' as EnsureRunningOpts['agentHarness'] })
       );
 
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
       let delayCalls = 0;
       deps.clock.delay = vi.fn().mockImplementation(async () => {
         delayCalls += 1;
@@ -1923,8 +1930,8 @@ describe('AgentProcessManager', () => {
       });
       await manager.ensureRunning(createOpts());
 
-      // Clear mutation mock to isolate the exit event we care about
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+      // Clear log-event mock to isolate the exit event we care about
+      (deps.logEvent as ReturnType<typeof vi.fn>).mockClear();
 
       // Now let it crash — the stop reason should be derived from exit info,
       // NOT leaked from the previous user.stop
@@ -1936,17 +1943,16 @@ describe('AgentProcessManager', () => {
         signal: null,
       });
 
-      // Verify the recordAgentExited mutation was called with agent_process.crashed
+      // Verify the log event was emitted with agent_process.crashed
       await vi.waitFor(() => {
-        const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
-        const exitCall = mutationCalls.find(
+        const exitCall = (deps.logEvent as ReturnType<typeof vi.fn>).mock.calls.find(
           (c: unknown[]) =>
-            c[1] &&
-            typeof c[1] === 'object' &&
-            (c[1] as Record<string, unknown>).stopReason !== undefined
+            c[0] &&
+            typeof c[0] === 'object' &&
+            (c[0] as Record<string, unknown>).stopReason !== undefined
         );
         expect(exitCall).toBeDefined();
-        expect((exitCall![1] as Record<string, unknown>).stopReason).toBe('agent_process.crashed');
+        expect((exitCall![0] as Record<string, unknown>).stopReason).toBe('agent_process.crashed');
       });
     });
 
@@ -2343,8 +2349,7 @@ describe('AgentProcessManager', () => {
         ROLE
       );
 
-      expect(deps.backend.mutation).toHaveBeenCalledWith(
-        expect.anything(),
+      expect(deps.logEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           chatroomId: CHATROOM_ID,
           role: ROLE,
@@ -2584,8 +2589,7 @@ describe('AgentProcessManager', () => {
     });
 
     test('queues exit event for retry when recordAgentExited fails in handleExit', async () => {
-      // Arrange: mutation mock — all calls succeed by default, except for recordAgentExited on first try
-      const mutation = vi.fn().mockResolvedValue(undefined);
+      const logEvent = vi.fn().mockResolvedValue(undefined);
       // Allow first spawn, then block restarts
       const shouldAllowSpawn = vi
         .fn()
@@ -2599,8 +2603,9 @@ describe('AgentProcessManager', () => {
             rolePrompt: 'You are a builder',
             initialMessage: 'Start working',
           }),
-          mutation,
+          mutation: vi.fn().mockResolvedValue(undefined),
         },
+        logEvent,
         spawning: {
           shouldAllowSpawn,
         },
@@ -2612,9 +2617,9 @@ describe('AgentProcessManager', () => {
       expect(result.success).toBe(true);
 
       // recordAgentExited fails on the next call
-      mutation.mockRejectedValueOnce(new Error('fetch failed'));
+      logEvent.mockRejectedValueOnce(new Error('fetch failed'));
 
-      const callsBeforeExit = mutation.mock.calls.length;
+      const callsBeforeExit = logEvent.mock.calls.length;
 
       // Trigger exit
       localManager.handleExit({
@@ -2631,7 +2636,7 @@ describe('AgentProcessManager', () => {
       await Promise.resolve();
 
       // recordAgentExited was attempted (and failed)
-      expect(mutation.mock.calls.length).toBeGreaterThanOrEqual(callsBeforeExit + 1);
+      expect(logEvent.mock.calls.length).toBeGreaterThanOrEqual(callsBeforeExit + 1);
 
       // Advance timers to trigger retry — retry should succeed now (mock returns resolved)
       await vi.advanceTimersByTimeAsync(10_000);
@@ -2639,11 +2644,11 @@ describe('AgentProcessManager', () => {
       await Promise.resolve();
 
       // Verify a retry was attempted (at least one more mutation call)
-      expect(mutation.mock.calls.length).toBeGreaterThan(callsBeforeExit + 1);
+      expect(logEvent.mock.calls.length).toBeGreaterThan(callsBeforeExit + 1);
     });
 
     test('removes item from retry queue on successful retry', async () => {
-      const mutation = vi.fn();
+      const logEvent = vi.fn();
       // First: spawn-related mutations succeed
       const localDeps = createDeps({
         backend: {
@@ -2652,15 +2657,16 @@ describe('AgentProcessManager', () => {
             rolePrompt: 'You are a builder',
             initialMessage: 'Start working',
           }),
-          mutation,
+          mutation: vi.fn().mockResolvedValue(undefined),
         },
+        logEvent,
       });
       const localManager = new AgentProcessManager(localDeps);
 
       await localManager.ensureRunning(createOpts());
 
       // recordAgentExited fails first time
-      mutation.mockRejectedValueOnce(new Error('fetch failed'));
+      logEvent.mockRejectedValueOnce(new Error('fetch failed'));
 
       localManager.handleExit({
         chatroomId: CHATROOM_ID,
@@ -2673,23 +2679,23 @@ describe('AgentProcessManager', () => {
       await Promise.resolve();
 
       // Now retry succeeds
-      mutation.mockResolvedValueOnce(undefined);
+      logEvent.mockResolvedValueOnce(undefined);
       await vi.advanceTimersByTimeAsync(10_000);
       await Promise.resolve();
       await Promise.resolve();
 
       // After success, the timer should stop (advancing again won't trigger more mutations)
-      const callCountAfterSuccess = mutation.mock.calls.length;
-      mutation.mockResolvedValueOnce(undefined); // would be called if timer still running
+      const callCountAfterSuccess = logEvent.mock.calls.length;
+      logEvent.mockResolvedValueOnce(undefined); // would be called if timer still running
       await vi.advanceTimersByTimeAsync(10_000);
       await Promise.resolve();
 
       // No additional calls — timer was stopped
-      expect(mutation.mock.calls.length).toBe(callCountAfterSuccess);
+      expect(logEvent.mock.calls.length).toBe(callCountAfterSuccess);
     });
 
     test('keeps item in retry queue when retry also fails', async () => {
-      const mutation = vi.fn();
+      const logEvent = vi.fn();
       const localDeps = createDeps({
         backend: {
           query: vi.fn().mockResolvedValue({
@@ -2697,15 +2703,16 @@ describe('AgentProcessManager', () => {
             rolePrompt: 'You are a builder',
             initialMessage: 'Start working',
           }),
-          mutation,
+          mutation: vi.fn().mockResolvedValue(undefined),
         },
+        logEvent,
       });
       const localManager = new AgentProcessManager(localDeps);
 
       await localManager.ensureRunning(createOpts());
 
       // Initial recordAgentExited fails
-      mutation.mockRejectedValueOnce(new Error('fetch failed'));
+      logEvent.mockRejectedValueOnce(new Error('fetch failed'));
       localManager.handleExit({
         chatroomId: CHATROOM_ID,
         role: ROLE,
@@ -2716,32 +2723,32 @@ describe('AgentProcessManager', () => {
       await Promise.resolve();
       await Promise.resolve();
 
-      const callsAfterFirstFail = mutation.mock.calls.length;
+      const callsAfterFirstFail = logEvent.mock.calls.length;
 
       // Retry also fails
-      mutation.mockRejectedValueOnce(new Error('still offline'));
+      logEvent.mockRejectedValueOnce(new Error('still offline'));
       await vi.advanceTimersByTimeAsync(10_000);
       await Promise.resolve();
       await Promise.resolve();
 
       // A retry was attempted (mutation called again)
-      expect(mutation.mock.calls.length).toBeGreaterThan(callsAfterFirstFail);
+      expect(logEvent.mock.calls.length).toBeGreaterThan(callsAfterFirstFail);
 
       // Retry second time succeeds
-      mutation.mockResolvedValueOnce(undefined);
+      logEvent.mockResolvedValueOnce(undefined);
       await vi.advanceTimersByTimeAsync(10_000);
       await Promise.resolve();
       await Promise.resolve();
 
       // Timer should stop now
-      const callCountAfterSecondSuccess = mutation.mock.calls.length;
+      const callCountAfterSecondSuccess = logEvent.mock.calls.length;
       await vi.advanceTimersByTimeAsync(10_000);
       await Promise.resolve();
-      expect(mutation.mock.calls.length).toBe(callCountAfterSecondSuccess);
+      expect(logEvent.mock.calls.length).toBe(callCountAfterSecondSuccess);
     });
 
     test('queues multiple failed exit events independently', async () => {
-      const mutation = vi.fn();
+      const logEvent = vi.fn();
       const localDeps = createDeps({
         backend: {
           query: vi.fn().mockResolvedValue({
@@ -2749,8 +2756,9 @@ describe('AgentProcessManager', () => {
             rolePrompt: 'You are a builder',
             initialMessage: 'Start working',
           }),
-          mutation,
+          mutation: vi.fn().mockResolvedValue(undefined),
         },
+        logEvent,
       });
       const localManager = new AgentProcessManager(localDeps);
 
@@ -2759,8 +2767,8 @@ describe('AgentProcessManager', () => {
       await localManager.ensureRunning(createOpts({ chatroomId: 'room-2', role: 'builder' }));
 
       // Both recordAgentExited calls fail
-      mutation.mockRejectedValueOnce(new Error('offline'));
-      mutation.mockRejectedValueOnce(new Error('offline'));
+      logEvent.mockRejectedValueOnce(new Error('offline'));
+      logEvent.mockRejectedValueOnce(new Error('offline'));
 
       localManager.handleExit({
         chatroomId: 'room-1',
@@ -2780,16 +2788,16 @@ describe('AgentProcessManager', () => {
       await Promise.resolve();
       await Promise.resolve();
 
-      const callsBeforeRetry = mutation.mock.calls.length;
+      const callsBeforeRetry = logEvent.mock.calls.length;
 
       // Both retries succeed
-      mutation.mockResolvedValue(undefined);
+      logEvent.mockResolvedValue(undefined);
       await vi.advanceTimersByTimeAsync(10_000);
       await Promise.resolve();
       await Promise.resolve();
 
       // 2 additional retry calls were made
-      expect(mutation.mock.calls.length).toBeGreaterThanOrEqual(callsBeforeRetry + 2);
+      expect(logEvent.mock.calls.length).toBeGreaterThanOrEqual(callsBeforeRetry + 2);
     });
   });
 });

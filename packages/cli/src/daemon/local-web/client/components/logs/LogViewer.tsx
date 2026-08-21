@@ -11,6 +11,7 @@ type Props = {
   lines: LogLine[];
   isLoading: boolean;
   error: string | null;
+  hasChatroom: boolean;
   autoScroll?: boolean;
   selectedLine?: LogLine | null;
   onSelectLine?: (line: LogLine) => void;
@@ -20,6 +21,7 @@ export function LogViewer({
   lines,
   isLoading,
   error,
+  hasChatroom,
   autoScroll = true,
   selectedLine,
   onSelectLine,
@@ -37,7 +39,7 @@ export function LogViewer({
       </div>
     );
   if (error) return <LogErrorState message={error} />;
-  if (lines.length === 0) return <LogEmptyState />;
+  if (lines.length === 0) return <LogEmptyState hasChatroom={hasChatroom} />;
   const selectedKey = selectedLine
     ? (selectedLine.id ?? `${selectedLine.timestamp}-${selectedLine.message.slice(0, 32)}`)
     : null;

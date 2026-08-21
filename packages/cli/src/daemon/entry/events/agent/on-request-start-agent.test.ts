@@ -42,6 +42,7 @@ describe('onRequestStartAgentEffect', () => {
       lastPushedGitState: new Map(),
       lastPushedModels: null,
       lastPushedHarnessFingerprint: null,
+      logEvent: async () => undefined,
     });
   }
 
@@ -68,6 +69,7 @@ describe('onRequestStartAgentEffect', () => {
       whenTurnEndsIdle: vi.fn().mockReturnValue(Effect.succeed(undefined)),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
       setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
+      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
     });
     const sessionLayer = makeSessionLayer();
     const event = createEvent({ deadline: Date.now() - 1000 });
@@ -90,6 +92,7 @@ describe('onRequestStartAgentEffect', () => {
       whenTurnEndsIdle: vi.fn().mockReturnValue(Effect.succeed(undefined)),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
       setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
+      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
     });
     const sessionLayer = makeSessionLayer();
     const event = createEvent();
@@ -120,6 +123,7 @@ describe('onRequestStartAgentEffect', () => {
       whenTurnEndsIdle: vi.fn().mockReturnValue(Effect.succeed(undefined)),
       resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
       setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
+      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
     });
     const backendMutation = vi.fn().mockResolvedValue(undefined);
     const sessionLayer = makeSessionLayer(backendMutation);

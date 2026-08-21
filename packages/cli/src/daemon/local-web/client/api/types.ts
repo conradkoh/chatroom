@@ -29,10 +29,10 @@ export type LogLine = {
   metadata?: LogMetadata;
 };
 export type LogHistoryInput = {
+  chatroomId: string;
   afterId?: number;
   beforeId?: number;
   source?: string;
-  chatroomId?: string;
   role?: string;
   harness?: string;
   fromTimestamp?: number;
@@ -42,9 +42,26 @@ export type LogHistoryInput = {
 export type ChatroomListItem = { id: string; displayName: string };
 export type ChatroomsListResult = { chatrooms: ChatroomListItem[] };
 export type ChatroomsListAck = SocketAck<ChatroomsListResult>;
-export type LogDimensionsResult = { chatroomIds: string[]; roles: string[]; harnesses: string[] };
+export type LogDimensionsResult = { roles: string[]; harnesses: string[] };
 export type LogsDimensionsAck = SocketAck<LogDimensionsResult>;
 export type LogHistoryResult = { entries: LogLine[] };
 export type LogSourcesResult = { sources: string[] };
 export type LogsHistoryAck = SocketAck<LogHistoryResult>;
 export type LogsSourcesAck = SocketAck<LogSourcesResult>;
+export type EventStreamEntry = {
+  id: number;
+  timestamp: number;
+  type: string;
+  payload: Record<string, unknown>;
+};
+export type EventStreamHistoryInput = {
+  chatroomId: string;
+  afterId?: number;
+  beforeId?: number;
+  type?: string;
+  fromTimestamp?: number;
+  toTimestamp?: number;
+  limit?: number;
+};
+export type EventStreamHistoryResult = { entries: EventStreamEntry[] };
+export type EventStreamHistoryAck = SocketAck<EventStreamHistoryResult>;

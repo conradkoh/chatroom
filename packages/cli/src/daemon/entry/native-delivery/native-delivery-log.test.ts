@@ -21,9 +21,9 @@ describe('native-delivery-log', () => {
 
   test('logNativeDeliveryFallback uses fallback prefix with reason', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    logNativeDeliveryFallback('native-light-nudge', 'builder', 'room_1', 'task_1');
+    logNativeDeliveryFallback('inbox-signal', 'builder', 'room_1', 'task_1');
     expect(spy).toHaveBeenCalledWith(
-      '[NativeDelivery:fallback] native-light-nudge builder@room_1 task task_1 — reconcile'
+      '[NativeDelivery:fallback] inbox-signal builder@room_1 task task_1 — reconcile'
     );
   });
 

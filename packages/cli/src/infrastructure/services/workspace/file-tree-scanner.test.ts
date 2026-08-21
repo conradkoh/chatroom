@@ -75,12 +75,35 @@ describe('buildEntries', () => {
     expect(entries).toHaveLength(50);
   });
 
-  it('prefers shallow paths when capping so root dotfiles are retained', () => {
-    const deepDirs = Array.from({ length: 60 }, (_, i) => `deep/nested/dir${i}`);
-    const paths = ['.drone.yml', ...Array.from({ length: 60 }, (_, i) => `deep/file${i}.ts`)];
-    const entries = buildEntries(paths, deepDirs, 20);
+  it('keeps high-signal files when capping against a large data folder', () => {
+    const dumps = Array.from({ length: 41 }, (_, i) => `dumps/${i}.json`);
+    const entries = buildEntries(['src/index.ts', 'README.md', 'package.json', ...dumps], [], 15);
+    const paths = entries.map((entry) => entry.path);
+    expect(paths).toContain('src/index.ts');
+    expect(paths).toContain('README.md');
+    expect(paths).toContain('package.json');
+    expect(entries.length).toBeLessThanOrEqual(15);
+    expect(entries.filter((entry) => entry.path.startsWith('dumps/')).length).toBeLessThan(
+      dumps.length
+    );
+  });
 
-    expect(entries.some((entry) => entry.path === '.drone.yml')).toBe(true);
+  it('prefers source files over a data dump under a tight cap', () => {
+    const dataFiles = Array.from({ length: 30 }, (_, i) => `data/item-${i}.json`);
+    const entries = buildEntries(['src/app.ts', ...dataFiles], [], 8);
+    const paths = entries.map((entry) => entry.path);
+    expect(paths).toContain('src/app.ts');
+    expect(paths).toContain('src');
+    expect(entries.length).toBeLessThanOrEqual(8);
+  });
+
+  it('does not let directory stubs starve a ranked source file', () => {
+    const stubs = Array.from({ length: 40 }, (_, i) => `deep/nested/dir${i}`);
+    const entries = buildEntries(['src/app.ts'], stubs, 8);
+    const paths = entries.map((entry) => entry.path);
+    expect(paths).toContain('src/app.ts');
+    expect(paths).toContain('src');
+    expect(entries.length).toBeLessThanOrEqual(8);
   });
 
   it('returns empty array for empty input', () => {
@@ -117,7 +140,7 @@ describe('scanFileTree', () => {
 
     expect(tree.rootDir).toBe('/test/repo');
     expect(tree.scannedAt).toBeGreaterThan(0);
-    expect(mocks.walkWorkspaceFiles).toHaveBeenCalledWith('/test/repo', { maxFilePaths: 10_000 });
+    expect(mocks.walkWorkspaceFiles).toHaveBeenCalledWith('/test/repo', { maxFilePaths: 50_000 });
 
     const filePaths = tree.entries.filter((e) => e.type === 'file').map((e) => e.path);
     expect(filePaths).toContain('src/index.ts');

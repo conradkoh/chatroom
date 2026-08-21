@@ -4,10 +4,9 @@
  * Idempotent handler for when an agent process exits. Replaces the inline
  * cleanup previously done in `recordAgentExited` (machines.ts).
  *
- * Three responsibilities:
- *   1. Insert `agent.exited` event to the event stream (audit trail — always)
- *   2. Clear PID on config — only if the PID and machineId match (PID-gated idempotency)
- *   3. Mark participant as exited — only if the config still belongs to the same machine
+ * Two responsibilities:
+ *   1. Clear PID on config — only if the PID and machineId match (PID-gated idempotency)
+ *   2. Mark participant as exited — only if the config still belongs to the same machine
  *      (prevents overwriting a running agent's status during machine switch)
  *
  * After clearing the PID, `processConfigRemoval()` is called to handle any
@@ -58,21 +57,7 @@ export interface AgentExitedInput {
  * @param input - The exit parameters
  */
 export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Promise<void> {
-  const { chatroomId, role, machineId, pid, stopReason, exitCode, signal, stopSignal } = input;
-
-  // 1. Always insert the audit-trail event
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'agent.exited',
-    chatroomId,
-    role,
-    machineId,
-    pid,
-    exitCode,
-    signal,
-    stopReason,
-    stopSignal,
-    timestamp: Date.now(),
-  });
+  const { chatroomId, role, machineId, pid, stopReason } = input;
 
   // Look up the current config for this role
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
@@ -84,7 +69,7 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .first();
 
-  // 2. Clear PID on config — PID-gated idempotency
+  // 1. Clear PID on config — PID-gated idempotency
   //    Only clear if BOTH the PID and machineId match. This prevents clearing
   //    a newer agent's PID if a stale exit report arrives after a new agent
   //    has been spawned.
@@ -102,7 +87,7 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
     machineId,
   });
 
-  // 3. Mark participant as exited — guard against machine switch
+  // 2. Mark participant as exited — guard against machine switch
   //    If the config for this role now belongs to a different machine, or the
   //    participant status is already set from a newer agent, skip the patch.
   const shouldUpdateParticipant =

@@ -48,6 +48,7 @@ function makeSessionLayer(overrides?: {
     lastPushedGitState: new Map(),
     lastPushedModels: null,
     lastPushedHarnessFingerprint: null,
+    logEvent: async () => undefined,
   });
 }
 
@@ -66,6 +67,7 @@ function makeApmLayer(overrides?: {
     whenTurnEndsIdle: () => Effect.succeed(undefined as void),
     resumeTurnForSlot: () => Effect.succeed(undefined as void),
     setLastInFlightTask: () => Effect.void,
+    clearLastInFlightTaskIfMatches: () => Effect.void,
   });
 }
 

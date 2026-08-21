@@ -14,10 +14,6 @@ import {
   notifyNativeTurnIdle,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import {
-  clearAssignedTaskSnapshots,
-  replaceAssignedTaskSnapshots,
-} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
 function makeRow() {
@@ -46,11 +42,9 @@ function makeRow() {
 
 describe('NativeTaskDeliveryCoordinator', () => {
   beforeEach(() => {
-    clearAssignedTaskSnapshots();
   });
 
   afterEach(() => {
-    clearAssignedTaskSnapshots();
     unregisterNativeDeliverySession();
     resetNativeDeliveryLedgerForTests();
   });
@@ -80,13 +74,14 @@ describe('NativeTaskDeliveryCoordinator', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  test('tryInjectNextForRole calls reconcile when session registered and store has matching tasks', () => {
+  test('tryInjectNextForRole calls reconcile when session registered and backend has matching tasks', async () => {
     unregisterNativeDeliverySession();
 
     const row = makeRow();
-    replaceAssignedTaskSnapshots([row as never]);
-
     const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
+      if (args && typeof args === 'object' && 'machineId' in args && !('taskId' in args)) {
+        return { tasks: [row] };
+      }
       if (args && typeof args === 'object' && 'chatroomId' in args) {
         return { fullCliOutput: 'DELIVERY OUTPUT' };
       }
@@ -103,6 +98,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
       sessionId: 's',
       machineId: 'm',
       convexUrl: 'http://x',
+      logEvent: vi.fn().mockResolvedValue(undefined),
       backend: { mutation: backendMutation, query: backendQuery },
     };
 
@@ -134,7 +130,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
 
     coordinator.tryInjectNextForRole('room_1', 'builder');
 
-    expect(spy).toHaveBeenCalled();
+    await vi.waitFor(() => expect(spy).toHaveBeenCalled());
   });
 
   test('notifyNativeTurnIdle does not throw', () => {
@@ -144,7 +140,6 @@ describe('NativeTaskDeliveryCoordinator', () => {
 
   test('G10: tryInjectNextForRole does not inject when store has no matching tasks', () => {
     unregisterNativeDeliverySession();
-    clearAssignedTaskSnapshots();
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
 
@@ -160,6 +155,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
         sessionId: 's',
         machineId: 'm',
         convexUrl: 'http://x',
+        logEvent: async () => undefined,
         backend: { mutation: vi.fn(), query: vi.fn() },
       },
       machineId: 'm',

@@ -2,7 +2,7 @@
  * File tree scanner for workspace directories.
  *
  * Uses a filesystem walk for every workspace and interprets root/nested
- * `.gitignore` plus root `.cursorignore` directly. Git is never invoked, so
+ * `.gitignore`, root `.cursorignore`, and git extra excludes directly. Git is never invoked, so
  * ordinary folders and repositories use the same discovery path.
  */
 
@@ -11,10 +11,12 @@ import type {
   FileTreeEntry,
 } from '@workspace/backend/src/domain/entities/workspace-files.js';
 
+import { compareRankedFiles, countDataFilesByParent, scoreFile } from './file-tree-sync-ranker.js';
 import { walkWorkspaceFiles } from './workspace-file-walk.js';
 import { hasExcludedDirSegment } from './workspace-visibility-policy.js';
 
 const DEFAULT_MAX_ENTRIES = 10_000;
+const DEFAULT_CANDIDATE_FILE_PATHS = 50_000;
 
 export type ScanOptions = {
   maxEntries?: number;
@@ -27,7 +29,7 @@ export async function scanFileTree(rootDir: string, options?: ScanOptions): Prom
   const maxEntries = options?.maxEntries ?? DEFAULT_MAX_ENTRIES;
   const scannedAt = Date.now();
 
-  const walk = await walkWorkspaceFiles(rootDir, { maxFilePaths: maxEntries });
+  const walk = await walkWorkspaceFiles(rootDir, { maxFilePaths: DEFAULT_CANDIDATE_FILE_PATHS });
   const filteredPaths = walk.filePaths.filter((p) => !isExcluded(p));
   const filteredStubs = walk.directoryStubs.filter((p) => !isExcluded(p));
   const entries = buildEntries(filteredPaths, filteredStubs, maxEntries);
@@ -51,8 +53,7 @@ function entryDepth(entryPath: string): number {
 
 /**
  * Build FileTreeEntry array from file paths and explicit directory stubs.
- * Caps at maxEntries total (files + directories), preferring shallower paths first
- * so root-level files like `.drone.yml` are not crowded out by deep directories.
+ * Caps entries using sync ranking while retaining ancestors and directory stubs.
  */
 // fallow-ignore-next-line unused-export complexity
 export function buildEntries(
@@ -60,29 +61,30 @@ export function buildEntries(
   directoryStubs: string[],
   maxEntries: number
 ): FileTreeEntry[] {
-  const directories = new Set<string>(directoryStubs);
-  for (const filePath of filePaths) {
-    const parts = filePath.split('/');
-    for (let i = 1; i < parts.length; i++) {
-      directories.add(parts.slice(0, i).join('/'));
-    }
+  const selected = new Map<string, FileTreeEntry>();
+  const data = countDataFilesByParent(filePaths);
+  const ranked = [...filePaths].sort((a, b) =>
+    compareRankedFiles(a, scoreFile(a, data), b, scoreFile(b, data))
+  );
+  for (const file of ranked) {
+    const parts = file.split('/');
+    const needed = [file, ...parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join('/'))];
+    const missing = needed.filter((p) => !selected.has(p));
+    if (selected.size + missing.length > maxEntries) continue;
+    for (const p of needed) selected.set(p, { path: p, type: p === file ? 'file' : 'directory' });
   }
 
-  const entries: FileTreeEntry[] = [
-    ...Array.from(directories).map((dir) => ({ path: dir, type: 'directory' as const })),
-    ...filePaths.map((file) => ({ path: file, type: 'file' as const })),
-  ];
-
-  const uniqueByPath = new Map<string, FileTreeEntry>();
-  for (const entry of entries) {
-    uniqueByPath.set(entry.path, entry);
+  for (const dir of [...directoryStubs].sort(
+    (a, b) => entryDepth(a) - entryDepth(b) || a.localeCompare(b)
+  )) {
+    if (selected.has(dir)) continue;
+    if (selected.size >= maxEntries) break;
+    selected.set(dir, { path: dir, type: 'directory' });
   }
 
-  return Array.from(uniqueByPath.values())
-    .sort((left, right) => {
-      const depthDelta = entryDepth(left.path) - entryDepth(right.path);
-      if (depthDelta !== 0) return depthDelta;
-      return left.path.localeCompare(right.path);
-    })
-    .slice(0, maxEntries);
+  return Array.from(selected.values()).sort((left, right) => {
+    const depthDelta = entryDepth(left.path) - entryDepth(right.path);
+    if (depthDelta !== 0) return depthDelta;
+    return left.path.localeCompare(right.path);
+  });
 }

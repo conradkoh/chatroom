@@ -87,7 +87,10 @@ export class NativeOrchestrationSimulator {
   expectedPrompt(task: AssignedTaskView, deliveryOutput: string): string {
     return buildNativeInjectionPrompt({
       taskDeliveryOutput: deliveryOutput,
-      augmentationMode: resolveSessionAugmentationForTask({ content: task.taskContent, startInNewSession: task.startInNewSession }, task.agentConfig.role),
+      augmentationMode: resolveSessionAugmentationForTask(
+        { content: task.taskContent, startInNewSession: task.startInNewSession },
+        task.agentConfig.role
+      ),
     });
   }
 
@@ -102,6 +105,7 @@ export class NativeOrchestrationSimulator {
       runNativeInjectionEffect(task, this.harnessSessionId, {
         sessionId,
         machineId: task.agentConfig.machineId,
+        logEvent: async () => undefined,
         convexUrl,
         backend,
         agentMgr: this.harness,

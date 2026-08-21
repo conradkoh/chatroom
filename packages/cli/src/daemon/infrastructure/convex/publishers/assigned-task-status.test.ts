@@ -3,12 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAssignedTaskStatusPublisher } from './assigned-task-status.js';
 
 describe('createAssignedTaskStatusPublisher', () => {
-  it('emits task delivered on delivered outcome', async () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
+  it('logs task delivered on delivered outcome', async () => {
+    const logEvent = vi.fn().mockResolvedValue(undefined);
     const publisher = createAssignedTaskStatusPublisher({
-      backend: { mutation, query: vi.fn() },
+      backend: { mutation: vi.fn(), query: vi.fn() },
       sessionId: 'sess-1',
       machineId: 'machine-1',
+      logEvent,
     });
 
     await publisher.publish({
@@ -19,21 +20,24 @@ describe('createAssignedTaskStatusPublisher', () => {
       outcome: 'delivered',
     });
 
-    expect(mutation).toHaveBeenCalledWith(expect.anything(), {
-      sessionId: 'sess-1',
-      machineId: 'machine-1',
-      chatroomId: 'room-1',
-      role: 'builder',
-      taskId: 'task-1',
-    });
+    expect(logEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.taskDelivered',
+        chatroomId: 'room-1',
+        role: 'builder',
+        machineId: 'machine-1',
+        taskId: 'task-1',
+      })
+    );
   });
 
-  it('emits task delivery failed on delivery_failed outcome', async () => {
-    const mutation = vi.fn().mockResolvedValue(undefined);
+  it('logs task delivery failed on delivery_failed outcome', async () => {
+    const logEvent = vi.fn().mockResolvedValue(undefined);
     const publisher = createAssignedTaskStatusPublisher({
-      backend: { mutation, query: vi.fn() },
+      backend: { mutation: vi.fn(), query: vi.fn() },
       sessionId: 'sess-1',
       machineId: 'machine-1',
+      logEvent,
     });
 
     await publisher.publish({
@@ -45,13 +49,15 @@ describe('createAssignedTaskStatusPublisher', () => {
       error: 'spawn failed',
     });
 
-    expect(mutation).toHaveBeenCalledWith(expect.anything(), {
-      sessionId: 'sess-1',
-      machineId: 'machine-1',
-      chatroomId: 'room-1',
-      role: 'builder',
-      taskId: 'task-1',
-      error: 'spawn failed',
-    });
+    expect(logEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'agent.taskDeliveryFailed',
+        chatroomId: 'room-1',
+        role: 'builder',
+        machineId: 'machine-1',
+        taskId: 'task-1',
+        error: 'spawn failed',
+      })
+    );
   });
 });
