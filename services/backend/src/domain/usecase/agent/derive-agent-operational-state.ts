@@ -69,9 +69,8 @@ export function applyRoleToSummary(
   projection: RoleOperationalProjection,
   options?: { isNewConfig?: boolean }
 ): ChatroomOperationalSummary {
-  void options;
   const role = projection.role.toLowerCase();
-  const withoutRole = removeRoleFromSummary(summary, role);
+  const withoutRole = stripRoleFromSummaryArrays(summary, role);
   const runningRoles = projection.isRunning
     ? [...withoutRole.runningRoles, role]
     : withoutRole.runningRoles;
@@ -82,7 +81,9 @@ export function applyRoleToSummary(
     projection.isRunning && projection.machineId
       ? [...withoutRole.runningAgents, { role, machineId: projection.machineId }]
       : withoutRole.runningAgents;
-  const remoteConfigCount = withoutRole.remoteConfigCount + 1;
+  const remoteConfigCount = options?.isNewConfig
+    ? withoutRole.remoteConfigCount + 1
+    : withoutRole.remoteConfigCount;
   const next = {
     ...withoutRole,
     teamId: projection.teamId,
@@ -98,16 +99,35 @@ export function removeRoleFromSummary(
   summary: ChatroomOperationalSummary,
   role: string
 ): ChatroomOperationalSummary {
+  const stripped = stripRoleFromSummaryArrays(summary, role);
+  const remoteConfigCount = Math.max(0, stripped.remoteConfigCount - 1);
+  return {
+    ...stripped,
+    remoteConfigCount,
+    agentStatus: recomputeAgentStatus({
+      runningRoles: stripped.runningRoles,
+      remoteConfigCount,
+    }),
+  };
+}
+
+/** Remove a role from summary arrays without changing the config count. */
+export function stripRoleFromSummaryArrays(
+  summary: ChatroomOperationalSummary,
+  role: string
+): ChatroomOperationalSummary {
   const key = role.toLowerCase();
+  const runningRoles = summary.runningRoles.filter((item) => item.toLowerCase() !== key);
+  const aliveRoles = summary.aliveRoles.filter((item) => item.toLowerCase() !== key);
+  const runningAgents = summary.runningAgents.filter((item) => item.role.toLowerCase() !== key);
   return {
     ...summary,
-    runningRoles: summary.runningRoles.filter((item) => item.toLowerCase() !== key),
-    aliveRoles: summary.aliveRoles.filter((item) => item.toLowerCase() !== key),
-    runningAgents: summary.runningAgents.filter((item) => item.role.toLowerCase() !== key),
-    remoteConfigCount: Math.max(0, summary.remoteConfigCount - 1),
+    runningRoles,
+    aliveRoles,
+    runningAgents,
     agentStatus: recomputeAgentStatus({
-      runningRoles: summary.runningRoles.filter((item) => item.toLowerCase() !== key),
-      remoteConfigCount: Math.max(0, summary.remoteConfigCount - 1),
+      runningRoles,
+      remoteConfigCount: summary.remoteConfigCount,
     }),
   };
 }

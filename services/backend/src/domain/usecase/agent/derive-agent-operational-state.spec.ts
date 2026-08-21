@@ -46,7 +46,7 @@ describe('derive agent operational state', () => {
       remoteConfigCount: 0,
     };
     const projection = deriveRoleOperationalState({ ...base, spawnedAgentPid: 1 }, true);
-    const running = applyRoleToSummary(summary, projection);
+    const running = applyRoleToSummary(summary, projection, { isNewConfig: true });
     expect(running.remoteConfigCount).toBe(1);
     expect(running.agentStatus).toBe('running');
     expect(running.runningRoles).toEqual(['builder']);
@@ -64,5 +64,47 @@ describe('derive agent operational state', () => {
     expect(recomputeAgentStatus({ remoteConfigCount: 1, runningRoles: ['builder'] })).toBe(
       'running'
     );
+  });
+  test('adding a second role increments remoteConfigCount to two', () => {
+    const emptySummary = {
+      teamId: 'team',
+      agentStatus: 'none' as const,
+      runningRoles: [],
+      aliveRoles: [],
+      runningAgents: [],
+      remoteConfigCount: 0,
+    };
+    let summary = applyRoleToSummary(
+      emptySummary,
+      deriveRoleOperationalState({ ...base, spawnedAgentPid: 1 }, true),
+      { isNewConfig: true }
+    );
+    summary = applyRoleToSummary(
+      summary,
+      deriveRoleOperationalState({ ...base, role: 'planner', desiredState: 'running' }, true),
+      { isNewConfig: true }
+    );
+    expect(summary.remoteConfigCount).toBe(2);
+  });
+  test('updating an existing role leaves remoteConfigCount unchanged', () => {
+    const emptySummary = {
+      teamId: 'team',
+      agentStatus: 'none' as const,
+      runningRoles: [],
+      aliveRoles: [],
+      runningAgents: [],
+      remoteConfigCount: 0,
+    };
+    let summary = applyRoleToSummary(
+      emptySummary,
+      deriveRoleOperationalState({ ...base, spawnedAgentPid: 1 }, true),
+      { isNewConfig: true }
+    );
+    summary = applyRoleToSummary(
+      summary,
+      deriveRoleOperationalState({ ...base, spawnedAgentPid: 2 }, true),
+      { isNewConfig: false }
+    );
+    expect(summary.remoteConfigCount).toBe(1);
   });
 });

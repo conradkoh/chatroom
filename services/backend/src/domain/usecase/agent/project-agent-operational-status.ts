@@ -110,7 +110,7 @@ export async function projectAgentOperationalStatusForRole(
     projectedAt,
   };
   const next = applyRoleToSummary(base, projection, {
-    isNewConfig: !existing || opts?.isNewConfig,
+    isNewConfig: !existing,
   });
   await ctx.db.patch(
     summary?._id ??
@@ -209,7 +209,8 @@ export async function projectDaemonConnectivityForMachine(
         runningAgents: summary.runningAgents,
         remoteConfigCount: summary.remoteConfigCount,
       };
-      for (const projection of projections) next = applyRoleToSummary(next, projection);
+      for (const projection of projections)
+        next = applyRoleToSummary(next, projection, { isNewConfig: false });
       await ctx.db.patch(summary._id, { ...next, projectedAt: Date.now() });
     }
   }
