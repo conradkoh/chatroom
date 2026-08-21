@@ -9,22 +9,27 @@ import {
 import { RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
+import { getMachineOwner } from './auth/cli/machineAccess';
 import { getSession } from './auth/session';
 import { areAllAgentsWaiting, getAndIncrementQueuePosition } from './lib/chatroomUtils';
 import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
+import {
+  normalizeMarkdownContent,
+  withMarkdownContent,
+} from '../src/domain/entities/markdown-content';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
+import { listTasksForMachineSignalRange as listTasksForMachineSignalRangeUsecase } from '../src/domain/usecase/machine/list-tasks-for-machine-signal-range';
+import { projectAssignedTaskSnapshotsForChatroom } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { acknowledgePendingTask } from '../src/domain/usecase/task/acknowledge-pending-task';
 import {
   createTask as createTaskUsecase,
   hasActiveTaskFromMaterializedCounts,
 } from '../src/domain/usecase/task/create-task';
-import { normalizeMarkdownContent, withMarkdownContent } from '../src/domain/entities/markdown-content';
+import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
-import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-task-source-attachments';
 import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
-import { projectAssignedTaskSnapshotsForChatroom } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
   countActiveTasksFromSource,
   resolveActiveCountsForRead,
@@ -33,12 +38,15 @@ import {
   transitionTask,
   type TransitionTaskOptions,
 } from '../src/domain/usecase/task/transition-task';
+import { writeTimelineTaskStatusSignal } from '../src/domain/usecase/task/write-timeline-task-status-signal';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
 
 /** Maximum number of tasks to return in list queries. */
 const MAX_TASK_LIST_LIMIT = 100;
+/** Maximum number of full task rows returned by one inbox page. */
+const MAX_TASK_INBOX_PAGE_LIMIT = 500;
 
 /** Creates a new task in a chatroom (pending status). */
 export const createTask = mutation({
@@ -107,7 +115,10 @@ export const updateTaskStartInNewSession = mutation({
     if (!task) throw new Error('Task not found');
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
     if (task.status !== 'pending') throw new Error('Only pending tasks can be updated');
-    await ctx.db.patch('chatroom_tasks', args.taskId, { startInNewSession: args.startInNewSession, updatedAt: Date.now() });
+    await ctx.db.patch('chatroom_tasks', args.taskId, {
+      startInNewSession: args.startInNewSession,
+      updatedAt: Date.now(),
+    });
     await projectAssignedTaskSnapshotsForChatroom(ctx, task.chatroomId);
   },
 });
@@ -155,7 +166,10 @@ export const claimTask = mutation({
       }
       if (pendingTask.status === 'acknowledged') {
         if (pendingTask.assignedTo?.toLowerCase() === normalizedRole) {
-          return { taskId: pendingTask._id, content: normalizeMarkdownContent(pendingTask.content) };
+          return {
+            taskId: pendingTask._id,
+            content: normalizeMarkdownContent(pendingTask.content),
+          };
         }
         throw new Error(`Task must be pending to claim (current status: ${pendingTask.status})`);
       }
@@ -246,6 +260,10 @@ export const startTask = mutation({
             assignedTo: args.role,
             updatedAt: now,
           });
+          const reassignedTask = await ctx.db.get('chatroom_tasks', acknowledgedTask._id);
+          if (reassignedTask) {
+            await writeTimelineTaskStatusSignal(ctx, reassignedTask);
+          }
         }
         await ctx.db.insert('chatroom_eventStream', {
           type: 'task.inProgress',
@@ -255,7 +273,10 @@ export const startTask = mutation({
           timestamp: now,
         });
         await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
-        return { taskId: acknowledgedTask._id, content: normalizeMarkdownContent(acknowledgedTask.content) };
+        return {
+          taskId: acknowledgedTask._id,
+          content: normalizeMarkdownContent(acknowledgedTask.content),
+        };
       }
 
       if (acknowledgedTask.status !== 'acknowledged') {
@@ -291,7 +312,10 @@ export const startTask = mutation({
     // Patch participant status after transition
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
 
-        return { taskId: acknowledgedTask._id, content: normalizeMarkdownContent(acknowledgedTask.content) };
+    return {
+      taskId: acknowledgedTask._id,
+      content: normalizeMarkdownContent(acknowledgedTask.content),
+    };
   },
 });
 
@@ -1066,6 +1090,40 @@ export const getTasksByIds = query({
         createdAt: task.createdAt,
         createdBy: task.createdBy,
       }));
+  },
+});
+
+/**
+ * Returns full task rows whose task-update cursor falls within a signal-key range.
+ *
+ * This is intentionally imperative: the task inbox subscribes only to
+ * chatroom_timelineTaskStatusSignals and uses this query to hydrate the full rows
+ * after a signal arrives.
+ */
+export const listTasksForMachineSignalRange = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    afterSignalKey: v.string(),
+    throughSignalKey: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+    if (!auth) return { snapshots: [], nextSignalKey: null, hasMore: false };
+
+    const limit = Math.min(
+      Math.max(args.limit ?? MAX_TASK_INBOX_PAGE_LIMIT, 1),
+      MAX_TASK_INBOX_PAGE_LIMIT
+    );
+
+    return listTasksForMachineSignalRangeUsecase(ctx, {
+      machineId: args.machineId,
+      userId: auth.userId,
+      afterSignalKey: args.afterSignalKey,
+      throughSignalKey: args.throughSignalKey,
+      limit,
+    });
   },
 });
 

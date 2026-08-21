@@ -121,4 +121,57 @@ describe('native duplicate task injection', () => {
       `[NativeDelivery:skip] ${ROLE}@${CHATROOM_ID} task ${TASK_ID} — already_delivered_this_session`
     );
   });
+
+  test('second reconcile pass skips acknowledged task after harness session changes', async () => {
+    const resumeTurnForSlot = vi.fn().mockReturnValue(Effect.succeed(undefined));
+    const slot = {
+      state: 'running' as const,
+      pid: 42_001,
+      harnessSessionId: HARNESS_SESSION_ID,
+      nativeTurnPhase: 'idle' as const,
+      lastInFlightTaskId: undefined as string | undefined,
+    };
+    const agentMgr = {
+      getSlot: vi.fn().mockReturnValue(slot),
+      resumeTurnForSlot,
+      setLastInFlightTask: vi.fn().mockImplementation((_chatroomId, _role, taskId) => {
+        slot.lastInFlightTaskId = taskId;
+        return Effect.void;
+      }),
+      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
+    } as unknown as DaemonAgentProcessManagerServiceShape;
+    const row = makeAcknowledgedRow();
+    const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
+      if (args && typeof args === 'object' && 'chatroomId' in args) {
+        return { fullCliOutput: 'TASK PROMPT' };
+      }
+      return { ...row, taskContent: '## Goal\nDuplicate restart test' };
+    });
+    const coordinator = new NativeTaskDeliveryCoordinator();
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const params = {
+      tasks: [row],
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      agentMgr,
+      sessionDeps: {
+        sessionId: 'session_dup', machineId: 'machine_dup', convexUrl: 'http://test:3210',
+        logEvent: async () => undefined,
+        backend: { mutation: vi.fn().mockResolvedValue(undefined), query: backendQuery },
+      },
+      machineId: 'machine_dup',
+    };
+    coordinator.reconcileAssignedTasks(params);
+    await vi.waitFor(() => expect(slot.lastInFlightTaskId).toBe(TASK_ID));
+    coordinator.onSessionLost({ chatroomId: CHATROOM_ID, role: ROLE, harnessSessionId: HARNESS_SESSION_ID });
+    slot.harnessSessionId = 'harness-new';
+    resumeTurnForSlot.mockClear();
+    logSpy.mockClear();
+    coordinator.reconcileAssignedTasks(params);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(resumeTurnForSlot).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('already_delivered_to_slot')
+    );
+  });
 });

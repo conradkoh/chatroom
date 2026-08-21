@@ -181,23 +181,21 @@ All other types use T0 (local only), T1/T2 (batched), or T4 (on-demand inbound) 
 
 All subscribers are registered in `subscriber-registry.ts` and map to `InboundEvent` types.
 
-| Subscriber             | Convex API (subscribe target)                                 | Inbound event                   | Primary handler / runtime                           |
-| ---------------------- | ------------------------------------------------------------- | ------------------------------- | --------------------------------------------------- |
-| Assigned task signals  | `machines.subscribeAssignedTaskSignalsSince`                  | `assigned-task.signal`          | Task monitor, native delivery, restart orchestrator |
-| Assigned task presence | `machines.subscribeAssignedTaskPresenceSince`                 | `assigned-task.presence`        | Task monitor (nudge timing)                         |
-| Command events         | `machines.getCommandEvents`                                   | `command.received`              | `command-dispatch.ts`                               |
-| Command runs           | `daemon.commands.listActionableCommandRuns`                   | `command-run.updated`           | `command-run-subscription.ts`                       |
-| Direct harness session | `daemon.directHarness.sessions.listPendingSessionsForMachine` | `direct-harness.session-opened` | `session-processor.ts`                              |
-| Direct harness prompt  | `daemon.directHarness.messages.pendingForMachine`             | `direct-harness.prompt`         | `prompt-drain.ts`                                   |
-| Direct harness command | `daemon.directHarness.commands.listPendingCommands`           | `direct-harness.command`        | `command-processor.ts`                              |
-| Agentic query session  | `daemon.agenticQuery.runs.pendingForMachine`                  | `agentic-query.session-opened`  | `agentic-query/session-processor.ts`                |
-| Agentic query prompt   | `daemon.agenticQuery.messages.pendingForMachine`              | `agentic-query.prompt`          | `agentic-query/prompt-drain.ts`                     |
-| Enhancer job           | `daemon.enhancer.index.pendingForMachine`                     | `enhancer.job-assigned`         | `enhancer/job-subscriber.ts`                        |
-| Workspace list         | `workspaces.listRecentlyObservedWorkspacesForMachine`         | `workspace.list-changed`        | `workspace-list-subscription.ts`                    |
-| Git request            | `workspaces.getPendingRequests`                               | `git.request`                   | `git-subscription.ts`                               |
-| File tree request      | `workspaceFiles.getPendingFileTreeRequests`                   | `file-tree.request`             | `file-tree-subscription.ts`                         |
-| File content request   | `workspaceFiles.getPendingFileContentRequests`                | `file-content.request`          | `file-content-fulfillment.ts`                       |
-| File write request     | `workspaceFiles.getPendingFileWriteRequests`                  | `file-write.request`            | `file-write-fulfillment.ts`                         |
+| Subscriber             | Convex API (subscribe target)                                 | Inbound event                   | Primary handler / runtime            |
+| ---------------------- | ------------------------------------------------------------- | ------------------------------- | ------------------------------------ |
+| Command events         | `machines.getCommandEvents`                                   | `command.received`              | `command-dispatch.ts`                |
+| Command runs           | `daemon.commands.listActionableCommandRuns`                   | `command-run.updated`           | `command-run-subscription.ts`        |
+| Direct harness session | `daemon.directHarness.sessions.listPendingSessionsForMachine` | `direct-harness.session-opened` | `session-processor.ts`               |
+| Direct harness prompt  | `daemon.directHarness.messages.pendingForMachine`             | `direct-harness.prompt`         | `prompt-drain.ts`                    |
+| Direct harness command | `daemon.directHarness.commands.listPendingCommands`           | `direct-harness.command`        | `command-processor.ts`               |
+| Agentic query session  | `daemon.agenticQuery.runs.pendingForMachine`                  | `agentic-query.session-opened`  | `agentic-query/session-processor.ts` |
+| Agentic query prompt   | `daemon.agenticQuery.messages.pendingForMachine`              | `agentic-query.prompt`          | `agentic-query/prompt-drain.ts`      |
+| Enhancer job           | `daemon.enhancer.index.pendingForMachine`                     | `enhancer.job-assigned`         | `enhancer/job-subscriber.ts`         |
+| Workspace list         | `workspaces.listRecentlyObservedWorkspacesForMachine`         | `workspace.list-changed`        | `workspace-list-subscription.ts`     |
+| Git request            | `workspaces.getPendingRequests`                               | `git.request`                   | `git-subscription.ts`                |
+| File tree request      | `workspaceFiles.getPendingFileTreeRequests`                   | `file-tree.request`             | `file-tree-subscription.ts`          |
+| File content request   | `workspaceFiles.getPendingFileContentRequests`                | `file-content.request`          | `file-content-fulfillment.ts`        |
+| File write request     | `workspaceFiles.getPendingFileWriteRequests`                  | `file-write.request`            | `file-write-fulfillment.ts`          |
 
 **Enhancer (migration target):** Subscriber `enhancer.job-assigned` will be replaced by local queue; Convex projection for visibility only.
 

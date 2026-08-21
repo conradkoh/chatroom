@@ -3,8 +3,6 @@ import type { InboundEvent } from '../domain/entities/inbound-event.js';
 import type { ConvexSubscriberDeps } from '../infrastructure/convex/subscriber-deps.js';
 import { startAgenticQueryPromptSubscriber } from '../infrastructure/convex/subscribers/agentic-query-prompt.js';
 import { startAgenticQuerySessionSubscriber } from '../infrastructure/convex/subscribers/agentic-query-session.js';
-import { startAssignedTaskPresenceSubscriber } from '../infrastructure/convex/subscribers/assigned-task-presence.js';
-import { startAssignedTaskSignalsSubscriber } from '../infrastructure/convex/subscribers/assigned-task-signals.js';
 import { startCommandEventsSubscriber } from '../infrastructure/convex/subscribers/command-events.js';
 import { startCommandRunSubscriber } from '../infrastructure/convex/subscribers/command-run.js';
 import { startDirectHarnessCommandSubscriber } from '../infrastructure/convex/subscribers/direct-harness-command.js';
@@ -29,8 +27,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
     void routeInboundEvent(deps.router, event);
   };
 
-  const signals = startAssignedTaskSignalsSubscriber(deps, onEvent);
-  const presence = startAssignedTaskPresenceSubscriber(deps, onEvent);
   const session = startDirectHarnessSessionSubscriber(deps, onEvent);
   const prompt = startDirectHarnessPromptSubscriber(deps, onEvent);
   const directHarnessCommand = startDirectHarnessCommandSubscriber(deps, onEvent);
@@ -49,8 +45,6 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   return {
     async stopAll() {
       await Promise.all([
-        signals.stop(),
-        presence.stop(),
         session.stop(),
         prompt.stop(),
         directHarnessCommand.stop(),

@@ -104,6 +104,12 @@ export interface DaemonAgentProcessManagerServiceShape {
     prompt: string;
   }) => Effect.Effect<void>;
   setLastInFlightTask: (chatroomId: string, role: string, taskId: string) => Effect.Effect<void>;
+  clearLastInFlightTaskIfMatches: (
+    chatroomId: string,
+    role: string,
+    taskId: string
+  ) => Effect.Effect<void>;
+  reconcileNativeTurnPhaseIdle?: (chatroomId: string, role: string) => Effect.Effect<void>;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Tag(
@@ -126,6 +132,10 @@ export const DaemonAgentProcessManagerServiceLive = (
     resumeTurnForSlot: (args) => Effect.promise(() => mgr.resumeTurnForSlot(args)),
     setLastInFlightTask: (chatroomId, role, taskId) =>
       Effect.sync(() => mgr.setLastInFlightTask(chatroomId, role, taskId)),
+    clearLastInFlightTaskIfMatches: (chatroomId, role, taskId) =>
+      Effect.sync(() => mgr.clearLastInFlightTaskIfMatches(chatroomId, role, taskId)),
+    reconcileNativeTurnPhaseIdle: (chatroomId, role) =>
+      Effect.sync(() => mgr.reconcileNativeTurnPhaseIdle(chatroomId, role)),
   });
 
 // ─── DaemonSessionService ────────────────────────────────────────────────────

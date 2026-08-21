@@ -7,7 +7,7 @@ import type {
   AssignedTaskPresenceSignal,
   AssignedTaskSignal,
   AssignedTaskSnapshotView,
-} from './assigned-task-monitor-contract';
+} from './assigned-task-snapshot-contract';
 import { toAgentConfigView, toParticipantView } from './assigned-tasks-core';
 import type { Doc } from '../../../../convex/_generated/dataModel';
 
@@ -15,7 +15,7 @@ type RemoteAgentConfig = Doc<'chatroom_teamAgentConfigs'>;
 type SnapshotDoc = Doc<'chatroom_machineAssignedTaskSnapshots'>;
 
 /** Full row from projection doc (hydrate path). */
-export function monitorRowFromSnapshotDoc(doc: SnapshotDoc): AssignedTaskSnapshotView {
+export function assignedTaskSnapshotFromDoc(doc: SnapshotDoc): AssignedTaskSnapshotView {
   const configStub = {
     role: doc.role,
     machineId: doc.machineId,

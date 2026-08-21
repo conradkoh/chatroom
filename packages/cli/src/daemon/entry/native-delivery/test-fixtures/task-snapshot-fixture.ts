@@ -1,3 +1,4 @@
+// fallow-ignore-file unused-file
 /**
  * Task-monitor working snapshot — domain merge rules over shared WorkingSnapshot.
  */
@@ -5,19 +6,19 @@
 import {
   applyAssignedTaskPresence,
   applyAssignedTaskSignal,
-} from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-row.js';
+} from '@workspace/backend/src/domain/usecase/machine/assigned-task-snapshot-row.js';
 import type {
   AssignedTaskPresenceSignal,
   AssignedTaskSignal,
   AssignedTaskSnapshotView as BackendAssignedTaskSnapshotView,
 } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 
-import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
+import type { AssignedTaskSnapshotView } from '../../../../daemon/domain/entities/assigned-task.js';
 import {
   WorkingSnapshot,
   type WorkingSnapshotOptions,
-} from '../../../infrastructure/incremental-sync/working-snapshot.js';
-import { mapAssignedTaskSnapshot } from '../../../infrastructure/mappers/map-assigned-task.js';
+} from '../../../../infrastructure/incremental-sync/working-snapshot.js';
+import { mapAssignedTaskSnapshot } from '../../../../infrastructure/mappers/map-assigned-task.js';
 
 function taskSnapshotKey(taskId: string, role: string): string {
   return `${taskId}:${role}`;
@@ -38,7 +39,7 @@ const taskMonitorSnapshotOptions: WorkingSnapshotOptions<
   },
 };
 
-export function createTaskMonitorSnapshot(): WorkingSnapshot<
+export function createTaskSnapshot(): WorkingSnapshot<
   AssignedTaskSnapshotView,
   AssignedTaskSignal
 > & {

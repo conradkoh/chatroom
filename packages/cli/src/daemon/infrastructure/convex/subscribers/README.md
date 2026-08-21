@@ -20,8 +20,6 @@
 
 | File                        | Legacy direction                                   | Status   |
 | --------------------------- | -------------------------------------------------- | -------- |
-| `assigned-task-signals.ts`  | `daemon-start/task-monitor.ts`                     | **done** |
-| `assigned-task-presence.ts` | `daemon-start/task-monitor.ts`                     | **done** |
 | `command-events.ts`         | `daemon-start/command-loop.ts`                     | **done** |
 | `direct-harness-session.ts` | `daemon-start/direct-harness/`                     | **done** |
 | `direct-harness-prompt.ts`  | `daemon-start/direct-harness/prompt-subscriber.ts` | **done** |

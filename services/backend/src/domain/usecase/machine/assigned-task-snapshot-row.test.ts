@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   applyAssignedTaskPresence,
   applyAssignedTaskSignal,
-  monitorRowFromSnapshotDoc,
-} from './assigned-task-monitor-row';
+  assignedTaskSnapshotFromDoc,
+} from './assigned-task-snapshot-row';
 import type { AssignedTaskSignal } from './assigned-tasks-types';
 import { snapshotDocToSignal } from './machine-assigned-task-snapshot-sync';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
@@ -38,7 +38,7 @@ function makeSnapshotDoc(
 }
 
 function makeExistingRow() {
-  return monitorRowFromSnapshotDoc(
+  return assignedTaskSnapshotFromDoc(
     makeSnapshotDoc({
       lastSeenAction: 'native:waiting',
       lastSeenAt: 500,
@@ -198,12 +198,12 @@ describe('applyAssignedTaskPresence', () => {
 });
 
 describe('doc → signal → apply round-trip', () => {
-  it('matches monitorRowFromSnapshotDoc for bootstrap-capable signals', () => {
+  it('matches assignedTaskSnapshotFromDoc for bootstrap-capable signals', () => {
     const doc = makeSnapshotDoc({
       lastSeenAction: 'native:task-injected',
       lastStatus: 'task.completed',
     });
-    const fromDoc = monitorRowFromSnapshotDoc(doc);
+    const fromDoc = assignedTaskSnapshotFromDoc(doc);
     const fromSignal = applyAssignedTaskSignal(undefined, snapshotDocToSignal(doc));
 
     expect(fromSignal).toMatchObject({
@@ -233,7 +233,7 @@ describe('doc → signal → apply round-trip', () => {
       lastStatus: 'task.completed',
       lastSeenAt: 9_999,
     });
-    const fromDoc = monitorRowFromSnapshotDoc(doc);
+    const fromDoc = assignedTaskSnapshotFromDoc(doc);
     const fromSignal = applyAssignedTaskSignal(undefined, snapshotDocToSignal(doc));
 
     expect(fromSignal.participant?.lastSeenAction).toBe(fromDoc.participant?.lastSeenAction);
