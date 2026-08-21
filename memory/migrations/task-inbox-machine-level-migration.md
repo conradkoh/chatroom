@@ -85,7 +85,7 @@ After machine-level inbox delivery has parity and recovery coverage, remove the 
       Assigned-task signal/presence subscribers are unregistered from `subscriber-registry.ts`; task inbox is the sole discovery path.
 - [x] Remove the task-monitor runtime, local task snapshot store, and snapshot-only reconciliation/nudge/revive logic that the inbox replaces. **→ Stages 2–3** (monitor runtime and snapshot store removed; delivery rehydrates from backend)
 - [x] Remove chatroom-scoped daemon inbox endpoints and compatibility code once no consumers remain; retain the chatroom index if the webapp still uses it. **→ Stage 4 (backend)** — Done in `bca484790` (removed `subscribeAssignedTaskSignalsSince` / `subscribeAssignedTaskPresenceSince`).
-- [ ] Remove obsolete signal fields, indexes, tests, and fixtures only after confirming their consumers are gone. **→ Deferred** (consumer audit pending; chatroom signal index retained for webapp).
+- [x] Remove obsolete signal fields, indexes, tests, and fixtures only after confirming their consumers are gone. **→ Audited 2026-08-21** — see `docs/design/timeline-task-status-signal-consumer-audit.md`. No schema removal in this pass; chatroom index retained for webapp.
 - [x] Update daemon architecture documentation and memory records, then delete or mark completed migration-only tracking notes. **→ Stage 4 (docs)** — This archive commit.
 
 ## Post-migration cleanup action plan
@@ -149,3 +149,4 @@ Completed in commits `3d2b3014e` and `54ee436b6`. Deleted `assigned-task-snapsho
 - Rename assigned-task monitor contract to snapshot contract naming (if any references remain after backend cleanup).
 - Add concurrent-signal integration coverage beyond existing inbox tests.
 - Audit and remove obsolete timeline signal fields/indexes after confirming zero consumers (cleanup item 88 deferred).
+- Consumer audit completed in `docs/design/timeline-task-status-signal-consumer-audit.md`; schema removal remains deferred.
