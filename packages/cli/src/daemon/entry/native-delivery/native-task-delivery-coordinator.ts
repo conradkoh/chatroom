@@ -120,6 +120,9 @@ export class NativeTaskDeliveryCoordinator {
     for (const row of pendingFirst) {
       const { role } = row.agentConfig;
       const slot = agentMgr.getSlot(row.chatroomId, role);
+      if (row.status === 'pending' && slot?.lastInFlightTaskId === row.taskId) {
+        Effect.runSync(agentMgr.clearLastInFlightTaskIfMatches(row.chatroomId, role, row.taskId));
+      }
       const blockReason = explainNativeDeliveryBlock(row, { slot });
       if (blockReason) {
         if (isDeliverableTaskStatus(row.status)) {

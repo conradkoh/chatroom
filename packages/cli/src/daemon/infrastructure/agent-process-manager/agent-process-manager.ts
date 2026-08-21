@@ -616,6 +616,7 @@ export class AgentProcessManager {
 
       if (slot) {
         setNativeTurnPhase(slot, defaultNativeTurnPhase());
+        this.clearLastInFlightTask(opts.chatroomId, opts.role);
       }
       notifyNativeTurnIdle({ chatroomId: opts.chatroomId, role: opts.role });
       console.log(`[AgentProcessManager] ✅ Native agent_end handled for ${opts.role}`);
@@ -635,6 +636,9 @@ export class AgentProcessManager {
     const stopReason: StopReason = resolveStopReason(opts.code, opts.signal);
 
     const ctx = this.captureExitContext(slot, opts, stopReason);
+    if (slot.harness && getHarnessCapabilities(slot.harness).supportsNativeIntegration) {
+      setNativeTurnPhase(slot, defaultNativeTurnPhase());
+    }
     this.maybeEmitProviderUnavailable(opts.chatroomId, opts.role, slot);
     notifyNativeHarnessSessionLostOnExit({
       chatroomId: opts.chatroomId,
@@ -1056,6 +1060,16 @@ export class AgentProcessManager {
   setLastInFlightTask(chatroomId: string, role: string, taskId: string): void {
     const slot = this.getOrCreateSlot(agentKey(chatroomId, role));
     slot.lastInFlightTaskId = taskId;
+  }
+
+  clearLastInFlightTaskIfMatches(chatroomId: string, role: string, taskId: string): void {
+    const slot = this.slots.get(agentKey(chatroomId, role));
+    if (slot?.lastInFlightTaskId === taskId) slot.lastInFlightTaskId = undefined;
+  }
+
+  clearLastInFlightTask(chatroomId: string, role: string): void {
+    const slot = this.slots.get(agentKey(chatroomId, role));
+    if (slot) slot.lastInFlightTaskId = undefined;
   }
 
   listActive(): { chatroomId: string; role: string; slot: AgentSlot }[] {

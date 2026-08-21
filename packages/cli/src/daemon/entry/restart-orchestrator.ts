@@ -18,7 +18,10 @@ import { api } from '../../api.js';
 import { getNativeDeliveryLedger } from './native-delivery/native-delivery-ledger.js';
 import { isAgentReadyForNativeDelivery } from './native-delivery/native-ready-invariant.js';
 import { resetRoleDeliveryState } from './native-delivery/native-task-delivery-coordinator.js';
-import { explainLedgerDeliveryBlock } from './native-delivery/native-task-injector-logic.js';
+import {
+  explainLedgerDeliveryBlock,
+  explainNativeDeliveryBlock,
+} from './native-delivery/native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-delivery/native-task-injector.js';
 import {
   markRestartOrchestratorInFlight,
@@ -183,6 +186,11 @@ async function deliverOneTask(
   );
   if (ledgerBlock) {
     console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — ${ledgerBlock}`);
+    return false;
+  }
+  const deliveryBlock = explainNativeDeliveryBlock(snapshot, { slot });
+  if (deliveryBlock) {
+    console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — ${deliveryBlock}`);
     return false;
   }
   if (!ledger.tryAcquire(snapshot.taskId as string, harnessSessionId)) {
