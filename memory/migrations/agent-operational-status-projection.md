@@ -116,9 +116,9 @@ flowchart TD
 - [x] Implement `project-agent-operational-status.ts` (role + summary upsert and machine-scoped redrive)
 - [x] Wire outbox drain to the projection mutation
 - [x] Wire `updateDaemonStatus` to `projectAgentOperationalStatusForMachine`
-- [ ] Wire remaining mutation triggers
-- [ ] Add a backfill mutation for existing chatrooms
-- [ ] Add derivation-matrix integration tests
+- [x] Wire remaining mutation triggers
+- [x] Add a backfill mutation for existing chatrooms
+- [x] Add derivation-matrix integration tests
 
 ### Phase 3 — Reader migration (one PR commit per reader)
 
