@@ -5,11 +5,10 @@ import type { AgentLifecycleOutboxResult } from './agent-lifecycle-outbox.js';
 
 export function createAgentLifecycleSend(session: DaemonSessionServiceShape) {
   return async (fact: AgentLifecycleFact): Promise<AgentLifecycleOutboxResult> => {
-    await session.backend.mutation(api.machines.projectAgentLifecycleFact, {
+    return (await session.backend.mutation(api.machines.projectAgentLifecycleFact, {
       sessionId: session.sessionId,
       machineId: session.machineId,
       fact: fact as never,
-    });
-    return { success: true };
+    })) as AgentLifecycleOutboxResult;
   };
 }

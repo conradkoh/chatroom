@@ -23,6 +23,7 @@ import {
 import { logStartupEffect } from './handlers/daemon-startup-log.js';
 import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
+import { createAgentLifecycleOutboxForSession } from './agent-lifecycle-outbox-runtime.js';
 import { recoverAgentStateEffect } from './handlers/state-recovery.js';
 import { acquireLockWithRetry, releaseLock } from '../../commands/machine/pid.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
@@ -376,6 +377,11 @@ function assembleDaemonSessionInit(args: {
 
   deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
   deps.backend.query = (endpoint, args) => client.query(endpoint, args);
+  const agentLifecycleOutbox = createAgentLifecycleOutboxForSession({
+    sessionId: typedSessionId,
+    machineId,
+    backend: deps.backend,
+  });
   deps.agentProcessManager = new AgentProcessManager({
     logEvent: activeLogEvent ?? (async () => undefined),
     logSink: activeLogSink,
@@ -403,6 +409,7 @@ function assembleDaemonSessionInit(args: {
     machine: deps.machine,
     spawning: deps.spawning,
     agentProcessManager: deps.agentProcessManager,
+    agentLifecycleOutbox,
     events: new DaemonEventBus(),
     agentServices,
     lastPushedGitState: new Map(),
