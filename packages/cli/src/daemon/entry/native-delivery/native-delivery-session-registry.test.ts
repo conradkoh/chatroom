@@ -29,7 +29,8 @@ describe('native-delivery-session-registry', () => {
       machineId: 'm',
     };
     registerNativeDeliverySession(ctx);
-    expect(getNativeDeliverySession()).toBe(ctx);
+    expect(getNativeDeliverySession()).toMatchObject(ctx);
+    expect(getNativeDeliverySession()?.taskSnapshotState).toBeDefined();
     unregisterNativeDeliverySession();
     expect(getNativeDeliverySession()).toBeNull();
   });

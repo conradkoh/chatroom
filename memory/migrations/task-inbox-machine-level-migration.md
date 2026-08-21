@@ -38,6 +38,25 @@ The inbox persistence store is restored and uses `{ inboxType: 'task', scopeKey:
 
 Assigned-task signal/presence subscribers are unregistered from `subscriber-registry.ts`; the task inbox is the sole discovery path. Integration tests cover reassignment ownership re-check, restart snapshot bootstrap, and cold-start agent revive via `ensureRunning`.
 
+## Agent-status coupling and local snapshot state
+
+The task inbox has two distinct pieces of daemon-local state:
+
+- The durable SQLite inbox store persists only the machine signal cursor (`afterSignalKey`).
+- `MachineTaskSnapshotState` is an in-memory `Map` owned by the daemon inbox. It is rebuilt from startup bootstrap and machine signal hydration, and is lost on daemon restart.
+
+The backend machine-assigned-task snapshot projection intentionally combines task data with delivery-related agent metadata: `desiredState`, `spawnedAgentPid`, harness, working directory, and participant status. Delivery uses this projection to decide whether to wake, revive, nudge, or inject a task.
+
+This creates an important boundary for the agent-status transition refactor: agent configuration changes do not necessarily emit task-status signals. For example, stopping an agent clears its PID and sets `desiredState: stopped`; starting it sets `desiredState: running` and dispatches `agent.requestStart`, but the task inbox may not receive a corresponding task signal. The daemon therefore updates its local snapshot state when it accepts a start request, and native delivery trusts a healthy local process slot while backend PID propagation catches up.
+
+Any future agent-status architecture must explicitly choose one of these contracts:
+
+1. Publish agent lifecycle/config changes into a daemon-consumable inbox/read-model stream.
+2. Keep agent status as a separate local read model and combine it with task inbox state at delivery time.
+3. Continue denormalizing agent status into task snapshots, but guarantee that every relevant status/config transition updates the daemon’s local snapshot state.
+
+Do not assume that a task-status signal alone keeps agent metadata current. The task inbox is authoritative for task events, while the live agent process manager is authoritative for local process/session readiness.
+
 ## Progress tracker
 
 ### Inbox and backend signal feed

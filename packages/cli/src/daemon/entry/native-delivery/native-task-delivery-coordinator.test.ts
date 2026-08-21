@@ -14,9 +14,11 @@ import {
   notifyNativeTurnIdle,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
+import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
+import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
-function makeRow() {
+function makeRow(): AssignedTaskSnapshotView {
   return {
     taskId: 'task_1' as never,
     chatroomId: 'room_1' as never,
@@ -41,8 +43,7 @@ function makeRow() {
 }
 
 describe('NativeTaskDeliveryCoordinator', () => {
-  beforeEach(() => {
-  });
+  beforeEach(() => {});
 
   afterEach(() => {
     unregisterNativeDeliverySession();
@@ -112,6 +113,8 @@ describe('NativeTaskDeliveryCoordinator', () => {
       resumeTurnForSlot,
       setLastInFlightTask: vi.fn().mockReturnValue(Runtime.defaultRuntime),
     };
+    const taskSnapshotState = new MachineTaskSnapshotState();
+    taskSnapshotState.replace([row]);
 
     registerNativeDeliverySession({
       runtime: Runtime.defaultRuntime as Parameters<
@@ -123,6 +126,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
       agentMgr: agentMgr as never,
       sessionDeps,
       machineId: 'm',
+      taskSnapshotState,
     });
 
     const coordinator = new NativeTaskDeliveryCoordinator();

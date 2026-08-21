@@ -1,5 +1,4 @@
 // fallow-ignore-file code-duplication
-import { NATIVE_DELIVERY_RECONCILE_MS } from '@workspace/backend/config/reliability.js';
 import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { Effect } from 'effect';
@@ -25,8 +24,10 @@ import { RecoveryCooldown } from './task-delivery/task-delivery-logic.js';
 import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
 import { handleTaskInboxUpdate } from '../infrastructure/inbox/task-inbox-delivery.js';
+import { MachineTaskSnapshotState } from '../infrastructure/inbox/task-snapshot-state.js';
 import { runTaskInbox } from '../infrastructure/inbox/task.js';
 
+const NATIVE_DELIVERY_RECONCILE_MS = 10_000;
 const INBOX_RESTART_INITIAL_MS = 1_000;
 const INBOX_RESTART_MAX_MS = 30_000;
 
@@ -37,6 +38,7 @@ type TaskInboxDependencies = {
   cooldown: RecoveryCooldown;
   agentMgr: DaemonAgentProcessManagerServiceShape;
   machineId: string;
+  taskSnapshotState?: MachineTaskSnapshotState;
 };
 
 // fallow-ignore-next-line unused-export
@@ -48,6 +50,7 @@ export async function bootstrapMachineAssignedTaskSnapshots(
     machineId: deps.machineId,
   });
   const tasks = await fetchMachineAssignedTaskSnapshots(deps.sessionDeps, deps.machineId);
+  deps.taskSnapshotState?.replace(tasks);
   if (!tasks.length) return;
   await processTasksUpdate(
     deps.runtime,
@@ -121,14 +124,18 @@ export const startTaskInboxEffect = (
     });
     const abort = new AbortController();
     let stopped = false;
+    const taskSnapshotState = new MachineTaskSnapshotState();
     registerNativeDeliverySession({
       runtime,
       effectContext,
       agentMgr,
       sessionDeps,
       machineId: session.machineId,
+      taskSnapshotState,
     });
     const cooldown = new RecoveryCooldown();
+    let inboxUpdateInFlight = false;
+    let reconcileInFlight = false;
     const inboxOptions: Parameters<typeof runTaskInbox>[0] = {
       client: wsClient,
       sessionId: session.sessionId as SessionId,
@@ -138,31 +145,25 @@ export const startTaskInboxEffect = (
       signal: abort.signal,
     };
     const inboxHandler: Parameters<typeof runTaskInbox>[1] = async (update) => {
-      await handleTaskInboxUpdate(update, {
-        runtime,
-        effectContext,
-        cooldown,
-        agentMgr,
-        sessionDeps,
-        machineId: session.machineId,
-      });
-      inboxStore.save(
-        { inboxType: 'task', scopeKey: session.machineId },
-        { afterSignalKey: update.throughSignalKey }
-      );
+      inboxUpdateInFlight = true;
+      try {
+        await handleTaskInboxUpdate(update, {
+          runtime,
+          effectContext,
+          cooldown,
+          agentMgr,
+          sessionDeps,
+          machineId: session.machineId,
+          taskSnapshotState,
+        });
+        inboxStore.save(
+          { inboxType: 'task', scopeKey: session.machineId },
+          { afterSignalKey: update.throughSignalKey }
+        );
+      } finally {
+        inboxUpdateInFlight = false;
+      }
     };
-    const reconcileTimer = setInterval(() => {
-      if (stopped) return;
-      void processTasksUpdate(
-        runtime,
-        effectContext,
-        cooldown,
-        agentMgr,
-        sessionDeps,
-        session.machineId,
-        'periodic-reconcile'
-      );
-    }, NATIVE_DELIVERY_RECONCILE_MS);
     yield* Effect.tryPromise(() =>
       bootstrapMachineAssignedTaskSnapshots({
         sessionDeps,
@@ -171,6 +172,7 @@ export const startTaskInboxEffect = (
         cooldown,
         agentMgr,
         machineId: session.machineId,
+        taskSnapshotState,
       })
     ).pipe(
       Effect.catchAll((error) => {
@@ -178,6 +180,26 @@ export const startTaskInboxEffect = (
         return Effect.void;
       })
     );
+    const reconcileTimer = setInterval(() => {
+      if (stopped || inboxUpdateInFlight || reconcileInFlight) return;
+      reconcileInFlight = true;
+      void processTasksUpdate(
+        runtime,
+        effectContext,
+        cooldown,
+        agentMgr,
+        sessionDeps,
+        session.machineId,
+        'periodic-reconcile',
+        { snapshots: taskSnapshotState.listAll() }
+      )
+        .catch((error) => {
+          console.warn('[TaskInbox] local delivery reconciliation failed:', error);
+        })
+        .finally(() => {
+          reconcileInFlight = false;
+        });
+    }, NATIVE_DELIVERY_RECONCILE_MS);
     void runInboxLoopWithRestart(inboxOptions, inboxHandler, () => stopped);
     return {
       stop() {

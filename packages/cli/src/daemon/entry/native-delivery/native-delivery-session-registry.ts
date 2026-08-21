@@ -1,6 +1,7 @@
 import type { Runtime, Context } from 'effect';
 
 import type { NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
+import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonAgentProcessManagerService,
@@ -13,12 +14,16 @@ export type NativeDeliverySessionContext = {
   agentMgr: DaemonAgentProcessManagerServiceShape;
   sessionDeps: NativeTaskDeliverySessionDeps;
   machineId: string;
+  taskSnapshotState?: MachineTaskSnapshotState;
 };
 
 let registered: NativeDeliverySessionContext | null = null;
 
 export function registerNativeDeliverySession(ctx: NativeDeliverySessionContext): void {
-  registered = ctx;
+  registered = {
+    ...ctx,
+    taskSnapshotState: ctx.taskSnapshotState ?? new MachineTaskSnapshotState(),
+  };
 }
 
 export function unregisterNativeDeliverySession(): void {
