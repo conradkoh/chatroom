@@ -46,7 +46,7 @@ import {
 } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
-import { agentLifecycleFactValidator } from './validators/agent-lifecycle-fact';
+import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
 import { projectAgentLifecycleFact as projectAgentLifecycleFactUseCase } from '../src/domain/usecase/agent/project-agent-lifecycle-fact';
 import {
   projectDaemonConnectivityForMachine,
