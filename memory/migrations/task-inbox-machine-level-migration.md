@@ -90,16 +90,16 @@ After machine-level inbox delivery has parity and recovery coverage, remove the 
 
 ## Post-migration cleanup action plan
 
-_Last updated: 2026-08-21 — four validation stages; production breakage is accepted for Stages 3–4._
+_Last updated: 2026-08-21 — four validation stages; Stage 4 includes backend cleanup plus daemon follow-ups; production breakage is accepted for Stages 3–4._
 
 **Prerequisite:** Merge PR #1471 before cleanup commits. Separate commits by functionality within each stage and validate with a clean pushed tree.
 
-| Stage | Scope                                                                  | Maps to           | Risk        | Validation                      | Status     |
-| ----- | ---------------------------------------------------------------------- | ----------------- | ----------- | ------------------------------- | ---------- |
-| **1** | Delete dead WS discovery chain, bridge/router, and monitor-only tests  | Cleanup item 1    | Low         | Daemon starts and task delivers | ✅ Done    |
-| **2** | Extract `task-delivery-processor.ts`; delete `task-monitor-runtime.ts` | Cleanup item 2    | Medium      | Full delivery matrix            | ✅ Done    |
-| **3** | Remove global snapshot store; coordinator rehydrates from backend      | Cleanup item 2    | Medium–high | Delivery, restart, idempotency  | ✅ Done    |
-| **4** | Remove backend dead subscribe APIs and archive docs                    | Cleanup items 3–5 | Medium      | Backend + daemon deploy smoke   | ⬜ Pending |
+| Stage | Scope                                                                                                      | Maps to                               | Risk        | Validation                      | Status     |
+| ----- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------- | ----------- | ------------------------------- | ---------- |
+| **1** | Delete dead WS discovery chain, bridge/router, and monitor-only tests                                      | Cleanup item 1                        | Low         | Daemon starts and task delivers | ✅ Done    |
+| **2** | Extract `task-delivery-processor.ts`; delete `task-monitor-runtime.ts`                                     | Cleanup item 2                        | Medium      | Full delivery matrix            | ✅ Done    |
+| **3** | Remove global snapshot store; coordinator rehydrates from backend                                          | Cleanup item 2                        | Medium–high | Delivery, restart, idempotency  | ✅ Done    |
+| **4** | Remove backend dead subscribe APIs; daemon naming/cooldown cleanup; turn-phase investigation; archive docs | Cleanup items 3–5 + post-Stage-3 debt | Medium      | Backend + daemon deploy smoke   | ⬜ Pending |
 
 **End state:** Inbox-only daemon discovery; no task-monitor runtime or global snapshot store; no legacy subscribe APIs. Keep `listMachineAssignedTaskSnapshots`, machine signal hydration, and the `chatroom_timelineTaskStatusSignals` chatroom index.
 
@@ -119,10 +119,31 @@ Create `packages/cli/src/daemon/entry/native-delivery/task-delivery-processor.ts
 
 Completed in commits `3d2b3014e` and `54ee436b6`. Deleted `assigned-task-snapshot-store.ts` and its tests, removed `mergeSnapshotsIntoStore`, rehydrated delivery decisions from `listMachineAssignedTaskSnapshots`, and added a spawn-complete retry hook so pending native tasks inject immediately after `ensureRunning`.
 
-### Stage 4 — Backend cleanup and docs
+### Stage 4 — Backend cleanup, daemon follow-ups, and docs
 
-Delete `subscribeAssignedTaskSignalsSince` / `subscribeAssignedTaskPresenceSince`, their use cases/helpers, and obsolete integration tests. Keep `listMachineAssignedTaskSnapshots`, `syncMachineAssignedTaskSnapshotsMutation`, machine signal subscription, signal table/chatroom index, snapshot contract, and range hydration. Check off cleanup items 2–5, set this document `archived`, and update daemon architecture/README records. Acceptance: `rg 'subscribeAssignedTaskSignalsSince|subscribeAssignedTaskPresenceSince'` returns zero; backend and CLI tests pass.
+**Backend (existing scope):**
 
-### Optional follow-ups
+- Delete `subscribeAssignedTaskSignalsSince` / `subscribeAssignedTaskPresenceSince`, their use cases/helpers, and obsolete integration tests.
+- Keep `listMachineAssignedTaskSnapshots`, `syncMachineAssignedTaskSnapshotsMutation`, machine signal subscription, signal table/chatroom index, snapshot contract, and range hydration.
 
-Rename `task-monitor-logic.ts` to `task-delivery-logic.ts`, rename the assigned-task monitor contract to a snapshot contract, and add concurrent-signal integration coverage.
+**Daemon follow-ups (from post-Stage-3 tech debt):**
+
+- [medium] **Turn-phase / claimTask investigation** — If task-received stuck recurs while agent output continues, investigate turn-phase updates in `session-event-forwarder` and `claimTask` path (not nudge/re-inject). Add regression test if root cause found.
+- [low] **Rename `task-monitor-logic.ts` → `task-delivery-logic.ts`** — File name still references removed monitor runtime; update imports and test file names.
+- [low] **Remove `NudgeCooldown` alias** — Migrate remaining test callers to `RecoveryCooldown` and delete the compatibility alias in `task-monitor-logic.ts` (or `task-delivery-logic.ts` after rename).
+
+**Docs:**
+
+- Check off cleanup items 2–5 in the Cleanup plan section above.
+- Set this document `status: archived` when Stage 4 is complete.
+- Update daemon architecture/README records.
+
+**Acceptance:**
+
+- `rg 'subscribeAssignedTaskSignalsSince|subscribeAssignedTaskPresenceSince'` returns zero in production code.
+- Backend and CLI tests pass after Stage 4 backend work (daemon follow-ups may land as separate commits within Stage 4).
+
+### Optional follow-ups (post-Stage 4)
+
+- Rename assigned-task monitor contract to snapshot contract naming (if any references remain after backend cleanup).
+- Add concurrent-signal integration coverage beyond existing inbox tests.
