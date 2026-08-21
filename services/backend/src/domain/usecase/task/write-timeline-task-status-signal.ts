@@ -57,7 +57,6 @@ export async function writeTimelineTaskStatusSignal(
   await ctx.db.insert('chatroom_timelineTaskStatusSignals', {
     chatroomId: task.chatroomId,
     taskId: task._id,
-    ...routing,
     taskStatus: task.status,
     signalKey: buildTimelineTaskStatusSignalKey(taskUpdatedAt, task._id),
     taskUpdatedAt,

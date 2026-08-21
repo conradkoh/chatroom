@@ -74,7 +74,6 @@ describe('runTaskInbox', () => {
         {
           chatroomId: 'chatroom-1',
           taskId: 'task-1',
-          targetMachineId: 'machine-1',
           targetRole: 'planner',
           taskStatus: 'pending',
           signalKey: '0000000000000011:task-1',
