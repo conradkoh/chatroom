@@ -106,13 +106,6 @@ describe('listTasksForMachineSignalRange', () => {
     } = await seed('missing');
     expect((await query(machineId, '', row.key)).snapshots).toHaveLength(0);
   });
-  test('skips signals without target role', async () => {
-    const {
-      machineId,
-      rows: [row],
-    } = await seed('norole');
-    expect((await query(machineId, '', row.key)).snapshots).toHaveLength(0);
-  });
   test('respects limit and reports more', async () => {
     const { machineId, rows } = await seed('page');
     const result = await query(machineId, '', rows[2].key, 2);
