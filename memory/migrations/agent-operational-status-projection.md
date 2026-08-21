@@ -136,7 +136,7 @@ reloading all configs.
 - [x] `listAgentOverview` reads summary rows
 - [x] `getTeamLifecycle` reads `isAlive` from role rows
 - [x] `getAgentOverviewForChatroom` reads the summary row
-- [x] Production backfill migration wired into `migrations.runAll` (CI on master merge)
+- [ ] Production backfill migration wired into `migrations.runAll` — Skipped; cold-start deploy per 2026-08-22 decision
 - [ ] Verify AgentPanel, sidebar, and `deriveChatStatus` behavior is unchanged
 - [x] Supersede or close tactical PR #1475 (closed as superseded by #1478)
 
@@ -144,7 +144,7 @@ reloading all configs.
 
 See also [agent operational status tech debt tracker](../development/agent-operational-status-tech-debt.md).
 
-- [ ] Remove read-time derivation from migrated use cases
+- [x] Remove read-time derivation from migrated use cases
 - [ ] Remove duplicate daemon-connectivity joins in queries
 - [ ] Remove direct Convex mutations from `agent-process-manager` once outbox is sole path
 - [ ] Update `transition-agent-status.ts` comment to point to the projection table
@@ -160,6 +160,8 @@ See also [agent operational status tech debt tracker](../development/agent-opera
 | Final archive              | Update this tracker to `status: archived` after operational and projection parity is verified.                                                                                                                                               |
 
 ## Open decisions and risks
+
+- Cold-start deploy chosen over CI backfill (2026-08-22).
 
 - During the dual-write period, the projection must match old derivation before any reader flips.
 - `aliveRoles` and `runningRoles` have distinct semantics and must remain distinct.

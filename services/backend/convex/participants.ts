@@ -17,7 +17,6 @@ import {
   PARTICIPANT_EXITED_ACTION,
   isActiveParticipant,
 } from '../src/domain/entities/participant';
-import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { hasActivePlannerEnhancerJob } from '../src/domain/usecase/enhancer/planner-enhancing-status';
@@ -438,21 +437,7 @@ export const getTeamLifecycle = query({
           )
           .first();
 
-        let isAlive: boolean;
-        if (opRow) {
-          isAlive = opRow.isAlive;
-        } else {
-          const config = await ctx.db
-            .query('chatroom_teamAgentConfigs')
-            .withIndex('by_teamRoleKey', (q) =>
-              q.eq(
-                'teamRoleKey',
-                `chatroom_${args.chatroomId}#team_${chatroom.teamId!.toLowerCase()}#role_${roleLower}`
-              )
-            )
-            .first();
-          isAlive = isAgentAlive(config?.spawnedAgentPid);
-        }
+        const isAlive = opRow?.isAlive ?? false;
 
         return {
           role,

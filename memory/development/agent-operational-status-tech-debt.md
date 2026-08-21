@@ -1,10 +1,15 @@
 # Agent operational status — tech debt tracker
 
-Living checklist for Phase 4 cleanup after production backfill completes. Update as items are resolved.
+Living checklist for projection reader cleanup. Update as items are resolved.
+
+## Decisions (2026-08-22)
+
+- **No CI backfill:** `backfillAgentOperationalStatus` removed from `migrations.runAll`. Projection tables deploy empty; dual-write populates on activity.
+- **Projection-only readers:** Phase 4 fallback derive paths removed in same branch. Missing rows → stopped/false/none defaults.
 
 ## Open
 
-- [ ] **[medium] Legacy fallback derive paths** — All four Phase 3 readers still fall back to config+machineStatus derivation for pre-backfill chatrooms. Remove after `backfillAgentOperationalStatus` migration runs in production and is verified.
+- [x] **[medium] Legacy fallback derive paths** — Removed in branch. Readers are projection-only; safe defaults when rows missing. Cold-start: dual-write populates projections on agent activity; no CI backfill.
   - `get-agent-statuses.ts`
   - `list-chatroom-agent-overview.ts`
   - `participants.ts` (`getTeamLifecycle` `isAlive`)

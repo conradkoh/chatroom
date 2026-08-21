@@ -16,7 +16,6 @@ import { getTeamRolesFromChatroom } from './get-team-roles';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { deriveRoleOperationalState } from '../agent/derive-agent-operational-state';
 import type { AgentHarness, AgentType } from '../../entities/agent';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -82,11 +81,12 @@ export async function getAgentStatusForChatroom(
       if (!chatroom.teamId) {
         return { role, state: 'stopped' as const, type: 'remote' as AgentType };
       }
+      const teamId = chatroom.teamId;
 
       const teamConfig = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, chatroom.teamId!, role))
+          q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, teamId, role))
         )
         .first();
 
@@ -104,24 +104,8 @@ export async function getAgentStatusForChatroom(
         // Preserve immediate circuit-breaker visibility if an older writer has
         // not yet refreshed the materialized row.
         state = 'circuit_open';
-      } else if (opRow) {
-        state = opRow.operationalState;
       } else {
-        const machineStatus = await ctx.db
-          .query('chatroom_machineStatus')
-          .withIndex('by_machineId', (q) => q.eq('machineId', teamConfig.machineId!))
-          .first();
-        state = deriveRoleOperationalState(
-          {
-            role: teamConfig.role,
-            teamId: chatroom.teamId,
-            machineId: teamConfig.machineId,
-            desiredState: teamConfig.desiredState,
-            circuitState: teamConfig.circuitState,
-            spawnedAgentPid: teamConfig.spawnedAgentPid,
-          },
-          machineStatus?.status === 'online'
-        ).operationalState;
+        state = (opRow?.operationalState ?? 'stopped') as AgentRoleView['state'];
       }
 
       const model = teamConfig.model;
