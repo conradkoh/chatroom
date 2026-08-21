@@ -6,11 +6,7 @@
  */
 // fallow-ignore-file unused-type unused-export
 
-import type {
-  AssignedTaskPresenceDelta,
-  AssignedTaskSignal,
-  AssignedTaskSnapshotView,
-} from './assigned-task-monitor-contract';
+import type { AssignedTaskSnapshotView } from './assigned-task-monitor-contract';
 import type { Id } from '../../../../convex/_generated/dataModel';
 
 export type {
@@ -45,19 +41,6 @@ export interface ListMachineAssignedTaskSnapshotsResult {
   tasks: AssignedTaskSnapshotView[];
 }
 
-export interface SubscribeAssignedTaskSignalsResult {
-  items: AssignedTaskSignal[];
-  highKey: string | null;
-  hasMore: boolean;
-}
-
-export interface SubscribeAssignedTaskPresenceResult {
-  items: AssignedTaskPresenceDelta[];
-  highPresenceAt: number | null;
-  highPresenceKey: string | null;
-  hasMore: boolean;
-}
-
 export interface MachineAssignedTasksInput {
   machineId: string;
   userId: Id<'users'>;
@@ -66,15 +49,4 @@ export interface MachineAssignedTasksInput {
 export interface GetAssignedTaskForActionInput extends MachineAssignedTasksInput {
   taskId: Id<'chatroom_tasks'>;
   role: string;
-}
-
-export interface SubscribeAssignedTaskSignalsInput extends MachineAssignedTasksInput {
-  afterKey?: string;
-  limit: number;
-}
-
-export interface SubscribeAssignedTaskPresenceInput extends MachineAssignedTasksInput {
-  afterPresenceAt?: number;
-  afterPresenceKey?: string;
-  limit: number;
 }

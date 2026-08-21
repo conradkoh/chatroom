@@ -3,7 +3,7 @@
  *
  * Flow under test (happy path):
  * 1. Backend: messages.sendMessage → createTask(status=pending) → projectAssignedTaskSnapshots
- * 2. Backend: subscribeAssignedTaskSignalsSince emits incremental row (covered in backend IT)
+ * 2. Backend: machine task-status signals feed the daemon task inbox
  * 3. Daemon: task-monitor onSignalRow → processTasksUpdate → reconcileAssignedTasks
  * 4. Daemon: shouldDeliverNativeTask(slot idle + pid match) → runNativeInjectionEffect
  * 5. Daemon: claimTask → getTaskDeliveryPrompt → participants.join(native:task-injected) → resumeTurn

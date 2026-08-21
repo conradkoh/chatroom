@@ -41,8 +41,6 @@ import {
   projectAssignedTaskSnapshotsForMachines,
   upsertTeamAgentConfigByTeamRoleKey,
 } from '../src/domain/usecase/machine/patch-team-agent-config';
-import { subscribeAssignedTaskPresenceForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-presence';
-import { subscribeAssignedTaskSignalsForMachine } from '../src/domain/usecase/machine/subscribe-assigned-task-signals';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
@@ -2566,54 +2564,6 @@ export const syncMachineAssignedTaskSnapshotsMutation = mutation({
     await getOwnedMachine(ctx, args.machineId, auth.userId);
     await projectAssignedTaskSnapshotsForMachine(ctx, args.machineId);
     return { success: true };
-  },
-});
-
-/**
- * Incremental task-monitor signals since an exclusive revisionKey cursor (WS subscribe).
- */
-export const subscribeAssignedTaskSignalsSince = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    afterKey: v.optional(v.string()),
-    limit: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return { items: [], highKey: null, hasMore: false };
-
-    return subscribeAssignedTaskSignalsForMachine(ctx, {
-      machineId: args.machineId,
-      userId: auth.userId,
-      afterKey: args.afterKey,
-      limit: args.limit,
-    });
-  },
-});
-
-/**
- * Incremental participant presence since an exclusive presenceUpdatedAt cursor (WS subscribe).
- */
-export const subscribeAssignedTaskPresenceSince = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    afterPresenceAt: v.optional(v.number()),
-    afterPresenceKey: v.optional(v.string()),
-    limit: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return { items: [], highPresenceAt: null, highPresenceKey: null, hasMore: false };
-
-    return subscribeAssignedTaskPresenceForMachine(ctx, {
-      machineId: args.machineId,
-      userId: auth.userId,
-      afterPresenceAt: args.afterPresenceAt,
-      afterPresenceKey: args.afterPresenceKey,
-      limit: args.limit,
-    });
   },
 });
 

@@ -217,15 +217,9 @@ Unit-test merge rules in `daemon-start/<feed>-snapshot.test.ts`. Transport/orche
 
 ---
 
-## Two channels
-
-| Channel         | Transport     | Carries                                 | Example                                       |
-| --------------- | ------------- | --------------------------------------- | --------------------------------------------- |
-| **Incremental** | WS `onUpdate` | Status, config, action changes (deltas) | `machines.subscribeAssignedTaskSignalsSince`  |
-| **Presence**    | WS `onUpdate` | `lastSeenAt` heartbeats (nudge timing)  | `machines.subscribeAssignedTaskPresenceSince` |
-| **Hydrate**     | HTTP once     | Full slim snapshot                      | `machines.listMachineAssignedTaskSnapshots`   |
-
-Do not put pure heartbeat fields in `revisionKey`; let reconcile handle them. Document which fields are signal-only vs reconcile-only for each feed.
+Task discovery is owned by the machine-scoped task inbox at
+`packages/cli/src/daemon/infrastructure/inbox/task.ts`; it consumes routed task-status
+signals and hydrates snapshots from the backend as needed.
 
 ---
 
@@ -302,34 +296,27 @@ If the subscribe query re-runs too often because it reads high-churn tables, wri
 ## Example: assigned task monitor
 
 ```
-Initial hydrate (HTTP)                    Presence subscribe (WS)
-listMachineAssignedTaskSnapshots ──► replaceAll(snapshot)
-         │
-Seed cursors (HTTP) ──► subscribeAssignedTaskSignalsSince + subscribeAssignedTaskPresenceSince
+Machine signal inbox (WS) ──► hydrate snapshots (HTTP)
          │
          ▼
-onItem: mergeSignal(snapshot) ──► processTasksUpdate([row], 'signal')
-         │                              revive + inject
+processTasksUpdate ──► revive + inject
          │
-Reconcile: replaceAll(snapshot) ──► processTasksUpdate(all, 'reconcile')
-                                       + nudge (needs lastSeenAt / createdAt)
+Periodic rehydrate ──► reconcile current machine snapshots
          │
          ▼ on action only
 getAssignedTaskForAction (full task.content)
 ```
 
-| Piece              | Location                                                                                      |
-| ------------------ | --------------------------------------------------------------------------------------------- |
-| Incremental query  | `services/backend/convex/machines.ts` → `subscribeAssignedTaskSignalsSince`                   |
-| Hydrate snapshot   | `services/backend/convex/machines.ts` → `listMachineAssignedTaskSnapshots`                    |
-| Presence subscribe | `services/backend/convex/machines.ts` → `subscribeAssignedTaskPresenceSince`                  |
-| Action fetch       | `services/backend/convex/machines.ts` → `getAssignedTaskForAction`                            |
-| Backend core       | `services/backend/src/domain/usecase/machine/assigned-tasks-core.ts`                          |
-| Feed def           | Removed in Stage 1 cleanup; task inbox uses machine-scoped signals via `messageList.ts`       |
-| Orchestration      | `packages/cli/src/infrastructure/incremental-sync/feed-runtime.ts` (`runDualChannelFeedLive`) |
-| Consumer           | `packages/cli/src/commands/machine/daemon-start/task-monitor.ts`                              |
-| Domain snapshot    | `packages/cli/src/commands/machine/daemon-start/task-monitor-snapshot.ts`                     |
-| Handler logic      | `packages/cli/src/daemon/entry/task-delivery/task-delivery-logic.ts`                          |
+| Piece            | Location                                                                                      |
+| ---------------- | --------------------------------------------------------------------------------------------- |
+| Hydrate snapshot | `services/backend/convex/machines.ts` → `listMachineAssignedTaskSnapshots`                    |
+| Action fetch     | `services/backend/convex/machines.ts` → `getAssignedTaskForAction`                            |
+| Backend core     | `services/backend/src/domain/usecase/machine/assigned-tasks-core.ts`                          |
+| Feed def         | Removed in Stage 1 cleanup; task inbox uses machine-scoped signals via `messageList.ts`       |
+| Orchestration    | `packages/cli/src/infrastructure/incremental-sync/feed-runtime.ts` (`runDualChannelFeedLive`) |
+| Consumer         | `packages/cli/src/commands/machine/daemon-start/task-monitor.ts`                              |
+| Domain snapshot  | `packages/cli/src/commands/machine/daemon-start/task-monitor-snapshot.ts`                     |
+| Handler logic    | `packages/cli/src/daemon/entry/task-delivery/task-delivery-logic.ts`                          |
 
 Signal buffer: max 200, dedupe on. Subscribe page limit: 50. Reconcile interval: 15s (matches idle nudge threshold).
 
