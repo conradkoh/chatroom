@@ -83,7 +83,7 @@ After machine-level inbox delivery has parity and recovery coverage, remove the 
 
 - [x] Remove the old assigned-task signal and presence subscribers from the daemon subscriber registry.
       Assigned-task signal/presence subscribers are unregistered from `subscriber-registry.ts`; task inbox is the sole discovery path.
-- [ ] Remove the task-monitor runtime, local task snapshot store, and snapshot-only reconciliation/nudge/revive logic that the inbox replaces. **→ Stages 2–3** (monitor runtime removed in Stage 2; snapshot store remains for Stage 3)
+- [x] Remove the task-monitor runtime, local task snapshot store, and snapshot-only reconciliation/nudge/revive logic that the inbox replaces. **→ Stages 2–3** (monitor runtime and snapshot store removed; delivery rehydrates from backend)
 - [ ] Remove chatroom-scoped daemon inbox endpoints and compatibility code once no consumers remain; retain the chatroom index if the webapp still uses it. **→ Stage 4 (backend)**
 - [ ] Remove obsolete signal fields, indexes, tests, and fixtures only after confirming their consumers are gone. **→ Stage 4 (backend)**
 - [ ] Update daemon architecture documentation and memory records, then delete or mark completed migration-only tracking notes. **→ Stage 4 (docs)**
@@ -98,7 +98,7 @@ _Last updated: 2026-08-21 — four validation stages; production breakage is acc
 | ----- | ---------------------------------------------------------------------- | ----------------- | ----------- | ------------------------------- | ---------- |
 | **1** | Delete dead WS discovery chain, bridge/router, and monitor-only tests  | Cleanup item 1    | Low         | Daemon starts and task delivers | ✅ Done    |
 | **2** | Extract `task-delivery-processor.ts`; delete `task-monitor-runtime.ts` | Cleanup item 2    | Medium      | Full delivery matrix            | ✅ Done    |
-| **3** | Remove global snapshot store; coordinator rehydrates from backend      | Cleanup item 2    | Medium–high | Delivery, restart, idempotency  | ⬜ Pending |
+| **3** | Remove global snapshot store; coordinator rehydrates from backend      | Cleanup item 2    | Medium–high | Delivery, restart, idempotency  | ✅ Done    |
 | **4** | Remove backend dead subscribe APIs and archive docs                    | Cleanup items 3–5 | Medium      | Backend + daemon deploy smoke   | ⬜ Pending |
 
 **End state:** Inbox-only daemon discovery; no task-monitor runtime or global snapshot store; no legacy subscribe APIs. Keep `listMachineAssignedTaskSnapshots`, machine signal hydration, and the `chatroom_timelineTaskStatusSignals` chatroom index.
@@ -117,7 +117,7 @@ Create `packages/cli/src/daemon/entry/native-delivery/task-delivery-processor.ts
 
 ### Stage 3 — Snapshot store removal
 
-Delete `assigned-task-snapshot-store.ts` and its tests. Remove `mergeSnapshotsIntoStore`; pass snapshots directly to the delivery processor and have the coordinator rehydrate from `listMachineAssignedTaskSnapshots`. Acceptance: `rg 'assigned-task-snapshot-store|mergeSnapshotsIntoStore|listAssignedTaskSnapshots'` returns zero in production CLI; delivery matrix passes.
+Completed in commits `3d2b3014e` and `54ee436b6`. Deleted `assigned-task-snapshot-store.ts` and its tests, removed `mergeSnapshotsIntoStore`, rehydrated delivery decisions from `listMachineAssignedTaskSnapshots`, and added a spawn-complete retry hook so pending native tasks inject immediately after `ensureRunning`.
 
 ### Stage 4 — Backend cleanup and docs
 
