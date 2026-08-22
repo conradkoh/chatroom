@@ -2573,7 +2573,6 @@ export const syncMachineAssignedTaskSnapshotsMutation = mutation({
     if (!auth) throw new ConvexError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
 
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    await projectAssignedTaskSnapshotsForMachine(ctx, args.machineId);
     return { success: true };
   },
 });
@@ -3138,7 +3137,6 @@ export const clearAllSpawnedPids = mutation({
         clearedCount++;
       }
     }
-    await projectAssignedTaskSnapshotsForMachine(ctx, args.machineId);
     for (const config of allConfigs) {
       await projectAgentOperationalStatusForRole(ctx, config.chatroomId, config.role, undefined, {
         config,

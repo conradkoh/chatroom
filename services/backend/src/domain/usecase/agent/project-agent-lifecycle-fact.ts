@@ -6,7 +6,6 @@ import { transitionAgentStatus } from './transition-agent-status';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { onAgentExited } from '../../../events/agent/on-agent-exited';
-import { projectAssignedTaskSnapshotsForMachine } from '../machine/machine-assigned-task-snapshot-sync';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 
@@ -59,7 +58,6 @@ export async function projectAgentLifecycleFact(
         await transitionAgentStatus(ctx, config.chatroomId, config.role, 'agent.exited', undefined);
         clearedCount++;
       }
-    await projectAssignedTaskSnapshotsForMachine(ctx, machineId);
     for (const config of configs) {
       await projectAgentOperationalStatusForRole(
         ctx,

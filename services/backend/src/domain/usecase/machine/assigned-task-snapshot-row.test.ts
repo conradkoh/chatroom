@@ -87,7 +87,6 @@ describe('bootstrapMonitorRowFromSignal', () => {
     );
     expect(row.agentConfig.workingDir).toBe('/tmp/project');
     expect(row.assignedTo).toBe('builder');
-    expect(row.agentConfig.spawnedAgentPid).toBe(200);
     expect(row.participant?.lastSeenAction).toBe('get-next-task:started');
     expect(row.participant?.lastStatus).toBe('agent.waiting');
   });
@@ -135,7 +134,6 @@ describe('patchMonitorRowFromSignal', () => {
     expect(patched.createdAt).toBe(existing.createdAt);
     expect(patched.agentConfig.workingDir).toBe('/test/workspace');
     expect(patched.participant?.lastSeenAt).toBe(500);
-    expect(patched.agentConfig.spawnedAgentPid).toBe(999);
     expect(patched.participant?.lastSeenAction).toBe('task.injected');
   });
 });
@@ -221,8 +219,6 @@ describe('doc → signal → apply round-trip', () => {
         machineId: fromDoc.agentConfig.machineId,
         agentHarness: fromDoc.agentConfig.agentHarness,
         workingDir: fromDoc.agentConfig.workingDir,
-        spawnedAgentPid: fromDoc.agentConfig.spawnedAgentPid,
-        desiredState: fromDoc.agentConfig.desiredState,
       },
     });
   });
