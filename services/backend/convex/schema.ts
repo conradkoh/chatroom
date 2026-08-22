@@ -696,9 +696,6 @@ export default defineSchema({
     agentHarness: v.string(),
     model: v.optional(v.string()),
     workingDir: v.optional(v.string()),
-    spawnedAgentPid: v.optional(v.number()),
-    desiredState: v.optional(v.string()),
-    circuitState: v.optional(v.string()),
     configUpdatedAt: v.number(),
 
     lastSeenAt: v.optional(v.number()),
