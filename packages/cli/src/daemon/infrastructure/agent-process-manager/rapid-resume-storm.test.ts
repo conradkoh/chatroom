@@ -42,6 +42,7 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
       }),
       mutation: vi.fn().mockResolvedValue(undefined),
     },
+    lifecycleOutbox: { enqueue: vi.fn().mockResolvedValue({ success: true }) },
     sessionId: 'test-session',
     machineId: 'test-machine',
     processes: { kill: vi.fn() },

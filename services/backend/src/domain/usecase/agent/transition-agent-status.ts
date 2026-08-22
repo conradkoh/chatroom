@@ -16,21 +16,39 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
+
+const STARTING_INFERENCE_STATUSES = new Set([
+  'agent.requestStart',
+  'agent.restart',
+  'agent.restartPhase',
+]);
 
 const OPERATIONAL_STATUSES = new Set([
-  'agent.waiting', 'agent.enhancing', 'agent.started', 'agent.awaitingHandoff',
-  'task.acknowledged', 'task.inProgress', 'task.completed',
+  'agent.waiting',
+  'agent.enhancing',
+  'agent.started',
+  'agent.awaitingHandoff',
+  'task.acknowledged',
+  'task.inProgress',
+  'task.completed',
 ]);
 
 async function resolveLastDesiredState(
-  ctx: MutationCtx, chatroomId: Id<'chatroom_rooms'>, role: string,
-  lastStatus: string, explicit?: string
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string,
+  lastStatus: string,
+  explicit?: string
 ): Promise<string | undefined> {
   if (explicit !== undefined || !OPERATIONAL_STATUSES.has(lastStatus)) return explicit;
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   if (!chatroom?.teamId) return undefined;
-  const config = await ctx.db.query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', buildTeamRoleKey(chatroom._id, chatroom.teamId!, role)))
+  const config = await ctx.db
+    .query('chatroom_teamAgentConfigs')
+    .withIndex('by_teamRoleKey', (q) =>
+      q.eq('teamRoleKey', buildTeamRoleKey(chatroom._id, chatroom.teamId!, role))
+    )
     .first();
   return config?.desiredState;
 }
@@ -57,7 +75,13 @@ export async function transitionAgentStatus(
   // 1. Update participant record (denormalized — deprecated as primary source)
   const participant = await getParticipantForChatroomRole(ctx, chatroomId, role);
   if (participant) {
-    const resolvedDesiredState = await resolveLastDesiredState(ctx, chatroomId, role, lastStatus, lastDesiredState);
+    const resolvedDesiredState = await resolveLastDesiredState(
+      ctx,
+      chatroomId,
+      role,
+      lastStatus,
+      lastDesiredState
+    );
     const patch: Record<string, string> = { lastStatus };
     if (resolvedDesiredState !== undefined) {
       patch.lastDesiredState = resolvedDesiredState;
@@ -67,4 +91,7 @@ export async function transitionAgentStatus(
 
   // Future: 2. Update chatroom_teamAgentConfigs.status field when schema is updated
   // This would make teamAgentConfigs the single source of truth for agent status.
+  if (STARTING_INFERENCE_STATUSES.has(lastStatus)) {
+    await projectAgentOperationalStatusForRole(ctx, chatroomId, role);
+  }
 }

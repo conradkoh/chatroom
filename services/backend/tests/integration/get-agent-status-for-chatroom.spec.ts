@@ -155,6 +155,10 @@ describe('getAgentStatusForChatroom — circuit breaker', () => {
         });
       }
     });
+    await t.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
+      sessionId: sessionId as any,
+      machineId,
+    });
 
     const result = await runStatusQuery(chatroomId);
 

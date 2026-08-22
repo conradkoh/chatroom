@@ -7,7 +7,6 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
-import { filterTeamAgentConfigsForTeam } from './utils/teamRoleKeyFilter';
 import {
   PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS,
   CONNECTION_CLOSE_REQUEST_TTL_MS,
@@ -18,7 +17,6 @@ import {
   PARTICIPANT_EXITED_ACTION,
   isActiveParticipant,
 } from '../src/domain/entities/participant';
-import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { hasActivePlannerEnhancerJob } from '../src/domain/usecase/enhancer/planner-enhancing-status';
@@ -427,32 +425,31 @@ export const getTeamLifecycle = query({
 
     const participantByRole = new Map(participantRows.map((p) => [p.role.toLowerCase(), p]));
 
-    // Fetch agent configs to determine isAlive from spawnedAgentPid
-    const agentConfigs = filterTeamAgentConfigsForTeam(
-      await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .collect(),
-      args.chatroomId,
-      chatroom.teamId
-    );
-    const configByRole = new Map(agentConfigs.map((c) => [c.role.toLowerCase(), c]));
-
     const expectedRoles = chatroom.teamRoles;
-    const participants = expectedRoles.map((role) => {
-      const participantRow = participantByRole.get(role.toLowerCase());
-      const config = configByRole.get(role.toLowerCase());
+    const participants = await Promise.all(
+      expectedRoles.map(async (role) => {
+        const roleLower = role.toLowerCase();
+        const participantRow = participantByRole.get(roleLower);
+        const opRow = await ctx.db
+          .query('chatroom_agentRoleOperationalStatus')
+          .withIndex('by_chatroom_role', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('role', roleLower)
+          )
+          .first();
 
-      return {
-        role,
-        lastSeenAt: participantRow?.lastSeenAt ?? null,
-        lastSeenAction: participantRow?.lastSeenAction ?? null,
-        agentType: participantRow?.agentType ?? ('remote' as const),
-        lastStatus: participantRow?.lastStatus ?? null,
-        lastDesiredState: participantRow?.lastDesiredState ?? null,
-        isAlive: isAgentAlive(config?.spawnedAgentPid),
-      };
-    });
+        const isAlive = opRow?.isAlive ?? false;
+
+        return {
+          role,
+          lastSeenAt: participantRow?.lastSeenAt ?? null,
+          lastSeenAction: participantRow?.lastSeenAction ?? null,
+          agentType: participantRow?.agentType ?? ('remote' as const),
+          lastStatus: participantRow?.lastStatus ?? null,
+          lastDesiredState: participantRow?.lastDesiredState ?? null,
+          isAlive,
+        };
+      })
+    );
 
     const firstUserMessage = await ctx.db
       .query('chatroom_messages')

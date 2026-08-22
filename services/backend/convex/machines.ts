@@ -16,6 +16,7 @@ import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleK
 import { str } from './utils/types';
 import { validateWorkingDir } from './workspacePathSecurity';
 import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
+import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
 import {
   agentStopReasonValidator,
   agentTypeValidator,
@@ -25,7 +26,16 @@ import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/a
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
-import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
+import {
+  getChatroomAgentOverviewForRoom,
+  listChatroomAgentOverview,
+} from '../src/domain/usecase/agent/list-chatroom-agent-overview';
+import { projectAgentLifecycleFact as projectAgentLifecycleFactUseCase } from '../src/domain/usecase/agent/project-agent-lifecycle-fact';
+import {
+  projectDaemonConnectivityForMachine,
+  projectAgentOperationalStatusForRole,
+  rebuildAgentOperationalStatusForMachine,
+} from '../src/domain/usecase/agent/project-agent-operational-status';
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
 import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
@@ -34,7 +44,6 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
-import { projectAssignedTaskSnapshotsForMachine } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
   patchTeamAgentConfig,
   projectAfterTeamConfigRegistration,
@@ -1103,6 +1112,8 @@ export const updateDaemonStatus = mutation({
     }
     // If status matches desired, do NOT write (write suppression)
 
+    await projectDaemonConnectivityForMachine(ctx, args.machineId, args.connected);
+
     return { success: true };
   },
 });
@@ -1553,6 +1564,14 @@ export const updateSpawnedAgent = mutation({
     });
 
     return { success: true };
+  },
+});
+
+export const projectAgentLifecycleFact = mutation({
+  args: { ...SessionIdArg, machineId: v.string(), fact: agentLifecycleFactValidator },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    return projectAgentLifecycleFactUseCase(ctx, { machineId: args.machineId, fact: args.fact });
   },
 });
 
@@ -2481,46 +2500,13 @@ export const getAgentOverviewForChatroom = query({
       .collect();
     const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
-    // Read status from materialized machineStatus table
-    const statusMap = new Map<string, { daemonConnected: boolean }>();
-    for (const machine of userMachines) {
-      const machineStatus = await ctx.db
-        .query('chatroom_machineStatus')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
-        .first();
-      statusMap.set(machine.machineId, { daemonConnected: machineStatus?.status === 'online' });
-    }
-
-    const allConfigs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const currentTeamId = chatroom.teamId;
-    const configs = allConfigs.filter((c) => {
-      if (!c.machineId || !machineMap.has(c.machineId)) return false;
-      if (currentTeamId && c.teamRoleKey) {
-        return c.teamRoleKey.includes(`#team_${currentTeamId}#`);
-      }
-      return true;
-    });
-
-    const runningConfigs = configs.filter((c) => {
-      if (c.spawnedAgentPid == null || c.machineId == null) return false;
-      const status = statusMap.get(c.machineId);
-      return status?.daemonConnected === true;
-    });
+    const overview = await getChatroomAgentOverviewForRoom(ctx, chatroom, machineMap);
 
     return {
       chatroomId: args.chatroomId as string,
-      agentStatus:
-        configs.length === 0
-          ? ('none' as const)
-          : runningConfigs.length > 0
-            ? ('running' as const)
-            : ('stopped' as const),
-      runningRoles: runningConfigs.map((c) => c.role),
-      runningAgents: runningConfigs.map((c) => ({ role: c.role, machineId: c.machineId ?? '' })),
+      agentStatus: overview.agentStatus,
+      runningRoles: overview.runningRoles,
+      runningAgents: overview.runningAgents,
     };
   },
 });
@@ -2549,6 +2535,30 @@ export const listMachineAssignedTaskSnapshots = query({
   },
 });
 
+/** Reactive operational status rows for this machine. */
+export const subscribeMachineAgentOperationalStatus = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+    if (!auth) return null;
+    const rows = await ctx.db
+      .query('chatroom_agentRoleOperationalStatus')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .collect();
+    if (rows.length === 0) return null;
+    return rows.map((row) => ({
+      chatroomId: row.chatroomId,
+      role: row.role,
+      operationalState: row.operationalState,
+      isAlive: row.isAlive,
+      isRunning: row.isRunning,
+      daemonConnected: row.daemonConnected,
+      projectedAt: row.projectedAt,
+      revisionKey: row.revisionKey,
+    }));
+  },
+});
+
 /**
  * Rebuild snapshot projection rows for this machine (daemon startup backfill).
  */
@@ -2562,7 +2572,21 @@ export const syncMachineAssignedTaskSnapshotsMutation = mutation({
     if (!auth) throw new ConvexError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
 
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    await projectAssignedTaskSnapshotsForMachine(ctx, args.machineId);
+    return { success: true };
+  },
+});
+
+/** Rebuild operational status projection rows for this machine. */
+export const backfillAgentOperationalStatusForMachine = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) throw new ConvexError({ code: 'UNAUTHORIZED', message: 'Authentication required' });
+    await getOwnedMachine(ctx, args.machineId, auth.userId);
+    await rebuildAgentOperationalStatusForMachine(ctx, args.machineId);
     return { success: true };
   },
 });
@@ -3112,7 +3136,11 @@ export const clearAllSpawnedPids = mutation({
         clearedCount++;
       }
     }
-    await projectAssignedTaskSnapshotsForMachine(ctx, args.machineId);
+    for (const config of allConfigs) {
+      await projectAgentOperationalStatusForRole(ctx, config.chatroomId, config.role, undefined, {
+        config,
+      });
+    }
 
     return { clearedCount };
   },

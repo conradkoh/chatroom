@@ -23,9 +23,6 @@ export function assignedTaskSnapshotFromDoc(doc: SnapshotDoc): AssignedTaskSnaps
     agentHarness: doc.agentHarness,
     model: doc.model,
     workingDir: doc.workingDir,
-    spawnedAgentPid: doc.spawnedAgentPid,
-    desiredState: doc.desiredState,
-    circuitState: doc.circuitState,
     teamRoleKey: '',
     chatroomId: doc.chatroomId,
     createdAt: 0,
@@ -75,8 +72,6 @@ function bootstrapMonitorRowFromSignal(signal: AssignedTaskSignal): AssignedTask
       machineId: signal.machineId,
       agentHarness: signal.agentHarness,
       workingDir: signal.workingDir,
-      spawnedAgentPid: signal.spawnedAgentPid,
-      desiredState: signal.desiredState,
     },
     participant: {
       lastSeenAction: signal.lastSeenAction ?? null,
@@ -96,8 +91,6 @@ function patchMonitorRowFromSignal(
     status: signal.status,
     agentConfig: {
       ...existing.agentConfig,
-      spawnedAgentPid: signal.spawnedAgentPid ?? existing.agentConfig.spawnedAgentPid,
-      desiredState: signal.desiredState ?? existing.agentConfig.desiredState,
     },
     participant: {
       lastSeenAction: signal.lastSeenAction ?? existing.participant?.lastSeenAction ?? null,

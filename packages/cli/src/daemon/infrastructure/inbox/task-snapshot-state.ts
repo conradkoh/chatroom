@@ -57,22 +57,6 @@ export class MachineTaskSnapshotState {
     return [...this.snapshots.values()];
   }
 
-  setDesiredState(chatroomId: string, role: string, desiredState: 'running' | 'stopped'): void {
-    const roleLower = role.toLowerCase();
-    for (const [key, snapshot] of this.snapshots) {
-      if (
-        snapshot.chatroomId !== chatroomId ||
-        snapshot.agentConfig.role.toLowerCase() !== roleLower
-      ) {
-        continue;
-      }
-      this.snapshots.set(key, {
-        ...snapshot,
-        agentConfig: { ...snapshot.agentConfig, desiredState },
-      });
-    }
-  }
-
   upsert(snapshots: readonly AssignedTaskSnapshotView[]): void {
     for (const snapshot of snapshots) {
       this.snapshots.set(snapshotKey(snapshot.taskId, snapshot.agentConfig.role), snapshot);

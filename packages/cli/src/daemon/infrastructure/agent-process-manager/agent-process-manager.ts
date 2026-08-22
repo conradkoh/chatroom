@@ -9,7 +9,7 @@
  * transitions, spawn/stop/exit brackets, restart decisions) is delegated
  * to AgentLifecycleService. APM retains: killExistingBeforeSpawn,
  * crash-loop gate, fs validation, init-prompt fetch, daemon-memory resume,
- * backend mutations and local event logging (updateSpawnedAgent, etc.),
+ * lifecycle outbox enqueue and local event logging (spawned/exited facts, etc.),
  * recover(), turn-end queue, exit retry queue, lastHarnessSessions.
  *
  * State model per (chatroomId, role):
@@ -44,6 +44,12 @@ import {
   type StopOpts,
 } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import type { Signals } from '../../../infrastructure/types/signals.js';
+import {
+  buildAgentLifecycleRevisionKey,
+  buildExitedLifecycleFact,
+  type AgentExitAuditArgs,
+  type AgentLifecycleFact,
+} from '../../domain/entities/agent-lifecycle-fact.js';
 import { resolveResumableHarnessSessionId } from '../../domain/entities/harness-session-id-pair.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 import { resolveStopReason } from '../../domain/entities/stop-reason.js';
@@ -107,6 +113,7 @@ import type {
   SpawnResult,
 } from '../local/harness/services/remote-agent-service.js';
 import { createSpawnPrompt } from '../local/harness/services/spawn-prompt.js';
+import type { AgentLifecycleOutboxResult } from '../outbox/agent-lifecycle-outbox.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -168,6 +175,7 @@ export interface AgentSlot {
 }
 
 export interface AgentProcessManagerDeps {
+  lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<AgentLifecycleOutboxResult> };
   logEvent: (event: Record<string, unknown>) => Promise<void>;
   logSink?: AgentLogSink;
   agentServices: Map<string, RemoteAgentService>;
@@ -224,18 +232,7 @@ function agentKey(chatroomId: string, role: string): string {
 /** Arguments for a queued agent.exited log event that failed and needs retry. */
 interface RetryQueueItem {
   role: string;
-  args: {
-    sessionId: string;
-    machineId: string;
-    chatroomId: string;
-    role: string;
-    pid: number;
-    stopReason?: string;
-    stopSignal?: string;
-    exitCode?: number;
-    signal?: string;
-    agentHarness?: string;
-  };
+  args: AgentExitAuditArgs;
 }
 
 /** Interval (ms) between retry attempts for failed agent exit events. */
@@ -1315,22 +1312,19 @@ export class AgentProcessManager {
     }
   }
 
-  private recordAgentExit(
-    role: string,
-    exitArgs: RetryQueueItem['args'],
-    failureLog: string
-  ): void {
+  private recordAgentExit(role: string, exitArgs: AgentExitAuditArgs, failureLog: string): void {
     void logDaemonAuditEvent(this.deps.logEvent, { type: 'agent.exited', ...exitArgs }).catch(
       (err: Error) => {
         console.log(`   ⚠️  ${failureLog}: ${err.message}`);
         this.queueExitRetry({ role, args: exitArgs });
       }
     );
-    void this.deps.backend
-      .mutation(api.daemon.agentEvents.agentExited, exitArgs)
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to apply agent exit state: ${err.message}`);
-      });
+    const emittedAt = this.deps.clock.now();
+    void this.deps.lifecycleOutbox
+      .enqueue(buildExitedLifecycleFact(exitArgs, emittedAt))
+      .catch((err: Error) =>
+        console.log(`   ⚠️  Failed to enqueue agent exited lifecycle fact: ${err.message}`)
+      );
   }
 
   private async clearAgentPidQuietly(chatroomId: string, role: string): Promise<void> {
@@ -1901,33 +1895,27 @@ export class AgentProcessManager {
       console.log(`   ⚠️  Failed to record agent.started event: ${err.message}`);
     });
 
-    void this.deps.backend
-      .mutation(api.daemon.agentEvents.agentStarted, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
+    const emittedAt = this.deps.clock.now();
+    void this.deps.lifecycleOutbox
+      .enqueue({
+        kind: 'spawned',
         chatroomId: opts.chatroomId,
         role: opts.role,
         pid,
         model: opts.model,
         reason: opts.reason,
         ...(spawnResult.harnessSessionId ? { harnessSessionId: spawnResult.harnessSessionId } : {}),
+        revisionKey: buildAgentLifecycleRevisionKey('spawned', {
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          pid,
+          emittedAt,
+        }),
+        emittedAt,
       })
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to apply agent.started state: ${err.message}`);
-      });
-
-    void this.deps.backend
-      .mutation(api.machines.updateSpawnedAgent, {
-        sessionId: this.deps.sessionId,
-        machineId: this.deps.machineId,
-        chatroomId: opts.chatroomId,
-        role: opts.role,
-        pid,
-        model: opts.model,
-      })
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to update PID in backend: ${err.message}`);
-      });
+      .catch((err: Error) =>
+        console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`)
+      );
   }
 
   private registerSpawnCallbacks(

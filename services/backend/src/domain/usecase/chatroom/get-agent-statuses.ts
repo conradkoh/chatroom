@@ -4,7 +4,9 @@
  * Returns a role-centric view of agent status for a chatroom, suitable for
  * the UI. Reads from teamAgentConfigs (the authoritative source for model,
  * workingDir, spawnedAgentPid, spawnedAt) so the frontend never needs to see
- * raw table records.
+ * raw table records. Operational state is read from the materialized
+ * chatroom_agentRoleOperationalStatus projection; config metadata remains
+ * sourced from the per-role team config.
  *
  * Workspace listing is now handled by the workspace registry
  * (chatroom_workspaces table + useChatroomWorkspaces hook).
@@ -13,7 +15,7 @@
 import { getTeamRolesFromChatroom } from './get-team-roles';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
-import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentType } from '../../entities/agent';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -58,18 +60,6 @@ export async function getAgentStatusForChatroom(
 
   const { teamRoles } = getTeamRolesFromChatroom(chatroom);
 
-  // Fetch team agent configs for this chatroom (current team only)
-  const teamConfigs = filterTeamAgentConfigsForTeam(
-    await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', input.chatroomId))
-      .collect(),
-    input.chatroomId,
-    chatroom.teamId
-  );
-
-  const teamConfigByRole = new Map(teamConfigs.map((c) => [c.role.toLowerCase(), c]));
-
   // Only include configs for the user's machines
   const userMachines = await ctx.db
     .query('chatroom_machines')
@@ -77,59 +67,56 @@ export async function getAgentStatusForChatroom(
     .collect();
   const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
-  // Read status from materialized machineStatus table
-  const statusMap = new Map<string, { daemonConnected: boolean }>();
-  for (const machine of userMachines) {
-    const machineStatus = await ctx.db
-      .query('chatroom_machineStatus')
-      .withIndex('by_machineId', (q: any) => q.eq('machineId', machine.machineId))
-      .first();
-    statusMap.set(machine.machineId, { daemonConnected: machineStatus?.status === 'online' });
-  }
-
   // Build the agent role views
-  const agents: AgentRoleView[] = teamRoles.map((role) => {
-    const roleLower = role.toLowerCase();
-    const teamConfig = teamConfigByRole.get(roleLower);
+  const agents: AgentRoleView[] = await Promise.all(
+    teamRoles.map(async (role) => {
+      const roleLower = role.toLowerCase();
+      const opRow = await ctx.db
+        .query('chatroom_agentRoleOperationalStatus')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', input.chatroomId).eq('role', roleLower)
+        )
+        .first();
 
-    if (!teamConfig) {
+      if (!chatroom.teamId) {
+        return { role, state: 'stopped' as const, type: 'remote' as AgentType };
+      }
+      const teamId = chatroom.teamId;
+
+      const teamConfig = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, teamId, role))
+        )
+        .first();
+
+      if (!teamConfig || !teamConfig.machineId || !userMachineMap.has(teamConfig.machineId)) {
+        return {
+          role,
+          state: (opRow?.operationalState ?? 'stopped') as AgentRoleView['state'],
+          type: 'remote' as AgentType,
+        };
+      }
+
+      const machine = teamConfig.machineId ? userMachineMap.get(teamConfig.machineId) : undefined;
+      const state = (opRow?.operationalState ?? 'stopped') as AgentRoleView['state'];
+
+      const model = teamConfig.model;
+
       return {
         role,
-        state: 'stopped' as const,
-        type: 'remote' as AgentType,
+        state,
+        type: teamConfig.type,
+        machineId: teamConfig.machineId,
+        machineName: machine?.hostname,
+        agentHarness: teamConfig.agentHarness as AgentHarness | undefined,
+        model,
+        workingDir: teamConfig.workingDir,
+        spawnedAt: teamConfig.spawnedAt,
+        wantResume: teamConfig.wantResume,
       };
-    }
-
-    const machine = teamConfig.machineId ? userMachineMap.get(teamConfig.machineId) : undefined;
-
-    // Determine state
-    let state: AgentRoleView['state'] = 'stopped';
-
-    if (teamConfig.circuitState === 'open') {
-      state = 'circuit_open';
-    } else if (teamConfig.desiredState === 'running') {
-      if (teamConfig.spawnedAgentPid != null) {
-        state = 'running';
-      } else {
-        state = 'starting';
-      }
-    }
-
-    const model = teamConfig.model;
-
-    return {
-      role,
-      state,
-      type: teamConfig.type,
-      machineId: teamConfig.machineId,
-      machineName: machine?.hostname,
-      agentHarness: teamConfig.agentHarness as AgentHarness | undefined,
-      model,
-      workingDir: teamConfig.workingDir,
-      spawnedAt: teamConfig.spawnedAt,
-      wantResume: teamConfig.wantResume,
-    };
-  });
+    })
+  );
 
   return {
     teamRoles,

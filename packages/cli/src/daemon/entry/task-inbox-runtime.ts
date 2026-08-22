@@ -21,6 +21,9 @@ import {
   type TaskDeliveryRuntime,
 } from './native-delivery/task-delivery-processor.js';
 import { RecoveryCooldown } from './task-delivery/task-delivery-logic.js';
+import { AgentOperationalReadModel } from '../infrastructure/agent-operational/agent-operational-read-model.js';
+import { enrichSnapshotsWithOperational } from '../infrastructure/agent-operational/enrich-snapshot-with-operational.js';
+import { subscribeMachineAgentOperationalStatus } from '../infrastructure/agent-operational/subscribe-machine-agent-operational-status.js';
 import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
 import { handleTaskInboxUpdate } from '../infrastructure/inbox/task-inbox-delivery.js';
@@ -45,6 +48,10 @@ type TaskInboxDependencies = {
 export async function bootstrapMachineAssignedTaskSnapshots(
   deps: TaskInboxDependencies
 ): Promise<void> {
+  await deps.sessionDeps.backend.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
+    sessionId: deps.sessionDeps.sessionId,
+    machineId: deps.machineId,
+  });
   await deps.sessionDeps.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
     sessionId: deps.sessionDeps.sessionId,
     machineId: deps.machineId,
@@ -60,7 +67,7 @@ export async function bootstrapMachineAssignedTaskSnapshots(
     deps.sessionDeps,
     deps.machineId,
     'bootstrap',
-    { snapshots: tasks }
+    { snapshots: enrichSnapshotsWithOperational(tasks) }
   );
 }
 
@@ -125,6 +132,7 @@ export const startTaskInboxEffect = (
     const abort = new AbortController();
     let stopped = false;
     const taskSnapshotState = new MachineTaskSnapshotState();
+    const agentOperationalReadModel = new AgentOperationalReadModel();
     registerNativeDeliverySession({
       runtime,
       effectContext,
@@ -132,6 +140,7 @@ export const startTaskInboxEffect = (
       sessionDeps,
       machineId: session.machineId,
       taskSnapshotState,
+      agentOperationalReadModel,
     });
     const cooldown = new RecoveryCooldown();
     let inboxUpdateInFlight = false;
@@ -180,6 +189,36 @@ export const startTaskInboxEffect = (
         return Effect.void;
       })
     );
+    const unsubscribeOperational =
+      subscribeMachineAgentOperationalStatus(
+        wsClient,
+        {
+          sessionId: session.sessionId as SessionId,
+          machineId: session.machineId,
+          signal: abort.signal,
+        },
+        (rows) => {
+          if (stopped) return;
+          const changed = agentOperationalReadModel.replace(rows);
+          const snapshots = changed.flatMap(({ chatroomId, role }) =>
+            taskSnapshotState.listForRole(chatroomId, role)
+          );
+          if (snapshots.length === 0) return;
+          void processTasksUpdate(
+            runtime,
+            effectContext,
+            cooldown,
+            agentMgr,
+            sessionDeps,
+            session.machineId,
+            'operational-status',
+            { snapshots: enrichSnapshotsWithOperational(snapshots) }
+          ).catch((error) =>
+            console.warn('[TaskInbox] operational-status reconcile failed:', error)
+          );
+        }
+      ) ?? (() => {});
+    /** Fallback reliability reconcile — primary delivery is reactive via inbox signals + operational subscription. */
     const reconcileTimer = setInterval(() => {
       if (stopped || inboxUpdateInFlight || reconcileInFlight) return;
       reconcileInFlight = true;
@@ -191,7 +230,7 @@ export const startTaskInboxEffect = (
         sessionDeps,
         session.machineId,
         'periodic-reconcile',
-        { snapshots: taskSnapshotState.listAll() }
+        { snapshots: enrichSnapshotsWithOperational(taskSnapshotState.listAll()) }
       )
         .catch((error) => {
           console.warn('[TaskInbox] local delivery reconciliation failed:', error);
@@ -204,6 +243,7 @@ export const startTaskInboxEffect = (
     return {
       stop() {
         stopped = true;
+        unsubscribeOperational();
         abort.abort();
         clearInterval(reconcileTimer);
         unregisterNativeDeliverySession();

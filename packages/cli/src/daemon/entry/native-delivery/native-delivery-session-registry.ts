@@ -1,6 +1,7 @@
 import type { Runtime, Context } from 'effect';
 
 import type { NativeTaskDeliverySessionDeps } from './native-task-delivery-coordinator.js';
+import { AgentOperationalReadModel } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
@@ -15,6 +16,7 @@ export type NativeDeliverySessionContext = {
   sessionDeps: NativeTaskDeliverySessionDeps;
   machineId: string;
   taskSnapshotState?: MachineTaskSnapshotState;
+  agentOperationalReadModel?: AgentOperationalReadModel;
 };
 
 let registered: NativeDeliverySessionContext | null = null;
@@ -23,6 +25,7 @@ export function registerNativeDeliverySession(ctx: NativeDeliverySessionContext)
   registered = {
     ...ctx,
     taskSnapshotState: ctx.taskSnapshotState ?? new MachineTaskSnapshotState(),
+    agentOperationalReadModel: ctx.agentOperationalReadModel ?? new AgentOperationalReadModel(),
   };
 }
 

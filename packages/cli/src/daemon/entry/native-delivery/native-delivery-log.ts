@@ -3,7 +3,7 @@ export function logNativeDeliveryPrimary(role: string, chatroomId: string): void
 }
 
 export function logNativeDeliveryFallback(
-  reason: 'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'stale-turn-phase',
+  reason: 'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status' | 'stale-turn-phase',
   role: string,
   chatroomId: string,
   taskId?: string

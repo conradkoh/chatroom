@@ -42,6 +42,7 @@ export const assignedTaskAgentConfigSchema = z.object({
   agentHarness: z.string(),
   model: z.string().optional(),
   workingDir: z.string().optional(),
+  // Legacy optional fields retained for daemon compatibility; backend snapshots no longer write them.
   spawnedAgentPid: z.number().optional(),
   desiredState: agentDesiredStateSchema.optional(),
   circuitState: agentCircuitStateSchema.optional(),
@@ -68,8 +69,6 @@ export const assignedTaskSignalBootstrapFields = {
   assignedTo: z.string().optional(),
   lastSeenAction: z.string().nullable().optional(),
   lastStatus: z.string().nullable().optional(),
-  spawnedAgentPid: z.number().optional(),
-  desiredState: agentDesiredStateSchema.optional(),
   sessionAugmentation: sessionAugmentationSchema.optional(),
 } as const;
 

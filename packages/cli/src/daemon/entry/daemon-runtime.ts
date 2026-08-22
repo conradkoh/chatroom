@@ -72,6 +72,7 @@ export type DaemonRuntimeHandle = {
 };
 
 export type DaemonRuntimeDeps = {
+  agentLifecycleOutbox?: import('../infrastructure/outbox/agent-lifecycle-outbox.js').AgentLifecycleOutboxRegistry;
   wsClient: ConvexClient;
   layers: Layer.Layer<
     DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
@@ -152,6 +153,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     shutdownWatchdog.unref?.();
 
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+    await deps.agentLifecycleOutbox?.stopAll().catch(() => undefined);
     stopWorkers();
 
     await withTimeout(

@@ -1,6 +1,23 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { unregisterNativeDeliverySession } from './native-delivery-session-registry.js';
 import { explainAgentReadyForNativeDeliveryBlock } from './native-ready-invariant.js';
+import {
+  operationalRow,
+  registerTestNativeDeliverySession,
+} from '../../infrastructure/agent-operational/test-support.js';
+
+beforeEach(() =>
+  registerTestNativeDeliverySession({
+    runtime: undefined as never,
+    effectContext: undefined as never,
+    agentMgr: {} as never,
+    sessionDeps: {} as never,
+    machineId: 'machine-1',
+    operationalRows: [operationalRow('room-1', 'builder', 'running')],
+  })
+);
+afterEach(() => unregisterNativeDeliverySession());
 
 const task = (overrides: Record<string, unknown> = {}) =>
   ({
@@ -33,14 +50,30 @@ const idleSlot = (overrides: Record<string, unknown> = {}) =>
 
 describe('native-ready-invariant', () => {
   it('blocks a stopped task when no local slot exists', () => {
+    registerTestNativeDeliverySession({
+      runtime: undefined as never,
+      effectContext: undefined as never,
+      agentMgr: {} as never,
+      sessionDeps: {} as never,
+      machineId: 'machine-1',
+      operationalRows: [operationalRow('room-1', 'builder', 'stopped')],
+    });
     expect(explainAgentReadyForNativeDeliveryBlock(task(), undefined)).toBe(
-      'desired_state_not_running (desiredState=stopped)'
+      'operational_state_not_running (state=stopped)'
     );
   });
 
   it('blocks a pending task when its fresh snapshot says stopped', () => {
+    registerTestNativeDeliverySession({
+      runtime: undefined as never,
+      effectContext: undefined as never,
+      agentMgr: {} as never,
+      sessionDeps: {} as never,
+      machineId: 'machine-1',
+      operationalRows: [operationalRow('room-1', 'builder', 'stopped')],
+    });
     expect(explainAgentReadyForNativeDeliveryBlock(task(), idleSlot())).toBe(
-      'desired_state_not_running (desiredState=stopped)'
+      'operational_state_not_running (state=stopped)'
     );
   });
 
