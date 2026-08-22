@@ -108,20 +108,20 @@ flowchart LR
 - [ ] Reopen PR #1478 (or new PR) targeting **`release/v1.98.8`** (#1480), not `master` directly
 - [ ] Verify tests pass after merge
 
-### Phase B — Daemon agent operational read model
+### Phase B — Daemon agent operational read model (complete)
 
-- [ ] Add machine-scoped Convex query: list operational status rows for configs on this machine (or subscribe to `chatroom_agentRoleOperationalStatus` by `machineId` index)
-- [ ] Daemon: `AgentOperationalReadModel` — in-memory map `(chatroomId, role) → operational row`, refreshed on:
+- [x] Add machine-scoped Convex subscription query by `machineId` index
+- [x] Daemon: `AgentOperationalReadModel` — in-memory map `(chatroomId, role) → operational row`, refreshed by Convex subscription
   - Inbox bootstrap (after `backfillAgentOperationalStatusForMachine`)
   - Lifecycle outbox drain events (if daemon receives them) OR periodic reconcile OR Convex subscription
-- [ ] Do **not** add more `setDesiredState` paths — treat as temporary until Phase C
+- [x] Do **not** add more `setDesiredState` paths — subscription is the SSOT
 
-### Phase C — Decouple delivery from snapshot `desiredState`
+### Phase C — Decouple delivery from snapshot `desiredState` (complete)
 
-- [ ] `task-delivery-logic.ts` / `native-ready-invariant.ts`: read `desiredState` / `isRunning` from `AgentOperationalReadModel`, not `task.agentConfig`
-- [ ] `listNativePendingTasksNeedingWake`: wake when operational model says stopped/none but pending task exists (not snapshot `desiredState`)
-- [ ] Remove `MachineTaskSnapshotState.setDesiredState` and bridge optimistic patches
-- [ ] On operational status transition → trigger `processTasksUpdate` reconcile for affected `(chatroomId, role)` (reactive path)
+- [x] `task-delivery-logic.ts` / `native-ready-invariant.ts`: read operational state from `AgentOperationalReadModel`
+- [x] `listNativePendingTasksNeedingWake`: wake when operational model says stopped/none but pending task exists
+- [x] Remove `MachineTaskSnapshotState.setDesiredState` and bridge optimistic patches
+- [x] On operational status transition → trigger targeted `processTasksUpdate` reconcile (Convex subscription)
 
 ### Phase D — Backend snapshot slimming (optional follow-up)
 
@@ -138,7 +138,7 @@ flowchart LR
 
 | Decision                                 | Options                                                                                            | Recommendation                                                                  |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Daemon refresh path for operational rows | (1) Convex subscription by machineId (2) Poll on reconcile interval (3) Lifecycle outbox on daemon | Start with bootstrap + reconcile poll; add subscription if latency insufficient |
+| Daemon refresh path for operational rows | Convex subscription by machineId | Chosen; reactive updates avoid operational polling |
 | Merge vs rebase master                   | Merge commit vs rebase                                                                             | Merge — preserves both histories; easier conflict audit                         |
 | Remove snapshot agent fields             | Big-bang vs gradual                                                                                | Gradual: daemon reads operational model first, then slim backend projection     |
 
