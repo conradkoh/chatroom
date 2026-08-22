@@ -62,18 +62,18 @@ describe('filterPickerItems', () => {
     expect(result.map((item) => item.id)).toEqual(['low']);
   });
 
-  it('ranks a contiguous phrase ahead of token-only matches and preserves ties', () => {
+  it('ranks phrase and stronger token matches while preserving equal-score ties', () => {
     const result = filterPickerItems(
       [
-        { id: 'token-only', label: 'Gpt 5.6 Luna [reasoning=low]' },
         { id: 'phrase', label: 'Luna Low' },
-        { id: 'tie-a', label: 'Luna model low' },
-        { id: 'tie-b', label: 'Low model luna' },
+        { id: 'early', label: 'Luna model low' },
+        { id: 'late', label: 'A long model with luna and low' },
+        { id: 'tie-a', label: 'Luna model low one' },
+        { id: 'tie-b', label: 'Luna model low two' },
       ],
       'luna low',
       (item) => item.label
     );
-    expect(result.map((item) => item.id).slice(0, 2)).toEqual(['phrase', 'token-only']);
-    expect(result.map((item) => item.id).slice(2)).toEqual(['tie-a', 'tie-b']);
+    expect(result.map((item) => item.id)).toEqual(['phrase', 'early', 'tie-a', 'tie-b', 'late']);
   });
 });
