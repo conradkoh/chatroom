@@ -3,11 +3,12 @@ import { Context, Effect, Runtime } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { handleTaskInboxUpdate } from './task-inbox-delivery.js';
-import {
-  registerNativeDeliverySession,
-  unregisterNativeDeliverySession,
-} from '../../entry/native-delivery/native-delivery-session-registry.js';
+import { unregisterNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
 import { RecoveryCooldown } from '../../entry/task-delivery/task-delivery-logic.js';
+import {
+  operationalRow,
+  registerTestNativeDeliverySession,
+} from '../agent-operational/test-support.js';
 
 const runNativeInjectionEffect = vi.hoisted(() => vi.fn(() => Effect.void));
 vi.mock('../../entry/native-delivery/native-task-injector.js', () => ({
@@ -78,12 +79,13 @@ describe('task inbox delivery integration', () => {
       },
     } as never;
     const row = snapshot();
-    registerNativeDeliverySession({
+    registerTestNativeDeliverySession({
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
+      operationalRows: [operationalRow('room-1', 'builder', 'running')],
     });
     await handleTaskInboxUpdate(
       { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
@@ -124,12 +126,13 @@ describe('task inbox delivery integration', () => {
       machineId: 'machine-1',
     };
     const row = snapshot();
-    registerNativeDeliverySession({
+    registerTestNativeDeliverySession({
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
+      operationalRows: [operationalRow('room-1', 'builder', 'running')],
     });
     await handleTaskInboxUpdate(
       { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
@@ -164,12 +167,13 @@ describe('task inbox delivery integration', () => {
       },
     } as never;
     const row = snapshot();
-    registerNativeDeliverySession({
+    registerTestNativeDeliverySession({
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
+      operationalRows: [operationalRow('room-1', 'builder', 'stopped')],
     });
     const deps = {
       runtime: Runtime.defaultRuntime as never,
@@ -218,12 +222,13 @@ describe('task inbox delivery integration', () => {
       sessionDeps,
       machineId: 'machine-1',
     };
-    registerNativeDeliverySession({
+    registerTestNativeDeliverySession({
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
+      operationalRows: [operationalRow('room-1', 'builder', 'running')],
     });
     await handleTaskInboxUpdate(
       { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
@@ -270,12 +275,13 @@ describe('task inbox delivery integration', () => {
       sessionDeps,
       machineId: 'machine-1',
     };
-    registerNativeDeliverySession({
+    registerTestNativeDeliverySession({
       runtime: Runtime.defaultRuntime as never,
       effectContext: Context.empty() as never,
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
+      operationalRows: [operationalRow('room-1', 'builder', 'running')],
     });
     await handleTaskInboxUpdate(
       { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },

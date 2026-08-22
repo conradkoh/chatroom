@@ -188,18 +188,35 @@ export const startTaskInboxEffect = (
         return Effect.void;
       })
     );
-    const unsubscribeOperational = subscribeMachineAgentOperationalStatus(
-      wsClient,
-      { sessionId: session.sessionId as SessionId, machineId: session.machineId, signal: abort.signal },
-      (rows) => {
-        if (stopped) return;
-        const changed = agentOperationalReadModel.replace(rows);
-        const snapshots = changed.flatMap(({ chatroomId, role }) => taskSnapshotState.listForRole(chatroomId, role));
-        if (snapshots.length === 0) return;
-        void processTasksUpdate(runtime, effectContext, cooldown, agentMgr, sessionDeps, session.machineId, 'operational-status', { snapshots })
-          .catch((error) => console.warn('[TaskInbox] operational-status reconcile failed:', error));
-      }
-    );
+    const unsubscribeOperational =
+      subscribeMachineAgentOperationalStatus(
+        wsClient,
+        {
+          sessionId: session.sessionId as SessionId,
+          machineId: session.machineId,
+          signal: abort.signal,
+        },
+        (rows) => {
+          if (stopped) return;
+          const changed = agentOperationalReadModel.replace(rows);
+          const snapshots = changed.flatMap(({ chatroomId, role }) =>
+            taskSnapshotState.listForRole(chatroomId, role)
+          );
+          if (snapshots.length === 0) return;
+          void processTasksUpdate(
+            runtime,
+            effectContext,
+            cooldown,
+            agentMgr,
+            sessionDeps,
+            session.machineId,
+            'operational-status',
+            { snapshots }
+          ).catch((error) =>
+            console.warn('[TaskInbox] operational-status reconcile failed:', error)
+          );
+        }
+      ) ?? (() => {});
     const reconcileTimer = setInterval(() => {
       if (stopped || inboxUpdateInFlight || reconcileInFlight) return;
       reconcileInFlight = true;
