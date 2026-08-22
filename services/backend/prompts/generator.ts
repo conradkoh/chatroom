@@ -26,6 +26,7 @@ import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
 import {
   getNativeEnhancerCheckInTurnEndGuidance,
+  getHandoffTurnEndGuidance,
   getNativeHandoffTurnEndGuidance,
 } from './native/session-continuity';
 import { composeNativeSystemPrompt } from './native/system-prompt';
@@ -250,8 +251,8 @@ function getEnhancerCheckInQueuedConfirmationLines(nativeIntegration?: boolean):
  * Generate the output shown after a successful handoff command.
  *
  * This is the prompt the agent sees after running `chatroom handoff`.
- * It confirms the handoff and reminds the agent to run `get-next-task`
- * to continue receiving messages.
+ * It confirms the handoff, preserves standard CLI continuation guidance, and
+ * ends with deterministic turn-ending guidance for both delivery modes.
  */
 export function generateHandoffOutput(params: {
   role: string;
@@ -294,6 +295,7 @@ export function generateHandoffOutput(params: {
     );
     lines.push('');
     lines.push(`\`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
+    lines.push(getHandoffTurnEndGuidance(nextRole));
   }
 
   return lines.join('\n');
