@@ -128,6 +128,7 @@ import type * as utils_machineFavoriteScopeKey from "../utils/machineFavoriteSco
 import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
 import type * as utils_teamRoleKeyFilter from "../utils/teamRoleKeyFilter.js";
 import type * as utils_types from "../utils/types.js";
+import type * as validators_agent_lifecycle_fact from "../validators/agent_lifecycle_fact.js";
 import type * as web_agenticQuery_completeLogic from "../web/agenticQuery/completeLogic.js";
 import type * as web_agenticQuery_index from "../web/agenticQuery/index.js";
 import type * as web_agenticQuery_internal from "../web/agenticQuery/internal.js";
@@ -290,6 +291,7 @@ declare const fullApi: ApiFromModules<{
   "utils/teamRoleKey": typeof utils_teamRoleKey;
   "utils/teamRoleKeyFilter": typeof utils_teamRoleKeyFilter;
   "utils/types": typeof utils_types;
+  "validators/agent_lifecycle_fact": typeof validators_agent_lifecycle_fact;
   "web/agenticQuery/completeLogic": typeof web_agenticQuery_completeLogic;
   "web/agenticQuery/index": typeof web_agenticQuery_index;
   "web/agenticQuery/internal": typeof web_agenticQuery_internal;
