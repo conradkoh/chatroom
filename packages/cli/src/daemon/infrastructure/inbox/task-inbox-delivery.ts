@@ -9,6 +9,7 @@ import {
   type TaskDeliveryRuntime,
 } from '../../entry/native-delivery/task-delivery-processor.js';
 import type { RecoveryCooldown } from '../../entry/task-delivery/task-delivery-logic.js';
+import { enrichSnapshotsWithOperational } from '../agent-operational/enrich-snapshot-with-operational.js';
 
 export type TaskInboxDeliveryDeps = {
   runtime: TaskDeliveryRuntime;
@@ -35,6 +36,6 @@ export async function handleTaskInboxUpdate(
     deps.sessionDeps,
     deps.machineId,
     'inbox-signal',
-    { snapshots: update.snapshots }
+    { snapshots: enrichSnapshotsWithOperational(update.snapshots) }
   );
 }

@@ -22,6 +22,7 @@ import {
 } from './native-delivery/task-delivery-processor.js';
 import { RecoveryCooldown } from './task-delivery/task-delivery-logic.js';
 import { AgentOperationalReadModel } from '../infrastructure/agent-operational/agent-operational-read-model.js';
+import { enrichSnapshotsWithOperational } from '../infrastructure/agent-operational/enrich-snapshot-with-operational.js';
 import { subscribeMachineAgentOperationalStatus } from '../infrastructure/agent-operational/subscribe-machine-agent-operational-status.js';
 import { fetchMachineAssignedTaskSnapshots } from '../infrastructure/inbox/fetch-machine-assigned-task-snapshots.js';
 import { createInboxStateStore, resolveInboxDbPath } from '../infrastructure/inbox/index.js';
@@ -66,7 +67,7 @@ export async function bootstrapMachineAssignedTaskSnapshots(
     deps.sessionDeps,
     deps.machineId,
     'bootstrap',
-    { snapshots: tasks }
+    { snapshots: enrichSnapshotsWithOperational(tasks) }
   );
 }
 
@@ -211,12 +212,13 @@ export const startTaskInboxEffect = (
             sessionDeps,
             session.machineId,
             'operational-status',
-            { snapshots }
+            { snapshots: enrichSnapshotsWithOperational(snapshots) }
           ).catch((error) =>
             console.warn('[TaskInbox] operational-status reconcile failed:', error)
           );
         }
       ) ?? (() => {});
+    /** Fallback reliability reconcile — primary delivery is reactive via inbox signals + operational subscription. */
     const reconcileTimer = setInterval(() => {
       if (stopped || inboxUpdateInFlight || reconcileInFlight) return;
       reconcileInFlight = true;
@@ -228,7 +230,7 @@ export const startTaskInboxEffect = (
         sessionDeps,
         session.machineId,
         'periodic-reconcile',
-        { snapshots: taskSnapshotState.listAll() }
+        { snapshots: enrichSnapshotsWithOperational(taskSnapshotState.listAll()) }
       )
         .catch((error) => {
           console.warn('[TaskInbox] local delivery reconciliation failed:', error);
