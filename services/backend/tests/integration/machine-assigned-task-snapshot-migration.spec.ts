@@ -16,16 +16,13 @@ describe('migration: stripMachineAssignedTaskSnapshotOperationalFields', () => {
         status: 'active',
         ownerId: owner._id,
         name: 'migrate-snapshot',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
       });
       const taskId = await ctx.db.insert('chatroom_tasks', {
         chatroomId,
+        createdBy: 'planner',
         status: 'in_progress',
         assignedTo: 'planner',
         content: 'test',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
       });
       return await ctx.db.insert('chatroom_machineAssignedTaskSnapshots', {
         machineId: 'migrate-machine',
