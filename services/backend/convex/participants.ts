@@ -187,7 +187,8 @@ export const join = mutation({
     }
 
     // Emit agent.waiting event when agent enters the get-next-task loop
-    if (args.action === 'get-next-task:started') {
+    const isStopRequested = teamConfig?.desiredState === 'stopped';
+    if (args.action === 'get-next-task:started' && !isStopRequested) {
       const plannerEnhancerActive =
         args.role.toLowerCase() === 'planner' &&
         (await hasActivePlannerEnhancerJob(ctx, args.chatroomId));
@@ -219,13 +220,15 @@ export const join = mutation({
         return participantId;
       }
 
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'agent.waiting',
-        chatroomId: args.chatroomId,
-        role: args.role,
-        timestamp: now,
-      });
-      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
+      if (!isStopRequested) {
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'agent.waiting',
+          chatroomId: args.chatroomId,
+          role: args.role,
+          timestamp: now,
+        });
+        await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
+      }
     }
 
     if (args.action === NATIVE_TASK_INJECTED_ACTION) {
