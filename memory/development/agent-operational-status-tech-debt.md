@@ -39,4 +39,4 @@ See [agent operational status daemon integration plan](./agent-operational-statu
 - [Agent operational status daemon integration plan](./agent-operational-status-daemon-integration.md)
 - PR #1478 — projection implementation
 - PR #1479 — task inbox recoverable delivery (master workaround to replace)
-- PR #1481 — daemon integration
+- PR #1481 — operational projection + daemon integration (squash-merged to `release/v1.98.8`)

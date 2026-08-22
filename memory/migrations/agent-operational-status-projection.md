@@ -74,8 +74,7 @@ Phase 2 wiring must cover the following sources:
 - Outbox drain: PID set/clear, agent exit, restart phase, and desired-state changes.
 - `updateDaemonStatus`: redrive all roles on the affected machine.
 - `patchTeamAgentConfig`: desired state, circuit state, PID, and machine changes.
-- `clearAllSpawnedPids`, `startAgent`, `stopAgent`, and `recordAgentExited`.
-- `stopAgent` also calls `onAgentExited` for eager task release.
+- `clearAllSpawnedPids`, `startAgent`, `stopAgent` (also calls `onAgentExited` for eager task release), and `recordAgentExited`.
 - `transitionAgentStatus`, only for in-flight `starting` inference (`agent.requestStart`, `agent.restart`, `agent.restartPhase`).
 - Team switches and config removal (`update-team.ts`, `config-removal.ts`).
 
