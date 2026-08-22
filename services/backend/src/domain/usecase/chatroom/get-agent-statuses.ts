@@ -99,14 +99,7 @@ export async function getAgentStatusForChatroom(
       }
 
       const machine = teamConfig.machineId ? userMachineMap.get(teamConfig.machineId) : undefined;
-      let state: AgentRoleView['state'];
-      if (teamConfig.circuitState === 'open') {
-        // Preserve immediate circuit-breaker visibility if an older writer has
-        // not yet refreshed the materialized row.
-        state = 'circuit_open';
-      } else {
-        state = (opRow?.operationalState ?? 'stopped') as AgentRoleView['state'];
-      }
+      const state = (opRow?.operationalState ?? 'stopped') as AgentRoleView['state'];
 
       const model = teamConfig.model;
 
