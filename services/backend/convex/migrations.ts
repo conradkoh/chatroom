@@ -657,12 +657,25 @@ export const stripTimelineMachineSignalFields = migrations.define({
   },
 });
 
+/**
+ * Optional cleanup: strip legacy operational fields from snapshot rows after Phase D slimming.
+ * Not in runAll — stale fields are ignored by readers; run manually if you want DB hygiene:
+ *   npx convex run migrations:run '{"fn":"migrations:stripSnapshotOperationalAgentFields"}'
+ */
 export const stripSnapshotOperationalAgentFields = migrations.define({
   table: 'chatroom_machineAssignedTaskSnapshots',
   migrateOne: async (_ctx, row) => {
     const r = row as { spawnedAgentPid?: number; desiredState?: string; circuitState?: string };
-    if (r.spawnedAgentPid !== undefined || r.desiredState !== undefined || r.circuitState !== undefined) {
-      return { spawnedAgentPid: undefined, desiredState: undefined, circuitState: undefined } as never;
+    if (
+      r.spawnedAgentPid !== undefined ||
+      r.desiredState !== undefined ||
+      r.circuitState !== undefined
+    ) {
+      return {
+        spawnedAgentPid: undefined,
+        desiredState: undefined,
+        circuitState: undefined,
+      } as never;
     }
   },
 });
@@ -693,7 +706,6 @@ export const runAll = migrations.runner([
   internal.migrations.purgeWorkspaceCommitDetails,
   internal.migrations.migrateMachineTaskStatusSignals,
   internal.migrations.stripTimelineMachineSignalFields,
-  internal.migrations.stripSnapshotOperationalAgentFields,
   // Workspace File Tree
   internal.migrations.compactWorkspaceFileTreeDeltaOperations,
   // Git State
