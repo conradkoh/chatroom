@@ -18,7 +18,7 @@ Living checklist for projection reader cleanup. Update as items are resolved.
 - [x] **[low] getTeamLifecycle fallback team role key** — Replaced inline team role key with `buildTeamRoleKey`.
 - [x] **[low] Redundant projection calls on lifecycle paths** — `refreshSnapshotDeliveryConfigForChatroomRole` replaces full chatroom reprojection on agent start/restart.
 
-## Next — daemon task-inbox decoupling (2026-08-22)
+## Next — daemon task-inbox decoupling (2026-08-22) (complete — merged in #1481)
 
 Master #1479 added `MachineTaskSnapshotState.setDesiredState` as a workaround because agent config changes don't emit task signals. User direction: **do not denormalize agent desired state into task snapshots**; use operational projection as SSOT and wire reactive delivery transitions.
 
@@ -28,9 +28,15 @@ See [agent operational status daemon integration plan](./agent-operational-statu
 - [x] **[high] Replace `setDesiredState` workaround** — daemon reads `chatroom_agentRoleOperationalStatus`; reactive reconcile on status transitions
 - [x] **[medium] Pending-task-on-restart regression test** — task released to pending delivers after agent restart without snapshot `desiredState` hack
 
+## Open — participant status / STOPPING (follow-up PR)
+
+- [ ] **[medium] Participant status race on stop** — running agent can overwrite `agent.exited` with `agent.waiting` while `desiredState=stopped`, causing persistent STOPPING UI and delivery confusion. Fix: ignore `agent.waiting` / `get-next-task:started` participant updates when `desiredState=stopped`.
+- [ ] **[low] Remove STOPPING UI label** — show OFFLINE when `desiredState=stopped` regardless of `lastStatus`; remove dead `agent.requestStop` → STOPPING mapping.
+
 ## Related
 
 - [Agent operational status projection migration](../migrations/agent-operational-status-projection.md)
 - [Agent operational status daemon integration plan](./agent-operational-status-daemon-integration.md)
 - PR #1478 — projection implementation
 - PR #1479 — task inbox recoverable delivery (master workaround to replace)
+- PR #1481 — daemon integration

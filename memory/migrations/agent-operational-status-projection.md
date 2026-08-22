@@ -75,6 +75,7 @@ Phase 2 wiring must cover the following sources:
 - `updateDaemonStatus`: redrive all roles on the affected machine.
 - `patchTeamAgentConfig`: desired state, circuit state, PID, and machine changes.
 - `clearAllSpawnedPids`, `startAgent`, `stopAgent`, and `recordAgentExited`.
+- `stopAgent` also calls `onAgentExited` for eager task release.
 - `transitionAgentStatus`, only for in-flight `starting` inference (`agent.requestStart`, `agent.restart`, `agent.restartPhase`).
 - Team switches and config removal (`update-team.ts`, `config-removal.ts`).
 
@@ -137,7 +138,7 @@ reloading all configs.
 - [x] `getTeamLifecycle` reads `isAlive` from role rows
 - [x] `getAgentOverviewForChatroom` reads the summary row
 - [ ] Production backfill migration wired into `migrations.runAll` — Skipped; cold-start deploy per 2026-08-22 decision
-- [ ] Verify AgentPanel, sidebar, and `deriveChatStatus` behavior is unchanged
+- [x] Verify AgentPanel, sidebar, and `deriveChatStatus` behavior is unchanged — verified in branch
 - [x] Supersede or close tactical PR #1475 (closed as superseded by #1478)
 
 ### Phase 4 — Cleanup
@@ -163,7 +164,7 @@ See also [agent operational status tech debt tracker](../development/agent-opera
 
 - Cold-start deploy chosen over CI backfill (2026-08-22).
 - Daemon-startup backfill wired in inbox bootstrap (`backfillAgentOperationalStatusForMachine`) — 2026-08-22.
-- **Pending:** Merge master (#1479 task-inbox workaround) and decouple daemon delivery from task-snapshot `desiredState`. See [daemon integration plan](../development/agent-operational-status-daemon-integration.md).
+- Merged in #1481; daemon integration Phases A–E complete.
 
 - During the dual-write period, the projection must match old derivation before any reader flips.
 - `aliveRoles` and `runningRoles` have distinct semantics and must remain distinct.
