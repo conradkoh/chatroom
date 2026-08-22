@@ -238,7 +238,7 @@ describe('task inbox delivery integration', () => {
     expect(runNativeInjectionEffect).not.toHaveBeenCalled();
   });
 
-  test('wakes agent when pending snapshot has desiredState stopped', async () => {
+  test('wakes agent when operational state is stopped', async () => {
     const ensureRunning = vi.fn().mockResolvedValue({ success: true, pid: 99_002 });
     const agentMgr = createAgentMgrMock({
       getSlot: vi.fn().mockReturnValue(undefined),
@@ -249,7 +249,6 @@ describe('task inbox delivery integration', () => {
       agentConfig: {
         ...snapshot().agentConfig,
         spawnedAgentPid: undefined,
-        desiredState: 'stopped' as const,
       },
     };
     const full = fullTaskFromSnapshot(row as unknown as ReturnType<typeof snapshot>);

@@ -26,7 +26,7 @@ See [agent operational status daemon integration plan](./agent-operational-statu
 
 - [x] **[high] Merge master + reopen PR #1478 → `release/v1.98.8` (#1480)** — absorb #1479 inbox workaround; keep daemon operational backfill on bootstrap
 - [x] **[high] Replace `setDesiredState` workaround** — daemon reads `chatroom_agentRoleOperationalStatus`; reactive reconcile on status transitions
-- [x] **[medium] Pending-task-on-restart regression test** — task released to pending delivers after agent restart without snapshot `desiredState` hack
+- [ ] **[medium] Pending-task-on-restart regression test** — task released to pending delivers after agent restart without snapshot `desiredState` hack
 
 ## Related
 

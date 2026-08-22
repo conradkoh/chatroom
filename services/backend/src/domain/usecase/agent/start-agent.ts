@@ -174,6 +174,8 @@ export async function startAgent(
 
   // Refresh the daemon snapshot projection so the task monitor sees the new
   // config (desiredState/model/workingDir) without waiting for a task transition.
+  // Refresh delivery-config fields on snapshot rows (harness/model/workingDir).
+  // Operational state (desiredState/PID) is NOT written to snapshots — daemon reads operational projection.
   await projectAssignedTaskSnapshotsForChatroom(ctx, chatroomId);
   const startedConfig = await ctx.db
     .query('chatroom_teamAgentConfigs')

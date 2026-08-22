@@ -120,8 +120,6 @@ describe('user message pending delivery path', () => {
       agentConfig: {
         role: 'builder',
         agentHarness: 'cursor-sdk',
-        spawnedAgentPid: SPAWNED_PID,
-        desiredState: 'running',
       },
     });
 
@@ -137,6 +135,7 @@ describe('user message pending delivery path', () => {
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
+    row!.agentConfig.spawnedAgentPid = SPAWNED_PID;
 
     const backendMutation = vi.fn().mockResolvedValue(undefined);
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
@@ -294,6 +293,7 @@ describe('user message pending delivery path', () => {
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
+    row!.agentConfig.spawnedAgentPid = SPAWNED_PID;
 
     expect(
       shouldDeliverNativeTask(row!, {
