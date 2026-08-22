@@ -52,6 +52,8 @@ describe('Duo Team > Planner > Handoff Output', () => {
     expect(output).toContain('queued for handoff enhancer');
     expect(output).toContain('get-next-task');
     expect(output).toContain('monitor the enhancer');
+    expect(output).toContain('stop tool calls');
+    expect(output).toContain('system will send you a message when further action is required');
     expect(output).not.toContain('handed off to enhancer');
   });
 
