@@ -67,6 +67,15 @@ export async function getAgentStatusForChatroom(
     .collect();
   const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
+  const statusMap = new Map<string, { daemonConnected: boolean }>();
+  for (const machine of userMachines) {
+    const machineStatus = await ctx.db
+      .query('chatroom_machineStatus')
+      .withIndex('by_machineId', (q: any) => q.eq('machineId', machine.machineId))
+      .first();
+    statusMap.set(machine.machineId, { daemonConnected: machineStatus?.status === 'online' });
+  }
+
   // Build the agent role views
   const agents: AgentRoleView[] = await Promise.all(
     teamRoles.map(async (role) => {
@@ -99,7 +108,11 @@ export async function getAgentStatusForChatroom(
       }
 
       const machine = teamConfig.machineId ? userMachineMap.get(teamConfig.machineId) : undefined;
-      const state = (opRow?.operationalState ?? 'stopped') as AgentRoleView['state'];
+      const daemonConnected =
+        teamConfig.machineId != null && statusMap.get(teamConfig.machineId)?.daemonConnected === true;
+      const operationalState = (opRow?.operationalState ?? 'stopped') as AgentRoleView['state'];
+      const state =
+        operationalState === 'running' && !daemonConnected ? 'stopped' : operationalState;
 
       const model = teamConfig.model;
 
