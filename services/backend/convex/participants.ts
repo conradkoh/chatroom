@@ -19,6 +19,7 @@ import {
 } from '../src/domain/entities/participant';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
+import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { hasActivePlannerEnhancerJob } from '../src/domain/usecase/enhancer/planner-enhancing-status';
 import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
@@ -414,59 +415,11 @@ export const getTeamLifecycle = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    if (!chatroom.teamId || !chatroom.teamRoles) {
-      return null;
-    }
-
-    // Fetch all participants for this chatroom.
-    const participantRows = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const participantByRole = new Map(participantRows.map((p) => [p.role.toLowerCase(), p]));
-
-    const expectedRoles = chatroom.teamRoles;
-    const participants = await Promise.all(
-      expectedRoles.map(async (role) => {
-        const roleLower = role.toLowerCase();
-        const participantRow = participantByRole.get(roleLower);
-        const opRow = await ctx.db
-          .query('chatroom_agentRoleOperationalStatus')
-          .withIndex('by_chatroom_role', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('role', roleLower)
-          )
-          .first();
-
-        const isAlive = opRow?.isAlive ?? false;
-
-        return {
-          role,
-          lastSeenAt: participantRow?.lastSeenAt ?? null,
-          lastSeenAction: participantRow?.lastSeenAction ?? null,
-          agentType: participantRow?.agentType ?? ('remote' as const),
-          lastStatus: participantRow?.lastStatus ?? null,
-          lastDesiredState: participantRow?.lastDesiredState ?? null,
-          isAlive,
-        };
-      })
-    );
-
-    const firstUserMessage = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
-      )
-      .first();
-
-    return {
-      teamId: chatroom.teamId,
-      teamName: chatroom.teamName ?? chatroom.teamId,
-      expectedRoles,
-      participants,
-      hasHistory: firstUserMessage !== null,
-    };
+    const { session: { userId } } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const view = await getAgentViewStatus(ctx, { chatroomId: args.chatroomId, userId });
+    if (!view) return null;
+    return { teamId: view.teamId, teamName: view.teamName, expectedRoles: view.teamRoles,
+      participants: view.agents.map((a) => ({ role: a.role, lastSeenAt: a.lastSeenAt, lastSeenAction: a.lastSeenAction,
+        agentType: a.agentType, lastStatus: a.lastStatus, lastDesiredState: a.lastDesiredState, isAlive: a.isAlive })), hasHistory: view.hasHistory };
   },
 });

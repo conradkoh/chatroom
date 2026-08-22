@@ -176,8 +176,8 @@ export const AgentPanel = memo(function AgentPanel({
 
   // Use hook to get derived agent statuses (lifecycle + event stream)
   const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(
-    chatroomId,
-    rolesToShow
+    rolesToShow,
+    lifecycle?.participants
   );
 
   // Open agent list — if onOpenAgents is provided, open settings to agents tab;

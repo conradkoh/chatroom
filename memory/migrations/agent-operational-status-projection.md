@@ -14,7 +14,7 @@ Agent operational state is currently derived at read time in four or more places
 
 | Consumer                 | Query / hook                           | Fields derived                                  | File                                     |
 | ------------------------ | -------------------------------------- | ----------------------------------------------- | ---------------------------------------- |
-| AgentPanel quick actions | `machines.getAgentStatus`              | `AgentRoleView.state`                           | `get-agent-statuses.ts`                  |
+| AgentPanel quick actions | `machines.getAgentViewStatus`          | `AgentRoleView.state`                           | `get-agent-view-status.ts`               |
 | Sidebar remote dots      | `machines.listAgentOverview`           | `agentStatus`, `runningRoles`, `aliveRoles`     | `list-chatroom-agent-overview.ts`        |
 | Status labels + isAlive  | `participants.getTeamLifecycle`        | `isAlive`, participant timeline                 | `participants.ts`, `useAgentStatuses.ts` |
 | Single-room overview     | `machines.getAgentOverviewForChatroom` | same as sidebar per-room                        | `machines.ts` ~L2480                     |
@@ -89,7 +89,7 @@ flowchart TD
   UDS[updateDaemonStatus] -->|redrive machine| PROJ[projectAgentOperationalStatusForMachine]
   DERIVE --> ROLE[(chatroom_agentRoleOperationalStatus)]
   DERIVE --> SUM[(chatroom_agentOperationalSummary)]
-  ROLE --> Q1[getAgentStatus]
+  ROLE --> Q1[getAgentViewStatus]
   SUM --> Q2[listChatroomAgentOverview]
   ROLE --> Q3[getTeamLifecycle.isAlive]
 ```
@@ -132,7 +132,7 @@ role rows must be pruned) and explicit machine backfill. Summary rows carry the
 remote configuration count so `none` versus `stopped` can be maintained without
 reloading all configs.
 
-- [x] `getAgentStatusForChatroom` reads materialized role rows
+- [x] `getAgentViewStatus` reads materialized role rows
 - [x] `listAgentOverview` reads summary rows
 - [x] `getTeamLifecycle` reads `isAlive` from role rows
 - [x] `getAgentOverviewForChatroom` reads the summary row
@@ -154,7 +154,7 @@ See also [agent operational status tech debt tracker](../development/agent-opera
 
 | Stage                      | Cleanup                                                                                                                                                                                                                                      |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| After Phase 3 reader flips | Remove `IN_FLIGHT_START_STATUSES` derivation from `get-agent-statuses.ts`; remove `runningConfigs` filtering from `list-chatroom-agent-overview.ts`; remove inline `isAgentAlive(config.spawnedAgentPid)` derivation from `participants.ts`. |
+| After Phase 3 reader flips | Remove `IN_FLIGHT_START_STATUSES` derivation from `get-agent-view-status.ts`; remove `runningConfigs` filtering from `list-chatroom-agent-overview.ts`; remove inline `isAgentAlive(config.spawnedAgentPid)` derivation from `participants.ts`. |
 | After all readers migrate  | Keep `is-agent-alive.ts` only for daemon-local use and remove it from Convex query paths.                                                                                                                                                    |
 | After outbox stabilization | Remove direct mutations from `agent-process-manager`; PR #1475 changes are superseded.                                                                                                                                                       |
 | Final archive              | Update this tracker to `status: archived` after operational and projection parity is verified.                                                                                                                                               |

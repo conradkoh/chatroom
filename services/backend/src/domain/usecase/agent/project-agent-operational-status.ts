@@ -1,6 +1,7 @@
 import {
   applyRoleToSummary,
   deriveAgentOperationalState,
+  deriveAgentRoleViewState,
   deriveRoleOperationalState,
   removeRoleFromSummary,
   type RoleConfigSnapshot,
@@ -43,7 +44,7 @@ export async function projectAgentOperationalStatusForRole(
   chatroomId: Id<'chatroom_rooms'>,
   role: string,
   revisionKey?: string,
-  opts?: { config?: Doc<'chatroom_teamAgentConfigs'>; isNewConfig?: boolean }
+  opts?: { config?: Doc<'chatroom_teamAgentConfigs'>; isNewConfig?: boolean; lastStatus?: string | null }
 ): Promise<void> {
   const room = await ctx.db.get('chatroom_rooms', chatroomId);
   if (!room?.teamId) return;
@@ -80,6 +81,7 @@ export async function projectAgentOperationalStatusForRole(
     isAlive: projection.isAlive,
     isRunning: projection.isRunning,
     daemonConnected: projection.daemonConnected,
+    viewState: deriveAgentRoleViewState(snapshot(config, room.teamId), projection.daemonConnected, opts?.lastStatus),
     projectedAt,
     revisionKey: key,
   };
@@ -93,6 +95,7 @@ export async function projectAgentOperationalStatusForRole(
     existing.isAlive !== fields.isAlive ||
     existing.isRunning !== fields.isRunning ||
     existing.daemonConnected !== fields.daemonConnected ||
+    existing.viewState !== fields.viewState ||
     existing.machineId !== fields.machineId ||
     existing.teamId !== fields.teamId
   ) {
@@ -161,10 +164,14 @@ export async function projectDaemonConnectivityForMachine(
       daemonConnected: boolean;
       teamId: string;
       operationalState: 'running' | 'stopped' | 'starting' | 'circuit_open';
+      viewState: 'running' | 'stopped' | 'starting' | 'circuit_open';
     }[]
   >();
   for (const config of configs) {
     const room = await ctx.db.get('chatroom_rooms', config.chatroomId);
+    const participants = await ctx.db.query('chatroom_participants').withIndex('by_chatroom', (q) => q.eq('chatroomId', config.chatroomId)).collect();
+    const lastStatus = participants.find((p) => p.role.toLowerCase() === config.role.toLowerCase())?.lastStatus;
+    const viewState = deriveAgentRoleViewState({ desiredState: config.desiredState, circuitState: config.circuitState, spawnedAgentPid: config.spawnedAgentPid }, daemonConnected, lastStatus);
     if (
       !room?.teamId ||
       !filterTeamAgentConfigsForTeam([config], config.chatroomId, room.teamId).length
@@ -179,11 +186,12 @@ export async function projectDaemonConnectivityForMachine(
     if (
       row &&
       (row.daemonConnected !== daemonConnected ||
-        row.isRunning !== (row.isAlive && daemonConnected))
+        row.isRunning !== (row.isAlive && daemonConnected) || row.viewState !== viewState)
     ) {
       await ctx.db.patch("chatroom_agentRoleOperationalStatus", row._id, {
         daemonConnected,
         isRunning: row.isAlive && daemonConnected,
+        viewState,
         projectedAt: Date.now(),
       });
       const projections = changed.get(config.chatroomId) ?? [];
@@ -195,6 +203,7 @@ export async function projectDaemonConnectivityForMachine(
         daemonConnected,
         teamId: row.teamId,
         operationalState: row.operationalState,
+        viewState,
       });
       changed.set(config.chatroomId, projections);
     }
@@ -238,6 +247,8 @@ export async function rebuildAgentOperationalStatusForChatroom(
   for (const c of configs) {
     if (c.machineId) statuses.set(c.machineId, await machineConnected(ctx, c.machineId));
   }
+  const participants = await ctx.db.query('chatroom_participants').withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId)).collect();
+  const participantByRole = new Map(participants.map((p) => [p.role.toLowerCase(), p.lastStatus]));
   const derived = deriveAgentOperationalState({
     teamId,
     configs: configs.map((c) => snapshot(c, teamId)),
@@ -248,6 +259,7 @@ export async function rebuildAgentOperationalStatusForChatroom(
   for (const p of derived.roles)
     await projectAgentOperationalStatusForRole(ctx, chatroomId, p.role, key, {
       config: configs.find((c) => c.role.toLowerCase() === p.role.toLowerCase()),
+      lastStatus: participantByRole.get(p.role.toLowerCase()),
     });
   const summary = await summaryFor(ctx, chatroomId);
   if (summary) await ctx.db.patch("chatroom_agentOperationalSummary", summary._id, { ...derived.summary, projectedAt });
