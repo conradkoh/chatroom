@@ -658,6 +658,23 @@ export const stripTimelineMachineSignalFields = migrations.define({
 });
 
 /**
+ * Migration: Strip legacy operational fields from machine task snapshots.
+ * These fields were removed from the write path by the operational-status
+ * projection refactor; schema tolerance remains until this migration runs.
+ * Idempotent: already-clean rows are skipped.
+ */
+export const stripMachineAssignedTaskSnapshotOperationalFields = migrations.define({
+  table: 'chatroom_machineAssignedTaskSnapshots',
+  migrateOne: async (_ctx, row) => {
+    const r = row as Record<string, unknown>;
+    const legacyFields = ['circuitState', 'desiredState', 'spawnedAgentPid'] as const;
+    const present = legacyFields.filter((field) => r[field] !== undefined);
+    if (present.length === 0) return;
+    return Object.fromEntries(present.map((field) => [field, undefined]));
+  },
+});
+
+/**
  * Run all migrations in order.
  * Usage: pnpm migrate  (from repo root; CI uses the same command with CONVEX_DEPLOY_KEY set)
  *
@@ -683,6 +700,7 @@ export const runAll = migrations.runner([
   internal.migrations.purgeWorkspaceCommitDetails,
   internal.migrations.migrateMachineTaskStatusSignals,
   internal.migrations.stripTimelineMachineSignalFields,
+  internal.migrations.stripMachineAssignedTaskSnapshotOperationalFields,
   // Workspace File Tree
   internal.migrations.compactWorkspaceFileTreeDeltaOperations,
   // Git State
