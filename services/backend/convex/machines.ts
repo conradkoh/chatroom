@@ -16,6 +16,7 @@ import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleK
 import { str } from './utils/types';
 import { validateWorkingDir } from './workspacePathSecurity';
 import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
+import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
 import {
   agentStopReasonValidator,
   agentTypeValidator,
@@ -29,6 +30,12 @@ import {
   getChatroomAgentOverviewForRoom,
   listChatroomAgentOverview,
 } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
+import { projectAgentLifecycleFact as projectAgentLifecycleFactUseCase } from '../src/domain/usecase/agent/project-agent-lifecycle-fact';
+import {
+  projectDaemonConnectivityForMachine,
+  projectAgentOperationalStatusForRole,
+  rebuildAgentOperationalStatusForMachine,
+} from '../src/domain/usecase/agent/project-agent-operational-status';
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
 import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
@@ -46,13 +53,6 @@ import {
 } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
-import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
-import { projectAgentLifecycleFact as projectAgentLifecycleFactUseCase } from '../src/domain/usecase/agent/project-agent-lifecycle-fact';
-import {
-  projectDaemonConnectivityForMachine,
-  projectAgentOperationalStatusForRole,
-  rebuildAgentOperationalStatusForMachine,
-} from '../src/domain/usecase/agent/project-agent-operational-status';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -2533,6 +2533,30 @@ export const listMachineAssignedTaskSnapshots = query({
       machineId: args.machineId,
       userId: auth.userId,
     });
+  },
+});
+
+/** Reactive operational status rows for this machine. */
+export const subscribeMachineAgentOperationalStatus = query({
+  args: { ...SessionIdArg, machineId: v.string() },
+  handler: async (ctx, args) => {
+    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
+    if (!auth) return null;
+    const rows = await ctx.db
+      .query('chatroom_agentRoleOperationalStatus')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .collect();
+    if (rows.length === 0) return null;
+    return rows.map((row) => ({
+      chatroomId: row.chatroomId,
+      role: row.role,
+      operationalState: row.operationalState,
+      isAlive: row.isAlive,
+      isRunning: row.isRunning,
+      daemonConnected: row.daemonConnected,
+      projectedAt: row.projectedAt,
+      revisionKey: row.revisionKey,
+    }));
   },
 });
 
