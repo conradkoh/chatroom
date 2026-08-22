@@ -1,7 +1,7 @@
 /**
  * Phase 3 Convex Query Wrappers — Integration Tests
  *
- * Tests the three new Convex queries (`getAgentStatus`, `getAgentStartConfig`,
+ * Tests the three new Convex queries (`getAgentViewStatus`, `getAgentStartConfig`,
  * `listAgentOverview`) that wrap Phase 1 use cases. Validates session auth,
  * data shape, and basic correctness when called through the Convex API layer.
  */
@@ -77,17 +77,17 @@ describe('machines.getAgentOverviewForChatroom', () => {
 });
 
 // ============================================================================
-// getAgentStatus
+// getAgentViewStatus
 // ============================================================================
 
-describe('machines.getAgentStatus', () => {
+describe('machines.getAgentViewStatus', () => {
   test('returns agent status for valid session', async () => {
     const { sessionId } = await createTestSession('test-gas-q-valid-1');
     const machineId = 'machine-gas-q-valid-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    const result = await t.query(api.machines.getAgentStatus, {
+    const result = await t.query(api.machines.getAgentViewStatus, {
       sessionId: sessionId as any,
       chatroomId,
     });
@@ -106,7 +106,7 @@ describe('machines.getAgentStatus', () => {
     const { sessionId } = await createTestSession('test-gas-q-invalid-setup');
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
-    const result = await t.query(api.machines.getAgentStatus, {
+    const result = await t.query(api.machines.getAgentViewStatus, {
       sessionId: 'bogus-session-id' as any,
       chatroomId,
     });
@@ -129,7 +129,7 @@ describe('machines.getAgentStatus', () => {
       pid: 55555,
     });
 
-    const result = await t.query(api.machines.getAgentStatus, {
+    const result = await t.query(api.machines.getAgentViewStatus, {
       sessionId: sessionId as any,
       chatroomId,
     });
@@ -137,7 +137,7 @@ describe('machines.getAgentStatus', () => {
     const builder = result!.agents.find((a) => a.role === 'builder');
     expect(builder).toBeDefined();
     expect(builder!.state).toBe('running');
-    expect(builder!.spawnedAt).toBeDefined();
+    expect(builder!.isAlive).toBe(true);
   });
 });
 
