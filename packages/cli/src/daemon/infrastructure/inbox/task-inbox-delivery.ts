@@ -1,5 +1,7 @@
+import type { MachineTaskSnapshotState } from './task-snapshot-state.js';
 import type { TaskInboxUpdate } from './task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../../entry/daemon-services.js';
+import { getNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
 import type { NativeTaskDeliverySessionDeps } from '../../entry/native-delivery/native-task-delivery-coordinator.js';
 import {
   processTasksUpdate,
@@ -15,12 +17,15 @@ export type TaskInboxDeliveryDeps = {
   agentMgr: DaemonAgentProcessManagerServiceShape;
   sessionDeps: NativeTaskDeliverySessionDeps;
   machineId: string;
+  taskSnapshotState?: MachineTaskSnapshotState;
 };
 
 export async function handleTaskInboxUpdate(
   update: TaskInboxUpdate,
   deps: TaskInboxDeliveryDeps
 ): Promise<void> {
+  const taskSnapshotState = deps.taskSnapshotState ?? getNativeDeliverySession()?.taskSnapshotState;
+  taskSnapshotState?.applySignalPage(update.signals, update.snapshots);
   if (update.snapshots.length === 0) return;
   await processTasksUpdate(
     deps.runtime,
@@ -29,6 +34,7 @@ export async function handleTaskInboxUpdate(
     deps.agentMgr,
     deps.sessionDeps,
     deps.machineId,
-    'inbox-signal'
+    'inbox-signal',
+    { snapshots: update.snapshots }
   );
 }

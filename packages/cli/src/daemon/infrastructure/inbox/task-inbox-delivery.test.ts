@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { handleTaskInboxUpdate } from './task-inbox-delivery.js';
+import { MachineTaskSnapshotState } from './task-snapshot-state.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 import { processTasksUpdate } from '../../entry/native-delivery/task-delivery-processor.js';
 
@@ -28,14 +29,17 @@ describe('task inbox delivery', () => {
   });
 
   it('does nothing for an empty update', async () => {
-    await handleTaskInboxUpdate({ snapshots: [] } as never, {} as never);
+    await handleTaskInboxUpdate(
+      { signals: [], snapshots: [] } as never,
+      { taskSnapshotState: new MachineTaskSnapshotState() } as never
+    );
     expect(processTasksUpdate).not.toHaveBeenCalled();
   });
 
   it('processes non-empty snapshots as signal delivery', async () => {
     const row = makeRow();
     await handleTaskInboxUpdate(
-      { snapshots: [row] } as never,
+      { signals: [], snapshots: [row] } as never,
       {
         runtime: {},
         effectContext: {},
@@ -43,6 +47,7 @@ describe('task inbox delivery', () => {
         agentMgr: {},
         sessionDeps: {},
         machineId: 'machine-1',
+        taskSnapshotState: new MachineTaskSnapshotState(),
       } as never
     );
     expect(processTasksUpdate).toHaveBeenCalledWith(
@@ -52,7 +57,8 @@ describe('task inbox delivery', () => {
       expect.anything(),
       expect.anything(),
       'machine-1',
-      'inbox-signal'
+      'inbox-signal',
+      { snapshots: [row] }
     );
   });
 });

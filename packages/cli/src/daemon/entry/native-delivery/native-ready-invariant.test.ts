@@ -61,4 +61,21 @@ describe('native-ready-invariant', () => {
       )
     ).toBe('turn_not_idle (nativeTurnPhase=turn_in_flight)');
   });
+
+  it('allows a healthy local slot while the backend PID is still missing', () => {
+    expect(
+      explainAgentReadyForNativeDeliveryBlock(
+        task({
+          agentConfig: {
+            role: 'builder',
+            machineId: 'machine-1',
+            agentHarness: 'cursor-sdk',
+            workingDir: '/tmp',
+            desiredState: 'running',
+          },
+        }),
+        idleSlot({ pid: 123 })
+      )
+    ).toBeNull();
+  });
 });

@@ -60,7 +60,10 @@ function isSlotUnavailableForPid(
 function isNativeRevivableTaskStatus(task: AssignedTaskSnapshotView): boolean {
   const { status } = task;
   if (status === 'pending') {
-    return task.agentConfig.spawnedAgentPid != null;
+    // A user stop clears the persisted PID. Starting the team sets desired
+    // state back to running, so a pending task with no PID still needs local
+    // process recovery before native delivery can proceed.
+    return true;
   }
   if (status === 'acknowledged') {
     return task.assignedTo?.toLowerCase() === task.agentConfig.role.toLowerCase();
@@ -188,7 +191,6 @@ export class RecoveryCooldown {
     this.lastAttemptAt.set(`${kind}:${chatroomId}:${role}`, now);
   }
 }
-
 
 function isTaskReadyForNudge(
   task: AssignedTaskSnapshotView,
