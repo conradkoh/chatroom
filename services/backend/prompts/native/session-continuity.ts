@@ -28,9 +28,14 @@ export function getNativePlannerDelegationWaitNote(): string {
  * Tells the agent to end the current turn so the daemon can deliver the next task.
  */
 export function getNativeHandoffTurnEndGuidance(nextRole: string): string {
+  return getHandoffTurnEndGuidance(nextRole);
+}
+
+/** Shared successful-handoff instruction for native and standard CLI output. */
+export function getHandoffTurnEndGuidance(nextRole: string): string {
   const lines = [
     '',
-    '**Handoff must be your last action this turn.** After running handoff, **End your turn now** — stop tool calls. Your session stays active.',
+    '**Handoff complete. End your turn now — stop tool calls. The system will send you a message when further action is required.**',
   ];
 
   if (nextRole.toLowerCase() === 'user') {
@@ -48,7 +53,7 @@ export function getNativeHandoffTurnEndGuidance(nextRole: string): string {
 export function getNativeEnhancerRequestTurnEndGuidance(): string {
   return [
     '',
-    '**Handoff must be your last action this turn.** After running handoff, **End your turn now** — stop tool calls. Your session stays active.',
+    '**Handoff complete. End your turn now — stop tool calls. The system will send you a message when further action is required.**',
     'Do **not** wait for enhancer input, poll, or monitor the enhancer job in this turn. The system delivers independent planning input as your next task when analysis completes.',
   ].join('\n');
 }

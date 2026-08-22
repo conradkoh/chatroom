@@ -119,27 +119,31 @@ export const EventDetails = memo(function EventDetails({
   children,
 }: EventDetailsProps) {
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex flex-col h-full w-full min-w-0">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-tertiary flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-chatroom-text-primary">{title}</span>
-          <span className="text-[10px] text-chatroom-text-muted font-mono">
+      <div className="px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-tertiary flex-shrink-0 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="min-w-0 break-words [overflow-wrap:anywhere] text-sm font-bold text-chatroom-text-primary">
+            {title}
+          </span>
+          <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted font-mono">
             {formatTimestampFull(timestamp)}
           </span>
         </div>
-        <span className="text-[10px] text-chatroom-text-secondary font-mono">{type}</span>
+        <span className="min-w-0 break-all [overflow-wrap:anywhere] text-[10px] text-chatroom-text-secondary font-mono">
+          {type}
+        </span>
         {eventId && (
           <div className="mt-1">
-            <span className="text-[9px] text-chatroom-text-muted font-mono select-all">
+            <span className="min-w-0 break-all [overflow-wrap:anywhere] text-[9px] text-chatroom-text-muted font-mono select-all">
               ID: {eventId}
             </span>
           </div>
         )}
       </div>
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="py-2 w-full">{children}</div>
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="py-2 w-full min-w-0">{children}</div>
       </div>
     </div>
   );
@@ -159,12 +163,12 @@ export interface DetailRowProps {
  */
 export const DetailRow = memo(function DetailRow({ label, value, mono = false }: DetailRowProps) {
   return (
-    <div className="flex items-start gap-2 px-4 py-1.5 border-b border-chatroom-border last:border-b-0">
+    <div className="flex items-start gap-2 px-4 py-1.5 border-b border-chatroom-border last:border-b-0 min-w-0">
       <span className="text-[10px] font-medium text-chatroom-text-muted uppercase tracking-wide min-w-[80px] flex-shrink-0">
         {label}
       </span>
       <span
-        className={`text-[11px] text-chatroom-text-primary break-all ${mono ? 'font-mono text-[10px]' : ''}`}
+        className={`min-w-0 flex-1 text-[11px] text-chatroom-text-primary break-all [overflow-wrap:anywhere] ${mono ? 'font-mono text-[10px]' : ''}`}
       >
         {value}
       </span>
@@ -188,11 +192,13 @@ export const MarkdownDetailBlock = memo(function MarkdownDetailBlock({
   content,
 }: MarkdownDetailBlockProps) {
   return (
-    <div className="px-4 py-2 border-b border-chatroom-border last:border-b-0">
+    <div className="px-4 py-2 border-b border-chatroom-border last:border-b-0 min-w-0">
       <span className="text-[10px] font-medium text-chatroom-text-muted uppercase tracking-wide">
         {label}
       </span>
-      <div className={`mt-1 ${inlineEventProseClassNames}`}>
+      <div
+        className={`mt-1 min-w-0 break-words [overflow-wrap:anywhere] ${inlineEventProseClassNames}`}
+      >
         <ReactMarkdown remarkPlugins={chatroomRemarkPlugins} components={fullMarkdownComponents}>
           {content}
         </ReactMarkdown>

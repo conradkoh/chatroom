@@ -124,6 +124,8 @@ describe('handoff', () => {
       expect(output).toContain('Level B complete');
       expect(output).toContain('Level A continues');
       expect(output).toContain('get-next-task');
+      expect(output).toContain('Handoff complete. End your turn now — stop tool calls.');
+      expect(output).toContain('system will send you a message when further action is required');
     });
 
     it('omits get-next-task when mutation reports native integration', async () => {
@@ -140,6 +142,8 @@ describe('handoff', () => {
       expect(output).not.toContain('get-next-task');
       expect(output).not.toContain('Level A');
       expect(output).not.toContain('injected automatically');
+      expect(output).toContain('Handoff complete. End your turn now — stop tool calls.');
+      expect(output).toContain('system will send you a message when further action is required');
     });
   });
 

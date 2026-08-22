@@ -26,6 +26,7 @@ import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
 import {
   getNativeEnhancerRequestTurnEndGuidance,
+  getHandoffTurnEndGuidance,
   getNativeHandoffTurnEndGuidance,
 } from './native/session-continuity';
 import { composeNativeSystemPrompt } from './native/system-prompt';
@@ -230,8 +231,8 @@ function isEnhancerRequestQueuedHandoff(params: {
 
 function getEnhancerRequestQueuedConfirmationLines(nativeIntegration?: boolean): string[] {
   const turnEndRule = nativeIntegration
-    ? '**End your turn now** — do not wait for input, poll, monitor the enhancer, or re-submit the handoff. The system delivers independent planning input as your next task when analysis completes.'
-    : '**Run get-next-task now and end your turn** — do not wait for input, poll, monitor the enhancer, or re-submit the handoff.';
+    ? '**Handoff complete. End your turn now — stop tool calls. The system will send you a message when further action is required.** Do **not** wait for enhancer input, poll, monitor the enhancer, or re-submit the handoff. The system delivers independent planning input as your next task when analysis completes.'
+    : '**Run get-next-task now and end your turn — stop tool calls. The system will send you a message when further action is required.** Do **not** wait for enhancer input, poll, monitor the enhancer, or re-submit the handoff.';
 
   return [
     '✅ User request queued for handoff enhancer',
@@ -245,8 +246,8 @@ function getEnhancerRequestQueuedConfirmationLines(nativeIntegration?: boolean):
  * Generate the output shown after a successful handoff command.
  *
  * This is the prompt the agent sees after running `chatroom handoff`.
- * It confirms the handoff and reminds the agent to run `get-next-task`
- * to continue receiving messages.
+ * It confirms the handoff, preserves standard CLI continuation guidance, and
+ * ends with deterministic turn-ending guidance for both delivery modes.
  */
 export function generateHandoffOutput(params: {
   role: string;
@@ -292,6 +293,7 @@ export function generateHandoffOutput(params: {
     );
     lines.push('');
     lines.push(`\`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
+    lines.push(getHandoffTurnEndGuidance(nextRole));
   }
 
   return lines.join('\n');

@@ -139,7 +139,7 @@ describe('native session continuity', () => {
   }
 
   test('getNativeHandoffTurnEndGuidance for agent handoff', () => {
-    expect(getNativeHandoffTurnEndGuidance('builder')).toContain('last action');
+    expect(getNativeHandoffTurnEndGuidance('builder')).toContain('Handoff complete');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('End your turn now');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('builder');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('messages download');
