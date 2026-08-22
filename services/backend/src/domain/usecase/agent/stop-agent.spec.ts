@@ -262,4 +262,52 @@ describe('stopAgent use case — eager cleanup', () => {
     expect(participant?.lastStatus).toBe('agent.exited');
     expect(participant?.lastDesiredState).toBe('stopped');
   });
+
+  test('releases in_progress tasks to pending on user.stop', async () => {
+    const { sessionId, userId } = await createTestSession('stop-agent-release-1');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'stop-machine-release-1';
+
+    await registerMachine(sessionId, machineId);
+    await t.mutation(api.machines.saveTeamAgentConfig, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      type: 'remote',
+      machineId,
+      agentHarness: 'opencode',
+    });
+
+    const taskId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'in-progress builder task',
+        status: 'in_progress',
+        assignedTo: 'builder',
+        acknowledgedAt: now,
+        startedAt: now,
+        queuePosition: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    await t.run(async (ctx) => {
+      await stopAgent(ctx, {
+        machineId,
+        chatroomId,
+        role: 'builder',
+        userId,
+        reason: 'user.stop',
+      });
+    });
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task?.status).toBe('pending');
+    expect(task?.assignedTo).toBe('builder');
+    expect(task?.acknowledgedAt).toBeUndefined();
+    expect(task?.startedAt).toBeUndefined();
+  });
 });

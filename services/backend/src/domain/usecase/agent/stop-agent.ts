@@ -16,6 +16,7 @@ import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { onAgentExited } from '../../../events/agent/on-agent-exited';
 import type { AgentStopReason } from '../../entities/agent';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
@@ -101,6 +102,14 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
       { projectScope: 'chatroom' }
     );
   }
+
+  // Release in-flight tasks immediately so the UI can reclaim them without
+  // waiting for the daemon to confirm exit (lifecycle fact delivery).
+  await onAgentExited(ctx, {
+    chatroomId,
+    role,
+    stopReason: reason,
+  });
 
   return {};
 }
