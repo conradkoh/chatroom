@@ -45,4 +45,21 @@ describe('filterModelGroups', () => {
       GROUPS[1],
     ]);
   });
+
+  it('matches model variant tags across a multi-token query', () => {
+    const groups: ModelGroup[] = [
+      {
+        providerKey: 'openai',
+        providerLabel: 'OpenAI',
+        options: [
+          { value: 'openai/gpt-5.6-luna[thinking=low]', label: 'Gpt 5.6 Luna' },
+          { value: 'openai/gpt-5.6-luna[thinking=high]', label: 'Gpt 5.6 Luna' },
+        ],
+      },
+    ];
+
+    expect(filterModelGroups(groups, 'luna low')).toEqual([
+      { ...groups[0], options: [groups[0].options[0]] },
+    ]);
+  });
 });
