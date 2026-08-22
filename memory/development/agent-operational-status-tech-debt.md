@@ -18,7 +18,19 @@ Living checklist for projection reader cleanup. Update as items are resolved.
 - [ ] **[low] getTeamLifecycle fallback team role key** — Inline team role key string instead of `buildTeamRoleKey` helper (semantically equivalent).
 - [ ] **[low] Redundant projection calls on lifecycle paths** — Some lifecycle mutation paths trigger redundant projection rebuilds; consolidate when touching those files.
 
+## Next — daemon task-inbox decoupling (2026-08-22)
+
+Master #1479 added `MachineTaskSnapshotState.setDesiredState` as a workaround because agent config changes don't emit task signals. User direction: **do not denormalize agent desired state into task snapshots**; use operational projection as SSOT and wire reactive delivery transitions.
+
+See [agent operational status daemon integration plan](./agent-operational-status-daemon-integration.md) for research, edge case analysis, and phased plan (merge master → agent read model → decouple delivery → slim snapshots).
+
+- [ ] **[high] Merge master + reopen PR #1478 → `release/v1.98.8` (#1480)** — absorb #1479 inbox workaround; keep daemon operational backfill on bootstrap
+- [ ] **[high] Replace `setDesiredState` workaround** — daemon reads `chatroom_agentRoleOperationalStatus`; reactive reconcile on status transitions
+- [ ] **[medium] Pending-task-on-restart regression test** — task released to pending must deliver after agent restart without snapshot `desiredState` hack
+
 ## Related
 
 - [Agent operational status projection migration](../migrations/agent-operational-status-projection.md)
+- [Agent operational status daemon integration plan](./agent-operational-status-daemon-integration.md)
 - PR #1478 — projection implementation
+- PR #1479 — task inbox recoverable delivery (master workaround to replace)

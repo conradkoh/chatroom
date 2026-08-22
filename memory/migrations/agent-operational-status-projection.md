@@ -162,6 +162,8 @@ See also [agent operational status tech debt tracker](../development/agent-opera
 ## Open decisions and risks
 
 - Cold-start deploy chosen over CI backfill (2026-08-22).
+- Daemon-startup backfill wired in inbox bootstrap (`backfillAgentOperationalStatusForMachine`) — 2026-08-22.
+- **Pending:** Merge master (#1479 task-inbox workaround) and decouple daemon delivery from task-snapshot `desiredState`. See [daemon integration plan](../development/agent-operational-status-daemon-integration.md).
 
 - During the dual-write period, the projection must match old derivation before any reader flips.
 - `aliveRoles` and `runningRoles` have distinct semantics and must remain distinct.
