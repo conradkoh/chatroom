@@ -5,11 +5,10 @@ import { useMemo } from 'react';
 
 import { useDaemonConnectivity } from '../../../hooks/useDaemonConnectivity';
 import { useAgentConfigs } from './useAgentConfigs';
-import type { MachineInfo, AgentConfig, AgentHarness } from '../types/machine';
+import type { MachineInfo, AgentConfig } from '../types/machine';
 
 export interface AgentRoleView {
   role: string; state: 'running' | 'stopped' | 'starting' | 'circuit_open'; type: 'remote' | 'custom'; machineId?: string; machineName?: string;
-  agentHarness?: AgentHarness; model?: string; workingDir?: string; wantResume?: boolean;
 }
 
 export interface AgentPanelData {

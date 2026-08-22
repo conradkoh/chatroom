@@ -152,16 +152,17 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   const { workspaces: chatroomWorkspaces, isLoading: chatroomWorkspacesLoading } =
     useChatroomWorkspaces(chatroomId);
 
+  const roleConfig = agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase());
   const controls = useAgentControls({
     role,
     chatroomId,
     connectedMachines,
     agentConfigs,
     sendCommand,
-    teamConfigModel: agentRoleView?.model,
-    teamConfigHarness: agentRoleView?.agentHarness,
-    teamConfigMachineId: agentRoleView?.machineId,
-    teamWantResume: agentRoleView?.wantResume,
+    teamConfigModel: roleConfig?.model,
+    teamConfigHarness: roleConfig?.agentType,
+    teamConfigMachineId: roleConfig?.machineId ?? agentRoleView?.machineId,
+    teamWantResume: roleConfig?.wantResume,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
     latestEventType,
@@ -272,8 +273,8 @@ export const InlineAgentCard = memo(function InlineAgentCard({
             role={role}
             chatroomId={chatroomId}
             defaultModel={
-              agentRoleView?.agentHarness && agentRoleView?.model
-                ? `${agentRoleView.agentHarness}/${agentRoleView.model}`
+              roleConfig?.agentType && roleConfig?.model
+                ? `${roleConfig.agentType}/${roleConfig.model}`
                 : undefined
             }
           />

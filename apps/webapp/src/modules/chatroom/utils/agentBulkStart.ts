@@ -8,13 +8,8 @@ function resolveRequiredRestartFields(
   base: AgentConfig | undefined,
   agentView?: AgentRoleView
 ): { machineId: string; agentType: AgentConfig['agentType'] } | null {
-  const source = Object.assign({}, agentView, base) as {
-    machineId?: string;
-    agentType?: AgentConfig['agentType'];
-    agentHarness?: AgentRoleView['agentHarness'];
-  };
-  const machineId = source.machineId;
-  const agentType = source.agentType ?? source.agentHarness;
+  const machineId = agentView?.machineId ?? base?.machineId;
+  const agentType = base?.agentType ?? agentView?.type;
   return machineId && agentType
     ? { machineId, agentType: agentType as AgentConfig['agentType'] }
     : null;
@@ -24,18 +19,9 @@ function withRestartDefaults(
   role: string,
   required: { machineId: string; agentType: AgentConfig['agentType'] },
   base: AgentConfig | undefined,
-  agentView?: AgentRoleView
+  _agentView?: AgentRoleView
 ): AgentConfig {
-  const source = Object.assign(
-    {
-      hostname: '',
-      workingDir: '',
-      availableHarnesses: [],
-      updatedAt: 0,
-    },
-    agentView,
-    base
-  ) as Partial<AgentConfig>;
+  const source: Partial<AgentConfig> = base ?? { hostname: '', workingDir: '', availableHarnesses: [], updatedAt: 0 };
   return {
     machineId: required.machineId,
     hostname: source.hostname as string,

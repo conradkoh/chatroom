@@ -111,7 +111,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
       (role) => {
         const config = roleConfigs.get(role.toLowerCase());
         if (!config) return null;
-        const agentRoleView = agentRoleViewMap.get(role.toLowerCase());
+        const persistedConfig = agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase());
         return {
           machineId,
           chatroomId: chatroomIdTyped,
@@ -119,7 +119,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
           model: config.model,
           agentHarness: config.harness,
           workingDir,
-          wantResume: agentRoleView?.wantResume,
+          wantResume: persistedConfig?.wantResume,
         };
       },
       sendCommand
