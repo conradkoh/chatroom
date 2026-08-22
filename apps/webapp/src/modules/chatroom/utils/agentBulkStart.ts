@@ -1,5 +1,5 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
+import type { AgentRoleView } from '../hooks/useAgentPanelData';
 
 import { startAgentsBatch } from './agentStart';
 import type { AgentConfig, SendCommandFn } from '../types/machine';

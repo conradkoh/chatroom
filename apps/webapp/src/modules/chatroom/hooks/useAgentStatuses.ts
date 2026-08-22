@@ -1,8 +1,5 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useMemo } from 'react';
 
 import type { TeamLifecycle } from '../types/readiness';
@@ -51,16 +48,14 @@ export interface UseAgentStatusesResult {
  * Online status is derived from `isAlive` (spawnedAgentPid via getTeamLifecycle).
  * Rich status labels (WORKING, WAITING, etc.) still use participant.lastStatus event types.
  */
-export function useAgentStatuses(chatroomId: string, roles: string[]): UseAgentStatusesResult {
-  const lifecycle = useSessionQuery(api.participants.getTeamLifecycle, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as TeamLifecycle | null | undefined;
+export function useAgentStatuses(roles: string[], participants: TeamLifecycle['participants'] | undefined): UseAgentStatusesResult {
+  const lifecycle = participants === undefined ? undefined : ({ participants } as TeamLifecycle);
 
   const participantMap = useMemo(() => {
-    if (!lifecycle?.participants)
+    if (!participants)
       return new Map<string, NonNullable<typeof lifecycle>['participants'][number]>();
-    return new Map(lifecycle.participants.map((p) => [p.role.toLowerCase(), p]));
-  }, [lifecycle?.participants]);
+    return new Map(participants.map((p) => [p.role.toLowerCase(), p]));
+  }, [participants]);
 
   const agents = useMemo((): AgentStatus[] => {
     return roles.map((role) => {

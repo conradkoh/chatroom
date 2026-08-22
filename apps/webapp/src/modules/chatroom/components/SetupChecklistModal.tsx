@@ -75,7 +75,7 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
     isLoading,
     sendCommand,
     agents: agentRoleViews,
-  } = useAgentPanelData(chatroomId);
+  } = useAgentPanelData(chatroomId, { loadConfigs: true });
   const { workspaces: chatroomWorkspaces, isLoading: isLoadingWorkspaces } =
     useChatroomWorkspaces(chatroomId);
 
