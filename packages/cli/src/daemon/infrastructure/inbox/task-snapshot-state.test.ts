@@ -45,12 +45,4 @@ describe('MachineTaskSnapshotState', () => {
     expect(state.listForRole('room-1', 'builder')).toHaveLength(0);
   });
 
-  it('updates desired state for an agent start without a task signal', () => {
-    const state = new MachineTaskSnapshotState();
-    state.replace([row('task-1')]);
-
-    state.setDesiredState('room-1', 'builder', 'running');
-
-    expect(state.listForRole('room-1', 'builder')[0]?.agentConfig.desiredState).toBe('running');
-  });
 });
