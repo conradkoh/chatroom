@@ -33,7 +33,7 @@ function barClass(isActive: boolean, isEnhancing: boolean): string {
 }
 
 const UNSUPPORTED_TITLE =
-  'Enhancement supplements the planner workflow and requires a planner role (e.g. Duo team).';
+  'Enhancement provides request-first planning input for Solo and Duo teams.';
 
 export function PlannerEnhancerToggleButton({
   isActive,

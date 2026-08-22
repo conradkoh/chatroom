@@ -7,15 +7,15 @@ import { getSession, requireSession } from './auth/session';
 import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
 import {
-  clearChatroomUnread,
-  markChatroomUnread,
-} from '../src/domain/usecase/chatroom/unread-status';
-import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
-import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
 } from '../src/domain/usecase/chatroom/lifecycle-impacts';
-import { listChatroomIdsWithActiveEnhancerWork } from '../src/domain/usecase/enhancer/planner-enhancing-status';
+import {
+  clearChatroomUnread,
+  markChatroomUnread,
+} from '../src/domain/usecase/chatroom/unread-status';
+import { listChatroomIdsWithActiveEnhancerWork } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
+import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({

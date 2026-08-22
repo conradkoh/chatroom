@@ -10,13 +10,13 @@ function buildHandoffRuleLines(
   plannerEnhancerActive?: boolean
 ): string {
   const lines: string[] = [];
+  if (plannerEnhancerActive) {
+    lines.push(
+      '- **When enhancement is enabled** → On the initial user task, follow `<handoff-enhancer>` and forward the request before planning'
+    );
+  }
   if (config.hasBuilder) {
     lines.push('- **To delegate implementation** → Hand off to `builder` with clear requirements');
-    if (plannerEnhancerActive) {
-      lines.push(
-        '- **When enhancement is enabled** → See `<handoff-enhancer>` in task delivery before each builder delegation'
-      );
-    }
     lines.push(
       '- **For rework** → Hand off back to `builder` with specific feedback on what needs to change'
     );

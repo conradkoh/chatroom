@@ -42,8 +42,8 @@ export const QueuedMessagesIndicator = memo(function QueuedMessagesIndicator({
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
 
-  const { teamRoles, isLoading: teamRolesLoading } = useAgentPanelData(chatroomId);
-  const teamSupportsEnhancerFlag = !teamRolesLoading && teamSupportsEnhancer(teamRoles);
+  const { teamId, teamRoles, isLoading: teamRolesLoading } = useAgentPanelData(chatroomId);
+  const teamSupportsEnhancerFlag = !teamRolesLoading && teamSupportsEnhancer(teamId, teamRoles);
 
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isListModalOpen, setIsListModalOpen] = useState(false);

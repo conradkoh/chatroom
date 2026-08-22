@@ -79,7 +79,7 @@ flowchart TD
 - Send back with specific feedback if requirements aren't met.
 - ${feedingNote}.
 
-${plannerEnhancerActive ? `**When enhancement is enabled:** See \`<handoff-enhancer>\` in task delivery — one check-in per delegation before builder.` : ''}`;
+${plannerEnhancerActive ? `**When enhancement is enabled:** See \`<handoff-enhancer>\` in the initial user-task delivery — forward the request before planning. The enhancer runs once per originating user message.` : ''}`;
 }
 
 /**

@@ -13,9 +13,15 @@ const DUO_HANDOFF_PAIRS = [
   { fromRole: 'planner', toRole: 'builder' },
   { fromRole: 'planner', toRole: 'user' },
   { fromRole: 'builder', toRole: 'planner' },
+  { fromRole: 'planner', toRole: 'enhancer' },
+  { fromRole: 'enhancer', toRole: 'planner' },
 ] as const;
 
-const SOLO_HANDOFF_PAIRS = [{ fromRole: 'solo', toRole: 'user' }] as const;
+const SOLO_HANDOFF_PAIRS = [
+  { fromRole: 'solo', toRole: 'user' },
+  { fromRole: 'solo', toRole: 'enhancer' },
+  { fromRole: 'enhancer', toRole: 'solo' },
+] as const;
 
 function assertNoReservedDelimiterLines(label: string, content: string): void {
   const hits = findReservedDelimiterLines(content);

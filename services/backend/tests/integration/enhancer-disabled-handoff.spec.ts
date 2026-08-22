@@ -14,7 +14,7 @@ import {
   createPlannerBuilderDuoChatroom,
   registerMachineWithDaemon,
 } from '../helpers/integration';
-import { setupWorkspaceForSession } from './direct-harness/fixtures';
+import { setupPlannerWorkspaceForSession } from './direct-harness/fixtures';
 
 async function enableEnhancer(
   sessionId: SessionId,
@@ -54,7 +54,7 @@ async function setupPlannerEntryWorkspace(prefix: string) {
 
 describe('enhancer disabled handoff', () => {
   test('planner handoff to enhancer rejected when enhancer disabled', async () => {
-    const { sessionId, chatroomId } = await setupWorkspaceForSession('enh-off-reject');
+    const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('enh-off-reject');
     await joinParticipant(sessionId, chatroomId, 'planner');
     await joinParticipant(sessionId, chatroomId, 'builder');
 
@@ -92,7 +92,7 @@ describe('enhancer disabled handoff', () => {
 
   test('delivery omits enhancer and includes disabled guidance after disableConfig', async () => {
     const { sessionId, chatroomId, machineId } =
-      await setupWorkspaceForSession('enh-disabled-delivery');
+      await setupPlannerWorkspaceForSession('enh-disabled-delivery');
     await enableEnhancer(sessionId, chatroomId, machineId);
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -137,7 +137,7 @@ describe('enhancer disabled handoff', () => {
 
   test('role prompt omits enhancer workflow when config disabled', async () => {
     const { sessionId, chatroomId, machineId } =
-      await setupWorkspaceForSession('enh-disabled-roleprompt');
+      await setupPlannerWorkspaceForSession('enh-disabled-roleprompt');
     await enableEnhancer(sessionId, chatroomId, machineId);
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -219,7 +219,7 @@ describe('enhancer disabled handoff', () => {
   });
 
   test('planner handoff to builder succeeds when enhancer disabled', async () => {
-    const { sessionId, chatroomId } = await setupWorkspaceForSession('enh-off-handoff');
+    const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('enh-off-handoff');
     await joinParticipant(sessionId, chatroomId, 'planner');
     await joinParticipant(sessionId, chatroomId, 'builder');
 

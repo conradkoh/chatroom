@@ -7,7 +7,7 @@ import { enqueueHandoff } from './enqueueHandoff';
 import { computeEnhancerBackoffMs, emitEnhancerEvent } from './internal';
 import { assertEnhancerJobOwner } from './jobHelpers';
 import { buildPlanningReviewOutcomeContent } from '../../../src/domain/usecase/enhancer/build-planning-review-outcome';
-import { transitionPlannerFromEnhancingToWaiting } from '../../../src/domain/usecase/enhancer/planner-enhancing-status';
+import { transitionEnhancerEntryPointToWaiting } from '../../../src/domain/usecase/enhancer/enhancer-entry-point-status';
 import { mutation } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
 import { agentHarnessValidator } from '../../schema';
@@ -134,7 +134,7 @@ export const recordAttemptFailure = mutation({
         },
         now
       );
-      await transitionPlannerFromEnhancingToWaiting(ctx, args.chatroomId);
+      await transitionEnhancerEntryPointToWaiting(ctx, args.chatroomId, job.fromRole);
       return { terminal: true, status: 'failed' as const };
     }
 

@@ -1,8 +1,8 @@
-function rolesInclude(teamRoles: readonly string[], role: string): boolean {
-  const needle = role.toLowerCase();
-  return teamRoles.some((r) => r.toLowerCase() === needle);
-}
+import { teamSupportsEnhancer as supportsEnhancer } from '@workspace/shared/domain/enhancer-team-capability';
 
-export function teamSupportsEnhancer(teamRoles: readonly string[]): boolean {
-  return rolesInclude(teamRoles, 'planner');
+export function teamSupportsEnhancer(
+  teamId: string | null | undefined,
+  teamRoles: readonly string[]
+): boolean {
+  return supportsEnhancer({ teamId, teamRoles });
 }

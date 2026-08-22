@@ -5,6 +5,27 @@ import type { QueryCtx } from '../../_generated/server';
 
 const ACTIVE_STATUSES = new Set(['pending', 'running']);
 
+async function listActiveEnhancerJobs(
+  ctx: QueryCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<Doc<'chatroom_enhancerJobs'>[]> {
+  const [pending, running] = await Promise.all([
+    ctx.db
+      .query('chatroom_enhancerJobs')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', chatroomId).eq('status', 'pending')
+      )
+      .collect(),
+    ctx.db
+      .query('chatroom_enhancerJobs')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', chatroomId).eq('status', 'running')
+      )
+      .collect(),
+  ]);
+  return [...pending, ...running].sort((a, b) => b.createdAt - a.createdAt);
+}
+
 export function assertEnhancerJobOwner(
   job: Doc<'chatroom_enhancerJobs'>,
   userId: Id<'users'>
@@ -23,26 +44,21 @@ export async function findActiveEnhancerJob(
   fromRole: string,
   toRole: string
 ): Promise<Doc<'chatroom_enhancerJobs'> | null> {
-  const [pending, running] = await Promise.all([
-    ctx.db
-      .query('chatroom_enhancerJobs')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', chatroomId).eq('status', 'pending')
-      )
-      .collect(),
-    ctx.db
-      .query('chatroom_enhancerJobs')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', chatroomId).eq('status', 'running')
-      )
-      .collect(),
-  ]);
-
-  const active = [...pending, ...running]
-    .filter((job) => job.fromRole === fromRole && job.toRole === toRole)
-    .sort((a, b) => b.createdAt - a.createdAt);
+  const active = (await listActiveEnhancerJobs(ctx, chatroomId)).filter(
+    (job) => job.fromRole === fromRole && job.toRole === toRole
+  );
 
   return active[0] ?? null;
+}
+
+/** Returns the newest active transient enhancer job, regardless of entry-point role. */
+export async function findActiveEnhancerJobForChatroom(
+  ctx: QueryCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<Doc<'chatroom_enhancerJobs'> | null> {
+  return (
+    (await listActiveEnhancerJobs(ctx, chatroomId)).find((job) => job.toRole === 'enhancer') ?? null
+  );
 }
 
 export function isActiveEnhancerStatus(status: string): boolean {
