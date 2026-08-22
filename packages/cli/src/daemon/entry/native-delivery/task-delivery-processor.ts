@@ -60,7 +60,7 @@ export type ProcessTasksUpdateOptions = {
   snapshots: readonly AssignedTaskSnapshotView[];
 };
 
-type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap';
+type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status';
 
 function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
@@ -219,7 +219,7 @@ function runNativeWakeEffect(
   if (!ctx) return;
   const { chatroomId, agentConfig, role, workingDir, wantResume } = ctx;
   console.log(
-    `[TaskMonitor] native wake ${role}@${chatroomId} — desiredState=stopped with pending task ${task.taskId}`
+    `[TaskMonitor] native wake ${role}@${chatroomId} — operational_state=stopped with pending task ${task.taskId}`
   );
   Runtime.runFork(runtime)(
     Effect.gen(function* () {

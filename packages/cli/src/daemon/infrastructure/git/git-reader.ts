@@ -6,7 +6,8 @@
  * captured and returned as `{ status: 'error' }` or `{ status: 'not_found' }`.
  */
 
-import { runGh, runGit } from './run-command.js';
+import { runGh, runGit as runGitCommand } from './run-command.js';
+import type { CommandResult } from './run-command.js';
 import type {
   DiffStat,
   GitBranchResult,
@@ -17,6 +18,14 @@ import type {
   GitPullRequest,
 } from './types.js';
 import { FULL_DIFF_MAX_BYTES } from './types.js';
+
+function runGit(
+  args: string[],
+  cwd: string,
+  options?: { timeout?: number; maxBuffer?: number; successExitCodes?: number[] }
+): Promise<CommandResult> {
+  return runGitCommand(cwd ? args : args, cwd, { ...options, readOnly: true });
+}
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
 

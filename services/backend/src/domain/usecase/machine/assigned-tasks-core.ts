@@ -57,9 +57,6 @@ export function toAgentConfigView(
     agentHarness: config.agentHarness ?? 'opencode',
     model: config.model,
     workingDir: config.workingDir,
-    spawnedAgentPid: config.spawnedAgentPid,
-    desiredState: config.desiredState,
-    circuitState: config.circuitState,
   };
 }
 

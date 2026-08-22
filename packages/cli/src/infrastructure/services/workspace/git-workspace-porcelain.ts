@@ -302,6 +302,7 @@ export function porcelainUntrackedDeletedEvents(args: {
 export async function readGitHead(workTree: string): Promise<GitHeadState> {
   const result = await runGit(['rev-parse', 'HEAD'], workTree, {
     timeout: GIT_POLL_TIMEOUT_MS,
+    readOnly: true,
   });
   if ('error' in result) {
     if (isEmptyRepoHeadError(result.error)) return { head: null };
@@ -324,7 +325,10 @@ export function headChanged(prev: GitHeadState, next: GitHeadState): boolean {
 export async function readGitPorcelainStatus(node: GitRepoNode): Promise<GitPorcelainEntry[]> {
   const args = ['status', '--porcelain=v1', '-z', '-uall', '--'];
   if (node.pathspec.length > 0) args.push(...node.pathspec);
-  const result = await runGit(args, node.workTree, { timeout: GIT_POLL_TIMEOUT_MS });
+  const result = await runGit(args, node.workTree, {
+    timeout: GIT_POLL_TIMEOUT_MS,
+    readOnly: true,
+  });
   if ('error' in result) {
     throw new GitWorkspaceCommandError({
       operation: 'readGitPorcelainStatus',

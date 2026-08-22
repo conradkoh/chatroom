@@ -443,21 +443,17 @@ describe('getRecentCommits', () => {
   test('defaults to 20 commits', async () => {
     mockSuccess('');
     await getRecentCommits('/repo');
-    expect(mockRunGit).toHaveBeenCalledWith(
-      expect.arrayContaining(['log', '-20']),
-      '/repo',
-      undefined
-    );
+    expect(mockRunGit).toHaveBeenCalledWith(expect.arrayContaining(['log', '-20']), '/repo', {
+      readOnly: true,
+    });
   });
 
   test('passes custom count to git log', async () => {
     mockSuccess('');
     await getRecentCommits('/repo', 5);
-    expect(mockRunGit).toHaveBeenCalledWith(
-      expect.arrayContaining(['log', '-5']),
-      '/repo',
-      undefined
-    );
+    expect(mockRunGit).toHaveBeenCalledWith(expect.arrayContaining(['log', '-5']), '/repo', {
+      readOnly: true,
+    });
   });
 });
 

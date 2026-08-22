@@ -23,23 +23,38 @@ import {
 import type { AssignedTaskSignal } from '@workspace/backend/src/domain/usecase/machine/assigned-tasks-types.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { Context, Effect, Runtime } from 'effect';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi, beforeEach } from 'vitest';
 
 import { logNativeDeliveryFallback } from './native-delivery-log.js';
 import {
-  registerNativeDeliverySession,
   unregisterNativeDeliverySession,
+  registerNativeDeliverySession,
 } from './native-delivery-session-registry.js';
 import {
   NativeTaskDeliveryCoordinator,
   notifyNativeTurnIdle,
 } from './native-task-delivery-coordinator.js';
-import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 import { listTasksReadyForNudge, RecoveryCooldown } from '../task-delivery/task-delivery-logic.js';
 import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
+import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
+import {
+  operationalRow,
+  registerTestNativeDeliverySession,
+} from '../../infrastructure/agent-operational/test-support.js';
 
 const CHATROOM_ID = 'n57ctdnfvd0avh0ghx6p4szk8x8aa69a' as Id<'chatroom_rooms'>;
+beforeEach(() =>
+  registerTestNativeDeliverySession({
+    runtime: undefined as never,
+    effectContext: undefined as never,
+    agentMgr: {} as never,
+    sessionDeps: {} as never,
+    machineId: 'machine-1',
+    operationalRows: [operationalRow(String(CHATROOM_ID), 'planner')],
+  })
+);
+afterEach(() => unregisterNativeDeliverySession());
 const TASK_ID = 'nh7dh7bj63fdns9zkyasjgnga58afx3s' as Id<'chatroom_tasks'>;
 const MACHINE_ID = 'machine-planner-handoff-stuck';
 const SESSION_ID = 'session-planner-handoff-stuck';
@@ -63,8 +78,6 @@ function makePostHandoffPendingSnapshotDoc(
     taskUpdatedAt: now,
     agentHarness: 'cursor-sdk',
     workingDir: '/test/workspace',
-    spawnedAgentPid: SPAWNED_PID,
-    desiredState: 'running',
     configUpdatedAt: now,
     presenceUpdatedAt: now,
     presenceKey: 'presence-post-handoff',

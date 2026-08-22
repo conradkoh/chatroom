@@ -23,8 +23,6 @@ export function createStartAgentDeps(
   return {
     agentProcessManager: {
       ensureRunning: async (args) => {
-        const taskSnapshotState = getNativeDeliverySession()?.taskSnapshotState;
-        taskSnapshotState?.setDesiredState(args.chatroomId, args.role, 'running');
         const result = await Effect.runPromise(
           agentMgr.ensureRunning({
             chatroomId: args.chatroomId as Id<'chatroom_rooms'>,
@@ -37,7 +35,6 @@ export function createStartAgentDeps(
           })
         );
         if (!result.success) {
-          taskSnapshotState?.setDesiredState(args.chatroomId, args.role, 'stopped');
         }
         return result;
       },

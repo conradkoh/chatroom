@@ -45,6 +45,7 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
       agentMgr: {} as never,
       machineId: 'machine-1',
     });
+    expect(mutation).toHaveBeenCalledTimes(2);
     expect(processTasksUpdate).toHaveBeenCalledOnce();
     expect(processTasksUpdate.mock.calls[0]?.[6]).toBe('bootstrap');
   });
@@ -60,7 +61,7 @@ describe('bootstrapMachineAssignedTaskSnapshots', () => {
       agentMgr: undefined as never,
       machineId: 'machine-1',
     });
-    expect(mutation).toHaveBeenCalledOnce();
+    expect(mutation).toHaveBeenCalledTimes(2);
     expect(query).toHaveBeenCalledOnce();
   });
 });

@@ -1,4 +1,3 @@
-import { isAgentDesiredRunning } from '../../../daemon/domain/entities/assigned-task.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import {
   isSlotIdle,
@@ -9,8 +8,10 @@ import {
   isCliIdleNotListening,
   isStaleCliGetNextTaskWaiting,
 } from '../../domain/native-integration/predicates.js';
+import { isOperationalDesiredRunning } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import { STOPPING_TIMEOUT_MS } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
+import { getNativeDeliverySession } from '../native-delivery/native-delivery-session-registry.js';
 import { isAgentReadyForNativeDelivery } from '../native-delivery/native-ready-invariant.js';
 import { isNativeHarness } from '../native-delivery/native-task-injector-logic.js';
 
@@ -19,10 +20,11 @@ const NUDGE_COOLDOWN_MS = 60_000;
 
 function isPendingAliveRunningTask(task: AssignedTaskSnapshotView): boolean {
   const { agentConfig, status } = task;
+  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(task.chatroomId, agentConfig.role);
   return (
     status === 'pending' &&
-    agentConfig.spawnedAgentPid != null &&
-    isAgentDesiredRunning(agentConfig.desiredState)
+    (agentConfig.spawnedAgentPid != null || op?.isAlive === true) &&
+    isOperationalDesiredRunning(op)
   );
 }
 
@@ -95,7 +97,8 @@ function isNativeActiveTaskAgentDown(
   now: number
 ): boolean {
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
-  if (!isAgentDesiredRunning(task.agentConfig.desiredState)) return false;
+  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(task.chatroomId, task.agentConfig.role);
+  if (!isOperationalDesiredRunning(op)) return false;
   if (!isNativeRevivableTaskStatus(task)) return false;
   return isNativeAgentSlotDown(task, health, now);
 }
@@ -120,7 +123,8 @@ export function listNativeTasksNeedingRevive(
 function isNativePendingTaskNeedingWake(task: AssignedTaskSnapshotView): boolean {
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
   if (task.status !== 'pending') return false;
-  if (isAgentDesiredRunning(task.agentConfig.desiredState)) return false;
+  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(task.chatroomId, task.agentConfig.role);
+  if (isOperationalDesiredRunning(op)) return false;
   return Boolean(task.agentConfig.workingDir);
 }
 

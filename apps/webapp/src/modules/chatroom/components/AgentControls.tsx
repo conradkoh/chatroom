@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
+import type { AgentRoleView } from '../hooks/useAgentPanelData';
 import {
   Play,
   Square,
@@ -338,19 +338,21 @@ export function useAgentControls({
     latestEventType === 'agent.restartCompleted';
   const displayAgentConfig = useMemo(() => {
     if (runningAgentConfig) return runningAgentConfig;
-    if (!isRestartInProgress || !agentRoleView?.machineId || !agentRoleView.agentHarness) {
+    if (!isRestartInProgress || !agentRoleView?.machineId) {
       return undefined;
     }
+    const fallback = roleConfigs[0];
+    if (!fallback) return undefined;
     return {
       machineId: agentRoleView.machineId,
       hostname: '',
       role,
-      agentType: agentRoleView.agentHarness as AgentConfig['agentType'],
-      workingDir: agentRoleView.workingDir ?? '',
-      model: agentRoleView.model,
+      agentType: fallback.agentType,
+      workingDir: fallback.workingDir,
+      model: fallback.model,
       availableHarnesses: [],
       updatedAt: 0,
-      wantResume: agentRoleView.wantResume,
+      wantResume: fallback.wantResume,
     } satisfies AgentConfig;
   }, [runningAgentConfig, isRestartInProgress, agentRoleView, role]);
 

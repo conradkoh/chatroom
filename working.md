@@ -21,12 +21,12 @@ The agent configuration system has grown organically across three tables (`chatr
 
 **Status**: Merged into PR #55
 
-### 1a. `getAgentStatusForChatroom` use case
+### 1a. `getAgentViewStatus` use case
 
-- **File**: `services/backend/src/domain/usecase/agent/get-agent-status-for-chatroom.ts`
+- **File**: `services/backend/src/domain/usecase/chatroom/get-agent-view-status.ts`
 - **Purpose**: Role-centric agent status view merging team + machine configs
 - **Returns**: `ChatroomAgentStatus` with `AgentRoleView[]` and `WorkspaceView[]` — no raw table records
-- **Tests**: 8 tests in `tests/integration/get-agent-status-for-chatroom.spec.ts`
+- **Tests**: 12 tests in `tests/integration/get-agent-view-status.spec.ts`
 
 ### 1b. `getAgentConfigForStart` use case
 
@@ -152,15 +152,13 @@ agent.requestStart events:
 
 | New Query                      | Use Case                    | Replaces                                      |
 | ------------------------------ | --------------------------- | --------------------------------------------- |
-| `machines.getAgentStatus`      | `getAgentStatusForChatroom` | `machines.getAgentPanel` (status portion)     |
+| `machines.getAgentViewStatus`  | `getAgentViewStatus`        | `machines.getAgentPanel` (status portion)     |
 | `machines.getAgentStartConfig` | `getAgentConfigForStart`    | `machines.getAgentPanel` (start form portion) |
 | `machines.listAgentOverview`   | `listChatroomAgentOverview` | `machines.listRemoteAgentRunningStatus`       |
 
 ### Deprecation strategy
 
-- Add new queries alongside existing ones
-- Mark old queries with `@deprecated` JSDoc
-- Both old and new queries coexist during Phase 4 frontend migration
+- `machines.getAgentViewStatus` is the canonical status reader after the completed migration.
 
 ---
 
@@ -173,12 +171,12 @@ agent.requestStart events:
 
 | Frontend File                                     | Current Backend API                         | New Backend API                       |
 | ------------------------------------------------- | ------------------------------------------- | ------------------------------------- |
-| `hooks/useAgentPanelData.ts`                      | `api.machines.getAgentPanel`                | `api.machines.getAgentStatus`         |
+| `hooks/useAgentPanelData.ts`                      | `api.machines.getAgentPanel`                | `api.machines.getAgentViewStatus`    |
 | `context/ChatroomListingContext.tsx`              | `api.machines.listRemoteAgentRunningStatus` | `api.machines.listAgentOverview`      |
 | `components/AgentStartModal.tsx`                  | `useAgentPanelData` (machineConfigs)        | `api.machines.getAgentStartConfig`    |
-| `components/AgentPanel/UnifiedAgentListModal.tsx` | `useAgentPanelData`                         | `api.machines.getAgentStatus`         |
-| `hooks/useWorkspaces.ts`                          | `TeamAgentConfig` from `useAgentPanelData`  | `WorkspaceView` from `getAgentStatus` |
-| `components/AgentPanel/InlineAgentCard.tsx`       | `TeamAgentConfig`                           | `AgentRoleView` from `getAgentStatus` |
+| `components/AgentPanel/UnifiedAgentListModal.tsx` | `useAgentPanelData`                         | `api.machines.getAgentViewStatus`    |
+| `hooks/useWorkspaces.ts`                          | `TeamAgentConfig` from `useAgentPanelData`  | `WorkspaceView` from `getAgentViewStatus` |
+| `components/AgentPanel/InlineAgentCard.tsx`       | `TeamAgentConfig`                           | `AgentRoleView` from `getAgentViewStatus` |
 
 ### Components that stay unchanged (no use case yet)
 
@@ -203,7 +201,7 @@ agent.requestStart events:
 
 ### Removals
 
-- `machines.getAgentPanel` query (replaced by `getAgentStatus` + `getAgentStartConfig`)
+- `machines.getAgentPanel` query (replaced by `getAgentViewStatus` + `getAgentStartConfig`)
 - `machines.listRemoteAgentRunningStatus` query (replaced by `listAgentOverview`)
 - Raw config type exports that are no longer consumed by frontend
 - Old hook implementations if fully replaced

@@ -28,21 +28,12 @@ export class GitStatePipeline {
 
     if (this.fields.length === 0) return results;
 
-    const entries = await Promise.all(
-      this.fields
-        .filter((f) => !results.has(f.key))
-        .map(async (field) => {
-          try {
-            const raw = await field.collect(workingDir);
-            return { key: field.key, raw } as const;
-          } catch {
-            return { key: field.key, raw: field.defaultValue } as const;
-          }
-        })
-    );
-
-    for (const { key, raw } of entries) {
-      results.set(key, raw);
+    for (const field of this.fields.filter((f) => !results.has(f.key))) {
+      try {
+        results.set(field.key, await field.collect(workingDir));
+      } catch {
+        results.set(field.key, field.defaultValue);
+      }
     }
 
     return results;

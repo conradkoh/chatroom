@@ -6,6 +6,17 @@ const DEFAULT_GIT_ENV = {
   GIT_PAGER: 'cat',
   NO_COLOR: '1',
 };
+const gitQueues = new Map<string, Promise<unknown>>();
+
+function enqueueGit<T>(cwd: string, task: () => Promise<T>): Promise<T> {
+  const tail = gitQueues.get(cwd) ?? Promise.resolve();
+  const run = tail.then(task, task);
+  gitQueues.set(
+    cwd,
+    run.catch(() => undefined)
+  );
+  return run;
+}
 
 export type CommandResult =
   { stdout: string; stderr: string } | { error: Error & { code?: number } };
@@ -72,9 +83,21 @@ function runCommandSpawn(
 export function runGit(
   args: string[],
   cwd: string,
-  options?: { timeout?: number; maxBuffer?: number; successExitCodes?: number[] }
+  options?: {
+    timeout?: number;
+    maxBuffer?: number;
+    successExitCodes?: number[];
+    readOnly?: boolean;
+  }
 ): Promise<CommandResult> {
-  return runCommandSpawn('git', args, cwd, options);
+  return enqueueGit(cwd, () =>
+    runCommandSpawn(
+      'git',
+      options?.readOnly ? ['--no-optional-locks', ...args] : args,
+      cwd,
+      options
+    )
+  );
 }
 
 export function runGh(

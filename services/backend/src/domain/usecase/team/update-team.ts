@@ -19,6 +19,7 @@ import {
   projectAssignedTaskSnapshotsForMachines,
 } from '../machine/patch-team-agent-config';
 import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
+import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -152,6 +153,7 @@ export async function updateTeam(
   }
 
   await projectAssignedTaskSnapshotsForMachines(ctx, affectedMachineIds);
+  await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, { pruneStale: true });
 
   const startedAgentCount = await startTargetTeamAgentsOnSwitch(ctx, {
     chatroomId,

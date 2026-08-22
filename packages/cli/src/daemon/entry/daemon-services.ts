@@ -25,6 +25,29 @@ import type {
   StopOpts,
 } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
+import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
+import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
+import type {
+  AgentLifecycleOutboxRegistry,
+  AgentLifecycleOutboxResult,
+} from '../infrastructure/outbox/agent-lifecycle-outbox.js';
+
+export interface AgentLifecycleOutboxServiceShape {
+  enqueue: (fact: AgentLifecycleFact) => Effect.Effect<AgentLifecycleOutboxResult>;
+  stopAll: () => Effect.Effect<void>;
+}
+export class AgentLifecycleOutboxService extends Context.Tag('AgentLifecycleOutboxService')<
+  AgentLifecycleOutboxService,
+  AgentLifecycleOutboxServiceShape
+>() {}
+export const AgentLifecycleOutboxServiceLive = (
+  registry: AgentLifecycleOutboxRegistry,
+  machineId: string
+): Layer.Layer<AgentLifecycleOutboxService> =>
+  Layer.succeed(AgentLifecycleOutboxService, {
+    enqueue: (fact) => Effect.promise(() => enqueueAgentLifecycleFact(registry, machineId, fact)),
+    stopAll: () => Effect.promise(() => registry.stopAll()),
+  });
 
 // ─── DaemonMachineService ───────────────────────────────────────────────────
 

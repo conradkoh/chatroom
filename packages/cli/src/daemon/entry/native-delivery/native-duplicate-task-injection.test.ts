@@ -8,18 +8,34 @@
 
 import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 import { Context, Effect, Runtime } from 'effect';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi, beforeEach } from 'vitest';
 
 import {
   getNativeDeliveryLedger,
   resetNativeDeliveryLedgerForTests,
 } from './native-delivery-ledger.js';
+import { unregisterNativeDeliverySession } from './native-delivery-session-registry.js';
 import { NativeTaskDeliveryCoordinator } from './native-task-delivery-coordinator.js';
 import { explainLedgerDeliveryBlock } from './native-task-injector-logic.js';
+import {
+  operationalRow,
+  registerTestNativeDeliverySession,
+} from '../../infrastructure/agent-operational/test-support.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
 
 const HARNESS_SESSION_ID = 'harness-dedupe-session';
 const TASK_ID = 'task_dup_1';
+beforeEach(() =>
+  registerTestNativeDeliverySession({
+    runtime: undefined as never,
+    effectContext: undefined as never,
+    agentMgr: {} as never,
+    sessionDeps: {} as never,
+    machineId: 'machine_1',
+    operationalRows: [operationalRow(CHATROOM_ID, ROLE)],
+  })
+);
+afterEach(() => unregisterNativeDeliverySession());
 const CHATROOM_ID = 'room_dup';
 const ROLE = 'planner';
 
@@ -155,7 +171,9 @@ describe('native duplicate task injection', () => {
       effectContext: Context.empty() as never,
       agentMgr,
       sessionDeps: {
-        sessionId: 'session_dup', machineId: 'machine_dup', convexUrl: 'http://test:3210',
+        sessionId: 'session_dup',
+        machineId: 'machine_dup',
+        convexUrl: 'http://test:3210',
         logEvent: async () => undefined,
         backend: { mutation: vi.fn().mockResolvedValue(undefined), query: backendQuery },
       },
@@ -163,15 +181,17 @@ describe('native duplicate task injection', () => {
     };
     coordinator.reconcileAssignedTasks(params);
     await vi.waitFor(() => expect(slot.lastInFlightTaskId).toBe(TASK_ID));
-    coordinator.onSessionLost({ chatroomId: CHATROOM_ID, role: ROLE, harnessSessionId: HARNESS_SESSION_ID });
+    coordinator.onSessionLost({
+      chatroomId: CHATROOM_ID,
+      role: ROLE,
+      harnessSessionId: HARNESS_SESSION_ID,
+    });
     slot.harnessSessionId = 'harness-new';
     resumeTurnForSlot.mockClear();
     logSpy.mockClear();
     coordinator.reconcileAssignedTasks(params);
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(resumeTurnForSlot).not.toHaveBeenCalled();
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining('already_delivered_to_slot')
-    );
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('already_delivered_to_slot'));
   });
 });

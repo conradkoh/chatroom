@@ -16,7 +16,7 @@ import type {
 } from './workspace-change-source.js';
 import type { WorkspaceFsEvent } from './workspace-fs-watcher.js';
 
-const DEFAULT_POLL_INTERVAL_MS = 1000;
+const DEFAULT_POLL_INTERVAL_MS = 3000;
 const MAX_BACKOFF_MS = 30_000;
 const PERSISTENT_FAILURE_THRESHOLD = 3;
 
@@ -160,8 +160,8 @@ export function createGitWorkspaceChangeSource(
     let tickHadFailure = false;
     let maxNodeFailures = 0;
 
-    const results = await Promise.allSettled(
-      nodes.map(async (node) => {
+    for (const node of nodes) {
+      try {
         const prev = state.get(node.workTree) ?? {
           prevEntries: [],
           prevHead: { head: null },
@@ -176,21 +176,14 @@ export function createGitWorkspaceChangeSource(
         if (result.needsReconcile) needsReconcile = true;
         state.set(node.workTree, result.nextState);
         nodeFailureCounts.set(node.workTree, 0);
-        return node;
-      })
-    );
-
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i];
-      const node = nodes[i];
-      if (!node || result.status === 'fulfilled') continue;
-
-      tickHadFailure = true;
-      options.onError?.(result.reason);
-      const prevFailures = nodeFailureCounts.get(node.workTree) ?? 0;
-      const nextFailures = prevFailures + 1;
-      nodeFailureCounts.set(node.workTree, nextFailures);
-      maxNodeFailures = Math.max(maxNodeFailures, nextFailures);
+      } catch (reason) {
+        tickHadFailure = true;
+        options.onError?.(reason);
+        const prevFailures = nodeFailureCounts.get(node.workTree) ?? 0;
+        const nextFailures = prevFailures + 1;
+        nodeFailureCounts.set(node.workTree, nextFailures);
+        maxNodeFailures = Math.max(maxNodeFailures, nextFailures);
+      }
     }
 
     if (tickHadFailure) {

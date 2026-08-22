@@ -84,7 +84,6 @@ import { useHandoffGitRefresh } from './hooks/useHandoffGitRefresh';
 import { StartInNewSessionPreferenceProvider } from './hooks/useStartInNewSessionPreference';
 import { useTwoTapConfirm } from './hooks/useTwoTapConfirm';
 import type { AgentConfig } from './types/machine';
-import type { TeamLifecycle } from './types/readiness';
 import type { SavedCommand, SavedCommandScope } from './types/savedCommand';
 import {
   ensureAgentRolesConfigured,
@@ -1101,12 +1100,9 @@ export function ChatroomDashboard({
     };
   }, [chatroom, chatroomId, markAsRead]);
 
-  const lifecycle = useSessionQuery(api.participants.getTeamLifecycle, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as TeamLifecycle | null | undefined;
-
   // Agent panel data (for Start All Remote Agents command)
-  const agentPanelData = useAgentPanelData(chatroomId);
+  const agentPanelData = useAgentPanelData(chatroomId, { loadConfigs: true });
+  const lifecycle = agentPanelData.lifecycle;
 
   // Per-role "last used" config derived from the persisted teamAgentConfigs
   // (the single source of truth, replacing the removed agentPreference store).

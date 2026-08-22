@@ -29,6 +29,12 @@ export function createMockDaemonSessionInit(
     machine: deps.machine,
     spawning: deps.spawning,
     agentProcessManager: deps.agentProcessManager,
+    agentLifecycleOutbox: {
+      enqueue: async () => ({ success: true }),
+      get: () => ({ enqueue: async () => ({ success: true }), flushNow: async () => undefined }),
+      stop: async () => undefined,
+      stopAll: async () => undefined,
+    } as never,
     events: new DaemonEventBus(),
     agentServices: new Map(),
     lastPushedGitState: new Map(),

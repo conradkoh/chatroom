@@ -47,7 +47,7 @@ export function LogsPage() {
             isLoading={isLoading}
             error={error}
             hasChatroom={Boolean(filters.chatroomId)}
-            autoScroll={!selectedLine}
+            resetKey={filters.chatroomId ?? filters.timeRange}
             selectedLine={selectedLine}
             onSelectLine={setSelectedLine}
             getChatroomName={getChatroomName}

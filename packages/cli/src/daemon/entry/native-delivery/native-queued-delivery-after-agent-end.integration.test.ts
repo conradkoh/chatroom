@@ -52,8 +52,6 @@ function makePostAgentEndSnapshotDoc(
     taskUpdatedAt: now,
     agentHarness: 'cursor-sdk',
     workingDir: '/test/workspace',
-    spawnedAgentPid: 42_424,
-    desiredState: 'running' as const,
     configUpdatedAt: now,
     presenceUpdatedAt: now,
     presenceKey: 'presence-key',
@@ -181,8 +179,6 @@ describe('native queued delivery after agent_end', () => {
         machineId: MACHINE_ID,
         agentHarness: 'cursor-sdk',
         workingDir: '/test/workspace',
-        spawnedAgentPid: 42_424,
-        desiredState: 'running' as const,
       },
       participant: {
         lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
