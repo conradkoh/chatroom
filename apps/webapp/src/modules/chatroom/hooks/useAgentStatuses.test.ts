@@ -22,10 +22,10 @@ describe('deriveAgentIsWorking', () => {
     expectAligned(null, null, true, 'offline');
     expectAligned('agent.registered', null, true, 'transitioning');
     expectAligned('agent.waiting', 'running', true, 'ready');
-    expectAligned('agent.waiting', 'stopped', true, 'transitioning');
+    expectAligned('agent.waiting', 'stopped', true, 'offline');
     expectAligned('agent.requestStart', null, true, 'transitioning');
     expectAligned('agent.started', null, true, 'ready');
-    expectAligned('agent.requestStop', 'stopped', true, 'transitioning');
+    expectAligned('agent.requestStop', 'stopped', true, 'offline');
     expectAligned('task.acknowledged', null, true, 'transitioning');
     expectAligned('task.inProgress', null, true, 'working');
     expectAligned('task.completed', null, true, 'ready');
