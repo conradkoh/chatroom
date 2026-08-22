@@ -130,8 +130,8 @@ flowchart LR
 
 ### Phase E — Verification
 
-- [ ] Integration test: task worked → released to pending → agent restart → task delivered (regression for #1479 edge case)
-- [ ] Integration test: agent start without task signal → pending task delivers after operational row shows running
+- [x] Integration test: task worked → released to pending → agent restart → task delivered (regression for #1479 edge case)
+- [x] Integration test: agent start without task signal → pending task delivers after operational row shows running
 - [ ] Manual: daemon restart with pending tasks across multiple chatrooms
 
 ## Open decisions
