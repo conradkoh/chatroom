@@ -46,7 +46,7 @@ describe('Duo Team > Planner > Handoff Output', () => {
     const output = generateHandoffOutput({
       ...BASE_PARAMS,
       nextRole: 'enhancer',
-      enhancerCheckInQueued: true,
+      enhancerRequestQueued: true,
     });
 
     expect(output).toContain('queued for handoff enhancer');

@@ -10,6 +10,8 @@ import { t } from '../../../test.setup';
 import {
   createTestSession,
   createDuoTeamChatroom,
+  createPlannerBuilderDuoChatroom,
+  createSoloTeamChatroom,
   registerMachineWithDaemon,
 } from '../../helpers/integration';
 
@@ -29,15 +31,25 @@ function uniquePrefix(hint = 'test'): string {
  *
  * @param prefix - Optional override; auto-generated when omitted.
  */
-export async function setupWorkspaceForSession(prefix?: string): Promise<{
+type WorkspaceSetup = {
   sessionId: SessionId;
   chatroomId: Id<'chatroom_rooms'>;
   machineId: string;
   workspaceId: Id<'chatroom_workspaces'>;
-}> {
+};
+
+async function setupWorkspaceForTeam(
+  prefix: string | undefined,
+  team: 'duo' | 'duo-planner' | 'solo'
+): Promise<WorkspaceSetup> {
   const p = prefix ?? uniquePrefix();
   const { sessionId } = await createTestSession(`${p}-session`);
-  const chatroomId = await createDuoTeamChatroom(sessionId);
+  const chatroomId =
+    team === 'solo'
+      ? await createSoloTeamChatroom(sessionId)
+      : team === 'duo-planner'
+        ? await createPlannerBuilderDuoChatroom(sessionId)
+        : await createDuoTeamChatroom(sessionId);
   const machineId = `${p}-machine`;
 
   await registerMachineWithDaemon(sessionId, machineId);
@@ -49,7 +61,7 @@ export async function setupWorkspaceForSession(prefix?: string): Promise<{
     machineId,
     workingDir: TEST_CWD,
     hostname: 'test-host',
-    registeredBy: 'builder',
+    registeredBy: team === 'solo' ? 'solo' : 'builder',
   });
 
   // Record a chatroom observation so listWorkspacesForMachine
@@ -70,6 +82,18 @@ export async function setupWorkspaceForSession(prefix?: string): Promise<{
   if (!workspace) throw new Error('Workspace not found after registration');
 
   return { sessionId, chatroomId, machineId, workspaceId: workspace._id };
+}
+
+export async function setupWorkspaceForSession(prefix?: string): Promise<WorkspaceSetup> {
+  return setupWorkspaceForTeam(prefix, 'duo');
+}
+
+export async function setupSoloWorkspaceForSession(prefix?: string): Promise<WorkspaceSetup> {
+  return setupWorkspaceForTeam(prefix, 'solo');
+}
+
+export async function setupPlannerWorkspaceForSession(prefix?: string): Promise<WorkspaceSetup> {
+  return setupWorkspaceForTeam(prefix, 'duo-planner');
 }
 
 /** Shared helper to create a session using the new `create` endpoint. */

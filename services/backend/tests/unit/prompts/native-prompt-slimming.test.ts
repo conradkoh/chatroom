@@ -81,7 +81,7 @@ describe('native task-started content', () => {
     );
     expect(output).not.toContain('--trigger-message-id="enh-msg-id"');
     expect(output).not.toContain('Handoff to `enhancer`');
-    expect(output).toContain('<enhancer-review>');
+    expect(output).toContain('<enhancer-input>');
     expect(output).toContain('Handoff to `builder`');
   });
 
@@ -99,15 +99,13 @@ describe('native task-started content', () => {
     });
 
     expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('One check-in per builder delegation');
-    expect(output).toContain('planner → enhancer → planner → builder');
+    expect(output).toContain('Immediately hand off the user request');
+    expect(output).toContain('before planning, researching, or drafting');
     expect(output).toContain('--next-role="enhancer"');
     expect(output).toContain('Handoff to `enhancer`');
     expect(output).toContain('--trigger-message-id="user-msg-id"');
-    expect(output).not.toContain('<enhancer-review>');
-    expect(output).toContain(
-      'user → [loop planner → enhancer → planner → builder → planner] → user'
-    );
+    expect(output).not.toContain('<enhancer-input>');
+    expect(output).toContain('user → enhancer → planner → [loop builder → planner] → user');
   });
 
   test('enhancer disabled user task omits enhancer sections', () => {

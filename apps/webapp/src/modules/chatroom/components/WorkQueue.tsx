@@ -90,7 +90,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
     chatroomId,
   }) as TaskCounts | undefined;
 
-  // Active planner→enhancer job (job-only hook; disabling enhancement is separate)
+  // Active entry-point→enhancer job (job-only hook; disabling enhancement is separate)
   const { isEnhancing, cancelJob, isCancelling } = useActiveEnhancerJob(chatroomId as string);
 
   // Derive needsPromotion from counts and lifecycle (replaces checkQueueHealth subscription)
@@ -175,8 +175,8 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   });
   const queuedMessages = (queuedMessagesRaw ?? []) as Message[];
 
-  const { teamRoles, isLoading: teamRolesLoading } = useAgentPanelData(chatroomId);
-  const teamSupportsEnhancerFlag = !teamRolesLoading && teamSupportsEnhancer(teamRoles);
+  const { teamId, teamRoles, isLoading: teamRolesLoading } = useAgentPanelData(chatroomId);
+  const teamSupportsEnhancerFlag = !teamRolesLoading && teamSupportsEnhancer(teamId, teamRoles);
 
   // Categorize tasks by status
   const categorizedTasks = useMemo(() => {

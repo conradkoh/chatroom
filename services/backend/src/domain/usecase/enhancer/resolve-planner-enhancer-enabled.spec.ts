@@ -23,6 +23,14 @@ function makeConfig(overrides: Record<string, unknown> = {}) {
   } as never;
 }
 
+const DUO_TEAM = {
+  teamId: 'duo',
+  teamRoles: ['planner', 'builder'],
+  teamEntryPoint: 'planner',
+};
+
+const SOLO_TEAM = { teamId: 'solo', teamRoles: ['solo'], teamEntryPoint: 'solo' };
+
 describe('resolvePlannerEnhancerEnabledFromConfig', () => {
   test('returns true when enabled and target matches', () => {
     expect(resolvePlannerEnhancerEnabledFromConfig(makeConfig())).toBe(true);
@@ -53,6 +61,7 @@ describe('resolveTaskPlannerEnhancerEnabled', () => {
         taskPlannerEnhancerEnabled: true,
         liveConfig: null,
         role: 'planner',
+        team: DUO_TEAM,
       })
     ).toBe(false); // snapshot true but no config → drift bug fixed
     expect(
@@ -60,6 +69,7 @@ describe('resolveTaskPlannerEnhancerEnabled', () => {
         taskPlannerEnhancerEnabled: true,
         liveConfig: makeConfig(),
         role: 'planner',
+        team: DUO_TEAM,
       })
     ).toBe(true);
     expect(
@@ -67,6 +77,7 @@ describe('resolveTaskPlannerEnhancerEnabled', () => {
         taskPlannerEnhancerEnabled: false,
         liveConfig: makeConfig(),
         role: 'planner',
+        team: DUO_TEAM,
       })
     ).toBe(false);
   });
@@ -77,6 +88,7 @@ describe('resolveTaskPlannerEnhancerEnabled', () => {
         taskPlannerEnhancerEnabled: true,
         liveConfig: makeConfig({ enabled: false }),
         role: 'planner',
+        team: DUO_TEAM,
       })
     ).toBe(true);
   });
@@ -87,6 +99,7 @@ describe('resolveTaskPlannerEnhancerEnabled', () => {
         taskPlannerEnhancerEnabled: true,
         liveConfig: makeConfig({ agentHarness: '' }),
         role: 'planner',
+        team: DUO_TEAM,
       })
     ).toBe(false);
   });
@@ -97,6 +110,7 @@ describe('resolveTaskPlannerEnhancerEnabled', () => {
         taskPlannerEnhancerEnabled: undefined,
         liveConfig: makeConfig(),
         role: 'planner',
+        team: DUO_TEAM,
       })
     ).toBe(true);
   });
@@ -107,6 +121,7 @@ describe('resolveTaskPlannerEnhancerEnabled', () => {
         taskPlannerEnhancerEnabled: undefined,
         liveConfig: null,
         role: 'planner',
+        team: DUO_TEAM,
       })
     ).toBe(false);
   });
@@ -117,8 +132,20 @@ describe('resolveTaskPlannerEnhancerEnabled', () => {
         taskPlannerEnhancerEnabled: undefined,
         liveConfig: makeConfig(),
         role: 'builder',
+        team: DUO_TEAM,
       })
     ).toBe(false);
+  });
+
+  test('returns true for the solo team entry point', () => {
+    expect(
+      resolveTaskPlannerEnhancerEnabled({
+        taskPlannerEnhancerEnabled: undefined,
+        liveConfig: makeConfig(),
+        role: 'solo',
+        team: SOLO_TEAM,
+      })
+    ).toBe(true);
   });
 });
 

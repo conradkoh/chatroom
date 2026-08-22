@@ -42,6 +42,17 @@ export async function createDuoTeamChatroom(sessionId: SessionId): Promise<Id<'c
   });
 }
 
+/** Create a solo team chatroom (solo, entry point = solo). */
+export async function createSoloTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
+  return await t.mutation(api.chatrooms.create, {
+    sessionId,
+    teamId: 'solo',
+    teamName: 'Solo Team',
+    teamRoles: ['solo'],
+    teamEntryPoint: 'solo',
+  });
+}
+
 /**
  * Duo team with builder as entry point — for tests that exercise builder task FSM
  * without a planner handoff step.

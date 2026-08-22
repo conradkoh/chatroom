@@ -31,7 +31,12 @@ export function assertNativePrimaryHandoffInNextSteps(
   expect(end).toBeGreaterThan(start);
 
   const nextSteps = output.slice(start, end);
-  expect(nextSteps).toContain('1. Work on the task above.');
+  if (primaryTarget === 'enhancer' && senderRole === 'user') {
+    expect(nextSteps).toContain('Immediately hand off the user request');
+    expect(nextSteps).toContain('before planning, researching, or drafting');
+  } else {
+    expect(nextSteps).toContain('1. Work on the task above.');
+  }
   expect(nextSteps).toContain('you MUST run the handoff command');
   expect(nextSteps).toContain(`delivers it to \`${primaryTarget}\``);
   expect(nextSteps).toContain(`--next-role="${primaryTarget}"`);

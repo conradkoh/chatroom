@@ -1,3 +1,8 @@
+import {
+  type EnhancerTeamLike,
+  isEnhancerEntryPointRole,
+} from '@workspace/shared/domain/enhancer-team-capability';
+
 import type { Doc } from '../../../../convex/_generated/dataModel';
 
 /** Delivery prompt only — uses handoff validation for unified behavior. */
@@ -5,8 +10,9 @@ export function resolveTaskPlannerEnhancerEnabled(args: {
   taskPlannerEnhancerEnabled?: boolean;
   liveConfig: Doc<'chatroom_enhancerConfigs'> | null | undefined;
   role: string;
+  team: EnhancerTeamLike;
 }): boolean {
-  if (args.role.toLowerCase() !== 'planner') {
+  if (!isEnhancerEntryPointRole(args.team, args.role)) {
     return false;
   }
   return validatePlannerEnhancerHandoff({
