@@ -29,6 +29,16 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   });
 }
 
+async function registerMachine(sessionId: SessionId, machineId: string): Promise<void> {
+  await t.mutation(api.machines.register, {
+    sessionId,
+    machineId,
+    hostname: 'test-host',
+    os: 'linux',
+    availableHarnesses: ['opencode'],
+  });
+}
+
 async function seedMessages(
   chatroomId: Id<'chatroom_rooms'>,
   count: number
@@ -202,6 +212,8 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
   test('returns signals strictly after afterKey in ascending order', async () => {
     const { sessionId } = await createTestSession('task-signals-1');
     const chatroomId = await createChatroom(sessionId);
+    const machineId = 'task-signals-machine-1';
+    await registerMachine(sessionId, machineId);
 
     const now = Date.now();
     const taskId = await t.run(async (ctx) => {
@@ -220,16 +232,20 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
     const key1 = `${String(now).padStart(16, '0')}:${taskId}`;
     const key2 = `${String(now + 1).padStart(16, '0')}:${taskId}`;
     await t.run(async (ctx) => {
-      await ctx.db.insert('chatroom_timelineTaskStatusSignals', {
+      await ctx.db.insert('chatroom_machineTaskStatusSignals', {
         chatroomId,
         taskId: taskId as Id<'chatroom_tasks'>,
+        machineId: machineId,
+        targetRole: 'planner',
         taskStatus: 'in_progress',
         signalKey: key1,
         taskUpdatedAt: now,
       });
-      await ctx.db.insert('chatroom_timelineTaskStatusSignals', {
+      await ctx.db.insert('chatroom_machineTaskStatusSignals', {
         chatroomId,
         taskId: taskId as Id<'chatroom_tasks'>,
+        machineId: machineId,
+        targetRole: 'planner',
         taskStatus: 'completed',
         signalKey: key2,
         taskUpdatedAt: now + 1,
@@ -239,25 +255,41 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
     // Query with afterKey before first signal
     const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId,
-      chatroomId,
+      machineId,
       afterKey: '',
     });
 
     expect(result).not.toBeNull();
     expect(result!.items).toHaveLength(2);
-    expect(result!.items[0]).toEqual({ taskId, taskStatus: 'in_progress', signalKey: key1 });
-    expect(result!.items[1]).toEqual({ taskId, taskStatus: 'completed', signalKey: key2 });
+    expect(result!.items[0]).toEqual({
+      chatroomId,
+      taskId,
+      targetRole: 'planner',
+      taskStatus: 'in_progress',
+      signalKey: key1,
+      taskUpdatedAt: now,
+    });
+    expect(result!.items[1]).toEqual({
+      chatroomId,
+      taskId,
+      targetRole: 'planner',
+      taskStatus: 'completed',
+      signalKey: key2,
+      taskUpdatedAt: now + 1,
+    });
     expect(result!.highKey).toBe(key2);
     expect(result!.hasMore).toBe(false);
   });
 
   test('returns null when no signals after cursor', async () => {
     const { sessionId } = await createTestSession('task-signals-null');
-    const chatroomId = await createChatroom(sessionId);
+    await createChatroom(sessionId);
+    const machineId = 'task-signals-machine-null';
+    await registerMachine(sessionId, machineId);
 
     const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId,
-      chatroomId,
+      machineId,
       afterKey: 'zzz',
     });
 
@@ -267,6 +299,8 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
   test('caps at limit', async () => {
     const { sessionId } = await createTestSession('task-signals-cap');
     const chatroomId = await createChatroom(sessionId);
+    const machineId = 'task-signals-machine-cap';
+    await registerMachine(sessionId, machineId);
 
     const now = Date.now();
     for (let i = 0; i < 5; i++) {
@@ -283,9 +317,11 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
       });
       const key = `${String(now + i).padStart(16, '0')}:${taskId}`;
       await t.run(async (ctx) => {
-        await ctx.db.insert('chatroom_timelineTaskStatusSignals', {
+        await ctx.db.insert('chatroom_machineTaskStatusSignals', {
           chatroomId,
           taskId,
+          machineId: machineId,
+          targetRole: 'planner',
           taskStatus: 'pending',
           signalKey: key,
           taskUpdatedAt: now + i,
@@ -295,7 +331,7 @@ describe('subscribeTaskStatusSignalsSince — cursor-based task status signals',
 
     const result = await t.query(api.messageList.subscribeTaskStatusSignalsSince, {
       sessionId,
-      chatroomId,
+      machineId,
       afterKey: '',
       limit: 3,
     });

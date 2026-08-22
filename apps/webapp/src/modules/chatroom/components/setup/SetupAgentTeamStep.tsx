@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
+import type { AgentRoleView } from '../../hooks/useAgentPanelData';
 import { Loader2, Play } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -111,7 +111,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
       (role) => {
         const config = roleConfigs.get(role.toLowerCase());
         if (!config) return null;
-        const agentRoleView = agentRoleViewMap.get(role.toLowerCase());
+        const persistedConfig = agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase());
         return {
           machineId,
           chatroomId: chatroomIdTyped,
@@ -119,7 +119,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
           model: config.model,
           agentHarness: config.harness,
           workingDir,
-          wantResume: agentRoleView?.wantResume,
+          wantResume: persistedConfig?.wantResume,
         };
       },
       sendCommand

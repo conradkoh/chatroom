@@ -3,12 +3,14 @@ import { Effect, Runtime, type Context } from 'effect';
 import { getNativeDeliveryLedger } from './native-delivery-ledger.js';
 import {
   logNativeDeliveryInjecting,
+  logNativeDeliveryFallback,
   logNativeDeliveryMutexSkip,
   logNativeDeliveryNoTasks,
   logNativeDeliveryPrimary,
   logNativeDeliverySkip,
 } from './native-delivery-log.js';
 import { getNativeDeliverySession } from './native-delivery-session-registry.js';
+import { isStaleTurnInFlightWhileWaiting } from './native-stale-turn-phase.js';
 import {
   explainLedgerDeliveryBlock,
   explainNativeDeliveryBlock,
@@ -18,7 +20,6 @@ import { api } from '../../../api.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
 import { mapAssignedTaskView } from '../../../infrastructure/mappers/map-assigned-task.js';
-import { listAssignedTaskSnapshotsForRole } from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
@@ -31,8 +32,8 @@ import {
 } from '../restart-orchestrator-in-flight.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
-type TaskMonitorRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
-type TaskMonitorContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
+type TaskDeliveryRuntime = Runtime.Runtime<DaemonSessionService | DaemonAgentProcessManagerService>;
+type TaskDeliveryContext = Context.Context<DaemonSessionService | DaemonAgentProcessManagerService>;
 
 export interface NativeTaskDeliverySessionDeps {
   sessionId: string;
@@ -70,7 +71,7 @@ export class NativeTaskDeliveryCoordinator {
     if (!session) return;
 
     const { runtime, effectContext, agentMgr, sessionDeps, machineId } = session;
-    const tasks = listAssignedTaskSnapshotsForRole(chatroomId, role);
+    const tasks = session.taskSnapshotState?.listForRole(chatroomId, role) ?? [];
     if (tasks.length === 0) {
       logNativeDeliveryNoTasks(role, chatroomId);
       return;
@@ -88,8 +89,8 @@ export class NativeTaskDeliveryCoordinator {
   // fallow-ignore-next-line complexity
   reconcileAssignedTasks(params: {
     tasks: AssignedTaskSnapshotView[];
-    runtime: TaskMonitorRuntime;
-    effectContext: TaskMonitorContext;
+    runtime: TaskDeliveryRuntime;
+    effectContext: TaskDeliveryContext;
     agentMgr: DaemonAgentProcessManagerServiceShape;
     sessionDeps: NativeTaskDeliverySessionDeps;
     machineId: string;
@@ -109,7 +110,18 @@ export class NativeTaskDeliveryCoordinator {
     for (const row of pendingFirst) {
       const { role } = row.agentConfig;
       const slot = agentMgr.getSlot(row.chatroomId, role);
-      const blockReason = explainNativeDeliveryBlock(row, { slot });
+      if (row.status === 'pending' && slot?.lastInFlightTaskId === row.taskId) {
+        Effect.runSync(agentMgr.clearLastInFlightTaskIfMatches(row.chatroomId, role, row.taskId));
+      }
+      if (isStaleTurnInFlightWhileWaiting(row, slot)) {
+        if (agentMgr.reconcileNativeTurnPhaseIdle) {
+          Effect.runSync(agentMgr.reconcileNativeTurnPhaseIdle(row.chatroomId, role));
+        }
+        logNativeDeliveryFallback('stale-turn-phase', role, row.chatroomId, row.taskId);
+      }
+      const blockReason = explainNativeDeliveryBlock(row, {
+        slot: agentMgr.getSlot(row.chatroomId, role),
+      });
       if (blockReason) {
         if (isDeliverableTaskStatus(row.status)) {
           logNativeDeliverySkip(role, row.chatroomId, row.taskId, blockReason);

@@ -41,7 +41,7 @@ import { forceKillAllTrackedProcessGroupsEffect } from './handlers/orphan-tracke
 import { drainActionableCommandRuns } from './handlers/process/command-run-subscription.js';
 import { startLogObserverSubscription } from './handlers/process/log-observer-sync.js';
 import { getActiveLogSink } from './init-daemon.js';
-import { startTaskMonitorEffect } from './task-monitor-runtime.js';
+import { startTaskInboxEffect } from './task-inbox-runtime.js';
 import { drainGitStateSync } from './workspace-git/git-heartbeat.js';
 import {
   startGitRequestSubscriptionEffect,
@@ -72,6 +72,7 @@ export type DaemonRuntimeHandle = {
 };
 
 export type DaemonRuntimeDeps = {
+  agentLifecycleOutbox?: import('../infrastructure/outbox/agent-lifecycle-outbox.js').AgentLifecycleOutboxRegistry;
   wsClient: ConvexClient;
   layers: Layer.Layer<
     DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
@@ -87,7 +88,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
   let directHarnessWorkerHandle: ReturnType<typeof startDirectHarnessSubscriptions> | null = null;
   let agenticQueryWorkerHandle: ReturnType<typeof startAgenticQuerySubscriptions> | null = null;
   let enhancerWorkerHandle: { stop: () => void } | null = null;
-  let taskMonitorHandle: { stop: () => void } | null = null;
+  let taskInboxHandle: { stop: () => void } | null = null;
   const activeSessions = new Map<string, SessionHandle>();
   const harnesses = new Map<string, BoundHarness>();
 
@@ -132,7 +133,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     gitSubscriptionHandle?.stop();
     fileTreeSubscriptionHandle?.stop();
     workspaceListSubscriptionHandle?.stop();
-    taskMonitorHandle?.stop();
+    taskInboxHandle?.stop();
     logObserverSubscriptionHandle?.stop();
     directHarnessWorkerHandle?.stop();
     agenticQueryWorkerHandle?.stop();
@@ -152,6 +153,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     shutdownWatchdog.unref?.();
 
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+    await deps.agentLifecycleOutbox?.stopAll().catch(() => undefined);
     stopWorkers();
 
     await withTimeout(
@@ -265,7 +267,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       }
     });
 
-    taskMonitorHandle = yield* startTaskMonitorEffect(deps.wsClient);
+    taskInboxHandle = yield* startTaskInboxEffect(deps.wsClient);
 
     logObserverSubscriptionHandle = startLogObserverSubscription(
       { sessionId: session.sessionId, machineId: session.machineId },
@@ -316,7 +318,13 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     registerCommandInboundHandler(async (event) => {
       evictStaleDedupEntries(dedupTracker);
       if (event.type === 'command.received') {
-        await handleInboundCommandEvent(event.commandId, dedupTracker, effectContext, session);
+        await handleInboundCommandEvent(
+          event.commandId,
+          dedupTracker,
+          effectContext,
+          session,
+          event.commandEvent
+        );
       } else {
         await drainActionableCommandRuns(session, commandRunRuntime);
       }

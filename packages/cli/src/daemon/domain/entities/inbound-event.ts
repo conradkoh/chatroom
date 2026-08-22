@@ -3,10 +3,23 @@
  * Subscribers map transport payloads → InboundEvent before calling event-router.
  */
 
+/**
+ * Command payload already delivered by the command-events subscription.
+ * Keeping it on the inbound event avoids fetching the same event list again
+ * before dispatching a command.
+ */
+export interface InboundCommandEventPayload {
+  _id: string;
+  type: string;
+  [key: string]: unknown;
+}
+
 export type InboundEvent =
-  | { type: 'assigned-task.signal'; taskId: string; role: string }
-  | { type: 'assigned-task.presence'; taskId: string; role: string }
-  | { type: 'command.received'; commandId: string }
+  | {
+      type: 'command.received';
+      commandId: string;
+      commandEvent?: InboundCommandEventPayload;
+    }
   | { type: 'direct-harness.session-opened'; harnessSessionId: string }
   | { type: 'direct-harness.prompt'; harnessSessionId: string }
   | { type: 'direct-harness.command'; commandId: string }

@@ -25,6 +25,29 @@ import type {
   StopOpts,
 } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
+import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
+import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
+import type {
+  AgentLifecycleOutboxRegistry,
+  AgentLifecycleOutboxResult,
+} from '../infrastructure/outbox/agent-lifecycle-outbox.js';
+
+export interface AgentLifecycleOutboxServiceShape {
+  enqueue: (fact: AgentLifecycleFact) => Effect.Effect<AgentLifecycleOutboxResult>;
+  stopAll: () => Effect.Effect<void>;
+}
+export class AgentLifecycleOutboxService extends Context.Tag('AgentLifecycleOutboxService')<
+  AgentLifecycleOutboxService,
+  AgentLifecycleOutboxServiceShape
+>() {}
+export const AgentLifecycleOutboxServiceLive = (
+  registry: AgentLifecycleOutboxRegistry,
+  machineId: string
+): Layer.Layer<AgentLifecycleOutboxService> =>
+  Layer.succeed(AgentLifecycleOutboxService, {
+    enqueue: (fact) => Effect.promise(() => enqueueAgentLifecycleFact(registry, machineId, fact)),
+    stopAll: () => Effect.promise(() => registry.stopAll()),
+  });
 
 // ─── DaemonMachineService ───────────────────────────────────────────────────
 
@@ -104,6 +127,12 @@ export interface DaemonAgentProcessManagerServiceShape {
     prompt: string;
   }) => Effect.Effect<void>;
   setLastInFlightTask: (chatroomId: string, role: string, taskId: string) => Effect.Effect<void>;
+  clearLastInFlightTaskIfMatches: (
+    chatroomId: string,
+    role: string,
+    taskId: string
+  ) => Effect.Effect<void>;
+  reconcileNativeTurnPhaseIdle?: (chatroomId: string, role: string) => Effect.Effect<void>;
 }
 
 export class DaemonAgentProcessManagerService extends Context.Tag(
@@ -126,6 +155,10 @@ export const DaemonAgentProcessManagerServiceLive = (
     resumeTurnForSlot: (args) => Effect.promise(() => mgr.resumeTurnForSlot(args)),
     setLastInFlightTask: (chatroomId, role, taskId) =>
       Effect.sync(() => mgr.setLastInFlightTask(chatroomId, role, taskId)),
+    clearLastInFlightTaskIfMatches: (chatroomId, role, taskId) =>
+      Effect.sync(() => mgr.clearLastInFlightTaskIfMatches(chatroomId, role, taskId)),
+    reconcileNativeTurnPhaseIdle: (chatroomId, role) =>
+      Effect.sync(() => mgr.reconcileNativeTurnPhaseIdle(chatroomId, role)),
   });
 
 // ─── DaemonSessionService ────────────────────────────────────────────────────

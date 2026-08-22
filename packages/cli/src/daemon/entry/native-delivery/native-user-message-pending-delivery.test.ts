@@ -3,7 +3,7 @@
  *
  * Flow under test (happy path):
  * 1. Backend: messages.sendMessage → createTask(status=pending) → projectAssignedTaskSnapshots
- * 2. Backend: subscribeAssignedTaskSignalsSince emits incremental row (covered in backend IT)
+ * 2. Backend: machine task-status signals feed the daemon task inbox
  * 3. Daemon: task-monitor onSignalRow → processTasksUpdate → reconcileAssignedTasks
  * 4. Daemon: shouldDeliverNativeTask(slot idle + pid match) → runNativeInjectionEffect
  * 5. Daemon: claimTask → getTaskDeliveryPrompt → participants.join(native:task-injected) → resumeTurn
@@ -19,8 +19,9 @@ import { NATIVE_TASK_INJECTED_ACTION } from '@workspace/backend/src/domain/entit
 import { resolveSessionAugmentationForTask } from '@workspace/backend/src/domain/handoff/parse-session-augmentation.js';
 import { snapshotDocToSignal } from '@workspace/backend/src/domain/usecase/machine/machine-assigned-task-snapshot-sync.js';
 import { Context, Effect, Runtime } from 'effect';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { unregisterNativeDeliverySession } from './native-delivery-session-registry.js';
 import {
   NativeTaskDeliveryCoordinator,
   type NativeTaskDeliverySessionDeps,
@@ -32,7 +33,23 @@ import {
 import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import { createTaskMonitorSnapshot } from '../task-monitor/task-monitor-snapshot.js';
+import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
+import {
+  operationalRow,
+  registerTestNativeDeliverySession,
+} from '../../infrastructure/agent-operational/test-support.js';
+
+beforeEach(() =>
+  registerTestNativeDeliverySession({
+    runtime: undefined as never,
+    effectContext: undefined as never,
+    agentMgr: {} as never,
+    sessionDeps: {} as never,
+    machineId: 'machine-1',
+    operationalRows: [operationalRow('room_1', 'builder')],
+  })
+);
+afterEach(() => unregisterNativeDeliverySession());
 
 const HARNESS_SESSION_ID = 'harness-user-message';
 const MACHINE_ID = 'machine-user-message-pending';
@@ -57,8 +74,6 @@ function makeUserMessagePendingSnapshotDoc(
     taskUpdatedAt: now,
     agentHarness: 'cursor-sdk',
     workingDir: '/test/workspace',
-    spawnedAgentPid: SPAWNED_PID,
-    desiredState: 'running',
     configUpdatedAt: now,
     presenceUpdatedAt: now,
     presenceKey: 'presence-key',
@@ -79,7 +94,7 @@ function makeIdleNativeSlot(overrides: Record<string, unknown> = {}) {
 }
 
 function makeFullTaskFromRow(
-  row: NonNullable<ReturnType<ReturnType<typeof createTaskMonitorSnapshot>['mergeSignal']>>
+  row: NonNullable<ReturnType<ReturnType<typeof createTaskSnapshot>['mergeSignal']>>
 ): AssignedTaskWithContent {
   return {
     ...row,
@@ -89,7 +104,7 @@ function makeFullTaskFromRow(
 
 describe('user message pending delivery path', () => {
   test('signal from sendMessage merges into daemon snapshot as deliverable pending row', () => {
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
 
     const signal = snapshotDocToSignal(makeUserMessagePendingSnapshotDoc());
@@ -103,8 +118,6 @@ describe('user message pending delivery path', () => {
       agentConfig: {
         role: 'builder',
         agentHarness: 'cursor-sdk',
-        spawnedAgentPid: SPAWNED_PID,
-        desiredState: 'running',
       },
     });
 
@@ -116,10 +129,11 @@ describe('user message pending delivery path', () => {
   });
 
   test('coordinator injects first pending user-message task when agent slot is idle', async () => {
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
+    row!.agentConfig.spawnedAgentPid = SPAWNED_PID;
 
     const backendMutation = vi.fn().mockResolvedValue(undefined);
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
@@ -193,7 +207,7 @@ describe('user message pending delivery path', () => {
   });
 
   test('stuck pending: does not inject when harness turn is still in flight', async () => {
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
@@ -233,7 +247,7 @@ describe('user message pending delivery path', () => {
   });
 
   test('stuck pending: does not inject when harness session id is missing on slot', async () => {
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
@@ -273,10 +287,11 @@ describe('user message pending delivery path', () => {
   });
 
   test('stuck pending: does not inject when local slot pid mismatches snapshot spawnedAgentPid', async () => {
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makeUserMessagePendingSnapshotDoc()));
     expect(row).toBeDefined();
+    row!.agentConfig.spawnedAgentPid = SPAWNED_PID;
 
     expect(
       shouldDeliverNativeTask(row!, {

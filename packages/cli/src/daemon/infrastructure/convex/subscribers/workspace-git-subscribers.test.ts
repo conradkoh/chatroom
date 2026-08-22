@@ -116,7 +116,6 @@ describe('workspace-git v2 subscribers', () => {
       sessionId: SESSION_ID,
       machineId: MACHINE_ID,
       router: {
-        assignedTask: {},
         directHarness: {},
         command: {},
         workspaceGit: {
@@ -144,7 +143,6 @@ describe('workspace-git v2 subscribers', () => {
 
     await routeInboundEvent(
       {
-        assignedTask: {},
         directHarness: {},
         command: {},
         workspaceGit: {

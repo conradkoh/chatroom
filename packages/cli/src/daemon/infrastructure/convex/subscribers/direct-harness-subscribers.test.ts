@@ -126,7 +126,6 @@ describe('direct-harness v2 subscribers', () => {
       sessionId: SESSION_ID,
       machineId: MACHINE_ID,
       router: {
-        assignedTask: {},
         directHarness: {
           deliverInbound: async (event) => {
             handled.push(event);
@@ -155,7 +154,6 @@ describe('direct-harness v2 subscribers', () => {
 
     await routeInboundEvent(
       {
-        assignedTask: {},
         directHarness: {
           deliverInbound: async (event) => {
             handled.push(event);

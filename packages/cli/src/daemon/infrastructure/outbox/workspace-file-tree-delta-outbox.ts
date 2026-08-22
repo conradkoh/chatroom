@@ -1,12 +1,15 @@
-import type { WorkspacePendingDelta } from '../../../infrastructure/services/workspace/workspace-sync-state.js';
-import type { DeltaPushResult } from '../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
-import { resolveOutboxDbPath } from './outbox-db-path.js';
 import { openDurableFifoQueueStore } from './lib/durable-fifo-queue-store.js';
 import {
   createKeyedFifoBatchedOutboxRegistry,
   type KeyedFifoBatchedOutboxRegistry,
 } from './lib/keyed-fifo-batched-outbox-registry.js';
+import { resolveOutboxDbPath } from './outbox-db-path.js';
+import type { DeltaPushResult } from '../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
+import type { WorkspacePendingDelta } from '../../../infrastructure/services/workspace/workspace-sync-state.js';
+
 export const WORKSPACE_FILE_TREE_DELTA_OUTBOX_BATCH_SIZE = 5;
+const WORKSPACE_FILE_TREE_DELTA_OUTBOX_RETRY_DELAY_MS = 5_000;
+const WORKSPACE_FILE_TREE_DELTA_OUTBOX_MAX_RETRY_DELAY_MS = 5 * 60_000;
 export type WorkspaceFileTreeDeltaDeliveryUnit = {
   delta: WorkspacePendingDelta;
   baseRevision: number;
@@ -36,7 +39,12 @@ export function createWorkspaceFileTreeDeltaOutboxRegistry(
     },
     serialize: JSON.stringify,
     deserialize: JSON.parse,
+    retryDelayMs: WORKSPACE_FILE_TREE_DELTA_OUTBOX_RETRY_DELAY_MS,
+    maxRetryDelayMs: WORKSPACE_FILE_TREE_DELTA_OUTBOX_MAX_RETRY_DELAY_MS,
     onError: options?.onError,
-    classifyOutcome: (result, unit) => result.status === 'conflict' ? { kind: 'retry', item: { ...unit, baseRevision: result.revision } } : { kind: 'success' },
+    classifyOutcome: (result, unit) =>
+      result.status === 'conflict'
+        ? { kind: 'retry', item: { ...unit, baseRevision: result.revision } }
+        : { kind: 'success' },
   });
 }

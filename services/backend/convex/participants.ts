@@ -7,7 +7,6 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
-import { filterTeamAgentConfigsForTeam } from './utils/teamRoleKeyFilter';
 import {
   PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS,
   CONNECTION_CLOSE_REQUEST_TTL_MS,
@@ -18,10 +17,10 @@ import {
   PARTICIPANT_EXITED_ACTION,
   isActiveParticipant,
 } from '../src/domain/entities/participant';
-import { isAgentAlive } from '../src/domain/usecase/agent/is-agent-alive';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { hasActiveEntryPointEnhancerJob } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
+import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { handleNativeAgentEnd as handleNativeAgentEndUsecase } from '../src/domain/usecase/participant/handle-native-agent-end';
@@ -189,7 +188,8 @@ export const join = mutation({
     }
 
     // Emit agent.waiting event when agent enters the get-next-task loop
-    if (args.action === 'get-next-task:started') {
+    const isStopRequested = teamConfig?.desiredState === 'stopped';
+    if (args.action === 'get-next-task:started' && !isStopRequested) {
       const entryPointEnhancerActive = await hasActiveEntryPointEnhancerJob(
         ctx,
         args.chatroomId,
@@ -223,13 +223,15 @@ export const join = mutation({
         return participantId;
       }
 
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'agent.waiting',
-        chatroomId: args.chatroomId,
-        role: args.role,
-        timestamp: now,
-      });
-      await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
+      if (!isStopRequested) {
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'agent.waiting',
+          chatroomId: args.chatroomId,
+          role: args.role,
+          timestamp: now,
+        });
+        await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
+      }
     }
 
     if (args.action === NATIVE_TASK_INJECTED_ACTION) {
@@ -415,60 +417,25 @@ export const getTeamLifecycle = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    if (!chatroom.teamId || !chatroom.teamRoles) {
-      return null;
-    }
-
-    // Fetch all participants for this chatroom.
-    const participantRows = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const participantByRole = new Map(participantRows.map((p) => [p.role.toLowerCase(), p]));
-
-    // Fetch agent configs to determine isAlive from spawnedAgentPid
-    const agentConfigs = filterTeamAgentConfigsForTeam(
-      await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .collect(),
-      args.chatroomId,
-      chatroom.teamId
-    );
-    const configByRole = new Map(agentConfigs.map((c) => [c.role.toLowerCase(), c]));
-
-    const expectedRoles = chatroom.teamRoles;
-    const participants = expectedRoles.map((role) => {
-      const participantRow = participantByRole.get(role.toLowerCase());
-      const config = configByRole.get(role.toLowerCase());
-
-      return {
-        role,
-        lastSeenAt: participantRow?.lastSeenAt ?? null,
-        lastSeenAction: participantRow?.lastSeenAction ?? null,
-        agentType: participantRow?.agentType ?? ('remote' as const),
-        lastStatus: participantRow?.lastStatus ?? null,
-        lastDesiredState: participantRow?.lastDesiredState ?? null,
-        isAlive: isAgentAlive(config?.spawnedAgentPid),
-      };
-    });
-
-    const firstUserMessage = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
-      )
-      .first();
-
+    const {
+      session: { userId },
+    } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const view = await getAgentViewStatus(ctx, { chatroomId: args.chatroomId, userId });
+    if (!view) return null;
     return {
-      teamId: chatroom.teamId,
-      teamName: chatroom.teamName ?? chatroom.teamId,
-      expectedRoles,
-      participants,
-      hasHistory: firstUserMessage !== null,
+      teamId: view.teamId,
+      teamName: view.teamName,
+      expectedRoles: view.teamRoles,
+      participants: view.agents.map((a) => ({
+        role: a.role,
+        lastSeenAt: a.lastSeenAt,
+        lastSeenAction: a.lastSeenAction,
+        agentType: a.agentType,
+        lastStatus: a.lastStatus,
+        lastDesiredState: a.lastDesiredState,
+        isAlive: a.isAlive,
+      })),
+      hasHistory: view.hasHistory,
     };
   },
 });

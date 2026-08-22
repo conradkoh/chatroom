@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -32,9 +32,11 @@ describe('ModelFilterPanel mobile keyboard layout', () => {
       />
     );
 
-    expect(screen.queryAllByText('Model Visibility').some((node) => node.tagName === 'SPAN')).toBe(
-      false
-    );
+    await waitFor(() => {
+      expect(
+        screen.queryAllByText('Model Visibility').some((node) => node.tagName === 'SPAN')
+      ).toBe(false);
+    });
     expect(screen.queryByText('Reset All')).not.toBeInTheDocument();
     expect(screen.getAllByRole('checkbox')).toHaveLength(2);
 

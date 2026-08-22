@@ -46,4 +46,39 @@ describe('runGit', () => {
       expect.objectContaining({ cwd: '/repo' })
     );
   });
+
+  it('prepends no-optional-locks for read-only commands', async () => {
+    mockSpawnSuccess('');
+    await runGit(['status', '--porcelain'], '/readonly-repo', { readOnly: true });
+    expect(mockSpawn).toHaveBeenCalledWith(
+      'git',
+      ['--no-optional-locks', 'status', '--porcelain'],
+      expect.objectContaining({ cwd: '/readonly-repo' })
+    );
+  });
+
+  it('serializes concurrent commands for the same repository', async () => {
+    const closes: (() => void)[] = [];
+    mockSpawn.mockImplementation((..._args: unknown[]) => {
+      const child = new EventEmitter() as EventEmitter & {
+        stdout: EventEmitter;
+        stderr: EventEmitter;
+        kill: ReturnType<typeof vi.fn>;
+      };
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.kill = vi.fn();
+      closes.push(() => child.emit('close', 0));
+      return child;
+    });
+    const first = runGit(['status'], '/queued-repo');
+    const second = runGit(['log', '-1'], '/queued-repo');
+    await Promise.resolve();
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+    closes.shift()!();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockSpawn).toHaveBeenCalledTimes(2);
+    closes.shift()!();
+    await Promise.all([first, second]);
+  });
 });

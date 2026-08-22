@@ -463,6 +463,8 @@ describe('git-workspace-change-source', () => {
       onEvents,
     });
 
+    await source.ready;
+
     // First poll (baseline): both nodes polled
     expect(mockPorcelain.readGitPorcelainStatus).toHaveBeenCalledTimes(2);
     expect(mockPorcelain.readGitHead).toHaveBeenCalledTimes(2);

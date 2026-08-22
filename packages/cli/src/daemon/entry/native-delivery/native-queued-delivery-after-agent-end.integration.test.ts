@@ -28,12 +28,8 @@ import {
 } from './native-task-injector-logic.js';
 import { api } from '../../../api.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
-import {
-  clearAssignedTaskSnapshots,
-  replaceAssignedTaskSnapshots,
-} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
 import type { DaemonAgentProcessManagerServiceShape } from '../daemon-services.js';
-import { createTaskMonitorSnapshot } from '../task-monitor/task-monitor-snapshot.js';
+import { createTaskSnapshot } from './test-fixtures/task-snapshot-fixture.js';
 
 const HARNESS_SESSION_ID = 'harness-session-post-agent-end';
 const MACHINE_ID = 'machine-native-queued-delivery';
@@ -56,8 +52,6 @@ function makePostAgentEndSnapshotDoc(
     taskUpdatedAt: now,
     agentHarness: 'cursor-sdk',
     workingDir: '/test/workspace',
-    spawnedAgentPid: 42_424,
-    desiredState: 'running' as const,
     configUpdatedAt: now,
     presenceUpdatedAt: now,
     presenceKey: 'presence-key',
@@ -71,7 +65,7 @@ function makePostAgentEndSnapshotDoc(
 }
 
 function makeFullTaskFromSnapshot(
-  row: NonNullable<ReturnType<ReturnType<typeof createTaskMonitorSnapshot>['mergeSignal']>>
+  row: NonNullable<ReturnType<ReturnType<typeof createTaskSnapshot>['mergeSignal']>>
 ): AssignedTaskWithContent {
   return {
     ...row,
@@ -81,7 +75,7 @@ function makeFullTaskFromSnapshot(
 
 describe('native queued delivery after agent_end', () => {
   test('coordinator injects promoted pending task when participant is idle-after-complete', async () => {
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makePostAgentEndSnapshotDoc()));
     expect(row).toBeDefined();
@@ -155,7 +149,7 @@ describe('native queued delivery after agent_end', () => {
   });
 
   test('shouldDeliverNativeTask true for post-agent_end participant shape', () => {
-    const snapshot = createTaskMonitorSnapshot();
+    const snapshot = createTaskSnapshot();
     snapshot.replaceAll([]);
     const row = snapshot.mergeSignal(snapshotDocToSignal(makePostAgentEndSnapshotDoc()));
     expect(row).toBeDefined();
@@ -171,7 +165,6 @@ describe('native queued delivery after agent_end', () => {
 
   test('notifyNativeTurnIdle injects promoted pending task via event path', async () => {
     unregisterNativeDeliverySession();
-    clearAssignedTaskSnapshots();
     const now = 1_700_000_000_000;
 
     const baseRow = {
@@ -186,8 +179,6 @@ describe('native queued delivery after agent_end', () => {
         machineId: MACHINE_ID,
         agentHarness: 'cursor-sdk',
         workingDir: '/test/workspace',
-        spawnedAgentPid: 42_424,
-        desiredState: 'running' as const,
       },
       participant: {
         lastSeenAction: NATIVE_TASK_INJECTED_ACTION,
@@ -196,10 +187,11 @@ describe('native queued delivery after agent_end', () => {
       },
     };
 
-    replaceAssignedTaskSnapshots([baseRow]);
-
     const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
       const a = args as Record<string, unknown>;
+      if (a && 'machineId' in a && !('taskId' in a)) {
+        return { tasks: [baseRow] };
+      }
       if (a && 'chatroomId' in a && 'taskId' in a) {
         return { fullCliOutput: 'EVENT DRIVEN OUTPUT' };
       }
@@ -276,7 +268,6 @@ describe('native queued delivery after agent_end', () => {
     } finally {
       logSpy.mockRestore();
       unregisterNativeDeliverySession();
-      clearAssignedTaskSnapshots();
     }
   });
 });

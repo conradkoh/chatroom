@@ -14,13 +14,11 @@ import {
   notifyNativeTurnIdle,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
-import {
-  clearAssignedTaskSnapshots,
-  replaceAssignedTaskSnapshots,
-} from '../../../infrastructure/stores/assigned-task-snapshot-store.js';
+import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
+import { MachineTaskSnapshotState } from '../../infrastructure/inbox/task-snapshot-state.js';
 import { getRoleDeliveryState } from '../role-delivery-state.js';
 
-function makeRow() {
+function makeRow(): AssignedTaskSnapshotView {
   return {
     taskId: 'task_1' as never,
     chatroomId: 'room_1' as never,
@@ -45,12 +43,9 @@ function makeRow() {
 }
 
 describe('NativeTaskDeliveryCoordinator', () => {
-  beforeEach(() => {
-    clearAssignedTaskSnapshots();
-  });
+  beforeEach(() => {});
 
   afterEach(() => {
-    clearAssignedTaskSnapshots();
     unregisterNativeDeliverySession();
     resetNativeDeliveryLedgerForTests();
   });
@@ -80,13 +75,14 @@ describe('NativeTaskDeliveryCoordinator', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  test('tryInjectNextForRole calls reconcile when session registered and store has matching tasks', () => {
+  test('tryInjectNextForRole calls reconcile when session registered and backend has matching tasks', async () => {
     unregisterNativeDeliverySession();
 
     const row = makeRow();
-    replaceAssignedTaskSnapshots([row as never]);
-
     const backendQuery = vi.fn(async (_fn: unknown, args: unknown) => {
+      if (args && typeof args === 'object' && 'machineId' in args && !('taskId' in args)) {
+        return { tasks: [row] };
+      }
       if (args && typeof args === 'object' && 'chatroomId' in args) {
         return { fullCliOutput: 'DELIVERY OUTPUT' };
       }
@@ -117,6 +113,8 @@ describe('NativeTaskDeliveryCoordinator', () => {
       resumeTurnForSlot,
       setLastInFlightTask: vi.fn().mockReturnValue(Runtime.defaultRuntime),
     };
+    const taskSnapshotState = new MachineTaskSnapshotState();
+    taskSnapshotState.replace([row]);
 
     registerNativeDeliverySession({
       runtime: Runtime.defaultRuntime as Parameters<
@@ -128,6 +126,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
       agentMgr: agentMgr as never,
       sessionDeps,
       machineId: 'm',
+      taskSnapshotState,
     });
 
     const coordinator = new NativeTaskDeliveryCoordinator();
@@ -135,7 +134,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
 
     coordinator.tryInjectNextForRole('room_1', 'builder');
 
-    expect(spy).toHaveBeenCalled();
+    await vi.waitFor(() => expect(spy).toHaveBeenCalled());
   });
 
   test('notifyNativeTurnIdle does not throw', () => {
@@ -145,7 +144,6 @@ describe('NativeTaskDeliveryCoordinator', () => {
 
   test('G10: tryInjectNextForRole does not inject when store has no matching tasks', () => {
     unregisterNativeDeliverySession();
-    clearAssignedTaskSnapshots();
 
     const resumeTurnForSlot = vi.fn().mockResolvedValue(undefined);
 

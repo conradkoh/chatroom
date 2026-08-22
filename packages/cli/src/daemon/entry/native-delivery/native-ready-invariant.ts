@@ -1,11 +1,12 @@
 import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/types.js';
 
+import { getNativeDeliverySession } from './native-delivery-session-registry.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
 import {
-  isAgentDesiredRunning,
   isDeliverableTaskStatus,
 } from '../../../daemon/domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../daemon/domain/usecase/check-agent-slot.js';
+import { isOperationalDesiredRunning } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 
 /** Agent is ready for native task delivery (post-restart or steady-state). */
@@ -26,19 +27,24 @@ export function explainAgentReadyForNativeDeliveryBlock(
   if (!isNativeHarness(agentConfig.agentHarness)) {
     return `not_native_harness (harness=${agentConfig.agentHarness})`;
   }
-  if (!isAgentDesiredRunning(agentConfig.desiredState)) {
-    return `desired_state_not_running (desiredState=${agentConfig.desiredState})`;
-  }
-  if (agentConfig.spawnedAgentPid == null) {
-    return 'spawned_pid_missing';
+  const operational = getNativeDeliverySession()?.agentOperationalReadModel?.get(task.chatroomId, agentConfig.role);
+  if (!isOperationalDesiredRunning(operational)) {
+    return `operational_state_not_running (state=${operational?.operationalState ?? 'missing'})`;
   }
   if (!slot) {
-    return `slot_missing (expectedPid=${agentConfig.spawnedAgentPid})`;
+    return agentConfig.spawnedAgentPid == null
+      ? 'spawned_pid_missing'
+      : `slot_missing (expectedPid=${agentConfig.spawnedAgentPid})`;
   }
   if (!isSlotRunning(slot.state)) {
-    return `slot_not_running (slotState=${slot.state}, expectedPid=${agentConfig.spawnedAgentPid})`;
+    return `slot_not_running (slotState=${slot.state}, expectedPid=${agentConfig.spawnedAgentPid ?? 'none'})`;
   }
-  if (slot.pid !== agentConfig.spawnedAgentPid) {
+  // The backend PID can lag behind a successful local spawn. Once the local
+  // slot is healthy, it is the authoritative process identity for delivery.
+  if (slot.pid == null) {
+    return 'slot_pid_missing';
+  }
+  if (agentConfig.spawnedAgentPid != null && slot.pid !== agentConfig.spawnedAgentPid) {
     return `pid_mismatch (slotPid=${slot.pid ?? 'none'}, snapshotPid=${agentConfig.spawnedAgentPid})`;
   }
   if (typeof slot.harnessSessionId !== 'string' || slot.harnessSessionId.length === 0) {

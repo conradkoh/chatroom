@@ -638,7 +638,8 @@ export default defineSchema({
 
   /**
    * Slim timeline task-status signals — one row per FSM transition.
-   * Webapp subscribes via indexed cursor (pay-once deltas).
+   * Chatroom-scoped only; webapp subscribes via by_chatroom_signalKey.
+   * Machine-routed signals live in chatroom_machineTaskStatusSignals.
    */
   chatroom_timelineTaskStatusSignals: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -656,6 +657,25 @@ export default defineSchema({
     signalKey: v.string(),
     taskUpdatedAt: v.number(),
   }).index('by_chatroom_signalKey', ['chatroomId', 'signalKey']),
+
+  chatroom_machineTaskStatusSignals: defineTable({
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    taskId: v.id('chatroom_tasks'),
+    targetRole: v.string(),
+    taskStatus: v.union(
+      v.literal('pending'),
+      v.literal('acknowledged'),
+      v.literal('in_progress'),
+      v.literal('completed'),
+      v.literal('closed'),
+      v.literal('backlog'),
+      v.literal('pending_user_review'),
+      v.literal('backlog_acknowledged')
+    ),
+    signalKey: v.string(),
+    taskUpdatedAt: v.number(),
+  }).index('by_machineId_signalKey', ['machineId', 'signalKey']),
 
   /**
    * Slim daemon task-monitor rows — one per (machineId, taskId, role).
@@ -676,9 +696,6 @@ export default defineSchema({
     agentHarness: v.string(),
     model: v.optional(v.string()),
     workingDir: v.optional(v.string()),
-    spawnedAgentPid: v.optional(v.number()),
-    desiredState: v.optional(v.string()),
-    circuitState: v.optional(v.string()),
     configUpdatedAt: v.number(),
 
     lastSeenAt: v.optional(v.number()),
@@ -1119,6 +1136,39 @@ export default defineSchema({
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])
     .index('by_machineId', ['machineId']),
+
+  chatroom_agentRoleOperationalStatus: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    teamId: v.string(),
+    machineId: v.optional(v.string()),
+    operationalState: v.union(
+      v.literal('running'),
+      v.literal('stopped'),
+      v.literal('starting'),
+      v.literal('circuit_open')
+    ),
+    viewState: v.optional(v.union(v.literal('running'), v.literal('stopped'), v.literal('starting'), v.literal('circuit_open'))),
+    isAlive: v.boolean(),
+    isRunning: v.boolean(),
+    daemonConnected: v.boolean(),
+    projectedAt: v.number(),
+    revisionKey: v.string(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_role', ['chatroomId', 'role'])
+    .index('by_machineId', ['machineId']),
+
+  chatroom_agentOperationalSummary: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    teamId: v.string(),
+    remoteConfigCount: v.number(),
+    agentStatus: v.union(v.literal('running'), v.literal('stopped'), v.literal('none')),
+    runningRoles: v.array(v.string()),
+    aliveRoles: v.array(v.string()),
+    runningAgents: v.array(v.object({ role: v.string(), machineId: v.string() })),
+    projectedAt: v.number(),
+  }).index('by_chatroom', ['chatroomId']),
 
   /**
    * One row per user-initiated "refresh capabilities" wave from the webapp.

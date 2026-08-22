@@ -9,7 +9,7 @@ import {
   buildAgentRestartPhaseEvent,
   type AgentRestartPhase,
 } from '@workspace/backend/src/domain/usecase/agent/build-agent-restart-event.js';
-import { parseAssignedTaskMonitorRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-monitor-contract.js';
+import { parseAssignedTaskSnapshotRows } from '@workspace/backend/src/domain/usecase/machine/assigned-task-snapshot-contract.js';
 import { Effect } from 'effect';
 
 import type { DaemonAgentProcessManagerServiceShape } from './daemon-services.js';
@@ -18,7 +18,10 @@ import { api } from '../../api.js';
 import { getNativeDeliveryLedger } from './native-delivery/native-delivery-ledger.js';
 import { isAgentReadyForNativeDelivery } from './native-delivery/native-ready-invariant.js';
 import { resetRoleDeliveryState } from './native-delivery/native-task-delivery-coordinator.js';
-import { explainLedgerDeliveryBlock } from './native-delivery/native-task-injector-logic.js';
+import {
+  explainLedgerDeliveryBlock,
+  explainNativeDeliveryBlock,
+} from './native-delivery/native-task-injector-logic.js';
 import { runNativeInjectionEffect } from './native-delivery/native-task-injector.js';
 import {
   markRestartOrchestratorInFlight,
@@ -144,7 +147,7 @@ async function listDeliverableSnapshots(
   })) as { tasks?: unknown };
 
   const slot = deps.agentMgr.getSlot(event.chatroomId, event.role);
-  return mapAssignedTaskSnapshotList(parseAssignedTaskMonitorRows(result.tasks ?? []))
+  return mapAssignedTaskSnapshotList(parseAssignedTaskSnapshotRows(result.tasks ?? []))
     .filter(
       (t) =>
         t.chatroomId === event.chatroomId &&
@@ -183,6 +186,11 @@ async function deliverOneTask(
   );
   if (ledgerBlock) {
     console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — ${ledgerBlock}`);
+    return false;
+  }
+  const deliveryBlock = explainNativeDeliveryBlock(snapshot, { slot });
+  if (deliveryBlock) {
+    console.warn(`[RestartOrchestrator] skip task ${snapshot.taskId} — ${deliveryBlock}`);
     return false;
   }
   if (!ledger.tryAcquire(snapshot.taskId as string, harnessSessionId)) {

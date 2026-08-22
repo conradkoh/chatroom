@@ -7,22 +7,28 @@ import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
 import { BackendService } from '../../../infrastructure/services/backend.js';
-import { DaemonSessionService } from '../daemon-services.js';
+import { AgentLifecycleOutboxService, DaemonSessionService } from '../daemon-services.js';
+import { buildAgentLifecycleRevisionKey } from '../../domain/entities/agent-lifecycle-fact.js';
 
 /** Clear all stale spawnedAgentPid values for this machine. */
 export const clearStaleSpawnedPidsEffect = (): Effect.Effect<
   number,
   Error,
-  BackendService | DaemonSessionService
+  AgentLifecycleOutboxService | DaemonSessionService
 > =>
   Effect.gen(function* () {
-    const backend = yield* BackendService;
+    const outbox = yield* AgentLifecycleOutboxService;
     const session = yield* DaemonSessionService;
-    const result = yield* backend.mutation<{ clearedCount: number }>(
-      api.machines.clearAllSpawnedPids,
-      { sessionId: session.sessionId, machineId: session.machineId }
-    );
-    return result.clearedCount;
+    const emittedAt = Date.now();
+    const result = yield* outbox.enqueue({
+      kind: 'cleared_all_pids',
+      revisionKey: buildAgentLifecycleRevisionKey('cleared_all', {
+        machineId: session.machineId,
+        emittedAt,
+      }),
+      emittedAt,
+    });
+    return result.clearedCount ?? 0;
   });
 
 /** Reap pending/running command runs orphaned from previous daemon process. */

@@ -81,7 +81,11 @@ export async function startDaemon(): Promise<void> {
     createStartBackgroundCapabilitiesDiscoveryDeps(layers)
   );
 
-  const runtime = createDaemonRuntime({ wsClient, layers });
+  const runtime = createDaemonRuntime({
+    wsClient,
+    layers,
+    agentLifecycleOutbox: init.agentLifecycleOutbox,
+  });
 
   try {
     await runtime.run();

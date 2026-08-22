@@ -12,6 +12,7 @@ import type { SessionId as ConvexSessionId } from 'convex-helpers/server/session
 import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
 import type { DaemonEventBus } from './events/event-bus.js';
 import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
+import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
 import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/types.js';
 import type { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
@@ -122,6 +123,7 @@ export interface DaemonSessionInit {
   machine: MachineStateOps;
   spawning: SpawningOps;
   agentProcessManager: AgentProcessManager;
+  agentLifecycleOutbox: AgentLifecycleOutboxRegistry;
 
   // ─── Shared data ──────────────────────────────────────────────────
   events: DaemonEventBus;

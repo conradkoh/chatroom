@@ -2,6 +2,10 @@
 
 Composition root — wiring only. **No business logic.**
 
+## Task discovery
+
+Daemon task discovery uses the machine-scoped task inbox (`infrastructure/inbox/task.ts` + `entry/task-inbox-runtime.ts`), not legacy assigned-task subscribe queries. Snapshots hydrate via `listMachineAssignedTaskSnapshots`; delivery runs through `native-delivery/` coordinator.
+
 ## Belongs here
 
 | File                     | Role                                                                                             |
@@ -13,7 +17,7 @@ Composition root — wiring only. **No business logic.**
 | `persistence-path.ts`    | Resolve `~/.chatroom/daemon/<machineId>/events.sqlite`                                           |
 | `default-router-deps.ts` | Router hooks for all bounded contexts (assigned task, harness, command, file, git, enhancer, …)  |
 | `event-router.ts`        | `InboundEvent` → use case dispatch                                                               |
-| `subscriber-registry.ts` | Start/stop all 15 Convex subscribers                                                             |
+| `subscriber-registry.ts` | Start/stop all 13 Convex subscribers                                                             |
 | `publisher-registry.ts`  | Route `OutboundEvent` → publishers; appends to persistence; fans `harness.stream` to `streamHub` |
 | `deps.ts`                | Dependency bag for use cases (publishers, persistence, streamHub)                                |
 

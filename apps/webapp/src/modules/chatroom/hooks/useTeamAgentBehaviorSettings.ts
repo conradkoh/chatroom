@@ -9,14 +9,14 @@ import { toast } from 'sonner';
 /**
  * Per-role team agent behavior toggles persisted on `chatroom_teamAgentConfigs`.
  *
- * Single place for optimistic local state, Convex restore (from getAgentStatus),
+ * Single place for optimistic local state, Convex restore (from getMachineAgentConfigs),
  * and save mutations. Consumers should use `effective*` for display when a
  * server snapshot is available.
  */
 export interface UseTeamAgentBehaviorSettingsOptions {
   chatroomId: string;
   role: string;
-  /** Restored from getAgentStatus / AgentRoleView (defaults to true when absent). */
+  /** Restored from team agent config (getMachineAgentConfigs; defaults to true when absent). */
   teamWantResume?: boolean;
 }
 

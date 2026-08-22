@@ -27,6 +27,8 @@ Adapter layer — transport and machine-local I/O. **No business logic.**
 
 ## Event flow
 
+- Task discovery transport: `infrastructure/inbox/task.ts` consumes the machine-scoped task-status signal feed and hydrates current snapshots.
+
 ```
 Convex → subscribers/ → InboundEvent → entry/event-router → usecase/
 usecase/ → OutboundEvent → entry/publisher-registry → publishers/ → Convex

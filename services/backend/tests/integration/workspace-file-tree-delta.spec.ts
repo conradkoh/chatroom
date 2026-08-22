@@ -178,6 +178,7 @@ describe('incremental workspace file tree', () => {
       status: 'published',
       revision: 1,
       prunedDeltaCount: 1,
+      pruneComplete: true,
     });
 
     const checkpoint = await t.query(api.workspaceFiles.getFileTreeCheckpoint, {

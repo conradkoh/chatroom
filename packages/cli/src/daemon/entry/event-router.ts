@@ -5,11 +5,6 @@ import {
   type HandleAgenticQueryInboundDeps,
 } from '../domain/usecase/handle-agentic-query-inbound.js';
 import {
-  handleAssignedTaskInbound,
-  type AssignedTaskInboundEvent,
-  type HandleAssignedTaskInboundDeps,
-} from '../domain/usecase/handle-assigned-task-inbound.js';
-import {
   handleCommandInbound,
   type CommandInboundEvent,
   type HandleCommandInboundDeps,
@@ -36,7 +31,6 @@ import {
 } from '../domain/usecase/handle-workspace-git-inbound.js';
 
 export type EventRouterDeps = {
-  assignedTask: HandleAssignedTaskInboundDeps;
   directHarness: HandleDirectHarnessInboundDeps;
   command: HandleCommandInboundDeps;
   workspaceGit: HandleWorkspaceGitInboundDeps;
@@ -48,10 +42,6 @@ export type EventRouterDeps = {
 // fallow-ignore-next-line complexity
 export async function routeInboundEvent(deps: EventRouterDeps, event: InboundEvent): Promise<void> {
   switch (event.type) {
-    case 'assigned-task.signal':
-    case 'assigned-task.presence':
-      await handleAssignedTaskInbound(deps.assignedTask, event as AssignedTaskInboundEvent);
-      break;
     case 'direct-harness.session-opened':
     case 'direct-harness.prompt':
     case 'direct-harness.command':

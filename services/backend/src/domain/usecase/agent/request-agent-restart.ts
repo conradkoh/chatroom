@@ -1,5 +1,6 @@
 import { buildAgentRestartEvent } from './build-agent-restart-event';
 import { getAgentConfig } from './get-agent-config';
+import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
@@ -12,7 +13,7 @@ import {
   type AgentRestartResult,
   type RunnableRemoteAgentConfig,
 } from '../../entities/agent-restart';
-import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
+import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
 import { releaseTasksOnAgentExit } from '../task/release-tasks-on-agent-exit';
 
@@ -85,6 +86,7 @@ async function releaseRestartTasks(
   return releaseTasksOnAgentExit(ctx, { chatroomId: input.chatroomId, role: input.role });
 }
 
+// fallow-ignore-next-line complexity
 async function persistRestartAndEmit(
   ctx: MutationCtx,
   input: { chatroomId: Id<'chatroom_rooms'>; role: string },
@@ -117,5 +119,17 @@ async function persistRestartAndEmit(
     )
   );
   await transitionAgentStatus(ctx, input.chatroomId, input.role, 'agent.restart', 'running');
-  await projectAssignedTaskSnapshotsForChatroom(ctx, input.chatroomId);
+  await refreshSnapshotDeliveryConfigForChatroomRole(ctx, input.chatroomId, input.role);
+  const teamId = chatroom?.teamId;
+  const restartedConfig = teamId
+    ? await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, teamId, input.role))
+        )
+        .first()
+    : null;
+  await projectAgentOperationalStatusForRole(ctx, input.chatroomId, input.role, undefined, {
+    config: restartedConfig ?? undefined,
+  });
 }

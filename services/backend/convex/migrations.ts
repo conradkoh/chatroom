@@ -11,6 +11,7 @@ import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,
 } from './utils/machineFavoriteScopeKey';
+import { rebuildAgentOperationalStatusForChatroom } from '../src/domain/usecase/agent/project-agent-operational-status';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
 
@@ -607,6 +608,56 @@ export const stripManagerRoleNames = migrations.define({
 // ========================================
 
 /**
+ * Backfill materialized agent operational status rows from current configs.
+ * Idempotent and safe to resume through the migrations component.
+ */
+export const backfillAgentOperationalStatus = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (ctx, room) => {
+    await rebuildAgentOperationalStatusForChatroom(
+      ctx,
+      room._id,
+      'migration:backfillAgentOperationalStatus'
+    );
+  },
+});
+
+export const migrateMachineTaskStatusSignals = migrations.define({
+  table: 'chatroom_timelineTaskStatusSignals',
+  migrateOne: async (ctx, row) => {
+    const targetMachineId = (row as { targetMachineId?: string }).targetMachineId;
+    const targetRole = (row as { targetRole?: string }).targetRole;
+    if (!targetMachineId || !targetRole) return;
+    const existing = await ctx.db
+      .query('chatroom_machineTaskStatusSignals')
+      .withIndex('by_machineId_signalKey', (q) =>
+        q.eq('machineId', targetMachineId).eq('signalKey', row.signalKey)
+      )
+      .unique();
+    if (existing) return;
+    await ctx.db.insert('chatroom_machineTaskStatusSignals', {
+      machineId: targetMachineId,
+      chatroomId: row.chatroomId,
+      taskId: row.taskId,
+      targetRole,
+      taskStatus: row.taskStatus,
+      signalKey: row.signalKey,
+      taskUpdatedAt: row.taskUpdatedAt,
+    });
+  },
+});
+
+export const stripTimelineMachineSignalFields = migrations.define({
+  table: 'chatroom_timelineTaskStatusSignals',
+  migrateOne: async (_ctx, row) => {
+    const r = row as { targetMachineId?: string; targetRole?: string };
+    if (r.targetMachineId !== undefined || r.targetRole !== undefined) {
+      return { targetMachineId: undefined, targetRole: undefined } as never;
+    }
+  },
+});
+
+/**
  * Run all migrations in order.
  * Usage: pnpm migrate  (from repo root; CI uses the same command with CONVEX_DEPLOY_KEY set)
  *
@@ -630,6 +681,8 @@ export const runAll = migrations.runner([
   // Cleanup
   internal.migrations.deduplicateTeamAgentConfigs,
   internal.migrations.purgeWorkspaceCommitDetails,
+  internal.migrations.migrateMachineTaskStatusSignals,
+  internal.migrations.stripTimelineMachineSignalFields,
   // Workspace File Tree
   internal.migrations.compactWorkspaceFileTreeDeltaOperations,
   // Git State

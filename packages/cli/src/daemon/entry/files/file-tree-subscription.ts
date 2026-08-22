@@ -5,25 +5,15 @@
  * one V2/V3 checkpoint; normal filesystem changes are sent as revisioned deltas.
  */
 
-import { randomUUID } from 'node:crypto';
-
-import { selectFileTreeSnapshotStrategyId } from '@workspace/backend/src/domain/workspace-file-tree/index.js';
 import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
-import { computeFileTreeDataHash } from '../../../infrastructure/services/workspace/file-tree-data-hash.js';
 import { normalizeWorkingDirForLookup } from '../../../infrastructure/services/workspace/normalize-working-dir.js';
-import {
-  buildBlobSnapshotPayload,
-  publishBlobSnapshot,
-} from '../../../infrastructure/services/workspace/transport/blob-snapshot-publish.js';
-import { publishShardedSnapshot } from '../../../infrastructure/services/workspace/transport/sharded-snapshot-publish.js';
 import {
   startWorkspaceFileTreeCoordinator,
   type WorkspaceFileTreeCoordinator,
 } from '../../../infrastructure/services/workspace/workspace-file-tree-coordinator.js';
 import { enqueueFileTreeSync } from '../../../infrastructure/services/workspace/workspace-sync-queue.js';
-import type { WorkspacePendingDelta } from '../../../infrastructure/services/workspace/workspace-sync-state.js';
 import { getErrorMessage } from '../../../utils/convex-error.js';
 import {
   createWorkspaceFileTreeCheckpointOutboxRegistry,
@@ -31,6 +21,8 @@ import {
   type WorkspaceFileTreeDeltaOutboxRegistry,
   type WorkspaceFileTreeCheckpointOutboxRegistry,
 } from '../../infrastructure/outbox/index.js';
+import { createWorkspaceFileTreeCheckpointSend } from '../../infrastructure/outbox/workspace-file-tree-checkpoint-send.js';
+import { createWorkspaceFileTreeDeltaSend } from '../../infrastructure/outbox/workspace-file-tree-delta-send.js';
 import { DaemonSessionService, type DaemonSessionServiceShape } from '../daemon-services.js';
 import { formatTimestamp } from '../daemon-utils.js';
 
@@ -157,86 +149,6 @@ export async function drainPendingFileTreeRequests(
   await processPendingFileTreeRequests(session, coordinators, ensureCoordinator, requests);
 }
 
-async function syncScannedFileTree(
-  session: DaemonSessionServiceShape,
-  normalizedWorkingDir: string,
-  tree: ReturnType<WorkspaceFileTreeCoordinator['getTree']>,
-  dataHash: string,
-  syncGeneration: string
-): Promise<{ strategyId: 'blob' | 'sharded'; snapshotId: string }> {
-  if (selectFileTreeSnapshotStrategyId(tree) === 'sharded') {
-    const ref = await publishShardedSnapshot(session, normalizedWorkingDir, tree, syncGeneration);
-    return { strategyId: ref.strategyId, snapshotId: ref.snapshotId };
-  }
-  const ref = await publishBlobSnapshot(
-    session,
-    normalizedWorkingDir,
-    buildBlobSnapshotPayload(tree, dataHash)
-  );
-  return { strategyId: ref.strategyId, snapshotId: ref.snapshotId };
-}
-
-function toDeltaOperations(delta: WorkspacePendingDelta) {
-  return [
-    ...delta.added.map((entry) => ({
-      o: 'a' as const,
-      p: entry.path,
-      e: entry.type === 'directory' ? ('d' as const) : ('f' as const),
-    })),
-    ...delta.removed.map((entryPath) => ({
-      o: 'r' as const,
-      p: entryPath,
-    })),
-    ...delta.typeChanged.map((entry) => ({
-      o: 't' as const,
-      p: entry.path,
-      e: entry.type === 'directory' ? ('d' as const) : ('f' as const),
-    })),
-  ];
-}
-
-async function publishCheckpoint(
-  session: DaemonSessionServiceShape,
-  normalizedWorkingDir: string,
-  tree: ReturnType<WorkspaceFileTreeCoordinator['getTree']>,
-  revision: number
-): Promise<{ revision: number }> {
-  const dataHash = computeFileTreeDataHash(tree);
-  const syncGeneration = randomUUID();
-  const snapshot = await syncScannedFileTree(
-    session,
-    normalizedWorkingDir,
-    tree,
-    dataHash,
-    syncGeneration
-  );
-  let checkpointRevision = revision;
-  let result = await session.backend.mutation(api.workspaceFiles.publishFileTreeCheckpoint, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-    workingDir: normalizedWorkingDir,
-    revision: checkpointRevision,
-    ...snapshot,
-  });
-  if (result.status === 'resync-required') {
-    checkpointRevision = result.expectedRevision + 1;
-    result = await session.backend.mutation(api.workspaceFiles.publishFileTreeCheckpoint, {
-      sessionId: session.sessionId,
-      machineId: session.machineId,
-      workingDir: normalizedWorkingDir,
-      revision: checkpointRevision,
-      ...snapshot,
-    });
-  }
-  if (result.status === 'snapshot-missing') {
-    throw new Error(`File tree checkpoint rejected: ${result.status}`);
-  }
-  console.log(
-    `[${formatTimestamp()}] 🌳 File tree checkpoint: ${normalizedWorkingDir} (${tree.entries.length} entries, revision ${checkpointRevision})`
-  );
-  return { revision: checkpointRevision };
-}
-
 export const startFileTreeSubscriptionEffect = (): Effect.Effect<
   FileTreeSubscriptionHandle,
   never,
@@ -247,7 +159,16 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
     const coordinators = new Map<string, Promise<WorkspaceFileTreeCoordinator>>();
     const checkpointOutboxRegistry = createWorkspaceFileTreeCheckpointOutboxRegistry(
       session.machineId,
-      (normalized) => (state) => publishCheckpoint(session, normalized, state.tree, state.revision),
+      (normalized) => {
+        const send = createWorkspaceFileTreeCheckpointSend(session, normalized);
+        return async (state) => {
+          const result = await send(state);
+          console.log(
+            `[${formatTimestamp()}] 🌳 File tree checkpoint: ${normalized} (${state.tree.entries.length} entries, revision ${result.revision})`
+          );
+          return result;
+        };
+      },
       {
         onError: (normalized, error) =>
           logSubscriptionWarn(`File tree checkpoint outbox failed for ${normalized}`, error),
@@ -255,19 +176,7 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
     );
     const deltaOutboxRegistry = createWorkspaceFileTreeDeltaOutboxRegistry(
       session.machineId,
-      (normalized) => async (unit) => {
-        const result = await session.backend.mutation(api.workspaceFiles.applyFileTreeDeltaBatch, {
-          sessionId: session.sessionId,
-          machineId: session.machineId,
-          workingDir: normalized,
-          operationId: unit.delta.operationId,
-          baseRevision: unit.baseRevision,
-          operations: toDeltaOperations(unit.delta),
-        });
-        if (result.status === 'resync-required')
-          return { status: 'conflict', revision: result.expectedRevision };
-        return result;
-      }
+      (normalized) => createWorkspaceFileTreeDeltaSend(session, normalized)
     );
 
     const ensureCoordinator = (
@@ -280,6 +189,7 @@ export const startFileTreeSubscriptionEffect = (): Effect.Effect<
         coordinatorPromise = startWorkspaceFileTreeCoordinator({
           machineId: session.machineId,
           workingDir: normalized,
+          // Enqueue only — error retry/backoff lives in the outbox send adapters.
           onDelta: (delta, baseRevision) =>
             deltaOutboxRegistry.enqueue(normalized, { delta, baseRevision }),
           onCheckpoint: (tree, revision) =>

@@ -1,11 +1,16 @@
 import { api } from '../../../../api.js';
-import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
+import type {
+  InboundCommandEventPayload,
+  InboundEvent,
+} from '../../../domain/entities/inbound-event.js';
 import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
 
 export type SubscriberHandle = { stop(): Promise<void> };
 
 interface CommandEvent {
   _id: string;
+  type: string;
+  [key: string]: unknown;
 }
 
 interface CommandEventsResult {
@@ -27,7 +32,13 @@ export function startCommandEventsSubscriber(
       for (const event of result.events) {
         if (seen.has(event._id)) continue;
         seen.add(event._id);
-        onEvent({ type: 'command.received', commandId: event._id });
+        onEvent({
+          type: 'command.received',
+          commandId: event._id,
+          // The follow-up dispatch can use this payload directly instead of
+          // re-querying the full command event list over HTTP.
+          commandEvent: event as InboundCommandEventPayload,
+        });
       }
     },
     (err: unknown) => {

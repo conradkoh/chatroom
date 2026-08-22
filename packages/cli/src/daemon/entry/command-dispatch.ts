@@ -18,6 +18,7 @@ import {
   type DaemonSessionServiceShape,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
+import type { InboundCommandEventPayload } from '../domain/entities/inbound-event.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
@@ -295,13 +296,22 @@ export async function handleInboundCommandEvent(
   commandId: string,
   tracker: DedupTracker,
   effectContext: Context.Context<CommandDispatchDeps>,
-  session: DaemonSessionServiceShape
+  session: DaemonSessionServiceShape,
+  commandEvent?: InboundCommandEventPayload
 ): Promise<void> {
-  const result = await session.backend.query(api.machines.getCommandEvents, {
-    sessionId: session.sessionId,
-    machineId: session.machineId,
-  });
-  const event = result?.events?.find((e: CommandEvent) => e._id.toString() === commandId);
+  let event: CommandEvent | undefined;
+  if (commandEvent?._id.toString() === commandId) {
+    // The subscriber already received the complete command payload. The cast
+    // only bridges the generic inbound transport shape to Convex's inferred
+    // discriminated return type; dispatch handlers validate the event type.
+    event = commandEvent as unknown as CommandEvent;
+  } else {
+    const result = await session.backend.query(api.machines.getCommandEvents, {
+      sessionId: session.sessionId,
+      machineId: session.machineId,
+    });
+    event = result?.events?.find((e: CommandEvent) => e._id.toString() === commandId);
+  }
   if (!event) return;
   await Effect.runPromise(
     dispatchCommandEventEffect(event, tracker).pipe(Effect.provide(effectContext))
