@@ -236,8 +236,8 @@ function isEnhancerCheckInQueuedHandoff(params: {
 
 function getEnhancerCheckInQueuedConfirmationLines(nativeIntegration?: boolean): string[] {
   const turnEndRule = nativeIntegration
-    ? '**End your turn now** — do not wait for feedback, poll, monitor the enhancer, or re-submit the handoff. The system delivers enhancer feedback as your next planner task when review completes.'
-    : '**Run get-next-task now and end your turn** — do not wait for feedback, poll, monitor the enhancer, or re-submit the handoff.';
+    ? '**Handoff complete. End your turn now — stop tool calls. The system will send you a message when further action is required.** Do **not** wait for feedback, poll, monitor the enhancer, or re-submit the handoff. The system delivers enhancer feedback as your next planner task when review completes.'
+    : '**Run the single foreground `get-next-task` listener, then end your turn — stop tool calls. The system will send you a message when further action is required.** Do **not** wait for feedback, poll, monitor the enhancer, or re-submit the handoff.';
 
   return [
     '✅ Planning check-in queued for handoff enhancer',
