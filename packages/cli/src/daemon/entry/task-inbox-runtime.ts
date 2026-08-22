@@ -43,6 +43,10 @@ type TaskInboxDependencies = {
 export async function bootstrapMachineAssignedTaskSnapshots(
   deps: TaskInboxDependencies
 ): Promise<void> {
+  await deps.sessionDeps.backend.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
+    sessionId: deps.sessionDeps.sessionId,
+    machineId: deps.machineId,
+  });
   await deps.sessionDeps.backend.mutation(api.machines.syncMachineAssignedTaskSnapshotsMutation, {
     sessionId: deps.sessionDeps.sessionId,
     machineId: deps.machineId,
