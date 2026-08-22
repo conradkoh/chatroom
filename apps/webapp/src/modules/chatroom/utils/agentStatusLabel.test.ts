@@ -34,9 +34,9 @@ describe('resolveAgentStatus', () => {
     expect(result).toEqual({ label: 'OFFLINE (ERROR)', variant: 'error' });
   });
 
-  it('maps agent.waiting with stopped to STOPPING', () => {
+  it('maps agent.waiting with stopped to OFFLINE', () => {
     const result = resolveAgentStatus('agent.waiting', 'stopped', true);
-    expect(result).toEqual({ label: 'STOPPING', variant: 'transitioning' });
+    expect(result).toEqual({ label: 'OFFLINE', variant: 'offline' });
   });
 
   it('maps agent.enhancing to PLANNING REVIEW with working variant', () => {

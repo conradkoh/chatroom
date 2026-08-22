@@ -548,6 +548,49 @@ describe('Participant Status Tracking', () => {
     expect(status.lastDesiredState).toBe('stopped');
   });
 
+  test('join does not downgrade agent.exited to agent.waiting when desiredState=stopped', async () => {
+    const { sessionId } = await createTestSession('test-pst-stop-race');
+    const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
+    const machineId = 'machine-pst-stop-race';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').first();
+      if (!user) throw new Error('expected test user');
+      return stopAgent(ctx, {
+        machineId,
+        chatroomId,
+        role: 'builder',
+        userId: user._id,
+        reason: 'user.stop',
+      });
+    });
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'get-next-task:started',
+    });
+
+    const afterGetNext = await getParticipantStatus(chatroomId, 'builder');
+    expect(afterGetNext.lastStatus).toBe('agent.exited');
+    expect(afterGetNext.lastDesiredState).toBe('stopped');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      action: 'native:waiting',
+    });
+
+    const afterNativeWaiting = await getParticipantStatus(chatroomId, 'builder');
+    expect(afterNativeWaiting.lastStatus).toBe('agent.exited');
+    expect(afterNativeWaiting.lastDesiredState).toBe('stopped');
+  });
+
   test('no-op when participant does not exist', async () => {
     const { sessionId } = await createTestSession('test-pst-noop');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);

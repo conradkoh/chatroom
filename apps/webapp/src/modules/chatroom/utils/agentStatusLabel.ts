@@ -8,10 +8,10 @@
  *   null (no events)   | any             | OFFLINE         | Grey
  *   agent.registered   | any             | REGISTERED      | Yellow
  *   agent.waiting      | running/undef   | WAITING         | Green
- *   agent.waiting      | stopped         | STOPPING        | Yellow
+ *   agent.waiting      | stopped         | OFFLINE         | Grey
  *   agent.requestStart | any             | STARTING        | Yellow
  *   agent.started      | any             | STARTED         | Green
- *   agent.requestStop  | stopped         | STOPPING        | Yellow
+ *   agent.requestStop  | stopped         | OFFLINE         | Grey
  *   task.acknowledged  | any             | TASK RECEIVED   | Yellow
  *   task.inProgress    | any             | WORKING         | Blue (pulse)
  *   task.completed     | any             | WAITING          | Green
@@ -72,7 +72,7 @@ export const AGENT_STATUS_EVENT_TYPES = [
 export type AgentStatusEventType = (typeof AGENT_STATUS_EVENT_TYPES)[number];
 
 // Types that need desiredState to resolve — handled in switch, not static map
-type DesiredStateDependentType = 'agent.waiting' | 'agent.exited' | 'agent.requestStop';
+type DesiredStateDependentType = 'agent.exited';
 type StaticStatusEventType = Exclude<AgentStatusEventType, DesiredStateDependentType>;
 
 const STATIC_STATUS_RESOLUTIONS: Record<StaticStatusEventType, ResolvedAgentStatus> = {
@@ -80,6 +80,8 @@ const STATIC_STATUS_RESOLUTIONS: Record<StaticStatusEventType, ResolvedAgentStat
   'agent.requestStart': { label: 'STARTING', variant: 'transitioning' },
   'agent.started': { label: 'STARTED', variant: 'ready' },
   'agent.restart': { label: 'RESTARTING', variant: 'transitioning' },
+  'agent.waiting': { label: 'WAITING', variant: 'ready' },
+  'agent.requestStop': { label: 'OFFLINE', variant: 'offline' },
   'agent.startFailed': { label: 'OFFLINE (ERROR)', variant: 'error' },
   'agent.providerUnavailable': { label: 'PROVIDER UNAVAILABLE', variant: 'transitioning' },
   'agent.circuitOpen': { label: 'OFFLINE (ERROR)', variant: 'error' },
@@ -115,21 +117,21 @@ export function resolveAgentStatus(
     return { label: 'OFFLINE', variant: 'offline' };
   }
 
+  // Intentional stop: desiredState is authoritative over stale in-flight events
+  // from a dying process (prevents persistent STOPPING in the sidebar).
+  if (desiredState === 'stopped') {
+    const isStarting = eventType === 'agent.requestStart' || eventType === 'agent.restart';
+    if (!isStarting) {
+      return { label: 'OFFLINE', variant: 'offline' };
+    }
+  }
+
   // DesiredState-dependent cases
   if (eventType === 'agent.exited') {
     const isIntentional = desiredState === 'stopped';
     return isIntentional
       ? { label: 'OFFLINE', variant: 'offline' }
       : { label: 'OFFLINE (ERROR)', variant: 'error' };
-  }
-
-  if (eventType === 'agent.waiting') {
-    if (desiredState === 'stopped') return { label: 'STOPPING', variant: 'transitioning' };
-    return { label: 'WAITING', variant: 'ready' };
-  }
-
-  if (eventType === 'agent.requestStop') {
-    return { label: 'STOPPING', variant: 'transitioning' };
   }
 
   // Static resolutions — exhaustive via Record type
