@@ -90,8 +90,6 @@ describe('assignedTaskSignalSchema', () => {
       'createdAt',
       'agentHarness',
       'workingDir',
-      'spawnedAgentPid',
-      'desiredState',
       'lastSeenAction',
       'lastStatus',
     ]);

@@ -26,8 +26,6 @@ function makeSnapshotDoc(
     taskUpdatedAt: now,
     agentHarness: 'opencode',
     workingDir: '/test/workspace',
-    spawnedAgentPid: 42_424,
-    desiredState: 'running',
     configUpdatedAt: now,
     presenceUpdatedAt: now,
     presenceKey: 'presence-key',
@@ -79,8 +77,6 @@ describe('bootstrapMonitorRowFromSignal', () => {
       makeSignal({
         workingDir: '/tmp/project',
         assignedTo: 'builder',
-        spawnedAgentPid: 200,
-        desiredState: 'running',
         lastSeenAction: 'get-next-task:started',
         lastStatus: 'agent.waiting',
       })
@@ -125,7 +121,6 @@ describe('patchMonitorRowFromSignal', () => {
       existing,
       makeSignal({
         status: 'acknowledged',
-        spawnedAgentPid: 999,
         lastSeenAction: 'task.injected',
       })
     );

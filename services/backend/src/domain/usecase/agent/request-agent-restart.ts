@@ -119,11 +119,12 @@ async function persistRestartAndEmit(
   );
   await transitionAgentStatus(ctx, input.chatroomId, input.role, 'agent.restart', 'running');
   await refreshSnapshotDeliveryConfigForChatroomRole(ctx, input.chatroomId, input.role);
-  const restartedConfig = chatroom?.teamId
+  const teamId = chatroom?.teamId;
+  const restartedConfig = teamId
     ? await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, chatroom.teamId, input.role))
+          q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, teamId, input.role))
         )
         .first()
     : null;
