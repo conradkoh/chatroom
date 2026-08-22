@@ -22,6 +22,7 @@ describe('migration: stripMachineAssignedTaskSnapshotOperationalFields', () => {
         createdBy: 'planner',
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        queuePosition: 0,
         status: 'in_progress',
         assignedTo: 'planner',
         content: 'test',
