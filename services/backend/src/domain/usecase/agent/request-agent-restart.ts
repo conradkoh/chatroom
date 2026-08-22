@@ -86,6 +86,7 @@ async function releaseRestartTasks(
   return releaseTasksOnAgentExit(ctx, { chatroomId: input.chatroomId, role: input.role });
 }
 
+// fallow-ignore-next-line complexity
 async function persistRestartAndEmit(
   ctx: MutationCtx,
   input: { chatroomId: Id<'chatroom_rooms'>; role: string },

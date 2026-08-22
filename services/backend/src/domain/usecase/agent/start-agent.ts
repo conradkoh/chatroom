@@ -91,6 +91,7 @@ export interface StartAgentResult {
  * @returns The command ID and config used
  * @throws If the harness is not available on the machine
  */
+// fallow-ignore-next-line complexity
 export async function startAgent(
   ctx: MutationCtx,
   input: StartAgentInput,

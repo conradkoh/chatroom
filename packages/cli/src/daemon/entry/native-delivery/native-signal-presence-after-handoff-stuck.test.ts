@@ -78,8 +78,6 @@ function makePostHandoffPendingSnapshotDoc(
     taskUpdatedAt: now,
     agentHarness: 'cursor-sdk',
     workingDir: '/test/workspace',
-    spawnedAgentPid: SPAWNED_PID,
-    desiredState: 'running',
     configUpdatedAt: now,
     presenceUpdatedAt: now,
     presenceKey: 'presence-post-handoff',

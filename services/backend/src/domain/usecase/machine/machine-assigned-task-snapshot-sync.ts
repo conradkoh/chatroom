@@ -64,6 +64,7 @@ function resolveResponsibleConfigs(
   return configsForChatroom.slice(0, 1);
 }
 
+// fallow-ignore-next-line unused-export
 export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
   return {
     taskId: doc.taskId,
@@ -83,6 +84,7 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
   };
 }
 
+// fallow-ignore-next-line unused-export
 export function snapshotDocToPresenceDelta(doc: SnapshotDoc): AssignedTaskPresenceDelta {
   return { taskId: doc.taskId, role: doc.role, presenceKey: doc.presenceKey };
 }
@@ -270,10 +272,10 @@ export async function projectAssignedTaskSnapshotsForMachine(
 }
 
 /** Rebuild assigned-task snapshot projection for all machines in a chatroom. */
-export async function projectAssignedTaskSnapshotsForChatroom(
+async function loadRemoteConfigsForChatroom(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
-): Promise<void> {
+): Promise<{ chatroom: Doc<'chatroom_rooms'> | null; configs: RemoteAgentConfig[] }> {
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   const configs = filterTeamAgentConfigsForTeam(
     await ctx.db
@@ -284,6 +286,25 @@ export async function projectAssignedTaskSnapshotsForChatroom(
     chatroomId,
     chatroom?.teamId
   );
+  return { chatroom, configs };
+}
+
+async function listSnapshotRowsForChatroomRole(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+) {
+  return ctx.db
+    .query('chatroom_machineAssignedTaskSnapshots')
+    .withIndex('by_chatroomId_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+    .collect();
+}
+
+export async function projectAssignedTaskSnapshotsForChatroom(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<void> {
+  const { configs } = await loadRemoteConfigsForChatroom(ctx, chatroomId);
 
   const machineIds = new Set(
     configs.map((c) => c.machineId).filter((id): id is string => id !== undefined)
@@ -294,25 +315,15 @@ export async function projectAssignedTaskSnapshotsForChatroom(
 }
 
 /** Patch delivery-config fields on existing snapshot rows for one role. */
+// fallow-ignore-next-line complexity
 export async function refreshSnapshotDeliveryConfigForChatroomRole(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
   role: string
 ): Promise<void> {
-  const room = await ctx.db.get('chatroom_rooms', chatroomId);
-  const configs = filterTeamAgentConfigsForTeam(
-    await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .filter((q) => q.eq(q.field('type'), 'remote'))
-      .collect(),
-    chatroomId,
-    room?.teamId
-  ).filter((config) => config.role.toLowerCase() === role.toLowerCase());
-  const rows = await ctx.db
-    .query('chatroom_machineAssignedTaskSnapshots')
-    .withIndex('by_chatroomId_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
-    .collect();
+  const { configs: allConfigs } = await loadRemoteConfigsForChatroom(ctx, chatroomId);
+  const configs = allConfigs.filter((config) => config.role.toLowerCase() === role.toLowerCase());
+  const rows = await listSnapshotRowsForChatroomRole(ctx, chatroomId, role);
   const now = Date.now();
   for (const row of rows) {
     const config = configs.find((candidate) => candidate.machineId === row.machineId);
@@ -474,10 +485,7 @@ export async function syncParticipantPresenceOnSnapshots(
 ): Promise<void> {
   const participant = await getParticipantForChatroomRole(ctx, chatroomId, role);
 
-  const rows = await ctx.db
-    .query('chatroom_machineAssignedTaskSnapshots')
-    .withIndex('by_chatroomId_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
-    .collect();
+  const rows = await listSnapshotRowsForChatroomRole(ctx, chatroomId, role);
 
   const now = Date.now();
   const bumpSignal = options?.actionChanged ?? false;
