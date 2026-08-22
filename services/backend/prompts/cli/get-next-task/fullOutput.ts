@@ -54,7 +54,7 @@ export interface FullCliOutputParams {
   sourceAttachments?: PrimaryDeliveryAttachments;
   /** Standing instructions for this chatroom (null = none active). */
   standingInstructions?: string | null;
-  /** When true, planner task delivery includes handoff-enhancer guidance. */
+  /** When true, entry-point task delivery includes handoff-enhancer guidance. */
   plannerEnhancerEnabled?: boolean;
 }
 

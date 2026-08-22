@@ -44,11 +44,11 @@ export function getNativeHandoffTurnEndGuidance(nextRole: string): string {
   return lines.join('\n');
 }
 
-/** Planner queued an async enhancer check-in — end turn; feedback arrives as the next planner task. */
-export function getNativeEnhancerCheckInTurnEndGuidance(): string {
+/** Entry point queued a request-first enhancer job; its input arrives as the next task. */
+export function getNativeEnhancerRequestTurnEndGuidance(): string {
   return [
     '',
     '**Handoff must be your last action this turn.** After running handoff, **End your turn now** — stop tool calls. Your session stays active.',
-    'Do **not** wait for enhancer feedback, poll, or monitor the enhancer job in this turn. The system delivers enhancer feedback as your next planner task when review completes.',
+    'Do **not** wait for enhancer input, poll, or monitor the enhancer job in this turn. The system delivers independent planning input as your next task when analysis completes.',
   ].join('\n');
 }

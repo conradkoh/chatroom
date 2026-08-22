@@ -19,8 +19,8 @@ import {
 } from '../src/domain/entities/participant';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
+import { hasActiveEntryPointEnhancerJob } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
-import { hasActivePlannerEnhancerJob } from '../src/domain/usecase/enhancer/planner-enhancing-status';
 import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { handleNativeAgentEnd as handleNativeAgentEndUsecase } from '../src/domain/usecase/participant/handle-native-agent-end';
@@ -190,10 +190,12 @@ export const join = mutation({
     // Emit agent.waiting event when agent enters the get-next-task loop
     const isStopRequested = teamConfig?.desiredState === 'stopped';
     if (args.action === 'get-next-task:started' && !isStopRequested) {
-      const plannerEnhancerActive =
-        args.role.toLowerCase() === 'planner' &&
-        (await hasActivePlannerEnhancerJob(ctx, args.chatroomId));
-      const waitingStatus = plannerEnhancerActive ? 'agent.enhancing' : 'agent.waiting';
+      const entryPointEnhancerActive = await hasActiveEntryPointEnhancerJob(
+        ctx,
+        args.chatroomId,
+        args.role
+      );
+      const waitingStatus = entryPointEnhancerActive ? 'agent.enhancing' : 'agent.waiting';
       await ctx.db.insert('chatroom_eventStream', {
         type: waitingStatus,
         chatroomId: args.chatroomId,
@@ -415,11 +417,25 @@ export const getTeamLifecycle = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const { session: { userId } } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const {
+      session: { userId },
+    } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const view = await getAgentViewStatus(ctx, { chatroomId: args.chatroomId, userId });
     if (!view) return null;
-    return { teamId: view.teamId, teamName: view.teamName, expectedRoles: view.teamRoles,
-      participants: view.agents.map((a) => ({ role: a.role, lastSeenAt: a.lastSeenAt, lastSeenAction: a.lastSeenAction,
-        agentType: a.agentType, lastStatus: a.lastStatus, lastDesiredState: a.lastDesiredState, isAlive: a.isAlive })), hasHistory: view.hasHistory };
+    return {
+      teamId: view.teamId,
+      teamName: view.teamName,
+      expectedRoles: view.teamRoles,
+      participants: view.agents.map((a) => ({
+        role: a.role,
+        lastSeenAt: a.lastSeenAt,
+        lastSeenAction: a.lastSeenAction,
+        agentType: a.agentType,
+        lastStatus: a.lastStatus,
+        lastDesiredState: a.lastDesiredState,
+        isAlive: a.isAlive,
+      })),
+      hasHistory: view.hasHistory,
+    };
   },
 });

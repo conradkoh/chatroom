@@ -4,10 +4,6 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { getDaemonMachineAuth } from './auth';
 import { ENHANCER_STDIN_DELIMITER } from '../../../prompts/cli/stdin-heredoc';
 import { getConfig } from '../../../prompts/config/index';
-import {
-  renderEnhancerOutputTemplateContent,
-  renderEnhancerReferencesXml,
-} from '../../../prompts/enhancer/reference-handoff-templates';
 import { renderEnhancerTaskEnvelope } from '../../../prompts/enhancer/render-task-envelope';
 import { renderEnhancerSystemPrompt } from '../../../prompts/enhancer/system-prompt';
 import { getCliEnvPrefix } from '../../../prompts/utils/index';
@@ -41,35 +37,20 @@ export const getSpawnPayload = query({
     }
 
     const cliEnvPrefix = getCliEnvPrefix(config.getConvexURL());
-    const outputTemplateContent = renderEnhancerOutputTemplateContent({
-      teamId: chatroom.teamId ?? 'duo',
-      chatroomId: job.chatroomId,
-      outputTemplate: job.templateSnapshot,
-      cliEnvPrefix,
-      nativeIntegration: true,
-    });
-    const referencesXml = renderEnhancerReferencesXml({
-      teamId: chatroom.teamId ?? 'duo',
-      chatroomId: job.chatroomId,
-      outputTemplate: job.templateSnapshot,
-      cliEnvPrefix,
-      nativeIntegration: true,
-    });
-
     const cliCompleteCommand = `chatroom enhancer complete --chatroom-id=${job.chatroomId} --job-id=${job._id} << '${ENHANCER_STDIN_DELIMITER}'`;
     const taskEnvelope = renderEnhancerTaskEnvelope({
       jobId: job._id,
       chatroomId: job.chatroomId,
-      targetId: 'handoff:planner-to-builder',
-      outputTemplateContent,
-      referencesXml,
-      plannerCheckIn: job.draftContent,
+      originUserMessageId: job.originUserMessageId,
+      outputTemplateContent: job.templateSnapshot,
+      requestContent: job.draftContent,
       cliCompleteCommand,
     });
     const systemPrompt = renderEnhancerSystemPrompt({
       chatroomId: job.chatroomId,
       jobId: job._id,
       cliEnvPrefix,
+      originUserMessageId: job.originUserMessageId,
     });
     return {
       chatroomId: job.chatroomId,

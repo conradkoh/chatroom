@@ -3,7 +3,6 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import {
   emitEnhancerEvent,
-  resolveEnhancerInputTemplateSnapshot,
   resolveHandoffTemplateSnapshot,
   resolveWorkspaceForEnhancer,
 } from '../../../../convex/web/enhancer/internal';
@@ -12,6 +11,7 @@ export interface CreateEnhancerJobFromHandoffArgs {
   chatroomId: Id<'chatroom_rooms'>;
   userId: Id<'users'>;
   chatroom: Doc<'chatroom_rooms'>;
+  entryPointRole: string;
   content: string;
   taskId: Id<'chatroom_tasks'>;
   messageId: Id<'chatroom_messages'>;
@@ -28,10 +28,10 @@ export async function createEnhancerJobFromHandoff(
   args: CreateEnhancerJobFromHandoffArgs
 ): Promise<Id<'chatroom_enhancerJobs'>> {
   const workspace = await resolveWorkspaceForEnhancer(ctx, args.chatroomId, args.machineId);
-  const templateSnapshot = resolveHandoffTemplateSnapshot(args.chatroom, args.chatroomId);
-  const inputTemplateSnapshot = resolveEnhancerInputTemplateSnapshot(
+  const templateSnapshot = resolveHandoffTemplateSnapshot(
     args.chatroom,
-    args.chatroomId
+    args.chatroomId,
+    args.entryPointRole
   );
   const now = Date.now();
 
@@ -39,12 +39,11 @@ export async function createEnhancerJobFromHandoff(
     chatroomId: args.chatroomId,
     userId: args.userId,
     targetId: 'handoff:planner-to-builder',
-    fromRole: 'planner',
+    fromRole: args.entryPointRole,
     toRole: 'enhancer',
     status: 'pending',
     draftContent: args.content,
     templateSnapshot,
-    inputTemplateSnapshot,
     agentHarness: args.agentHarness,
     model: args.model,
     machineId: args.machineId,
@@ -56,8 +55,8 @@ export async function createEnhancerJobFromHandoff(
     taskId: args.taskId,
     handoffMessageId: args.messageId,
     pendingHandoffArgs: {
-      senderRole: 'planner',
-      targetRole: 'planner',
+      senderRole: args.entryPointRole,
+      targetRole: args.entryPointRole,
       attachedArtifactIds: args.attachedArtifactIds,
     },
   });

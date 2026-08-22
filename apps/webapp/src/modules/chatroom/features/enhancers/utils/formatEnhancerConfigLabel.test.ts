@@ -20,7 +20,7 @@ describe('formatEnhancerConfigLabel', () => {
 
   it('formatEnhancerConfigLabel includes target prefix', () => {
     expect(formatEnhancerConfigLabel(entry)).toBe(
-      'Planning review (before builder) / OpenCode (CLI) / Anthropic / Claude Opus 4'
+      'Request-first planning input / OpenCode (CLI) / Anthropic / Claude Opus 4'
     );
   });
 });

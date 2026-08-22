@@ -1,5 +1,3 @@
-import { ENHANCER_ENABLED_USER_WORKFLOW } from './enhancer-workflow';
-
 export type PlanningReviewOutcomeStatus = 'cancelled' | 'failed';
 
 export function buildPlanningReviewOutcomeContent(
@@ -16,17 +14,17 @@ export function buildPlanningReviewOutcomeContent(
     `<planning-review-outcome status="${status}">`,
     `## Planning review ${status}`,
     '',
-    'The enhancer did **not** complete a review of your check-in.',
+    'The enhancer did **not** complete its analysis of the user request.',
     '',
     reasonLine,
     '',
-    '**Your job:** Proceed with your original check-in and best judgment. **Do not retry the enhancer for this check-in** — for this delegation round, proceed without re-review:',
+    '**Your job:** Proceed with entry-point-owned research and best judgment. **Do not retry the enhancer for this user message**:',
     '',
     '```',
-    ENHANCER_ENABLED_USER_WORKFLOW,
+    'user → enhancer → resume team workflow → user',
     '```',
     '',
-    'Delegate to `builder` or deliver to `user` using the matching template. **Next-slice enhancer check-ins** are only allowed after a **builder handback** — do not submit a new check-in to retry a failed review on the same round.',
+    'Resume the implementation, delegation, or delivery path for your team without another enhancer pass.',
     '</planning-review-outcome>',
   ].join('\n');
 }

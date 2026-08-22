@@ -153,14 +153,14 @@ describe('Native init prompt (integration)', () => {
     expect(output).toContain('messages download');
   });
 
-  test('native planner enhancer check-in tells agent to end turn without waiting', () => {
+  test('native planner enhancer request tells agent to end turn without waiting', () => {
     const output = generateHandoffOutput({
       role: 'planner',
       nextRole: 'enhancer',
       chatroomId: 'test-chatroom-id',
       convexUrl: 'http://127.0.0.1:3210',
       supportsNativeIntegration: true,
-      enhancerCheckInQueued: true,
+      enhancerRequestQueued: true,
     });
 
     expect(output).toContain('queued for handoff enhancer');

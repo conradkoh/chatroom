@@ -10,7 +10,7 @@ describe('webapp UX reference', () => {
   it('contains ten project-agnostic checklist items with frontend-design dimensions', () => {
     const ref = renderWebappUxReference();
     expect(ref.match(/^\d+\. /gm) ?? []).toHaveLength(10);
-    expect(ref).toContain('### Review principles');
+    expect(ref).toContain('### Planning principles');
     expect(ref).toContain('no layout shift');
     expect(ref).toContain('explicitly handled');
     expect(ref).toContain('**Interaction affordance**');
@@ -26,7 +26,7 @@ describe('webapp UX reference', () => {
 
   it('keeps the handoff trigger', () => {
     expect(getUxReviewTriggerDescription()).toBe(
-      'when the planner check-in proposes user interface changes'
+      'when the user request involves user interface changes'
     );
     expect(renderWebappUxHandoffReference()).toContain('**UX** section');
   });

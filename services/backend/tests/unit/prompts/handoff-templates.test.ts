@@ -28,13 +28,13 @@ describe('handoff-templates > resolver', () => {
     );
   });
 
-  test('resolves planner → enhancer to the mandatory check-in template', () => {
+  test('resolves planner → enhancer to the stripped request template', () => {
     expect(getHandoffTemplate({ fromRole: 'planner', toRole: 'enhancer' })).toBe(
       getPlannerToEnhancerHandoffTemplate()
     );
   });
 
-  test('resolves enhancer → planner to the planning feedback template', () => {
+  test('resolves enhancer → planner to the planning input template', () => {
     expect(getHandoffTemplate({ fromRole: 'enhancer', toRole: 'planner' })).toBe(
       getEnhancerToPlannerHandoffTemplate()
     );
@@ -46,10 +46,11 @@ describe('handoff-templates > resolver', () => {
     expect(template).toContain('<handoff-action>');
     expect(template).toContain('<handoff-ux>');
     expect(template).not.toMatch(/^## UX$/m);
-    expect(template).toContain('## Recommendations');
-    expect(template).toContain('## Suggested edits (remove or change only)');
-    expect(template).not.toContain('## Questions for the planner');
-    expect(template).not.toContain('## UX consistency review');
+    expect(template).toContain('## Recommended next steps');
+    expect(template).toContain('## Implementation notes');
+    expect(template).not.toContain('planner check-in');
+    expect(template).not.toContain('builder-handoff');
+    expect(template).not.toContain('Suggested edits');
   });
 
   test('resolves planner → user to the report template', () => {
@@ -80,6 +81,25 @@ describe('handoff-templates > resolver', () => {
     expect(
       getHandoffTemplate({ teamId: 'solo', fromRole: 'solo', toRole: 'user', ...params })
     ).toBe(getSoloToUserReportTemplate(params));
+  });
+
+  test('resolves the solo request-first enhancer handoff pair', () => {
+    const request = getHandoffTemplate({
+      teamId: 'solo',
+      fromRole: 'solo',
+      toRole: 'enhancer',
+    });
+    const input = getHandoffTemplate({
+      teamId: 'solo',
+      fromRole: 'enhancer',
+      toRole: 'solo',
+    });
+
+    expect(request).toContain('Request Forward (Solo → Enhancer)');
+    expect(request).toContain('<request>');
+    expect(request).not.toContain('<grounding>');
+    expect(input).toContain('Planning Input (Enhancer → Solo)');
+    expect(input).toContain('solo agent owns persistent memory, execution, and the final plan');
   });
 
   test('delivery params match direct getter calls for duo planner → user', () => {
@@ -352,16 +372,16 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       ---
 
-      **Planning Feedback (Enhancer → Planner)** — complete every section below. Do not omit sections, principles, or XML wrappers:
+      **Planning Input (Enhancer → Planner)** — complete every section below. Do not omit sections, principles, or XML wrappers:
 
       When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
 
-      The planner sent you three XML sections. Your job is **advisory adversarial review** — raise risks, challenge assumptions, align with user intent. Be **specific and targeted**: cite concrete claims, files, UX choices, and gaps from the check-in so the planner can improve the plan without re-synthesizing vague feedback.
+      Independently analyze the user's request. Recover the relevant conversation history, inspect the repository, and give the planner agent a concrete first input for its own planning. Focus on user intent, existing behavior, implementation direction, risks, and material unknowns. The planner agent owns persistent memory, execution, and the final plan.
 
-      Give **concrete, actionable recommendations** in every section. End with **Recommendations** (second-last: summarized suggestions, tradeoffs, and considerations) then **Suggested edits** (last: proposed edits to grounding and the builder-handoff with file paths and code snippets). For UI work, complete the optional **UX** section using the reference below. For large or multi-surface revision work, complete the optional **Defragmentation** section using its reference below. **Do not rewrite their full builder brief.** The planner makes the final call.
+      Ground every recommendation in user messages or codebase evidence. For UI work, complete the optional **UX** section using the reference below. For a large or multi-surface revision, complete the optional **Defragmentation** section. End with **Recommended next steps**, then **Implementation notes** for any file-level detail or short illustrative code that materially helps.
 
-      ### UX review checklist
-      Complete the optional **UX** section in your output when the planner proposes UI changes. Write exactly "Not Applicable." for non-UI tasks. Put code snippets in **Suggested edits** only.
+      ### UX planning checklist
+      Complete the optional **UX** section when the user request involves UI changes. Write exactly "Not Applicable." for non-UI tasks. Put code snippets in **Implementation notes** only.
 
       1. **Flows** — is the primary path straightforward? simpler alternatives exist?
       2. **Patterns** — consistent with existing project components and conventions? recommend one when multiple exist.
@@ -374,14 +394,14 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       9. **Destructive actions** — irreversible or high-impact single actions gated by confirmation?
       10. **Bulk actions** — batch/multi-item operations confirmed with scope or impact summary?
 
-      ### Review principles
-      - Ground feedback in the planner check-in and the project codebase — cite existing patterns rather than inventing generic UI preferences.
+      ### Planning principles
+      - Ground findings in user history and the project codebase — cite existing patterns rather than inventing generic UI preferences.
       - Flag missing states, layout-shift risk, and missing interaction affordances when the plan omits them; recommend consistency with established project conventions.
       - Do **not** prescribe style choices the project has not adopted (e.g. specific flex layouts, canonical card chrome, responsive utility patterns, button label copy).
       - When multiple valid patterns exist in the codebase, recommend one and explain the tradeoff.
 
       ### Defragmentation workflow checklist
-      Complete the optional **Defragmentation** section when the planner check-in addresses a large or multi-surface system revision, including refactoring, consolidation, or consistency work. Write exactly "Not Applicable." only when no such revision is proposed.
+      Complete the optional **Defragmentation** section when the user request involves a large or multi-surface system revision, including refactoring, consolidation, or consistency work. Write exactly "Not Applicable." only when no such revision is requested.
 
       1. **Study surfaces** — map all call sites, use cases, and complexity variants before proposing slices; name every relevant file/module
       2. **Golden implementation** — build a standalone canonical solution first; introduce canonical domain entities/types only when the studied variants require them, then shared use cases, UI components, or utilities; do not patch duplicates in place
@@ -403,27 +423,27 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       \`\`\`markdown
       <handoff-overview>
       ## Summary
-      <overall assessment — cite specific strengths, risks, and whether the approach is sound; reference concrete elements from the check-in>
+      <concise independent assessment of the request, the likely solution shape, and the most important finding>
 
-      ## User intent alignment
-      <specific misreadings or missing constraints — what the user asked vs what the planner proposed>
+      ## User intent and constraints
+      <what the user is trying to achieve, explicit requirements, relevant prior-message context, and constraints that must be preserved>
       </handoff-overview>
 
       <!-- UI collapses proofs, direction, ux, defragmentation, and notes by default; overview and action required are expanded -->
 
       <handoff-proofs>
-      ## Reasoning review
-      <specific logical errors, weak inference, or contradictions — cite the claim and why it fails>
+      ## Codebase grounding
+      <relevant files, current behavior, established patterns, data flow, tests, and concrete evidence discovered in the repository>
       </handoff-proofs>
 
       <handoff-direction>
-      ## Alignment with eventual user handoff
-      <specific gaps for user-facing completeness — what proof or report sections would be missing>
+      ## Recommended approach
+      <a concrete implementation direction, suggested boundaries and sequencing, and why it fits the request and existing system>
       </handoff-direction>
 
       <handoff-ux>
-      <!-- Optional — write exactly "Not Applicable." when no UI changes are proposed -->
-      <!-- When UI is proposed: specific findings tied to the planner's proposal. No code blocks (use Suggested edits). -->
+      <!-- Optional — write exactly "Not Applicable." when the user request does not involve UI changes -->
+      <!-- When UI is involved: ground each finding in user history and repository patterns. Put code only in Implementation notes. -->
       - **Flows:** <click count, nested modals, simpler alternatives>
       - **Patterns:** <consistency with existing project components; recommend one when multiple>
       - **Layout:** <complexity, wrappers, layout stable across state transitions — no layout shift>
@@ -437,49 +457,48 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       </handoff-ux>
 
       <handoff-defragmentation>
-      <!-- Optional — write exactly "Not Applicable." when no large or multi-surface system revision is proposed -->
-      <!-- When revision work is proposed: specific findings tied to the planner's proposal. No code blocks (use Suggested edits). -->
+      <!-- Optional — write exactly "Not Applicable." when the request does not involve a large or multi-surface revision -->
+      <!-- When revision work is involved: map the existing surfaces independently. Put code only in Implementation notes. -->
       - **Surfaces:** <call sites and modules identified; gaps in surface mapping>
-      - **Golden path:** <whether planner builds standalone canonical implementation first>
+      - **Golden path:** <standalone canonical implementation to establish first>
       - **Domain model:** <canonical types/entities needed or "not needed">
-      - **Shared components:** <shared abstractions planned (use cases, UI, utilities)>
-      - **Slice ordering:** <study → golden → migrate → delete sequence respected?>
-      - **Migration plan:** <how all callers move to golden path>
-      - **Deletion plan:** <old implementations slated for removal>
-      - **Duplication:** <existing duplicates to eliminate; risk of new duplication>
-      - **Structural decisions:** <folder/module boundaries; SSOT locations>
+      - **Shared components:** <shared abstractions needed across use cases, UI, or utilities>
+      - **Slice ordering:** <study → golden path → migrate → delete sequence>
+      - **Migration plan:** <how all callers move to the golden path>
+      - **Deletion plan:** <old implementations to remove after migration>
+      - **Duplication:** <existing duplicates to eliminate and risk of introducing new duplication>
+      - **Structural decisions:** <folder/module boundaries and SSOT locations>
       </handoff-defragmentation>
 
       <handoff-notes>
-      ## Knowledge gaps
-      <specific facts, files, or research to verify — name what to check and why>
+      ## Open questions
+      <uncertainties that materially affect implementation; state what evidence would resolve each one, or write "Not Applicable.">
       </handoff-notes>
 
       <handoff-action>
-      ## Risks & failure modes
-      <specific risks tied to this plan — what fails, under what conditions, and how to mitigate>
+      ## Risks and mitigations
+      <specific failure modes or tradeoffs, their impact, and a practical mitigation for each>
 
-      ## Recommendations
-      <!-- SECOND-LAST — concrete, actionable suggestions tied to the check-in. Include tradeoffs and considerations. No code blocks here (use Suggested edits for snippets). -->
+      ## Recommended next steps
+      <!-- SECOND-LAST — ordered, concrete work the planner should consider when producing the final plan. No code blocks here. -->
 
-      ## Suggested edits (remove or change only)
-      <!-- LAST — proposed edits to grounding and builder-handoff. File paths and code snippets required when recommending changes. Omit entirely if none. -->
-      When you recommend removing or changing specific content in the planner's check-in, list each change here with file-level detail and code examples.
+      ## Implementation notes
+      <!-- LAST — use only when file-level details or short code examples materially clarify the recommendation. -->
       <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
 
-      ### <section or claim to remove or change>
+      ### <implementation detail>
       **File:** \`apps/webapp/src/path/to/file.ts\`
-      **Change:** <what to remove, replace, or correct and why>
+      **Note:** <what the planner should know and why>
 
       \`\`\`typescript
-      // Code snippet: what should change, be removed, or what the planner got wrong
+      // Short illustrative snippet, only when useful
       \`\`\`
 
-      (Add one ### block per distinct removal or change. Use repo-relative paths with file extensions.)
+      (Add one ### block per distinct detail. Write "Not Applicable." when none are needed.)
       </handoff-action>
       \`\`\`
 
-      Return only the feedback markdown — no preamble. Follow this structure; omit sections that truly do not apply."
+      Return only the planning input markdown — no preamble. Follow this structure; use "Not Applicable." where an optional section does not apply."
     `);
   });
 

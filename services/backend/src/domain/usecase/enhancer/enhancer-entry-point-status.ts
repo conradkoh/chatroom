@@ -1,6 +1,9 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
-import { findActiveEnhancerJob } from '../../../../convex/web/enhancer/jobHelpers';
+import {
+  findActiveEnhancerJob,
+  findActiveEnhancerJobForChatroom,
+} from '../../../../convex/web/enhancer/jobHelpers';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
 
 const ACTIVE_TASK_STATUSES = ['pending', 'acknowledged', 'in_progress'] as const;
@@ -38,75 +41,88 @@ async function emitParticipantStatusEvent(
   });
 }
 
-/** Set planner status while a handoff enhancer job is in flight. */
-export async function transitionPlannerToEnhancing(
+/** Set the persistent entry-point agent's status while enhancer work is in flight. */
+export async function transitionEnhancerEntryPointToEnhancing(
   ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>
+  chatroomId: Id<'chatroom_rooms'>,
+  entryPointRole: string
 ): Promise<void> {
   const now = Date.now();
   await emitParticipantStatusEvent(ctx, {
     type: 'agent.enhancing',
     chatroomId,
-    role: 'planner',
+    role: entryPointRole,
     timestamp: now,
   });
-  await transitionAgentStatus(ctx, chatroomId, 'planner', 'agent.enhancing');
+  await transitionAgentStatus(ctx, chatroomId, entryPointRole, 'agent.enhancing');
 }
 
-/** Clear enhancing status after enhancer job finishes or handoff is delivered. */
-export async function transitionPlannerFromEnhancingToWaiting(
+/** Clear the entry-point agent's enhancing status after the advisory pass ends. */
+export async function transitionEnhancerEntryPointToWaiting(
   ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>
+  chatroomId: Id<'chatroom_rooms'>,
+  entryPointRole: string
 ): Promise<void> {
   const now = Date.now();
   await emitParticipantStatusEvent(ctx, {
     type: 'agent.waiting',
     chatroomId,
-    role: 'planner',
+    role: entryPointRole,
     timestamp: now,
   });
-  await transitionAgentStatus(ctx, chatroomId, 'planner', 'agent.waiting');
+  await transitionAgentStatus(ctx, chatroomId, entryPointRole, 'agent.waiting');
 }
 
-export async function hasActivePlannerEnhancerJob(
+export async function hasActiveEntryPointEnhancerJob(
   ctx: QueryCtx | MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>
+  chatroomId: Id<'chatroom_rooms'>,
+  entryPointRole: string
 ): Promise<boolean> {
-  const active = await findActiveEnhancerJob(ctx, chatroomId, 'planner', 'enhancer');
+  const active = await findActiveEnhancerJob(ctx, chatroomId, entryPointRole, 'enhancer');
   return active !== null;
 }
 
 const ACTIVE_ENHANCER_JOB_STATUSES = ['pending', 'running'] as const;
+
+async function listActiveJobChatroomIds(
+  ctx: QueryCtx,
+  userId: Id<'users'>
+): Promise<Id<'chatroom_rooms'>[]> {
+  const jobBatches = await Promise.all(
+    ACTIVE_ENHANCER_JOB_STATUSES.map((status) =>
+      ctx.db
+        .query('chatroom_enhancerJobs')
+        .withIndex('by_userId_status', (q) => q.eq('userId', userId).eq('status', status))
+        .collect()
+    )
+  );
+  return jobBatches
+    .flat()
+    .filter((job) => job.toRole === 'enhancer')
+    .map((job) => job.chatroomId);
+}
+
+async function listActiveTaskChatroomIds(ctx: QueryCtx): Promise<Id<'chatroom_rooms'>[]> {
+  const taskBatches = await Promise.all(
+    ACTIVE_TASK_STATUSES.map((status) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_assignedTo_status', (q) =>
+          q.eq('assignedTo', 'enhancer').eq('status', status)
+        )
+        .collect()
+    )
+  );
+  return taskBatches.flat().map((task) => task.chatroomId);
+}
 
 /** Chatroom IDs with active enhancer jobs or enhancer-assigned tasks owned by the user. */
 export async function listChatroomIdsWithActiveEnhancerWork(
   ctx: QueryCtx,
   userId: Id<'users'>
 ): Promise<Id<'chatroom_rooms'>[]> {
-  const chatroomIds = new Set<Id<'chatroom_rooms'>>();
-
-  for (const status of ACTIVE_ENHANCER_JOB_STATUSES) {
-    const jobs = await ctx.db
-      .query('chatroom_enhancerJobs')
-      .withIndex('by_userId_status', (q) => q.eq('userId', userId).eq('status', status))
-      .collect();
-    for (const job of jobs) {
-      if (job.fromRole === 'planner' && job.toRole === 'enhancer') {
-        chatroomIds.add(job.chatroomId);
-      }
-    }
-  }
-
-  const taskChatroomIds = new Set<Id<'chatroom_rooms'>>();
-  for (const status of ACTIVE_TASK_STATUSES) {
-    const tasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_assignedTo_status', (q) => q.eq('assignedTo', 'enhancer').eq('status', status))
-      .collect();
-    for (const task of tasks) {
-      taskChatroomIds.add(task.chatroomId);
-    }
-  }
+  const chatroomIds = new Set(await listActiveJobChatroomIds(ctx, userId));
+  const taskChatroomIds = new Set(await listActiveTaskChatroomIds(ctx));
 
   for (const chatroomId of taskChatroomIds) {
     const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
@@ -123,7 +139,7 @@ export async function hasActiveEnhancerWork(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<boolean> {
-  if (await hasActivePlannerEnhancerJob(ctx, chatroomId)) {
+  if (await findActiveEnhancerJobForChatroom(ctx, chatroomId)) {
     return true;
   }
   return hasActiveEnhancerTask(ctx, chatroomId);

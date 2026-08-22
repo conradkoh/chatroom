@@ -15,6 +15,7 @@ import { generateFullCliOutput } from '../../../../../prompts/cli/get-next-task/
 const BASE_PARAMS = {
   chatroomId: 'test-chatroom-id',
   role: 'planner',
+  teamId: 'duo',
   cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
   task: {
     _id: 'test-task-id',
@@ -70,15 +71,13 @@ describe('Duo Team > Planner > Get Next Task', () => {
     });
 
     expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('One check-in per builder delegation');
-    expect(output).toContain('planner → enhancer → planner → builder');
-    expect(output).toContain('You MUST check in with the enhancer');
+    expect(output).toContain('Immediately hand off the user request');
+    expect(output).toContain('before planning, researching, or drafting');
+    expect(output).toContain('one-time per originating user message');
     expect(output).toContain('--next-role="enhancer"');
     expect(output).toContain('get-next-task');
     expect(output).toContain('End your turn immediately');
-    expect(output).toContain(
-      'user → [loop planner → enhancer → planner → builder → planner] → user'
-    );
+    expect(output).toContain('user → enhancer → planner → [loop builder → planner] → user');
   });
 
   test('omits enhancer guidance when plannerEnhancerEnabled is false', () => {
@@ -111,7 +110,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('Handoff to `builder`');
   });
 
-  test('enhancer feedback task includes review guidance and targets builder', () => {
+  test('enhancer input task includes planning guidance and targets builder', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
       plannerEnhancerEnabled: true,
@@ -123,7 +122,7 @@ describe('Duo Team > Planner > Get Next Task', () => {
       },
     });
 
-    expect(output).toContain('<enhancer-review>');
+    expect(output).toContain('<enhancer-input>');
     expect(output).not.toContain('<handoff-enhancer>');
     expect(output).not.toContain('Handoff to `enhancer`');
     expect(output).toContain('--next-role="builder"');

@@ -1,4 +1,8 @@
 import { getSoloToUserReportTemplate } from './solo-to-user';
+import {
+  getEnhancerToEntryPointHandoffTemplate,
+  getEntryPointToEnhancerHandoffTemplate,
+} from '../../../enhancer/handoff-templates.js';
 
 export interface SoloHandoffTemplateQuery {
   fromRole: string;
@@ -9,6 +13,8 @@ export interface SoloHandoffTemplateQuery {
 }
 
 const SOLO_HANDOFF_TEMPLATES: Record<string, (query: SoloHandoffTemplateQuery) => string> = {
+  'solo:enhancer': () => getEntryPointToEnhancerHandoffTemplate('solo'),
+  'enhancer:solo': () => getEnhancerToEntryPointHandoffTemplate('solo'),
   'solo:user': (query) =>
     getSoloToUserReportTemplate({
       chatroomId: query.chatroomId,

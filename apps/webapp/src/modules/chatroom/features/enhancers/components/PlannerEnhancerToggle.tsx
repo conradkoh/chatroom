@@ -58,7 +58,7 @@ export function PlannerEnhancerToggle({
 
   const handleUnsupportedClick = useCallback(() => {
     toast.message(
-      'Enhancer is only available on teams with a planner role. It supplements the planner workflow before delegating to the builder — use a Duo-style team to enable it.'
+      'Enhancer is available to Solo and Duo teams. Choose one of those team types to enable request-first planning input.'
     );
   }, []);
 

@@ -4,11 +4,13 @@
  * Used by both native and CLI task delivery paths.
  */
 
+import { isSupportedEnhancerRole } from '@workspace/shared/domain/enhancer-team-capability';
+
 import {
   appendPlanningReviewOutcomeGuidance,
   appendTaskDeliveryEnhancerGuidance,
   appendTaskDeliveryEnhancerDisabledGuidance,
-  appendTaskDeliveryEnhancerReviewGuidance,
+  appendTaskDeliveryEnhancerInputGuidance,
   isPlanningReviewOutcomeContent,
 } from './enhancer-guidance.js';
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
@@ -27,7 +29,7 @@ export interface TaskDeliveryParams {
   isEntryPoint?: boolean;
   sourceAttachments?: PrimaryDeliveryAttachments;
   standingInstructions?: string | null;
-  /** When true, planner task delivery includes handoff-enhancer guidance. */
+  /** When true, entry-point task delivery includes handoff-enhancer guidance. */
   plannerEnhancerEnabled?: boolean;
 }
 
@@ -35,8 +37,7 @@ function appendPlannerEnhancerGuidanceForMessage(
   lines: string[],
   message: { senderRole: string; content?: string } | null | undefined,
   ctx: Pick<TaskDeliveryParams, 'chatroomId' | 'role' | 'cliEnvPrefix'>,
-  taskContent?: string,
-  plannerEnhancerEnabled?: boolean
+  taskContent?: string
 ): void {
   const senderRole = message?.senderRole.toLowerCase();
   if (senderRole === 'enhancer') {
@@ -44,37 +45,107 @@ function appendPlannerEnhancerGuidanceForMessage(
     if (isPlanningReviewOutcomeContent(body)) {
       appendPlanningReviewOutcomeGuidance(lines);
     } else {
-      appendTaskDeliveryEnhancerReviewGuidance(lines, ctx);
+      appendTaskDeliveryEnhancerInputGuidance(lines, ctx);
     }
     return;
   }
-  if (plannerEnhancerEnabled && (senderRole === 'user' || senderRole === 'builder')) {
-    appendTaskDeliveryEnhancerGuidance(lines);
+}
+
+function appendEnabledEnhancerGuidance(
+  lines: string[],
+  params: Pick<
+    TaskDeliveryParams,
+    | 'chatroomId'
+    | 'role'
+    | 'cliEnvPrefix'
+    | 'plannerEnhancerEnabled'
+    | 'message'
+    | 'task'
+    | 'isEntryPoint'
+    | 'teamId'
+  >
+): void {
+  const senderRole = params.message?.senderRole.toLowerCase();
+  if (senderRole === 'user') {
+    appendTaskDeliveryEnhancerGuidance(lines, {
+      entryPointRole: params.role,
+      hasBuilder: params.teamId?.toLowerCase() === 'duo',
+    });
+    return;
   }
+  appendPlannerEnhancerGuidanceForMessage(lines, params.message, params, params.task?.content);
 }
 
 function appendTaskDeliveryEnhancerGuidanceIfEnabled(
   lines: string[],
   params: Pick<
     TaskDeliveryParams,
-    'chatroomId' | 'role' | 'cliEnvPrefix' | 'plannerEnhancerEnabled' | 'message' | 'task'
+    | 'chatroomId'
+    | 'role'
+    | 'cliEnvPrefix'
+    | 'plannerEnhancerEnabled'
+    | 'message'
+    | 'task'
+    | 'isEntryPoint'
+    | 'teamId'
   >
 ): void {
-  if (params.role.toLowerCase() !== 'planner') return;
-  if (params.plannerEnhancerEnabled) {
-    appendPlannerEnhancerGuidanceForMessage(
-      lines,
-      params.message,
-      params,
-      params.task?.content,
-      params.plannerEnhancerEnabled
-    );
-    return;
-  }
+  if (!params.isEntryPoint || !isSupportedEnhancerRole(params.teamId, params.role)) return;
+  if (params.plannerEnhancerEnabled) return appendEnabledEnhancerGuidance(lines, params);
+
   const senderRole = params.message?.senderRole?.toLowerCase();
   if (senderRole === 'user' || senderRole === 'builder') {
     appendTaskDeliveryEnhancerDisabledGuidance(lines);
   }
+}
+
+function appendPrimaryHandoffInstructions(
+  lines: string[],
+  params: {
+    chatroomId: string;
+    role: string;
+    cliEnvPrefix: string;
+    primaryTarget: string;
+    senderRole?: string;
+    requestFirstEnhancerHandoff: boolean;
+  }
+): void {
+  const senderNote = params.senderRole ? ` (task from \`${params.senderRole}\`)` : '';
+  lines.push(
+    params.requestFirstEnhancerHandoff
+      ? `2. **Run this handoff command as your final action now** — this forwards the request to \`${params.primaryTarget}\`${senderNote}:`
+      : `2. **When complete, you MUST run the handoff command as your final action this turn** — this completes your work and delivers it to \`${params.primaryTarget}\`${senderNote}:`
+  );
+  lines.push('', '```bash');
+  lines.push(
+    handoffCommand({
+      chatroomId: params.chatroomId,
+      role: params.role,
+      nextRole: params.primaryTarget,
+      cliEnvPrefix: params.cliEnvPrefix,
+    })
+  );
+  lines.push('```', '');
+  lines.push(
+    'Fill in the message using the matching template in `<handoff-templates>` below. Replace `[Your message here]` with the template content. The closing line must be exactly `CHATROOM_HANDOFF_END` (not `EOF`). **Run handoff as your last tool call, then end your turn immediately — no further tool calls after handoff.**'
+  );
+}
+
+function isRequestFirstEnhancerHandoff(
+  primaryTarget: string | undefined,
+  senderRole: string | undefined
+): boolean {
+  return primaryTarget?.toLowerCase() === 'enhancer' && senderRole?.toLowerCase() === 'user';
+}
+
+function getFirstNextStep(requestFirstEnhancerHandoff: boolean): string {
+  return requestFirstEnhancerHandoff
+    ? '1. **Immediately hand off the user request to the enhancer before planning, researching, or drafting.** Use the stripped-down enhancer template below.'
+    : '1. Work on the task above.';
+}
+
+function getTaskSenderRole(message: { senderRole: string } | null | undefined): string | undefined {
+  return message ? message.senderRole : undefined;
 }
 
 function appendTaskDeliveryNextSteps(
@@ -86,7 +157,6 @@ function appendTaskDeliveryNextSteps(
     | 'cliEnvPrefix'
     | 'message'
     | 'availableHandoffTargets'
-    | 'task'
     | 'isEntryPoint'
     | 'plannerEnhancerEnabled'
   >
@@ -100,8 +170,9 @@ function appendTaskDeliveryNextSteps(
     isEntryPoint,
     plannerEnhancerEnabled,
   } = params;
+  const senderRole = getTaskSenderRole(message);
   const primaryTarget = inferPrimaryHandoffTarget({
-    senderRole: message?.senderRole,
+    senderRole,
     role,
     availableHandoffTargets,
     isEntryPoint,
@@ -110,29 +181,27 @@ function appendTaskDeliveryNextSteps(
 
   lines.push('');
   lines.push('<next-steps>');
-  lines.push('1. Work on the task above.');
+  const requestFirstEnhancerHandoff = isRequestFirstEnhancerHandoff(primaryTarget, senderRole);
+  lines.push(getFirstNextStep(requestFirstEnhancerHandoff));
 
   if (primaryTarget) {
-    const senderNote = message ? ` (task from \`${message.senderRole}\`)` : '';
-    lines.push(
-      `2. **When complete, you MUST run the handoff command as your final action this turn** — this completes your work and delivers it to \`${primaryTarget}\`${senderNote}:`
-    );
-    lines.push('');
-    lines.push('```bash');
-    lines.push(handoffCommand({ chatroomId, role, nextRole: primaryTarget, cliEnvPrefix }));
-    lines.push('```');
-    lines.push('');
-    lines.push(
-      'Fill in the message using the matching template in `<handoff-templates>` below. Replace `[Your message here]` with the template content. The closing line must be exactly `CHATROOM_HANDOFF_END` (not `EOF`). **Run handoff as your last tool call, then end your turn immediately — no further tool calls after handoff.**'
-    );
-  } else {
-    lines.push(
-      '2. **When complete, you MUST run a handoff command from `<handoffs>` below as your final action this turn. Run handoff last, then end your turn immediately — no further tool calls after handoff.**'
-    );
+    appendPrimaryHandoffInstructions(lines, {
+      chatroomId,
+      role,
+      cliEnvPrefix,
+      primaryTarget,
+      senderRole,
+      requestFirstEnhancerHandoff,
+    });
+    lines.push('', '</next-steps>');
+    return;
   }
 
-  lines.push('');
-  lines.push('</next-steps>');
+  lines.push(
+    '2. **When complete, you MUST run a handoff command from `<handoffs>` below as your final action this turn. Run handoff last, then end your turn immediately — no further tool calls after handoff.**',
+    '',
+    '</next-steps>'
+  );
 }
 
 function appendTaskDeliveryHandoffTargets(
@@ -177,50 +246,26 @@ export function appendTaskDeliveryHandoffSections(
     | 'plannerEnhancerEnabled'
   >
 ): void {
-  const {
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    teamId,
-    task,
-    message,
-    availableHandoffTargets,
-    isEntryPoint,
-    plannerEnhancerEnabled,
-  } = params;
-
-  appendTaskDeliveryNextSteps(lines, {
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    message,
-    availableHandoffTargets,
-    task,
-    isEntryPoint,
-    plannerEnhancerEnabled,
-  });
+  appendTaskDeliveryNextSteps(lines, params);
   appendTaskDeliveryEnhancerGuidanceIfEnabled(lines, {
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    plannerEnhancerEnabled,
-    message,
-    task,
+    chatroomId: params.chatroomId,
+    role: params.role,
+    cliEnvPrefix: params.cliEnvPrefix,
+    plannerEnhancerEnabled: params.plannerEnhancerEnabled,
+    message: params.message,
+    task: params.task,
+    isEntryPoint: params.isEntryPoint,
+    teamId: params.teamId,
   });
   appendTaskDeliveryHandoffTemplates(lines, {
-    teamId,
-    role,
-    chatroomId,
-    cliEnvPrefix,
+    teamId: params.teamId,
+    role: params.role,
+    chatroomId: params.chatroomId,
+    cliEnvPrefix: params.cliEnvPrefix,
     includeEnhancerTemplate:
-      plannerEnhancerEnabled &&
-      role.toLowerCase() === 'planner' &&
-      message?.senderRole.toLowerCase() !== 'enhancer',
+      params.plannerEnhancerEnabled &&
+      params.isEntryPoint === true &&
+      params.message?.senderRole.toLowerCase() === 'user',
   });
-  appendTaskDeliveryHandoffTargets(lines, {
-    chatroomId,
-    role,
-    cliEnvPrefix,
-    availableHandoffTargets,
-  });
+  appendTaskDeliveryHandoffTargets(lines, params);
 }

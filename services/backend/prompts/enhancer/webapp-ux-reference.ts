@@ -1,8 +1,8 @@
-/** Canonical, project-agnostic UX review dimensions for enhancer UI proposals. */
+/** Canonical, project-agnostic UX dimensions for enhancer planning input. */
 export function renderWebappUxHandoffReference(): string {
   return [
-    '### UX review checklist',
-    'Complete the optional **UX** section in your output when the planner proposes UI changes. Write exactly "Not Applicable." for non-UI tasks. Put code snippets in **Suggested edits** only.',
+    '### UX planning checklist',
+    'Complete the optional **UX** section when the user request involves UI changes. Write exactly "Not Applicable." for non-UI tasks. Put code snippets in **Implementation notes** only.',
     '',
     '1. **Flows** — is the primary path straightforward? simpler alternatives exist?',
     '2. **Patterns** — consistent with existing project components and conventions? recommend one when multiple exist.',
@@ -15,8 +15,8 @@ export function renderWebappUxHandoffReference(): string {
     '9. **Destructive actions** — irreversible or high-impact single actions gated by confirmation?',
     '10. **Bulk actions** — batch/multi-item operations confirmed with scope or impact summary?',
     '',
-    '### Review principles',
-    '- Ground feedback in the planner check-in and the project codebase — cite existing patterns rather than inventing generic UI preferences.',
+    '### Planning principles',
+    '- Ground findings in user history and the project codebase — cite existing patterns rather than inventing generic UI preferences.',
     '- Flag missing states, layout-shift risk, and missing interaction affordances when the plan omits them; recommend consistency with established project conventions.',
     '- Do **not** prescribe style choices the project has not adopted (e.g. specific flex layouts, canonical card chrome, responsive utility patterns, button label copy).',
     '- When multiple valid patterns exist in the codebase, recommend one and explain the tradeoff.',
@@ -27,5 +27,5 @@ export function renderWebappUxReference(): string {
   return renderWebappUxHandoffReference();
 }
 export function getUxReviewTriggerDescription(): string {
-  return 'when the planner check-in proposes user interface changes';
+  return 'when the user request involves user interface changes';
 }

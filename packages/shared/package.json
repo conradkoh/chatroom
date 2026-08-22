@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./utilities/markdown": "./src/utilities/markdown/index.ts",
-    "./domain/entities/markdown-content": "./src/domain/entities/markdown-content.ts"
+    "./domain/entities/markdown-content": "./src/domain/entities/markdown-content.ts",
+    "./domain/enhancer-team-capability": "./src/domain/enhancer-team-capability.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
