@@ -126,7 +126,7 @@ flowchart LR
 ### Phase D — Backend snapshot slimming (complete)
 
 - [x] Stop writing `desiredState` / `spawnedAgentPid` / `circuitState` into task snapshot projection
-- [ ] Task signals remain task-only; agent metadata comes from operational projection at hydrate time or daemon-side join
+- [x] Task signals remain task-only; agent metadata comes from operational projection at hydrate time or daemon-side join
 
 ### Phase E — Verification
 
@@ -136,11 +136,11 @@ flowchart LR
 
 ## Open decisions
 
-| Decision                                 | Options                                                                                            | Recommendation                                                                  |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Daemon refresh path for operational rows | Convex subscription by machineId | Chosen; reactive updates avoid operational polling |
-| Merge vs rebase master                   | Merge commit vs rebase                                                                             | Merge — preserves both histories; easier conflict audit                         |
-| Remove snapshot agent fields             | Big-bang vs gradual                                                                                | Gradual: daemon reads operational model first, then slim backend projection     |
+| Decision                                 | Options                          | Recommendation                                                              |
+| ---------------------------------------- | -------------------------------- | --------------------------------------------------------------------------- |
+| Daemon refresh path for operational rows | Convex subscription by machineId | Chosen; reactive updates avoid operational polling                          |
+| Merge vs rebase master                   | Merge commit vs rebase           | Merge — preserves both histories; easier conflict audit                     |
+| Remove snapshot agent fields             | Big-bang vs gradual              | Gradual: daemon reads operational model first, then slim backend projection |
 
 ## Related
 

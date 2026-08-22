@@ -16,7 +16,7 @@ Living checklist for projection reader cleanup. Update as items are resolved.
   - `machines.ts` (`getAgentOverviewForChatroom` via shared resolver)
 - [x] **[medium] Circuit-open override in get-agent-statuses.ts** — Removed. Circuit state flows through projection write path (`deriveRoleOperationalState`); reader is projection-only.
 - [x] **[low] getTeamLifecycle fallback team role key** — Replaced inline team role key with `buildTeamRoleKey`.
-- [ ] **[low] Redundant projection calls on lifecycle paths** — Some lifecycle mutation paths trigger redundant projection rebuilds; consolidate when touching those files.
+- [x] **[low] Redundant projection calls on lifecycle paths** — `refreshSnapshotDeliveryConfigForChatroomRole` replaces full chatroom reprojection on agent start/restart.
 
 ## Next — daemon task-inbox decoupling (2026-08-22)
 
