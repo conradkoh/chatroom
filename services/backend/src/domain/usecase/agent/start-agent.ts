@@ -16,15 +16,15 @@
  */
 
 import { buildAgentRequestStartEvent } from './build-agent-request-start-event';
+import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
-import { projectAssignedTaskSnapshotsForChatroom } from '../machine/machine-assigned-task-snapshot-sync';
+import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
-import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -176,11 +176,11 @@ export async function startAgent(
   // config (desiredState/model/workingDir) without waiting for a task transition.
   // Refresh delivery-config fields on snapshot rows (harness/model/workingDir).
   // Operational state (desiredState/PID) is NOT written to snapshots — daemon reads operational projection.
-  await projectAssignedTaskSnapshotsForChatroom(ctx, chatroomId);
+  await refreshSnapshotDeliveryConfigForChatroomRole(ctx, chatroomId, role);
   const startedConfig = await ctx.db
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, chatroom!.teamId!, role))
+      q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, chatroom?.teamId ?? '', role))
     )
     .first();
   await projectAgentOperationalStatusForRole(ctx, chatroomId, role, undefined, {

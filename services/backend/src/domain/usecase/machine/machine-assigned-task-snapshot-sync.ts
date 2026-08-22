@@ -293,6 +293,56 @@ export async function projectAssignedTaskSnapshotsForChatroom(
   }
 }
 
+/** Patch delivery-config fields on existing snapshot rows for one role. */
+export async function refreshSnapshotDeliveryConfigForChatroomRole(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+): Promise<void> {
+  const room = await ctx.db.get('chatroom_rooms', chatroomId);
+  const configs = filterTeamAgentConfigsForTeam(
+    await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .filter((q) => q.eq(q.field('type'), 'remote'))
+      .collect(),
+    chatroomId,
+    room?.teamId
+  ).filter((config) => config.role.toLowerCase() === role.toLowerCase());
+  const rows = await ctx.db
+    .query('chatroom_machineAssignedTaskSnapshots')
+    .withIndex('by_chatroomId_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+    .collect();
+  const now = Date.now();
+  for (const row of rows) {
+    const config = configs.find((candidate) => candidate.machineId === row.machineId);
+    if (!config) continue;
+    const patch = {
+      agentHarness: config.agentHarness ?? 'opencode',
+      model: config.model,
+      workingDir: config.workingDir,
+      configUpdatedAt: config.updatedAt,
+      revisionKey: buildAssignedTaskRevisionKey({
+        taskUpdatedAt: row.taskUpdatedAt,
+        configUpdatedAt: config.updatedAt,
+        lastSeenAction: row.lastSeenAction ?? '',
+        lastStatus: row.lastStatus ?? '',
+        taskId: row.taskId,
+        role: config.role,
+      }),
+      signalUpdatedAt: now,
+    };
+    if (
+      row.agentHarness !== patch.agentHarness ||
+      row.model !== patch.model ||
+      row.workingDir !== patch.workingDir ||
+      row.configUpdatedAt !== patch.configUpdatedAt ||
+      row.revisionKey !== patch.revisionKey
+    )
+      await ctx.db.patch('chatroom_machineAssignedTaskSnapshots', row._id, patch);
+  }
+}
+
 function snapshotParticipantFields(doc: Doc<'chatroom_machineAssignedTaskSnapshots'>) {
   return {
     lastSeenAt: doc.lastSeenAt ?? undefined,

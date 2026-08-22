@@ -42,9 +42,6 @@ export const assignedTaskAgentConfigSchema = z.object({
   agentHarness: z.string(),
   model: z.string().optional(),
   workingDir: z.string().optional(),
-  spawnedAgentPid: z.number().optional(),
-  desiredState: agentDesiredStateSchema.optional(),
-  circuitState: agentCircuitStateSchema.optional(),
 });
 
 export const assignedTaskParticipantSchema = z.object({
@@ -68,8 +65,6 @@ export const assignedTaskSignalBootstrapFields = {
   assignedTo: z.string().optional(),
   lastSeenAction: z.string().nullable().optional(),
   lastStatus: z.string().nullable().optional(),
-  spawnedAgentPid: z.number().optional(),
-  desiredState: agentDesiredStateSchema.optional(),
   sessionAugmentation: sessionAugmentationSchema.optional(),
 } as const;
 
