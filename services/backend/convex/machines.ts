@@ -44,7 +44,6 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
-import { projectAssignedTaskSnapshotsForMachine } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
   patchTeamAgentConfig,
   projectAfterTeamConfigRegistration,
