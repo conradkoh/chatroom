@@ -5,11 +5,16 @@ import { describe, expect, test } from 'vitest';
 import { internal } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
+import { createTestSession } from '../helpers/integration';
 
 describe('migration: stripMachineAssignedTaskSnapshotOperationalFields', () => {
   test('clears legacy operational fields from snapshot rows', async () => {
+    await createTestSession('migrate-snapshot');
     const snapshotId = await t.run(async (ctx) => {
+      const owner = (await ctx.db.query('users').first())!;
       const chatroomId = await ctx.db.insert('chatroom_rooms', {
+        status: 'active',
+        ownerId: owner._id,
         name: 'migrate-snapshot',
         createdAt: Date.now(),
         updatedAt: Date.now(),
