@@ -838,11 +838,13 @@ describe('AgentProcessManager', () => {
 
       await manager.ensureRunning(createOpts({ agentHarness: 'opencode-sdk', wantResume: false }));
 
-      expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledWith(expect.objectContaining({
-        kind: 'spawned',
-        pid: PID,
-        harnessSessionId: 'sess-opencode-start',
-      }));
+      expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'spawned',
+          pid: PID,
+          harnessSessionId: 'sess-opencode-start',
+        })
+      );
     });
 
     test('claude-sdk spawn stores provisional UUID harnessSessionId for native delivery', async () => {
@@ -868,10 +870,12 @@ describe('AgentProcessManager', () => {
         provisionalId
       );
 
-      expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledWith(expect.objectContaining({
-        kind: 'spawned',
-        harnessSessionId: provisionalId,
-      }));
+      expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'spawned',
+          harnessSessionId: provisionalId,
+        })
+      );
     });
 
     test('claude-sdk onHarnessSessionIdUpdated updates slot and emits backend event', async () => {
@@ -1404,6 +1408,19 @@ describe('AgentProcessManager', () => {
           stopReason: 'user.stop',
         })
       );
+
+      expect(deps.lifecycleOutbox.enqueue).toHaveBeenCalledWith({
+        kind: 'exited',
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        pid: 0,
+        stopReason: 'user.stop',
+        revisionKey: expect.stringMatching(/^exited:/),
+        emittedAt: expect.any(Number),
+      });
+      const enqueuedFact = vi.mocked(deps.lifecycleOutbox.enqueue).mock.calls.at(-1)?.[0];
+      expect(enqueuedFact).not.toHaveProperty('sessionId');
+      expect(enqueuedFact).not.toHaveProperty('machineId');
     });
 
     test('already idle with event PID: attempts to kill the process and reports exit with that PID', async () => {

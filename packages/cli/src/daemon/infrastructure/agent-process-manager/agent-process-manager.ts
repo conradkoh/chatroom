@@ -27,11 +27,6 @@ import { Effect } from 'effect';
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
-import {
-  buildAgentLifecycleRevisionKey,
-  type AgentLifecycleFact,
-} from '../../domain/entities/agent-lifecycle-fact.js';
-import type { AgentLifecycleOutboxResult } from '../outbox/agent-lifecycle-outbox.js';
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
 import type { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
@@ -49,6 +44,10 @@ import {
   type StopOpts,
 } from '../../../infrastructure/services/agent-lifecycle/agent-lifecycle-types.js';
 import type { Signals } from '../../../infrastructure/types/signals.js';
+import {
+  buildAgentLifecycleRevisionKey,
+  type AgentLifecycleFact,
+} from '../../domain/entities/agent-lifecycle-fact.js';
 import { resolveResumableHarnessSessionId } from '../../domain/entities/harness-session-id-pair.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 import { resolveStopReason } from '../../domain/entities/stop-reason.js';
@@ -112,6 +111,7 @@ import type {
   SpawnResult,
 } from '../local/harness/services/remote-agent-service.js';
 import { createSpawnPrompt } from '../local/harness/services/spawn-prompt.js';
+import type { AgentLifecycleOutboxResult } from '../outbox/agent-lifecycle-outbox.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1333,10 +1333,11 @@ export class AgentProcessManager {
       }
     );
     const emittedAt = this.deps.clock.now();
+    const { sessionId: _sessionId, machineId: _machineId, ...exitedFact } = exitArgs;
     void this.deps.lifecycleOutbox
       .enqueue({
         kind: 'exited',
-        ...exitArgs,
+        ...exitedFact,
         revisionKey: buildAgentLifecycleRevisionKey('exited', {
           chatroomId: exitArgs.chatroomId,
           role: exitArgs.role,
