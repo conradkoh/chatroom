@@ -1,5 +1,6 @@
 import { isAgentAlive } from './is-agent-alive';
 export type OperationalState = 'running' | 'stopped' | 'starting' | 'circuit_open';
+export const IN_FLIGHT_START_STATUSES = new Set(['agent.requestStart', 'agent.restart', 'agent.restartPhase']);
 export type RoleConfigSnapshot = {
   role: string;
   teamId: string;
@@ -14,6 +15,18 @@ export type RoleOperationalProjection = RoleConfigSnapshot & {
   isRunning: boolean;
   daemonConnected: boolean;
 };
+/** UI-facing state: daemon-gated running plus in-flight start inference. */
+export function deriveAgentRoleViewState(
+  config: Pick<RoleConfigSnapshot, 'desiredState' | 'circuitState' | 'spawnedAgentPid'>,
+  daemonConnected: boolean,
+  lastStatus?: string | null
+): OperationalState {
+  if (config.circuitState === 'open') return 'circuit_open';
+  if (config.desiredState !== 'running') return 'stopped';
+  if (config.spawnedAgentPid != null && daemonConnected) return 'running';
+  if (daemonConnected && lastStatus && IN_FLIGHT_START_STATUSES.has(lastStatus)) return 'starting';
+  return 'stopped';
+}
 export type ChatroomOperationalSummary = {
   teamId: string;
   agentStatus: 'running' | 'stopped' | 'none';

@@ -42,6 +42,7 @@ import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/sta
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
+import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
 import {
@@ -2443,6 +2444,15 @@ export const getAgentStatus = query({
       chatroomId: args.chatroomId,
       userId: auth.userId,
     });
+  },
+});
+
+export const getAgentViewStatus = query({
+  args: { ...SessionIdArg, chatroomId: v.id('chatroom_rooms') },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return null;
+    return getAgentViewStatusUseCase(ctx, { chatroomId: args.chatroomId, userId: auth.userId });
   },
 });
 

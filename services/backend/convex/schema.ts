@@ -1148,6 +1148,7 @@ export default defineSchema({
       v.literal('starting'),
       v.literal('circuit_open')
     ),
+    viewState: v.optional(v.union(v.literal('running'), v.literal('stopped'), v.literal('starting'), v.literal('circuit_open'))),
     isAlive: v.boolean(),
     isRunning: v.boolean(),
     daemonConnected: v.boolean(),
