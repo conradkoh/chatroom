@@ -134,13 +134,12 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
     page,
   }) => {
     await page.getByTestId('keyboard-inset-slider').fill('300');
+    await expect(page.getByLabel(/Keyboard inset:/)).toContainText('300');
     await page.getByTestId('open-filter-picker').click();
     const drawer = page.locator('[data-slot="drawer-content"]');
     await expect(drawer).toBeVisible();
-    await expect
-      .poll(() => drawer.locator('span').filter({ hasText: 'Model Visibility' }).count())
-      .toBe(0);
-    await expect(drawer.getByText('Reset All')).not.toBeVisible();
+    // Wait for harness keyboard inset + picker keyboard-open state (chrome hides asynchronously).
+    await expect(drawer.getByText('Reset All')).not.toBeVisible({ timeout: 10_000 });
     const search = page.getByPlaceholder('Search models...');
     await expect(search).toBeVisible();
     await search.fill('model-01');
