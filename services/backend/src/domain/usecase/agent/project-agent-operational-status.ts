@@ -47,13 +47,14 @@ export async function projectAgentOperationalStatusForRole(
 ): Promise<void> {
   const room = await ctx.db.get('chatroom_rooms', chatroomId);
   if (!room?.teamId) return;
+  const teamId = room.teamId;
   const config =
     (await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) =>
         q.eq(
           'teamRoleKey',
-          buildTeamRoleKey(chatroomId, room.teamId, role)
+          buildTeamRoleKey(chatroomId, teamId, role)
         )
       )
       .first()) ?? opts?.config;
@@ -225,11 +226,12 @@ export async function rebuildAgentOperationalStatusForChatroom(
 ): Promise<void> {
   const room = await ctx.db.get('chatroom_rooms', chatroomId);
   if (!room?.teamId) return;
+  const teamId = room.teamId;
   const all = await ctx.db
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
     .collect();
-  const configs = filterTeamAgentConfigsForTeam(all, chatroomId, room.teamId).filter(
+  const configs = filterTeamAgentConfigsForTeam(all, chatroomId, teamId).filter(
     (c) => c.machineId != null
   );
   const statuses = new Map<string, boolean>();
@@ -237,8 +239,8 @@ export async function rebuildAgentOperationalStatusForChatroom(
     if (c.machineId) statuses.set(c.machineId, await machineConnected(ctx, c.machineId));
   }
   const derived = deriveAgentOperationalState({
-    teamId: room.teamId,
-    configs: configs.map((c) => snapshot(c, room.teamId)),
+    teamId,
+    configs: configs.map((c) => snapshot(c, teamId)),
     daemonConnectedByMachineId: statuses,
   });
   const projectedAt = Date.now();

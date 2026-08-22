@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { operationalRow, registerTestNativeDeliverySession } from '../../infrastructure/agent-operational/test-support.js';
+import { unregisterNativeDeliverySession } from '../native-delivery/native-delivery-session-registry.js';
+beforeEach(() => registerTestNativeDeliverySession({ runtime: undefined as never, effectContext: undefined as never, agentMgr: {} as never, sessionDeps: {} as never, machineId: 'machine-1', operationalRows: [operationalRow('room-1', 'planner')] }));
+afterEach(() => unregisterNativeDeliverySession());
 
 import { listNativeTasksNeedingRevive, RecoveryCooldown } from './task-delivery-logic.js';
 
