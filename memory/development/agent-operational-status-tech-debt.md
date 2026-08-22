@@ -10,11 +10,11 @@ Living checklist for projection reader cleanup. Update as items are resolved.
 ## Open
 
 - [x] **[medium] Legacy fallback derive paths** — Removed in branch. Readers are projection-only; safe defaults when rows missing. Cold-start: dual-write populates projections on agent activity; no CI backfill.
-  - `get-agent-statuses.ts`
+  - `get-agent-view-status.ts`
   - `list-chatroom-agent-overview.ts`
   - `participants.ts` (`getTeamLifecycle` `isAlive`)
   - `machines.ts` (`getAgentOverviewForChatroom` via shared resolver)
-- [x] **[medium] Circuit-open override in get-agent-statuses.ts** — Removed. Circuit state flows through projection write path (`deriveRoleOperationalState`); reader is projection-only.
+- [x] **[medium] Circuit-open override in get-agent-view-status.ts** — Removed. Circuit state flows through projection write path (`deriveRoleOperationalState`); reader is projection-only.
 - [x] **[low] getTeamLifecycle fallback team role key** — Replaced inline team role key with `buildTeamRoleKey`.
 - [x] **[low] Redundant projection calls on lifecycle paths** — `refreshSnapshotDeliveryConfigForChatroomRole` replaces full chatroom reprojection on agent start/restart.
 
