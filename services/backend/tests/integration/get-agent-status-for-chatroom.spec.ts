@@ -101,6 +101,16 @@ describe('getAgentStatusForChatroom — running agents', () => {
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_participants', {
+        chatroomId,
+        role: 'builder',
+        agentType: 'remote',
+        lastStatus: 'agent.requestStart',
+        lastDesiredState: 'running',
+      });
+    });
+
     const result = await runStatusQuery(chatroomId);
 
     const builder = result!.agents.find((a) => a.role === 'builder');
@@ -170,6 +180,35 @@ describe('getAgentStatusForChatroom — daemon disconnected', () => {
       sessionId: sessionId as any,
       machineId,
       connected: false,
+    });
+
+    const result = await runStatusQuery(chatroomId);
+    const builder = result!.agents.find((a) => a.role === 'builder');
+    expect(builder!.state).toBe('stopped');
+  });
+});
+
+describe('getAgentStatusForChatroom — daemon restart PID cleanup', () => {
+  test('returns stopped (not starting) after clearAllSpawnedPids with desiredState running', async () => {
+    const { sessionId } = await createTestSession('test-gas-restart-1');
+    const machineId = 'machine-gas-restart-1';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId: sessionId as any,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 12345,
+    });
+
+    // Simulate daemon restart cleanup
+    await t.mutation(api.machines.clearAllSpawnedPids, {
+      sessionId: sessionId as any,
+      machineId,
     });
 
     const result = await runStatusQuery(chatroomId);
