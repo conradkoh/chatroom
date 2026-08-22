@@ -21,6 +21,7 @@ describe('migration: stripMachineAssignedTaskSnapshotOperationalFields', () => {
         chatroomId,
         createdBy: 'planner',
         createdAt: Date.now(),
+        updatedAt: Date.now(),
         status: 'in_progress',
         assignedTo: 'planner',
         content: 'test',
