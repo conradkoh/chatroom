@@ -696,6 +696,12 @@ export default defineSchema({
     agentHarness: v.string(),
     model: v.optional(v.string()),
     workingDir: v.optional(v.string()),
+    /** @deprecated Operational state moved to team config and projection; retained for legacy rows. */
+    spawnedAgentPid: v.optional(v.number()),
+    /** @deprecated See spawnedAgentPid. */
+    desiredState: v.optional(v.string()),
+    /** @deprecated See spawnedAgentPid. */
+    circuitState: v.optional(v.string()),
     configUpdatedAt: v.number(),
 
     lastSeenAt: v.optional(v.number()),
@@ -1148,7 +1154,14 @@ export default defineSchema({
       v.literal('starting'),
       v.literal('circuit_open')
     ),
-    viewState: v.optional(v.union(v.literal('running'), v.literal('stopped'), v.literal('starting'), v.literal('circuit_open'))),
+    viewState: v.optional(
+      v.union(
+        v.literal('running'),
+        v.literal('stopped'),
+        v.literal('starting'),
+        v.literal('circuit_open')
+      )
+    ),
     isAlive: v.boolean(),
     isRunning: v.boolean(),
     daemonConnected: v.boolean(),
