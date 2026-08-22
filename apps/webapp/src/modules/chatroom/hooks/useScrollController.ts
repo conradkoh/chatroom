@@ -30,6 +30,8 @@ export class ScrollController {
 
   // ─── DOM ────────────────────────────────────
   private el: HTMLElement | null = null;
+  /** Remember dimensions so composer layout events are not treated as user intent. */
+  private lastClientHeight: number | null = null;
 
   // ─── Action queue (rAF-based) ───────────────
   private pendingSnap = false;
@@ -60,6 +62,7 @@ export class ScrollController {
     }
 
     this.el = el;
+    this.lastClientHeight = el.clientHeight;
 
     // ResizeObserver — snap when pinned and the container resizes
     // (e.g., textarea height changes cause the feed container to shrink/grow)
@@ -106,6 +109,7 @@ export class ScrollController {
 
     this.pendingSnap = false;
     this.el = null;
+    this.lastClientHeight = null;
   }
 
   /** Get current pinned state */
@@ -291,7 +295,12 @@ export class ScrollController {
   private handleScrollEvent = (): void => {
     if (this.programmaticScroll) return;
 
+    const el = this.el;
+    if (!el) return;
     const atBottom = this.computeIsAtBottom();
+    const layoutResized =
+      this.lastClientHeight !== null && el.clientHeight !== this.lastClientHeight;
+    this.lastClientHeight = el.clientHeight;
 
     // Re-pin as soon as the user reaches the bottom (including during wheel/touch scroll).
     if (atBottom && !this.pinned) {
@@ -303,6 +312,11 @@ export class ScrollController {
     if (this.userScrolling) return;
 
     if (!atBottom && this.pinned) {
+      // Composer growth changes height without user intent; keep the feed pinned.
+      if (layoutResized) {
+        this.enqueueSnap();
+        return;
+      }
       this.pinned = false;
       this.onPinnedChange(false);
     }
