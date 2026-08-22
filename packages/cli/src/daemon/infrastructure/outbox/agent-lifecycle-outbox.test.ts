@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createAgentLifecycleOutboxRegistry } from './agent-lifecycle-outbox.js';
+import { openDurableFifoQueueStore } from './lib/durable-fifo-queue-store.js';
+import { resolveOutboxDbPath } from './outbox-db-path.js';
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 
 const fact = (role: string): AgentLifecycleFact => ({
@@ -60,6 +62,34 @@ describe('agent lifecycle outbox', () => {
     await new Promise((resolve) => setTimeout(resolve, 650));
     expect(attempts).toBeGreaterThanOrEqual(2);
     await result;
+    await registry.stopAll();
+  });
+
+  it('strips legacy audit fields when replaying persisted exited facts', async () => {
+    const machineId = `test-legacy-${Date.now()}-${Math.random()}`;
+    const legacyFact = {
+      kind: 'exited',
+      sessionId: 'sess',
+      machineId: 'machine',
+      chatroomId: 'room',
+      role: 'builder',
+      pid: 0,
+      stopReason: 'user.stop',
+      revisionKey: 'exited:legacy',
+      emittedAt: 1_000,
+    };
+    const store = openDurableFifoQueueStore(resolveOutboxDbPath(machineId, 'agent-lifecycle'));
+    store.enqueue('machine:room:builder', JSON.stringify(legacyFact));
+    store.close();
+
+    const send = vi.fn(async (item: AgentLifecycleFact) => {
+      expect(item).not.toHaveProperty('sessionId');
+      expect(item).not.toHaveProperty('machineId');
+      return { success: true as const };
+    });
+    const registry = createAgentLifecycleOutboxRegistry(machineId, () => send);
+    await registry.flushNow('machine:room:builder');
+    expect(send).toHaveBeenCalledTimes(1);
     await registry.stopAll();
   });
 });

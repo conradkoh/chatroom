@@ -4,11 +4,18 @@ import {
   type KeyedFifoBatchedOutboxRegistry,
 } from './lib/keyed-fifo-batched-outbox-registry.js';
 import { resolveOutboxDbPath } from './outbox-db-path.js';
-import { agentLifecycleDeliveryKey } from '../../domain/entities/agent-lifecycle-fact.js';
+import {
+  agentLifecycleDeliveryKey,
+  normalizeAgentLifecycleFact,
+} from '../../domain/entities/agent-lifecycle-fact.js';
 import type { AgentLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 
 export const AGENT_LIFECYCLE_OUTBOX_BATCH_SIZE = 1;
-export type AgentLifecycleOutboxResult = { success: true; skipped?: boolean; clearedCount?: number };
+export type AgentLifecycleOutboxResult = {
+  success: true;
+  skipped?: boolean;
+  clearedCount?: number;
+};
 export type AgentLifecycleOutboxRegistry = KeyedFifoBatchedOutboxRegistry<
   AgentLifecycleFact,
   AgentLifecycleOutboxResult
@@ -29,7 +36,7 @@ export function createAgentLifecycleOutboxRegistry(
       return results;
     },
     serialize: JSON.stringify,
-    deserialize: JSON.parse,
+    deserialize: (serialized) => normalizeAgentLifecycleFact(JSON.parse(serialized)),
     retryDelayMs: 500,
     maxRetryDelayMs: 5 * 60_000,
     onError: options?.onError,

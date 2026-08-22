@@ -46,6 +46,8 @@ import {
 import type { Signals } from '../../../infrastructure/types/signals.js';
 import {
   buildAgentLifecycleRevisionKey,
+  buildExitedLifecycleFact,
+  type AgentExitAuditArgs,
   type AgentLifecycleFact,
 } from '../../domain/entities/agent-lifecycle-fact.js';
 import { resolveResumableHarnessSessionId } from '../../domain/entities/harness-session-id-pair.js';
@@ -230,18 +232,7 @@ function agentKey(chatroomId: string, role: string): string {
 /** Arguments for a queued agent.exited log event that failed and needs retry. */
 interface RetryQueueItem {
   role: string;
-  args: {
-    sessionId: string;
-    machineId: string;
-    chatroomId: string;
-    role: string;
-    pid: number;
-    stopReason?: string;
-    stopSignal?: string;
-    exitCode?: number;
-    signal?: string;
-    agentHarness?: string;
-  };
+  args: AgentExitAuditArgs;
 }
 
 /** Interval (ms) between retry attempts for failed agent exit events. */
@@ -1321,11 +1312,7 @@ export class AgentProcessManager {
     }
   }
 
-  private recordAgentExit(
-    role: string,
-    exitArgs: RetryQueueItem['args'],
-    failureLog: string
-  ): void {
+  private recordAgentExit(role: string, exitArgs: AgentExitAuditArgs, failureLog: string): void {
     void logDaemonAuditEvent(this.deps.logEvent, { type: 'agent.exited', ...exitArgs }).catch(
       (err: Error) => {
         console.log(`   ⚠️  ${failureLog}: ${err.message}`);
@@ -1333,19 +1320,8 @@ export class AgentProcessManager {
       }
     );
     const emittedAt = this.deps.clock.now();
-    const { sessionId: _sessionId, machineId: _machineId, ...exitedFact } = exitArgs;
     void this.deps.lifecycleOutbox
-      .enqueue({
-        kind: 'exited',
-        ...exitedFact,
-        revisionKey: buildAgentLifecycleRevisionKey('exited', {
-          chatroomId: exitArgs.chatroomId,
-          role: exitArgs.role,
-          pid: exitArgs.pid,
-          emittedAt,
-        }),
-        emittedAt,
-      })
+      .enqueue(buildExitedLifecycleFact(exitArgs, emittedAt))
       .catch((err: Error) =>
         console.log(`   ⚠️  Failed to enqueue agent exited lifecycle fact: ${err.message}`)
       );
