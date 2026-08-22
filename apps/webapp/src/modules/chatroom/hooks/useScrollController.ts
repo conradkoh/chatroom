@@ -299,7 +299,9 @@ export class ScrollController {
     if (!el) return;
     const atBottom = this.computeIsAtBottom();
     const layoutResized =
-      this.lastClientHeight !== null && el.clientHeight !== this.lastClientHeight;
+      this.lastClientHeight !== null &&
+      this.lastClientHeight > 0 &&
+      el.clientHeight !== this.lastClientHeight;
     this.lastClientHeight = el.clientHeight;
 
     // Re-pin as soon as the user reaches the bottom (including during wheel/touch scroll).
