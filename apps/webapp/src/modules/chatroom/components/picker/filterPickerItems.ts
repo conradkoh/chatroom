@@ -1,7 +1,12 @@
 function scoreSearchMatch(text: string, query: string, tokens: string[]): number {
   const phraseBonus = text.includes(query) ? 1000 : 0;
-  // Matching all tokens is the primary signal; stable input order breaks ties.
-  return phraseBonus + tokens.length;
+  if (tokens.length === 1) return phraseBonus;
+
+  const tokenPositionScore = tokens.reduce((score, token) => {
+    const index = text.indexOf(token);
+    return score + Math.max(0, 100 - index);
+  }, 0);
+  return phraseBonus + tokenPositionScore;
 }
 
 export function filterPickerItems<T>(
@@ -12,7 +17,7 @@ export function filterPickerItems<T>(
   const query = searchTerm.trim().toLowerCase();
   if (!query) return [...items];
 
-  // Every token must match; scores rank contiguous phrases first and stay stable for ties.
+  // Every token must match; scores rank phrases, then earlier matches, with stable ties.
   const tokens = query.split(/\s+/);
   return items
     .map((item, index) => {
