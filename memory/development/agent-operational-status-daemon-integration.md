@@ -123,9 +123,9 @@ flowchart LR
 - [x] Remove `MachineTaskSnapshotState.setDesiredState` and bridge optimistic patches
 - [x] On operational status transition → trigger targeted `processTasksUpdate` reconcile (Convex subscription)
 
-### Phase D — Backend snapshot slimming (optional follow-up)
+### Phase D — Backend snapshot slimming (complete)
 
-- [ ] Stop writing `desiredState` / `spawnedAgentPid` into `chatroom_machineAssignedTaskSnapshots` projection
+- [x] Stop writing `desiredState` / `spawnedAgentPid` / `circuitState` into task snapshot projection
 - [ ] Task signals remain task-only; agent metadata comes from operational projection at hydrate time or daemon-side join
 
 ### Phase E — Verification
