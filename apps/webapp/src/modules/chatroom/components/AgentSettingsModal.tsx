@@ -823,9 +823,10 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
     sendCommand,
     isLoading: isPanelLoading,
     teamId,
+    lifecycle,
   } = useAgentPanelData(chatroomId, { loadConfigs: true });
 
-  const { agents: agentStatusList } = useAgentStatuses(teamRoles, undefined);
+  const { agents: agentStatusList } = useAgentStatuses(teamRoles, lifecycle?.participants);
 
   // Build a status lookup map
   const statusMap = useMemo(() => {

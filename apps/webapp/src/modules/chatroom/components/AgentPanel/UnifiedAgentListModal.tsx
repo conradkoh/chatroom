@@ -49,10 +49,11 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     isLoading: isPanelLoading,
     sendCommand,
     teamId,
+    lifecycle,
   } = useAgentPanelData(chatroomId, { loadConfigs: true });
 
   // Fetch live agent statuses from event stream
-  const { agents: agentStatusList } = useAgentStatuses(teamRoles, undefined);
+  const { agents: agentStatusList } = useAgentStatuses(teamRoles, lifecycle?.participants);
 
   // Build the agents list from live statuses (kept for the header count)
   const agents = useMemo(
