@@ -60,7 +60,7 @@ export type ProcessTasksUpdateOptions = {
   snapshots: readonly AssignedTaskSnapshotView[];
 };
 
-type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap';
+type TaskDeliveryPass = 'inbox-signal' | 'periodic-reconcile' | 'bootstrap' | 'operational-status';
 
 function resolveTaskWantResume(task: AssignedTaskWithContent): boolean {
   return sessionAugmentationToWantResume(
