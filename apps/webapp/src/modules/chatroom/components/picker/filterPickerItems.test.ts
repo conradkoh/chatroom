@@ -49,4 +49,31 @@ describe('filterPickerItems', () => {
     filterPickerItems(items, 'apple', (item) => item.label);
     expect(items).toEqual(original);
   });
+
+  it('matches all whitespace-separated tokens in any order', () => {
+    const result = filterPickerItems(
+      [
+        { id: 'low', label: 'Gpt 5.6 Luna [reasoning=low]' },
+        { id: 'high', label: 'Gpt 5.6 Luna [reasoning=high]' },
+      ],
+      'luna low',
+      (item) => item.label
+    );
+    expect(result.map((item) => item.id)).toEqual(['low']);
+  });
+
+  it('ranks a contiguous phrase ahead of token-only matches and preserves ties', () => {
+    const result = filterPickerItems(
+      [
+        { id: 'token-only', label: 'Gpt 5.6 Luna [reasoning=low]' },
+        { id: 'phrase', label: 'Luna Low' },
+        { id: 'tie-a', label: 'Luna model low' },
+        { id: 'tie-b', label: 'Low model luna' },
+      ],
+      'luna low',
+      (item) => item.label
+    );
+    expect(result.map((item) => item.id).slice(0, 2)).toEqual(['phrase', 'token-only']);
+    expect(result.map((item) => item.id).slice(2)).toEqual(['tie-a', 'tie-b']);
+  });
 });
