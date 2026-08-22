@@ -30,8 +30,8 @@ See [agent operational status daemon integration plan](./agent-operational-statu
 
 ## Open — participant status / STOPPING (follow-up PR)
 
-- [ ] **[medium] Participant status race on stop** — running agent can overwrite `agent.exited` with `agent.waiting` while `desiredState=stopped`, causing persistent STOPPING UI and delivery confusion. Fix: ignore `agent.waiting` / `get-next-task:started` participant updates when `desiredState=stopped`.
-- [ ] **[low] Remove STOPPING UI label** — show OFFLINE when `desiredState=stopped` regardless of `lastStatus`; remove dead `agent.requestStop` → STOPPING mapping.
+- [x] **[medium] Participant status race on stop** — ignore `agent.waiting` / `get-next-task:started` participant updates when `desiredState=stopped` (fix/agent-stop-status-race).
+- [x] **[low] Remove STOPPING UI label** — show OFFLINE when `desiredState=stopped` regardless of `lastStatus`.
 
 ## Related
 
