@@ -28,7 +28,9 @@ export async function getAgentViewStatus(ctx: QueryCtx, input: { chatroomId: Id<
   const agents = teamRoles.map((role): AgentViewRole => {
     const row = rowByRole.get(role.toLowerCase()); const participant = participantByRole.get(role.toLowerCase());
     const lastStatus = participant?.lastStatus ?? null;
-    const state = row?.viewState ?? (row ? deriveAgentRoleViewState({ desiredState: row.operationalState === 'circuit_open' ? 'stopped' : 'running', circuitState: row.operationalState === 'circuit_open' ? 'open' : 'closed', spawnedAgentPid: row.isAlive ? 1 : null }, row.daemonConnected, lastStatus) : 'stopped');
+    const inferred = row ? deriveAgentRoleViewState({ desiredState: row.operationalState === 'circuit_open' ? 'stopped' : 'running', circuitState: row.operationalState === 'circuit_open' ? 'open' : 'closed', spawnedAgentPid: row.isAlive ? 1 : null }, row.daemonConnected, lastStatus) : 'stopped';
+    // Participant transitions can race projection writes; retain the established starting signal.
+    const state = row?.viewState === 'stopped' && inferred === 'starting' ? 'starting' : (row?.viewState ?? inferred);
     return { role, state, type: (participant?.agentType ?? 'remote') as AgentType, machineId: row?.machineId, machineName: row?.machineId ? machineNames.get(row.machineId) : undefined, lastSeenAt: participant?.lastSeenAt ?? null, lastSeenAction: participant?.lastSeenAction ?? null, lastStatus, lastDesiredState: participant?.lastDesiredState ?? null, agentType: participant?.agentType ?? 'remote', isAlive: row?.isAlive ?? false };
   });
   return { teamId: chatroom.teamId, teamName: chatroom.teamName ?? chatroom.teamId, teamRoles, agents, hasHistory: firstUserMessage !== null };

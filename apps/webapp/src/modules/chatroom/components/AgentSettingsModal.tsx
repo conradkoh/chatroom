@@ -545,12 +545,12 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
  * Deletion is disabled for workspaces that have active remote agents.
  */
 const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chatroomId: string }) {
-  const { agents: agentRoleViews } = useAgentPanelData(chatroomId);
+  const { machineConfigs } = useAgentPanelData(chatroomId, { loadConfigs: true });
 
   // Pass agentViews so workspaces are enriched with their agent roles
   const agentViews = useMemo(
-    () => agentRoleViews.map((a) => ({ role: a.role, workingDir: a.workingDir })),
-    [agentRoleViews]
+    () => machineConfigs.map((c) => ({ role: c.role, workingDir: c.workingDir })),
+    [machineConfigs]
   );
   const { workspaces, removeWorkspace, isLoading } = useChatroomWorkspaces(chatroomId, {
     agentViews,
@@ -567,13 +567,13 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
   // protects that workspace from deletion.
   const activeAgentWorkspaceKeys = useMemo(() => {
     const keys = new Set<string>();
-    for (const agent of agentRoleViews) {
-      if (agent.type === 'remote' && agent.machineId && agent.workingDir) {
-        keys.add(`${agent.machineId}::${agent.workingDir}`);
+    for (const config of machineConfigs) {
+      if (config.machineId && config.workingDir) {
+        keys.add(`${config.machineId}::${config.workingDir}`);
       }
     }
     return keys;
-  }, [agentRoleViews]);
+  }, [machineConfigs]);
 
   const [removeError, setRemoveError] = useState<string | null>(null);
 
