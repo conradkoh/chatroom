@@ -20,6 +20,7 @@ describe('migration: stripMachineAssignedTaskSnapshotOperationalFields', () => {
       const taskId = await ctx.db.insert('chatroom_tasks', {
         chatroomId,
         createdBy: 'planner',
+        createdAt: Date.now(),
         status: 'in_progress',
         assignedTo: 'planner',
         content: 'test',
