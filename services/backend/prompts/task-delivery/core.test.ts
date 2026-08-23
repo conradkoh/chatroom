@@ -38,7 +38,7 @@ describe('appendTaskDeliveryHandoffSections — enhancer enabled', () => {
     expect(output).toContain('--next-role="enhancer"');
     expect(output).toContain('Handoff to `enhancer`');
     expect(output).toContain('Planning Request (Planner → Enhancer)');
-    expect(output).toContain('<goal-and-context>');
+    expect(output).toContain('<additional-context>');
     expect(output).not.toContain('<grounding>');
     expect(output).not.toContain('<builder-handoff>');
     expect(output).not.toContain('<enhancer-input>');

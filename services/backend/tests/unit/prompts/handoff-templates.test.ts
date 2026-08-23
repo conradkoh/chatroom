@@ -96,7 +96,7 @@ describe('handoff-templates > resolver', () => {
     });
 
     expect(request).toContain('Planning Request (Solo → Enhancer)');
-    expect(request).toContain('<goal-and-context>');
+    expect(request).toContain('<additional-context>');
     expect(request).not.toContain('<grounding>');
     expect(input).toContain('Planning Input (Enhancer → Solo)');
     expect(input).toContain('solo agent owns persistent memory, execution, and the final plan');
