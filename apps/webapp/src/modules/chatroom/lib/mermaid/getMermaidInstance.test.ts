@@ -2,10 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakeMermaid = { initialize: vi.fn(), render: vi.fn() };
 
-vi.mock('mermaid/dist/mermaid.min.js?url', () => ({
-  default: '/fake/mermaid.min.js',
-}));
-
 describe('loadMermaidInstance', () => {
   beforeEach(() => {
     vi.stubGlobal('mermaid', undefined);
@@ -22,7 +18,7 @@ describe('loadMermaidInstance', () => {
     const promise = loadMermaidInstance();
 
     const script = document.querySelector<HTMLScriptElement>('script[data-mermaid-loader]');
-    expect(script?.src).toContain('mermaid.min.js');
+    expect(script?.src).toContain('/api/vendor/mermaid');
 
     vi.stubGlobal('mermaid', fakeMermaid);
     script?.onload?.(new Event('load'));

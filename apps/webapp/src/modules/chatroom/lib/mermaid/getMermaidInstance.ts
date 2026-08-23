@@ -1,7 +1,8 @@
 'use client';
 
 import type { Mermaid } from 'mermaid';
-import mermaidScriptUrl from 'mermaid/dist/mermaid.min.js?url';
+
+import { MERMAID_SCRIPT_URL } from './mermaidScriptUrl';
 
 declare global {
   interface MermaidGlobal {
@@ -34,7 +35,7 @@ function loadMermaidScript(): Promise<void> {
 
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = mermaidScriptUrl;
+    script.src = MERMAID_SCRIPT_URL;
     script.async = true;
     script.dataset.mermaidLoader = 'true';
     script.onload = () => resolve();

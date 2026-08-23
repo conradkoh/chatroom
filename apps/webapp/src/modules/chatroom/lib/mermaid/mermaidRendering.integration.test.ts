@@ -4,8 +4,6 @@ const mockInitialize = vi.fn();
 const mockRender = vi.fn();
 const fakeMermaid = { initialize: mockInitialize, render: mockRender };
 
-vi.mock('mermaid/dist/mermaid.min.js?url', () => ({ default: '/fake/mermaid.min.js' }));
-
 describe('mermaid rendering integration', () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -28,7 +26,7 @@ describe('mermaid rendering integration', () => {
     const { loadMermaidInstance } = await import('./getMermaidInstance');
     const loadPromise = loadMermaidInstance();
     const script = document.querySelector<HTMLScriptElement>('script[data-mermaid-loader]');
-    expect(script?.src).toContain('mermaid.min.js');
+    expect(script?.src).toContain('/api/vendor/mermaid');
     vi.stubGlobal('mermaid', fakeMermaid);
     script?.onload?.(new Event('load'));
     await loadPromise;
