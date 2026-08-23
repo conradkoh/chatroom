@@ -20,7 +20,9 @@ describe('appendTaskDeliveryEnhancerGuidance', () => {
     expect(output).toContain('<handoff-enhancer>');
     expect(output).toContain('First action after required task-intake/context setup');
     expect(output).toContain('Do not research, plan, or draft');
-    expect(output).toContain('stripped-down');
+    expect(output).toContain('goal');
+    expect(output).toContain('context');
+    expect(output).toContain('proposed approaches');
     expect(output).toContain('one-time per originating user message');
     expect(output).toContain('origin user message ID');
     expect(output).toContain('memoryless enhancer');

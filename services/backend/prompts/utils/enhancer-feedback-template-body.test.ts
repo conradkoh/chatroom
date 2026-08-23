@@ -23,8 +23,9 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     const body = getEnhancerFeedbackTemplateBody();
     expect(body).toContain('## User intent and constraints');
     expect(body).toContain('## Codebase grounding');
-    expect(body).toContain('## Recommended approach');
-    expect(body).toContain('## Open questions');
+    expect(body).toContain('## Proposed approaches');
+    expect(body).toContain('## Evidence');
+    expect(body).toContain('## Open questions for user');
     expect(body).toContain('## Risks and mitigations');
     expect(body).toContain('## Recommended next steps');
     expect(body).not.toContain('Reasoning review');

@@ -95,8 +95,8 @@ describe('handoff-templates > resolver', () => {
       toRole: 'solo',
     });
 
-    expect(request).toContain('Request Forward (Solo → Enhancer)');
-    expect(request).toContain('<request>');
+    expect(request).toContain('Planning Request (Solo → Enhancer)');
+    expect(request).toContain('<goal-and-context>');
     expect(request).not.toContain('<grounding>');
     expect(input).toContain('Planning Input (Enhancer → Solo)');
     expect(input).toContain('solo agent owns persistent memory, execution, and the final plan');
@@ -376,7 +376,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
 
-      Independently analyze the user's request. Recover the relevant conversation history, inspect the repository, and give the planner agent a concrete first input for its own planning. Focus on user intent, existing behavior, implementation direction, risks, and material unknowns. The planner agent owns persistent memory, execution, and the final plan.
+      Independently analyze the user's request. Recover the relevant conversation history, inspect the repository, and give the planner agent concrete first planning input with **2–3 proposed approaches** (each with tradeoffs), verified evidence, and material unknowns. The planner agent owns persistent memory, execution, and the final plan — it selects the direction; you propose options.
 
       Ground every recommendation in user messages or codebase evidence. For UI work, complete the optional **UX** section using the reference below. For a large or multi-surface revision, complete the optional **Defragmentation** section. End with **Recommended next steps**, then **Implementation notes** for any file-level detail or short illustrative code that materially helps.
 
@@ -434,11 +434,23 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <handoff-proofs>
       ## Codebase grounding
       <relevant files, current behavior, established patterns, data flow, tests, and concrete evidence discovered in the repository>
+
+      ## Evidence
+      <file paths and short snippets the enhancer verified in the repository — cite concretely>
       </handoff-proofs>
 
       <handoff-direction>
-      ## Recommended approach
-      <a concrete implementation direction, suggested boundaries and sequencing, and why it fits the request and existing system>
+      ## Proposed approaches
+      <!-- Provide 2–3 options with tradeoffs. Preserve planner decision authority — do not collapse to a single recommendation. -->
+
+      ### Option A: <short name>
+      <tradeoffs, fit, risks>
+
+      ### Option B: <short name>
+      <tradeoffs, fit, risks>
+
+      ### Option C: <short name> (optional — omit if only two viable options)
+      <tradeoffs, fit, risks>
       </handoff-direction>
 
       <handoff-ux>
@@ -471,8 +483,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       </handoff-defragmentation>
 
       <handoff-notes>
-      ## Open questions
-      <uncertainties that materially affect implementation; state what evidence would resolve each one, or write "Not Applicable.">
+      ## Open questions for user
+      <decisions only the user can make; state what choice is needed, or write "Not Applicable.">
       </handoff-notes>
 
       <handoff-action>
