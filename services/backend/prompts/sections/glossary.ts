@@ -74,7 +74,7 @@ export const GLOSSARY_TERMS: GlossaryTerm[] = [
       'Meta-level architectural choices that persist in the codebase and influence consistency: ' +
       'folder structure, file naming, interface definitions, and key abstraction names/locations ' +
       '(e.g., Repository/Service layers).',
-    // No linkedSkillId - this is a concept, not a standalone skill
+    linkedSkillId: 'defragmentation',
   },
 ];
 

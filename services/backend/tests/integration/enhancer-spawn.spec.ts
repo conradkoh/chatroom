@@ -16,15 +16,15 @@ import {
   joinParticipant,
   registerMachineWithDaemon,
 } from '../helpers/integration';
-import { setupWorkspaceForSession } from './direct-harness/fixtures';
+import { setupPlannerWorkspaceForSession } from './direct-harness/fixtures';
 
 async function createPlannerUserMessageAndTask(
   sessionId: string,
   chatroomId: Id<'chatroom_rooms'>,
   content: string
-): Promise<void> {
+): Promise<Id<'chatroom_messages'>> {
   await joinParticipant(sessionId, chatroomId, 'planner');
-  await t.run(async (ctx) => {
+  return t.run(async (ctx) => {
     const msgId = await ctx.db.insert('chatroom_messages', {
       chatroomId,
       senderRole: 'user',
@@ -43,12 +43,14 @@ async function createPlannerUserMessageAndTask(
       updatedAt: Date.now(),
       queuePosition: 1,
     });
+    return msgId;
   });
 }
 
 describe('daemon.enhancer.index', () => {
   test('enqueueHandoff creates job with status pending', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-pending');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-pending');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -89,7 +91,7 @@ describe('daemon.enhancer.index', () => {
   });
 
   test('claimForSpawn transitions pending to running; second claim returns false', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-claim');
+    const { sessionId, chatroomId, machineId } = await setupPlannerWorkspaceForSession('enh-claim');
 
     await assertDuoTeamOnly(chatroomId);
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -141,7 +143,8 @@ describe('daemon.enhancer.index', () => {
   });
 
   test('getSpawnPayload returns prompt and envelope for running job', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-payload');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-payload');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -153,14 +156,18 @@ describe('daemon.enhancer.index', () => {
       machineId,
     });
 
-    await createPlannerUserMessageAndTask(sessionId, chatroomId, 'Payload test message');
+    const originUserMessageId = await createPlannerUserMessageAndTask(
+      sessionId,
+      chatroomId,
+      'Payload test message'
+    );
 
     const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
       sessionId,
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: 'Draft content here',
+      content: '<request>Payload test message</request>',
     });
 
     await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
@@ -179,18 +186,21 @@ describe('daemon.enhancer.index', () => {
     expect(payload.systemPrompt).toContain('enhancer complete');
     expect(payload.systemPrompt).toContain(jobId);
     expect(payload.systemPrompt).toContain('messages download');
-    expect(payload.systemPrompt).toContain('Do not rely solely');
-    expect(payload.systemPrompt).toContain('## Defragmentation validation');
-    expect(payload.taskEnvelope).toContain('<handoff-templates>');
-    expect(payload.taskEnvelope).toContain('### Handoff to `planner` (your output)');
-    expect(payload.taskEnvelope).toContain('<references>');
-    expect(payload.taskEnvelope).toContain('handoff-template for="planner->builder" team="duo"');
-    expect(payload.taskEnvelope).toContain('handoff-template for="planner->user" team="duo"');
-    expect(payload.taskEnvelope).toContain('<planner-check-in>');
-    expect(payload.taskEnvelope).toContain('Draft content here');
-    expect(payload.taskEnvelope).toContain('### Defragmentation workflow checklist');
-    expect(payload.taskEnvelope).toContain('&lt;handoff-defragmentation&gt;');
-    expect(payload.taskEnvelope).toContain('optional **Defragmentation** section');
+    expect(payload.systemPrompt).toContain(`--since-message-id="${originUserMessageId}"`);
+    expect(payload.systemPrompt).toContain('single-turn, memoryless **design advisor**');
+    expect(payload.systemPrompt).not.toContain('planner→builder');
+    expect(payload.systemPrompt).not.toContain('planner→user');
+    expect(payload.taskEnvelope).toContain(`origin-user-message-id="${originUserMessageId}"`);
+    expect(payload.taskEnvelope).toContain('<output-template>');
+    expect(payload.taskEnvelope).toContain('Design Input (Enhancer → Planner)');
+    expect(payload.taskEnvelope).toContain('<forwarded-request>');
+    expect(payload.taskEnvelope).toContain('&lt;request&gt;Payload test message&lt;/request&gt;');
+    expect(payload.taskEnvelope).not.toContain('<handoff-templates>');
+    expect(payload.taskEnvelope).not.toContain('<references>');
+    expect(payload.taskEnvelope).not.toContain('<planner-check-in>');
+    expect(payload.taskEnvelope).toContain('&lt;handoff-frontend-design&gt;');
+    expect(payload.taskEnvelope).toContain('&lt;handoff-data-design&gt;');
+    expect(payload.taskEnvelope).toContain('one complete recommended design');
   });
 
   test('pendingForMachine respects nextRetryAt filter', async () => {

@@ -201,7 +201,8 @@ describe('generateFullCliOutput — planner enhancer guidance', () => {
     });
 
     expect(output).toContain('<handoff-enhancer>');
-    expect(output).toContain('One check-in per builder delegation');
+    expect(output).toContain('hand off the user request to the enhancer');
+    expect(output).toContain('one-time per originating user message');
     expect(output).toContain('asynchronously');
   });
 

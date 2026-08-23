@@ -7,112 +7,64 @@ describe('renderEnhancerTaskEnvelope', () => {
   const params = {
     jobId: 'job-123',
     chatroomId: 'room-abc',
-    targetId: 'handoff:planner-to-builder' as const,
-    outputTemplateContent: [
-      'Use these structures for this review.',
-      '### Handoff to `planner` (your output)',
-      '# Enhancer → Planner',
-    ].join('\n'),
-    referencesXml: [
-      '<handoff-template for="planner->builder" team="duo">',
-      '# Planner → Builder content',
-      '</handoff-template>',
-      '<handoff-template for="planner->user" team="duo">',
-      '# Planner → User content',
-      '</handoff-template>',
-    ].join('\n'),
-    plannerCheckIn: '# Draft\n\nDo this work\n',
+    originUserMessageId: 'message-origin',
+    outputTemplateContent: '# Independent design input',
+    requestContent: '<request>Change the workflow</request>',
     cliCompleteCommand:
       "chatroom enhancer complete --chatroom-id=room-abc --job-id=job-123 << 'CHATROOM_ENHANCER_END'",
   };
 
-  it('contains the job-id attribute', () => {
+  it('identifies the job, chatroom, and originating user message', () => {
     const result = renderEnhancerTaskEnvelope(params);
     expect(result).toContain('job-id="job-123"');
+    expect(result).toContain('chatroom-id="room-abc"');
+    expect(result).toContain('origin-user-message-id="message-origin"');
   });
 
-  it('contains handoff-templates and references blocks', () => {
+  it('contains only the output contract and stripped forwarded request', () => {
     const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('<handoff-templates>');
-    expect(result).toContain('</handoff-templates>');
-    expect(result).toContain('<references>');
-    expect(result).toContain('</references>');
+    expect(result).toContain('<output-template>');
+    expect(result).toContain('# Independent design input');
+    expect(result).toContain('<forwarded-request>');
+    expect(result).toContain('&lt;request&gt;Change the workflow&lt;/request&gt;');
+    expect(result).not.toContain('<handoff-templates>');
+    expect(result).not.toContain('<references>');
+    expect(result).not.toContain('<planner-check-in>');
+    expect(result).not.toContain('planner-&gt;builder');
+    expect(result).not.toContain('planner-&gt;user');
   });
 
-  it('output template is inside handoff-templates, not references', () => {
+  it('requires independent investigation and authoritative message history', () => {
     const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('### Handoff to `planner` (your output)');
+    expect(result).toContain('Download chatroom history from the origin user message');
+    expect(result).toContain('actual user messages are authoritative');
+    expect(result).toContain('Investigate the repository independently');
+    expect(result).not.toContain('planner research');
+    expect(result).not.toContain('planner draft');
+    expect(result).not.toContain('builder delegation');
+    expect(result).not.toContain('user-report');
   });
 
-  it('builder reference template is inside references, not handoff-templates', () => {
+  it('contains completion and design-first output requirements', () => {
     const result = renderEnhancerTaskEnvelope(params);
-    expect(result).not.toContain('Planner → Builder content<');
-    expect(result).toContain('Planner → Builder content');
+    expect(result).toContain('Single-turn only. No subagents. Do not implement changes.');
+    expect(result).toContain('one complete recommended design');
+    expect(result).toContain('<handoff-frontend-design>');
+    expect(result).toContain('<handoff-data-design>');
+    expect(result).toContain('**Files touched (index)** must be last');
+    expect(result).toContain('<cli-complete-command>');
+    expect(result).not.toContain('optional **UX** section');
+    expect(result).not.toContain('optional **Defragmentation** section');
   });
 
-  it('contains reference wrapper with for and team attributes', () => {
-    const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('handoff-template for="planner->builder" team="duo"');
-    expect(result).toContain('handoff-template for="planner->user" team="duo"');
-  });
-
-  it('contains <planner-check-in> section', () => {
-    const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('<planner-check-in>');
-    expect(result).toContain('</planner-check-in>');
-  });
-
-  it('encourages repo investigation in requirements', () => {
-    const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('Read files and use tools');
-    expect(result).toContain('targeted repo investigation');
-    expect(result).not.toContain('No codebase exploration');
-    expect(result).not.toContain('do not investigate the repository');
-  });
-
-  it('references handoff-templates and references for output and alignment', () => {
-    const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('Handoff to `planner`');
-    expect(result).toContain('<handoff-template for="planner->builder">');
-    expect(result).toContain('<handoff-template for="planner->user">');
-  });
-
-  it('requirements mention references', () => {
-    const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('<references>');
-  });
-
-  it('contains requirements list', () => {
-    const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('Single-turn only.');
-    expect(result).toContain('No subagents');
-    expect(result).not.toContain('No tools');
-  });
-
-  it('does not embed a separate ux-reference block', () => {
-    const result = renderEnhancerTaskEnvelope(params);
-    expect(result).not.toContain('<ux-reference>');
-  });
-
-  it('requirements mention optional UX section and output order', () => {
-    const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('optional **UX** section');
-    expect(result).toContain('Suggested edits');
-    expect(result).toContain('must be last');
-  });
-
-  it('handoff-templates output embeds the UX reference catalog', () => {
+  it('embeds the enhancer design-input template with SSOT principles', () => {
     const result = renderEnhancerTaskEnvelope({
       ...params,
       outputTemplateContent: getEnhancerToPlannerHandoffTemplate(),
     });
-    expect(result).toContain('no layout shift');
-    expect(result).toContain('**Interaction affordance**');
-  });
-
-  it('requirements include message history download for user-intent validation', () => {
-    const result = renderEnhancerTaskEnvelope(params);
-    expect(result).toContain('download chatroom message history');
-    expect(result).toContain('actual user messages as authoritative');
+    expect(result).toContain('Design Input (Enhancer → Planner)');
+    expect(result).toContain('## Recommended design');
+    expect(result).toContain('## Proof of Principles');
+    expect(result).toContain('how this design demonstrates semantic consistency');
   });
 });

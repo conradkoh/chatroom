@@ -18,12 +18,25 @@ export function getChatroomMobileFooterHorizontalSafeAreaStyle(mobile: boolean):
   };
 }
 
+export type ChatroomMobileFooterSafeAreaOptions = {
+  /** When true, omit bottom safe-area (e.g. keyboard open on mobile). */
+  suppressBottomInset?: boolean;
+};
+
 /** Horizontal + bottom safe-area padding for the bottommost chatroom footer. */
-export function getChatroomMobileFooterSafeAreaStyle(mobile: boolean): CSSProperties {
+export function getChatroomMobileFooterSafeAreaStyle(
+  mobile: boolean,
+  options?: ChatroomMobileFooterSafeAreaOptions
+): CSSProperties {
   if (!mobile) return {};
 
-  return {
+  const style: CSSProperties = {
     ...getChatroomMobileFooterHorizontalSafeAreaStyle(mobile),
-    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
   };
+
+  if (!options?.suppressBottomInset) {
+    style.paddingBottom = 'env(safe-area-inset-bottom, 0px)';
+  }
+
+  return style;
 }

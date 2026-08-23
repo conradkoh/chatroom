@@ -140,7 +140,7 @@ export const handoffEffect = (
           chatroomId,
           convexUrl,
           supportsNativeIntegration: result.supportsNativeIntegration,
-          enhancerCheckInQueued: result.enhancerJobId != null,
+          enhancerRequestQueued: result.enhancerJobId != null,
         })
       );
     });

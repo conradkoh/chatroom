@@ -1,177 +1,129 @@
-/**
- * Task-delivery section informing the planner about handoff enhancer behavior.
- *
- * Included when enhancement is enabled and the planner is about to delegate to builder
- * (initial user task or mid-task slice continuation after builder handback).
- */
+/** Entry-point task-delivery guidance for the request-first enhancer workflow. */
 
 import {
-  ENHANCER_DELEGATION_ROUND_WORKFLOW,
-  ENHANCER_ENABLED_USER_WORKFLOW,
+  getEnhancerEnabledUserWorkflow,
+  getEnhancerRequestFirstWorkflow,
 } from '../../src/domain/usecase/enhancer/enhancer-workflow';
 import { contextReadCommand } from '../cli/context/read';
 
-export function appendTaskDeliveryEnhancerGuidance(lines: string[]): void {
+/** Shown only for the originating user task when enhancement is enabled. */
+export function appendTaskDeliveryEnhancerGuidance(
+  lines: string[],
+  params: { entryPointRole: string; hasBuilder: boolean }
+): void {
+  const entryPointRole = params.entryPointRole.toLowerCase();
   lines.push('');
   lines.push('<handoff-enhancer>');
   lines.push('## Handoff Enhancer (enabled)');
   lines.push('');
-  lines.push('**Workflow (activity diagram):**');
-  lines.push('');
-  lines.push('```');
-  lines.push(ENHANCER_ENABLED_USER_WORKFLOW);
-  lines.push('```');
-  lines.push('');
   lines.push(
-    '**Loop semantics:** Each loop iteration is one builder delegation round (slice/phase). **Next slice** (new delegation after builder handback) repeats the loop including enhancer. **Same-slice rework** (planner → builder with feedback, no new slice) skips the enhancer — go directly to `builder` via `<handoffs>`.'
+    '**First action after required task-intake/context setup:** hand off the user request to the enhancer. Do not research, plan, or draft implementation instructions first.'
   );
   lines.push('');
-  lines.push(
-    '**One check-in per builder delegation.** Before handing off to `builder` — for any slice — check in with the enhancer first.'
-  );
-  lines.push('');
-  lines.push('**One loop iteration (enhancer enabled):**');
-  lines.push('');
   lines.push('```');
-  lines.push(`${ENHANCER_DELEGATION_ROUND_WORKFLOW} → [next slice or user]`);
-  lines.push('```');
-  lines.push('');
-  lines.push('**Multi-slice tasks:**');
-  lines.push('');
-  lines.push('```mermaid');
-  lines.push('flowchart TD');
-  lines.push('    P[Planner] --> E1[Enhancer check-in slice 1]');
-  lines.push('    E1 --> B1[Builder slice 1]');
-  lines.push('    B1 --> P2[Planner reviews]');
-  lines.push('    P2 -->|more slices| E2[Enhancer check-in slice 2]');
-  lines.push('    E2 --> B2[Builder slice 2]');
-  lines.push('    P2 -->|done| U[Handoff to user]');
+  lines.push(getEnhancerEnabledUserWorkflow(entryPointRole, params.hasBuilder));
   lines.push('```');
   lines.push('');
   lines.push(
-    'After reviewing builder output, if more slices remain, check in with the enhancer again before delegating the next slice. Rework on the *same* slice (hand back to builder with feedback) does **not** require re-enhancement.'
-  );
-  lines.push('');
-  lines.push(
-    '**You MUST check in with the enhancer** before each builder delegation when enhancement is enabled.'
-  );
-  lines.push(
-    '**Only one enhancer job at a time** — wait for feedback before submitting the next check-in.'
-  );
-  lines.push('');
-  lines.push(
-    '**After builder handback:** Primary target is `user` (deliver results). If more delegations remain, your **next** handoff is `enhancer` — not `builder` directly. Use `<handoffs>` to check in before delegating the next slice.'
+    `The enhancer pass is **one-time per originating user message**: \`${getEnhancerRequestFirstWorkflow(entryPointRole)}\`. Implementation, delegation, and rework happen afterward without another enhancer pass.`
   );
   lines.push('');
   lines.push('**How it works:**');
   lines.push(
-    '1. Hand off to `enhancer` using the **Handoff to `enhancer`** template with your delegation brief.'
+    "1. Read the user message (and pinned chatroom context if helpful), then fill only `<additional-context>` in the Handoff to `enhancer` template — the system injects `<user-message>` automatically; do not copy the user's message."
   );
   lines.push(
-    '2. Structure your check-in with three XML sections: `<user-message>`, `<grounding>`, and `<builder-handoff>`.'
+    '2. Transfer the goal in `<additional-context>` — not the chatroom Context feature; no implementation draft, builder brief, or researched solution.'
   );
   lines.push(
-    '3. The enhancer returns structured **planning feedback** asynchronously — the handoff command returns immediately.'
+    '3. The memoryless enhancer uses the origin user message ID to download authoritative chatroom history, investigates the repository, and returns independent design input asynchronously.'
   );
   lines.push(
-    '4. When feedback arrives (new planner task), incorporate it, then hand off to `builder`.'
-  );
-  lines.push(
-    '5. After builder returns, review output — then enhance+delegate the next slice or deliver to `user`.'
+    `4. When that input arrives as a new ${entryPointRole} task, use it as the first planning input; then do your own research and proceed with implementation, delegation, or user delivery as the team permits.`
   );
   lines.push('');
+  lines.push('**The enhancer provides design input:**');
+  lines.push('- User intent, constraints, and relevant history');
+  lines.push('- Repository evidence and existing patterns');
+  lines.push('- One recommended design with frontend and data/query detail');
+  lines.push('- Proof of Principles for how the design satisfies quality constraints');
+  lines.push('- Open questions and a recommended implementation sequence');
   lines.push(
-    '**The enhancer starts from your check-in** — it does not see this planner session or attachments, but **may download chatroom message history and read files in the repo** to verify grounding and strengthen feedback.'
+    `- The ${entryPointRole} agent verifies and delegates — input is consultative, not authoritative`
   );
-  lines.push('');
-  lines.push('**Your check-in MUST use these XML sections:**');
-  lines.push("- `<user-message>` — the user's request (verbatim or faithful quote)");
-  lines.push(
-    '- `<grounding>` — code examples, file references, technology choices, and detailed observations from your research'
-  );
-  lines.push(
-    '- `<builder-handoff>` — your complete, filled-in planner→builder Delegation Brief (for review, not placeholders)'
-  );
-  lines.push('');
-  lines.push('**The enhancer provides advisory review:**');
-  lines.push('- Whether the planner read user intent correctly');
-  lines.push('- Risks, failure modes, and missing groundwork');
-  lines.push(
-    '- Specific risks, gaps, and concrete recommendations in every section; proposed plan edits with code snippets in **Suggested edits (remove or change only)**'
-  );
-  lines.push('- Whether the approach will support a strong planner→user handoff');
-  lines.push('- The planner makes the final call — feedback is consultative, not authoritative');
   lines.push('');
   lines.push('**After handoff to enhancer returns success:**');
   lines.push(
-    '- **End your turn immediately** (CLI: run get-next-task) — do not wait for feedback, poll, monitor the enhancer, or re-submit.'
+    '- **End your turn immediately** (CLI: run get-next-task) — do not wait for input, poll, monitor the enhancer, or re-submit.'
   );
   lines.push(
-    '- **Enhancer → planner handoff is your resume trigger** — you will receive planning feedback as a new planner task; do not stay active trying to watch the enhancer run.'
+    `- **Enhancer → ${entryPointRole} delivery is your resume trigger** — design input arrives as a new ${entryPointRole} task.`
   );
   lines.push(
-    '- **Do not hand off to enhancer again** while a job is in progress (you will get an error).'
+    '- **Do not hand off to enhancer again for this user message** — the enhancer pass is intentionally one-time.'
   );
   lines.push(
-    '- **Do not hand off to builder or user** while enhancer review is in progress — wait for feedback first (the server will reject early handoffs).'
+    '- **Do not hand off elsewhere** while enhancer analysis is in progress — wait for its input first (the server rejects early handoffs).'
   );
   lines.push('');
   lines.push('</handoff-enhancer>');
 }
 
-/** Guidance when planner receives planning feedback from the enhancer. */
-export function appendTaskDeliveryEnhancerReviewGuidance(
+/** Guidance when the team entry point receives request-first design input. */
+export function appendTaskDeliveryEnhancerInputGuidance(
   lines: string[],
   ctx: { chatroomId: string; role: string; cliEnvPrefix: string }
 ): void {
   const contextReadCmd = contextReadCommand(ctx);
   lines.push('');
-  lines.push('<enhancer-review>');
-  lines.push('## Enhancer Planning Feedback');
+  lines.push('<enhancer-input>');
+  lines.push('## Enhancer Design Input');
   lines.push('');
   lines.push(
-    'This task contains **planning feedback** from the handoff enhancer on your check-in.'
+    "This task contains the enhancer's independent design for the user's request. It arrives before entry-point research or drafting by design."
   );
   lines.push('');
   lines.push('**Your job:**');
-  lines.push('- Read each feedback section (user intent, knowledge gaps, reasoning, alignment).');
+  lines.push(
+    '- Treat this as your first planning input, not as a review of an entry-point-authored draft.'
+  );
   lines.push(
     `- **Do not run context new** — continue the user task context (run \`${contextReadCmd}\` only if needed).`
   );
   lines.push(
-    '- Update your understanding, research, or builder handoff draft based on valid critiques.'
+    '- Validate the enhancer design, then do the research, refinement, and implementation work that remains yours.'
+  );
+  lines.push('- Verify the **recommended design** against repository evidence and user intent.');
+  lines.push('- Validate frontend and data design sections against concrete files and patterns.');
+  lines.push(
+    '- For large or multi-surface revisions, activate the defragmentation skill before delegating implementation slices.'
   );
   lines.push('- If gaps remain, do more research before proceeding.');
   lines.push(
-    '- If you **already delegated to builder** before this feedback arrived, wait for the builder handback — do not delegate again.'
+    '- When ready: implement, delegate, or hand off to `user` using the workflow and templates available to your team.'
   );
   lines.push(
-    '- When ready: delegate to `builder` (implementation) or hand off to `user` (delivery) using the matching template.'
+    '- Treat the input as **advisory** — you verify and delegate; do not blindly follow suggestions.'
   );
   lines.push(
-    '- Treat feedback as **advisory** — you make the final call; do not blindly follow suggestions.'
+    '- **One enhancer pass per originating user message** — proceed through builder slices without re-enhancing.'
   );
-  lines.push(
-    '- **Suggested edits** include proposed plan changes with file-level detail and code snippets — evaluate on merit; other sections should also be specific and actionable.'
-  );
-  lines.push(
-    '- **One round only** for this check-in — proceed to `builder` or `user` without re-enhancing this slice.'
-  );
-  lines.push('</enhancer-review>');
+  lines.push('</enhancer-input>');
 }
 
+/** Legacy envelope tag retained for in-flight failed/cancelled jobs. */
 export function isPlanningReviewOutcomeContent(content: string): boolean {
   return /<planning-review-outcome\s/i.test(content);
 }
 
-/** Shown when enhancer is NOT active for this task — prevents spurious check-in attempts. */
+/** Shown when enhancer is NOT active for this task — prevents spurious handoffs. */
 export function appendTaskDeliveryEnhancerDisabledGuidance(lines: string[]): void {
   lines.push('');
   lines.push('<handoff-enhancer-disabled>');
   lines.push('## Handoff Enhancer (not active for this task)');
   lines.push('');
   lines.push(
-    '**Do not hand off to `enhancer` for this task.** Enhancer is not enabled for this chatroom or this task snapshot. Delegate directly to `builder` or deliver to `user` per `<next-steps>`.'
+    '**Do not hand off to `enhancer` for this task.** Enhancer is not enabled for this chatroom or this task snapshot. Continue with the implementation, delegation, or delivery path in `<next-steps>`.'
   );
   lines.push('</handoff-enhancer-disabled>');
 }
@@ -179,21 +131,16 @@ export function appendTaskDeliveryEnhancerDisabledGuidance(lines: string[]): voi
 export function appendPlanningReviewOutcomeGuidance(lines: string[]): void {
   lines.push('');
   lines.push('<planning-review-outcome-intake>');
-  lines.push('## Planning review did not complete');
+  lines.push('## Enhancer analysis did not complete');
   lines.push('');
   lines.push(
-    'This is **not** enhancer feedback. The review was cancelled or failed before the enhancer could return critiques.'
+    'The enhancer was cancelled or failed before it could return design input for the user request.'
   );
   lines.push('');
   lines.push('**Your job:**');
-  lines.push(
-    '- Proceed with your delegation brief using existing research — no re-review step for this check-in.'
-  );
-  lines.push('- **Do not retry the enhancer** for this failed check-in.');
-  lines.push(
-    '- A **new** enhancer check-in is only appropriate after a **builder handback** when delegating the next slice/phase.'
-  );
-  lines.push('- Delegate to `builder` or hand off to `user` as appropriate.');
+  lines.push('- Proceed with entry-point-owned research and planning without enhancer input.');
+  lines.push('- **Do not retry the enhancer** for this user message.');
+  lines.push('- Implement, delegate, or hand off to `user` as appropriate for your team.');
   lines.push('');
   lines.push('</planning-review-outcome-intake>');
 }

@@ -6,7 +6,7 @@ import { getDelegationGuidelinesSection } from '../../../prompts/cli/sections/de
 import { composeSystemPrompt } from '../../../prompts/generator';
 import {
   getHandoffContinuityRule,
-  getNativeEnhancerCheckInTurnEndGuidance,
+  getNativeEnhancerRequestTurnEndGuidance,
   getNativeHandoffTurnEndGuidance,
   getNativePlannerDelegationWaitNote,
   getSessionContinuityLine,
@@ -139,7 +139,7 @@ describe('native session continuity', () => {
   }
 
   test('getNativeHandoffTurnEndGuidance for agent handoff', () => {
-    expect(getNativeHandoffTurnEndGuidance('builder')).toContain('last action');
+    expect(getNativeHandoffTurnEndGuidance('builder')).toContain('Handoff complete');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('End your turn now');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('builder');
     expect(getNativeHandoffTurnEndGuidance('builder')).toContain('messages download');
@@ -150,8 +150,8 @@ describe('native session continuity', () => {
     expect(getNativeHandoffTurnEndGuidance('user')).not.toContain('messages download');
   });
 
-  test('getNativeEnhancerCheckInTurnEndGuidance', () => {
-    const guidance = getNativeEnhancerCheckInTurnEndGuidance();
+  test('getNativeEnhancerRequestTurnEndGuidance', () => {
+    const guidance = getNativeEnhancerRequestTurnEndGuidance();
     expect(guidance).toContain('End your turn now');
     expect(guidance).toContain('monitor the enhancer');
     expect(guidance).not.toContain('messages download');

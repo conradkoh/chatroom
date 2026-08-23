@@ -1,3 +1,5 @@
+import { extractHandoffXmlTag } from './extractHandoffXmlTag';
+
 export type HandoffEnvelopeSectionId = 'user-message' | 'grounding' | 'builder-handoff';
 
 export interface HandoffEnvelopeSection {
@@ -19,24 +21,12 @@ const SECTION_DEFS: { id: HandoffEnvelopeSectionId; label: string }[] = [
   { id: 'builder-handoff', label: 'Builder handoff draft' },
 ];
 
-function extractTag(
-  content: string,
-  tag: string
-): { body: string | null; hadOpen: boolean; hadClose: boolean } {
-  const openRe = new RegExp(`<${tag}\\s*>`, 'i');
-  const closeRe = new RegExp(`</${tag}\\s*>`, 'i');
-  const hadOpen = openRe.test(content);
-  const hadClose = closeRe.test(content);
-  const match = new RegExp(`<${tag}\\s*>([\\s\\S]*?)</${tag}\\s*>`, 'i').exec(content);
-  return { body: match ? match[1].trim() : null, hadOpen, hadClose };
-}
-
 export function parseHandoffEnvelope(content: string): HandoffEnvelopeParseResult {
   const warnings: string[] = [];
   const sections: HandoffEnvelopeSection[] = [];
 
   for (const def of SECTION_DEFS) {
-    const { body, hadOpen, hadClose } = extractTag(content, def.id);
+    const { body, hadOpen, hadClose } = extractHandoffXmlTag(content, def.id);
     if (hadOpen && !hadClose) {
       warnings.push(`Unclosed <${def.id}> tag`);
     }

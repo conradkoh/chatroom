@@ -6,46 +6,48 @@ describe('getEnhancerHistoryRetrievalGuidance', () => {
   const params = {
     chatroomId: 'room-abc',
     cliEnvPrefix: '',
+    originUserMessageId: 'message-origin',
   };
 
-  it('contains the messages download command', () => {
+  it('uses the originating user message as the authoritative history anchor', () => {
     const result = getEnhancerHistoryRetrievalGuidance(params);
-    expect(result).toContain('messages download');
+    expect(result).toContain('`message-origin` as the originating user message');
+    expect(result).toContain('--since-message-id="message-origin"');
+    expect(result).toContain('--limit=100');
   });
 
-  it('pre-fills the enhancer role', () => {
+  it('includes the current anchor and download conventions for enhancer', () => {
     const result = getEnhancerHistoryRetrievalGuidance(params);
+    expect(result).toContain('chatroom messages anchor');
+    expect(result).toContain('chatroom messages download');
     expect(result).toContain('--role="enhancer"');
-  });
-
-  it('includes the chatroom id in the command', () => {
-    const result = getEnhancerHistoryRetrievalGuidance(params);
     expect(result).toContain('--chatroom-id="room-abc"');
+    expect(result).toContain('absolute path');
   });
 
-  it('warns not to rely solely on planner context', () => {
+  it('explains how to recover broader or truncated history', () => {
     const result = getEnhancerHistoryRetrievalGuidance(params);
-    expect(result).toContain('Do not rely solely');
+    expect(result).toContain('without `--since-message-id`');
+    expect(result).toContain('`truncated=true`');
+    expect(result).toContain('Treat actual user messages as authoritative');
   });
 
-  it('includes manifest senderRole search tip', () => {
-    const result = getEnhancerHistoryRetrievalGuidance(params);
-    expect(result).toContain('"senderRole": "user"');
-  });
-
-  it('explains limit escalation when truncated', () => {
-    const result = getEnhancerHistoryRetrievalGuidance(params);
-    expect(result).toContain('truncated=true');
-    expect(result).toContain('--limit');
-  });
-
-  it('prepends cliEnvPrefix when provided', () => {
+  it('gives legacy jobs an explicit anchor fallback', () => {
     const result = getEnhancerHistoryRetrievalGuidance({
       chatroomId: 'room-abc',
+      cliEnvPrefix: '',
+    });
+    expect(result).toContain('legacy job has no origin message ID');
+    expect(result).toContain('--since-message-id="<origin-user-message-id>"');
+  });
+
+  it('prepends cliEnvPrefix to both commands', () => {
+    const result = getEnhancerHistoryRetrievalGuidance({
+      ...params,
       cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://localhost:3210 ',
     });
-    expect(result).toContain(
-      'CHATROOM_CONVEX_URL=http://localhost:3210 chatroom messages download'
-    );
+    expect(
+      result.match(/CHATROOM_CONVEX_URL=http:\/\/localhost:3210 chatroom messages/g)
+    ).toHaveLength(2);
   });
 });

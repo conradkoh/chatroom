@@ -10,11 +10,11 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { createTestSession, joinParticipant } from '../helpers/integration';
-import { setupWorkspaceForSession } from './direct-harness/fixtures';
+import { setupPlannerWorkspaceForSession } from './direct-harness/fixtures';
 
 describe('daemon.enhancer.index unauthorized access', () => {
   test('pendingForMachine returns empty for caller without machine owner access', async () => {
-    const { machineId } = await setupWorkspaceForSession('enh-auth-pending');
+    const { machineId } = await setupPlannerWorkspaceForSession('enh-auth-pending');
     const { sessionId: otherSession } = await createTestSession('enh-auth-pending-other');
 
     const pending = await t.query(api.daemon.enhancer.index.pendingForMachine, {
@@ -26,7 +26,8 @@ describe('daemon.enhancer.index unauthorized access', () => {
   });
 
   test('claimForSpawn rejects caller without machine owner access', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-auth-claim');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-auth-claim');
     const { sessionId: otherSession } = await createTestSession('enh-auth-claim-other');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -79,7 +80,8 @@ describe('daemon.enhancer.index unauthorized access', () => {
   });
 
   test('getSpawnPayload rejects caller without machine owner access', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-auth-payload');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-auth-payload');
     const { sessionId: otherSession } = await createTestSession('enh-auth-payload-other');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -139,7 +141,7 @@ describe('daemon.enhancer.index unauthorized access', () => {
 
 describe('web.enhancer.index job owner access', () => {
   async function insertForeignOwnedRunningJob(prefix: string) {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession(prefix);
+    const { sessionId, chatroomId, machineId } = await setupPlannerWorkspaceForSession(prefix);
     const ownerUserId = await t.run(async (ctx) => {
       const room = await ctx.db.get(chatroomId);
       return room!.ownerId;

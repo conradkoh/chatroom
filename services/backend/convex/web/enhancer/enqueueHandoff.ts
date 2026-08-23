@@ -1,8 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { runHandoffHandler } from '../../messages';
 import { mutation } from '../../_generated/server';
+import { runHandoffHandler } from '../../messages';
 
 /** @deprecated Prefer `messages.handoff` — kept for integration tests and backwards compatibility. */
 export const enqueueHandoff = mutation({
@@ -34,7 +34,7 @@ export const enqueueHandoff = mutation({
     if (!result.enhancerJobId) {
       throw new ConvexError({
         code: 'HANDOFF_FAILED',
-        message: 'Expected enhancer job from planner→enhancer handoff',
+        message: 'Expected enhancer job from entry-point→enhancer handoff',
       });
     }
 

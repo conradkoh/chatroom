@@ -22,7 +22,7 @@ import type { PlannerGuidanceParams } from '../../../types/cli';
 const SOLO_TEAM_CONFIG = { hasBuilder: false } as const;
 
 export function getSoloGuidance(ctx: PlannerGuidanceParams): string {
-  const { teamRoles, nativeIntegration } = ctx;
+  const { teamRoles, nativeIntegration, plannerEnhancerActive } = ctx;
   const { chatroomId, role, cliEnvPrefix } = getPlannerGuidanceContext(ctx);
 
   return `## Solo Operating Model
@@ -49,7 +49,7 @@ ${getCoreResponsibilitiesSection(SOLO_TEAM_CONFIG)}
 - Handle edge cases and error scenarios
 - Commit work with descriptive, atomic commit messages
 
-${getHandoffRulesSection(SOLO_TEAM_CONFIG, nativeIntegration)}
+${getHandoffRulesSection(SOLO_TEAM_CONFIG, nativeIntegration, plannerEnhancerActive)}
 
 ${getWhenWorkComesBackSection(SOLO_TEAM_CONFIG)}
 

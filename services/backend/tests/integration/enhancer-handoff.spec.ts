@@ -10,7 +10,10 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { setupWorkspaceForSession } from './direct-harness/fixtures';
+import {
+  setupPlannerWorkspaceForSession,
+  setupSoloWorkspaceForSession,
+} from './direct-harness/fixtures';
 import { joinParticipant } from '../helpers/integration';
 
 async function createPlannerUserMessageAndTask(
@@ -42,9 +45,37 @@ async function createPlannerUserMessageAndTask(
   return msgId;
 }
 
+async function createSoloUserMessageAndTask(
+  chatroomId: Id<'chatroom_rooms'>,
+  content: string
+): Promise<Id<'chatroom_messages'>> {
+  return t.run(async (ctx) => {
+    const id = await ctx.db.insert('chatroom_messages', {
+      chatroomId,
+      senderRole: 'user',
+      content,
+      targetRole: 'solo',
+      type: 'message',
+    });
+    await ctx.db.insert('chatroom_tasks', {
+      chatroomId,
+      createdBy: 'user',
+      content,
+      status: 'in_progress',
+      assignedTo: 'solo',
+      sourceMessageId: id,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      queuePosition: 1,
+    });
+    return id;
+  });
+}
+
 describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle', () => {
   test('rejects planner handoff to enhancer when enabled config is incomplete', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-incomplete-config');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-incomplete-config');
 
     await t.run(async (ctx) => {
       const session = await ctx.db
@@ -86,7 +117,8 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
   });
 
   test('enqueueHandoff creates job and enhancer.job.created event', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-enqueue');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-enqueue');
 
     // Enable enhancer config
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -120,7 +152,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     const job = await t.run(async (ctx) => ctx.db.get(result.jobId as Id<'chatroom_enhancerJobs'>));
     expect(job).toBeDefined();
     expect(job!.status).toBe('pending');
-    expect(job!.draftContent).toBe('Original draft content');
+    expect(job!.draftContent).toContain('Original draft content');
     expect(job!.pendingHandoffArgs).toBeDefined();
     expect(job!.pendingHandoffArgs!.targetRole).toBe('planner');
 
@@ -164,7 +196,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         .collect()
     );
     expect(draftMessages.length).toBe(1);
-    expect(draftMessages[0]!.content).toBe('Original draft content');
+    expect(draftMessages[0]!.content).toContain('Original draft content');
     expect(draftMessages[0]!.visibleInAllTabOnly).toBeUndefined();
     expect(draftMessages[0]!.enhancerJobId).toBe(result.jobId);
     expect(draftMessages[0]!.taskId).toBeDefined();
@@ -180,14 +212,121 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(enhancerTasks.length).toBe(1);
     expect(enhancerTasks[0]!._id).toBe(job!.taskId);
 
-    const { shouldEnqueueMessage } =
-      await import('../../../src/domain/usecase/task/create-task');
+    const { shouldEnqueueMessage } = await import('../../../src/domain/usecase/task/create-task');
     const shouldQueue = await t.run(async (ctx) => shouldEnqueueMessage(ctx, chatroomId));
     expect(shouldQueue).toBe(true);
   });
 
+  test('injects originating user message into enhancer job draftContent', async () => {
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-inject-origin');
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId,
+    });
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await createPlannerUserMessageAndTask(sessionId, chatroomId, 'Add dark mode toggle');
+    const content =
+      '<user-message>\n{{USER_MESSAGE}}\n</user-message>\n<additional-context>\n## Goal\nEnable dark mode\n</additional-context>';
+    const result = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content,
+    });
+    const job = await t.run(async (ctx) => ctx.db.get(result.jobId));
+    expect(job?.draftContent).toContain('Add dark mode toggle');
+    expect(job?.draftContent).not.toContain('{{USER_MESSAGE}}');
+    expect(job?.draftContent).toContain('<additional-context>');
+  });
+
+  test('solo entry point completes the request-first enhancer lifecycle', async () => {
+    const { sessionId, chatroomId, machineId } =
+      await setupSoloWorkspaceForSession('enh-solo-lifecycle');
+
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId,
+    });
+    await joinParticipant(sessionId, chatroomId, 'solo');
+    await createSoloUserMessageAndTask(chatroomId, 'Implement the solo enhancer workflow');
+
+    const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'solo',
+      targetRole: 'enhancer',
+      content: '<request>Implement the solo enhancer workflow</request>',
+    });
+
+    const activeJob = await t.run(async (ctx) => ctx.db.get(jobId));
+    expect(activeJob?.fromRole).toBe('solo');
+    expect(activeJob?.pendingHandoffArgs?.targetRole).toBe('solo');
+    expect(activeJob?.templateSnapshot).toContain('Design Input (Enhancer → Solo)');
+
+    const prematureDelivery = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'solo',
+      targetRole: 'user',
+      content: 'Too early',
+    });
+    expect(prematureDelivery.success).toBe(false);
+    expect(prematureDelivery.error?.code).toBe('ENHANCER_REVIEW_IN_PROGRESS');
+
+    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId,
+      machineId,
+    });
+    await t.mutation(api.web.enhancer.index.complete, {
+      sessionId,
+      chatroomId,
+      jobId,
+      enhancedContent: '## Summary\nIndependent solo planning input',
+    });
+
+    const soloTask = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status_assignedTo', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'pending').eq('assignedTo', 'solo')
+        )
+        .first()
+    );
+    expect(soloTask).toBeDefined();
+
+    const enhancerHandoff = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('senderRole'), 'enhancer'))
+        .first()
+    );
+    expect(enhancerHandoff?.targetRole).toBe('solo');
+
+    const soloParticipant = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'solo'))
+        .unique()
+    );
+    expect(soloParticipant?.lastStatus).toBe('agent.waiting');
+  });
+
   test('enqueueHandoff rejects duplicate check-in while enhancer job is active', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-dup');
+    const { sessionId, chatroomId, machineId } = await setupPlannerWorkspaceForSession('enh-dup');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -223,7 +362,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
 
   test('rejects planner handoff to builder while enhancer review is in progress', async () => {
     const { sessionId, chatroomId, machineId } =
-      await setupWorkspaceForSession('enh-block-builder');
+      await setupPlannerWorkspaceForSession('enh-block-builder');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -260,7 +399,8 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
   });
 
   test('rejects planner handoff to user while enhancer review is in progress', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-block-user');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-block-user');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -296,7 +436,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
   });
 
   test('allows planner handoff to builder after enhancer job completes', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession(
+    const { sessionId, chatroomId, machineId } = await setupPlannerWorkspaceForSession(
       'enh-allow-after-complete'
     );
 
@@ -347,7 +487,8 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
   });
 
   test('complete delivers planning feedback to planner', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-deliver');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-deliver');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -421,7 +562,8 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
   });
 
   test('cancelActiveJob delivers planning-review-outcome envelope and marks job cancelled', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-cancel');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-cancel');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -491,7 +633,8 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
   });
 
   test('recordAttemptFailure retries with backoff then fails after max attempts', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-retry-fail');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-retry-fail');
     const userId = await t.run(async (ctx) => {
       const room = await ctx.db.get(chatroomId);
       return room!.ownerId;
@@ -634,7 +777,8 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
   });
 
   test('enqueueHandoff completes planner in_progress task to prevent get-next-task loop', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-no-loop');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-no-loop');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -676,7 +820,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: '<user-message>test</user-message>',
+      content: '<request>test</request>',
     });
 
     const task = await t.run(async (ctx) => ctx.db.get(taskId!));
@@ -721,8 +865,9 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(pendingPlanner.find((t) => t.assignedTo === 'planner')!._id).not.toBe(taskId!);
   });
 
-  test('enqueueHandoff rejects second check-in after first job completes (no active task)', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-no-double');
+  test('enqueueHandoff rejects a second enhancer request after the first job completes', async () => {
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-no-double');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -742,7 +887,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: '<user-message>test</user-message>',
+      content: '<request>test</request>',
     });
 
     // Complete the job
@@ -765,13 +910,14 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         chatroomId,
         senderRole: 'planner',
         targetRole: 'enhancer',
-        content: '<user-message>another check-in</user-message>',
+        content: '<request>another request</request>',
       })
-    ).rejects.toThrow(/NO_PLANNER_USER_TASK/i);
+    ).rejects.toThrow(/NO_ENTRY_POINT_USER_TASK/i);
   });
 
   test('enqueueHandoff completes all active tasks including builder (traditional handoff)', async () => {
-    const { sessionId, chatroomId, machineId } = await setupWorkspaceForSession('enh-only-planner');
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-only-planner');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -806,7 +952,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: '<user-message>test</user-message>',
+      content: '<request>test</request>',
     });
 
     // Planner task should be completed
@@ -829,9 +975,9 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(enhancerTask!.status).toBe('pending');
   });
 
-  test('enqueueHandoff rejects second check-in after cancel', async () => {
+  test('enqueueHandoff rejects a second enhancer request after cancellation', async () => {
     const { sessionId, chatroomId, machineId } =
-      await setupWorkspaceForSession('enh-no-cancel-double');
+      await setupPlannerWorkspaceForSession('enh-no-cancel-double');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -851,7 +997,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
-      content: '<user-message>test</user-message>',
+      content: '<request>test</request>',
     });
 
     // Cancel the job
@@ -873,13 +1019,13 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         chatroomId,
         senderRole: 'planner',
         targetRole: 'enhancer',
-        content: '<user-message>another check-in</user-message>',
+        content: '<request>another request</request>',
       })
-    ).rejects.toThrow(/NO_PLANNER_USER_TASK/i);
+    ).rejects.toThrow(/NO_ENTRY_POINT_USER_TASK/i);
   });
 
   test('handoff message has taskOriginMessageId pointing to user message', async () => {
-    const { sessionId, chatroomId } = await setupWorkspaceForSession('ho-origin-msg');
+    const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('ho-origin-msg');
 
     // Join planner as a participant so collectActiveTasks can find the task
     const { joinParticipant } = await import('../helpers/integration');

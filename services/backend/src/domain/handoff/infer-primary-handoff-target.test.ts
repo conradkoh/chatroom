@@ -36,6 +36,30 @@ describe('inferPrimaryHandoffTarget', () => {
     ).toBe('enhancer');
   });
 
+  test('solo entry point receiving user message targets enhancer when enabled', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'user',
+        role: 'solo',
+        availableHandoffTargets: ['enhancer', 'user'],
+        isEntryPoint: true,
+        plannerEnhancerEnabled: true,
+      })
+    ).toBe('enhancer');
+  });
+
+  test('solo entry point receiving enhancer input targets user', () => {
+    expect(
+      inferPrimaryHandoffTarget({
+        senderRole: 'enhancer',
+        role: 'solo',
+        availableHandoffTargets: ['user'],
+        isEntryPoint: true,
+        plannerEnhancerEnabled: true,
+      })
+    ).toBe('user');
+  });
+
   test('entry point planner receiving user message targets user when enhancer disabled', () => {
     expect(
       inferPrimaryHandoffTarget({

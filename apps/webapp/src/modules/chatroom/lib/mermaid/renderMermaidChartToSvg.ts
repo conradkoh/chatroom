@@ -1,8 +1,10 @@
+import { loadMermaidInstance } from './getMermaidInstance';
+
 let mermaidInitialized = false;
 
 // fallow-ignore-next-line complexity
 export async function renderMermaidChartToSvg(chart: string): Promise<string> {
-  const mermaid = (await import('mermaid')).default;
+  const mermaid = await loadMermaidInstance();
   if (!mermaidInitialized) {
     const isDark =
       typeof document !== 'undefined' &&

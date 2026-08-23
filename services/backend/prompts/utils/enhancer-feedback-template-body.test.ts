@@ -1,90 +1,55 @@
 import { describe, expect, test } from 'vitest';
 
 import { getEnhancerFeedbackTemplateBody } from './enhancer-feedback-template-body';
+import { getHandoffQualityPrinciplesSectionBlock } from './handoff-quality-principles';
 
 describe('getEnhancerFeedbackTemplateBody', () => {
-  test('contains all 6 XML section wrappers', () => {
+  test('contains every structured design-input wrapper', () => {
     const body = getEnhancerFeedbackTemplateBody();
-    expect(body).toContain('<handoff-overview>');
-    expect(body).toContain('<handoff-proofs>');
-    expect(body).toContain('<handoff-direction>');
-    expect(body).toContain('<handoff-ux>');
-    expect(body).toContain('<handoff-notes>');
-    expect(body).toContain('<handoff-action>');
+    for (const tag of [
+      'handoff-overview',
+      'handoff-proofs',
+      'handoff-direction',
+      'handoff-frontend-design',
+      'handoff-data-design',
+      'handoff-notes',
+      'handoff-action',
+    ]) {
+      expect(body).toContain(`<${tag}>`);
+      expect(body).toContain(`</${tag}>`);
+    }
   });
 
-  test('contains all enhancer section headings', () => {
+  test('organizes design-first input with repository evidence and SSOT principles', () => {
     const body = getEnhancerFeedbackTemplateBody();
-    expect(body).toContain('## Summary');
-    expect(body).toContain('## User intent alignment');
-    expect(body).toContain('## Risks & failure modes');
-    expect(body).toContain('## Knowledge gaps');
-    expect(body).toContain('## Reasoning review');
-    expect(body).toContain('## Recommendations');
-    expect(body).toContain('## Alignment with eventual user handoff');
-    expect(body).toContain('## Suggested edits (remove or change only)');
-    expect(body).not.toContain('## Questions for the planner');
-    expect(body).not.toContain('## UX consistency review');
+    expect(body).toContain('## User intent and constraints');
+    expect(body).toContain('## Repository evidence');
+    expect(body).toContain('## Recommended design');
+    expect(body).toContain('## Proof of Principles');
+    expect(body).toContain('how this design demonstrates semantic consistency');
+    expect(body).toContain(getHandoffQualityPrinciplesSectionBlock('design'));
+    expect(body).toContain('## Open questions for user');
+    expect(body).toContain('## Recommended implementation sequence');
+    expect(body).toContain('defragmentation skill');
+    expect(body).toContain('## Files touched (index)');
+    expect(body).not.toContain('## Proposed approaches');
+    expect(body).not.toContain('## Risks and mitigations');
+    expect(body).not.toContain('handoff-ux');
+    expect(body).not.toContain('handoff-defragmentation');
+    expect(body).not.toContain('Reasoning review');
+    expect(body).not.toContain('planner proposed');
+    expect(body).not.toContain('builder-handoff');
   });
 
-  test('contains Suggested edits section with file-level guidance', () => {
+  test('includes frontend and data design sections at code granularity', () => {
     const body = getEnhancerFeedbackTemplateBody();
-    expect(body).toContain('## Suggested edits (remove or change only)');
-    expect(body).toContain('**File:**');
-    expect(body).toContain('repo-relative paths');
-  });
-
-  test('Suggested edits is the last section heading', () => {
-    const body = getEnhancerFeedbackTemplateBody();
-    const lastH2 = [...body.matchAll(/^## .+$/gm)].pop()?.[0];
-    expect(lastH2).toBe('## Suggested edits (remove or change only)');
-  });
-
-  test('contains optional UX section in handoff-ux tag', () => {
-    const body = getEnhancerFeedbackTemplateBody();
-    expect(body).toContain('<handoff-ux>');
-    expect(body).toContain('</handoff-ux>');
-    expect(body).not.toContain('## UX');
-    expect(body).toContain('**Flows:**');
-    expect(body).toContain('**Patterns:**');
-    expect(body).toContain('**Layout:**');
-    expect(body).toContain('**Shortcuts:**');
-    expect(body).toContain('**States:**');
-    expect(body).toContain('**Error boundaries:**');
-    expect(body).toContain('**Interaction affordance:**');
-    expect(body).toContain('**Feedback:**');
-    const uxBlock = body.slice(body.indexOf('<handoff-ux>'), body.indexOf('</handoff-ux>'));
-    expect(uxBlock).toContain('**Flows:**');
-    expect(uxBlock).toContain('**Shortcuts:**');
-    expect(uxBlock).toContain('**States:**');
-    expect(uxBlock).toContain('**Error boundaries:**');
-    expect(uxBlock).toContain('**Interaction affordance:**');
-    expect(uxBlock).toContain('**Feedback:**');
-    expect(uxBlock).toContain('**Destructive safeguards:**');
-    expect(uxBlock).toContain('**Bulk safeguards:**');
-    expect(body.indexOf('<handoff-ux>')).toBeGreaterThan(body.indexOf('</handoff-direction>'));
-    expect(body.indexOf('<handoff-ux>')).toBeLessThan(body.indexOf('<handoff-notes>'));
-  });
-
-  test('Recommendations precedes Suggested edits', () => {
-    const body = getEnhancerFeedbackTemplateBody();
-    expect(body.indexOf('## Recommendations')).toBeLessThan(
-      body.indexOf('## Suggested edits (remove or change only)')
-    );
-  });
-
-  test('Recommendations has no UX checklist bullets', () => {
-    const body = getEnhancerFeedbackTemplateBody();
-    expect(body).not.toContain('For UI changes: report specific UX checklist findings');
-    const recommendations = body.slice(
-      body.indexOf('## Recommendations'),
-      body.indexOf('## Suggested edits (remove or change only)')
-    );
-    expect(recommendations).not.toContain('**Flows:**');
-    expect(recommendations).not.toContain('**Shortcuts:**');
-    expect(recommendations).not.toContain('**States:**');
-    expect(recommendations).not.toContain('**Error boundaries:**');
-    expect(recommendations).not.toContain('**Alignment:**');
-    expect(recommendations).not.toContain('**Feedback:**');
+    expect(body).toContain('## Frontend / user-centric design');
+    expect(body).toContain('**UX quality (complete for every interactive step in this flow):**');
+    expect(body).toContain('no layout shift');
+    expect(body).toContain('pointer cursor');
+    expect(body).toContain('### Element, style, and layout specification');
+    expect(body).toContain('## Persistent state and query pattern design');
+    expect(body).toContain('### 3. Index design (within limits)');
+    expect(body).toContain('### 4. Query design (within limits)');
   });
 });

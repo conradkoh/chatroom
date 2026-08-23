@@ -106,7 +106,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       - \`code-review\` (1 skill available)
           - Eight-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, and dead code elimination. Covers AI-generated code review with focus on maintainability and tech debt prevention.
 
-      - \`structural-decisions\`
+      - \`structural-decisions\` (1 skill available)
           - Meta-level architectural choices that persist in the codebase and influence consistency: folder structure, file naming, interface definitions, and key abstraction names/locations (e.g., Repository/Service layers).
 
       # Skills
@@ -118,6 +118,7 @@ describe('Duo Team > Planner > System Prompt', () => {
       **Proactively activate skills** when your task matches their purpose:
       - **backlog**: Full backlog command reference: list/add/update, scoring, completion, close, export/import, and workflow guides.
       - **code-review**: Use this skill when reviewing, auditing, or giving feedback on code. Covers ten pillars: simplification, type drift, duplication, design patterns, security, test quality, ownership/observability, dead code elimination, incomplete implementations, and hallucinated content.
+      - **defragmentation**: Use for large or multi-surface system revisions: study surfaces, establish a golden path, migrate callers, and delete legacy implementations.
 
       Don't wait for the user to ask — proactively activate the skill that matches the task.
 
@@ -307,6 +308,8 @@ describe('Duo Team > Planner > System Prompt', () => {
       **Code review:** For code-producing work, review before delivering. Activate the review framework with: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate code-review --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
 
       **Backlog items:** When the task originates from a backlog item, activate the backlog skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate backlog --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
+
+      **Large or multi-surface revisions:** When refactoring, consolidating, or migrating many call sites, activate the defragmentation skill: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate defragmentation --chatroom-id="000000000000010002chatroom_rooms" --role="planner"\`.
 
       **If stuck:** After 2 failed rework attempts → replan or hand back to planner as blocked. No partial PR, \`mark-for-review\`, or user delivery.
 
