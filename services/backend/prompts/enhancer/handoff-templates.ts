@@ -37,6 +37,8 @@ You are the design authority for this request. Recover conversation history, ins
 - Design first — complete frontend and data/query sections before implementation sequencing.
 - **No alternative approaches** — one \`Recommended design\` only.
 - Frontend and data sections: code granularity (component names, props, classes, file paths, schema, indexes, queries).
+- Complete per-flow **UX quality** checklist in frontend design — states, layout stability, patterns, safeguards.
+- For large or multi-surface revisions, note in implementation sequence that the entry point should activate the \`defragmentation\` skill.
 - In \`<handoff-proofs>\`, complete **Proof of Principles** for how this design satisfies each quality principle (or "Not Applicable.").
 - Write "Not Applicable." only when a major design section truly does not apply.
 

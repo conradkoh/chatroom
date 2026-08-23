@@ -30,6 +30,7 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     expect(body).toContain(getHandoffQualityPrinciplesSectionBlock('design'));
     expect(body).toContain('## Open questions for user');
     expect(body).toContain('## Recommended implementation sequence');
+    expect(body).toContain('defragmentation skill');
     expect(body).toContain('## Files touched (index)');
     expect(body).not.toContain('## Proposed approaches');
     expect(body).not.toContain('## Risks and mitigations');
@@ -43,6 +44,9 @@ describe('getEnhancerFeedbackTemplateBody', () => {
   test('includes frontend and data design sections at code granularity', () => {
     const body = getEnhancerFeedbackTemplateBody();
     expect(body).toContain('## Frontend / user-centric design');
+    expect(body).toContain('**UX quality (complete for every interactive step in this flow):**');
+    expect(body).toContain('no layout shift');
+    expect(body).toContain('pointer cursor');
     expect(body).toContain('### Element, style, and layout specification');
     expect(body).toContain('## Persistent state and query pattern design');
     expect(body).toContain('### 3. Index design (within limits)');

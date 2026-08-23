@@ -39,7 +39,8 @@ describe('renderEnhancerSystemPrompt', () => {
 
   it('requires single recommended design with frontend and data sections', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('one recommended design only');
+    expect(result).toContain('per-flow UX quality checklist');
+    expect(result).toContain('skill activate defragmentation');
     expect(result).toContain('<handoff-frontend-design>');
     expect(result).toContain('<handoff-data-design>');
     expect(result).toContain('**Files touched** are the last sections');

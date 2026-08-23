@@ -4,6 +4,10 @@
  * planner reports. Implementation sequencing remains last so code is generated
  * only after the design that justifies it.
  */
+import {
+  getFrontendDesignUxFlowChecklistBlock,
+  getFrontendDesignUxPlanningPrinciplesBlock,
+} from './frontend-design-ux-checklist';
 import { getHandoffQualityPrinciplesSectionBlock } from './handoff-quality-principles';
 
 export function getEnhancerFeedbackTemplateBody(): string {
@@ -34,12 +38,16 @@ ${getHandoffQualityPrinciplesSectionBlock('design')}
 <handoff-frontend-design>
 ## Frontend / user-centric design
 
+${getFrontendDesignUxPlanningPrinciplesBlock()}
+
 ### Flow 1: <name>
 **Entry:** User visits \`<route/page>\` from \`<source>\`.
 
 | Step | User action | System response | UI state |
 |------|-------------|-----------------|----------|
 | 1 | User clicks \`<element label>\` | \`<navigation / modal / fetch>\` | \`<loading → success/error>\` |
+
+${getFrontendDesignUxFlowChecklistBlock()}
 
 **Expected interactions per element:**
 - \`<ElementName>\` (\`apps/webapp/src/...\`): click → \`<handler>\`; keyboard: \`<tab order>\`; disabled when \`<condition>\`
@@ -102,7 +110,7 @@ export function ComponentName({ ... }: Props) {
 
 <handoff-action>
 ## Recommended implementation sequence
-<!-- Ordered slices for the planner — references files from design sections -->
+<!-- Ordered slices for the planner — references files from design sections. For large or multi-surface revisions, activate the defragmentation skill before delegating. -->
 
 1. …
 2. …

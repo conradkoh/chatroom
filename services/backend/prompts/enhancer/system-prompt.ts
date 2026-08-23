@@ -4,6 +4,7 @@ import {
   HANDOFF_MESSAGE_MARKER,
   formatStdinHeredocCommand,
 } from '../cli/stdin-heredoc.js';
+import { getFrontendDesignUxTriggerDescription } from '../utils/frontend-design-ux-checklist';
 
 export interface RenderEnhancerSystemPromptParams {
   chatroomId: string;
@@ -41,9 +42,13 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
       originUserMessageId: params.originUserMessageId,
     }),
     '',
-    '## Frontend design (when the request involves interface changes)',
-    '- Complete <handoff-frontend-design> with flows, component specs, and layout at code granularity.',
+    `## Frontend design (${getFrontendDesignUxTriggerDescription()})`,
+    '- Complete <handoff-frontend-design> with flows, per-flow UX quality checklist, component specs, and layout at code granularity.',
+    '- Ground patterns in repository evidence — cite existing components; recommend one when multiple exist.',
     '- Write "Not Applicable." for the entire section when no UI changes are involved.',
+    '',
+    '## Large or multi-surface revisions',
+    '- When the request involves refactoring, consolidation, or consistency across many surfaces, note in implementation sequence that the entry point should run `chatroom skill activate defragmentation` before delegating slices.',
     '',
     '## Data and query design (when persistence or query patterns change)',
     '- Complete <handoff-data-design> with schema, indexes, and query patterns within project limits.',
