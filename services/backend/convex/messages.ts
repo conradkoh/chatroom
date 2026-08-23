@@ -439,7 +439,7 @@ async function _sendMessageHandler(
   if (isUserMessage) {
     const result = await sendAutomatedUserMessage(ctx, {
       chatroomId: args.chatroomId,
-      content: handoffContent,
+      content: args.content,
       ...(args.attachedTaskIds?.length ? { attachedTaskIds: args.attachedTaskIds } : {}),
       ...(args.attachedBacklogItemIds?.length
         ? { attachedBacklogItemIds: args.attachedBacklogItemIds }
