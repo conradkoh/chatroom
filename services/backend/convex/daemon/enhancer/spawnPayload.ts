@@ -51,6 +51,7 @@ export const getSpawnPayload = query({
       jobId: job._id,
       cliEnvPrefix,
       originUserMessageId: job.originUserMessageId,
+      convexUrl: config.getConvexURLWithFallback(undefined),
     });
     return {
       chatroomId: job.chatroomId,
