@@ -6,7 +6,14 @@ const HARNESS_PATH = '/dev/mobile-picker-harness';
 
 /** ResponsivePickerShell renders trigger-only until client hydration. */
 async function waitForHarnessDesktopPickersHydrated(page: Page): Promise<void> {
-  await expect(page.getByTestId('picker-pointer-trigger-wrap')).toBeAttached();
+  await expect(
+    page.locator('[data-testid="open-flat-picker"][data-slot="chatroom-popover-trigger"]')
+  ).toBeAttached();
+  await expect(
+    page.locator(
+      '[data-testid="open-standing-instructions-bar"][data-slot="chatroom-popover-trigger"]'
+    )
+  ).toBeAttached();
 }
 
 test.use({ ...devices['Desktop Chrome'] });
