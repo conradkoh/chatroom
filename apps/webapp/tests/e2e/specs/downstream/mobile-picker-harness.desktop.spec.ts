@@ -1,8 +1,13 @@
-import { expect, test, devices } from '@playwright/test';
+import { expect, test, devices, type Page } from '@playwright/test';
 
 import { TAG_DOWNSTREAM } from '../../support/tags';
 
 const HARNESS_PATH = '/dev/mobile-picker-harness';
+
+/** ResponsivePickerShell renders trigger-only until client hydration. */
+async function waitForHarnessDesktopPickersHydrated(page: Page): Promise<void> {
+  await expect(page.getByTestId('picker-pointer-trigger-wrap')).toBeAttached();
+}
 
 test.use({ ...devices['Desktop Chrome'] });
 test.describe('Mobile picker harness (desktop)', { tag: [TAG_DOWNSTREAM] }, () => {
@@ -10,6 +15,7 @@ test.describe('Mobile picker harness (desktop)', { tag: [TAG_DOWNSTREAM] }, () =
   test.beforeEach(async ({ page }) => {
     await page.goto(HARNESS_PATH);
     await expect(page.getByRole('heading', { name: 'Mobile Picker Harness' })).toBeVisible();
+    await waitForHarnessDesktopPickersHydrated(page);
   });
   test('flat picker uses popover on desktop viewport', async ({ page }) => {
     await page.getByTestId('open-flat-picker').click();

@@ -1,8 +1,12 @@
-import { expect, test, devices } from '@playwright/test';
+import { expect, test, devices, type Page } from '@playwright/test';
 
 import { TAG_DOWNSTREAM } from '../../support/tags';
 
 const HARNESS_PATH = '/dev/standing-instructions-release-harness';
+
+async function waitForStandingInstructionsHarnessHydrated(page: Page): Promise<void> {
+  await expect(page.getByTestId('picker-pointer-trigger-wrap')).toBeAttached();
+}
 
 test.use({ ...devices['Desktop Chrome'] });
 test.describe('Standing instructions release harness (desktop)', { tag: [TAG_DOWNSTREAM] }, () => {
@@ -12,6 +16,7 @@ test.describe('Standing instructions release harness (desktop)', { tag: [TAG_DOW
     await expect(
       page.getByRole('heading', { name: 'Standing Instructions Release Harness' })
     ).toBeVisible();
+    await waitForStandingInstructionsHarnessHydrated(page);
   });
   test('click near right of standing instructions bar anchors popover near click X', async ({
     page,
@@ -28,6 +33,7 @@ test.describe('Standing instructions release harness (desktop)', { tag: [TAG_DOW
     await expect(page.locator('[data-slot="chatroom-popover-content"]')).toBeVisible();
     const anchor = page.getByTestId('picker-pointer-anchor');
     await expect(anchor).toBeVisible();
+    await expect.poll(async () => (await anchor.boundingBox())?.x ?? -1).toBeGreaterThan(0);
     const anchorBox = await anchor.boundingBox();
     expect(anchorBox).toBeTruthy();
     expect(Math.abs(anchorBox!.x - clickX)).toBeLessThan(40);

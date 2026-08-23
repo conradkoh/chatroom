@@ -20,6 +20,19 @@ async function setHarnessKeyboardInset(page: Page, insetPx: number): Promise<voi
     .toBe(true);
 }
 
+/** ResponsivePickerShell renders trigger-only until client hydration; clicks are no-ops before then. */
+async function waitForHarnessMobilePickersHydrated(page: Page): Promise<void> {
+  await expect(
+    page.locator('[data-testid="open-flat-picker"][data-slot="drawer-trigger"]')
+  ).toBeAttached();
+  await expect(
+    page.locator('[data-testid="open-filter-picker"][data-slot="drawer-trigger"]')
+  ).toBeAttached();
+  await expect(
+    page.locator('[data-testid="open-standing-instructions-bar"][data-slot="drawer-trigger"]')
+  ).toBeAttached();
+}
+
 test.use({ ...devices['iPhone 14'] });
 test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
   test.describe.configure({ mode: 'serial' });
@@ -27,7 +40,7 @@ test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
     await page.goto(HARNESS_PATH);
     await expect(page.getByRole('heading', { name: 'Mobile Picker Harness' })).toBeVisible();
     await expect(page.getByTestId('keyboard-controls')).toBeVisible();
-    await expect(page.getByTestId('open-flat-picker')).toBeVisible();
+    await waitForHarnessMobilePickersHydrated(page);
   });
 
   test('flat picker opens drawer on mobile viewport', async ({ page }) => {
