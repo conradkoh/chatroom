@@ -1,11 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WorkspaceBottomBarShell } from './WorkspaceBottomBar';
+import {
+  WorkspaceBottomBarShell,
+  getWorkspaceBottomBarShellStyle,
+  shouldSuppressWorkspaceBottomBarSafeArea,
+} from './WorkspaceBottomBar';
 
 const mockUseIsDesktop = vi.fn();
 const mockUseKeyboardInset = vi.fn();
-const mockUseEditableFocused = vi.fn();
+const mockUseMainChatComposerFocused = vi.fn();
 
 vi.mock('@/hooks/useIsDesktop', () => ({ useIsDesktop: () => mockUseIsDesktop() }));
 vi.mock('@/hooks/useMobileKeyboard', async (importOriginal) => {
@@ -13,8 +17,9 @@ vi.mock('@/hooks/useMobileKeyboard', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/hooks/useMobileKeyboard')>();
   return {
     ...actual,
-    useVisualViewportKeyboardInset: (enabled?: boolean) => (enabled ? mockUseKeyboardInset() : 0),
-    useEditableElementFocused: (enabled?: boolean) => (enabled ? mockUseEditableFocused() : false),
+    useMainChatComposerKeyboardInset: (enabled?: boolean) =>
+      enabled && mockUseMainChatComposerFocused() ? mockUseKeyboardInset() : 0,
+    useMainChatComposerFocused: (enabled?: boolean) => enabled ? mockUseMainChatComposerFocused() : false,
   };
 });
 
@@ -22,7 +27,7 @@ describe('WorkspaceBottomBarShell', () => {
   beforeEach(() => {
     mockUseIsDesktop.mockReturnValue(false);
     mockUseKeyboardInset.mockReturnValue(0);
-    mockUseEditableFocused.mockReturnValue(false);
+    mockUseMainChatComposerFocused.mockReturnValue(false);
   });
 
   const renderShell = () =>
@@ -43,8 +48,7 @@ describe('WorkspaceBottomBarShell', () => {
     renderShell();
     const outer = screen.getByTestId('workspace-bottom-bar');
     expect(outer).toBeInTheDocument();
-    expect(mockUseKeyboardInset).toHaveBeenCalled();
-    expect(mockUseEditableFocused).toHaveBeenCalled();
+    expect(mockUseMainChatComposerFocused).toHaveBeenCalled();
   });
 
   it('suppresses bottom safe-area when keyboard inset is non-zero', () => {
@@ -54,7 +58,7 @@ describe('WorkspaceBottomBarShell', () => {
   });
 
   it('suppresses bottom safe-area when editable element is focused (iOS fallback)', () => {
-    mockUseEditableFocused.mockReturnValue(true);
+    mockUseMainChatComposerFocused.mockReturnValue(true);
     renderShell();
     expect(screen.getByTestId('workspace-bottom-bar').style.paddingBottom).toBe('');
   });
@@ -62,12 +66,12 @@ describe('WorkspaceBottomBarShell', () => {
   it('keeps bottom safe-area when keyboard closed', () => {
     renderShell();
     expect(mockUseKeyboardInset).toHaveBeenCalled();
-    expect(mockUseEditableFocused).toHaveBeenCalled();
+    expect(mockUseMainChatComposerFocused).toHaveBeenCalled();
   });
 
   it('does not suppress safe-area on desktop', () => {
     mockUseIsDesktop.mockReturnValue(true);
-    mockUseEditableFocused.mockReturnValue(true);
+    mockUseMainChatComposerFocused.mockReturnValue(true);
     renderShell();
     expect(screen.getByTestId('workspace-bottom-bar').style.cssText).toBe('');
   });
@@ -80,5 +84,17 @@ describe('WorkspaceBottomBarShell', () => {
     const inner = outer.firstElementChild as HTMLElement;
     expect(inner.className).toMatch(/\bh-8\b/);
     expect(inner.className).toContain('min-h-[32px]');
+  });
+
+  it('gates safe-area suppression by composer focus and settled threshold', () => {
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(0, true)).toBe(true);
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(119, false)).toBe(false);
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(120, false)).toBe(true);
+    expect(shouldSuppressWorkspaceBottomBarSafeArea(300, false, false)).toBe(false);
+  });
+
+  it('composes mobile shell safe-area and keyboard transform styles', () => {
+    expect(getWorkspaceBottomBarShellStyle(true, 300, true).transform).toBe('translateY(-300px)');
+    expect(getWorkspaceBottomBarShellStyle(false, 300, true).transform).toBe('translateY(-300px)');
   });
 });
