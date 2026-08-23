@@ -17,6 +17,13 @@ describe('getChatroomMobileFooterSafeAreaStyle', () => {
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     });
   });
+
+  it('omits bottom safe-area when suppressBottomInset is true', () => {
+    expect(getChatroomMobileFooterSafeAreaStyle(true, { suppressBottomInset: true })).toEqual({
+      paddingLeft: 'max(16px, env(safe-area-inset-left, 0px))',
+      paddingRight: 'max(16px, env(safe-area-inset-right, 0px))',
+    });
+  });
 });
 
 describe('getChatroomMobileFooterHorizontalSafeAreaStyle', () => {
