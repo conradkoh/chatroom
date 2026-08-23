@@ -1,12 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 
 import { NextResponse } from 'next/server';
 
-const MERMAID_MIN_PATH = path.join(process.cwd(), 'node_modules/mermaid/dist/mermaid.min.js');
+import { resolveMermaidMinPath } from '@/modules/chatroom/lib/mermaid/resolveMermaidMinPath';
 
 export async function GET(): Promise<NextResponse> {
-  const body = await readFile(MERMAID_MIN_PATH);
+  const body = await readFile(resolveMermaidMinPath());
   return new NextResponse(new Uint8Array(body), {
     headers: {
       'Content-Type': 'application/javascript; charset=utf-8',
