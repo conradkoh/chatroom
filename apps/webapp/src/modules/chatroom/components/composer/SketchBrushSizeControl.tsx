@@ -30,7 +30,7 @@ export function SketchBrushSizeControl({
         disabled={disabled}
         aria-valuetext={`${value} pixels`}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="h-1 w-20 cursor-pointer accent-chatroom-accent disabled:cursor-not-allowed disabled:opacity-40"
+        className="h-1 w-24 cursor-pointer accent-chatroom-accent disabled:cursor-not-allowed disabled:opacity-40 sm:w-20"
       />
       <span className="w-6 text-[11px] text-chatroom-text-muted">{value}px</span>
     </div>
