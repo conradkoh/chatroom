@@ -20,6 +20,9 @@
 # production
 /build
 
+# Generated — copied from node_modules by scripts/copy-mermaid-vendor.ts
+public/vendor/mermaid.min.js
+
 # misc
 .DS_Store
 *.pem
