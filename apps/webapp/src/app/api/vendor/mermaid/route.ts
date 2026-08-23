@@ -1,10 +1,9 @@
 import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
+import path from 'node:path';
 
 import { NextResponse } from 'next/server';
 
-const require = createRequire(import.meta.url);
-const MERMAID_MIN_PATH = require.resolve('mermaid/dist/mermaid.min.js');
+const MERMAID_MIN_PATH = path.join(process.cwd(), 'node_modules/mermaid/dist/mermaid.min.js');
 
 export async function GET(): Promise<NextResponse> {
   const body = await readFile(MERMAID_MIN_PATH);
