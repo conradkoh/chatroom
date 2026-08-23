@@ -22,7 +22,15 @@ export interface HandoffReportViewProps {
 }
 
 type SectionKey =
-  'overview' | 'proofs' | 'direction' | 'ux' | 'defragmentation' | 'systemDesign' | 'action';
+  | 'overview'
+  | 'proofs'
+  | 'direction'
+  | 'frontendDesign'
+  | 'dataDesign'
+  | 'ux'
+  | 'defragmentation'
+  | 'systemDesign'
+  | 'action';
 
 interface SectionDef {
   id: string;
@@ -35,6 +43,18 @@ const STRUCTURED_SECTIONS: SectionDef[] = [
   { id: 'overview', label: 'Overview', key: 'overview', defaultOpenWhenNonempty: true },
   { id: 'proofs', label: 'Proofs', key: 'proofs', defaultOpenWhenNonempty: false },
   { id: 'direction', label: 'Direction', key: 'direction', defaultOpenWhenNonempty: false },
+  {
+    id: 'frontend-design',
+    label: 'Frontend design',
+    key: 'frontendDesign',
+    defaultOpenWhenNonempty: false,
+  },
+  {
+    id: 'data-design',
+    label: 'Data design',
+    key: 'dataDesign',
+    defaultOpenWhenNonempty: false,
+  },
   { id: 'ux', label: 'UX', key: 'ux', defaultOpenWhenNonempty: false },
   {
     id: 'defragmentation',
@@ -97,6 +117,8 @@ function computeSectionBodies(parsed: HandoffReportParseResult): {
     overview: parsed.overview,
     proofs: parsed.proofs,
     direction: null,
+    frontendDesign: parsed.frontendDesign,
+    dataDesign: parsed.dataDesign,
     ux: parsed.ux,
     defragmentation: parsed.defragmentation,
     systemDesign: null,
@@ -111,11 +133,32 @@ function computeSectionBodies(parsed: HandoffReportParseResult): {
     // systemDesign is absent if the heading was never in the direction body
     isAbsent['system-design'] = extracted === null;
   }
-  // ux is absent when the tag was never present in the message
+  isAbsent['frontendDesign'] = parsed.frontendDesign === null;
+  isAbsent['dataDesign'] = parsed.dataDesign === null;
   isAbsent['ux'] = parsed.ux === null;
   isAbsent['defragmentation'] = parsed.defragmentation === null;
 
   return { bodies, isAbsent };
+}
+
+const OPTIONAL_SECTION_ABSENT_KEYS: Partial<Record<SectionKey, string>> = {
+  systemDesign: 'system-design',
+  frontendDesign: 'frontendDesign',
+  dataDesign: 'dataDesign',
+  ux: 'ux',
+  defragmentation: 'defragmentation',
+};
+
+function shouldRenderStructuredSection(
+  section: SectionDef,
+  body: string | null,
+  isAbsent: Record<string, boolean>
+): boolean {
+  if (body === null && section.key !== 'direction') return false;
+  const absentKey = OPTIONAL_SECTION_ABSENT_KEYS[section.key];
+  if (absentKey && isAbsent[absentKey]) return false;
+  if (section.key === 'direction' && body === null) return false;
+  return body !== null;
 }
 
 function StructuredView({
@@ -139,12 +182,9 @@ function StructuredView({
     <div className="space-y-2">
       {STRUCTURED_SECTIONS.map((section) => {
         const body = bodies[section.key];
-        if (body === null && section.key !== 'direction') return null;
-        if (section.key === 'systemDesign' && isAbsent['system-design']) return null;
-        if (section.key === 'ux' && isAbsent['ux']) return null;
-        if (section.key === 'defragmentation' && isAbsent['defragmentation']) return null;
-        if (section.key === 'direction' && body === null) return null;
-        if (body === null) return null;
+        if (!shouldRenderStructuredSection(section, body, isAbsent) || body === null) {
+          return null;
+        }
         const subsectionCount = countNonemptySubsections(body);
         const isEmpty = isHandoffSectionBodyEmpty(body);
         const isOpen = openSections[section.id] ?? false;

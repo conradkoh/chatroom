@@ -55,9 +55,13 @@ export const PROOF_OF_PRINCIPLES_MANDATORY_COMMENT = `<!-- REQUIRED: Complete ev
  * Each principle is a bullet with its own HTML comment and a required response
  * (explanation or exactly "Not Applicable.").
  */
-export function getHandoffQualityPrinciplesTemplateBlock(): string {
+export type HandoffQualityPrinciplesSubject = 'work' | 'design';
+
+export function getHandoffQualityPrinciplesTemplateBlock(
+  subject: HandoffQualityPrinciplesSubject = 'work'
+): string {
   const lines = HANDOFF_QUALITY_PRINCIPLES.flatMap((p) => [
-    `- **${p.name}:** <how this work demonstrates ${p.name.toLowerCase()}, or exactly "${HANDOFF_NOT_APPLICABLE_EXACT_TEXT}">`,
+    `- **${p.name}:** <how this ${subject} demonstrates ${p.name.toLowerCase()}, or exactly "${HANDOFF_NOT_APPLICABLE_EXACT_TEXT}">`,
     `<!-- ${p.name}: ${p.description} -->`,
     '',
   ]);
@@ -67,8 +71,10 @@ export function getHandoffQualityPrinciplesTemplateBlock(): string {
 /**
  * Full section block: heading + REQUIRED comment + per-principle bullets.
  */
-export function getHandoffQualityPrinciplesSectionBlock(): string {
+export function getHandoffQualityPrinciplesSectionBlock(
+  subject: HandoffQualityPrinciplesSubject = 'work'
+): string {
   return `${PROOF_OF_PRINCIPLES_HEADING_H2}
 ${PROOF_OF_PRINCIPLES_MANDATORY_COMMENT}
-${getHandoffQualityPrinciplesTemplateBlock()}`;
+${getHandoffQualityPrinciplesTemplateBlock(subject)}`;
 }

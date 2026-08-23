@@ -66,6 +66,24 @@ describe('skills.activate', () => {
     expect(event?.prompt).toContain('Continuous Backlog Execution');
   });
 
+  test('activates the defragmentation skill with workflow guidance', async () => {
+    const { sessionId } = await createTestSession('skills-activate-defrag-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'defragmentation',
+      role: 'planner',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.skill.skillId).toBe('defragmentation');
+    expect(result.skill.name).toBe('Defragmentation Workflow');
+    expect(result.skill.prompt).toContain('Golden implementation');
+    expect(result.skill.prompt).toContain('Delete legacy');
+  });
+
   test('throws ConvexError for an unknown skill', async () => {
     const { sessionId } = await createTestSession('skills-activate-unknown-1');
     const chatroomId = await createChatroom(sessionId);
@@ -165,6 +183,7 @@ describe('skills.list', () => {
     expect(skills.length).toBeGreaterThan(0);
     expect(skills.some((s) => s.skillId === 'backlog')).toBe(true);
     expect(skills.some((s) => s.skillId === 'code-review')).toBe(true);
+    expect(skills.some((s) => s.skillId === 'defragmentation')).toBe(true);
     expect(skills.some((s) => s.skillId === 'software-engineering')).toBe(false);
     expect(skills.some((s) => s.skillId === 'development-workflow')).toBe(false);
   });

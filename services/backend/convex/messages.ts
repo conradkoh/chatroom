@@ -22,6 +22,7 @@ import {
   resolvePrimaryDeliveryAssemblyInput,
 } from '../src/domain/entities/assemble-primary-delivery-attachments';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
+import { resolveEnhancerHandoffContent } from '../src/domain/usecase/enhancer/enhancer-handoff-content';
 import type { PrimaryDeliveryAttachments } from '../src/domain/entities/message-attachments';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
@@ -847,11 +848,18 @@ export async function runHandoffHandler(
     if (origin) taskOriginMessageId = origin._id;
   }
 
+  const originMessage = isHandoffToEnhancer && taskOriginMessageId
+    ? await ctx.db.get('chatroom_messages', taskOriginMessageId)
+    : null;
+  const handoffContent = isHandoffToEnhancer
+    ? resolveEnhancerHandoffContent(args.content, originMessage?.content ?? '')
+    : args.content;
+
   // Step 2: Send the handoff message
   const messageId = await ctx.db.insert('chatroom_messages', {
     chatroomId: args.chatroomId,
     senderRole: args.senderRole,
-    content: args.content,
+    content: handoffContent,
     targetRole: args.targetRole,
     type: 'handoff',
     ...(args.attachedArtifactIds &&
@@ -891,7 +899,7 @@ export async function runHandoffHandler(
     const { taskId: createdTaskId } = await createTaskUsecase(ctx, {
       chatroomId: args.chatroomId,
       createdBy: args.senderRole,
-      content: args.content,
+      content: handoffContent,
       forceStatus: 'pending', // Handoffs always start as pending
       assignedTo: args.targetRole,
       sourceMessageId: messageId,
@@ -922,7 +930,7 @@ export async function runHandoffHandler(
       userId: session.userId,
       chatroom,
       entryPointRole: enhancerEntryPointRole,
-      content: args.content,
+      content: handoffContent,
       taskId: newTaskId,
       messageId,
       originUserMessageId: taskOriginMessageId,

@@ -152,7 +152,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     const job = await t.run(async (ctx) => ctx.db.get(result.jobId as Id<'chatroom_enhancerJobs'>));
     expect(job).toBeDefined();
     expect(job!.status).toBe('pending');
-    expect(job!.draftContent).toBe('Original draft content');
+    expect(job!.draftContent).toContain('Original draft content');
     expect(job!.pendingHandoffArgs).toBeDefined();
     expect(job!.pendingHandoffArgs!.targetRole).toBe('planner');
 
@@ -196,7 +196,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         .collect()
     );
     expect(draftMessages.length).toBe(1);
-    expect(draftMessages[0]!.content).toBe('Original draft content');
+    expect(draftMessages[0]!.content).toContain('Original draft content');
     expect(draftMessages[0]!.visibleInAllTabOnly).toBeUndefined();
     expect(draftMessages[0]!.enhancerJobId).toBe(result.jobId);
     expect(draftMessages[0]!.taskId).toBeDefined();
@@ -215,6 +215,35 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     const { shouldEnqueueMessage } = await import('../../../src/domain/usecase/task/create-task');
     const shouldQueue = await t.run(async (ctx) => shouldEnqueueMessage(ctx, chatroomId));
     expect(shouldQueue).toBe(true);
+  });
+
+  test('injects originating user message into enhancer job draftContent', async () => {
+    const { sessionId, chatroomId, machineId } =
+      await setupPlannerWorkspaceForSession('enh-inject-origin');
+    await t.mutation(api.web.enhancer.index.upsertConfig, {
+      sessionId,
+      chatroomId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      machineId,
+    });
+    await joinParticipant(sessionId, chatroomId, 'planner');
+    await createPlannerUserMessageAndTask(sessionId, chatroomId, 'Add dark mode toggle');
+    const content =
+      '<user-message>\n{{USER_MESSAGE}}\n</user-message>\n<additional-context>\n## Goal\nEnable dark mode\n</additional-context>';
+    const result = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content,
+    });
+    const job = await t.run(async (ctx) => ctx.db.get(result.jobId));
+    expect(job?.draftContent).toContain('Add dark mode toggle');
+    expect(job?.draftContent).not.toContain('{{USER_MESSAGE}}');
+    expect(job?.draftContent).toContain('<additional-context>');
   });
 
   test('solo entry point completes the request-first enhancer lifecycle', async () => {
@@ -244,7 +273,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     const activeJob = await t.run(async (ctx) => ctx.db.get(jobId));
     expect(activeJob?.fromRole).toBe('solo');
     expect(activeJob?.pendingHandoffArgs?.targetRole).toBe('solo');
-    expect(activeJob?.templateSnapshot).toContain('Planning Input (Enhancer → Solo)');
+    expect(activeJob?.templateSnapshot).toContain('Design Input (Enhancer → Solo)');
 
     const prematureDelivery = await t.mutation(api.messages.handoff, {
       sessionId,

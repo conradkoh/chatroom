@@ -37,8 +37,8 @@ describe('appendTaskDeliveryHandoffSections — enhancer enabled', () => {
     expect(output).toContain('Run this handoff command as your final action now');
     expect(output).toContain('--next-role="enhancer"');
     expect(output).toContain('Handoff to `enhancer`');
-    expect(output).toContain('Request Forward (Planner → Enhancer)');
-    expect(output).toContain('<request>');
+    expect(output).toContain('Planning Request (Planner → Enhancer)');
+    expect(output).toContain('<additional-context>');
     expect(output).not.toContain('<grounding>');
     expect(output).not.toContain('<builder-handoff>');
     expect(output).not.toContain('<enhancer-input>');
@@ -82,7 +82,7 @@ describe('appendTaskDeliveryHandoffSections — enhancer enabled', () => {
     });
 
     expect(userOutput).toContain('--next-role="enhancer"');
-    expect(userOutput).toContain('Request Forward (Solo → Enhancer)');
+    expect(userOutput).toContain('Planning Request (Solo → Enhancer)');
     expect(userOutput).toContain('user → enhancer → solo → user');
     expect(userOutput).not.toContain('Handoff to `builder`');
 

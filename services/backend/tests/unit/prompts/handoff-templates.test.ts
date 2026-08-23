@@ -40,14 +40,18 @@ describe('handoff-templates > resolver', () => {
     );
   });
 
-  test('enhancer → planner template uses XML section wrappers', () => {
+  test('enhancer → planner template uses design-first XML section wrappers', () => {
     const template = getEnhancerToPlannerHandoffTemplate();
     expect(template).toContain('<handoff-overview>');
     expect(template).toContain('<handoff-action>');
-    expect(template).toContain('<handoff-ux>');
-    expect(template).not.toMatch(/^## UX$/m);
-    expect(template).toContain('## Recommended next steps');
-    expect(template).toContain('## Implementation notes');
+    expect(template).toContain('<handoff-frontend-design>');
+    expect(template).toContain('<handoff-data-design>');
+    expect(template).toContain('## Recommended design');
+    expect(template).toContain('## Proof of Principles');
+    expect(template).toContain('Design Input (Enhancer → Planner)');
+    expect(template).not.toContain('<handoff-ux>');
+    expect(template).not.toContain('## Recommended next steps');
+    expect(template).not.toContain('## Implementation notes');
     expect(template).not.toContain('planner check-in');
     expect(template).not.toContain('builder-handoff');
     expect(template).not.toContain('Suggested edits');
@@ -95,11 +99,11 @@ describe('handoff-templates > resolver', () => {
       toRole: 'solo',
     });
 
-    expect(request).toContain('Request Forward (Solo → Enhancer)');
-    expect(request).toContain('<request>');
+    expect(request).toContain('Planning Request (Solo → Enhancer)');
+    expect(request).toContain('<additional-context>');
     expect(request).not.toContain('<grounding>');
-    expect(input).toContain('Planning Input (Enhancer → Solo)');
-    expect(input).toContain('solo agent owns persistent memory, execution, and the final plan');
+    expect(input).toContain('Design Input (Enhancer → Solo)');
+    expect(input).toContain('solo agent verifies your design and delegates implementation');
   });
 
   test('delivery params match direct getter calls for duo planner → user', () => {
@@ -357,148 +361,159 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       role: 'enhancer',
     });
     expect(template).toMatchInlineSnapshot(`
-      "---
+      "**Design Input (Enhancer → Planner)**
 
-      ⚠️ **CRITICAL — Recipient visibility**
+      You are the design authority for this request. Recover conversation history, inspect the repository, and return **one** complete design — not options. The planner agent verifies your design and delegates implementation.
 
-      The \`planner\` agent **only** receives the text inside your \`handoff --next-role="planner"\` command.
-
-      They **cannot** see:
-      - Anything you write in this agent session
-      - Progress reports
-      - Tool output
-
-      Put your **complete** deliverable in the handoff message — not in session text.
-
-      ---
-
-      **Planning Input (Enhancer → Planner)** — complete every section below. Do not omit sections, principles, or XML wrappers:
-
-      When a section has no content, write exactly \`Not Applicable.\` — no explanation, no em-dash, no additional text.
-
-      Independently analyze the user's request. Recover the relevant conversation history, inspect the repository, and give the planner agent a concrete first input for its own planning. Focus on user intent, existing behavior, implementation direction, risks, and material unknowns. The planner agent owns persistent memory, execution, and the final plan.
-
-      Ground every recommendation in user messages or codebase evidence. For UI work, complete the optional **UX** section using the reference below. For a large or multi-surface revision, complete the optional **Defragmentation** section. End with **Recommended next steps**, then **Implementation notes** for any file-level detail or short illustrative code that materially helps.
-
-      ### UX planning checklist
-      Complete the optional **UX** section when the user request involves UI changes. Write exactly "Not Applicable." for non-UI tasks. Put code snippets in **Implementation notes** only.
-
-      1. **Flows** — is the primary path straightforward? simpler alternatives exist?
-      2. **Patterns** — consistent with existing project components and conventions? recommend one when multiple exist.
-      3. **Layout** — unnecessary complexity or wrappers? layout stable across loading/empty/error transitions (no layout shift when async content arrives or state changes)?
-      4. **Shortcuts** — aligned with the project keyboard/shortcut conventions? gaps or conflicts?
-      5. **States** — loading, error, and empty states explicitly handled for async surfaces (no blank panels, silent failures, or missing retry affordances)?
-      6. **Error boundaries** — failures scoped so one subtree does not crash the whole app?
-      7. **Feedback** — timely response for async user actions?
-      8. **Interaction affordance** — clickable/interactive elements use pointer cursor (or the project's established equivalent) where applicable?
-      9. **Destructive actions** — irreversible or high-impact single actions gated by confirmation?
-      10. **Bulk actions** — batch/multi-item operations confirmed with scope or impact summary?
-
-      ### Planning principles
-      - Ground findings in user history and the project codebase — cite existing patterns rather than inventing generic UI preferences.
-      - Flag missing states, layout-shift risk, and missing interaction affordances when the plan omits them; recommend consistency with established project conventions.
-      - Do **not** prescribe style choices the project has not adopted (e.g. specific flex layouts, canonical card chrome, responsive utility patterns, button label copy).
-      - When multiple valid patterns exist in the codebase, recommend one and explain the tradeoff.
-
-      ### Defragmentation workflow checklist
-      Complete the optional **Defragmentation** section when the user request involves a large or multi-surface system revision, including refactoring, consolidation, or consistency work. Write exactly "Not Applicable." only when no such revision is requested.
-
-      1. **Study surfaces** — map all call sites, use cases, and complexity variants before proposing slices; name every relevant file/module
-      2. **Golden implementation** — build a standalone canonical solution first; introduce canonical domain entities/types only when the studied variants require them, then shared use cases, UI components, or utilities; do not patch duplicates in place
-      3. **Migrate callers** — refactor all consumers to the golden path; each slice must be shippable end-to-end
-      4. **Delete legacy** — remove old implementations only after migration is complete; no dead-code leftovers
-
-      ### Anti-patterns to flag
-      - Incremental copy-paste fixes across N files without a golden SSOT
-      - New abstraction without studying all existing variants
-      - Leaving old code "for safety" after migration
-      - Slices that add helpers/infra without a runnable end-to-end outcome
-      - Parallel implementations coexisting without a deletion plan
-
-      ### Structural decisions
-      - Identify SSOT locations for domain entities, shared use cases, and UI components
-      - Align with \`structural-decisions\` glossary: folder structure, file naming, interface locations
-      - Flag when the plan scatters the canonical implementation across unrelated modules
+      **Rules:**
+      - Design first — complete frontend and data/query sections before implementation sequencing.
+      - **No alternative approaches** — one \`Recommended design\` only.
+      - Frontend and data sections: code granularity (component names, props, classes, file paths, schema, indexes, queries).
+      - Complete per-flow **UX quality** checklist in frontend design — states, layout stability, patterns, safeguards.
+      - For large or multi-surface revisions, note in implementation sequence that the entry point should activate the \`defragmentation\` skill.
+      - In \`<handoff-proofs>\`, complete **Proof of Principles** for how this design satisfies each quality principle (or "Not Applicable.").
+      - Write "Not Applicable." only when a major design section truly does not apply.
 
       \`\`\`markdown
       <handoff-overview>
       ## Summary
-      <concise independent assessment of the request, the likely solution shape, and the most important finding>
+      <one paragraph: what we're building and the single design direction>
 
       ## User intent and constraints
-      <what the user is trying to achieve, explicit requirements, relevant prior-message context, and constraints that must be preserved>
+      <explicit requirements from user messages; hard constraints that must not be violated>
       </handoff-overview>
 
-      <!-- UI collapses proofs, direction, ux, defragmentation, and notes by default; overview and action required are expanded -->
+      <!-- UI collapses proofs, direction, frontend design, data design, and notes by default; overview and action required are expanded -->
 
       <handoff-proofs>
-      ## Codebase grounding
-      <relevant files, current behavior, established patterns, data flow, tests, and concrete evidence discovered in the repository>
+      ## Repository evidence
+      <files read, current behavior verified, patterns reused — cite repo-relative paths and short snippets only>
+
+      ## Proof of Principles
+      <!-- REQUIRED: Complete every principle below. Write an explanation for each, or write exactly "Not Applicable." with no explanation when the principle does not apply — do not omit this section or skip any principle bullet. -->
+      - **Semantic Consistency:** <how this design demonstrates semantic consistency, or exactly "Not Applicable.">
+      <!-- Semantic Consistency: the organization of the code, the code and the functionality of the code use a consistent and well maintained set of terms. -->
+
+      - **Organization & Maintainability:** <how this design demonstrates organization & maintainability, or exactly "Not Applicable.">
+      <!-- Organization & Maintainability: a small change in requirements should result in a small change in code in a small number of files and folders. -->
+
+      - **Reducing Optionality:** <how this design demonstrates reducing optionality, or exactly "Not Applicable.">
+      <!-- Reducing Optionality: code contains the minimum number of code paths to support the functionality required presently. -->
+
+      - **Static Evaluability and Provability:** <how this design demonstrates static evaluability and provability, or exactly "Not Applicable.">
+      <!-- Static Evaluability and Provability: the system's behavior should be provably correct by looking at the source code, then automated tests, then manual tests, in this order. -->
+
+      - **No Revisit:** <how this design demonstrates no revisit, or exactly "Not Applicable.">
+      <!-- No Revisit: implemented in a way so the user does not have to revisit this implementation again. -->
+
+      - **Leave It Better:** <how this design demonstrates leave it better, or exactly "Not Applicable.">
+      <!-- Leave It Better: leave the code in a slightly better state than before when touching files. -->
+
+      - **Documented Constraints:** <how this design demonstrates documented constraints, or exactly "Not Applicable.">
+      <!-- Documented Constraints: the code written should also have documentation in comments that indicate the constraints that the code satisfies. -->
       </handoff-proofs>
 
       <handoff-direction>
-      ## Recommended approach
-      <a concrete implementation direction, suggested boundaries and sequencing, and why it fits the request and existing system>
+      ## Recommended design
+      <!-- ONE design only. No Option A/B/C. -->
+
+      <2–4 sentences: the chosen architecture and why it fits the request and existing system>
       </handoff-direction>
 
-      <handoff-ux>
-      <!-- Optional — write exactly "Not Applicable." when the user request does not involve UI changes -->
-      <!-- When UI is involved: ground each finding in user history and repository patterns. Put code only in Implementation notes. -->
-      - **Flows:** <click count, nested modals, simpler alternatives>
-      - **Patterns:** <consistency with existing project components; recommend one when multiple>
-      - **Layout:** <complexity, wrappers, layout stable across state transitions — no layout shift>
-      - **Shortcuts:** <alignment with catalog; gaps or conflicts>
-      - **States:** <loading/error/empty explicitly handled; no blank panels or silent failures>
-      - **Error boundaries:** <error boundary placement; failure isolated from the whole app>
-      - **Feedback:** <timely response for async actions>
-      - **Interaction affordance:** <pointer cursor or project equivalent on clickable elements where applicable>
-      - **Destructive safeguards:** <confirmation before irreversible/high-impact actions>
-      - **Bulk safeguards:** <confirmation with scope summary for batch operations>
-      </handoff-ux>
+      <handoff-frontend-design>
+      ## Frontend / user-centric design
 
-      <handoff-defragmentation>
-      <!-- Optional — write exactly "Not Applicable." when the request does not involve a large or multi-surface revision -->
-      <!-- When revision work is involved: map the existing surfaces independently. Put code only in Implementation notes. -->
-      - **Surfaces:** <call sites and modules identified; gaps in surface mapping>
-      - **Golden path:** <standalone canonical implementation to establish first>
-      - **Domain model:** <canonical types/entities needed or "not needed">
-      - **Shared components:** <shared abstractions needed across use cases, UI, or utilities>
-      - **Slice ordering:** <study → golden path → migrate → delete sequence>
-      - **Migration plan:** <how all callers move to the golden path>
-      - **Deletion plan:** <old implementations to remove after migration>
-      - **Duplication:** <existing duplicates to eliminate and risk of introducing new duplication>
-      - **Structural decisions:** <folder/module boundaries and SSOT locations>
-      </handoff-defragmentation>
+      <!-- Ground every flow in user history and repository patterns. Recommend one existing pattern when multiple exist; do not prescribe style choices the project has not adopted. -->
+
+      ### Flow 1: <name>
+      **Entry:** User visits \`<route/page>\` from \`<source>\`.
+
+      | Step | User action | System response | UI state |
+      |------|-------------|-----------------|----------|
+      | 1 | User clicks \`<element label>\` | \`<navigation / modal / fetch>\` | \`<loading → success/error>\` |
+
+      **UX quality (complete for every interactive step in this flow):**
+      - **States:** loading | empty | error | success — no blank panels, silent failures, or missing retry affordances
+      - **Layout:** stable across async transitions — no layout shift when content arrives or state changes
+      - **Patterns:** consistent with existing project components — cite the chosen pattern and repo-relative file
+      - **Shortcuts:** aligned with project keyboard/shortcut conventions; document tab order and gaps
+      - **Feedback:** timely response for async user actions
+      - **Interaction affordance:** pointer cursor (or project equivalent) on clickable elements
+      - **Safeguards:** confirmation before destructive actions; bulk operations confirmed with scope summary
+
+      **Expected interactions per element:**
+      - \`<ElementName>\` (\`apps/webapp/src/...\`): click → \`<handler>\`; keyboard: \`<tab order>\`; disabled when \`<condition>\`
+
+      ### Element, style, and layout specification
+
+      #### \`<ComponentName>\` — \`apps/webapp/src/path/to/Component.tsx\`
+      **Change:** <create | modify>
+
+      **Layout:** \`<div className="...">\` — flex/grid, gaps, breakpoints
+
+      **States:** loading | empty | error | success
+
+      \`\`\`tsx
+      export function ComponentName({ ... }: Props) {
+        // target structure — props, classNames, branches
+      }
+      \`\`\`
+
+      <!-- Repeat per component; write exactly "Not Applicable." for the entire section if no UI -->
+      </handoff-frontend-design>
+
+      <handoff-data-design>
+      ## Persistent state and query pattern design
+
+      **Goal:** Small updates must not cause large cache invalidations. High-frequency writes use projections to smaller tables.
+
+      ### 1. Sources of concern
+      | Source | Write frequency | Read pattern | Risk |
+      |--------|---------------|--------------|------|
+      | \`<table/mutation>\` | \`<frequency>\` | \`<pattern>\` | \`<scan / hot partition>\` |
+
+      ### 2. Schema design
+      **Hot path:** \`<table>\` — fields, projection from \`<source>\`
+      **Cold path:** \`<table>\` — …
+
+      \`\`\`typescript
+      // target schema shape
+      \`\`\`
+
+      ### 3. Index design (within limits)
+      | Table | Index | Serves query | Budget |
+      |-------|-------|--------------|--------|
+
+      ### 4. Query design (within limits)
+      | Query | Index | Rows scanned | Timeout | Invalidation scope |
+      |-------|-------|--------------|---------|-------------------|
+
+      \`\`\`typescript
+      // target query signature
+      \`\`\`
+
+      <!-- Write exactly "Not Applicable." for the entire section if no persistence changes -->
+      </handoff-data-design>
 
       <handoff-notes>
-      ## Open questions
-      <uncertainties that materially affect implementation; state what evidence would resolve each one, or write "Not Applicable.">
+      ## Open questions for user
+      <decisions only the user can make, or write "Not Applicable.">
       </handoff-notes>
 
       <handoff-action>
-      ## Risks and mitigations
-      <specific failure modes or tradeoffs, their impact, and a practical mitigation for each>
+      ## Recommended implementation sequence
+      <!-- Ordered slices for the planner — references files from design sections. For large or multi-surface revisions, activate the defragmentation skill before delegating. -->
 
-      ## Recommended next steps
-      <!-- SECOND-LAST — ordered, concrete work the planner should consider when producing the final plan. No code blocks here. -->
+      1. …
+      2. …
 
-      ## Implementation notes
-      <!-- LAST — use only when file-level details or short code examples materially clarify the recommendation. -->
-      <!-- File references (clickable in workspace UI): use repo-relative paths with a file extension — e.g. \`apps/webapp/src/modules/chatroom/foo.ts\` or [apps/webapp/src/foo.ts](apps/webapp/src/foo.ts). Avoid absolute paths, file:// prefixes, and paths without / or extension. -->
-
-      ### <implementation detail>
-      **File:** \`apps/webapp/src/path/to/file.ts\`
-      **Note:** <what the planner should know and why>
-
-      \`\`\`typescript
-      // Short illustrative snippet, only when useful
-      \`\`\`
-
-      (Add one ### block per distinct detail. Write "Not Applicable." when none are needed.)
+      ## Files touched (index)
+      - \`apps/webapp/src/...\` — …
+      - \`services/backend/convex/...\` — …
       </handoff-action>
       \`\`\`
 
-      Return only the planning input markdown — no preamble. Follow this structure; use "Not Applicable." where an optional section does not apply."
+      Return only the design input markdown — no preamble. Follow this structure; use "Not Applicable." where a major section does not apply."
     `);
   });
 

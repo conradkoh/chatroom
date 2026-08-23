@@ -1,16 +1,17 @@
 import { describe, expect, test } from 'vitest';
 
 import { getEnhancerFeedbackTemplateBody } from './enhancer-feedback-template-body';
+import { getHandoffQualityPrinciplesSectionBlock } from './handoff-quality-principles';
 
 describe('getEnhancerFeedbackTemplateBody', () => {
-  test('contains every structured planning-input wrapper', () => {
+  test('contains every structured design-input wrapper', () => {
     const body = getEnhancerFeedbackTemplateBody();
     for (const tag of [
       'handoff-overview',
       'handoff-proofs',
       'handoff-direction',
-      'handoff-ux',
-      'handoff-defragmentation',
+      'handoff-frontend-design',
+      'handoff-data-design',
       'handoff-notes',
       'handoff-action',
     ]) {
@@ -19,35 +20,36 @@ describe('getEnhancerFeedbackTemplateBody', () => {
     }
   });
 
-  test('organizes independent analysis instead of critique of a planner draft', () => {
+  test('organizes design-first input with repository evidence and SSOT principles', () => {
     const body = getEnhancerFeedbackTemplateBody();
     expect(body).toContain('## User intent and constraints');
-    expect(body).toContain('## Codebase grounding');
-    expect(body).toContain('## Recommended approach');
-    expect(body).toContain('## Open questions');
-    expect(body).toContain('## Risks and mitigations');
-    expect(body).toContain('## Recommended next steps');
+    expect(body).toContain('## Repository evidence');
+    expect(body).toContain('## Recommended design');
+    expect(body).toContain('## Proof of Principles');
+    expect(body).toContain('how this design demonstrates semantic consistency');
+    expect(body).toContain(getHandoffQualityPrinciplesSectionBlock('design'));
+    expect(body).toContain('## Open questions for user');
+    expect(body).toContain('## Recommended implementation sequence');
+    expect(body).toContain('defragmentation skill');
+    expect(body).toContain('## Files touched (index)');
+    expect(body).not.toContain('## Proposed approaches');
+    expect(body).not.toContain('## Risks and mitigations');
+    expect(body).not.toContain('handoff-ux');
+    expect(body).not.toContain('handoff-defragmentation');
     expect(body).not.toContain('Reasoning review');
     expect(body).not.toContain('planner proposed');
     expect(body).not.toContain('builder-handoff');
   });
 
-  test('keeps implementation notes last with optional file-level guidance', () => {
+  test('includes frontend and data design sections at code granularity', () => {
     const body = getEnhancerFeedbackTemplateBody();
-    const lastH2 = [...body.matchAll(/^## .+$/gm)].pop()?.[0];
-    expect(lastH2).toBe('## Implementation notes');
-    expect(body).toContain('**File:**');
-    expect(body).toContain('repo-relative paths');
-    expect(body).not.toContain('builder brief');
-  });
-
-  test('retains concrete UX and defragmentation planning dimensions', () => {
-    const body = getEnhancerFeedbackTemplateBody();
-    expect(body).toContain('**Flows:**');
-    expect(body).toContain('**Error boundaries:**');
-    expect(body).toContain('**Destructive safeguards:**');
-    expect(body).toContain('**Golden path:**');
-    expect(body).toContain('**Migration plan:**');
-    expect(body).toContain('**Deletion plan:**');
+    expect(body).toContain('## Frontend / user-centric design');
+    expect(body).toContain('**UX quality (complete for every interactive step in this flow):**');
+    expect(body).toContain('no layout shift');
+    expect(body).toContain('pointer cursor');
+    expect(body).toContain('### Element, style, and layout specification');
+    expect(body).toContain('## Persistent state and query pattern design');
+    expect(body).toContain('### 3. Index design (within limits)');
+    expect(body).toContain('### 4. Query design (within limits)');
   });
 });

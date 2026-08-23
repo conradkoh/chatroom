@@ -1,7 +1,7 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentRoleView } from '../hooks/useAgentPanelData';
 
 import { startAgentsBatch } from './agentStart';
+import type { AgentRoleView } from '../hooks/useAgentPanelData';
 import type { AgentConfig, SendCommandFn } from '../types/machine';
 
 function resolveRequiredRestartFields(
@@ -19,9 +19,14 @@ function withRestartDefaults(
   role: string,
   required: { machineId: string; agentType: AgentConfig['agentType'] },
   base: AgentConfig | undefined,
-  _agentView?: AgentRoleView
+  agentView?: AgentRoleView
 ): AgentConfig {
-  const source: Partial<AgentConfig> = base ?? { hostname: '', workingDir: '', availableHarnesses: [], updatedAt: 0 };
+  const source: Partial<AgentConfig> = base ?? {
+    hostname: '',
+    workingDir: '',
+    availableHarnesses: [],
+    updatedAt: 0,
+  };
   return {
     machineId: required.machineId,
     hostname: source.hostname as string,
@@ -29,7 +34,7 @@ function withRestartDefaults(
     role,
     agentType: required.agentType,
     workingDir: source.workingDir as string,
-    model: source.model,
+    model: source.model ?? agentView?.model,
     daemonConnected: source.daemonConnected,
     availableHarnesses: source.availableHarnesses as AgentConfig['availableHarnesses'],
     updatedAt: source.updatedAt as number,

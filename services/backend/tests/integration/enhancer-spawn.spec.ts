@@ -187,20 +187,20 @@ describe('daemon.enhancer.index', () => {
     expect(payload.systemPrompt).toContain(jobId);
     expect(payload.systemPrompt).toContain('messages download');
     expect(payload.systemPrompt).toContain(`--since-message-id="${originUserMessageId}"`);
-    expect(payload.systemPrompt).toContain('single-turn, memoryless **planning advisor**');
+    expect(payload.systemPrompt).toContain('single-turn, memoryless **design advisor**');
     expect(payload.systemPrompt).not.toContain('planner→builder');
     expect(payload.systemPrompt).not.toContain('planner→user');
     expect(payload.taskEnvelope).toContain(`origin-user-message-id="${originUserMessageId}"`);
     expect(payload.taskEnvelope).toContain('<output-template>');
-    expect(payload.taskEnvelope).toContain('Planning Input (Enhancer → Planner)');
+    expect(payload.taskEnvelope).toContain('Design Input (Enhancer → Planner)');
     expect(payload.taskEnvelope).toContain('<forwarded-request>');
     expect(payload.taskEnvelope).toContain('&lt;request&gt;Payload test message&lt;/request&gt;');
     expect(payload.taskEnvelope).not.toContain('<handoff-templates>');
     expect(payload.taskEnvelope).not.toContain('<references>');
     expect(payload.taskEnvelope).not.toContain('<planner-check-in>');
-    expect(payload.taskEnvelope).toContain('### Defragmentation workflow checklist');
-    expect(payload.taskEnvelope).toContain('&lt;handoff-defragmentation&gt;');
-    expect(payload.taskEnvelope).toContain('optional **Defragmentation** section');
+    expect(payload.taskEnvelope).toContain('&lt;handoff-frontend-design&gt;');
+    expect(payload.taskEnvelope).toContain('&lt;handoff-data-design&gt;');
+    expect(payload.taskEnvelope).toContain('one complete recommended design');
   });
 
   test('pendingForMachine respects nextRetryAt filter', async () => {

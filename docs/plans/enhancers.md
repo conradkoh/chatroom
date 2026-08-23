@@ -33,10 +33,17 @@ user request → planner plans → [builder → planner] → user
 The entry point's first action on a new user task is its handoff to the enhancer. It must not research, draft a plan, or prepare implementation instructions first. The handoff body is intentionally limited to:
 
 ```xml
-<request>
-<the user's request, faithfully forwarded without analysis or a proposed solution>
-</request>
+<user-message>
+<!-- Injected automatically from the originating user message; the planner does not copy it -->
+{{USER_MESSAGE}}
+</user-message>
+<additional-context>
+## Goal
+<what the user wants>
+</additional-context>
 ```
+
+The server resolves `{{USER_MESSAGE}}` from the originating user message before storing the handoff and enhancer job. Planners fill only `<additional-context>`; the placeholder is never copied or edited manually.
 
 The backend permits only one enhancer job for a given `originUserMessageId`. Enhancer output returns to the originating team entry point (`planner` or `solo`), and later work does not retrigger enhancement.
 
@@ -68,16 +75,17 @@ It deliberately excludes:
 - downstream implementation and user-delivery templates;
 - builder brief requirements or eventual user-report structure.
 
-The enhancer output is independent planning input organized around:
+The enhancer output is independent design input organized around:
 
 - user intent and constraints;
-- codebase grounding;
-- a recommended approach;
-- UX or defragmentation considerations when applicable;
-- open questions;
-- risks and mitigations;
-- recommended next steps;
-- implementation notes, last and only when useful.
+- repository evidence;
+- Proof of Principles (SSOT from `handoff-quality-principles.ts`);
+- one recommended design;
+- frontend and data/query design at code granularity when applicable (per-flow UX quality checklist embedded in frontend design);
+- open questions for the user;
+- recommended implementation sequence and files touched index.
+
+For large or multi-surface revisions, the entry point should activate the `defragmentation` skill before delegating slices.
 
 The output is advisory. The stateful entry-point agent reconciles it with persistent task context and owns the final plan and execution.
 

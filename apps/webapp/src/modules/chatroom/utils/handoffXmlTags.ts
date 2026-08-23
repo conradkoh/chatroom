@@ -3,6 +3,8 @@ export const HANDOFF_REPORT_XML_TAGS = [
   'handoff-overview',
   'handoff-proofs',
   'handoff-direction',
+  'handoff-frontend-design',
+  'handoff-data-design',
   'handoff-ux',
   'handoff-defragmentation',
   'handoff-notes',
@@ -11,7 +13,12 @@ export const HANDOFF_REPORT_XML_TAGS = [
 ] as const;
 
 /** Legacy enhancer draft-envelope tags retained for historical messages. */
-const HANDOFF_ENVELOPE_XML_TAGS = ['user-message', 'grounding', 'builder-handoff'] as const;
+const HANDOFF_ENVELOPE_XML_TAGS = [
+  'user-message',
+  'additional-context',
+  'grounding',
+  'builder-handoff',
+] as const;
 
 /** Enhancer planning-review-outcome tags (cancelled / failed review messages). */
 const HANDOFF_OUTCOME_XML_TAGS = ['planning-review-outcome'] as const;

@@ -140,7 +140,7 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
 
     expect(fullCliOutput).toContain('<handoff-enhancer>');
     expect(fullCliOutput).toContain('--next-role="enhancer"');
-    expect(fullCliOutput).toContain('Request Forward (Solo → Enhancer)');
+    expect(fullCliOutput).toContain('Planning Request (Solo → Enhancer)');
     expect(fullCliOutput).toContain('user → enhancer → solo → user');
     expect(fullCliOutput).not.toContain('Handoff to `builder`');
 

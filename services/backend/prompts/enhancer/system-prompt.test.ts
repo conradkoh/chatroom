@@ -10,9 +10,9 @@ describe('renderEnhancerSystemPrompt', () => {
     originUserMessageId: 'message-origin',
   };
 
-  it('frames the enhancer as a memoryless first-input planning advisor', () => {
+  it('frames the enhancer as a memoryless first-input design advisor', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('single-turn, memoryless **planning advisor**');
+    expect(result).toContain('single-turn, memoryless **design advisor**');
     expect(result).toContain('stateful team entry point');
     expect(result).toContain('first planning input');
   });
@@ -37,11 +37,15 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).not.toContain('Suggested edits');
   });
 
-  it('requires structured UX, defragmentation, and implementation notes', () => {
+  it('requires single recommended design with frontend and data sections', () => {
     const result = renderEnhancerSystemPrompt(params);
-    expect(result).toContain('optional **UX** section');
-    expect(result).toContain('optional **Defragmentation** section');
-    expect(result).toContain('**Implementation notes** is the last section');
+    expect(result).toContain('per-flow UX quality checklist');
+    expect(result).toContain('skill activate defragmentation');
+    expect(result).toContain('<handoff-frontend-design>');
+    expect(result).toContain('<handoff-data-design>');
+    expect(result).toContain('**Files touched** are the last sections');
+    expect(result).not.toContain('optional **UX** section');
+    expect(result).not.toContain('optional **Defragmentation** section');
   });
 
   it('contains the mandatory completion command for this job', () => {
