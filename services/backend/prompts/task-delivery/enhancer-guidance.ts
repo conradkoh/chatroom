@@ -29,9 +29,9 @@ export function appendTaskDeliveryEnhancerGuidance(
   );
   lines.push('');
   lines.push('**How it works:**');
-  lines.push('1. Read pinned context, then fill the **Handoff to `enhancer`** template with the user\'s message, goal, and relevant context.');
+  lines.push('1. Read the user message (and pinned chatroom context if helpful), then fill only `<additional-context>` in the Handoff to `enhancer` template — the system injects `<user-message>` automatically; do not copy the user\'s message.');
   lines.push(
-    '2. Transfer goal and context from pinned context and the user message — do not add an implementation draft, builder brief, or researched solution.'
+    '2. Transfer goal and supplementary notes in `<additional-context>` — not the chatroom Context feature; no implementation draft, builder brief, or researched solution.'
   );
   lines.push(
     '3. The memoryless enhancer uses the origin user message ID to download authoritative chatroom history, investigates the repository, and returns independent planning input asynchronously.'

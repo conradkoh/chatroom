@@ -3,6 +3,7 @@ import { renderWebappUxHandoffReference } from './webapp-ux-reference.js';
 import { getHandoffRecipientVisibilityCallout } from '../native/handoff-visibility';
 import { getEnhancerFeedbackTemplateBody } from '../utils/enhancer-feedback-template-body';
 import { getHandoffReportTemplateIntro } from '../utils/handoff-section-guidance';
+import { ENHANCER_USER_MESSAGE_PLACEHOLDER } from '../../src/domain/usecase/enhancer/enhancer-handoff-content';
 
 function roleLabel(role: string): string {
   return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
@@ -11,26 +12,27 @@ function roleLabel(role: string): string {
 /** Goal-and-context transfer handoff shared by every supported team entry point. */
 export function getEntryPointToEnhancerHandoffTemplate(entryPointRole: string): string {
   const label = roleLabel(entryPointRole);
-  return `**Planning Request (${label} → Enhancer)** — after reading pinned context, transfer the user's goal and relevant context. Do **not** add an implementation draft, builder brief, or researched solution.
+  return `**Planning Request (${label} → Enhancer)** — after reading the user message and any pinned chatroom context, fill only <additional-context> below. The system injects the user message automatically — do not copy it.
 
 \`\`\`markdown
 <user-message>
-<the user's request — faithful to what they said>
+<!-- Injected automatically from the originating user message — do not edit or copy the user message here -->
+${ENHANCER_USER_MESSAGE_PLACEHOLDER}
 </user-message>
 
-<goal-and-context>
+<additional-context>
 ## Goal
 <what the user wants in plain language>
 
-## Context
-<constraints, conventions, prior decisions from pinned context and relevant history — no implementation draft>
+## Supplementary notes
+<constraints, conventions, and prior decisions you want the enhancer to know — this is NOT the chatroom Context feature; no implementation draft>
 
 ## Review focus
 <what the enhancer should prioritize investigating, or "Not Applicable.">
 
 ## Decision criteria
 <what matters most for approach selection — or "Not Applicable.">
-</goal-and-context>
+</additional-context>
 \`\`\`
 
 After handoff succeeds, **end your turn immediately**. The enhancer independently downloads the originating message history and returns planning input as your next ${entryPointRole.toLowerCase()} task.`;

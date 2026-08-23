@@ -34,19 +34,22 @@ The entry point's first action on a new user task is its handoff to the enhancer
 
 ```xml
 <user-message>
-<the user's request — faithfully forwarded>
+<!-- Injected automatically from the originating user message; the planner does not copy it -->
+{{USER_MESSAGE}}
 </user-message>
-<goal-and-context>
+<additional-context>
 ## Goal
 <what the user wants>
-## Context
-<constraints and relevant pinned context, without an implementation draft>
+## Supplementary notes
+<constraints and relevant pinned context, not the chatroom Context feature, without an implementation draft>
 ## Review focus
 Not Applicable.
 ## Decision criteria
 Not Applicable.
-</goal-and-context>
+</additional-context>
 ```
+
+The server resolves `{{USER_MESSAGE}}` from the originating user message before storing the handoff and enhancer job. Planners fill only `<additional-context>`; the placeholder is never copied or edited manually.
 
 The backend permits only one enhancer job for a given `originUserMessageId`. Enhancer output returns to the originating team entry point (`planner` or `solo`), and later work does not retrigger enhancement.
 
