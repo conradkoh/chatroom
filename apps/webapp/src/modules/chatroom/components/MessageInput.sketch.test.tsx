@@ -35,7 +35,8 @@ vi.mock('./composer/useSketchCanvas', () => ({
     canvasRef: { current: document.createElement('canvas') },
     bindCanvas: vi.fn(() => vi.fn()),
     hasContent: true,
-    clear: vi.fn(),
+    brushColor: '#171717',
+    setBrushColor: vi.fn(),
     brushSize: 3,
     setBrushSize: vi.fn(),
     exportPngFile: () =>
@@ -51,7 +52,7 @@ describe('MessageInput sketch integration', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Add attachment' }));
     await userEvent.click(screen.getByText('Sketch'));
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add sketch' }));
     expect(attachFiles).toHaveBeenCalledWith([
       expect.objectContaining({
         type: 'image/png',
