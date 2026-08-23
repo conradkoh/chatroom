@@ -27,7 +27,7 @@ import {
   PanelBottomOpen,
   Terminal,
 } from 'lucide-react';
-import type { ComponentType, ReactNode } from 'react';
+import type { ComponentType, CSSProperties, ReactNode } from 'react';
 import { memo, useState, useCallback, useMemo, useEffect } from 'react';
 import { SiGithub, SiGitlab, SiBitbucket } from 'react-icons/si';
 
@@ -60,6 +60,11 @@ import {
 } from '@/components/ui/fixed-modal';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import {
+  useMainChatComposerFocused,
+  useMainChatComposerKeyboardInset,
+} from '@/hooks/useMobileKeyboard';
+import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { cn } from '@/lib/utils';
@@ -976,17 +981,46 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
 
 // ─── WorkspaceBottomBar ───────────────────────────────────────────────────────
 
+export const WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX = 120;
+export const WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS = 300;
+
+export function shouldSuppressWorkspaceBottomBarSafeArea(keyboardInsetPx: number, composerFocused: boolean, insetSettled = true): boolean {
+  if (composerFocused) return true;
+  if (!insetSettled) return false;
+  return keyboardInsetPx >= WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX;
+}
+
+export function getWorkspaceBottomBarShellStyle(mobile: boolean, keyboardInsetPx: number, suppressBottomInset: boolean): CSSProperties {
+  return {
+    ...getChatroomMobileFooterSafeAreaStyle(mobile, { suppressBottomInset }),
+    ...getMobileStickyFooterOffsetStyle(keyboardInsetPx),
+  };
+}
+
 export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
   const isDesktop = useIsDesktop(640);
   const mobile = !isDesktop;
+  const keyboardInsetPx = useMainChatComposerKeyboardInset(mobile);
+  const composerFocused = useMainChatComposerFocused(mobile);
+  const [insetSettled, setInsetSettled] = useState(!mobile);
+  useEffect(() => {
+    if (!mobile) {
+      setInsetSettled(true);
+      return;
+    }
+    setInsetSettled(false);
+    const id = window.setTimeout(() => setInsetSettled(true), WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS);
+    return () => window.clearTimeout(id);
+  }, [mobile]);
+  const suppressBottomInset = shouldSuppressWorkspaceBottomBarSafeArea(keyboardInsetPx, composerFocused, insetSettled);
 
   return (
     <div
       data-testid="workspace-bottom-bar"
       className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary select-none"
-      style={getChatroomMobileFooterSafeAreaStyle(mobile)}
+      style={getWorkspaceBottomBarShellStyle(mobile, keyboardInsetPx, suppressBottomInset)}
     >
-      <div className="flex items-center h-8 min-h-[32px] px-2">{children}</div>
+      <div data-testid="workspace-bottom-bar-content" className="flex items-center h-8 min-h-[32px] px-2">{children}</div>
     </div>
   );
 }
