@@ -15,7 +15,7 @@ You received **independent enhancer planning input** for the originating user re
 **Context Rule:** Do **not** run \`context new\` for this task. The pinned context for the user's request still applies — run \`${contextReadCmd}\` only if you need to refresh goals.
 
 **Sequence:**
-1. Use the enhancer response as your first planning input.
+1. Use the enhancer response as your first planning input — review proposed approaches and evidence, then choose or synthesize a direction.
 2. Validate its findings, then perform the research, design, and implementation work that remains yours.
 3. **Advisory only:** You make the final call; the enhancer output is not a finished implementation brief.
 4. When ready, implement, delegate, or hand off to \`user\` as your team permits.

@@ -29,9 +29,9 @@ export function appendTaskDeliveryEnhancerGuidance(
   );
   lines.push('');
   lines.push('**How it works:**');
-  lines.push('1. Copy the user request into the stripped-down **Handoff to `enhancer`** template.');
+  lines.push('1. Read pinned context, then fill the **Handoff to `enhancer`** template with the user\'s message, goal, and relevant context.');
   lines.push(
-    '2. Hand it off immediately; do not add entry-point analysis, grounding, or an implementation draft.'
+    '2. Transfer goal and context from pinned context and the user message — do not add an implementation draft, builder brief, or researched solution.'
   );
   lines.push(
     '3. The memoryless enhancer uses the origin user message ID to download authoritative chatroom history, investigates the repository, and returns independent planning input asynchronously.'
@@ -44,7 +44,7 @@ export function appendTaskDeliveryEnhancerGuidance(
   lines.push('- User intent, constraints, and relevant history');
   lines.push('- Codebase evidence and existing patterns');
   lines.push('- Risks, failure modes, and missing groundwork');
-  lines.push('- A recommended approach and concrete next steps');
+  lines.push('- 2–3 proposed approaches with tradeoffs and concrete next steps');
   lines.push(
     `- The ${entryPointRole} agent makes the final call — input is consultative, not authoritative`
   );
@@ -90,6 +90,8 @@ export function appendTaskDeliveryEnhancerInputGuidance(
   lines.push(
     '- Validate the enhancer findings, then do the research, design, and implementation work that remains yours.'
   );
+  lines.push('- Evaluate the **proposed approaches** — pick a direction (or synthesize one); the enhancer proposes, you decide.');
+  lines.push('- Validate the evidence section against concrete repository files and history.');
   lines.push('- If gaps remain, do more research before proceeding.');
   lines.push(
     '- When ready: implement, delegate, or hand off to `user` using the workflow and templates available to your team.'

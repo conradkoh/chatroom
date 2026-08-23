@@ -33,9 +33,19 @@ user request → planner plans → [builder → planner] → user
 The entry point's first action on a new user task is its handoff to the enhancer. It must not research, draft a plan, or prepare implementation instructions first. The handoff body is intentionally limited to:
 
 ```xml
-<request>
-<the user's request, faithfully forwarded without analysis or a proposed solution>
-</request>
+<user-message>
+<the user's request — faithfully forwarded>
+</user-message>
+<goal-and-context>
+## Goal
+<what the user wants>
+## Context
+<constraints and relevant pinned context, without an implementation draft>
+## Review focus
+Not Applicable.
+## Decision criteria
+Not Applicable.
+</goal-and-context>
 ```
 
 The backend permits only one enhancer job for a given `originUserMessageId`. Enhancer output returns to the originating team entry point (`planner` or `solo`), and later work does not retrigger enhancement.
@@ -72,9 +82,10 @@ The enhancer output is independent planning input organized around:
 
 - user intent and constraints;
 - codebase grounding;
-- a recommended approach;
+- 2–3 proposed approaches with tradeoffs;
+- concrete repository evidence;
 - UX or defragmentation considerations when applicable;
-- open questions;
+- open questions for the user;
 - risks and mitigations;
 - recommended next steps;
 - implementation notes, last and only when useful.

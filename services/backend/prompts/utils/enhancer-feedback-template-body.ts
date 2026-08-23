@@ -20,11 +20,23 @@ export function getEnhancerFeedbackTemplateBody(): string {
 <handoff-proofs>
 ## Codebase grounding
 <relevant files, current behavior, established patterns, data flow, tests, and concrete evidence discovered in the repository>
+
+## Evidence
+<file paths and short snippets the enhancer verified in the repository — cite concretely>
 </handoff-proofs>
 
 <handoff-direction>
-## Recommended approach
-<a concrete implementation direction, suggested boundaries and sequencing, and why it fits the request and existing system>
+## Proposed approaches
+<!-- Provide 2–3 options with tradeoffs. Preserve planner decision authority — do not collapse to a single recommendation. -->
+
+### Option A: <short name>
+<tradeoffs, fit, risks>
+
+### Option B: <short name>
+<tradeoffs, fit, risks>
+
+### Option C: <short name> (optional — omit if only two viable options)
+<tradeoffs, fit, risks>
 </handoff-direction>
 
 <handoff-ux>
@@ -57,8 +69,8 @@ export function getEnhancerFeedbackTemplateBody(): string {
 </handoff-defragmentation>
 
 <handoff-notes>
-## Open questions
-<uncertainties that materially affect implementation; state what evidence would resolve each one, or write "Not Applicable.">
+## Open questions for user
+<decisions only the user can make; state what choice is needed, or write "Not Applicable.">
 </handoff-notes>
 
 <handoff-action>
