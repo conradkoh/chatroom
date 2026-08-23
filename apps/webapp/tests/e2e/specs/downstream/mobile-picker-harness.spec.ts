@@ -6,6 +6,7 @@ const HARNESS_PATH = '/dev/mobile-picker-harness';
 
 /** Playwright fill() does not reliably fire React onChange on controlled range inputs. */
 async function setHarnessKeyboardInset(page: Page, insetPx: number): Promise<void> {
+  await expect(page.getByTestId('keyboard-controls')).toBeVisible();
   const slider = page.getByTestId('keyboard-inset-slider');
   await slider.evaluate((el, value) => {
     const input = el as HTMLInputElement;
@@ -14,14 +15,19 @@ async function setHarnessKeyboardInset(page: Page, insetPx: number): Promise<voi
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }, insetPx);
-  await expect(page.getByText(`Keyboard inset: ${insetPx}px`)).toBeVisible();
+  await expect
+    .poll(async () => page.getByText(`Keyboard inset: ${insetPx}px`).isVisible())
+    .toBe(true);
 }
 
 test.use({ ...devices['iPhone 14'] });
 test.describe('Mobile picker harness', { tag: [TAG_DOWNSTREAM] }, () => {
+  test.describe.configure({ mode: 'serial' });
   test.beforeEach(async ({ page }) => {
     await page.goto(HARNESS_PATH);
     await expect(page.getByRole('heading', { name: 'Mobile Picker Harness' })).toBeVisible();
+    await expect(page.getByTestId('keyboard-controls')).toBeVisible();
+    await expect(page.getByTestId('open-flat-picker')).toBeVisible();
   });
 
   test('flat picker opens drawer on mobile viewport', async ({ page }) => {

@@ -6,15 +6,18 @@ const HARNESS_PATH = '/dev/mobile-picker-harness';
 
 test.use({ ...devices['Desktop Chrome'] });
 test.describe('Mobile picker harness (desktop)', { tag: [TAG_DOWNSTREAM] }, () => {
-  test('flat picker uses popover on desktop viewport', async ({ page }) => {
+  test.describe.configure({ mode: 'serial' });
+  test.beforeEach(async ({ page }) => {
     await page.goto(HARNESS_PATH);
+    await expect(page.getByRole('heading', { name: 'Mobile Picker Harness' })).toBeVisible();
+  });
+  test('flat picker uses popover on desktop viewport', async ({ page }) => {
     await page.getByTestId('open-flat-picker').click();
     await expect(page.locator('[data-slot="chatroom-popover-content"]')).toBeVisible();
     await expect(page.locator('[data-slot="drawer-content"]')).toHaveCount(0);
   });
 
   test('standing instructions bar opens popover on desktop', async ({ page }) => {
-    await page.goto(HARNESS_PATH);
     await page.getByTestId('open-standing-instructions-bar').click();
     await expect(page.locator('[data-slot="chatroom-popover-content"]')).toBeVisible();
     await expect(page.locator('[data-slot="drawer-content"]')).toHaveCount(0);
@@ -24,7 +27,6 @@ test.describe('Mobile picker harness (desktop)', { tag: [TAG_DOWNSTREAM] }, () =
   });
 
   test('nested fixed modal opens picker popover inside modal', async ({ page }) => {
-    await page.goto(HARNESS_PATH);
     await page.getByTestId('open-nested-modal').click();
     await expect(page.locator('[data-slot="fixed-modal-content"]')).toBeVisible();
     await page.getByTestId('open-nested-picker').click();
@@ -32,7 +34,6 @@ test.describe('Mobile picker harness (desktop)', { tag: [TAG_DOWNSTREAM] }, () =
   });
 
   test('escape closes nested picker before modal', async ({ page }) => {
-    await page.goto(HARNESS_PATH);
     await page.getByTestId('open-nested-modal').click();
     await page.getByTestId('open-nested-picker').click();
     await expect(page.locator('[data-slot="chatroom-popover-content"]')).toBeVisible();
