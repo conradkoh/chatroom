@@ -60,6 +60,10 @@ import {
 } from '@/components/ui/fixed-modal';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import {
+  useEditableElementFocused,
+  useVisualViewportKeyboardInset,
+} from '@/hooks/useMobileKeyboard';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { cn } from '@/lib/utils';
@@ -979,12 +983,15 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
 export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
   const isDesktop = useIsDesktop(640);
   const mobile = !isDesktop;
+  const keyboardInsetPx = useVisualViewportKeyboardInset(mobile);
+  const editableFocused = useEditableElementFocused(mobile);
+  const suppressBottomInset = keyboardInsetPx > 0 || editableFocused;
 
   return (
     <div
       data-testid="workspace-bottom-bar"
       className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary select-none"
-      style={getChatroomMobileFooterSafeAreaStyle(mobile)}
+      style={getChatroomMobileFooterSafeAreaStyle(mobile, { suppressBottomInset })}
     >
       <div className="flex items-center h-8 min-h-[32px] px-2">{children}</div>
     </div>
