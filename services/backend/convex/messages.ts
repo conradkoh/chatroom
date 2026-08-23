@@ -439,7 +439,7 @@ async function _sendMessageHandler(
   if (isUserMessage) {
     const result = await sendAutomatedUserMessage(ctx, {
       chatroomId: args.chatroomId,
-      content: args.content,
+      content: handoffContent,
       ...(args.attachedTaskIds?.length ? { attachedTaskIds: args.attachedTaskIds } : {}),
       ...(args.attachedBacklogItemIds?.length
         ? { attachedBacklogItemIds: args.attachedBacklogItemIds }
@@ -930,7 +930,7 @@ export async function runHandoffHandler(
       userId: session.userId,
       chatroom,
       entryPointRole: enhancerEntryPointRole,
-      content: args.content,
+      content: handoffContent,
       taskId: newTaskId,
       messageId,
       originUserMessageId: taskOriginMessageId,
