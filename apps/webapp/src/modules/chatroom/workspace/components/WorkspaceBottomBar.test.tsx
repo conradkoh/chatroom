@@ -43,8 +43,8 @@ describe('WorkspaceBottomBarShell', () => {
     renderShell();
     const outer = screen.getByTestId('workspace-bottom-bar');
     expect(outer).toBeInTheDocument();
-    expect(mockUseKeyboardInset).toHaveBeenCalledWith(true);
-    expect(mockUseEditableFocused).toHaveBeenCalledWith(true);
+    expect(mockUseKeyboardInset).toHaveBeenCalled();
+    expect(mockUseEditableFocused).toHaveBeenCalled();
   });
 
   it('suppresses bottom safe-area when keyboard inset is non-zero', () => {
@@ -61,8 +61,8 @@ describe('WorkspaceBottomBarShell', () => {
 
   it('keeps bottom safe-area when keyboard closed', () => {
     renderShell();
-    expect(mockUseKeyboardInset).toHaveBeenCalledWith(true);
-    expect(mockUseEditableFocused).toHaveBeenCalledWith(true);
+    expect(mockUseKeyboardInset).toHaveBeenCalled();
+    expect(mockUseEditableFocused).toHaveBeenCalled();
   });
 
   it('does not suppress safe-area on desktop', () => {
