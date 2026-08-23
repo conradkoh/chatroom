@@ -22,7 +22,7 @@ describe('appendTaskDeliveryEnhancerGuidance', () => {
     expect(output).toContain('Do not research, plan, or draft');
     expect(output).toContain('goal');
     expect(output).toContain('context');
-    expect(output).toContain('proposed approaches');
+    expect(output).toContain('recommended design');
     expect(output).toContain('one-time per originating user message');
     expect(output).toContain('origin user message ID');
     expect(output).toContain('memoryless enhancer');
@@ -56,7 +56,7 @@ describe('appendTaskDeliveryEnhancerInputGuidance', () => {
     const output = lines.join('\n');
 
     expect(output).toContain('<enhancer-input>');
-    expect(output).toContain('Enhancer Planning Input');
+    expect(output).toContain('Enhancer Design Input');
     expect(output).toContain('first planning input');
     expect(output).toContain('not as a review of an entry-point-authored draft');
     expect(output).toContain(
@@ -64,7 +64,7 @@ describe('appendTaskDeliveryEnhancerInputGuidance', () => {
     );
     expect(output).toContain('implement, delegate, or hand off to `user`');
     expect(output).toContain('advisory');
-    expect(output).toContain('final call');
+    expect(output).toContain('verify and delegate');
     expect(output).toContain('One enhancer pass per originating user message');
     expect(output).toContain('</enhancer-input>');
   });

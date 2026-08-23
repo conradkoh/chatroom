@@ -29,24 +29,27 @@ export function appendTaskDeliveryEnhancerGuidance(
   );
   lines.push('');
   lines.push('**How it works:**');
-  lines.push('1. Read the user message (and pinned chatroom context if helpful), then fill only `<additional-context>` in the Handoff to `enhancer` template — the system injects `<user-message>` automatically; do not copy the user\'s message.');
   lines.push(
-    '2. Transfer goal and supplementary notes in `<additional-context>` — not the chatroom Context feature; no implementation draft, builder brief, or researched solution.'
+    "1. Read the user message (and pinned chatroom context if helpful), then fill only `<additional-context>` in the Handoff to `enhancer` template — the system injects `<user-message>` automatically; do not copy the user's message."
   );
   lines.push(
-    '3. The memoryless enhancer uses the origin user message ID to download authoritative chatroom history, investigates the repository, and returns independent planning input asynchronously.'
+    '2. Transfer the goal in `<additional-context>` — not the chatroom Context feature; no implementation draft, builder brief, or researched solution.'
+  );
+  lines.push(
+    '3. The memoryless enhancer uses the origin user message ID to download authoritative chatroom history, investigates the repository, and returns independent design input asynchronously.'
   );
   lines.push(
     `4. When that input arrives as a new ${entryPointRole} task, use it as the first planning input; then do your own research and proceed with implementation, delegation, or user delivery as the team permits.`
   );
   lines.push('');
-  lines.push('**The enhancer provides advisory planning input:**');
+  lines.push('**The enhancer provides design input:**');
   lines.push('- User intent, constraints, and relevant history');
-  lines.push('- Codebase evidence and existing patterns');
-  lines.push('- Risks, failure modes, and missing groundwork');
-  lines.push('- 2–3 proposed approaches with tradeoffs and concrete next steps');
+  lines.push('- Repository evidence and existing patterns');
+  lines.push('- One recommended design with frontend and data/query detail');
+  lines.push('- Proof of Principles for how the design satisfies quality constraints');
+  lines.push('- Open questions and a recommended implementation sequence');
   lines.push(
-    `- The ${entryPointRole} agent makes the final call — input is consultative, not authoritative`
+    `- The ${entryPointRole} agent verifies and delegates — input is consultative, not authoritative`
   );
   lines.push('');
   lines.push('**After handoff to enhancer returns success:**');
@@ -54,7 +57,7 @@ export function appendTaskDeliveryEnhancerGuidance(
     '- **End your turn immediately** (CLI: run get-next-task) — do not wait for input, poll, monitor the enhancer, or re-submit.'
   );
   lines.push(
-    `- **Enhancer → ${entryPointRole} delivery is your resume trigger** — planning input arrives as a new ${entryPointRole} task.`
+    `- **Enhancer → ${entryPointRole} delivery is your resume trigger** — design input arrives as a new ${entryPointRole} task.`
   );
   lines.push(
     '- **Do not hand off to enhancer again for this user message** — the enhancer pass is intentionally one-time.'
@@ -66,7 +69,7 @@ export function appendTaskDeliveryEnhancerGuidance(
   lines.push('</handoff-enhancer>');
 }
 
-/** Guidance when the team entry point receives request-first planning input. */
+/** Guidance when the team entry point receives request-first design input. */
 export function appendTaskDeliveryEnhancerInputGuidance(
   lines: string[],
   ctx: { chatroomId: string; role: string; cliEnvPrefix: string }
@@ -74,10 +77,10 @@ export function appendTaskDeliveryEnhancerInputGuidance(
   const contextReadCmd = contextReadCommand(ctx);
   lines.push('');
   lines.push('<enhancer-input>');
-  lines.push('## Enhancer Planning Input');
+  lines.push('## Enhancer Design Input');
   lines.push('');
   lines.push(
-    "This task contains the enhancer's independent analysis of the user's request. It arrives before entry-point research or drafting by design."
+    "This task contains the enhancer's independent design for the user's request. It arrives before entry-point research or drafting by design."
   );
   lines.push('');
   lines.push('**Your job:**');
@@ -88,19 +91,16 @@ export function appendTaskDeliveryEnhancerInputGuidance(
     `- **Do not run context new** — continue the user task context (run \`${contextReadCmd}\` only if needed).`
   );
   lines.push(
-    '- Validate the enhancer findings, then do the research, design, and implementation work that remains yours.'
+    '- Validate the enhancer design, then do the research, refinement, and implementation work that remains yours.'
   );
-  lines.push('- Evaluate the **proposed approaches** — pick a direction (or synthesize one); the enhancer proposes, you decide.');
-  lines.push('- Validate the evidence section against concrete repository files and history.');
+  lines.push('- Verify the **recommended design** against repository evidence and user intent.');
+  lines.push('- Validate frontend and data design sections against concrete files and patterns.');
   lines.push('- If gaps remain, do more research before proceeding.');
   lines.push(
     '- When ready: implement, delegate, or hand off to `user` using the workflow and templates available to your team.'
   );
   lines.push(
-    '- Treat the input as **advisory** — you make the final call; do not blindly follow suggestions.'
-  );
-  lines.push(
-    '- Implementation notes may include file-level detail and code snippets — evaluate them on merit rather than treating them as a finished delegation brief.'
+    '- Treat the input as **advisory** — you verify and delegate; do not blindly follow suggestions.'
   );
   lines.push(
     '- **One enhancer pass per originating user message** — proceed through builder slices without re-enhancing.'
@@ -131,7 +131,7 @@ export function appendPlanningReviewOutcomeGuidance(lines: string[]): void {
   lines.push('## Enhancer analysis did not complete');
   lines.push('');
   lines.push(
-    'The enhancer was cancelled or failed before it could return planning input for the user request.'
+    'The enhancer was cancelled or failed before it could return design input for the user request.'
   );
   lines.push('');
   lines.push('**Your job:**');

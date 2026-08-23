@@ -63,6 +63,12 @@ describe('handoff-quality-principles', () => {
     }
   });
 
+  test('getHandoffQualityPrinciplesTemplateBlock supports design subject for enhancer handoffs', () => {
+    const block = getHandoffQualityPrinciplesTemplateBlock('design');
+    expect(block).toContain('how this design demonstrates semantic consistency');
+    expect(block).not.toContain('how this work demonstrates');
+  });
+
   test('headings use correct markdown level', () => {
     expect(PROOF_OF_PRINCIPLES_HEADING_H2).toBe('## Proof of Principles');
     expect(PROOF_OF_PRINCIPLES_HEADING_H3).toBe('### Proof of Principles');

@@ -40,12 +40,6 @@ The entry point's first action on a new user task is its handoff to the enhancer
 <additional-context>
 ## Goal
 <what the user wants>
-## Supplementary notes
-<constraints and relevant pinned context, not the chatroom Context feature, without an implementation draft>
-## Review focus
-Not Applicable.
-## Decision criteria
-Not Applicable.
 </additional-context>
 ```
 
@@ -81,17 +75,15 @@ It deliberately excludes:
 - downstream implementation and user-delivery templates;
 - builder brief requirements or eventual user-report structure.
 
-The enhancer output is independent planning input organized around:
+The enhancer output is independent design input organized around:
 
 - user intent and constraints;
-- codebase grounding;
-- 2–3 proposed approaches with tradeoffs;
-- concrete repository evidence;
-- UX or defragmentation considerations when applicable;
+- repository evidence;
+- Proof of Principles (SSOT from `handoff-quality-principles.ts`);
+- one recommended design;
+- frontend and data/query design at code granularity when applicable;
 - open questions for the user;
-- risks and mitigations;
-- recommended next steps;
-- implementation notes, last and only when useful.
+- recommended implementation sequence and files touched index.
 
 The output is advisory. The stateful entry-point agent reconciles it with persistent task context and owns the final plan and execution.
 

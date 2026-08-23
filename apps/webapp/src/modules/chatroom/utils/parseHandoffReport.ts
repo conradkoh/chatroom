@@ -1,3 +1,4 @@
+import { extractHandoffXmlTag } from './extractHandoffXmlTag';
 import { HANDOFF_REPORT_XML_TAGS } from './handoffXmlTags';
 
 export type HandoffReportFormat = 'structured' | 'legacy';
@@ -10,6 +11,8 @@ export interface HandoffReportParseResult {
   overview: string | null;
   proofs: string | null;
   direction: string | null;
+  frontendDesign: string | null;
+  dataDesign: string | null;
   ux: string | null;
   defragmentation: string | null;
   notes: string | null;
@@ -17,18 +20,6 @@ export interface HandoffReportParseResult {
   // Legacy fallback
   summary: string;
   details: string | null;
-}
-
-function extractTag(
-  content: string,
-  tag: string
-): { body: string | null; hadOpen: boolean; hadClose: boolean } {
-  const openRe = new RegExp(`<${tag}\\s*>`, 'i');
-  const closeRe = new RegExp(`</${tag}\\s*>`, 'i');
-  const hadOpen = openRe.test(content);
-  const hadClose = closeRe.test(content);
-  const match = new RegExp(`<${tag}\\s*>([\\s\\S]*?)</${tag}\\s*>`, 'i').exec(content);
-  return { body: match ? match[1].trim() : null, hadOpen, hadClose };
 }
 
 const STRUCTURED_TAGS = [
@@ -46,17 +37,19 @@ function hasAnyTag(content: string, tags: readonly string[]): boolean {
 export function parseHandoffReport(content: string): HandoffReportParseResult {
   const warnings: string[] = [];
 
-  const overviewResult = extractTag(content, 'handoff-overview');
-  const proofsResult = extractTag(content, 'handoff-proofs');
-  const directionResult = extractTag(content, 'handoff-direction');
-  const uxResult = extractTag(content, 'handoff-ux');
-  const defragmentationResult = extractTag(content, 'handoff-defragmentation');
-  const notesResult = extractTag(content, 'handoff-notes');
-  const actionResult = extractTag(content, 'handoff-action');
-  const detailsResult = extractTag(content, 'handoff-details');
+  const overviewResult = extractHandoffXmlTag(content, 'handoff-overview');
+  const proofsResult = extractHandoffXmlTag(content, 'handoff-proofs');
+  const directionResult = extractHandoffXmlTag(content, 'handoff-direction');
+  const frontendDesignResult = extractHandoffXmlTag(content, 'handoff-frontend-design');
+  const dataDesignResult = extractHandoffXmlTag(content, 'handoff-data-design');
+  const uxResult = extractHandoffXmlTag(content, 'handoff-ux');
+  const defragmentationResult = extractHandoffXmlTag(content, 'handoff-defragmentation');
+  const notesResult = extractHandoffXmlTag(content, 'handoff-notes');
+  const actionResult = extractHandoffXmlTag(content, 'handoff-action');
+  const detailsResult = extractHandoffXmlTag(content, 'handoff-details');
 
   for (const tag of ALL_TAGS) {
-    const result = extractTag(content, tag);
+    const result = extractHandoffXmlTag(content, tag);
     if (result.hadOpen && !result.hadClose) {
       warnings.push(`Unclosed <${tag}> tag`);
     }
@@ -73,6 +66,8 @@ export function parseHandoffReport(content: string): HandoffReportParseResult {
       overview: overviewResult.body,
       proofs: proofsResult.body,
       direction: directionResult.body,
+      frontendDesign: frontendDesignResult.body,
+      dataDesign: dataDesignResult.body,
       ux: uxResult.body,
       defragmentation: defragmentationResult.body,
       notes: notesResult.body,
@@ -92,6 +87,8 @@ export function parseHandoffReport(content: string): HandoffReportParseResult {
       overview: null,
       proofs: proofsResult.body,
       direction: null,
+      frontendDesign: null,
+      dataDesign: null,
       ux: null,
       defragmentation: null,
       notes: null,
@@ -108,6 +105,8 @@ export function parseHandoffReport(content: string): HandoffReportParseResult {
     overview: null,
     proofs: null,
     direction: null,
+    frontendDesign: null,
+    dataDesign: null,
     ux: null,
     defragmentation: null,
     notes: null,

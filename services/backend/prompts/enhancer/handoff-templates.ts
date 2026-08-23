@@ -1,9 +1,5 @@
-import { renderDefragmentationHandoffReference } from './defragmentation-reference.js';
-import { renderWebappUxHandoffReference } from './webapp-ux-reference.js';
-import { getHandoffRecipientVisibilityCallout } from '../native/handoff-visibility';
-import { getEnhancerFeedbackTemplateBody } from '../utils/enhancer-feedback-template-body';
-import { getHandoffReportTemplateIntro } from '../utils/handoff-section-guidance';
 import { ENHANCER_USER_MESSAGE_PLACEHOLDER } from '../../src/domain/usecase/enhancer/enhancer-handoff-content';
+import { getEnhancerFeedbackTemplateBody } from '../utils/enhancer-feedback-template-body';
 
 function roleLabel(role: string): string {
   return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
@@ -22,41 +18,31 @@ ${ENHANCER_USER_MESSAGE_PLACEHOLDER}
 
 <additional-context>
 ## Goal
-<what the user wants in plain language>
-
-## Supplementary notes
-<constraints, conventions, and prior decisions you want the enhancer to know — this is NOT the chatroom Context feature; no implementation draft>
-
-## Review focus
-<what the enhancer should prioritize investigating, or "Not Applicable.">
-
-## Decision criteria
-<what matters most for approach selection — or "Not Applicable.">
+<what the user wants in plain language — one short paragraph>
 </additional-context>
 \`\`\`
 
-After handoff succeeds, **end your turn immediately**. The enhancer independently downloads the originating message history and returns planning input as your next ${entryPointRole.toLowerCase()} task.`;
+After handoff succeeds, **end your turn immediately**. The enhancer independently downloads the originating message history and returns design input as your next ${entryPointRole.toLowerCase()} task.`;
 }
 
-/** Structured advisory input returned to the persistent team entry point. */
+/** Structured design input returned to the persistent team entry point. */
 export function getEnhancerToEntryPointHandoffTemplate(entryPointRole: string): string {
   const normalizedRole = entryPointRole.toLowerCase();
   const label = roleLabel(entryPointRole);
-  return `${getHandoffRecipientVisibilityCallout(normalizedRole)}
+  return `**Design Input (Enhancer → ${label})**
 
-${getHandoffReportTemplateIntro(`Planning Input (Enhancer → ${label})`)}
+You are the design authority for this request. Recover conversation history, inspect the repository, and return **one** complete design — not options. The ${normalizedRole} agent verifies your design and delegates implementation.
 
-Independently analyze the user's request. Recover the relevant conversation history, inspect the repository, and give the ${normalizedRole} agent concrete first planning input with **2–3 proposed approaches** (each with tradeoffs), verified evidence, and material unknowns. The ${normalizedRole} agent owns persistent memory, execution, and the final plan — it selects the direction; you propose options.
-
-Ground every recommendation in user messages or codebase evidence. For UI work, complete the optional **UX** section using the reference below. For a large or multi-surface revision, complete the optional **Defragmentation** section. End with **Recommended next steps**, then **Implementation notes** for any file-level detail or short illustrative code that materially helps.
-
-${renderWebappUxHandoffReference()}
-
-${renderDefragmentationHandoffReference()}
+**Rules:**
+- Design first — complete frontend and data/query sections before implementation sequencing.
+- **No alternative approaches** — one \`Recommended design\` only.
+- Frontend and data sections: code granularity (component names, props, classes, file paths, schema, indexes, queries).
+- In \`<handoff-proofs>\`, complete **Proof of Principles** for how this design satisfies each quality principle (or "Not Applicable.").
+- Write "Not Applicable." only when a major design section truly does not apply.
 
 \`\`\`markdown
 ${getEnhancerFeedbackTemplateBody()}
 \`\`\`
 
-Return only the planning input markdown — no preamble. Follow this structure; use "Not Applicable." where an optional section does not apply.`;
+Return only the design input markdown — no preamble. Follow this structure; use "Not Applicable." where a major section does not apply.`;
 }

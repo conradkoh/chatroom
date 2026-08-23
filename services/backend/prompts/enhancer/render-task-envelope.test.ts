@@ -8,7 +8,7 @@ describe('renderEnhancerTaskEnvelope', () => {
     jobId: 'job-123',
     chatroomId: 'room-abc',
     originUserMessageId: 'message-origin',
-    outputTemplateContent: '# Independent planning input',
+    outputTemplateContent: '# Independent design input',
     requestContent: '<request>Change the workflow</request>',
     cliCompleteCommand:
       "chatroom enhancer complete --chatroom-id=room-abc --job-id=job-123 << 'CHATROOM_ENHANCER_END'",
@@ -24,7 +24,7 @@ describe('renderEnhancerTaskEnvelope', () => {
   it('contains only the output contract and stripped forwarded request', () => {
     const result = renderEnhancerTaskEnvelope(params);
     expect(result).toContain('<output-template>');
-    expect(result).toContain('# Independent planning input');
+    expect(result).toContain('# Independent design input');
     expect(result).toContain('<forwarded-request>');
     expect(result).toContain('&lt;request&gt;Change the workflow&lt;/request&gt;');
     expect(result).not.toContain('<handoff-templates>');
@@ -45,22 +45,26 @@ describe('renderEnhancerTaskEnvelope', () => {
     expect(result).not.toContain('user-report');
   });
 
-  it('contains completion and output-order requirements', () => {
+  it('contains completion and design-first output requirements', () => {
     const result = renderEnhancerTaskEnvelope(params);
     expect(result).toContain('Single-turn only. No subagents. Do not implement changes.');
-    expect(result).toContain('optional **UX** section');
-    expect(result).toContain('optional **Defragmentation** section');
-    expect(result).toContain('**Implementation notes** must be last');
+    expect(result).toContain('one complete recommended design');
+    expect(result).toContain('<handoff-frontend-design>');
+    expect(result).toContain('<handoff-data-design>');
+    expect(result).toContain('**Files touched (index)** must be last');
     expect(result).toContain('<cli-complete-command>');
+    expect(result).not.toContain('optional **UX** section');
+    expect(result).not.toContain('optional **Defragmentation** section');
   });
 
-  it('embeds the enhancer planning-input template and its UX catalog', () => {
+  it('embeds the enhancer design-input template with SSOT principles', () => {
     const result = renderEnhancerTaskEnvelope({
       ...params,
       outputTemplateContent: getEnhancerToPlannerHandoffTemplate(),
     });
-    expect(result).toContain('Planning Input (Enhancer → Planner)');
-    expect(result).toContain('no layout shift');
-    expect(result).toContain('**Interaction affordance**');
+    expect(result).toContain('Design Input (Enhancer → Planner)');
+    expect(result).toContain('## Recommended design');
+    expect(result).toContain('## Proof of Principles');
+    expect(result).toContain('how this design demonstrates semantic consistency');
   });
 });
