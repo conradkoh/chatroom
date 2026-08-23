@@ -27,7 +27,7 @@ describe('getEnhancerHistoryRetrievalGuidance', () => {
 
   it('explains how to recover broader or truncated history', () => {
     const result = getEnhancerHistoryRetrievalGuidance(params);
-    expect(result).toContain('without `--since-message-id`');
+    expect(result).toContain('Pagination');
     expect(result).toContain('`truncated=true`');
     expect(result).toContain('Treat actual user messages as authoritative');
   });
@@ -48,6 +48,6 @@ describe('getEnhancerHistoryRetrievalGuidance', () => {
     });
     expect(
       result.match(/CHATROOM_CONVEX_URL=http:\/\/localhost:3210 chatroom messages/g)
-    ).toHaveLength(2);
+    ).toHaveLength(7);
   });
 });

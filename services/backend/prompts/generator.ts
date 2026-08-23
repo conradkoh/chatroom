@@ -33,7 +33,7 @@ import { composeNativeSystemPrompt } from './native/system-prompt';
 import { getClassificationGuideSection } from './sections/classification-guide';
 import { getCommandsReferenceSection } from './sections/commands-reference';
 import { getGettingStartedSection } from './sections/getting-started';
-import { getGlossarySection } from './sections/glossary';
+import { getGeneralKnowledgeSections } from './sections/general-knowledge';
 import { getHandoffOptionsSection } from './sections/handoff-options';
 import { getNextStepSection } from './sections/next-step';
 import { getRoleGuidanceSection } from './sections/role-guidance';
@@ -130,7 +130,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   // Role identity
   sections.push(getRoleTitleSection(selectorCtx));
   sections.push(getRoleDescriptionSection(selectorCtx));
-  sections.push(getGlossarySection({ convexUrl: ctx.convexUrl ?? '', chatroomId: ctx.chatroomId }));
+  sections.push(...getGeneralKnowledgeSections({ convexUrl: ctx.convexUrl ?? '', chatroomId: ctx.chatroomId, role: ctx.role }));
 
   // Role-specific guidance (team-aware)
   sections.push(getRoleGuidanceSection(selectorCtx));
@@ -187,7 +187,7 @@ function buildInitPromptSections(
     getTeamHeaderSection(input.teamName),
     getRoleTitleSection(selectorCtx),
     getRoleDescriptionSection(selectorCtx),
-    getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId }),
+    ...getGeneralKnowledgeSections({ convexUrl: convexUrl ?? '', chatroomId, role }),
     getSessionVsChatroomTaskSection(),
     getGettingStartedSection(selectorCtx),
     getClassificationGuideSection(selectorCtx),

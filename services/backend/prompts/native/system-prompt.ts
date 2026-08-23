@@ -1,5 +1,5 @@
 import { getNativeCommandsReferenceSection } from '../sections/commands-reference';
-import { getGlossarySection } from '../sections/glossary';
+import { getGeneralKnowledgeSections } from '../sections/general-knowledge';
 import { getRoleGuidanceSection } from '../sections/role-guidance';
 import { getRoleTitleSection } from '../sections/role-identity';
 import { buildSelectorContext } from '../selector-context';
@@ -23,13 +23,7 @@ export function composeNativeSystemPrompt(input: InitPromptInput): string {
 
   const sections = [
     getRoleTitleSection(selectorCtx),
-    getGlossarySection({
-      convexUrl,
-      chatroomId,
-      role,
-      nativeIntegration: true,
-      compactSkills: true,
-    }),
+    ...getGeneralKnowledgeSections({ convexUrl, chatroomId, role, nativeIntegration: true, compactSkills: true }),
     getRoleGuidanceSection(selectorCtx),
     getNativeCommandsReferenceSection({ chatroomId, role, convexUrl }),
   ];
