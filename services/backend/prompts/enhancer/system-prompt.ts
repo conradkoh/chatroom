@@ -25,7 +25,7 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
     { messageMarker: HANDOFF_MESSAGE_MARKER }
   );
 
-  const generalKnowledge = shouldIncludeGeneralKnowledge('enhancer') && params.convexUrl
+  const generalKnowledge = shouldIncludeGeneralKnowledge('enhancer') && params.convexUrl !== undefined
     ? composeSections(getGeneralKnowledgeSections({ chatroomId: params.chatroomId, role: 'enhancer', convexUrl: params.convexUrl, compactSkills: true, nativeIntegration: true }, { includeHistory: false }))
     : '';
   return [
