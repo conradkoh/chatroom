@@ -89,6 +89,8 @@ export type SectionId =
   | 'command-get-next-task'
   | 'commands-reference'
   | 'commands-reference-native'
+  | 'history-retrieval'
+  | 'general-commands-reference'
   // Actions (task delivery)
   | 'available-actions'
   // Policies

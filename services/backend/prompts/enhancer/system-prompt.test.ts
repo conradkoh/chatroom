@@ -8,6 +8,7 @@ describe('renderEnhancerSystemPrompt', () => {
     jobId: 'job-123',
     cliEnvPrefix: '',
     originUserMessageId: 'message-origin',
+    convexUrl: '',
   };
 
   it('frames the enhancer as a memoryless first-input design advisor', () => {
@@ -23,6 +24,16 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).toContain('messages download');
     expect(result).toContain('Inspect the repository');
     expect(result).toContain('actual user messages as authoritative');
+  });
+
+  it('includes shared general knowledge without planner handoff guidance', () => {
+    const result = renderEnhancerSystemPrompt(params);
+    expect(result).toContain('# Glossary');
+    expect(result).toContain('context read');
+    expect(result).toContain('get-system-prompt');
+    expect(result).toContain('get-role-guidance');
+    expect(result).toContain('truncated=true');
+    expect(result).toContain('--since-message-id="message-origin"');
   });
 
   it('keeps planner workflow details out of enhancer context', () => {
