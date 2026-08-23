@@ -81,9 +81,11 @@ The enhancer output is independent design input organized around:
 - repository evidence;
 - Proof of Principles (SSOT from `handoff-quality-principles.ts`);
 - one recommended design;
-- frontend and data/query design at code granularity when applicable;
+- frontend and data/query design at code granularity when applicable (per-flow UX quality checklist embedded in frontend design);
 - open questions for the user;
 - recommended implementation sequence and files touched index.
+
+For large or multi-surface revisions, the entry point should activate the `defragmentation` skill before delegating slices.
 
 The output is advisory. The stateful entry-point agent reconciles it with persistent task context and owns the final plan and execution.
 

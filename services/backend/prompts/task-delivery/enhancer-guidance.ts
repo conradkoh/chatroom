@@ -95,6 +95,9 @@ export function appendTaskDeliveryEnhancerInputGuidance(
   );
   lines.push('- Verify the **recommended design** against repository evidence and user intent.');
   lines.push('- Validate frontend and data design sections against concrete files and patterns.');
+  lines.push(
+    '- For large or multi-surface revisions, activate the defragmentation skill before delegating implementation slices.'
+  );
   lines.push('- If gaps remain, do more research before proceeding.');
   lines.push(
     '- When ready: implement, delegate, or hand off to `user` using the workflow and templates available to your team.'

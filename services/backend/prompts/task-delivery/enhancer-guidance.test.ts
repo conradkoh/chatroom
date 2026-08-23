@@ -64,7 +64,7 @@ describe('appendTaskDeliveryEnhancerInputGuidance', () => {
     );
     expect(output).toContain('implement, delegate, or hand off to `user`');
     expect(output).toContain('advisory');
-    expect(output).toContain('verify and delegate');
+    expect(output).toContain('defragmentation skill');
     expect(output).toContain('One enhancer pass per originating user message');
     expect(output).toContain('</enhancer-input>');
   });

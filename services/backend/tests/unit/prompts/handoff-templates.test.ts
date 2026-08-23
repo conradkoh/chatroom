@@ -369,6 +369,8 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       - Design first — complete frontend and data/query sections before implementation sequencing.
       - **No alternative approaches** — one \`Recommended design\` only.
       - Frontend and data sections: code granularity (component names, props, classes, file paths, schema, indexes, queries).
+      - Complete per-flow **UX quality** checklist in frontend design — states, layout stability, patterns, safeguards.
+      - For large or multi-surface revisions, note in implementation sequence that the entry point should activate the \`defragmentation\` skill.
       - In \`<handoff-proofs>\`, complete **Proof of Principles** for how this design satisfies each quality principle (or "Not Applicable.").
       - Write "Not Applicable." only when a major design section truly does not apply.
 
@@ -421,12 +423,23 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
       <handoff-frontend-design>
       ## Frontend / user-centric design
 
+      <!-- Ground every flow in user history and repository patterns. Recommend one existing pattern when multiple exist; do not prescribe style choices the project has not adopted. -->
+
       ### Flow 1: <name>
       **Entry:** User visits \`<route/page>\` from \`<source>\`.
 
       | Step | User action | System response | UI state |
       |------|-------------|-----------------|----------|
       | 1 | User clicks \`<element label>\` | \`<navigation / modal / fetch>\` | \`<loading → success/error>\` |
+
+      **UX quality (complete for every interactive step in this flow):**
+      - **States:** loading | empty | error | success — no blank panels, silent failures, or missing retry affordances
+      - **Layout:** stable across async transitions — no layout shift when content arrives or state changes
+      - **Patterns:** consistent with existing project components — cite the chosen pattern and repo-relative file
+      - **Shortcuts:** aligned with project keyboard/shortcut conventions; document tab order and gaps
+      - **Feedback:** timely response for async user actions
+      - **Interaction affordance:** pointer cursor (or project equivalent) on clickable elements
+      - **Safeguards:** confirmation before destructive actions; bulk operations confirmed with scope summary
 
       **Expected interactions per element:**
       - \`<ElementName>\` (\`apps/webapp/src/...\`): click → \`<handler>\`; keyboard: \`<tab order>\`; disabled when \`<condition>\`
@@ -489,7 +502,7 @@ describe('handoff-templates > full template snapshots (delivery params)', () => 
 
       <handoff-action>
       ## Recommended implementation sequence
-      <!-- Ordered slices for the planner — references files from design sections -->
+      <!-- Ordered slices for the planner — references files from design sections. For large or multi-surface revisions, activate the defragmentation skill before delegating. -->
 
       1. …
       2. …
