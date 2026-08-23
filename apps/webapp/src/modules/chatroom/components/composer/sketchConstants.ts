@@ -1,8 +1,20 @@
-export const SKETCH_CANVAS_COLORS = {
-  light: { background: '#ffffff', ink: '#171717' },
-  dark: { background: '#09090b', ink: '#fafafa' },
-} as const;
+/** MVP export contract: sketches are opaque white PNGs and do not change with app theme. */
+export const SKETCH_CANVAS_BACKGROUND = '#ffffff' as const;
+
+export const SKETCH_BRUSH_PALETTE = [
+  { label: 'Black', value: '#171717' },
+  { label: 'Red', value: '#ef4444' },
+  { label: 'Orange', value: '#f97316' },
+  { label: 'Yellow', value: '#eab308' },
+  { label: 'Green', value: '#22c55e' },
+  { label: 'Blue', value: '#3b82f6' },
+  { label: 'Purple', value: '#a855f7' },
+  { label: 'Pink', value: '#ec4899' },
+] as const;
+
+export type SketchBrushColor = (typeof SKETCH_BRUSH_PALETTE)[number]['value'];
 export const SKETCH_BRUSH_SIZE_MIN = 1;
 export const SKETCH_BRUSH_SIZE_MAX = 32;
 export const SKETCH_BRUSH_SIZE_DEFAULT = 3;
 export const SKETCH_BRUSH_SIZE_STEP = 1;
+export const SKETCH_BRUSH_COLOR_DEFAULT: SketchBrushColor = '#171717';
