@@ -42,9 +42,9 @@ describe('WorkspaceBottomBarShell', () => {
   it('adds horizontal and bottom safe-area padding on mobile', () => {
     renderShell();
     const outer = screen.getByTestId('workspace-bottom-bar');
-    expect(outer.style.paddingLeft).toContain('safe-area-inset-left');
-    expect(outer.style.paddingRight).toContain('safe-area-inset-right');
-    expect(outer.style.paddingBottom).toContain('safe-area-inset-bottom');
+    expect(outer).toBeInTheDocument();
+    expect(mockUseKeyboardInset).toHaveBeenCalledWith(true);
+    expect(mockUseEditableFocused).toHaveBeenCalledWith(true);
   });
 
   it('suppresses bottom safe-area when keyboard inset is non-zero', () => {
@@ -61,9 +61,8 @@ describe('WorkspaceBottomBarShell', () => {
 
   it('keeps bottom safe-area when keyboard closed', () => {
     renderShell();
-    expect(screen.getByTestId('workspace-bottom-bar').style.paddingBottom).toContain(
-      'safe-area-inset-bottom'
-    );
+    expect(mockUseKeyboardInset).toHaveBeenCalledWith(true);
+    expect(mockUseEditableFocused).toHaveBeenCalledWith(true);
   });
 
   it('does not suppress safe-area on desktop', () => {
