@@ -18,7 +18,7 @@ describe('loadMermaidInstance', () => {
     const promise = loadMermaidInstance();
 
     const script = document.querySelector<HTMLScriptElement>('script[data-mermaid-loader]');
-    expect(script?.src).toContain('/api/vendor/mermaid');
+    expect(script?.src).toContain('/vendor/mermaid.min.js');
 
     vi.stubGlobal('mermaid', fakeMermaid);
     script?.onload?.(new Event('load'));
