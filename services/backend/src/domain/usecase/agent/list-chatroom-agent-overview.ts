@@ -1,8 +1,7 @@
 /**
  * Use Case: List Chatroom Agent Overview
  *
- * Reads materialized chatroom summaries, filtering machine ownership at read time.
- * Missing projection rows return safe empty defaults.
+ * Reads the owner-scoped materialized sidebar read model.
  */
 
 import type { Id } from '../../../../convex/_generated/dataModel';
@@ -68,16 +67,15 @@ export async function listChatroomAgentOverview(
   ctx: QueryCtx,
   input: ListChatroomAgentOverviewInput
 ): Promise<ChatroomAgentOverview[]> {
-  const userChatrooms = await ctx.db
-    .query('chatroom_rooms')
+  const summaries = await ctx.db
+    .query('chatroom_agentOperationalSummary')
     .withIndex('by_ownerId', (q) => q.eq('ownerId', input.userId))
     .collect();
-  const userMachines = await ctx.db
-    .query('chatroom_machines')
-    .withIndex('by_userId', (q) => q.eq('userId', input.userId))
-    .collect();
-  const machineMap = new Map(userMachines.map((m) => [m.machineId, m]));
-  return Promise.all(
-    userChatrooms.map((room) => getChatroomAgentOverviewForRoom(ctx, room, machineMap))
-  );
+  return summaries.map(({ chatroomId, agentStatus, runningRoles, aliveRoles, runningAgents }) => ({
+    chatroomId,
+    agentStatus,
+    runningRoles,
+    aliveRoles,
+    runningAgents,
+  }));
 }

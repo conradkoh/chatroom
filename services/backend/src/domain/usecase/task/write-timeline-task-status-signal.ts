@@ -2,6 +2,7 @@ import type { Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 import { getTeamEntryPoint } from '../../entities/team';
+import { upsertMachineTaskStatusSignalHead } from './project-machine-task-status-signal-head';
 
 type TaskSignalRouting = {
   targetMachineId?: string;
@@ -62,7 +63,7 @@ export async function writeTimelineTaskStatusSignal(
     taskUpdatedAt,
   });
   if (routing.targetMachineId && routing.targetRole) {
-    await ctx.db.insert('chatroom_machineTaskStatusSignals', {
+    const signal = {
       machineId: routing.targetMachineId,
       chatroomId: task.chatroomId,
       taskId: task._id,
@@ -70,6 +71,9 @@ export async function writeTimelineTaskStatusSignal(
       taskStatus: task.status,
       signalKey: buildTimelineTaskStatusSignalKey(taskUpdatedAt, task._id),
       taskUpdatedAt,
-    });
+    };
+    await ctx.db.insert('chatroom_machineTaskStatusSignals', signal);
+    const { machineId: _machineId, ...headSignal } = signal;
+    await upsertMachineTaskStatusSignalHead(ctx, routing.targetMachineId, headSignal);
   }
 }

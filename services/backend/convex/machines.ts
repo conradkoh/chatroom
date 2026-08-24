@@ -43,6 +43,7 @@ import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
+import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
 import {
@@ -209,6 +210,7 @@ export const register = mutation({
 
       // Dual-write into dedicated models table (re-register / update path)
       await upsertMachineModels(ctx, args.machineId, args.availableModels);
+      await upsertMachineIdentity(ctx, { machineId: args.machineId, userId, hostname: args.hostname });
 
       return { machineId: args.machineId, isNew: false };
     }
@@ -229,6 +231,7 @@ export const register = mutation({
 
     // Dual-write into dedicated models table (new-insert path)
     await upsertMachineModels(ctx, args.machineId, args.availableModels);
+    await upsertMachineIdentity(ctx, { machineId: args.machineId, userId, hostname: args.hostname });
 
     return { machineId: args.machineId, isNew: true };
   },
@@ -1630,6 +1633,17 @@ export const saveTeamAgentConfig = mutation({
     if (!chatroom) throw new Error('Chatroom not found');
     if (chatroom.ownerId !== auth.userId) {
       throw new Error('Not authorized to modify team agent configs for this chatroom');
+    }
+    if (args.type === 'remote') {
+      if (!args.machineId) throw new Error('Remote agent config requires machineId');
+      const machineId = args.machineId;
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      if (!machine || machine.userId !== auth.userId) {
+        throw new Error('Machine not found or not owned by user');
+      }
     }
 
     if (!chatroom.teamId) {

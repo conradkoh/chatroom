@@ -30,6 +30,7 @@
 import { maybePromoteNextQueuedTask } from './maybe-promote-next-queued-task';
 import { adjustTaskCountsForTransition } from './task-counts';
 import { writeTimelineTaskStatusSignal } from './write-timeline-task-status-signal';
+import { syncMessageReadModel } from '../message/message-read-model';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
@@ -107,6 +108,9 @@ export async function transitionTask(
   const transitionedTask = await ctx.db.get('chatroom_tasks', taskId);
   if (transitionedTask) {
     await writeTimelineTaskStatusSignal(ctx, transitionedTask);
+    if (transitionedTask.sourceMessageId) await syncMessageReadModel(ctx, transitionedTask.sourceMessageId);
+    const linked = await ctx.db.query('chatroom_messages').withIndex('by_taskId', (q) => q.eq('taskId', taskId)).collect();
+    for (const message of linked) await syncMessageReadModel(ctx, message._id);
   }
 
   // 1b. Update materialized task counts

@@ -1,6 +1,11 @@
 import { isAgentAlive } from './is-agent-alive';
+
 export type OperationalState = 'running' | 'stopped' | 'starting' | 'circuit_open';
-export const IN_FLIGHT_START_STATUSES = new Set(['agent.requestStart', 'agent.restart', 'agent.restartPhase']);
+export const IN_FLIGHT_START_STATUSES = new Set([
+  'agent.requestStart',
+  'agent.restart',
+  'agent.restartPhase',
+]);
 export type RoleConfigSnapshot = {
   role: string;
   teamId: string;
@@ -32,9 +37,35 @@ export type ChatroomOperationalSummary = {
   agentStatus: 'running' | 'stopped' | 'none';
   runningRoles: string[];
   aliveRoles: string[];
-  runningAgents: Array<{ role: string; machineId: string }>;
+  runningAgents: { role: string; machineId: string }[];
   remoteConfigCount: number;
 };
+
+export type NormalizedOperationalSummary = ChatroomOperationalSummary;
+
+export function normalizeOperationalSummary(
+  summary: ChatroomOperationalSummary
+): NormalizedOperationalSummary {
+  const dedupeSort = (roles: string[]) => [...new Set(roles.map((r) => r.toLowerCase()))].sort();
+  const runningAgents = [...summary.runningAgents]
+    .map((a) => ({ role: a.role.toLowerCase(), machineId: a.machineId }))
+    .sort((a, b) => a.role.localeCompare(b.role) || a.machineId.localeCompare(b.machineId));
+  return {
+    ...summary,
+    runningRoles: dedupeSort(summary.runningRoles),
+    aliveRoles: dedupeSort(summary.aliveRoles),
+    runningAgents,
+  };
+}
+
+export function operationalSummariesEqual(
+  a: ChatroomOperationalSummary,
+  b: ChatroomOperationalSummary
+): boolean {
+  const na = normalizeOperationalSummary(a);
+  const nb = normalizeOperationalSummary(b);
+  return JSON.stringify(na) === JSON.stringify(nb);
+}
 export function deriveRoleOperationalState(
   config: RoleConfigSnapshot,
   daemonConnected: boolean
@@ -63,9 +94,9 @@ export function deriveChatroomOperationalSummary(
     agentStatus: !hasAnyConfig ? 'none' : running.length ? 'running' : 'stopped',
     runningRoles: running.map((p) => p.role),
     aliveRoles: roles.filter((p) => p.isAlive).map((p) => p.role),
-    runningAgents: running
-      .filter((p) => p.machineId)
-      .map((p) => ({ role: p.role, machineId: p.machineId! })),
+    runningAgents: running.flatMap((p) =>
+      p.machineId ? [{ role: p.role, machineId: p.machineId }] : []
+    ),
     remoteConfigCount: hasAnyConfig ? roles.length : 0,
   };
 }

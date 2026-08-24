@@ -8,6 +8,10 @@
 
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
+import { rebuildAgentOperationalStatusForChatroom } from '../src/domain/usecase/agent/project-agent-operational-status';
+import { deleteMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
+import { deleteMachineTaskStatusSignalHead } from '../src/domain/usecase/task/project-machine-task-status-signal-head';
+import { deleteObservedWorkspaceViewsForMachine } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -193,7 +197,14 @@ export const cleanupMachines = internalMutation({
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_machineId', (q) => q.eq('machineId', mid))
         .collect();
+      const affectedChatroomIds = [...new Set(teamConfigs.map((row) => row.chatroomId))];
       for (const row of teamConfigs) await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
+      for (const chatroomId of affectedChatroomIds) {
+        await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, { pruneStale: true });
+      }
+      await deleteMachineIdentity(ctx, mid);
+      await deleteMachineTaskStatusSignalHead(ctx, mid);
+      await deleteObservedWorkspaceViewsForMachine(ctx, mid);
 
       const workspaces = await ctx.db
         .query('chatroom_workspaces')
