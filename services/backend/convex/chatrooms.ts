@@ -6,6 +6,7 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
 import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
+import { insertEmptyOperationalSummaryForRoom } from '../src/domain/usecase/agent/project-agent-operational-status';
 import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
@@ -37,6 +38,11 @@ export const create = mutation({
       teamName: args.teamName,
       teamRoles: args.teamRoles,
       teamEntryPoint: args.teamEntryPoint,
+    });
+    await insertEmptyOperationalSummaryForRoom(ctx, {
+      chatroomId,
+      ownerId: auth.userId,
+      teamId: args.teamId,
     });
     return chatroomId;
   },

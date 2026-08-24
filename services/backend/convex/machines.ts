@@ -1631,6 +1631,17 @@ export const saveTeamAgentConfig = mutation({
     if (chatroom.ownerId !== auth.userId) {
       throw new Error('Not authorized to modify team agent configs for this chatroom');
     }
+    if (args.type === 'remote') {
+      if (!args.machineId) throw new Error('Remote agent config requires machineId');
+      const machineId = args.machineId;
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      if (!machine || machine.userId !== auth.userId) {
+        throw new Error('Machine not found or not owned by user');
+      }
+    }
 
     if (!chatroom.teamId) {
       throw new ConvexError({

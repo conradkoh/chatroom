@@ -11,7 +11,10 @@ import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,
 } from './utils/machineFavoriteScopeKey';
-import { rebuildAgentOperationalStatusForChatroom } from '../src/domain/usecase/agent/project-agent-operational-status';
+import {
+  rebuildAgentOperationalStatusForChatroom,
+  insertEmptyOperationalSummaryForRoom,
+} from '../src/domain/usecase/agent/project-agent-operational-status';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
 
@@ -525,6 +528,47 @@ export const stripManagerRoleNames = migrations.define({
   },
 });
 
+export const backfillAgentOverviewSummaries = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (ctx, room) => {
+    const existing = await ctx.db
+      .query('chatroom_agentOperationalSummary')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+      .first();
+    const configs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+      .collect();
+    if (configs.some((c) => c.machineId != null)) {
+      await rebuildAgentOperationalStatusForChatroom(
+        ctx,
+        room._id,
+        'migration:backfillAgentOverviewSummaries'
+      );
+      const rebuilt = await ctx.db
+        .query('chatroom_agentOperationalSummary')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+        .first();
+      if (rebuilt && rebuilt.ownerId !== room.ownerId)
+        await ctx.db.patch('chatroom_agentOperationalSummary', rebuilt._id, {
+          ownerId: room.ownerId,
+        });
+      return;
+    }
+    if (!existing) {
+      await insertEmptyOperationalSummaryForRoom(ctx, {
+        chatroomId: room._id,
+        ownerId: room.ownerId,
+        teamId: room.teamId ?? '',
+      });
+    } else if (existing.ownerId !== room.ownerId) {
+      await ctx.db.patch('chatroom_agentOperationalSummary', existing._id, {
+        ownerId: room.ownerId,
+      });
+    }
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================
@@ -638,4 +682,5 @@ export const runAll = migrations.runner([
   // RBAC
   internal.migrations.backfillUserRoleNames,
   internal.migrations.stripManagerRoleNames,
+  internal.migrations.backfillAgentOverviewSummaries,
 ]);

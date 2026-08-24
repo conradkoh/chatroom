@@ -1173,8 +1173,14 @@ export default defineSchema({
     .index('by_chatroom_role', ['chatroomId', 'role'])
     .index('by_machineId', ['machineId']),
 
+  /**
+   * Materialized per-chatroom agent overview for sidebar subscriptions.
+   * One row per chatroom; ownerId is mandatory on new writes (optional for
+   * legacy deploy compatibility). projectedAt changes only on observable changes.
+   */
   chatroom_agentOperationalSummary: defineTable({
     chatroomId: v.id('chatroom_rooms'),
+    ownerId: v.optional(v.id('users')),
     teamId: v.string(),
     remoteConfigCount: v.number(),
     agentStatus: v.union(v.literal('running'), v.literal('stopped'), v.literal('none')),
@@ -1182,7 +1188,9 @@ export default defineSchema({
     aliveRoles: v.array(v.string()),
     runningAgents: v.array(v.object({ role: v.string(), machineId: v.string() })),
     projectedAt: v.number(),
-  }).index('by_chatroom', ['chatroomId']),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_ownerId', ['ownerId']),
 
   /**
    * One row per user-initiated "refresh capabilities" wave from the webapp.
