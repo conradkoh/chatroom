@@ -1,5 +1,8 @@
 /** MVP export contract: sketches are opaque white PNGs and do not change with app theme. */
 export const SKETCH_CANVAS_BACKGROUND = '#ffffff' as const;
+/** Stable 4:3 logical/export surface; CSS scales it without stretching. */
+export const SKETCH_CANVAS_WIDTH = 1200;
+export const SKETCH_CANVAS_HEIGHT = 900;
 
 export const SKETCH_BRUSH_PALETTE = [
   { label: 'Black', value: '#171717' },

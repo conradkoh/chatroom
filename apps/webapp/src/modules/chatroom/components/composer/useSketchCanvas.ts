@@ -1,117 +1,144 @@
 'use client';
 
-import { useCallback, useRef, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from 'react';
 
 import {
-  SKETCH_BRUSH_COLOR_DEFAULT,
-  SKETCH_BRUSH_SIZE_DEFAULT,
-  SKETCH_BRUSH_SIZE_MAX,
-  SKETCH_BRUSH_SIZE_MIN,
-  SKETCH_CANVAS_BACKGROUND,
-  type SketchBrushColor,
-} from './sketchConstants';
+  drawSketchDot,
+  drawSketchSegment,
+  fillSketchBackground,
+  getCssToCanvasScale,
+  mapClientPointToCanvas,
+  type SketchBrush,
+  type SketchPoint,
+} from './sketchCanvasDrawing';
+import { type SketchBrushColor } from './sketchConstants';
 import { buildSketchFileName } from './sketchFileName';
 
+export type UseSketchCanvasArgs = {
+  brushColor: SketchBrushColor;
+  brushSize: number;
+  disabled: boolean;
+};
 export type UseSketchCanvasResult = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
-  brushColor: SketchBrushColor;
-  setBrushColor: (color: SketchBrushColor) => void;
-  brushSize: number;
-  setBrushSize: (size: number) => void;
+  canvasBindings: Pick<
+    ComponentProps<'canvas'>,
+    'onPointerDown' | 'onPointerMove' | 'onPointerUp' | 'onPointerCancel' | 'onLostPointerCapture'
+  >;
   hasContent: boolean;
-  bindCanvas: (canvas: HTMLCanvasElement) => () => void;
   exportPngFile: () => Promise<File | null>;
 };
-type Point = { x: number; y: number };
-type ActiveStroke = { pointerId: number; lastPoint: Point; size: number; color: SketchBrushColor };
+type ActiveStroke = { pointerId: number; lastPoint: SketchPoint; brush: SketchBrush };
 
-export function useSketchCanvas(): UseSketchCanvasResult {
+// fallow-ignore-next-line complexity
+export function useSketchCanvas({
+  brushColor,
+  brushSize,
+  disabled,
+}: UseSketchCanvasArgs): UseSketchCanvasResult {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
-  const brushSizeRef = useRef(SKETCH_BRUSH_SIZE_DEFAULT);
-  const brushColorRef = useRef<SketchBrushColor>(SKETCH_BRUSH_COLOR_DEFAULT);
   const hasContentRef = useRef(false);
-  const [brushColor, setBrushColorState] = useState<SketchBrushColor>(SKETCH_BRUSH_COLOR_DEFAULT);
-  const [brushSize, setBrushSizeState] = useState(SKETCH_BRUSH_SIZE_DEFAULT);
+  const activeStrokeRef = useRef<ActiveStroke | null>(null);
   const [hasContent, setHasContent] = useState(false);
-  const setBrushColor = useCallback((color: SketchBrushColor) => {
-    brushColorRef.current = color;
-    setBrushColorState(color);
-  }, []);
-  const setBrushSize = useCallback((size: number) => {
-    const next = Math.min(SKETCH_BRUSH_SIZE_MAX, Math.max(SKETCH_BRUSH_SIZE_MIN, Math.round(size)));
-    brushSizeRef.current = next;
-    setBrushSizeState(next);
-  }, []);
-  const bindCanvas = useCallback((canvas: HTMLCanvasElement) => {
-    const rect = canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return () => {};
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-    canvas.style.touchAction = 'none';
+
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     const context = canvas.getContext('2d');
-    if (!context) return () => {};
+    if (!context) return;
     contextRef.current = context;
-    context.scale(dpr, dpr);
-    context.fillStyle = SKETCH_CANVAS_BACKGROUND;
-    context.fillRect(0, 0, rect.width, rect.height);
-    let active: ActiveStroke | null = null;
-    const point = (event: PointerEvent): Point => {
-      const bounds = canvas.getBoundingClientRect();
-      return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
-    };
-    const segment = (from: Point, to: Point, stroke: ActiveStroke) => {
-      context.beginPath();
-      context.lineWidth = stroke.size;
-      context.lineCap = 'round';
-      context.lineJoin = 'round';
-      context.strokeStyle = stroke.color;
-      context.moveTo(from.x, from.y);
-      context.lineTo(to.x, to.y);
-      context.stroke();
-    };
-    const start = (event: PointerEvent) => {
-      if (event.button !== 0 || active) return;
-      active = {
-        pointerId: event.pointerId,
-        lastPoint: point(event),
-        size: brushSizeRef.current,
-        color: brushColorRef.current,
-      };
-      canvas.setPointerCapture(event.pointerId);
-      segment(
-        active.lastPoint,
-        { x: active.lastPoint.x + 0.01, y: active.lastPoint.y + 0.01 },
-        active
-      );
+    fillSketchBackground(context);
+    hasContentRef.current = false;
+    setHasContent(false);
+    activeStrokeRef.current = null;
+  }, []);
+
+  const markHasContent = useCallback(() => {
+    if (!hasContentRef.current) {
       hasContentRef.current = true;
       setHasContent(true);
-    };
-    const move = (event: PointerEvent) => {
-      if (!active || active.pointerId !== event.pointerId) return;
-      const next = point(event);
-      segment(active.lastPoint, next, active);
-      active.lastPoint = next;
-    };
-    const end = (event: PointerEvent) => {
-      if (!active || active.pointerId !== event.pointerId) return;
-      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-      active = null;
-    };
-    canvas.addEventListener('pointerdown', start);
-    canvas.addEventListener('pointermove', move);
-    canvas.addEventListener('pointerup', end);
-    canvas.addEventListener('pointercancel', end);
-    return () => {
-      canvas.removeEventListener('pointerdown', start);
-      canvas.removeEventListener('pointermove', move);
-      canvas.removeEventListener('pointerup', end);
-      canvas.removeEventListener('pointercancel', end);
-      contextRef.current = null;
-      active = null;
-    };
+    }
   }, []);
+  const drawAt = useCallback(
+    (point: SketchPoint, brush: SketchBrush, canvas: HTMLCanvasElement) => {
+      const context = contextRef.current ?? canvas.getContext('2d');
+      if (!context) return;
+      contextRef.current = context;
+      drawSketchDot(context, point, brush, getCssToCanvasScale(canvas));
+      markHasContent();
+    },
+    [markHasContent]
+  );
+  const drawSegment = useCallback(
+    (from: SketchPoint, to: SketchPoint, brush: SketchBrush, canvas: HTMLCanvasElement) => {
+      const context = contextRef.current ?? canvas.getContext('2d');
+      if (!context) return;
+      contextRef.current = context;
+      drawSketchSegment(context, from, to, brush, getCssToCanvasScale(canvas));
+      markHasContent();
+    },
+    [markHasContent]
+  );
+  const endStroke = useCallback((canvas: HTMLCanvasElement, pointerId: number) => {
+    if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
+    if (activeStrokeRef.current?.pointerId === pointerId) activeStrokeRef.current = null;
+  }, []);
+
+  const onPointerDown: ComponentProps<'canvas'>['onPointerDown'] = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      if (disabled || !event.isPrimary || event.button !== 0 || activeStrokeRef.current) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const point = mapClientPointToCanvas(event.clientX, event.clientY, canvas);
+      if (!point) return;
+      const brush: SketchBrush = { color: brushColor, size: brushSize };
+      drawAt(point, brush, canvas);
+      activeStrokeRef.current = { pointerId: event.pointerId, lastPoint: point, brush };
+      canvas.setPointerCapture(event.pointerId);
+    },
+    [brushColor, brushSize, disabled, drawAt]
+  );
+  const onPointerMove: ComponentProps<'canvas'>['onPointerMove'] = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      const active = activeStrokeRef.current;
+      if (!canvas || !active || active.pointerId !== event.pointerId) return;
+      const coalesced =
+        typeof event.nativeEvent.getCoalescedEvents === 'function'
+          ? event.nativeEvent.getCoalescedEvents()
+          : [];
+      const events = coalesced.length ? coalesced : [event.nativeEvent];
+      for (const coalesced of events) {
+        const point = mapClientPointToCanvas(coalesced.clientX, coalesced.clientY, canvas);
+        if (!point) continue;
+        drawSegment(active.lastPoint, point, active.brush, canvas);
+        active.lastPoint = point;
+      }
+    },
+    [drawSegment]
+  );
+  const onPointerUp: ComponentProps<'canvas'>['onPointerUp'] = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      if (canvasRef.current) endStroke(canvasRef.current, event.pointerId);
+    },
+    [endStroke]
+  );
+  const onPointerCancel: ComponentProps<'canvas'>['onPointerCancel'] = onPointerUp;
+  const onLostPointerCapture: ComponentProps<'canvas'>['onLostPointerCapture'] = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      if (activeStrokeRef.current?.pointerId === event.pointerId) activeStrokeRef.current = null;
+    },
+    []
+  );
   const exportPngFile = useCallback(
     () =>
       new Promise<File | null>((resolve) => {
@@ -127,12 +154,14 @@ export function useSketchCanvas(): UseSketchCanvasResult {
   );
   return {
     canvasRef,
-    brushColor,
-    setBrushColor,
-    brushSize,
-    setBrushSize,
+    canvasBindings: {
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      onPointerCancel,
+      onLostPointerCapture,
+    },
     hasContent,
-    bindCanvas,
     exportPngFile,
   };
 }
