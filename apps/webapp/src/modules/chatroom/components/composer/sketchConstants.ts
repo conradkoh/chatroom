@@ -1,4 +1,6 @@
 /** MVP export contract: sketches are opaque white PNGs and do not change with app theme. */
+/** MVP export contract: sketches are opaque white PNGs and do not change with app theme.
+ * Internal editor layers use transparent bitmaps; only the composite/export surface is white. */
 export const SKETCH_CANVAS_BACKGROUND = '#ffffff' as const;
 /** Stable 4:3 logical/export surface; CSS scales it without stretching. */
 export const SKETCH_CANVAS_WIDTH = 1200;
