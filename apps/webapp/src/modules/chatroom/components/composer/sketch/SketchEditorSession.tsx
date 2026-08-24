@@ -118,10 +118,10 @@ export function SketchEditorSession({
     handleDeleteSelectionRect,
     selection,
   ]);
+  // fallow-ignore-next-line complexity
   useEffect(() => {
     if (inputDisabled || !floating) return;
     if (activeTool !== 'move' && activeTool !== 'transform') return;
-    // fallow-ignore-next-line complexity
     const listener = (e: KeyboardEvent) => {
       if (!isSketchDeleteShortcut(e) || isEditableSketchTarget(e.target)) return;
       e.preventDefault();
