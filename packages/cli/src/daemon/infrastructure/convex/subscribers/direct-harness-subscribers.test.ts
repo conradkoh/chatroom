@@ -26,6 +26,7 @@ function createMockWsClient(queryResult: unknown = null) {
       return vi.fn();
     }),
     query: vi.fn().mockResolvedValue(queryResult),
+    mutation: vi.fn().mockResolvedValue(null),
   } as unknown as ConvexClient;
 
   return {

@@ -35,18 +35,6 @@ export const emitResumeStormAborted = mutation({
       allowNewMachine: false,
     });
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.resumeStormAborted',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      machineId: args.machineId,
-      reason: args.reason,
-      endCount: args.endCount,
-      windowMs: args.windowMs,
-      harnessSessionId: args.harnessSessionId,
-      timestamp: Date.now(),
-    });
-
     await transitionAgentStatus(
       ctx,
       args.chatroomId,

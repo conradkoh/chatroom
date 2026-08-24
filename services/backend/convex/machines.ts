@@ -42,6 +42,7 @@ import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/sta
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
+import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
 import {
@@ -388,11 +389,10 @@ export const requestCapabilitiesRefresh = mutation({
       createdAt: now,
     });
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.refreshCapabilities',
+    await enqueueMachineCommand(ctx, {
       machineId: machine.machineId,
-      timestamp: now,
-      batchId,
+      now,
+      command: { type: 'daemon.refreshCapabilities', batchId },
     });
 
     await ctx.db.patch('chatroom_machines', machine._id, {
@@ -773,22 +773,7 @@ export const getMachineAgentConfigs = query({
   },
 });
 
-async function fetchRecentMachineTypedEvents(
-  ctx: QueryCtx,
-  machineId: string,
-  type: Doc<'chatroom_eventStream'>['type'],
-  ttlMs: number,
-  now: number
-) {
-  return ctx.db
-    .query('chatroom_eventStream')
-    .withIndex('by_machineId_type', (q) => q.eq('machineId', machineId).eq('type', type))
-    .filter((q) => q.gt(q.field('timestamp'), now - ttlMs))
-    .order('asc')
-    .collect();
-}
-
-/** Returns pending agent.requestStart, agent.requestStop, and daemon.ping events for a machine. */
+/** Legacy compatibility shim; removable once supported daemons use the inbox subscriber. */
 export const getCommandEvents = query({
   args: {
     ...SessionIdArg,
@@ -798,255 +783,25 @@ export const getCommandEvents = query({
     const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) return { events: [] };
 
-    const now = Date.now();
-
-    // 3. Fetch agent.requestStart events — deadline-filtered (not cursor-filtered)
-    //    Ensures valid commands issued before a daemon restart are not skipped.
-    const startEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'agent.requestStart')
+    const pending = await ctx.db
+      .query('chatroom_machineCommandInbox')
+      .withIndex('by_machine_status_deadline', (q) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending').gt('deadline', Date.now())
       )
-      .filter((q) => q.gt(q.field('deadline'), now))
-      .order('asc')
-      .collect();
-
-    const requestStartEvents = startEvents.filter((e) => e.type === 'agent.requestStart');
-
-    const restartEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'agent.restart')
-      )
-      .filter((q) => q.gt(q.field('deadline'), now))
-      .order('asc')
-      .collect();
-
-    const pendingRestartEvents = restartEvents.filter(
-      (event): event is Extract<Doc<'chatroom_eventStream'>, { type: 'agent.restart' }> =>
-        event.type === 'agent.restart'
-    );
-    for (const event of [...pendingRestartEvents]) {
-      const completed = await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', event.chatroomId))
-        .filter((q) =>
-          q.and(
-            q.eq(q.field('type'), 'agent.restartCompleted'),
-            q.eq(q.field('correlationId'), event.correlationId)
-          )
-        )
-        .first();
-      if (completed) pendingRestartEvents.splice(pendingRestartEvents.indexOf(event), 1);
-    }
-
-    // 4. Fetch agent.requestStop events — deadline-filtered (not cursor-filtered)
-    const stopEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'agent.requestStop')
-      )
-      .filter((q) => q.gt(q.field('deadline'), now))
-      .order('asc')
-      .collect();
-
-    // 5. Fetch daemon.ping events — time-bounded to reduce payload
-    // NOTE: .filter() reduces payload size but does NOT reduce DB reads.
-    // The TTL cron (eventCleanup) is what actually reduces read bandwidth.
-    const PING_TTL_MS = 5 * 60_000; // 5 minutes
-    const pingEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'daemon.ping')
-      )
-      .filter((q) => q.gt(q.field('timestamp'), now - PING_TTL_MS))
-      .order('asc')
-      .collect();
-
-    // 6. Fetch daemon.gitRefresh events — time-bounded to reduce payload
-    // NOTE: .filter() reduces payload size but does NOT reduce DB reads.
-    // The TTL cron (eventCleanup) is what actually reduces read bandwidth.
-    const GIT_REFRESH_TTL_MS = 5 * 60_000; // 5 minutes
-    const gitRefreshEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'daemon.gitRefresh')
-      )
-      .filter((q) => q.gt(q.field('timestamp'), now - GIT_REFRESH_TTL_MS))
-      .order('asc')
-      .collect();
-
-    const CAPABILITIES_REFRESH_TTL_MS = 5 * 60_000; // 5 minutes
-    const capabilitiesRefreshEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'daemon.refreshCapabilities')
-      )
-      .filter((q) => q.gt(q.field('timestamp'), now - CAPABILITIES_REFRESH_TTL_MS))
-      .order('asc')
-      .collect();
-
-    // 5b. Local action events (open-vscode, open-finder, etc.)
-    // Time-filtered to avoid replaying stale actions on daemon restart.
-    const LOCAL_ACTION_TTL_MS = 60_000; // 1 minute
-    const localActionEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'daemon.localAction')
-      )
-      .filter((q) => q.gt(q.field('timestamp'), now - LOCAL_ACTION_TTL_MS))
-      .order('asc')
-      .collect();
-
-    const PICK_FOLDER_TTL_MS = 5 * 60_000; // 5 minutes
-    const pickFolderEvents = await fetchRecentMachineTypedEvents(
-      ctx,
-      args.machineId,
-      'daemon.pickFolder',
-      PICK_FOLDER_TTL_MS,
-      now
-    );
-
-    // 7. Merge and sort by _creationTime ascending
-    const all = [
-      ...requestStartEvents,
-      ...pendingRestartEvents,
-      ...stopEvents,
-      ...pingEvents,
-      ...gitRefreshEvents,
-      ...capabilitiesRefreshEvents,
-      ...localActionEvents,
-      ...pickFolderEvents,
-    ].sort((a, b) => (a._creationTime < b._creationTime ? -1 : 1));
-
-    return { events: all };
+      .take(256);
+    return {
+      events: pending.map((row) => ({
+        _id: row._id,
+        _creationTime: row.createdAt,
+        machineId: row.machineId,
+        deadline: row.deadline,
+        timestamp: row.createdAt,
+        ...row.command,
+      })),
+    };
   },
 });
 
-/** Returns the daemon.pong event for a machine that came after a given ping event. */
-export const getDaemonPongEvent = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    afterEventId: v.optional(v.id('chatroom_eventStream')),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-    if (!auth) return null;
-
-    const pongEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'daemon.pong')
-      )
-      .order('asc')
-      .collect();
-
-    const afterEventId = args.afterEventId;
-    const matching = afterEventId ? pongEvents.filter((e) => e._id > afterEventId) : pongEvents;
-
-    return matching.length > 0 ? matching[matching.length - 1] : null;
-  },
-});
-
-/**
- * @deprecated Frontend now reads agent status from participant.lastStatus.
- * Retained for backward compatibility and debugging.
- * Returns the latest event stream entry for a given chatroom+role, or null.
- */
-export const getLatestAgentEvent = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // Auth check
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return null;
-
-    // Verify chatroom access
-    const accessResult = await checkAccess(ctx, {
-      accessor: { type: 'user', id: auth.userId },
-      resource: { type: 'chatroom', id: str(args.chatroomId) },
-      permission: 'read-access',
-    });
-    if (!accessResult.ok) return null;
-
-    // Fetch the latest event for this chatroom+role using the index
-    const event = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroomId_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .order('desc')
-      .first();
-
-    return event ?? null;
-  },
-});
-
-/**
- * @deprecated Frontend now reads agent status from participant.lastStatus.
- * Retained for backward compatibility and debugging.
- * Returns a map of role → latest event type for all specified roles in a chatroom.
- */
-export const getLatestAgentEventsForChatroom = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    roles: v.array(v.string()),
-  },
-  handler: async (ctx, args) => {
-    // Auth check
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return {};
-
-    // Verify chatroom access (single lookup — also used for teamId below)
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) return {};
-    if (chatroom.ownerId !== auth.userId) return {};
-
-    // Fetch latest event + team config for each role in parallel
-    const results = await Promise.all(
-      args.roles.map(async (role) => {
-        const event = await ctx.db
-          .query('chatroom_eventStream')
-          .withIndex('by_chatroomId_role', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('role', role)
-          )
-          .order('desc')
-          .first();
-        let teamConfig: Doc<'chatroom_teamAgentConfigs'> | null = null;
-        if (chatroom?.teamId) {
-          const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
-          teamConfig = await ctx.db
-            .query('chatroom_teamAgentConfigs')
-            .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-            .first();
-        }
-        return {
-          role,
-          event: event ?? null,
-          desiredState: teamConfig?.desiredState ?? null,
-        };
-      })
-    );
-
-    // Build role → { latestEventType, desiredState } map
-    // Roles with no events are omitted from the map.
-    const eventMap: Record<string, { eventType: string; desiredState: string | null }> = {};
-    for (const { role, event, desiredState } of results) {
-      if (event !== null) {
-        eventMap[role] = { eventType: event.type, desiredState };
-      }
-    }
-
-    return eventMap;
-  },
-});
-
-// ============================================================================
 // COMMAND MANAGEMENT
 // ============================================================================
 
@@ -1236,13 +991,14 @@ export const sendLocalAction = mutation({
 
     validateWorkingDir(args.workingDir);
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.localAction',
+    await enqueueMachineCommand(ctx, {
       machineId: args.machineId,
-      action: args.action,
-      workingDir: args.workingDir,
-      ...(args.chatroomId !== undefined ? { chatroomId: args.chatroomId } : {}),
-      timestamp: Date.now(),
+      command: {
+        type: 'daemon.localAction',
+        action: args.action,
+        workingDir: args.workingDir,
+        ...(args.chatroomId !== undefined ? { chatroomId: args.chatroomId } : {}),
+      },
     });
     return { success: true };
   },
@@ -1270,11 +1026,10 @@ export const requestFolderPicker = mutation({
       createdAt: now,
     });
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.pickFolder',
+    await enqueueMachineCommand(ctx, {
       machineId: args.machineId,
-      requestId,
-      timestamp: now,
+      now,
+      command: { type: 'daemon.pickFolder', requestId },
     });
 
     return { requestId };
@@ -1504,10 +1259,10 @@ export const sendCommand = mutation({
 
     // ── ping / status: emit daemon.ping event to stream ───────────────
     const now = Date.now();
-    const pingEventId = await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.ping',
+    const pingEventId = await enqueueMachineCommand(ctx, {
       machineId: args.machineId,
-      timestamp: now,
+      now,
+      command: { type: 'daemon.ping' },
     });
 
     return { eventId: pingEventId };
@@ -1653,15 +1408,6 @@ async function runRecordRemoteAgentRegistered(
     }
   }
 
-  const now = Date.now();
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'agent.registered',
-    chatroomId: args.chatroomId,
-    role: args.role,
-    agentType: 'remote' as const,
-    machineId: args.machineId,
-    timestamp: now,
-  });
   await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered');
   return { success: true };
 }
@@ -1738,14 +1484,6 @@ async function runRecordCustomAgentRegistered(
     await projectAssignedTaskSnapshotsForMachines(ctx, [previousMachineId]);
   }
 
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'agent.registered',
-    chatroomId: args.chatroomId,
-    role: args.role,
-    agentType: 'custom' as const,
-    machineId: undefined,
-    timestamp: now,
-  });
   await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
   return { success: true };
@@ -1837,23 +1575,9 @@ export const recordAgentRegistered = mutation({
   },
 });
 
-/** Deprecated shim — daemon.pong audit events are written locally via logEvent. */
-export const ackPing = mutation({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-    pingEventId: v.id('chatroom_eventStream'),
-  },
-  handler: async (ctx, args) => {
-    await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    return { success: true };
-  },
-});
-
 /**
  * Requests an immediate git state refresh for a workspace.
  *
- * Inserts a daemon.gitRefresh event into chatroom_eventStream.
  * The daemon receives it via its live WebSocket subscription and responds
  * by re-running pushGitState for the specified workspace.
  */
@@ -1871,11 +1595,9 @@ export const requestGitRefresh = mutation({
     const userId = auth.userId;
     await getOwnedMachine(ctx, args.machineId, userId);
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.gitRefresh',
+    await enqueueMachineCommand(ctx, {
       machineId: args.machineId,
-      workingDir: args.workingDir,
-      timestamp: Date.now(),
+      command: { type: 'daemon.gitRefresh', workingDir: args.workingDir },
     });
   },
 });
@@ -1961,14 +1683,7 @@ export const saveTeamAgentConfig = mutation({
     });
 
     // Emit agent.registered event to the event stream
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.registered',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      agentType: args.type,
-      machineId: args.machineId,
-      timestamp: now,
-    });
+
     await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
     return { success: true };
@@ -2962,15 +2677,7 @@ export const emitHarnessSessionAwaiting = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.harnessSessionAwaiting',
-      chatroomId: args.chatroomId,
-      machineId: args.machineId,
-      role: args.role,
-      pid: args.pid,
-      timeoutMs: args.timeoutMs,
-      timestamp: Date.now(),
-    });
+
     return { success: true };
   },
 });
@@ -2989,15 +2696,7 @@ export const emitHarnessSessionReady = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.harnessSessionReady',
-      chatroomId: args.chatroomId,
-      machineId: args.machineId,
-      role: args.role,
-      harnessSessionId: args.harnessSessionId,
-      pid: args.pid,
-      timestamp: Date.now(),
-    });
+
     return { success: true };
   },
 });
@@ -3016,15 +2715,7 @@ export const emitHarnessSessionTimeout = mutation({
     const auth = await getSession(ctx, args.sessionId);
     if (!auth) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.userId);
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.harnessSessionTimeout',
-      chatroomId: args.chatroomId,
-      machineId: args.machineId,
-      role: args.role,
-      pid: args.pid,
-      timeoutMs: args.timeoutMs,
-      timestamp: Date.now(),
-    });
+
     return { success: true };
   },
 });

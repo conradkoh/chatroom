@@ -24,8 +24,9 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-vi.mock('../../viewModels/eventStreamViewModel', () => ({
+vi.mock('../../utils/chatroomTimestamp', () => ({
   formatTimestamp: (time: number) => `TS:${time}`,
+  formatTimestampFull: (time: number) => `TS_FULL:${time}`,
 }));
 
 function makeMessage(overrides: Partial<Message> = {}): Message {

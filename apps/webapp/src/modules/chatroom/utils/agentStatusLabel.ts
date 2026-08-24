@@ -104,7 +104,7 @@ export function isAgentStatusEventType(type: string): type is AgentStatusEventTy
 /**
  * Resolves the agent's user-facing status label and color variant.
  *
- * @param eventType    Latest event type from `chatroom_eventStream` (null if no events)
+ * @param eventType    Latest participant status (null if unavailable)
  * @param desiredState From `chatroom_teamAgentConfigs.desiredState` (null if not set)
  * @param online       Whether the agent is considered online (derived from isAlive / spawnedAgentPid)
  */

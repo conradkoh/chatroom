@@ -2,8 +2,7 @@
  * activate-skill use case
  *
  * Looks up skill from registry, injects cliEnvPrefix into prompt,
- * checks for skill customizations, and writes a `skill.activated`
- * event to chatroom_eventStream.
+ * checks for skill customizations, and returns the activation prompt to the caller.
  */
 
 import { ConvexError } from 'convex/values';
@@ -58,15 +57,22 @@ export async function activateSkill(
     }
   }
 
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'skill.activated',
-    chatroomId: args.chatroomId,
-    skillId: skill.skillId,
-    skillName: skill.name,
-    role: args.role,
-    prompt: prompt,
-    timestamp: Date.now(),
-  });
+  const now = Date.now();
+  const existing = await ctx.db
+    .query('chatroom_skillActivations')
+    .withIndex('by_chatroomId_role_skillId', (q) =>
+      q.eq('chatroomId', args.chatroomId).eq('role', args.role).eq('skillId', args.skillId)
+    )
+    .first();
+  const activation = { name: skill.name, description: skill.description, prompt, activatedAt: now };
+  if (existing) await ctx.db.patch('chatroom_skillActivations', existing._id, activation);
+  else
+    await ctx.db.insert('chatroom_skillActivations', {
+      ...activation,
+      chatroomId: args.chatroomId,
+      role: args.role,
+      skillId: args.skillId,
+    });
 
   return {
     success: true,

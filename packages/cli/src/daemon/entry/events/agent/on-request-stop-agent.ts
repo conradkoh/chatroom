@@ -1,5 +1,5 @@
 /**
- * Handles an agent.requestStop event from chatroom_eventStream.
+ * Handles an agent.requestStop command from the machine command inbox.
  * Delegates to v2 stopAgent use case via agent-control bridge.
  */
 

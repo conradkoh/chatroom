@@ -141,16 +141,6 @@ describe('connection close requests', () => {
         .collect();
     });
     expect(remainingRows).toHaveLength(0);
-
-    // A connection.terminated event should exist
-    const events = await t.run(async (ctx) => {
-      return ctx.db.query('chatroom_eventStream').collect();
-    });
-    const terminatedEvent = events.find(
-      (e) => e.type === 'connection.terminated' && (e as any).connectionId === 'conn-A'
-    );
-    expect(terminatedEvent).toBeDefined();
-    expect((terminatedEvent as any).reason).toBe('superseded');
   });
 
   test('requestConnectionClose appends a row', async () => {

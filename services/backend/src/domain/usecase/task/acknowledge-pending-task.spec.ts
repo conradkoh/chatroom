@@ -98,7 +98,7 @@ describe('acknowledgePendingTask', () => {
     expect(task?.assignedTo).toBe('builder');
   });
 
-  test('emits task.acknowledged event on chatroom_eventStream', async () => {
+  test('acknowledges the task', async () => {
     const { sessionId } = await createTestSession('apt-event');
     const chatroomId = await createChatroom(sessionId);
     const pendingTask = await seedPendingTask(chatroomId);
@@ -111,21 +111,9 @@ describe('acknowledgePendingTask', () => {
       });
     });
 
-    const events = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'task.acknowledged')
-        )
-        .collect();
-    });
-
-    expect(events).toHaveLength(1);
-    expect(events[0]?.type).toBe('task.acknowledged');
-    if (events[0]?.type === 'task.acknowledged') {
-      expect(events[0].role).toBe('builder');
-      expect(events[0].taskId).toBe(pendingTask._id);
-    }
+    const task = await t.run(async (ctx) => ctx.db.get(pendingTask._id));
+    expect(task?.status).toBe('acknowledged');
+    expect(task?.acknowledgedAt).toBeTypeOf('number');
   });
 
   test('sets participant lastStatus to task.acknowledged via transitionAgentStatus', async () => {

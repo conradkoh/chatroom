@@ -28,13 +28,12 @@ export function computeEnhancerBackoffMs(attemptCount: number): number {
   return ENHANCER_RETRY_BASE_MS * 2 ** Math.max(0, attemptCount - 1);
 }
 
+/** Compatibility no-op: enhancer job rows are authoritative. */
 export async function emitEnhancerEvent(
-  ctx: MutationCtx,
-  event: Record<string, unknown>,
-  timestamp: number
-): Promise<void> {
-  await ctx.db.insert('chatroom_eventStream', { ...event, timestamp } as never);
-}
+  _ctx: MutationCtx,
+  _event: Record<string, unknown>,
+  _timestamp: number
+): Promise<void> {}
 
 export function resolveHandoffTemplateSnapshot(
   chatroom: Doc<'chatroom_rooms'>,

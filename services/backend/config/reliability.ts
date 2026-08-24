@@ -52,6 +52,11 @@ export const DAEMON_HEARTBEAT_TTL_MS = 6 * DAEMON_HEARTBEAT_INTERVAL_MS; // 30 m
  *  starts/stops acting on stale intent. Set to 2 minutes. */
 export const AGENT_REQUEST_DEADLINE_MS = 120_000; // 2 minutes
 
+export const MACHINE_COMMAND_CLAIM_LEASE_MS = 60_000;
+export const MACHINE_COMMAND_LEASE_RENEWAL_INTERVAL_MS = 20_000;
+export const MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS = 5 * 60_000;
+export const MACHINE_COMMAND_LOCAL_ACTION_TTL_MS = 60_000;
+
 // ─── Observed Chatroom Sync ───────────────────────────────────────────────────
 
 /** How long a chatroom remains marked as "observed" before TTL expires (ms).

@@ -13,15 +13,8 @@ export type HandleNativeAgentEndResult = {
 async function emitNativeWaitingState(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
-  role: string,
-  now: number
+  role: string
 ): Promise<void> {
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'agent.waiting',
-    chatroomId,
-    role,
-    timestamp: now,
-  });
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.waiting');
 }
 
@@ -56,19 +49,13 @@ export async function handleNativeAgentEnd(
     taskId: args.taskId,
   });
   if (inProgressTaskId) {
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.awaitingHandoff',
-      chatroomId: args.chatroomId,
-      role,
-      timestamp: now,
-    });
     await transitionAgentStatus(ctx, args.chatroomId, role, 'agent.awaitingHandoff');
     return { needsHandoffReminder: true, transitionedToWaiting: false };
   }
 
   const transitionedToWaiting = !alreadyWaiting;
   if (transitionedToWaiting) {
-    await emitNativeWaitingState(ctx, args.chatroomId, role, now);
+    await emitNativeWaitingState(ctx, args.chatroomId, role);
   }
   if (participant) {
     await patchParticipantNativeWaiting(ctx, participant, now);

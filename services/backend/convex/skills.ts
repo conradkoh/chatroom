@@ -7,6 +7,7 @@ import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
 import { activateSkill } from '../src/domain/usecase/skills/activate-skill';
 import { getSkill } from '../src/domain/usecase/skills/get-skill';
+import { listActivatedSkills } from '../src/domain/usecase/skills/list-activated-skills';
 import { listSkills } from '../src/domain/usecase/skills/list-skills';
 import { SKILLS_REGISTRY } from '../src/domain/usecase/skills/registry';
 
@@ -28,6 +29,14 @@ export const list = query({
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     return listSkills();
+  },
+});
+
+export const listActivated = query({
+  args: { ...SessionIdArg, chatroomId: v.id('chatroom_rooms'), role: v.string() },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return listActivatedSkills(ctx, args.chatroomId, args.role);
   },
 });
 

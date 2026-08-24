@@ -16,17 +16,10 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { getInboxCommandsForChatroom } from '../helpers/machine-command-inbox';
 
-async function findOfflineRestartEvents(chatroomId: Id<'chatroom_rooms'>) {
-  const events = await t.run(async (ctx) => {
-    return ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect();
-  });
-  return events.filter(
-    (e) => e.type === 'agent.restart'
-  );
+async function findOfflineRestartCommands(chatroomId: Id<'chatroom_rooms'>) {
+  return getInboxCommandsForChatroom(chatroomId, 'agent.restart');
 }
 
 async function getPendingTasks(sessionId: SessionId, chatroomId: Id<'chatroom_rooms'>) {
@@ -79,9 +72,12 @@ test('restarts offline builder on user sendMessage', async () => {
     type: 'message',
   });
 
-  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  const restartEvents = await findOfflineRestartCommands(chatroomId);
   expect(restartEvents).toHaveLength(1);
-  expect(restartEvents[0].role).toBe('builder');
+  expect(restartEvents[0].command.type).toBe('agent.restart');
+  if (restartEvents[0].command.type === 'agent.restart') {
+    expect(restartEvents[0].command.role).toBe('builder');
+  }
   expect(restartEvents[0].machineId).toBe(machineId);
 });
 
@@ -131,7 +127,7 @@ test('does not restart when agent is waiting', async () => {
     type: 'message',
   });
 
-  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  const restartEvents = await findOfflineRestartCommands(chatroomId);
   expect(restartEvents).toHaveLength(0);
 });
 
@@ -186,9 +182,12 @@ test('restarts when desiredState=stopped on user message (wake on message)', asy
     type: 'message',
   });
 
-  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  const restartEvents = await findOfflineRestartCommands(chatroomId);
   expect(restartEvents).toHaveLength(1);
-  expect(restartEvents[0].role).toBe('planner');
+  expect(restartEvents[0].command.type).toBe('agent.restart');
+  if (restartEvents[0].command.type === 'agent.restart') {
+    expect(restartEvents[0].command.role).toBe('planner');
+  }
 
   await t.run(async (ctx) => {
     const config = await ctx.db
@@ -252,9 +251,12 @@ test('restarts after agent.startFailed left desiredState=stopped', async () => {
     type: 'message',
   });
 
-  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  const restartEvents = await findOfflineRestartCommands(chatroomId);
   expect(restartEvents).toHaveLength(1);
-  expect(restartEvents[0].role).toBe('planner');
+  expect(restartEvents[0].command.type).toBe('agent.restart');
+  if (restartEvents[0].command.type === 'agent.restart') {
+    expect(restartEvents[0].command.role).toBe('planner');
+  }
 });
 
 test('does not restart when user message is queued behind active task', async () => {
@@ -281,7 +283,7 @@ test('does not restart when user message is queued behind active task', async ()
   await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
   await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
 
-  const restartEventsBefore = await findOfflineRestartEvents(chatroomId);
+  const restartEventsBefore = await findOfflineRestartCommands(chatroomId);
   const countBefore = restartEventsBefore.length;
 
   await t.run(async (ctx) => {
@@ -316,7 +318,7 @@ test('does not restart when user message is queued behind active task', async ()
   const queued = await t.query(api.messages.listQueued, { sessionId, chatroomId });
   expect(queued).toHaveLength(1);
 
-  const restartEventsAfter = await findOfflineRestartEvents(chatroomId);
+  const restartEventsAfter = await findOfflineRestartCommands(chatroomId);
   expect(restartEventsAfter).toHaveLength(countBefore);
 });
 
@@ -365,9 +367,12 @@ test('restarts when circuit open on user message', async () => {
     type: 'message',
   });
 
-  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  const restartEvents = await findOfflineRestartCommands(chatroomId);
   expect(restartEvents).toHaveLength(1);
-  expect(restartEvents[0].role).toBe('builder');
+  expect(restartEvents[0].command.type).toBe('agent.restart');
+  if (restartEvents[0].command.type === 'agent.restart') {
+    expect(restartEvents[0].command.role).toBe('builder');
+  }
 
   await t.run(async (ctx) => {
     const config = await ctx.db
@@ -432,9 +437,12 @@ test('restarts when lastStatus is agent.waiting but spawnedAgentPid is cleared (
     type: 'message',
   });
 
-  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  const restartEvents = await findOfflineRestartCommands(chatroomId);
   expect(restartEvents).toHaveLength(1);
-  expect(restartEvents[0].role).toBe('builder');
+  expect(restartEvents[0].command.type).toBe('agent.restart');
+  if (restartEvents[0].command.type === 'agent.restart') {
+    expect(restartEvents[0].command.role).toBe('builder');
+  }
 });
 
 test('restarts offline planner on user sendMessage (production duo: planner entry point)', async () => {
@@ -493,9 +501,12 @@ test('restarts offline planner on user sendMessage (production duo: planner entr
   expect(tasks).toHaveLength(1);
   expect(tasks[0]?.assignedTo).toBe('planner');
 
-  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  const restartEvents = await findOfflineRestartCommands(chatroomId);
   expect(restartEvents).toHaveLength(1);
-  expect(restartEvents[0].role).toBe('planner');
+  expect(restartEvents[0].command.type).toBe('agent.restart');
+  if (restartEvents[0].command.type === 'agent.restart') {
+    expect(restartEvents[0].command.role).toBe('planner');
+  }
   expect(restartEvents[0].machineId).toBe(machineId);
 });
 
@@ -549,9 +560,12 @@ test('restarts when participant lastDesiredState is stale stopped but config des
     type: 'message',
   });
 
-  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  const restartEvents = await findOfflineRestartCommands(chatroomId);
   expect(restartEvents).toHaveLength(1);
-  expect(restartEvents[0].role).toBe('planner');
+  expect(restartEvents[0].command.type).toBe('agent.restart');
+  if (restartEvents[0].command.type === 'agent.restart') {
+    expect(restartEvents[0].command.role).toBe('planner');
+  }
 });
 
 test('restarts when lastStatus is task.inProgress but spawnedAgentPid is cleared', async () => {
@@ -604,9 +618,12 @@ test('restarts when lastStatus is task.inProgress but spawnedAgentPid is cleared
     type: 'message',
   });
 
-  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  const restartEvents = await findOfflineRestartCommands(chatroomId);
   expect(restartEvents).toHaveLength(1);
-  expect(restartEvents[0].role).toBe('planner');
+  expect(restartEvents[0].command.type).toBe('agent.restart');
+  if (restartEvents[0].command.type === 'agent.restart') {
+    expect(restartEvents[0].command.role).toBe('planner');
+  }
 });
 
 test('restartOfflineAgentsFromConfig mutation works standalone', async () => {
@@ -652,8 +669,11 @@ test('restartOfflineAgentsFromConfig mutation works standalone', async () => {
     chatroomId,
   });
 
-  const restartEvents = await findOfflineRestartEvents(chatroomId);
+  const restartEvents = await findOfflineRestartCommands(chatroomId);
   expect(restartEvents).toHaveLength(1);
-  expect(restartEvents[0].role).toBe('builder');
+  expect(restartEvents[0].command.type).toBe('agent.restart');
+  if (restartEvents[0].command.type === 'agent.restart') {
+    expect(restartEvents[0].command.role).toBe('builder');
+  }
   expect(restartEvents[0].machineId).toBe(machineId);
 });

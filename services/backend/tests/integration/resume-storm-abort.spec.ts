@@ -45,22 +45,6 @@ describe('emitResumeStormAborted', () => {
       harnessSessionId: 'pi-sess-storm',
     });
 
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-
-    const aborted = events.filter((e) => e.type === 'agent.resumeStormAborted');
-    expect(aborted).toHaveLength(1);
-    expect(aborted[0]).toMatchObject({
-      reason: 'rate_limit',
-      endCount: 5,
-      windowMs: 30_000,
-      harnessSessionId: 'pi-sess-storm',
-    });
-
     const config = await t.run(async (ctx) => {
       const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
       const teamId = chatroom?.teamId;

@@ -3,7 +3,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion -- legacy non-null assertions in command builders */
 
 import {
-  Activity,
   AlertTriangle,
   ArrowRightLeft,
   ClipboardCheck,
@@ -412,14 +411,6 @@ export function useCommandPaletteCommands({
         category: 'Preferences',
         keywords: ['settings', 'configuration', 'config', 'preferences'],
         action: () => onOpenSettings('setup'),
-      },
-      {
-        id: 'panel-event-stream',
-        label: 'Preferences: Event Stream',
-        icon: <Activity size={14} />,
-        category: 'Preferences',
-        keywords: ['event', 'events', 'stream', 'activity'],
-        action: () => onOpenSettings('event-stream'),
       },
       {
         id: 'panel-pending-review',

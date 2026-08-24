@@ -8,6 +8,7 @@ import {
   createTestSession,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { getInboxCommandsForMachine } from '../helpers/machine-command-inbox';
 import { TEST_MODEL_CURSOR_SDK } from '../helpers/test-models';
 
 describe('restart-agent use case', () => {
@@ -60,25 +61,17 @@ describe('restart-agent use case', () => {
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
     expect(task?.status).toBe('pending');
 
-    const restartEvent = await t.run(async (ctx) => {
-      const events = await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_machineId_type', (q) =>
-          q.eq('machineId', machineId).eq('type', 'agent.restart')
-        )
-        .collect();
-      return events.at(-1);
-    });
-
-    expect(restartEvent?.type).toBe('agent.restart');
-    if (restartEvent?.type === 'agent.restart') {
-      expect(restartEvent.role).toBe('builder');
-      expect(restartEvent.machineId).toBe(machineId);
-      expect(restartEvent.agentHarness).toBe('cursor-sdk');
-      expect(restartEvent.model).toBe(TEST_MODEL_CURSOR_SDK);
-      expect(restartEvent.workingDir).toBe('/tmp/project');
-      expect(restartEvent.wantResume).toBe(true);
-      expect(restartEvent.correlationId).toEqual(expect.any(String));
+    const restartRows = await getInboxCommandsForMachine(machineId, 'agent.restart');
+    const restartRow = restartRows.at(-1);
+    expect(restartRow?.command.type).toBe('agent.restart');
+    if (restartRow?.command.type === 'agent.restart') {
+      expect(restartRow.command.role).toBe('builder');
+      expect(restartRow.machineId).toBe(machineId);
+      expect(restartRow.command.agentHarness).toBe('cursor-sdk');
+      expect(restartRow.command.model).toBe(TEST_MODEL_CURSOR_SDK);
+      expect(restartRow.command.workingDir).toBe('/tmp/project');
+      expect(restartRow.command.wantResume).toBe(true);
+      expect(restartRow.command.correlationId).toEqual(expect.any(String));
     }
 
     await t.run(async (ctx) => {

@@ -16,6 +16,7 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../../../../tests/helpers/integration';
+import { getInboxCommandsForChatroom } from '../../../../tests/helpers/machine-command-inbox';
 import { TEST_MODEL_OPENCODE_LEGACY } from '../../../../tests/helpers/test-models';
 
 function createThreeRoleChatroom(sessionId: string) {
@@ -246,19 +247,16 @@ describe('updateTeam use case', () => {
 
     expect(result.startedAgentCount).toBeGreaterThanOrEqual(2);
 
-    const startEvents = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStart')
-        )
-        .collect();
-    });
-
-    const teamSwitchStarts = startEvents.filter(
-      (e) => e.type === 'agent.requestStart' && e.reason === 'platform.team_switch'
+    const inboxStarts = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStart');
+    const teamSwitchStarts = inboxStarts.filter(
+      (row) =>
+        row.command.type === 'agent.requestStart' && row.command.reason === 'platform.team_switch'
     );
     expect(teamSwitchStarts.length).toBeGreaterThanOrEqual(2);
-    expect(teamSwitchStarts.map((e) => e.role).sort()).toEqual(['builder', 'planner']);
+    expect(
+      teamSwitchStarts
+        .map((row) => (row.command.type === 'agent.requestStart' ? row.command.role : ''))
+        .sort()
+    ).toEqual(['builder', 'planner']);
   });
 });

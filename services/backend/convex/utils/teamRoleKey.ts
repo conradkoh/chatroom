@@ -1,5 +1,4 @@
-import { AGENT_REQUEST_DEADLINE_MS } from '../../config/reliability';
-import { emitConfigRemoval } from '../../src/domain/usecase/agent/config-removal';
+import { enqueueMachineCommand } from '../../src/domain/usecase/machine/enqueue-machine-command';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
@@ -41,21 +40,17 @@ export async function deleteStaleTeamAgentConfigs(
   const now = Date.now();
   for (const row of stale) {
     if (row.spawnedAgentPid != null && row.machineId) {
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'agent.requestStop',
-        chatroomId: row.chatroomId,
+      await enqueueMachineCommand(ctx, {
         machineId: row.machineId,
-        role: row.role,
-        reason: 'platform.dedup',
-        deadline: now + AGENT_REQUEST_DEADLINE_MS,
-        timestamp: now,
+        now,
+        command: {
+          type: 'agent.requestStop',
+          chatroomId: row.chatroomId,
+          role: row.role,
+          reason: 'platform.dedup',
+        },
       });
-      await emitConfigRemoval(ctx, {
-        chatroomId: row.chatroomId,
-        role: row.role,
-        machineId: row.machineId,
-        reason: 'stale_duplicate',
-      });
+      await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
     } else {
       await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
     }

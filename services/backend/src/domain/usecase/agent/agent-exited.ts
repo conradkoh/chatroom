@@ -9,11 +9,8 @@
  *   2. Mark participant as exited — only if the config still belongs to the same machine
  *      (prevents overwriting a running agent's status during machine switch)
  *
- * After clearing the PID, `processConfigRemoval()` is called to handle any
- * pending config-removal requests.
  */
 
-import { processConfigRemoval } from './config-removal';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -79,13 +76,6 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
       spawnedAt: undefined,
     });
   }
-
-  // Process any pending config-removal requests (requires PID to be cleared first)
-  await processConfigRemoval(ctx, {
-    chatroomId,
-    role,
-    machineId,
-  });
 
   // 2. Mark participant as exited — guard against machine switch
   //    If the config for this role now belongs to a different machine, or the

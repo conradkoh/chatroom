@@ -32,8 +32,8 @@ import {
 import { composeNativeSystemPrompt } from './native/system-prompt';
 import { getClassificationGuideSection } from './sections/classification-guide';
 import { getCommandsReferenceSection } from './sections/commands-reference';
-import { getGettingStartedSection } from './sections/getting-started';
 import { getGeneralKnowledgeSections } from './sections/general-knowledge';
+import { getGettingStartedSection } from './sections/getting-started';
 import { getHandoffOptionsSection } from './sections/handoff-options';
 import { getNextStepSection } from './sections/next-step';
 import { getRoleGuidanceSection } from './sections/role-guidance';
@@ -45,7 +45,11 @@ import {
 import { getSessionVsChatroomTaskSection } from './sections/session-vs-chatroom-task';
 import { buildSelectorContext } from './selector-context';
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
-import type { ComposedInitPrompt, InitPromptInput } from './types/init-prompt';
+import type {
+  ActivatedSkillSnapshot,
+  ComposedInitPrompt,
+  InitPromptInput,
+} from './types/init-prompt';
 import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
 import { getCliEnvPrefix } from './utils/index';
@@ -104,6 +108,7 @@ export interface RolePromptContext {
   convexUrl: string; // Required Convex URL for env var prefix generation
   /** When true, static planner guidance includes enhancer workflow references. */
   plannerEnhancerActive?: boolean;
+  activatedSkills?: ActivatedSkillSnapshot[];
 }
 
 /**
@@ -130,7 +135,14 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   // Role identity
   sections.push(getRoleTitleSection(selectorCtx));
   sections.push(getRoleDescriptionSection(selectorCtx));
-  sections.push(...getGeneralKnowledgeSections({ convexUrl: ctx.convexUrl ?? '', chatroomId: ctx.chatroomId, role: ctx.role }));
+  sections.push(
+    ...getGeneralKnowledgeSections({
+      convexUrl: ctx.convexUrl ?? '',
+      chatroomId: ctx.chatroomId,
+      role: ctx.role,
+      activatedSkills: ctx.activatedSkills,
+    })
+  );
 
   // Role-specific guidance (team-aware)
   sections.push(getRoleGuidanceSection(selectorCtx));
@@ -187,7 +199,12 @@ function buildInitPromptSections(
     getTeamHeaderSection(input.teamName),
     getRoleTitleSection(selectorCtx),
     getRoleDescriptionSection(selectorCtx),
-    ...getGeneralKnowledgeSections({ convexUrl: convexUrl ?? '', chatroomId, role }),
+    ...getGeneralKnowledgeSections({
+      convexUrl: convexUrl ?? '',
+      chatroomId,
+      role,
+      activatedSkills: input.activatedSkills,
+    }),
     getSessionVsChatroomTaskSection(),
     getGettingStartedSection(selectorCtx),
     getClassificationGuideSection(selectorCtx),

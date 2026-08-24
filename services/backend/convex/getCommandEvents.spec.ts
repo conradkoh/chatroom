@@ -13,6 +13,7 @@ import { expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { TEST_MODEL_OPENCODE } from '../tests/helpers/test-models';
 
 // ---------------------------------------------------------------------------
@@ -49,52 +50,26 @@ async function insertCommandEvent(
   chatroomId: Id<'chatroom_rooms'>,
   machineId: string,
   type: 'agent.requestStart' | 'agent.requestStop'
-): Promise<Id<'chatroom_eventStream'>> {
-  return await t.run(async (ctx) => {
-    if (type === 'agent.requestStart') {
-      return await ctx.db.insert('chatroom_eventStream', {
-        type: 'agent.requestStart',
-        chatroomId,
-        machineId,
-        role: 'builder',
-        agentHarness: 'opencode',
-        model: TEST_MODEL_OPENCODE,
-        workingDir: '/tmp/test',
-        reason: 'test',
-        deadline: Date.now() + 120_000,
-        timestamp: Date.now(),
-      });
-    }
-    return await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.requestStop',
-      chatroomId,
-      machineId,
-      role: 'builder',
-      reason: 'test',
-      deadline: Date.now() + 120_000,
-      timestamp: Date.now(),
-    });
-  });
-}
-
-async function insertNonCommandEvent(
-  chatroomId: Id<'chatroom_rooms'>,
-  machineId: string
-): Promise<Id<'chatroom_eventStream'>> {
-  return await t.run(async (ctx) => {
-    return await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.started',
-      chatroomId,
-      machineId,
-      role: 'builder',
-      agentHarness: 'opencode',
-      model: TEST_MODEL_OPENCODE,
-      workingDir: '/tmp/test',
-      pid: 1234,
-      reason: 'test',
-      timestamp: Date.now(),
-    });
-  });
+): Promise<Id<'chatroom_machineCommandInbox'>> {
+  return await t.run(async (ctx) =>
+    type === 'agent.requestStart'
+      ? enqueueMachineCommand(ctx, {
+          machineId,
+          command: {
+            type,
+            chatroomId,
+            role: 'builder',
+            agentHarness: 'opencode',
+            model: TEST_MODEL_OPENCODE,
+            workingDir: '/tmp/test',
+            reason: 'test',
+          },
+        })
+      : enqueueMachineCommand(ctx, {
+          machineId,
+          command: { type, chatroomId, role: 'builder', reason: 'test' },
+        })
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -170,24 +145,6 @@ test('getCommandEvents — filters out events for other machines', async () => {
   expect(result.events).toHaveLength(0);
 });
 
-// Test 5: Type filter — non-command events are NOT returned
-test('getCommandEvents — filters out non-command events (agent.started, task.activated)', async () => {
-  const { sessionId } = await createTestSession('gce-5');
-  const chatroomId = await createChatroom(sessionId);
-  const machineId = 'machine-gce-5';
-  await registerMachine(sessionId, machineId);
-
-  // Insert a non-command event for the same machine
-  await insertNonCommandEvent(chatroomId, machineId);
-
-  const result = await t.query(api.machines.getCommandEvents, {
-    sessionId,
-    machineId,
-  });
-
-  expect(result.events).toHaveLength(0);
-});
-
 // Test 5b: Returns all deadline-valid agent.requestStart events per chatroom+role
 // (daemon kill-then-spawn handles duplicates; backend does not collapse)
 test('getCommandEvents — returns all agent.requestStart events for same chatroom+role', async () => {
@@ -196,35 +153,8 @@ test('getCommandEvents — returns all agent.requestStart events for same chatro
   const machineId = 'machine-gce-5b';
   await registerMachine(sessionId, machineId);
 
-  const olderId = await t.run(async (ctx) => {
-    return await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.requestStart',
-      chatroomId,
-      machineId,
-      role: 'builder',
-      agentHarness: 'opencode',
-      model: TEST_MODEL_OPENCODE,
-      workingDir: '/tmp/test',
-      reason: 'test',
-      deadline: Date.now() + 120_000,
-      timestamp: Date.now() - 10_000,
-    });
-  });
-
-  const newerId = await t.run(async (ctx) => {
-    return await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.requestStart',
-      chatroomId,
-      machineId,
-      role: 'builder',
-      agentHarness: 'opencode',
-      model: TEST_MODEL_OPENCODE,
-      workingDir: '/tmp/test-2',
-      reason: 'test',
-      deadline: Date.now() + 120_000,
-      timestamp: Date.now(),
-    });
-  });
+  const olderId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStart');
+  const newerId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStart');
 
   const result = await t.query(api.machines.getCommandEvents, {
     sessionId,
@@ -275,18 +205,13 @@ test('getCommandEvents — expired agent.requestStart/Stop events are NOT return
   const machineId = 'machine-gce-8';
   await registerMachine(sessionId, machineId);
 
-  // Insert an event with an expired deadline
-  await t.run(async (ctx) => {
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.requestStop',
-      chatroomId,
+  await t.run(async (ctx) =>
+    enqueueMachineCommand(ctx, {
       machineId,
-      role: 'builder',
-      reason: 'test',
-      deadline: Date.now() - 1000, // expired 1 second ago
-      timestamp: Date.now() - 200_000,
-    });
-  });
+      now: Date.now() - 10 * 60_000,
+      command: { type: 'agent.requestStop', chatroomId, role: 'builder', reason: 'test' },
+    })
+  );
 
   const result = await t.query(api.machines.getCommandEvents, {
     sessionId,
@@ -309,11 +234,9 @@ test('getCommandEvents — returns daemon.pickFolder event for the machine', asy
       status: 'pending',
       createdAt: Date.now(),
     });
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.pickFolder',
+    await enqueueMachineCommand(ctx, {
       machineId,
-      requestId: id,
-      timestamp: Date.now(),
+      command: { type: 'daemon.pickFolder', requestId: id },
     });
     return id;
   });
@@ -344,11 +267,9 @@ test('getCommandEvents — filters out daemon.pickFolder events for other machin
       status: 'pending',
       createdAt: Date.now(),
     });
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.pickFolder',
+    await enqueueMachineCommand(ctx, {
       machineId: otherMachineId,
-      requestId,
-      timestamp: Date.now(),
+      command: { type: 'daemon.pickFolder', requestId },
     });
   });
 
@@ -373,11 +294,10 @@ test('getCommandEvents — expired daemon.pickFolder events are NOT returned', a
       status: 'pending',
       createdAt: Date.now(),
     });
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.pickFolder',
+    await enqueueMachineCommand(ctx, {
       machineId,
-      requestId,
-      timestamp: Date.now() - 6 * 60_000, // older than 5-minute TTL
+      now: Date.now() - 10 * 60_000,
+      command: { type: 'daemon.pickFolder', requestId },
     });
   });
 
@@ -397,16 +317,8 @@ test('getCommandEvents — all daemon.ping events are returned (no cursor filter
 
   // Insert two ping events
   await t.run(async (ctx) => {
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.ping',
-      machineId,
-      timestamp: Date.now(),
-    });
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.ping',
-      machineId,
-      timestamp: Date.now(),
-    });
+    await enqueueMachineCommand(ctx, { machineId, command: { type: 'daemon.ping' } });
+    await enqueueMachineCommand(ctx, { machineId, command: { type: 'daemon.ping' } });
   });
 
   // Both pings should be returned — no cursor filtering

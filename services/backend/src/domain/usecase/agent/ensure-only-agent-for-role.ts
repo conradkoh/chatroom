@@ -10,10 +10,10 @@
  */
 
 import { transitionAgentStatus } from './transition-agent-status';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
+import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import {
   patchTeamAgentConfig,
   projectAssignedTaskSnapshotsForMachines,
@@ -70,15 +70,16 @@ export async function ensureOnlyAgentForRole(
   const affectedMachineIds = new Set<string>();
 
   for (const config of conflicting) {
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.requestStop',
-      chatroomId,
+    await enqueueMachineCommand(ctx, {
       machineId: config.machineId as string,
-      role,
-      reason: 'platform.dedup',
-      deadline: now + AGENT_REQUEST_DEADLINE_MS,
-      timestamp: now,
-      pid: config.spawnedAgentPid ?? undefined,
+      now,
+      command: {
+        type: 'agent.requestStop',
+        chatroomId,
+        role,
+        reason: 'platform.dedup',
+        pid: config.spawnedAgentPid ?? undefined,
+      },
     });
 
     // Eagerly clear spawn state and mark as stopped so the UI reflects the

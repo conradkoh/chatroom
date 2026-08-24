@@ -1,14 +1,16 @@
 ---
 type: decision-log
 title: Chatroom event stream writer inventory
-description: Production locations that currently write chatroom_eventStream records in the Convex backend.
+description: Historical inventory of Convex chatroom_eventStream writers (migration completed).
 tags: [chatroom, events, convex, daemon-migration]
-status: active
+status: completed
 ---
 
 # Chatroom event stream writer inventory
 
-As of 2026-08-19, production code contains 22 files that write to the Convex `chatroom_eventStream` table. This is the migration baseline for redirecting event capture to the daemon's local repository.
+> **Completed (2026-08):** The `chatroom_eventStream` Convex table was removed in [PR #1499](https://github.com/conradkoh/chatroom/pull/1499). Machine commands use `chatroom_machineCommandInbox`; daemon audit uses local SQLite `event_stream_entries`. This document is retained as historical context only.
+
+As of 2026-08-19, production code contained 22 files that wrote to the Convex `chatroom_eventStream` table. This was the migration baseline for redirecting event capture to the daemon's local repository.
 
 ## Production writers
 
@@ -40,9 +42,9 @@ As of 2026-08-19, production code contains 22 files that write to the Convex `ch
 - `services/backend/src/domain/usecase/team/update-team.ts:85`
 - `services/backend/src/domain/usecase/workspace/request-sync-on-handoff-to-user.ts:35`
 
-## Non-production references
+## Non-production references (historical)
 
-Test fixtures also insert into the table in `services/backend/convex/getCommandEvents.spec.ts`, `services/backend/tests/integration/event-stream.spec.ts`, and `services/backend/tests/integration/get-latest-agent-event.spec.ts`. Migrations and cleanup code can read or delete records but are not event producers.
+Test fixtures that inserted into the table (`event-stream.spec.ts`, `get-latest-agent-event.spec.ts`, etc.) and `eventCleanup.ts` were removed when the table was deleted.
 
 ## Migration implication
 

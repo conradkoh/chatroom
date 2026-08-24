@@ -18,9 +18,9 @@ import {
   isActiveParticipant,
 } from '../src/domain/entities/participant';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
+import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { hasActiveEntryPointEnhancerJob } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
-import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { handleNativeAgentEnd as handleNativeAgentEndUsecase } from '../src/domain/usecase/participant/handle-native-agent-end';
@@ -196,12 +196,7 @@ export const join = mutation({
         args.role
       );
       const waitingStatus = entryPointEnhancerActive ? 'agent.enhancing' : 'agent.waiting';
-      await ctx.db.insert('chatroom_eventStream', {
-        type: waitingStatus,
-        chatroomId: args.chatroomId,
-        role: args.role,
-        timestamp: now,
-      });
+
       await transitionAgentStatus(ctx, args.chatroomId, args.role, waitingStatus);
     }
 
@@ -224,12 +219,6 @@ export const join = mutation({
       }
 
       if (!isStopRequested) {
-        await ctx.db.insert('chatroom_eventStream', {
-          type: 'agent.waiting',
-          chatroomId: args.chatroomId,
-          role: args.role,
-          timestamp: now,
-        });
         await transitionAgentStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
       }
     }

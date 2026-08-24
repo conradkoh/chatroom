@@ -65,6 +65,7 @@ export interface PromptSection {
  * New sections should be added here as they're created.
  */
 export type SectionId =
+  | 'activated-skills'
   // Role Identity
   | 'team-header'
   | 'role-title'

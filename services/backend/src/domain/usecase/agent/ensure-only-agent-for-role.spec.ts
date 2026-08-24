@@ -13,6 +13,10 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
+import {
+  getInboxCommandsForChatroom,
+  getStopCommandMachineIdsForRole,
+} from '../../../../tests/helpers/machine-command-inbox';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -56,19 +60,9 @@ async function insertTeamConfig(
   });
 }
 
-/** Get machine IDs that received agent.requestStop events for a given role */
+/** Get machine IDs that received agent.requestStop commands for a given role */
 async function getStopEventMachineIds(chatroomId: Id<'chatroom_rooms'>, role: string) {
-  return await t.run(async (ctx) => {
-    const events = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom_type', (q) =>
-        q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStop')
-      )
-      .collect();
-    return events
-      .filter((e) => e.type === 'agent.requestStop' && e.role === role)
-      .map((e) => (e as { machineId: string }).machineId);
-  });
+  return getStopCommandMachineIdsForRole(chatroomId, role);
 }
 
 /** Count agent.requestStop events for a given chatroom + role */
@@ -172,24 +166,17 @@ describe('ensureOnlyAgentForRole', () => {
       });
     });
 
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStop')
-        )
-        .collect();
-    });
+    const inbox = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStop');
 
-    expect(events.length).toBe(1);
-    const evt = events[0]!;
-    expect(evt.type).toBe('agent.requestStop');
-    if (evt.type === 'agent.requestStop') {
-      expect(evt.machineId).toBe('machine-f');
-      expect(evt.role).toBe('builder');
-      expect(evt.reason).toBe('platform.dedup');
-      expect(evt.deadline).toBeGreaterThan(before);
-      expect(typeof evt.timestamp).toBe('number');
+    expect(inbox.length).toBe(1);
+    const row = inbox[0]!;
+    expect(row.command.type).toBe('agent.requestStop');
+    if (row.command.type === 'agent.requestStop') {
+      expect(row.machineId).toBe('machine-f');
+      expect(row.command.role).toBe('builder');
+      expect(row.command.reason).toBe('platform.dedup');
+      expect(row.deadline).toBeGreaterThan(before);
+      expect(typeof row.createdAt).toBe('number');
     }
   });
 });
