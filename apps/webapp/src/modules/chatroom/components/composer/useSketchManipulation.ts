@@ -12,7 +12,14 @@ import {
 import { mapClientPointToCanvas } from './sketchCanvasDrawing';
 import { drawSketchTransformOverlay } from './sketchCanvasSelection';
 import type { SketchSelection, SketchFloatingSelectionMeta } from './sketchDocument';
-import { translateTransform } from './sketchTransform';
+import {
+  clampTransformToCanvas,
+  hitTestTransformHandle,
+  rotateTransformFromHandle,
+  scaleTransformFromHandle,
+  translateTransform,
+  type SketchTransformHandle,
+} from './sketchTransform';
 
 export function useSketchManipulation({
   canvasRef,
@@ -30,13 +37,14 @@ export function useSketchManipulation({
   disabled: boolean;
   selection: SketchSelection | null;
   floating: SketchFloatingSelectionMeta | null;
-  beginFloatingSelection: () => boolean;
+  beginFloatingSelection: () => SketchFloatingSelectionMeta | null;
   updateFloatingTransform: (t: SketchFloatingSelectionMeta['transform']) => void;
 }) {
   const active = useRef<{
     id: number;
     start: { x: number; y: number };
     transform: SketchFloatingSelectionMeta['transform'];
+    handle: SketchTransformHandle;
   } | null>(null);
   const paint = useCallback(() => {
     const ctx = overlayRef.current?.getContext('2d');
@@ -56,16 +64,26 @@ export function useSketchManipulation({
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
       if (disabled || !e.isPrimary || e.button !== 0) return;
       if (!floating && !selection) return;
-      if (!floating && !beginFloatingSelection()) return;
+      const started = floating ?? beginFloatingSelection();
+      if (!started) return;
       const c = canvasRef.current;
       const p = c && mapClientPointToCanvas(e.clientX, e.clientY, c);
       if (!c || !p) return;
-      const f = floating;
-      if (!f) return;
-      active.current = { id: e.pointerId, start: p, transform: f.transform };
+      const handle =
+        activeTool === 'transform'
+          ? hitTestTransformHandle(
+              p,
+              started.transform,
+              started.sourceWidth,
+              started.sourceHeight,
+              1
+            )
+          : 'move';
+      if (!handle) return;
+      active.current = { id: e.pointerId, start: p, transform: started.transform, handle };
       c.setPointerCapture(e.pointerId);
     },
-    [beginFloatingSelection, canvasRef, disabled, floating, selection]
+    [activeTool, beginFloatingSelection, canvasRef, disabled, floating, selection]
   );
   const move: ComponentProps<'canvas'>['onPointerMove'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -74,18 +92,35 @@ export function useSketchManipulation({
       if (!a || a.id !== e.pointerId || !c) return;
       const p = mapClientPointToCanvas(e.clientX, e.clientY, c);
       if (!p) return;
-      updateFloatingTransform(translateTransform(a.transform, p.x - a.start.x, p.y - a.start.y));
+      const f = floating;
+      if (!f) return;
+      let next = a.transform;
+      if (a.handle === 'rotate')
+        next = rotateTransformFromHandle(a.transform, p, a.start, f.sourceWidth, f.sourceHeight);
+      else if (a.handle !== 'move')
+        next = scaleTransformFromHandle(
+          a.transform,
+          a.handle,
+          p,
+          a.start,
+          f.sourceWidth,
+          f.sourceHeight,
+          true
+        );
+      else next = translateTransform(a.transform, p.x - a.start.x, p.y - a.start.y);
+      updateFloatingTransform(clampTransformToCanvas(next, f.sourceWidth, f.sourceHeight));
     },
-    [canvasRef, updateFloatingTransform]
+    [canvasRef, floating, updateFloatingTransform]
   );
   const finish: ComponentProps<'canvas'>['onPointerUp'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
       const c = canvasRef.current;
       if (active.current?.id !== e.pointerId || !c) return;
       if (c.hasPointerCapture(e.pointerId)) c.releasePointerCapture(e.pointerId);
+      if (active.current && floating) updateFloatingTransform(active.current.transform);
       active.current = null;
     },
-    [canvasRef]
+    [canvasRef, floating, updateFloatingTransform]
   );
   return {
     manipulationBindings: {

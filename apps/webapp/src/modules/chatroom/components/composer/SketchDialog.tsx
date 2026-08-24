@@ -369,12 +369,16 @@ function SketchEditorSession({
   };
   const requestDismiss = useCallback(() => {
     if (isSaving) return;
+    if (floating) {
+      cancelFloatingSelection();
+      return;
+    }
     if (!hasContent) {
       onDismiss();
       return;
     }
     setDiscardOpen(true);
-  }, [hasContent, isSaving, onDismiss]);
+  }, [cancelFloatingSelection, floating, hasContent, isSaving, onDismiss]);
   useEffect(() => registerRequestDismiss(requestDismiss), [registerRequestDismiss, requestDismiss]);
   const confirmDiscard = useCallback(() => {
     setDiscardOpen(false);
