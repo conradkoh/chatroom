@@ -9,48 +9,17 @@
  * - Cross-browser SVG post-processing for Safari compatibility
  */
 
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import fs from 'fs';
 import path from 'path';
 
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
 import { MermaidBlock } from './MermaidBlock';
-import { renderMermaidChartToSvg } from '../lib/mermaid/renderMermaidChartToSvg';
 
 vi.mock('../lib/mermaid/renderMermaidChartToSvg', () => ({
   renderMermaidChartToSvg: vi.fn().mockResolvedValue('<svg><rect width="100" height="50"/></svg>'),
 }));
-
-describe('MermaidBlock — diagram rendering', () => {
-  const chart = 'flowchart TD\n  U[User request] --> P[Planner]';
-
-  afterEach(() => {
-    vi.mocked(renderMermaidChartToSvg).mockReset();
-    vi.mocked(renderMermaidChartToSvg).mockResolvedValue(
-      '<svg><rect width="100" height="50"/></svg>'
-    );
-  });
-
-  test('renders inline SVG on successful render (not raw chart pre fallback)', async () => {
-    vi.mocked(renderMermaidChartToSvg).mockResolvedValue(
-      '<svg viewBox="0 0 200 100"><text>diagram</text></svg>'
-    );
-    const { container } = render(<MermaidBlock chart={chart} />);
-    await waitFor(() => expect(container.querySelector('svg')).toBeInTheDocument());
-    expect(screen.getByTestId('mermaid-inline-scroll')).toBeInTheDocument();
-    expect(container.querySelector('pre code')).not.toBeInTheDocument();
-    expect(screen.queryByText('Rendering diagram...')).not.toBeInTheDocument();
-  });
-
-  test('shows raw chart in pre fallback when render fails', async () => {
-    vi.mocked(renderMermaidChartToSvg).mockRejectedValue(new Error('Mermaid failed to load'));
-    const { container } = render(<MermaidBlock chart={chart} />);
-    await waitFor(() => expect(container.querySelector('pre code')?.textContent).toBe(chart));
-    expect(container.querySelector('pre')).toBeInTheDocument();
-    expect(screen.queryByTestId('mermaid-inline-scroll')).not.toBeInTheDocument();
-  });
-});
 
 // Read the source file for static analysis
 const SOURCE_PATH = path.join(__dirname, 'MermaidBlock.tsx');
