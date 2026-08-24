@@ -31,6 +31,7 @@ export function useSketchSelection({
   selection = null,
   onSelectionChange = () => {},
   enabled,
+  keyboardEnabled = enabled,
   disabled,
   onRequestDelete,
 }: {
@@ -39,6 +40,7 @@ export function useSketchSelection({
   selection?: SketchSelection | null;
   onSelectionChange?: (selection: SketchSelection | null) => void;
   enabled: boolean;
+  keyboardEnabled?: boolean;
   disabled: boolean;
   onRequestDelete: (s: SketchSelectionRect) => void;
 }) {
@@ -129,7 +131,7 @@ export function useSketchSelection({
     [finish]
   );
   useEffect(() => {
-    if (!enabled || disabled) return;
+    if (!keyboardEnabled || disabled) return;
     const listener = (e: KeyboardEvent) => {
       const a = resolveSketchSelectionAction(e, selection?.rect != null);
       if (a === 'select-all') {
@@ -147,7 +149,7 @@ export function useSketchSelection({
     };
     document.addEventListener('keydown', listener, true);
     return () => document.removeEventListener('keydown', listener, true);
-  }, [clearSelection, disabled, enabled, onRequestDelete, selectAll, selection]);
+  }, [clearSelection, disabled, keyboardEnabled, onRequestDelete, selectAll, selection]);
   return {
     overlayRef,
     selection: selection?.rect ?? null,

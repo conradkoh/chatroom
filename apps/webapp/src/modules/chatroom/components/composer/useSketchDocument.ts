@@ -73,6 +73,7 @@ export type UseSketchDocumentResult = {
   updateFloatingTransform: (transform: SketchTransform) => void;
   applyFloatingSelection: () => void;
   cancelFloatingSelection: () => void;
+  discardFloatingSelection: () => void;
   importPastedImage: (file: File) => Promise<boolean>;
   setActiveLayerId: (id: SketchLayerId) => void;
 };
@@ -94,27 +95,40 @@ export function useSketchDocument({
     setDoc((state) => setSelection(state, selection));
   }, []);
   const clearSelection = useCallback(() => onSelectionChange(null), [onSelectionChange]);
+  const paintComposite = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      floatingPreview:
+        { bitmap: HTMLCanvasElement; transform: SketchTransform } | null | undefined = undefined
+    ) => {
+      const preview =
+        floatingPreview === undefined
+          ? doc.floating && floatingBitmapRef.current
+            ? {
+                bitmap: floatingBitmapRef.current,
+                transform: floatingTransformRef.current ?? doc.floating.transform,
+              }
+            : null
+          : floatingPreview;
+      renderSketchComposite(
+        ctx,
+        doc.layers
+          .map((layer) => layersRef.current.get(layer.id))
+          .filter((layer): layer is HTMLCanvasElement => Boolean(layer)),
+        preview
+      );
+    },
+    [doc.floating, doc.layers]
+  );
   const scheduleComposite = useCallback(() => {
     if (rafRef.current != null) return;
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null;
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext('2d');
-      if (canvas && ctx && typeof ctx.save === 'function')
-        renderSketchComposite(
-          ctx,
-          doc.layers
-            .map((layer) => layersRef.current.get(layer.id))
-            .filter((layer): layer is HTMLCanvasElement => Boolean(layer)),
-          doc.floating && floatingBitmapRef.current
-            ? {
-                bitmap: floatingBitmapRef.current,
-                transform: floatingTransformRef.current ?? doc.floating.transform,
-              }
-            : null
-        );
+      if (canvas && ctx && typeof ctx.save === 'function') paintComposite(ctx);
     });
-  }, [doc.layers, doc.floating]);
+  }, [paintComposite]);
   const setActiveLayerId = useCallback(
     (id: SketchLayerId) => {
       if (doc.floating) return;
@@ -247,17 +261,10 @@ export function useSketchDocument({
       scheduleComposite();
       const canvas = canvasRef.current;
       const compositeContext = canvas?.getContext('2d');
-      if (canvas && compositeContext && typeof compositeContext.save === 'function') {
-        renderSketchComposite(
-          compositeContext,
-          doc.layers
-            .map((layer) => layersRef.current.get(layer.id))
-            .filter((layer): layer is HTMLCanvasElement => Boolean(layer)),
-          null
-        );
-      }
+      if (canvas && compositeContext && typeof compositeContext.save === 'function')
+        paintComposite(compositeContext, null);
     },
-    [activeContext, mark, scheduleComposite]
+    [activeContext, mark, paintComposite]
   );
   const beginFloatingSelection = useCallback((): SketchFloatingSelectionMeta | null => {
     const selection = doc.selection;
@@ -304,10 +311,8 @@ export function useSketchDocument({
     },
     [scheduleComposite]
   );
-  const cancelFloatingSelection = useCallback(() => {
-    if (!doc.floating) return;
-    if (doc.floating.provenance === 'paste') {
-      const floating = doc.floating;
+  const finishPasteFloating = useCallback(
+    (floating: SketchFloatingSelectionMeta) => {
       layersRef.current.delete(floating.layerId);
       floatingBitmapRef.current = null;
       floatingTransformRef.current = null;
@@ -315,12 +320,19 @@ export function useSketchDocument({
         let next = removeLayer(state, floating.layerId);
         if (
           floating.priorActiveLayerId &&
-          next.layers.some((l) => l.id === floating.priorActiveLayerId)
+          next.layers.some((layer) => layer.id === floating.priorActiveLayerId)
         )
           next = setActiveLayer(next, floating.priorActiveLayerId);
         return next;
       });
       scheduleComposite();
+    },
+    [scheduleComposite]
+  );
+  const cancelFloatingSelection = useCallback(() => {
+    if (!doc.floating) return;
+    if (doc.floating.provenance === 'paste') {
+      finishPasteFloating(doc.floating);
       return;
     }
     const layer = layersRef.current.get(doc.activeLayerId);
@@ -337,7 +349,22 @@ export function useSketchDocument({
     if (ctx) mark(layerHasNonTransparentPixels(ctx));
     setDoc((state) => ({ ...state, floating: null }));
     scheduleComposite();
-  }, [doc, mark, scheduleComposite]);
+  }, [doc, finishPasteFloating, mark, scheduleComposite]);
+  const discardFloatingSelection = useCallback(() => {
+    if (!doc.floating) return;
+    if (doc.floating.provenance === 'paste') {
+      finishPasteFloating(doc.floating);
+      return;
+    }
+    floatingBitmapRef.current = null;
+    floatingBackupRef.current = null;
+    floatingTransformRef.current = null;
+    const layer = layersRef.current.get(doc.activeLayerId);
+    const ctx = layer?.getContext('2d');
+    if (ctx) mark(layerHasNonTransparentPixels(ctx));
+    setDoc((state) => ({ ...state, floating: null }));
+    scheduleComposite();
+  }, [doc, finishPasteFloating, mark, scheduleComposite]);
   const importPastedImage = useCallback(
     async (file: File) => {
       let objectUrl: string | null = null;
@@ -416,26 +443,14 @@ export function useSketchDocument({
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
         if (!canvas || !ctx || !(documentHasContent(doc) || doc.floating)) return resolve(null);
-        if (typeof ctx.save === 'function')
-          renderSketchComposite(
-            ctx,
-            doc.layers
-              .map((layer) => layersRef.current.get(layer.id))
-              .filter((layer): layer is HTMLCanvasElement => Boolean(layer)),
-            doc.floating && floatingBitmapRef.current
-              ? {
-                  bitmap: floatingBitmapRef.current,
-                  transform: floatingTransformRef.current ?? doc.floating.transform,
-                }
-              : null
-          );
+        if (typeof ctx.save === 'function') paintComposite(ctx);
         canvas.toBlob(
           (blob) =>
             resolve(blob ? new File([blob], buildSketchFileName(), { type: 'image/png' }) : null),
           'image/png'
         );
       }),
-    [doc]
+    [doc, paintComposite]
   );
   return {
     canvasRef,
@@ -459,6 +474,7 @@ export function useSketchDocument({
     updateFloatingTransform,
     applyFloatingSelection,
     cancelFloatingSelection,
+    discardFloatingSelection,
     importPastedImage,
     setActiveLayerId,
   };

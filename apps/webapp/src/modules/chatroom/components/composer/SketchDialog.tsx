@@ -64,7 +64,7 @@ type SketchEditorPropertiesProps = {
   onBrushSizeChange: (size: number) => void;
   activeTool: SketchToolId;
   selection: SketchSelectionRect | null;
-  onRequestDelete: (selection: SketchSelectionRect) => void;
+  onRequestDelete?: () => void;
   isImporting?: boolean;
   floating?: UseSketchDocumentResult['floating'];
   onApplyFloating?: () => void;
@@ -120,7 +120,7 @@ function SketchEditorProperties({
             type="button"
             className={chatroomIndustrialButtonDestructiveClassName}
             disabled={!selection || disabled}
-            onClick={() => selection && onRequestDelete(selection)}
+            onClick={onRequestDelete}
           >
             Delete selection
           </button>
@@ -133,32 +133,52 @@ function SketchEditorProperties({
           <p className="text-sm text-chatroom-text-secondary">
             {floating
               ? 'Adjust the floating selection, then apply or cancel.'
-              : 'Select an area first.'}
+              : selection
+                ? 'Drag on canvas to move the selection. Press Delete to remove selected pixels.'
+                : 'Select an area first.'}
           </p>
           {floating ? (
             <p aria-live="polite" className="text-sm text-chatroom-text-muted">
               {Math.round(floating.sourceWidth * floating.transform.scaleX)} ×{' '}
               {Math.round(floating.sourceHeight * floating.transform.scaleY)} px
             </p>
+          ) : selection ? (
+            <p aria-live="polite" className="text-sm text-chatroom-text-muted">
+              {isFullSketchSelection(selection)
+                ? 'Entire canvas selected.'
+                : `${Math.round(selection.width)} × ${Math.round(selection.height)} px`}
+            </p>
           ) : null}
-          <div className="flex gap-2">
+          {selection || floating ? (
             <button
               type="button"
-              disabled={!floating || disabled}
-              onClick={onApplyFloating}
-              className={chatroomIndustrialButtonPrimaryClassName}
+              className={chatroomIndustrialButtonDestructiveClassName}
+              disabled={disabled}
+              onClick={onRequestDelete}
             >
-              Apply
+              Delete selection
             </button>
-            <button
-              type="button"
-              disabled={!floating || disabled}
-              onClick={onCancelFloating}
-              className={chatroomIndustrialButtonSecondaryClassName}
-            >
-              Cancel
-            </button>
-          </div>
+          ) : null}
+          {floating ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={onApplyFloating}
+                className={chatroomIndustrialButtonPrimaryClassName}
+              >
+                Apply
+              </button>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={onCancelFloating}
+                className={chatroomIndustrialButtonSecondaryClassName}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : null}
         </>
       ) : activeTool === 'eraser' ? (
         <>
@@ -282,6 +302,16 @@ function SketchEditorFooter({
   );
 }
 
+function isSketchDeleteShortcut(event: KeyboardEvent) {
+  return event.key === 'Delete' || event.key === 'Backspace';
+}
+function isEditableSketchTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable)
+  );
+}
+
 // fallow-ignore-next-line complexity
 function SketchEditorSession({
   onDismiss,
@@ -314,6 +344,7 @@ function SketchEditorSession({
     updateFloatingTransform,
     applyFloatingSelection,
     cancelFloatingSelection,
+    discardFloatingSelection,
     layers,
     setActiveLayerId,
   } = useSketchDocument({
@@ -328,15 +359,17 @@ function SketchEditorSession({
     onTransformRequested: () => setActiveTool('transform'),
   });
   const inputDisabled = isSaving || isImporting;
+  const selectionKeyboardEnabled =
+    activeTool === 'select' || activeTool === 'move' || activeTool === 'transform';
   const layersTopFirst = useMemo(() => [...layers].reverse(), [layers]);
   const layersDisabled = inputDisabled || floating != null;
   const clearSelectionRef = useRef<() => void>(() => {});
-  const handleDeleteSelection = useCallback(
-    (selection: SketchSelectionRect) => {
-      deleteRegion(selection);
+  const handleDeleteSelectionRect = useCallback(
+    (selectionRect: SketchSelectionRect) => {
+      deleteRegion(selectionRect);
       clearSelection();
     },
-    [deleteRegion]
+    [deleteRegion, clearSelection]
   );
   const { overlayRef, selection, selectionBindings } = useSketchSelection({
     canvasRef,
@@ -344,9 +377,39 @@ function SketchEditorSession({
     selection: docSelection,
     onSelectionChange,
     enabled: activeTool === 'select',
+    keyboardEnabled: selectionKeyboardEnabled && !floating,
     disabled: inputDisabled,
-    onRequestDelete: handleDeleteSelection,
+    onRequestDelete: handleDeleteSelectionRect,
   });
+  // fallow-ignore-next-line complexity
+  const handleRequestDelete = useCallback(() => {
+    if (floating) {
+      discardFloatingSelection();
+      return;
+    }
+    const rect = selection ?? docSelection?.rect;
+    if (!rect) return;
+    handleDeleteSelectionRect(rect);
+  }, [
+    docSelection?.rect,
+    discardFloatingSelection,
+    floating,
+    handleDeleteSelectionRect,
+    selection,
+  ]);
+  // fallow-ignore-next-line complexity
+  useEffect(() => {
+    if (inputDisabled || !floating) return;
+    if (activeTool !== 'move' && activeTool !== 'transform') return;
+    const listener = (e: KeyboardEvent) => {
+      if (!isSketchDeleteShortcut(e) || isEditableSketchTarget(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      discardFloatingSelection();
+    };
+    document.addEventListener('keydown', listener, true);
+    return () => document.removeEventListener('keydown', listener, true);
+  }, [activeTool, discardFloatingSelection, floating, inputDisabled]);
   const { brushCursorBindings, showBrushCursor } = useSketchBrushCursor({
     canvasRef,
     overlayRef,
@@ -440,7 +503,7 @@ function SketchEditorSession({
             disabled={isSaving || isImporting}
             activeTool={activeTool}
             selection={selection}
-            onRequestDelete={handleDeleteSelection}
+            onRequestDelete={handleRequestDelete}
             onBrushColorChange={setBrushColor}
             onBrushSizeChange={setBrushSize}
             floating={floating}
