@@ -5,7 +5,6 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
-  useState,
   type ComponentProps,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
@@ -24,42 +23,45 @@ import {
   resolveSelectionFinish,
   shouldStartSketchSelection,
 } from './sketchCanvasSelectionPointer';
+import type { SketchLayerId, SketchSelection } from './sketchDocument';
 
 export function useSketchSelection({
   canvasRef,
+  activeLayerId = 'layer-1',
+  selection = null,
+  onSelectionChange = () => {},
   enabled,
   disabled,
   onRequestDelete,
 }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
+  activeLayerId?: SketchLayerId;
+  selection?: SketchSelection | null;
+  onSelectionChange?: (selection: SketchSelection | null) => void;
   enabled: boolean;
   disabled: boolean;
   onRequestDelete: (s: SketchSelectionRect) => void;
 }) {
   const overlayRef = useRef<HTMLCanvasElement>(null);
-  const [selection, setSelection] = useState<SketchSelectionRect | null>(null);
   const anchor = useRef<{ x: number; y: number } | null>(null);
   const draft = useRef<SketchSelectionRect | null>(null);
   const active = useRef<number | null>(null);
-  const priorSelection = useRef<SketchSelectionRect | null>(null);
+  const priorSelection = useRef<SketchSelection | null>(null);
   const paint = useCallback((s: SketchSelectionRect | null) => {
     const c = overlayRef.current?.getContext('2d');
     if (c) drawSketchSelectionMarquee(c, s);
   }, []);
   const clearSelection = useCallback(() => {
-    setSelection(null);
+    onSelectionChange(null);
     anchor.current = null;
     draft.current = null;
     paint(null);
-  }, [paint]);
-  useLayoutEffect(() => paint(selection), [paint, selection]);
+  }, [onSelectionChange, paint]);
+  useLayoutEffect(() => paint(selection?.rect ?? null), [paint, selection]);
   const selectAll = useCallback(() => {
-    setSelection(FULL_SKETCH_SELECTION);
+    onSelectionChange({ layerId: activeLayerId, rect: FULL_SKETCH_SELECTION });
     paint(FULL_SKETCH_SELECTION);
-  }, [paint]);
-  useEffect(() => {
-    if (!enabled) clearSelection();
-  }, [enabled, clearSelection]);
+  }, [activeLayerId, onSelectionChange, paint]);
   const onPointerDown: ComponentProps<'canvas'>['onPointerDown'] = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => {
       if (
@@ -100,17 +102,23 @@ export function useSketchSelection({
       const c = canvasRef.current;
       if (!c) return;
       endSelectionPointer(c, e.pointerId);
-      const result = resolveSelectionFinish(cancel, c, draft.current, priorSelection.current);
-      if (result.type === 'commit') setSelection(result.selection);
+      const result = resolveSelectionFinish(
+        cancel,
+        c,
+        draft.current,
+        priorSelection.current?.rect ?? null
+      );
+      if (result.type === 'commit')
+        onSelectionChange({ layerId: activeLayerId, rect: result.selection });
       else if (result.type === 'restore') {
-        setSelection(result.selection);
+        onSelectionChange(priorSelection.current);
         paint(result.selection);
       } else clearSelection();
       active.current = null;
       anchor.current = null;
       draft.current = null;
     },
-    [canvasRef, clearSelection]
+    [activeLayerId, canvasRef, clearSelection, onSelectionChange]
   );
   const onPointerUp = useCallback(
     (e: ReactPointerEvent<HTMLCanvasElement>) => finish(e, false),
@@ -123,7 +131,7 @@ export function useSketchSelection({
   useEffect(() => {
     if (!enabled || disabled) return;
     const listener = (e: KeyboardEvent) => {
-      const a = resolveSketchSelectionAction(e, selection !== null);
+      const a = resolveSketchSelectionAction(e, selection?.rect != null);
       if (a === 'select-all') {
         e.preventDefault();
         e.stopPropagation();
@@ -134,7 +142,7 @@ export function useSketchSelection({
         clearSelection();
       } else if (a === 'request-delete' && selection) {
         e.preventDefault();
-        onRequestDelete(selection);
+        onRequestDelete(selection.rect);
       }
     };
     document.addEventListener('keydown', listener, true);
@@ -142,7 +150,7 @@ export function useSketchSelection({
   }, [clearSelection, disabled, enabled, onRequestDelete, selectAll, selection]);
   return {
     overlayRef,
-    selection,
+    selection: selection?.rect ?? null,
     selectionBindings: {
       onPointerDown,
       onPointerMove,

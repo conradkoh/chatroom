@@ -33,8 +33,10 @@ import { type SketchBrushColor } from './sketchConstants';
 import {
   createInitialDocument,
   documentHasContent,
+  setSelection,
   updateLayerHasContent,
   type SketchLayerId,
+  type SketchSelection,
 } from './sketchDocument';
 import { buildSketchFileName } from './sketchFileName';
 
@@ -48,6 +50,9 @@ export type UseSketchDocumentResult = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   layers: ReturnType<typeof createInitialDocument>['layers'];
   activeLayerId: SketchLayerId;
+  selection: SketchSelection | null;
+  clearSelection: () => void;
+  onSelectionChange: (selection: SketchSelection | null) => void;
   hasContent: boolean;
   canvasBindings: Pick<
     ComponentProps<'canvas'>,
@@ -67,6 +72,10 @@ export function useSketchDocument({
   const activeRef = useRef<ActiveSketchStroke | null>(null);
   const rafRef = useRef<number | null>(null);
   const [doc, setDoc] = useState(createInitialDocument);
+  const onSelectionChange = useCallback((selection: SketchSelection | null) => {
+    setDoc((state) => setSelection(state, selection));
+  }, []);
+  const clearSelection = useCallback(() => onSelectionChange(null), [onSelectionChange]);
   const scheduleComposite = useCallback(() => {
     if (rafRef.current != null) return;
     rafRef.current = requestAnimationFrame(() => {
@@ -217,6 +226,9 @@ export function useSketchDocument({
     canvasRef,
     layers: doc.layers,
     activeLayerId: doc.activeLayerId,
+    selection: doc.selection,
+    clearSelection,
+    onSelectionChange,
     hasContent: documentHasContent(doc),
     canvasBindings: {
       onPointerDown,

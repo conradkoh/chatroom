@@ -238,7 +238,17 @@ function SketchEditorSession({
   const brushInputDisabled = isSaving || !isDrawingTool;
   const effectiveBrushColor =
     activeTool === 'eraser' ? (SKETCH_CANVAS_BACKGROUND as SketchBrushColor) : brushColor;
-  const { canvasRef, canvasBindings, hasContent, exportPngFile, deleteRegion } = useSketchDocument({
+  const {
+    canvasRef,
+    canvasBindings,
+    hasContent,
+    exportPngFile,
+    deleteRegion,
+    selection: docSelection,
+    clearSelection,
+    onSelectionChange,
+    activeLayerId,
+  } = useSketchDocument({
     brushColor: effectiveBrushColor,
     brushSize,
     disabled: brushInputDisabled,
@@ -248,12 +258,15 @@ function SketchEditorSession({
   const handleDeleteSelection = useCallback(
     (selection: SketchSelectionRect) => {
       deleteRegion(selection);
-      clearSelectionRef.current();
+      clearSelection();
     },
     [deleteRegion]
   );
-  const { overlayRef, selection, selectionBindings, clearSelection } = useSketchSelection({
+  const { overlayRef, selection, selectionBindings } = useSketchSelection({
     canvasRef,
+    activeLayerId,
+    selection: docSelection,
+    onSelectionChange,
     enabled: activeTool === 'select',
     disabled: isSaving,
     onRequestDelete: handleDeleteSelection,
