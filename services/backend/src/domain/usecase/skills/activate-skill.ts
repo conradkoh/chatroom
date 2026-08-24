@@ -2,8 +2,7 @@
  * activate-skill use case
  *
  * Looks up skill from registry, injects cliEnvPrefix into prompt,
- * checks for skill customizations, and writes a `skill.activated`
- * activation prompt returned to the caller.
+ * checks for skill customizations, and returns the activation prompt to the caller.
  */
 
 import { ConvexError } from 'convex/values';

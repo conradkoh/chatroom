@@ -36,7 +36,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 // ---------------------------------------------------------------------------
 
 describe('skills.activate', () => {
-  test('activates the backlog skill and writes a skill.activated event', async () => {
+  test('activates the backlog skill and returns the skill prompt', async () => {
     const { sessionId } = await createTestSession('skills-activate-valid-1');
     const chatroomId = await createChatroom(sessionId);
 
@@ -98,7 +98,7 @@ describe('skills.activate', () => {
     });
   });
 
-  test('activate correctly sets role on the skill.activated event', async () => {
+  test('activate succeeds for the requested role', async () => {
     const { sessionId } = await createTestSession('skills-activate-createdby-1');
     const chatroomId = await createChatroom(sessionId);
 
