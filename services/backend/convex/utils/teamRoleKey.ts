@@ -1,4 +1,3 @@
-import { emitConfigRemoval } from '../../src/domain/usecase/agent/config-removal';
 import { enqueueMachineCommand } from '../../src/domain/usecase/machine/enqueue-machine-command';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -51,12 +50,7 @@ export async function deleteStaleTeamAgentConfigs(
           reason: 'platform.dedup',
         },
       });
-      await emitConfigRemoval(ctx, {
-        chatroomId: row.chatroomId,
-        role: row.role,
-        machineId: row.machineId,
-        reason: 'stale_duplicate',
-      });
+      await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
     } else {
       await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
     }

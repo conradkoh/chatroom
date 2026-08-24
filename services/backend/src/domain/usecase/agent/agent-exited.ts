@@ -13,7 +13,6 @@
  * pending config-removal requests.
  */
 
-import { processConfigRemoval } from './config-removal';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -79,13 +78,6 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
       spawnedAt: undefined,
     });
   }
-
-  // Process any pending config-removal requests (requires PID to be cleared first)
-  await processConfigRemoval(ctx, {
-    chatroomId,
-    role,
-    machineId,
-  });
 
   // 2. Mark participant as exited — guard against machine switch
   //    If the config for this role now belongs to a different machine, or the
