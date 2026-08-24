@@ -20,9 +20,11 @@ import {
   joinParticipant,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
-  getMachineCommandInbox,
-  assertNoCommandVariantsOnEventStream,
 } from '../helpers/integration';
+import {
+  assertNoCommandVariantsOnEventStream,
+  getMachineCommandInbox,
+} from '../helpers/machine-command-inbox';
 import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
 // ─── Test 1: agent.requestStart event ────────────────────────────────────────
