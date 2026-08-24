@@ -61,6 +61,25 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       await mouseStroke(page, canvas);
       await expect.poll(() => countNonWhitePixels(canvas)).toBeGreaterThan(10);
     });
+    test('desktop dialog fills near-viewport workspace with properties panel and drawable canvas', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await openSketch(page);
+      await page.waitForTimeout(300);
+      const dialog = page.getByRole('dialog');
+      const dialogBox = await dialog.boundingBox();
+      expect(dialogBox).not.toBeNull();
+      expect(dialogBox!.width).toBeGreaterThan(1440 * 0.95);
+      expect(dialogBox!.height).toBeGreaterThan(900 * 0.95);
+      await expect(page.getByRole('group', { name: 'Color' })).toBeVisible();
+      await expect(page.getByLabel('Sketch canvas')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Add sketch' })).toBeVisible();
+      await mouseStroke(page, page.getByLabel('Sketch canvas'));
+      await expect
+        .poll(() => countNonWhitePixels(page.getByLabel('Sketch canvas')))
+        .toBeGreaterThan(10);
+    });
   });
   test.describe('mobile', () => {
     const { defaultBrowserType: _defaultBrowserType, ...iphone14 } = devices['iPhone 14'];
@@ -72,11 +91,27 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
     });
     test('touch tap and drag draw pixels', async ({ page }) => {
       await openSketch(page);
+      await expect(page.getByRole('toolbar', { name: 'Sketch tools' })).toHaveCount(0);
       const canvas = page.getByLabel('Sketch canvas');
       const box = await canvas.boundingBox();
       if (!box) throw new Error('canvas missing bounding box');
-      await canvas.dispatchEvent('pointerdown', { bubbles: true, pointerId: 9, pointerType: 'touch', isPrimary: true, button: 0, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2 });
-      await canvas.dispatchEvent('pointerup', { bubbles: true, pointerId: 9, pointerType: 'touch', isPrimary: true, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2 });
+      await canvas.dispatchEvent('pointerdown', {
+        bubbles: true,
+        pointerId: 9,
+        pointerType: 'touch',
+        isPrimary: true,
+        button: 0,
+        clientX: box.x + box.width / 2,
+        clientY: box.y + box.height / 2,
+      });
+      await canvas.dispatchEvent('pointerup', {
+        bubbles: true,
+        pointerId: 9,
+        pointerType: 'touch',
+        isPrimary: true,
+        clientX: box.x + box.width / 2,
+        clientY: box.y + box.height / 2,
+      });
       await expect.poll(() => countNonWhitePixels(canvas)).toBeGreaterThan(0);
       await mouseStroke(page, canvas);
       await expect.poll(() => countNonWhitePixels(canvas)).toBeGreaterThan(10);

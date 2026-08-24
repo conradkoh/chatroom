@@ -20,31 +20,43 @@ import {
 } from '../shared/industrialDialogStyles';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 
+import { cn } from '@/lib/utils';
+
 export type SketchDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (file: File) => void;
 };
 type SketchEditorSessionProps = { onDismiss: () => void; onSave: (file: File) => void };
-type SketchEditorToolbarProps = {
+type SketchEditorPropertiesProps = {
   brushColor: SketchBrushColor;
   brushSize: number;
-  isSaving: boolean;
+  disabled: boolean;
   onBrushColorChange: (color: SketchBrushColor) => void;
   onBrushSizeChange: (size: number) => void;
 };
 
-function SketchEditorToolbar({
+function SketchEditorProperties({
   brushColor,
   brushSize,
-  isSaving,
+  disabled,
   onBrushColorChange,
   onBrushSizeChange,
-}: SketchEditorToolbarProps) {
+}: SketchEditorPropertiesProps) {
   return (
-    <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-      <SketchColorPicker value={brushColor} onChange={onBrushColorChange} disabled={isSaving} />
-      <SketchBrushSizeControl value={brushSize} onChange={onBrushSizeChange} disabled={isSaving} />
+    <div
+      className={cn(
+        'order-1 flex shrink-0 flex-col gap-3 border-b-2 border-chatroom-border p-3',
+        'sm:flex-row sm:flex-wrap sm:items-center sm:justify-between',
+        'lg:order-none lg:min-h-0 lg:flex-col lg:items-stretch lg:justify-start',
+        'lg:border-b-0 lg:border-l-2 lg:p-4'
+      )}
+    >
+      <p className="hidden text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted lg:block">
+        Brush
+      </p>
+      <SketchColorPicker value={brushColor} onChange={onBrushColorChange} disabled={disabled} />
+      <SketchBrushSizeControl value={brushSize} onChange={onBrushSizeChange} disabled={disabled} />
     </div>
   );
 }
@@ -52,15 +64,20 @@ function SketchEditorToolbar({
 function SketchEditorCanvasPanel({
   canvasRef,
   canvasBindings,
-}: Pick<UseSketchCanvasResult, 'canvasRef' | 'canvasBindings'>) {
+  disabled,
+}: Pick<UseSketchCanvasResult, 'canvasRef' | 'canvasBindings'> & { disabled?: boolean }) {
   return (
-    <div className="grid min-h-0 flex-1 place-items-center overflow-hidden border-2 border-chatroom-border bg-chatroom-bg-secondary">
+    <div className="order-2 grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden bg-chatroom-bg-tertiary p-3 sm:p-4 lg:order-none lg:p-8">
       <canvas
         ref={canvasRef}
         width={SKETCH_CANVAS_WIDTH}
         height={SKETCH_CANVAS_HEIGHT}
         aria-label="Sketch canvas"
-        className="block h-auto max-h-full w-auto max-w-full touch-none select-none cursor-crosshair"
+        className={cn(
+          'block h-auto max-h-full w-auto max-w-full touch-none select-none',
+          disabled ? 'cursor-not-allowed opacity-60' : 'cursor-crosshair',
+          'ring-2 ring-chatroom-border'
+        )}
         style={{ backgroundColor: SKETCH_CANVAS_BACKGROUND }}
         {...canvasBindings}
       />
@@ -73,10 +90,17 @@ type SketchEditorFooterProps = {
   hasContent: boolean;
   onDismiss: () => void;
   onSave: () => void;
+  className?: string;
 };
-function SketchEditorFooter({ isSaving, hasContent, onDismiss, onSave }: SketchEditorFooterProps) {
+function SketchEditorFooter({
+  isSaving,
+  hasContent,
+  onDismiss,
+  onSave,
+  className,
+}: SketchEditorFooterProps) {
   return (
-    <DialogFooter>
+    <DialogFooter className={className}>
       <button
         type="button"
         className={chatroomIndustrialButtonSecondaryClassName}
@@ -87,7 +111,7 @@ function SketchEditorFooter({ isSaving, hasContent, onDismiss, onSave }: SketchE
       </button>
       <button
         type="button"
-        className={chatroomIndustrialButtonPrimaryClassName}
+        className={cn(chatroomIndustrialButtonPrimaryClassName, 'min-w-24')}
         disabled={!hasContent || isSaving}
         onClick={onSave}
       >
@@ -122,19 +146,26 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
     }
   };
   return (
-    <div aria-busy={isSaving} className="flex min-h-0 flex-1 flex-col gap-4">
-      <DialogHeader>
+    <div aria-busy={isSaving} className="flex min-h-0 flex-1 flex-col">
+      <DialogHeader className="min-h-12 shrink-0 justify-center border-b-2 border-chatroom-border px-4 pr-12 text-left">
         <DialogTitle>Sketch attachment</DialogTitle>
       </DialogHeader>
-      <SketchEditorToolbar
-        brushColor={brushColor}
-        brushSize={brushSize}
-        isSaving={isSaving}
-        onBrushColorChange={setBrushColor}
-        onBrushSizeChange={setBrushSize}
-      />
-      <SketchEditorCanvasPanel canvasRef={canvasRef} canvasBindings={canvasBindings} />
+      <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_15rem]">
+        <SketchEditorCanvasPanel
+          canvasRef={canvasRef}
+          canvasBindings={canvasBindings}
+          disabled={isSaving}
+        />
+        <SketchEditorProperties
+          brushColor={brushColor}
+          brushSize={brushSize}
+          disabled={isSaving}
+          onBrushColorChange={setBrushColor}
+          onBrushSizeChange={setBrushSize}
+        />
+      </div>
       <SketchEditorFooter
+        className="shrink-0 px-4 py-3 lg:px-5"
         isSaving={isSaving}
         hasContent={hasContent}
         onDismiss={onDismiss}
@@ -149,8 +180,7 @@ export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         floating
-        aria-busy={open}
-        className="flex h-[min(90dvh,760px)] w-[calc(100vw-1rem)] max-w-[1100px] flex-col gap-4 p-4 sm:h-[min(85dvh,760px)] sm:w-[min(92vw,1100px)] sm:p-6"
+        className="flex h-[min(90dvh,760px)] w-[calc(100vw-1rem)] max-w-[1100px] flex-col gap-0 p-0 sm:h-[min(85dvh,760px)] sm:w-[min(92vw,1100px)] lg:h-[calc(100dvh-2rem)] lg:w-[calc(100vw-2rem)] lg:max-w-none"
       >
         <SketchEditorSession onDismiss={() => onOpenChange(false)} onSave={onSave} />
       </DialogContent>
