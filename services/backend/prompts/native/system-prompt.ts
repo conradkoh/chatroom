@@ -23,7 +23,10 @@ export function composeNativeSystemPrompt(input: InitPromptInput): string {
 
   const sections = [
     getRoleTitleSection(selectorCtx),
-    ...getGeneralKnowledgeSections({ convexUrl, chatroomId, role, nativeIntegration: true, compactSkills: true }),
+    ...getGeneralKnowledgeSections(
+      { convexUrl, chatroomId, role, nativeIntegration: true, compactSkills: true },
+      { includeHistory: false }
+    ),
     getRoleGuidanceSection(selectorCtx),
     getNativeCommandsReferenceSection({ chatroomId, role, convexUrl }),
   ];
