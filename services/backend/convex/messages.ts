@@ -22,7 +22,6 @@ import {
   resolvePrimaryDeliveryAssemblyInput,
 } from '../src/domain/entities/assemble-primary-delivery-attachments';
 import { isNativeHarness } from '../src/domain/entities/harness/types';
-import { resolveEnhancerHandoffContent } from '../src/domain/usecase/enhancer/enhancer-handoff-content';
 import type { PrimaryDeliveryAttachments } from '../src/domain/entities/message-attachments';
 import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getActiveStandingInstructions } from '../src/domain/entities/standing-instructions';
@@ -38,6 +37,7 @@ import {
   transitionEnhancerEntryPointToEnhancing,
   transitionEnhancerEntryPointToWaiting,
 } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
+import { resolveEnhancerHandoffContent } from '../src/domain/usecase/enhancer/enhancer-handoff-content';
 import { getEnhancerConfigForUser } from '../src/domain/usecase/enhancer/get-enhancer-config-for-user';
 import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import {
@@ -45,6 +45,7 @@ import {
   resolveTaskPlannerEnhancerEnabled,
   validatePlannerEnhancerHandoff,
 } from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
+import { listActivatedSkills } from '../src/domain/usecase/skills/list-activated-skills';
 import { getChatroomQueueState } from '../src/domain/usecase/task/chatroom-queue-state';
 import {
   collectActiveTasks,
@@ -848,9 +849,10 @@ export async function runHandoffHandler(
     if (origin) taskOriginMessageId = origin._id;
   }
 
-  const originMessage = isHandoffToEnhancer && taskOriginMessageId
-    ? await ctx.db.get('chatroom_messages', taskOriginMessageId)
-    : null;
+  const originMessage =
+    isHandoffToEnhancer && taskOriginMessageId
+      ? await ctx.db.get('chatroom_messages', taskOriginMessageId)
+      : null;
   const handoffContent = isHandoffToEnhancer
     ? resolveEnhancerHandoffContent(args.content, originMessage?.content ?? '')
     : args.content;
@@ -1520,6 +1522,7 @@ export const getRolePrompt = query({
     }
 
     // Generate the role-specific prompt
+    const activatedSkills = await listActivatedSkills(ctx, args.chatroomId, args.role);
     const prompt = generateRolePrompt({
       chatroomId: args.chatroomId,
       role: args.role,
@@ -1530,6 +1533,7 @@ export const getRolePrompt = query({
       availableHandoffRoles,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
       plannerEnhancerActive,
+      activatedSkills,
     });
 
     return {
@@ -1561,6 +1565,7 @@ export const getInitPrompt = query({
           .first()
       : null;
 
+    const activatedSkills = await listActivatedSkills(ctx, args.chatroomId, args.role);
     const promptInput = {
       chatroomId: args.chatroomId,
       role: args.role,
@@ -1571,6 +1576,7 @@ export const getInitPrompt = query({
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
       agentType: (existingAgentConfig?.type ?? 'unset') as 'remote' | 'custom' | 'unset',
       agentHarness: existingAgentConfig?.agentHarness,
+      activatedSkills,
     };
 
     // Compose init prompt (system prompt + init message + combined)

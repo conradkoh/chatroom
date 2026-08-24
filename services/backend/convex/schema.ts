@@ -2414,6 +2414,18 @@ export default defineSchema({
     .index('by_chatroomId_type', ['chatroomId', 'type'])
     .index('by_sourceCustomizationId', ['sourceCustomizationId']),
 
+  chatroom_skillActivations: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    skillId: v.string(),
+    name: v.string(),
+    description: v.string(),
+    prompt: v.string(),
+    activatedAt: v.number(),
+  })
+    .index('by_chatroomId_role', ['chatroomId', 'role'])
+    .index('by_chatroomId_role_skillId', ['chatroomId', 'role', 'skillId']),
+
   /**
    * Chatroom observation tracking for event-driven daemon sync.
    * Frontend sends heartbeats to keep a chatroom "observed"; daemon subscribes

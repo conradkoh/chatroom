@@ -57,6 +57,23 @@ export async function activateSkill(
     }
   }
 
+  const now = Date.now();
+  const existing = await ctx.db
+    .query('chatroom_skillActivations')
+    .withIndex('by_chatroomId_role_skillId', (q) =>
+      q.eq('chatroomId', args.chatroomId).eq('role', args.role).eq('skillId', args.skillId)
+    )
+    .first();
+  const activation = { name: skill.name, description: skill.description, prompt, activatedAt: now };
+  if (existing) await ctx.db.patch('chatroom_skillActivations', existing._id, activation);
+  else
+    await ctx.db.insert('chatroom_skillActivations', {
+      ...activation,
+      chatroomId: args.chatroomId,
+      role: args.role,
+      skillId: args.skillId,
+    });
+
   return {
     success: true,
     skill: {
