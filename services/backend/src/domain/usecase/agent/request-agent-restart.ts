@@ -118,8 +118,11 @@ async function persistRestartAndEmit(
       type: 'agent.restart',
       chatroomId: input.chatroomId,
       role: input.role,
-      ...resolved,
+      agentHarness: resolved.agentHarness,
+      model: resolved.model,
+      workingDir: resolved.workingDir,
       correlationId,
+      wantResume: resolved.wantResume,
     },
   });
   await transitionAgentStatus(ctx, input.chatroomId, input.role, 'agent.restart', 'running');

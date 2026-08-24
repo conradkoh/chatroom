@@ -20,12 +20,14 @@ import {
   joinParticipant,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
+  getMachineCommandInbox,
+  assertNoCommandVariantsOnEventStream,
 } from '../helpers/integration';
 import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
 // ─── Test 1: agent.requestStart event ────────────────────────────────────────
 
-test('startAgent use case writes agent.requestStart event', async () => {
+test('startAgent enqueues agent.requestStart command', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-start-1');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
@@ -57,33 +59,26 @@ test('startAgent use case writes agent.requestStart event', async () => {
   });
 
   // ===== VERIFY =====
-  const events = await t.run(async (ctx) => {
-    return ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect();
-  });
-
-  expect(events.length).toBe(1);
-  const evt = events[0]!;
-  expect(evt.type).toBe('agent.requestStart');
-  if (evt.type === 'agent.requestStart') {
-    expect(evt.chatroomId).toBe(chatroomId);
+  const inbox = await getMachineCommandInbox(machineId);
+  expect(inbox).toHaveLength(1);
+  const evt = inbox[0]!;
+  expect(evt.command.type).toBe('agent.requestStart');
+  if (evt.command.type === 'agent.requestStart') {
+    expect(evt.command.chatroomId).toBe(chatroomId);
     expect(evt.machineId).toBe(machineId);
-    expect(evt.role).toBe('builder');
-    expect(evt.agentHarness).toBe('opencode');
-    expect(evt.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
-    expect(evt.workingDir).toBe('/test/workspace');
-    expect(evt.reason).toBe('test');
-    expect(evt.wantResume).toBe(false);
-    expect(typeof evt.deadline).toBe('number');
-    expect(typeof evt.timestamp).toBe('number');
+    expect(evt.command.role).toBe('builder');
+    expect(evt.command.agentHarness).toBe('opencode');
+    expect(evt.command.model).toBe(TEST_MODEL_OPENCODE_LEGACY);
+    expect(evt.command.workingDir).toBe('/test/workspace');
+    expect(evt.command.reason).toBe('test');
+    expect(evt.command.wantResume).toBe(false);
   }
+  await assertNoCommandVariantsOnEventStream(chatroomId);
 });
 
 // ─── Test 2: agent.requestStop event ─────────────────────────────────────────
 
-test('stopAgent use case writes agent.requestStop event', async () => {
+test('stopAgent enqueues agent.requestStop command', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-stop-1');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
@@ -103,24 +98,17 @@ test('stopAgent use case writes agent.requestStop event', async () => {
   });
 
   // ===== VERIFY =====
-  const events = await t.run(async (ctx) => {
-    return ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-      .collect();
-  });
-
-  expect(events.length).toBe(1);
-  const evt = events[0]!;
-  expect(evt.type).toBe('agent.requestStop');
-  if (evt.type === 'agent.requestStop') {
-    expect(evt.chatroomId).toBe(chatroomId);
+  const inbox = await getMachineCommandInbox(machineId);
+  expect(inbox).toHaveLength(1);
+  const evt = inbox[0]!;
+  expect(evt.command.type).toBe('agent.requestStop');
+  if (evt.command.type === 'agent.requestStop') {
+    expect(evt.command.chatroomId).toBe(chatroomId);
     expect(evt.machineId).toBe(machineId);
-    expect(evt.role).toBe('builder');
-    expect(evt.reason).toBe('test');
-    expect(typeof evt.deadline).toBe('number');
-    expect(typeof evt.timestamp).toBe('number');
+    expect(evt.command.role).toBe('builder');
+    expect(evt.command.reason).toBe('test');
   }
+  await assertNoCommandVariantsOnEventStream(chatroomId);
 });
 
 // ─── Test 3: task.activated event on task creation (pending) ─────────────────
