@@ -31,6 +31,7 @@ import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueu
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { insertChatroomMessage } from '../src/domain/usecase/message/message-read-model';
+import { isMessageReadModelComplete } from '../src/domain/usecase/message/message-read-model';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
 import {
@@ -1898,12 +1899,27 @@ export const getContextForRole = query({
       }
     }
 
-    // Get context window (origin message + all messages since)
-    const contextWindow = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .order('desc')
-      .take(200);
+    const complete = await isMessageReadModelComplete(ctx, args.chatroomId);
+    const headerRows = complete
+      ? await ctx.db.query('chatroom_messageReadModels').withIndex('by_chatroom_createdAt', (q) => q.eq('chatroomId', args.chatroomId)).order('desc').take(200)
+      : [];
+    // Small legacy/test rooms may contain direct inserts predating dual-write;
+    // retain the broad path until a full 200-row window proves header coverage.
+    const contextWindow = complete && headerRows.length >= 200
+      ? await (async () => {
+          const headers = headerRows;
+          const docs: Doc<'chatroom_messages'>[] = [];
+          for (const header of headers) {
+            if (header.taskStatus === 'pending' || header.taskStatus === 'acknowledged') continue;
+            const message = await ctx.db.get('chatroom_messages', header.messageId);
+            if (message) docs.push(message);
+          }
+          if (docs.length < headers.length) {
+            return ctx.db.query('chatroom_messages').withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId)).order('desc').take(200);
+          }
+          return docs;
+        })()
+      : await ctx.db.query('chatroom_messages').withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId)).order('desc').take(200);
 
     const messages = contextWindow.reverse();
 
@@ -1977,14 +1993,7 @@ export const getContextForRole = query({
     });
 
     // Count pending tasks for this role
-    const allPendingTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
-      )
-      .collect();
-
-    const pendingTasks = allPendingTasks.filter((task) => task.assignedTo === args.role);
+    const pendingTasks = await ctx.db.query('chatroom_tasks').withIndex('by_chatroom_status_assignedTo', (q) => q.eq('chatroomId', args.chatroomId).eq('status', 'pending').eq('assignedTo', args.role)).collect();
 
     return {
       messages: filteredMessages,
