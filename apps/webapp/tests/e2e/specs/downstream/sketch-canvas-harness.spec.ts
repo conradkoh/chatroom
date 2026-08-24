@@ -82,6 +82,43 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
         .poll(() => countNonWhitePixels(page.getByLabel('Sketch canvas')))
         .toBeGreaterThan(10);
     });
+    test('rectangular selection delete clears pixels inside marquee', async ({ page }) => {
+      await openSketch(page);
+      const canvas = page.getByLabel('Sketch canvas');
+      await mouseStroke(page, canvas);
+      const before = await countNonWhitePixels(canvas);
+      expect(before).toBeGreaterThan(10);
+      await page.getByRole('button', { name: 'Select tool' }).click();
+      const box = await canvas.boundingBox();
+      if (!box) throw new Error('canvas missing bounding box');
+      await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.7);
+      await page.mouse.up();
+      await expect(page.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
+      await page.getByRole('button', { name: 'Delete selection' }).click();
+      await page.getByRole('button', { name: 'Delete pixels' }).click();
+      const after = await countNonWhitePixels(canvas);
+      expect(after).toBeLessThan(before);
+      expect(after).toBeGreaterThan(0);
+      await expect(page.getByTestId('sketch-selection-overlay')).toBeVisible();
+    });
+    test('deleting all painted pixels disables Add sketch', async ({ page }) => {
+      await openSketch(page);
+      const canvas = page.getByLabel('Sketch canvas');
+      await mouseStroke(page, canvas);
+      await page.getByRole('button', { name: 'Select tool' }).click();
+      const box = await canvas.boundingBox();
+      if (!box) throw new Error('canvas missing bounding box');
+      await page.mouse.move(box.x + 4, box.y + 4);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width - 4, box.y + box.height - 4);
+      await page.mouse.up();
+      await expect(page.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
+      await page.getByRole('button', { name: 'Delete selection' }).click();
+      await page.getByRole('button', { name: 'Delete pixels' }).click();
+      await expect(page.getByRole('button', { name: 'Add sketch' })).toBeDisabled();
+    });
   });
   test.describe('mobile', () => {
     const { defaultBrowserType: _defaultBrowserType, ...iphone14 } = devices['iPhone 14'];
@@ -93,7 +130,7 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
     });
     test('touch tap and drag draw pixels', async ({ page }) => {
       await openSketch(page);
-      await expect(page.getByRole('toolbar', { name: 'Sketch tools' })).toHaveCount(0);
+      await expect(page.getByRole('toolbar', { name: 'Sketch tools' })).toBeVisible();
       const canvas = page.getByLabel('Sketch canvas');
       const box = await canvas.boundingBox();
       if (!box) throw new Error('canvas missing bounding box');

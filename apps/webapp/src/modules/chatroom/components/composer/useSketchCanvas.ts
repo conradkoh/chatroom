@@ -13,9 +13,11 @@ import {
 import {
   drawSketchDot,
   drawSketchSegment,
+  fillSketchRegion,
   fillSketchBackground,
   getCssToCanvasScale,
   mapClientPointToCanvas,
+  hasNonBackgroundSketchPixels,
   type SketchBrush,
   type SketchPoint,
 } from './sketchCanvasDrawing';
@@ -26,6 +28,7 @@ import {
   shouldStartSketchStroke,
   type ActiveSketchStroke,
 } from './sketchCanvasPointer';
+import type { SketchSelectionRect } from './sketchCanvasSelection';
 import { type SketchBrushColor } from './sketchConstants';
 import { buildSketchFileName } from './sketchFileName';
 
@@ -42,7 +45,9 @@ export type UseSketchCanvasResult = {
   >;
   hasContent: boolean;
   exportPngFile: () => Promise<File | null>;
+  deleteRegion: (selection: SketchSelectionRect) => void;
 };
+
 export function useSketchCanvas({
   brushColor,
   brushSize,
@@ -72,6 +77,26 @@ export function useSketchCanvas({
       setHasContent(true);
     }
   }, []);
+  const syncHasContent = useCallback(() => {
+    const canvas = canvasRef.current;
+    const context = contextRef.current ?? canvas?.getContext('2d');
+    if (!context) return;
+    contextRef.current = context;
+    const next = hasNonBackgroundSketchPixels(context);
+    hasContentRef.current = next;
+    setHasContent(next);
+  }, []);
+  const deleteRegion = useCallback(
+    (selection: SketchSelectionRect) => {
+      const canvas = canvasRef.current;
+      const context = contextRef.current ?? canvas?.getContext('2d');
+      if (!canvas || !context) return;
+      contextRef.current = context;
+      fillSketchRegion(context, selection);
+      syncHasContent();
+    },
+    [syncHasContent]
+  );
   const drawAt = useCallback(
     (point: SketchPoint, brush: SketchBrush, canvas: HTMLCanvasElement) => {
       const context = contextRef.current ?? canvas.getContext('2d');
@@ -167,5 +192,6 @@ export function useSketchCanvas({
     },
     hasContent,
     exportPngFile,
+    deleteRegion,
   };
 }

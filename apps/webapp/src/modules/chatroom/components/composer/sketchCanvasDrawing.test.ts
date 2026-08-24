@@ -4,7 +4,9 @@ import {
   drawSketchDot,
   drawSketchSegment,
   fillSketchBackground,
+  fillSketchRegion,
   getCssToCanvasScale,
+  hasNonBackgroundSketchPixels,
   mapClientPointToCanvas,
 } from './sketchCanvasDrawing';
 import { SKETCH_CANVAS_HEIGHT, SKETCH_CANVAS_WIDTH } from './sketchConstants';
@@ -69,5 +71,25 @@ describe('sketch drawing helpers', () => {
     expect(ctx.lineCap).toBe('round');
     expect(ctx.lineJoin).toBe('round');
     expect(ctx.stroke).toHaveBeenCalled();
+  });
+  it('fills a bounded white region', () => {
+    const ctx = context();
+    fillSketchRegion(ctx, { x: 10.2, y: 20.8, width: 50.1, height: 30.9 });
+    expect(ctx.fillStyle).toBe('#ffffff');
+    expect(ctx.fillRect).toHaveBeenCalledWith(10, 20, 51, 31);
+  });
+  it('detects non-background pixels in image data', () => {
+    const ctx = {
+      getImageData: vi
+        .fn()
+        .mockReturnValueOnce({
+          data: new Uint8ClampedArray([255, 255, 255, 255]),
+        })
+        .mockReturnValueOnce({
+          data: new Uint8ClampedArray([0, 0, 0, 255]),
+        }),
+    } as unknown as CanvasRenderingContext2D;
+    expect(hasNonBackgroundSketchPixels(ctx)).toBe(false);
+    expect(hasNonBackgroundSketchPixels(ctx)).toBe(true);
   });
 });

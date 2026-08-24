@@ -101,4 +101,22 @@ describe('SketchDialog', () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ type: 'image/png' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+  it('shows Select tool and selection overlay', async () => {
+    const user = userEvent.setup();
+    render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Select tool' })).toBeInTheDocument();
+    expect(screen.getByTestId('sketch-selection-overlay')).toBeInTheDocument();
+    await user.keyboard('m');
+    expect(screen.getByRole('button', { name: 'Select tool' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(screen.getByRole('button', { name: 'Delete selection' })).toBeDisabled();
+  });
+  it('shows Delete selection control disabled until a marquee exists', async () => {
+    const user = userEvent.setup();
+    render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
+    await user.keyboard('m');
+    expect(screen.getByRole('button', { name: 'Delete selection' })).toBeDisabled();
+  });
 });

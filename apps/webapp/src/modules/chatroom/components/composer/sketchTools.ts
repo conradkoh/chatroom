@@ -7,7 +7,10 @@ export const SKETCH_TOOLS = {
 } as const satisfies Record<SketchToolId, { label: string; shortcut: string }>;
 
 /** Enable a tool only after its pointer behavior and tests ship. */
-export const SKETCH_ENABLED_TOOL_IDS = ['brush'] as const satisfies readonly SketchToolId[];
+export const SKETCH_ENABLED_TOOL_IDS = [
+  'select',
+  'brush',
+] as const satisfies readonly SketchToolId[];
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;

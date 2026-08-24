@@ -1,3 +1,4 @@
+import type { SketchSelectionRect } from './sketchCanvasSelection';
 import {
   SKETCH_CANVAS_BACKGROUND,
   SKETCH_CANVAS_HEIGHT,
@@ -60,4 +61,24 @@ export function drawSketchSegment(
   context.moveTo(from.x, from.y);
   context.lineTo(to.x, to.y);
   context.stroke();
+}
+
+export function fillSketchRegion(
+  context: CanvasRenderingContext2D,
+  selection: SketchSelectionRect
+): void {
+  const x = Math.max(0, Math.floor(selection.x));
+  const y = Math.max(0, Math.floor(selection.y));
+  const width = Math.min(SKETCH_CANVAS_WIDTH - x, Math.ceil(selection.width));
+  const height = Math.min(SKETCH_CANVAS_HEIGHT - y, Math.ceil(selection.height));
+  if (width <= 0 || height <= 0) return;
+  context.fillStyle = SKETCH_CANVAS_BACKGROUND;
+  context.fillRect(x, y, width, height);
+}
+// fallow-ignore-next-line complexity
+export function hasNonBackgroundSketchPixels(context: CanvasRenderingContext2D): boolean {
+  const { data } = context.getImageData(0, 0, SKETCH_CANVAS_WIDTH, SKETCH_CANVAS_HEIGHT);
+  for (let i = 0; i < data.length; i += 4)
+    if (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255) return true;
+  return false;
 }

@@ -36,6 +36,9 @@ function setupCanvas() {
     moveTo: vi.fn(),
     lineTo: vi.fn(),
     stroke: vi.fn(),
+    getImageData: vi.fn(() => ({
+      data: new Uint8ClampedArray(SKETCH_CANVAS_WIDTH * SKETCH_CANVAS_HEIGHT * 4).fill(255),
+    })),
   } as unknown as CanvasRenderingContext2D;
   vi.spyOn(canvas, 'getContext').mockReturnValue(context);
   Object.defineProperties(canvas, {
@@ -147,5 +150,29 @@ describe('useSketchCanvas', () => {
       result.current.canvasBindings.onPointerCancel?.(props('pointercancel', canvas) as never);
     });
     expect(canvas.releasePointerCapture).toHaveBeenCalled();
+  });
+  it('deleteRegion clears partial content and recomputes hasContent', () => {
+    const { canvas, context } = setupCanvas();
+    const result = hook();
+    bind(result, canvas);
+    act(() => result.current.canvasBindings.onPointerDown?.(props('pointerdown', canvas) as never));
+    expect(result.current.hasContent).toBe(true);
+    vi.mocked(context.getImageData).mockReturnValue({
+      data: new Uint8ClampedArray(SKETCH_CANVAS_WIDTH * SKETCH_CANVAS_HEIGHT * 4).fill(255),
+    } as ImageData);
+    act(() => result.current.deleteRegion({ x: 0, y: 0, width: 1200, height: 900 }));
+    expect(context.fillRect).toHaveBeenCalled();
+    expect(result.current.hasContent).toBe(false);
+  });
+  it('exports null after deleting all painted pixels', async () => {
+    const { canvas, context } = setupCanvas();
+    const result = hook();
+    bind(result, canvas);
+    act(() => result.current.canvasBindings.onPointerDown?.(props('pointerdown', canvas) as never));
+    vi.mocked(context.getImageData).mockReturnValue({
+      data: new Uint8ClampedArray(SKETCH_CANVAS_WIDTH * SKETCH_CANVAS_HEIGHT * 4).fill(255),
+    } as ImageData);
+    act(() => result.current.deleteRegion({ x: 0, y: 0, width: 1200, height: 900 }));
+    await expect(result.current.exportPngFile()).resolves.toBeNull();
   });
 });

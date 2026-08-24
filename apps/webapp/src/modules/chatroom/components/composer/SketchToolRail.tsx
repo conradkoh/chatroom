@@ -30,7 +30,7 @@ export function SketchToolRail({
     <div
       aria-label="Sketch tools"
       role="toolbar"
-      className="hidden min-h-0 flex-col items-center gap-2 border-r-2 border-chatroom-border bg-chatroom-bg-secondary p-2 lg:flex"
+      className="flex shrink-0 flex-row items-center gap-2 border-b-2 border-chatroom-border bg-chatroom-bg-secondary p-2 lg:min-h-0 lg:flex-col lg:border-b-0 lg:border-r-2"
     >
       {enabledTools.map((toolId) => {
         const tool = SKETCH_TOOLS[toolId];

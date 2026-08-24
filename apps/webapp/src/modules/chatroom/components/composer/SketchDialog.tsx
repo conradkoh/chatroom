@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type RefObject } from 'react';
 import { toast } from 'sonner';
 
 import { SketchBrushSizeControl } from './SketchBrushSizeControl';
+import type { SketchSelectionRect } from './sketchCanvasSelection';
 import { SketchColorPicker } from './SketchColorPicker';
 import {
   SKETCH_BRUSH_COLOR_DEFAULT,
@@ -13,12 +14,15 @@ import {
   SKETCH_CANVAS_WIDTH,
   type SketchBrushColor,
 } from './sketchConstants';
+import { SketchDeleteSelectionDialog } from './SketchDeleteSelectionDialog';
 import { SketchToolRail } from './SketchToolRail';
 import { SKETCH_ENABLED_TOOL_IDS, type SketchToolId } from './sketchTools';
 import { useSketchCanvas, type UseSketchCanvasResult } from './useSketchCanvas';
+import { useSketchSelection } from './useSketchSelection';
 import { useSketchToolShortcuts } from './useSketchToolShortcuts';
 import {
   chatroomIndustrialButtonPrimaryClassName,
+  chatroomIndustrialButtonDestructiveClassName,
   chatroomIndustrialButtonSecondaryClassName,
 } from '../shared/industrialDialogStyles';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -37,6 +41,9 @@ type SketchEditorPropertiesProps = {
   disabled: boolean;
   onBrushColorChange: (color: SketchBrushColor) => void;
   onBrushSizeChange: (size: number) => void;
+  activeTool: SketchToolId;
+  selection: SketchSelectionRect | null;
+  onRequestDelete: (selection: SketchSelectionRect) => void;
 };
 
 function SketchEditorProperties({
@@ -45,6 +52,9 @@ function SketchEditorProperties({
   disabled,
   onBrushColorChange,
   onBrushSizeChange,
+  activeTool,
+  selection,
+  onRequestDelete,
 }: SketchEditorPropertiesProps) {
   return (
     <div
@@ -55,11 +65,41 @@ function SketchEditorProperties({
         'lg:border-b-0 lg:border-l-2 lg:p-4'
       )}
     >
-      <p className="hidden text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted lg:block">
-        Brush
-      </p>
-      <SketchColorPicker value={brushColor} onChange={onBrushColorChange} disabled={disabled} />
-      <SketchBrushSizeControl value={brushSize} onChange={onBrushSizeChange} disabled={disabled} />
+      {activeTool === 'select' ? (
+        <>
+          <p className="hidden text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted lg:block">
+            Selection
+          </p>
+          <p className="text-sm text-chatroom-text-secondary">
+            Drag on canvas to select an area. Press Delete to remove selected pixels.
+          </p>
+          <p aria-live="polite" className="text-sm text-chatroom-text-muted">
+            {selection
+              ? `${Math.round(selection.width)} × ${Math.round(selection.height)} px`
+              : 'Drag on canvas to select an area'}
+          </p>
+          <button
+            type="button"
+            className={chatroomIndustrialButtonDestructiveClassName}
+            disabled={!selection || disabled}
+            onClick={() => selection && onRequestDelete(selection)}
+          >
+            Delete selection
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="hidden text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted lg:block">
+            Brush
+          </p>
+          <SketchColorPicker value={brushColor} onChange={onBrushColorChange} disabled={disabled} />
+          <SketchBrushSizeControl
+            value={brushSize}
+            onChange={onBrushSizeChange}
+            disabled={disabled}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -68,7 +108,15 @@ function SketchEditorCanvasPanel({
   canvasRef,
   canvasBindings,
   disabled,
-}: Pick<UseSketchCanvasResult, 'canvasRef' | 'canvasBindings'> & { disabled?: boolean }) {
+  overlayRef,
+  selectionBindings,
+  activeTool,
+}: Pick<UseSketchCanvasResult, 'canvasRef' | 'canvasBindings'> & {
+  disabled?: boolean;
+  overlayRef?: RefObject<HTMLCanvasElement | null>;
+  selectionBindings?: UseSketchCanvasResult['canvasBindings'];
+  activeTool?: SketchToolId;
+}) {
   return (
     <div className="order-2 grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden bg-chatroom-bg-tertiary p-3 sm:p-4 lg:order-none lg:p-8">
       <canvas
@@ -77,13 +125,23 @@ function SketchEditorCanvasPanel({
         height={SKETCH_CANVAS_HEIGHT}
         aria-label="Sketch canvas"
         className={cn(
-          'block h-auto max-h-full w-auto max-w-full touch-none select-none',
+          'col-start-1 row-start-1 block h-auto max-h-full w-auto max-w-full touch-none select-none',
           disabled ? 'cursor-not-allowed opacity-60' : 'cursor-crosshair',
           'ring-2 ring-chatroom-border'
         )}
         style={{ backgroundColor: SKETCH_CANVAS_BACKGROUND }}
-        {...canvasBindings}
+        {...(activeTool === 'select' ? selectionBindings : canvasBindings)}
       />
+      {overlayRef ? (
+        <canvas
+          ref={overlayRef}
+          width={SKETCH_CANVAS_WIDTH}
+          height={SKETCH_CANVAS_HEIGHT}
+          aria-hidden
+          data-testid="sketch-selection-overlay"
+          className="pointer-events-none col-start-1 row-start-1 block h-auto max-h-full w-auto max-w-full"
+        />
+      ) : null}
     </div>
   );
 }
@@ -129,12 +187,24 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
   const [brushSize, setBrushSize] = useState(SKETCH_BRUSH_SIZE_DEFAULT);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTool, setActiveTool] = useState<SketchToolId>('brush');
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<SketchSelectionRect | null>(null);
   useSketchToolShortcuts({ enabledTools: SKETCH_ENABLED_TOOL_IDS, onToolChange: setActiveTool });
-  const canvasDisabled = isSaving || activeTool !== 'brush';
-  const { canvasRef, canvasBindings, hasContent, exportPngFile } = useSketchCanvas({
+  const brushInputDisabled = isSaving || activeTool !== 'brush';
+  const { canvasRef, canvasBindings, hasContent, exportPngFile, deleteRegion } = useSketchCanvas({
     brushColor,
     brushSize,
-    disabled: canvasDisabled,
+    disabled: brushInputDisabled,
+  });
+  const requestDelete = (selection: SketchSelectionRect) => {
+    setPendingDelete(selection);
+    setDeleteOpen(true);
+  };
+  const { overlayRef, selection, selectionBindings, clearSelection } = useSketchSelection({
+    canvasRef,
+    enabled: activeTool === 'select',
+    disabled: isSaving || deleteOpen,
+    onRequestDelete: requestDelete,
   });
   const save = async () => {
     if (isSaving || !hasContent) return;
@@ -166,12 +236,18 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
         <SketchEditorCanvasPanel
           canvasRef={canvasRef}
           canvasBindings={canvasBindings}
-          disabled={canvasDisabled}
+          disabled={isSaving}
+          overlayRef={overlayRef}
+          selectionBindings={selectionBindings}
+          activeTool={activeTool}
         />
         <SketchEditorProperties
           brushColor={brushColor}
           brushSize={brushSize}
           disabled={isSaving}
+          activeTool={activeTool}
+          selection={selection}
+          onRequestDelete={requestDelete}
           onBrushColorChange={setBrushColor}
           onBrushSizeChange={setBrushSize}
         />
@@ -182,6 +258,17 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
         hasContent={hasContent}
         onDismiss={onDismiss}
         onSave={save}
+      />
+      <SketchDeleteSelectionDialog
+        open={deleteOpen}
+        selection={pendingDelete}
+        onOpenChange={setDeleteOpen}
+        onConfirm={() => {
+          if (pendingDelete) deleteRegion(pendingDelete);
+          clearSelection();
+          setPendingDelete(null);
+          setDeleteOpen(false);
+        }}
       />
     </div>
   );
