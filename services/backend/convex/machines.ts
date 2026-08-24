@@ -42,6 +42,7 @@ import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/sta
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
+import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
 import {
@@ -388,11 +389,10 @@ export const requestCapabilitiesRefresh = mutation({
       createdAt: now,
     });
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.refreshCapabilities',
+    await enqueueMachineCommand(ctx, {
       machineId: machine.machineId,
-      timestamp: now,
-      batchId,
+      now,
+      command: { type: 'daemon.refreshCapabilities', batchId },
     });
 
     await ctx.db.patch('chatroom_machines', machine._id, {
@@ -1115,13 +1115,14 @@ export const sendLocalAction = mutation({
 
     validateWorkingDir(args.workingDir);
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.localAction',
+    await enqueueMachineCommand(ctx, {
       machineId: args.machineId,
-      action: args.action,
-      workingDir: args.workingDir,
-      ...(args.chatroomId !== undefined ? { chatroomId: args.chatroomId } : {}),
-      timestamp: Date.now(),
+      command: {
+        type: 'daemon.localAction',
+        action: args.action,
+        workingDir: args.workingDir,
+        ...(args.chatroomId !== undefined ? { chatroomId: args.chatroomId } : {}),
+      },
     });
     return { success: true };
   },
@@ -1149,11 +1150,10 @@ export const requestFolderPicker = mutation({
       createdAt: now,
     });
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.pickFolder',
+    await enqueueMachineCommand(ctx, {
       machineId: args.machineId,
-      requestId,
-      timestamp: now,
+      now,
+      command: { type: 'daemon.pickFolder', requestId },
     });
 
     return { requestId };
@@ -1383,10 +1383,10 @@ export const sendCommand = mutation({
 
     // ── ping / status: emit daemon.ping event to stream ───────────────
     const now = Date.now();
-    const pingEventId = await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.ping',
+    const pingEventId = await enqueueMachineCommand(ctx, {
       machineId: args.machineId,
-      timestamp: now,
+      now,
+      command: { type: 'daemon.ping' },
     });
 
     return { eventId: pingEventId };
@@ -1750,11 +1750,9 @@ export const requestGitRefresh = mutation({
     const userId = auth.userId;
     await getOwnedMachine(ctx, args.machineId, userId);
 
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.gitRefresh',
+    await enqueueMachineCommand(ctx, {
       machineId: args.machineId,
-      workingDir: args.workingDir,
-      timestamp: Date.now(),
+      command: { type: 'daemon.gitRefresh', workingDir: args.workingDir },
     });
   },
 });

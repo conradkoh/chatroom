@@ -13,6 +13,7 @@ import { expect, test } from 'vitest';
 import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
 import { TEST_MODEL_OPENCODE } from '../tests/helpers/test-models';
 
 // ---------------------------------------------------------------------------
@@ -49,32 +50,26 @@ async function insertCommandEvent(
   chatroomId: Id<'chatroom_rooms'>,
   machineId: string,
   type: 'agent.requestStart' | 'agent.requestStop'
-): Promise<Id<'chatroom_eventStream'>> {
-  return await t.run(async (ctx) => {
-    if (type === 'agent.requestStart') {
-      return await ctx.db.insert('chatroom_eventStream', {
-        type: 'agent.requestStart',
-        chatroomId,
-        machineId,
-        role: 'builder',
-        agentHarness: 'opencode',
-        model: TEST_MODEL_OPENCODE,
-        workingDir: '/tmp/test',
-        reason: 'test',
-        deadline: Date.now() + 120_000,
-        timestamp: Date.now(),
-      });
-    }
-    return await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.requestStop',
-      chatroomId,
-      machineId,
-      role: 'builder',
-      reason: 'test',
-      deadline: Date.now() + 120_000,
-      timestamp: Date.now(),
-    });
-  });
+): Promise<Id<'chatroom_machineCommandInbox'>> {
+  return await t.run(async (ctx) =>
+    type === 'agent.requestStart'
+      ? enqueueMachineCommand(ctx, {
+          machineId,
+          command: {
+            type,
+            chatroomId,
+            role: 'builder',
+            agentHarness: 'opencode',
+            model: TEST_MODEL_OPENCODE,
+            workingDir: '/tmp/test',
+            reason: 'test',
+          },
+        })
+      : enqueueMachineCommand(ctx, {
+          machineId,
+          command: { type, chatroomId, role: 'builder', reason: 'test' },
+        })
+  );
 }
 
 async function insertNonCommandEvent(
@@ -196,35 +191,8 @@ test('getCommandEvents — returns all agent.requestStart events for same chatro
   const machineId = 'machine-gce-5b';
   await registerMachine(sessionId, machineId);
 
-  const olderId = await t.run(async (ctx) => {
-    return await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.requestStart',
-      chatroomId,
-      machineId,
-      role: 'builder',
-      agentHarness: 'opencode',
-      model: TEST_MODEL_OPENCODE,
-      workingDir: '/tmp/test',
-      reason: 'test',
-      deadline: Date.now() + 120_000,
-      timestamp: Date.now() - 10_000,
-    });
-  });
-
-  const newerId = await t.run(async (ctx) => {
-    return await ctx.db.insert('chatroom_eventStream', {
-      type: 'agent.requestStart',
-      chatroomId,
-      machineId,
-      role: 'builder',
-      agentHarness: 'opencode',
-      model: TEST_MODEL_OPENCODE,
-      workingDir: '/tmp/test-2',
-      reason: 'test',
-      deadline: Date.now() + 120_000,
-      timestamp: Date.now(),
-    });
-  });
+  const olderId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStart');
+  const newerId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStart');
 
   const result = await t.query(api.machines.getCommandEvents, {
     sessionId,
@@ -309,11 +277,9 @@ test('getCommandEvents — returns daemon.pickFolder event for the machine', asy
       status: 'pending',
       createdAt: Date.now(),
     });
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.pickFolder',
+    await enqueueMachineCommand(ctx, {
       machineId,
-      requestId: id,
-      timestamp: Date.now(),
+      command: { type: 'daemon.pickFolder', requestId: id },
     });
     return id;
   });
@@ -397,16 +363,8 @@ test('getCommandEvents — all daemon.ping events are returned (no cursor filter
 
   // Insert two ping events
   await t.run(async (ctx) => {
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.ping',
-      machineId,
-      timestamp: Date.now(),
-    });
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.ping',
-      machineId,
-      timestamp: Date.now(),
-    });
+    await enqueueMachineCommand(ctx, { machineId, command: { type: 'daemon.ping' } });
+    await enqueueMachineCommand(ctx, { machineId, command: { type: 'daemon.ping' } });
   });
 
   // Both pings should be returned — no cursor filtering

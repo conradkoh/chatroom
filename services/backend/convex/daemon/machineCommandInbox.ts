@@ -3,13 +3,14 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { MACHINE_COMMAND_CLAIM_LEASE_MS } from '../../config/reliability';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { mutation, query } from '../_generated/server';
 import { requireMachineOwner } from '../auth/cli/machineAccess';
 
-async function findNextPendingInboxRow(ctx: any, machineId: string) {
+async function findNextPendingInboxRow(ctx: QueryCtx | MutationCtx, machineId: string) {
   return await ctx.db
     .query('chatroom_machineCommandInbox')
-    .withIndex('by_machine_status_deadline', (q: any) =>
+    .withIndex('by_machine_status_deadline', (q) =>
       q.eq('machineId', machineId).eq('status', 'pending').gt('deadline', Date.now())
     )
     .first();
