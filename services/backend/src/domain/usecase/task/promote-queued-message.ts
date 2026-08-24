@@ -4,6 +4,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
+import { markAgentViewHasHistory } from '../chatroom/project-agent-view-metadata';
 
 /**
  * Promotes a staged message from chatroom_messageQueue to chatroom_messages,
@@ -58,6 +59,9 @@ export async function promoteQueuedMessage(
     ...(queueRecord.sourcePlatform ? { sourcePlatform: queueRecord.sourcePlatform } : {}),
     ...(queueRecord.scheduledPromptId ? { scheduledPromptId: queueRecord.scheduledPromptId } : {}),
   });
+  if (queueRecord.senderRole === 'user' && queueRecord.type === 'message') {
+    await markAgentViewHasHistory(ctx, queueRecord.chatroomId);
+  }
 
   // Note: acknowledgedAt is intentionally NOT set here.
   // Context-building queries filter out user messages where acknowledgedAt is undefined,

@@ -7,6 +7,7 @@ import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agen
 import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-planner-enhancer-enabled';
 import { createTask as createTaskUsecase, shouldEnqueueMessage } from '../task/create-task';
 import { adjustTaskCount } from '../task/task-counts';
+import { markAgentViewHasHistory } from './project-agent-view-metadata';
 
 export type SendAutomatedUserMessageResult =
   | { ok: true; messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> }
@@ -95,6 +96,7 @@ export async function sendAutomatedUserMessage(
     ...(args.attachedMessageIds?.length ? { attachedMessageIds: args.attachedMessageIds } : {}),
     ...(args.attachedSnippets?.length ? { attachedSnippets: args.attachedSnippets } : {}),
   });
+  await markAgentViewHasHistory(ctx, args.chatroomId);
   await ctx.db.patch('chatroom_rooms', args.chatroomId, { lastActivityAt: Date.now() });
 
   const { taskId } = await createTaskUsecase(ctx, {

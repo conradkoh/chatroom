@@ -9,6 +9,7 @@
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 import { rebuildAgentOperationalStatusForChatroom } from '../src/domain/usecase/agent/project-agent-operational-status';
+import { deleteMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -199,6 +200,7 @@ export const cleanupMachines = internalMutation({
       for (const chatroomId of affectedChatroomIds) {
         await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, { pruneStale: true });
       }
+      await deleteMachineIdentity(ctx, mid);
 
       const workspaces = await ctx.db
         .query('chatroom_workspaces')

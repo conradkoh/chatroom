@@ -15,6 +15,8 @@ import {
   rebuildAgentOperationalStatusForChatroom,
   insertEmptyOperationalSummaryForRoom,
 } from '../src/domain/usecase/agent/project-agent-operational-status';
+import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
+import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
 
@@ -569,6 +571,20 @@ export const backfillAgentOverviewSummaries = migrations.define({
   },
 });
 
+export const backfillMachineIdentities = migrations.define({
+  table: 'chatroom_machines',
+  migrateOne: async (ctx, machine) => upsertMachineIdentity(ctx, { machineId: machine.machineId, userId: machine.userId, hostname: machine.hostname }),
+});
+
+export const backfillAgentViewMetadata = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (ctx, room) => {
+    if (!room.teamId || !room.teamRoles?.length) return;
+    const firstUserMessage = await ctx.db.query('chatroom_messages').withIndex('by_chatroom_senderRole_type_createdAt', (q) => q.eq('chatroomId', room._id).eq('senderRole', 'user').eq('type', 'message')).first();
+    await upsertAgentViewMetadata(ctx, { chatroomId: room._id, ownerId: room.ownerId, teamId: room.teamId, teamName: room.teamName ?? room.teamId, teamRoles: room.teamRoles, hasHistory: firstUserMessage !== null });
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================
@@ -683,4 +699,6 @@ export const runAll = migrations.runner([
   internal.migrations.backfillUserRoleNames,
   internal.migrations.stripManagerRoleNames,
   internal.migrations.backfillAgentOverviewSummaries,
+  internal.migrations.backfillMachineIdentities,
+  internal.migrations.backfillAgentViewMetadata,
 ]);

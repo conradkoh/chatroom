@@ -1192,6 +1192,25 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_ownerId', ['ownerId']),
 
+  /** Static machine identity only; volatile capability fields stay elsewhere. */
+  chatroom_machineIdentity: defineTable({
+    machineId: v.string(),
+    userId: v.id('users'),
+    hostname: v.string(),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_userId', ['userId']),
+
+  /** Stable AgentPanel metadata; hasHistory only transitions false to true. */
+  chatroom_agentViewMetadata: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    ownerId: v.id('users'),
+    teamId: v.string(),
+    teamName: v.string(),
+    teamRoles: v.array(v.string()),
+    hasHistory: v.boolean(),
+  }).index('by_chatroom', ['chatroomId']),
+
   /**
    * One row per user-initiated "refresh capabilities" wave from the webapp.
    * Per-machine outcomes live in `chatroom_capabilities_refresh_machine_results`.
