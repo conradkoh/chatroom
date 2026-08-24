@@ -71,6 +71,20 @@ export function addLayer(state: SketchDocumentState, layer: SketchLayerMeta): Sk
     floating: null,
   });
 }
+export function removeLayer(state: SketchDocumentState, id: SketchLayerId): SketchDocumentState {
+  const layers = state.layers.filter((layer) => layer.id !== id);
+  if (!layers.length) throw new Error('Cannot remove the last layer');
+  return checked({
+    ...state,
+    layers,
+    activeLayerId: layers[layers.length - 1].id,
+    selection: null,
+    floating: null,
+  });
+}
+export function countPastedImageLayers(state: SketchDocumentState): number {
+  return state.layers.filter((layer) => layer.kind === 'pasted-image').length;
+}
 export function setActiveLayer(state: SketchDocumentState, id: SketchLayerId): SketchDocumentState {
   if (!state.layers.some((layer) => layer.id === id)) throw new Error('Unknown layer');
   return checked({ ...state, activeLayerId: id, selection: null, floating: null });

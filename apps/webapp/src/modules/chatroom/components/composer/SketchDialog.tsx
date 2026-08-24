@@ -25,6 +25,7 @@ import { SketchDiscardDialog } from './SketchDiscardDialog';
 import { SketchToolRail } from './SketchToolRail';
 import { SKETCH_ENABLED_TOOL_IDS, type SketchToolId } from './sketchTools';
 import { useSketchBrushCursor } from './useSketchBrushCursor';
+import { useSketchClipboardPaste } from './useSketchClipboardPaste';
 import { useSketchDocument, type UseSketchDocumentResult } from './useSketchDocument';
 import { useSketchManipulation } from './useSketchManipulation';
 import { useSketchSelection } from './useSketchSelection';
@@ -296,6 +297,7 @@ function SketchEditorSession({
     clearSelection,
     onSelectionChange,
     activeLayerId,
+    importPastedImage,
     floating,
     beginFloatingSelection,
     updateFloatingTransform,
@@ -306,6 +308,11 @@ function SketchEditorSession({
     brushSize,
     disabled: brushInputDisabled,
     eraserMode: activeTool === 'eraser',
+  });
+  const { onPaste, isImporting } = useSketchClipboardPaste({
+    disabled: isSaving,
+    importPastedImage,
+    onTransformRequested: () => setActiveTool('transform'),
   });
   const clearSelectionRef = useRef<() => void>(() => {});
   const handleDeleteSelection = useCallback(
@@ -385,7 +392,11 @@ function SketchEditorSession({
     onDismiss();
   }, [onDismiss]);
   return (
-    <div aria-busy={isSaving} className="flex min-h-0 flex-1 flex-col">
+    <div
+      aria-busy={isSaving || isImporting}
+      onPaste={onPaste}
+      className="flex min-h-0 flex-1 flex-col"
+    >
       <DialogHeader className="min-h-12 shrink-0 justify-center border-b-2 border-chatroom-border px-4 pr-12 text-left">
         <DialogTitle>Sketch attachment</DialogTitle>
       </DialogHeader>

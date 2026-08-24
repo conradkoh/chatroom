@@ -32,6 +32,7 @@ import type { SketchSelectionRect } from './sketchCanvasSelection';
 import { type SketchBrushColor } from './sketchConstants';
 import {
   createInitialDocument,
+  createLayerId,
   documentHasContent,
   setSelection,
   updateLayerHasContent,
@@ -39,9 +40,12 @@ import {
   type SketchSelection,
   type SketchFloatingSelectionMeta,
   type SketchTransform,
+  addLayer,
+  countPastedImageLayers,
+  removeLayer,
 } from './sketchDocument';
 import { buildSketchFileName } from './sketchFileName';
-import { applySketchTransform } from './sketchTransform';
+import { applySketchTransform, computeContainTransform } from './sketchTransform';
 
 export type UseSketchDocumentArgs = {
   brushColor: SketchBrushColor;
@@ -68,6 +72,7 @@ export type UseSketchDocumentResult = {
   updateFloatingTransform: (transform: SketchTransform) => void;
   applyFloatingSelection: () => void;
   cancelFloatingSelection: () => void;
+  importPastedImage: (file: File) => Promise<boolean>;
 };
 export function useSketchDocument({
   brushColor,
@@ -109,9 +114,12 @@ export function useSketchDocument({
     });
   }, [doc.layers, doc.floating]);
   useLayoutEffect(() => {
+    for (const layer of doc.layers) {
+      if (!layersRef.current.has(layer.id))
+        layersRef.current.set(layer.id, createTransparentLayerBitmap());
+    }
     const layer = doc.layers[0];
-    if (!layer || layersRef.current.has(layer.id)) return;
-    layersRef.current.set(layer.id, createTransparentLayerBitmap());
+    if (!layer) return;
     const canvas = canvasRef.current;
     const context = canvas?.getContext('2d');
     if (canvas && context && typeof context.save === 'function') {
@@ -274,6 +282,15 @@ export function useSketchDocument({
   );
   const cancelFloatingSelection = useCallback(() => {
     if (!doc.floating) return;
+    if (doc.floating.provenance === 'paste') {
+      const floating = doc.floating;
+      layersRef.current.delete(floating.layerId);
+      floatingBitmapRef.current = null;
+      floatingTransformRef.current = null;
+      setDoc((state) => removeLayer(state, floating.layerId));
+      scheduleComposite();
+      return;
+    }
     const layer = layersRef.current.get(doc.activeLayerId);
     const ctx = layer?.getContext('2d');
     if (ctx && doc.floating.originRect && floatingBackupRef.current)
@@ -289,6 +306,47 @@ export function useSketchDocument({
     setDoc((state) => ({ ...state, floating: null }));
     scheduleComposite();
   }, [doc, mark, scheduleComposite]);
+  const importPastedImage = useCallback(
+    async (file: File) => {
+      try {
+        const decoded = await createImageBitmap(file);
+        const bitmap = document.createElement('canvas');
+        bitmap.width = decoded.width;
+        bitmap.height = decoded.height;
+        bitmap.getContext('2d')?.drawImage(decoded, 0, 0);
+        decoded.close();
+        const id = createLayerId();
+        const transform = computeContainTransform(bitmap.width, bitmap.height);
+        floatingBitmapRef.current = bitmap;
+        floatingTransformRef.current = transform;
+        setDoc((state) => {
+          const next = addLayer(state, {
+            id,
+            name: `Pasted image ${countPastedImageLayers(state) + 1}`,
+            kind: 'pasted-image',
+            hasContent: false,
+          });
+          return {
+            ...next,
+            floating: {
+              layerId: id,
+              sourceWidth: bitmap.width,
+              sourceHeight: bitmap.height,
+              transform,
+              originRect: null,
+              provenance: 'paste',
+              priorActiveLayerId: state.activeLayerId,
+            },
+          };
+        });
+        scheduleComposite();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [scheduleComposite]
+  );
   const applyFloatingSelection = useCallback(() => {
     if (!doc.floating || !floatingBitmapRef.current) return;
     const ctx = layersRef.current.get(doc.activeLayerId)?.getContext('2d');
@@ -356,5 +414,6 @@ export function useSketchDocument({
     updateFloatingTransform,
     applyFloatingSelection,
     cancelFloatingSelection,
+    importPastedImage,
   };
 }
