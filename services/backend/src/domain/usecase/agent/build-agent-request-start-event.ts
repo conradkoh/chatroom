@@ -25,7 +25,7 @@ export interface AgentRequestStartEventInput {
 }
 
 /**
- * The exact document inserted into `chatroom_eventStream` for a start request.
+ * Legacy event shape retained for tests and documentation.
  * Computes the deadline from {@link AGENT_REQUEST_DEADLINE_MS} so callers cannot
  * forget it or use an inconsistent window.
  */

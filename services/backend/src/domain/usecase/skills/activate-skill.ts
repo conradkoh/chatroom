@@ -3,7 +3,7 @@
  *
  * Looks up skill from registry, injects cliEnvPrefix into prompt,
  * checks for skill customizations, and writes a `skill.activated`
- * event to chatroom_eventStream.
+ * activation prompt returned to the caller.
  */
 
 import { ConvexError } from 'convex/values';

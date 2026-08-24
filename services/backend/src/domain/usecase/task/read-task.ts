@@ -8,7 +8,7 @@
  *   1. Task retrieval and validation
  *   2. Idempotent handling of already-in_progress tasks
  *   3. FSM transition via transitionTask
- *   4. Event emission to chatroom_eventStream
+ *   4. Return the updated task
  *   5. Participant status update
  *
  * ## Callers

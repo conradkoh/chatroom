@@ -1578,7 +1578,6 @@ export const recordAgentRegistered = mutation({
 /**
  * Requests an immediate git state refresh for a workspace.
  *
- * Inserts a daemon.gitRefresh event into chatroom_eventStream.
  * The daemon receives it via its live WebSocket subscription and responds
  * by re-running pushGitState for the specified workspace.
  */

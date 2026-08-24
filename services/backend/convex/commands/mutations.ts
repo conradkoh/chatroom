@@ -64,7 +64,7 @@ export async function handleRunCommand(
 
   // The chatroom_commandRunsV2 row is the source of truth for command dispatch:
   // the daemon subscribes to pending rows on a dedicated channel, so no
-  // chatroom_eventStream event is needed here.
+  // The command run row is the authoritative record here.
 
   return runId;
 }
@@ -103,7 +103,7 @@ export async function handleStopCommand(
 
   // The daemon's dedicated command-run subscription picks up the running row
   // with terminationReason === 'user-stop' and dispatches the kill — no
-  // chatroom_eventStream event is needed here.
+  // The command run row is the authoritative record here.
 }
 
 export async function handleAppendOutput(

@@ -98,7 +98,7 @@ describe('acknowledgePendingTask', () => {
     expect(task?.assignedTo).toBe('builder');
   });
 
-  test('emits task.acknowledged event on chatroom_eventStream', async () => {
+  test('acknowledges the task', async () => {
     const { sessionId } = await createTestSession('apt-event');
     const chatroomId = await createChatroom(sessionId);
     const pendingTask = await seedPendingTask(chatroomId);

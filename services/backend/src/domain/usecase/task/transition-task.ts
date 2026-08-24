@@ -46,7 +46,7 @@ import { projectAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-
  */
 export interface TransitionTaskOptions {
   /**
-   * When true, skips writing the agent status event to chatroom_eventStream
+   * When true, skips the participant status update
    * and skips updating the participant's lastStatus via transitionAgentStatus.
    *
    * Use this when the task is being externally force-completed (e.g. from the UI)

@@ -1,21 +1,8 @@
-import { expect } from 'vitest';
-
 import type { Doc, Id } from '../../convex/_generated/dataModel';
 import type { MachineCommandType } from '../../src/domain/entities/machine-command';
 import { t } from '../../test.setup';
 
 type InboxRow = Doc<'chatroom_machineCommandInbox'>;
-
-const COMMAND_EVENT_TYPES = [
-  'agent.requestStart',
-  'agent.restart',
-  'agent.requestStop',
-  'daemon.ping',
-  'daemon.gitRefresh',
-  'daemon.refreshCapabilities',
-  'daemon.localAction',
-  'daemon.pickFolder',
-] as const;
 
 export async function getMachineCommandInbox(machineId: string) {
   return t.run((ctx) =>
@@ -87,16 +74,4 @@ export async function getGitRefreshCommandsForMachine(
   return rows.filter(
     (row) => row.command.type === 'daemon.gitRefresh' && row.command.workingDir === workingDir
   );
-}
-
-export async function assertNoCommandVariantsOnEventStream(chatroomId: Id<'chatroom_rooms'>) {
-  const commandEvents = await t.run(async (ctx) =>
-    (
-      await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect()
-    ).filter((e) => COMMAND_EVENT_TYPES.includes(e.type as never))
-  );
-  expect(commandEvents).toEqual([]);
 }
