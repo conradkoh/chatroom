@@ -12,12 +12,12 @@
  */
 
 import { transitionAgentStatus } from './transition-agent-status';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { onAgentExited } from '../../../events/agent/on-agent-exited';
 import type { AgentStopReason } from '../../entities/agent';
+import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -73,15 +73,16 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
 
   // Dispatch stop via event stream (daemon reads agent.requestStop events).
   // Include the PID so the daemon can target the exact process even after a restart.
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'agent.requestStop',
-    chatroomId,
+  await enqueueMachineCommand(ctx, {
     machineId,
-    role,
-    reason,
-    deadline: now + AGENT_REQUEST_DEADLINE_MS,
-    timestamp: now,
-    pid: teamConfig?.spawnedAgentPid ?? undefined,
+    now,
+    command: {
+      type: 'agent.requestStop',
+      chatroomId,
+      role,
+      reason,
+      pid: teamConfig?.spawnedAgentPid ?? undefined,
+    },
   });
 
   // Transition participant status to 'agent.exited' so the UI shows OFFLINE

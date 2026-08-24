@@ -1445,7 +1445,7 @@ export default defineSchema({
       v.object({
         type: v.literal('daemon.pong'),
         machineId: v.string(),
-        pingEventId: v.id('chatroom_eventStream'),
+        pingEventId: v.union(v.id('chatroom_eventStream'), v.id('chatroom_machineCommandInbox')),
         timestamp: v.number(),
       }),
       // Request to remove a teamAgentConfig after the agent process exits

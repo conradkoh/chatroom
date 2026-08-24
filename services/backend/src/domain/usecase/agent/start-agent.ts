@@ -15,7 +15,6 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
-import { buildAgentRequestStartEvent } from './build-agent-request-start-event';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import { transitionAgentStatus } from './transition-agent-status';
@@ -23,6 +22,7 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
+import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
 
@@ -155,22 +155,20 @@ export async function startAgent(
 
   const now = Date.now();
 
-  await ctx.db.insert(
-    'chatroom_eventStream',
-    buildAgentRequestStartEvent(
-      {
-        chatroomId,
-        machineId,
-        role,
-        agentHarness,
-        model,
-        workingDir,
-        reason,
-        wantResume: resolvedWantResume,
-      },
-      now
-    )
-  );
+  await enqueueMachineCommand(ctx, {
+    machineId,
+    now,
+    command: {
+      type: 'agent.requestStart',
+      chatroomId,
+      role,
+      agentHarness,
+      model,
+      workingDir,
+      reason,
+      wantResume: resolvedWantResume,
+    },
+  });
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 
   // Refresh the daemon snapshot projection so the task monitor sees the new

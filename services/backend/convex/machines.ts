@@ -773,22 +773,7 @@ export const getMachineAgentConfigs = query({
   },
 });
 
-async function fetchRecentMachineTypedEvents(
-  ctx: QueryCtx,
-  machineId: string,
-  type: Doc<'chatroom_eventStream'>['type'],
-  ttlMs: number,
-  now: number
-) {
-  return ctx.db
-    .query('chatroom_eventStream')
-    .withIndex('by_machineId_type', (q) => q.eq('machineId', machineId).eq('type', type))
-    .filter((q) => q.gt(q.field('timestamp'), now - ttlMs))
-    .order('asc')
-    .collect();
-}
-
-/** Returns pending agent.requestStart, agent.requestStop, and daemon.ping events for a machine. */
+/** Legacy compatibility shim; removable once supported daemons use the inbox subscriber. */
 export const getCommandEvents = query({
   args: {
     ...SessionIdArg,
@@ -798,128 +783,22 @@ export const getCommandEvents = query({
     const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
     if (!auth) return { events: [] };
 
-    const now = Date.now();
-
-    // 3. Fetch agent.requestStart events — deadline-filtered (not cursor-filtered)
-    //    Ensures valid commands issued before a daemon restart are not skipped.
-    const startEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'agent.requestStart')
+    const pending = await ctx.db
+      .query('chatroom_machineCommandInbox')
+      .withIndex('by_machine_status_deadline', (q) =>
+        q.eq('machineId', args.machineId).eq('status', 'pending').gt('deadline', Date.now())
       )
-      .filter((q) => q.gt(q.field('deadline'), now))
-      .order('asc')
-      .collect();
-
-    const requestStartEvents = startEvents.filter((e) => e.type === 'agent.requestStart');
-
-    const restartEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'agent.restart')
-      )
-      .filter((q) => q.gt(q.field('deadline'), now))
-      .order('asc')
-      .collect();
-
-    const pendingRestartEvents = restartEvents.filter(
-      (event): event is Extract<Doc<'chatroom_eventStream'>, { type: 'agent.restart' }> =>
-        event.type === 'agent.restart'
-    );
-    for (const event of [...pendingRestartEvents]) {
-      const completed = await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', event.chatroomId))
-        .filter((q) =>
-          q.and(
-            q.eq(q.field('type'), 'agent.restartCompleted'),
-            q.eq(q.field('correlationId'), event.correlationId)
-          )
-        )
-        .first();
-      if (completed) pendingRestartEvents.splice(pendingRestartEvents.indexOf(event), 1);
-    }
-
-    // 4. Fetch agent.requestStop events — deadline-filtered (not cursor-filtered)
-    const stopEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'agent.requestStop')
-      )
-      .filter((q) => q.gt(q.field('deadline'), now))
-      .order('asc')
-      .collect();
-
-    // 5. Fetch daemon.ping events — time-bounded to reduce payload
-    // NOTE: .filter() reduces payload size but does NOT reduce DB reads.
-    // The TTL cron (eventCleanup) is what actually reduces read bandwidth.
-    const PING_TTL_MS = 5 * 60_000; // 5 minutes
-    const pingEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'daemon.ping')
-      )
-      .filter((q) => q.gt(q.field('timestamp'), now - PING_TTL_MS))
-      .order('asc')
-      .collect();
-
-    // 6. Fetch daemon.gitRefresh events — time-bounded to reduce payload
-    // NOTE: .filter() reduces payload size but does NOT reduce DB reads.
-    // The TTL cron (eventCleanup) is what actually reduces read bandwidth.
-    const GIT_REFRESH_TTL_MS = 5 * 60_000; // 5 minutes
-    const gitRefreshEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'daemon.gitRefresh')
-      )
-      .filter((q) => q.gt(q.field('timestamp'), now - GIT_REFRESH_TTL_MS))
-      .order('asc')
-      .collect();
-
-    const CAPABILITIES_REFRESH_TTL_MS = 5 * 60_000; // 5 minutes
-    const capabilitiesRefreshEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'daemon.refreshCapabilities')
-      )
-      .filter((q) => q.gt(q.field('timestamp'), now - CAPABILITIES_REFRESH_TTL_MS))
-      .order('asc')
-      .collect();
-
-    // 5b. Local action events (open-vscode, open-finder, etc.)
-    // Time-filtered to avoid replaying stale actions on daemon restart.
-    const LOCAL_ACTION_TTL_MS = 60_000; // 1 minute
-    const localActionEvents = await ctx.db
-      .query('chatroom_eventStream')
-      .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'daemon.localAction')
-      )
-      .filter((q) => q.gt(q.field('timestamp'), now - LOCAL_ACTION_TTL_MS))
-      .order('asc')
-      .collect();
-
-    const PICK_FOLDER_TTL_MS = 5 * 60_000; // 5 minutes
-    const pickFolderEvents = await fetchRecentMachineTypedEvents(
-      ctx,
-      args.machineId,
-      'daemon.pickFolder',
-      PICK_FOLDER_TTL_MS,
-      now
-    );
-
-    // 7. Merge and sort by _creationTime ascending
-    const all = [
-      ...requestStartEvents,
-      ...pendingRestartEvents,
-      ...stopEvents,
-      ...pingEvents,
-      ...gitRefreshEvents,
-      ...capabilitiesRefreshEvents,
-      ...localActionEvents,
-      ...pickFolderEvents,
-    ].sort((a, b) => (a._creationTime < b._creationTime ? -1 : 1));
-
-    return { events: all };
+      .take(256);
+    return {
+      events: pending.map((row) => ({
+        _id: row._id,
+        _creationTime: row.createdAt,
+        machineId: row.machineId,
+        deadline: row.deadline,
+        timestamp: row.createdAt,
+        ...row.command,
+      })),
+    };
   },
 });
 

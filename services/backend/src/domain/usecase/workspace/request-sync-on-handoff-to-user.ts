@@ -12,6 +12,7 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { isActiveWorkspace } from '../../entities/workspace';
+import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 
 /**
  * Enqueue daemon.gitRefresh for every active workspace in the chatroom.
@@ -32,11 +33,10 @@ export async function requestSyncOnHandoffToUser(
   let count = 0;
   for (const ws of workspaces) {
     if (!isActiveWorkspace(ws.removedAt)) continue;
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'daemon.gitRefresh',
+    await enqueueMachineCommand(ctx, {
       machineId: ws.machineId,
-      workingDir: ws.workingDir,
-      timestamp: now,
+      now,
+      command: { type: 'daemon.gitRefresh', workingDir: ws.workingDir },
     });
     count++;
   }

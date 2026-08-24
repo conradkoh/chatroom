@@ -6,16 +6,20 @@ import { MACHINE_COMMAND_CLAIM_LEASE_MS } from '../../config/reliability';
 import { mutation, query } from '../_generated/server';
 import { requireMachineOwner } from '../auth/cli/machineAccess';
 
+async function findNextPendingInboxRow(ctx: any, machineId: string) {
+  return await ctx.db
+    .query('chatroom_machineCommandInbox')
+    .withIndex('by_machine_status_deadline', (q: any) =>
+      q.eq('machineId', machineId).eq('status', 'pending').gt('deadline', Date.now())
+    )
+    .first();
+}
+
 export const watchNext = query({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    const row = await ctx.db
-      .query('chatroom_machineCommandInbox')
-      .withIndex('by_machine_status_deadline', (q) =>
-        q.eq('machineId', args.machineId).eq('status', 'pending').gt('deadline', Date.now())
-      )
-      .first();
+    const row = await findNextPendingInboxRow(ctx, args.machineId);
     return { commandId: row?._id ?? null };
   },
 });
@@ -24,12 +28,7 @@ export const claimNext = mutation({
   args: { ...SessionIdArg, machineId: v.string() },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    const row = await ctx.db
-      .query('chatroom_machineCommandInbox')
-      .withIndex('by_machine_status_deadline', (q) =>
-        q.eq('machineId', args.machineId).eq('status', 'pending').gt('deadline', Date.now())
-      )
-      .first();
+    const row = await findNextPendingInboxRow(ctx, args.machineId);
     if (!row) return null;
     await ctx.db.patch('chatroom_machineCommandInbox', row._id, {
       status: 'processing',

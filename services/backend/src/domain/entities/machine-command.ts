@@ -7,7 +7,7 @@ import {
   MACHINE_COMMAND_LOCAL_ACTION_TTL_MS,
 } from '../../../config/reliability';
 
-export const localActionValidator = v.union(
+const localActionValidator = v.union(
   ...(
     [
       'open-vscode',
