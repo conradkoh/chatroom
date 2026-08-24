@@ -5,6 +5,9 @@ import {
   getTransformedCorners,
   hitTestTransformHandle,
   clampTransformToCanvas,
+  translateTransform,
+  scaleTransformFromHandle,
+  rotateTransformFromHandle,
 } from './sketchTransform';
 
 describe('sketchTransform', () => {
@@ -31,5 +34,25 @@ describe('sketchTransform', () => {
         20
       ).x
     ).toBe(-4);
+  });
+  it('translates, scales, and rotates', () => {
+    const t = { x: 10, y: 20, scaleX: 1, scaleY: 1, rotationRadians: 0 };
+    expect(translateTransform(t, 5, -3)).toEqual({ ...t, x: 15, y: 17 });
+    const c = scaleTransformFromHandle(
+      t,
+      'south-east',
+      { x: 20, y: 20 },
+      { x: 0, y: 0 },
+      10,
+      10,
+      true
+    );
+    expect(c.scaleX).toBeCloseTo(c.scaleY);
+    const e = scaleTransformFromHandle(t, 'east', { x: 30, y: 0 }, { x: 0, y: 0 }, 10, 10, false);
+    expect(e.scaleX).toBeGreaterThan(1);
+    expect(e.scaleY).toBe(1);
+    expect(
+      rotateTransformFromHandle(t, { x: 10, y: 0 }, { x: 0, y: 0 }, 10, 10).rotationRadians
+    ).not.toBe(0);
   });
 });

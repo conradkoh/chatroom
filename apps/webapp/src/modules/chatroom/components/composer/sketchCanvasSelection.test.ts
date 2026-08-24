@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   drawSketchSelectionMarquee,
+  drawSketchTransformOverlay,
   isFullSketchSelection,
   isUsableSketchSelection,
   normalizeSketchSelection,
@@ -100,5 +101,27 @@ describe('sketch selection marquee', () => {
     expect(ctx.strokeRect).toHaveBeenCalled();
     drawSketchSelectionMarquee(ctx, null);
     expect(ctx.clearRect).toHaveBeenCalledTimes(2);
+  });
+  it('draws a transform overlay', () => {
+    const ctx = {
+      clearRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      strokeRect: vi.fn(),
+      fillRect: vi.fn(),
+      setLineDash: vi.fn(),
+      strokeStyle: '',
+      fillStyle: '',
+      lineWidth: 1,
+    } as unknown as CanvasRenderingContext2D;
+    expect(() =>
+      drawSketchTransformOverlay(
+        ctx,
+        { x: 10, y: 10, scaleX: 1, scaleY: 1, rotationRadians: 0 },
+        50,
+        50,
+        'transform'
+      )
+    ).not.toThrow();
   });
 });
