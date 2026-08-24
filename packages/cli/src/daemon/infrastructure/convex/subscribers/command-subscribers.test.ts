@@ -2,189 +2,82 @@ import type { ConvexClient } from 'convex/browser';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, it, vi } from 'vitest';
 
-import { startCommandEventsSubscriber } from './command-events.js';
-import { startCommandRunSubscriber } from './command-run.js';
-import type { InboundEvent } from '../../../domain/entities/inbound-event.js';
-import type { CommandInboundEvent } from '../../../domain/usecase/handle-command-inbound.js';
-import { createDefaultEventRouterDeps } from '../../../entry/default-router-deps.js';
-import { routeInboundEvent } from '../../../entry/event-router.js';
-import { startAllSubscribers } from '../../../entry/subscriber-registry.js';
+import { startMachineCommandInboxSubscriber } from './machine-command-inbox.js';
 
-const COMMAND_EVENT_ID = 'cmd_event_1';
-const PENDING_RUN_ID = 'run_pending_1';
-const STOP_RUN_ID = 'run_stop_1';
 const SESSION_ID = 'session-test' as SessionId;
 const MACHINE_ID = 'machine-test';
-
-function createMockWsClient() {
+const CLAIMED = {
+  commandId: 'cmd-1',
+  machineId: MACHINE_ID,
+  type: 'daemon.ping' as const,
+  deadline: Date.now() + 60_000,
+  timestamp: Date.now(),
+};
+function createInboxMockWsClient() {
   const callbacks: ((result: unknown) => void)[] = [];
-
+  const claims: unknown[] = [];
+  const mutation = vi.fn(async () => claims.shift() ?? null);
   const wsClient = {
-    onUpdate: vi.fn((_query, _args, onUpdate) => {
-      callbacks.push(onUpdate);
+    onUpdate: vi.fn((_q, _a, cb) => {
+      callbacks.push(cb);
       return vi.fn();
     }),
-    query: vi.fn().mockResolvedValue(null),
+    mutation,
+    query: vi.fn(),
   } as unknown as ConvexClient;
-
   return {
     wsClient,
-    emitUpdate: (result: unknown) => {
-      for (const callback of callbacks) {
-        callback(result);
-      }
-    },
+    mutation,
+    emitWatch: (result: unknown) => callbacks.forEach((cb) => cb(result)),
+    queueClaims: (...items: unknown[]) => claims.push(...items),
   };
 }
 
-describe('command v2 subscribers', () => {
-  it('command-events subscriber forwards the event payload with command.received', async () => {
-    const events: InboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
-    const commandEvent = {
-      _id: COMMAND_EVENT_ID,
-      type: 'agent.requestStart',
-      chatroomId: 'chatroom-1',
-      role: 'builder',
-    };
-
-    const handle = startCommandEventsSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
-      (event) => events.push(event)
+describe('machine command inbox subscriber', () => {
+  it('claims and forwards claimed command on watch nudge', async () => {
+    const events: unknown[] = [];
+    const mock = createInboxMockWsClient();
+    mock.queueClaims(CLAIMED);
+    const handle = startMachineCommandInboxSubscriber(
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      async (c) => {
+        events.push({ type: 'command.received', commandId: c.commandId, claimedCommand: c });
+      }
     );
-
-    emitUpdate({ events: [commandEvent] });
+    await new Promise((r) => setTimeout(r, 0));
+    mock.emitWatch({ commandId: CLAIMED.commandId });
+    await new Promise((r) => setTimeout(r, 0));
     await handle.stop();
-
+    expect(mock.mutation).toHaveBeenCalled();
     expect(events).toContainEqual({
       type: 'command.received',
-      commandId: COMMAND_EVENT_ID,
-      commandEvent,
+      commandId: CLAIMED.commandId,
+      claimedCommand: CLAIMED,
     });
   });
-
-  it('command-events subscriber dedupes repeated event ids', async () => {
-    const events: InboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
-
-    const handle = startCommandEventsSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
-      (event) => events.push(event)
+  it('serializes drain while onClaimed is in flight', async () => {
+    const mock = createInboxMockWsClient();
+    const seen: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    mock.queueClaims({ ...CLAIMED, commandId: 'a' }, { ...CLAIMED, commandId: 'b' });
+    const handle = startMachineCommandInboxSubscriber(
+      { wsClient: mock.wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
+      async (c) => {
+        seen.push(c.commandId);
+        if (c.commandId === 'a') await gate;
+      }
     );
-
-    emitUpdate({
-      events: [{ _id: COMMAND_EVENT_ID, type: 'agent.requestStop', chatroomId: 'chatroom-1' }],
-    });
-    emitUpdate({
-      events: [{ _id: COMMAND_EVENT_ID, type: 'agent.requestStop', chatroomId: 'chatroom-1' }],
-    });
+    await new Promise((r) => setTimeout(r, 0));
+    mock.emitWatch({ commandId: 'a' });
+    mock.emitWatch({ commandId: 'b' });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(seen).toEqual(['a']);
+    release();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(seen).toEqual(['a', 'b']);
     await handle.stop();
-
-    expect(events).toEqual([
-      {
-        type: 'command.received',
-        commandId: COMMAND_EVENT_ID,
-        commandEvent: {
-          _id: COMMAND_EVENT_ID,
-          type: 'agent.requestStop',
-          chatroomId: 'chatroom-1',
-        },
-      },
-    ]);
-  });
-
-  it('command-run subscriber emits command-run.updated for pendingRuns', async () => {
-    const events: InboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
-
-    const handle = startCommandRunSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
-      (event) => events.push(event)
-    );
-
-    emitUpdate({ pendingRuns: [{ _id: PENDING_RUN_ID }] });
-    await handle.stop();
-
-    expect(events).toContainEqual({
-      type: 'command-run.updated',
-      runId: PENDING_RUN_ID,
-    });
-  });
-
-  it('command-run subscriber emits command-run.updated for stopRequestedRuns', async () => {
-    const events: InboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
-
-    const handle = startCommandRunSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
-      (event) => events.push(event)
-    );
-
-    emitUpdate({ stopRequestedRuns: [{ _id: STOP_RUN_ID }] });
-    await handle.stop();
-
-    expect(events).toContainEqual({
-      type: 'command-run.updated',
-      runId: STOP_RUN_ID,
-    });
-  });
-
-  it('registry routes command event to handler', async () => {
-    const handled: CommandInboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
-
-    const registry = startAllSubscribers({
-      wsClient,
-      sessionId: SESSION_ID,
-      machineId: MACHINE_ID,
-      router: {
-        directHarness: {},
-        command: {
-          deliverInbound: async (event) => {
-            handled.push(event);
-          },
-        },
-        workspaceGit: {},
-        file: {},
-        agenticQuery: {},
-        enhancer: {},
-      },
-    });
-
-    emitUpdate({ events: [{ _id: COMMAND_EVENT_ID, type: 'agent.requestStart' }] });
-    await registry.stopAll();
-
-    expect(handled).toContainEqual({
-      type: 'command.received',
-      commandId: COMMAND_EVENT_ID,
-      commandEvent: { _id: COMMAND_EVENT_ID, type: 'agent.requestStart' },
-    });
-  });
-
-  it('event router dispatches command events to handler', async () => {
-    const handled: CommandInboundEvent[] = [];
-
-    await routeInboundEvent(
-      {
-        directHarness: {},
-        command: {
-          deliverInbound: async (event) => {
-            handled.push(event);
-          },
-        },
-        workspaceGit: {},
-        file: {},
-        agenticQuery: {},
-        enhancer: {},
-      },
-      { type: 'command-run.updated', runId: PENDING_RUN_ID }
-    );
-
-    expect(handled).toEqual([{ type: 'command-run.updated', runId: PENDING_RUN_ID }]);
-  });
-
-  it('default router deps provide deliverInbound hook', () => {
-    const deps = createDefaultEventRouterDeps();
-    expect(deps.command.deliverInbound).toBeTypeOf('function');
   });
 });
