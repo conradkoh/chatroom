@@ -1,4 +1,5 @@
 import { transitionTask } from './transition-task';
+import { syncMessageReadModel } from '../message/message-read-model';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
@@ -24,6 +25,7 @@ export async function acknowledgePendingTask(
       await ctx.db.patch('chatroom_messages', args.pendingTask.sourceMessageId, {
         acknowledgedAt: now,
       });
+      await syncMessageReadModel(ctx, args.pendingTask.sourceMessageId);
     }
   }
 
