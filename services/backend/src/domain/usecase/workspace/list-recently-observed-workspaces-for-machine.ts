@@ -30,7 +30,7 @@ export interface ListRecentlyObservedWorkspacesForMachineInput {
   recencyWindowMs?: number;
 }
 
-export async function listRecentlyObservedWorkspacesForMachine(
+async function listRecentlyObservedWorkspacesForMachineLegacy(
   ctx: QueryCtx,
   input: ListRecentlyObservedWorkspacesForMachineInput
 ): Promise<ListRecentlyObservedWorkspacesForMachineResult> {
@@ -74,4 +74,23 @@ export async function listRecentlyObservedWorkspacesForMachine(
         registeredBy: ws.registeredBy,
       })
     );
+}
+
+export async function listRecentlyObservedWorkspacesForMachine(
+  ctx: QueryCtx,
+  input: ListRecentlyObservedWorkspacesForMachineInput
+): Promise<ListRecentlyObservedWorkspacesForMachineResult> {
+  const projected = await ctx.db.query('chatroom_machineObservedWorkspaceViews').withIndex('by_machineId', (q) => q.eq('machineId', input.machineId)).collect();
+  if (projected.length === 0) return listRecentlyObservedWorkspacesForMachineLegacy(ctx, input);
+  const cutoff = Date.now() - (input.recencyWindowMs ?? WORKSPACE_RECENCY_WINDOW_MS);
+  const results: WorkspaceForMachineView[] = [];
+  for (const row of projected) {
+    if (row.lastObservedAt < cutoff) continue;
+    for (const workingDir of row.workingDirs) {
+      const ws = await ctx.db.query('chatroom_workspaces').withIndex('by_chatroom_machine_workingDir', (q) => q.eq('chatroomId', row.chatroomId).eq('machineId', input.machineId).eq('workingDir', workingDir)).first();
+      if (!ws || !isActiveWorkspace(ws.removedAt)) continue;
+      results.push({ _id: ws._id, chatroomId: ws.chatroomId, workingDir: ws.workingDir, hostname: ws.hostname, registeredAt: ws.registeredAt, registeredBy: ws.registeredBy });
+    }
+  }
+  return results;
 }

@@ -17,6 +17,7 @@ import { query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getMachineOwner } from './auth/cli/machineAccess';
 import { enrichMessages } from './messages';
+import { isMessageReadModelComplete } from '../src/domain/usecase/message/message-read-model';
 
 /** Max rows for initial latest-window and load-older page requests. */
 const MAX_LATEST_MESSAGES_LIMIT = 200;
@@ -195,6 +196,14 @@ export const subscribeTaskStatusSignalsSince = query({
       Math.max(args.limit ?? DEFAULT_TASK_STATUS_SIGNALS_LIMIT, 1),
       MAX_TASK_STATUS_SIGNALS_LIMIT
     );
+    const head = await ctx.db.query('chatroom_machineTaskStatusSignalHeads').withIndex('by_machineId', (q) => q.eq('machineId', args.machineId)).first();
+    if (head) {
+      if (head.latestSignal.signalKey <= args.afterKey) return null;
+      if (head.previousSignalKey === undefined || args.afterKey >= head.previousSignalKey) {
+        const item = head.latestSignal;
+        return { items: [item], highKey: item.signalKey, hasMore: false };
+      }
+    }
     const page = await ctx.db
       .query('chatroom_machineTaskStatusSignals')
       .withIndex('by_machineId_signalKey', (q) =>
@@ -245,6 +254,12 @@ export const listMessagesBefore = query({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const limit = Math.min(Math.max(args.limit, 1), MAX_LOAD_OLDER_PAGE_SIZE);
+    if (await isMessageReadModelComplete(ctx, args.chatroomId)) {
+      const headers = await ctx.db.query('chatroom_messageReadModels').withIndex('by_chatroom_timeline_createdAt', (q) => q.eq('chatroomId', args.chatroomId).eq('isTimeline', true).lt('messageCreatedAt', args.before)).order('desc').take(limit);
+      const messages: Doc<'chatroom_messages'>[] = [];
+      for (const header of headers) { const message = await ctx.db.get('chatroom_messages', header.messageId); if (message) messages.push(message); }
+      return enrichMessages(ctx, messages.reverse());
+    }
 
     const messages = await ctx.db
       .query('chatroom_messages')

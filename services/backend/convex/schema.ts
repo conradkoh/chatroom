@@ -506,6 +506,19 @@ export default defineSchema({
     .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole'])
     .index('by_scheduledPromptId', ['scheduledPromptId']),
 
+  /** Slim selection headers; used only after per-room completeness is marked. */
+  chatroom_messageReadModels: defineTable({
+    messageId: v.id('chatroom_messages'), chatroomId: v.id('chatroom_rooms'), messageCreatedAt: v.number(), senderRole: v.string(),
+    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join'), v.literal('progress'), v.literal('new-context')),
+    isTimeline: v.boolean(), taskId: v.optional(v.id('chatroom_tasks')),
+    taskStatus: v.optional(v.union(v.literal('pending'), v.literal('acknowledged'), v.literal('in_progress'), v.literal('completed'), v.literal('closed'), v.literal('backlog'), v.literal('pending_user_review'), v.literal('backlog_acknowledged'))),
+    acknowledgedAt: v.optional(v.number()),
+  }).index('by_messageId', ['messageId']).index('by_chatroom_createdAt', ['chatroomId', 'messageCreatedAt']).index('by_chatroom_timeline_createdAt', ['chatroomId', 'isTimeline', 'messageCreatedAt']),
+
+  chatroom_messageReadModelState: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+  }).index('by_chatroom', ['chatroomId']),
+
   /**
    * Staging table for queued user messages.
    * Messages are stored here when received while a task is active.
@@ -677,6 +690,17 @@ export default defineSchema({
     signalKey: v.string(),
     taskUpdatedAt: v.number(),
   }).index('by_machineId_signalKey', ['machineId', 'signalKey']),
+
+  /** Two-key signal frontier; lagging cursors must use the append-only range. */
+  chatroom_machineTaskStatusSignalHeads: defineTable({
+    machineId: v.string(),
+    previousSignalKey: v.optional(v.string()),
+    latestSignal: v.object({
+      chatroomId: v.id('chatroom_rooms'), taskId: v.id('chatroom_tasks'), targetRole: v.string(),
+      taskStatus: v.union(v.literal('pending'), v.literal('acknowledged'), v.literal('in_progress'), v.literal('completed'), v.literal('closed'), v.literal('backlog'), v.literal('pending_user_review'), v.literal('backlog_acknowledged')),
+      signalKey: v.string(), taskUpdatedAt: v.number(),
+    }),
+  }).index('by_machineId', ['machineId']),
 
   /**
    * Slim daemon task-monitor rows — one per (machineId, taskId, role).
@@ -1173,8 +1197,14 @@ export default defineSchema({
     .index('by_chatroom_role', ['chatroomId', 'role'])
     .index('by_machineId', ['machineId']),
 
+  /**
+   * Materialized per-chatroom agent overview for sidebar subscriptions.
+   * One row per chatroom; ownerId is mandatory on new writes (optional for
+   * legacy deploy compatibility). projectedAt changes only on observable changes.
+   */
   chatroom_agentOperationalSummary: defineTable({
     chatroomId: v.id('chatroom_rooms'),
+    ownerId: v.optional(v.id('users')),
     teamId: v.string(),
     remoteConfigCount: v.number(),
     agentStatus: v.union(v.literal('running'), v.literal('stopped'), v.literal('none')),
@@ -1182,6 +1212,27 @@ export default defineSchema({
     aliveRoles: v.array(v.string()),
     runningAgents: v.array(v.object({ role: v.string(), machineId: v.string() })),
     projectedAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_ownerId', ['ownerId']),
+
+  /** Static machine identity only; volatile capability fields stay elsewhere. */
+  chatroom_machineIdentity: defineTable({
+    machineId: v.string(),
+    userId: v.id('users'),
+    hostname: v.string(),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_userId', ['userId']),
+
+  /** Stable AgentPanel metadata; hasHistory only transitions false to true. */
+  chatroom_agentViewMetadata: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    ownerId: v.id('users'),
+    teamId: v.string(),
+    teamName: v.string(),
+    teamRoles: v.array(v.string()),
+    hasHistory: v.boolean(),
   }).index('by_chatroom', ['chatroomId']),
 
   /**
@@ -2440,6 +2491,11 @@ export default defineSchema({
   })
     .index('by_chatroomId', ['chatroomId'])
     .index('by_lastObservedAt', ['lastObservedAt']),
+
+  /** Per-machine/chatroom observation projection; recency remains query-time. */
+  chatroom_machineObservedWorkspaceViews: defineTable({
+    machineId: v.string(), chatroomId: v.id('chatroom_rooms'), lastObservedAt: v.number(), workingDirs: v.array(v.string()),
+  }).index('by_machineId', ['machineId']).index('by_machineId_chatroomId', ['machineId', 'chatroomId']),
 
   // ─── direct-harness (feature flag: directHarnessWorkers) ─────────────────
 

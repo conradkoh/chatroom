@@ -15,6 +15,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { normalizeWorkingDir } from '../../../../convex/workspacePathSecurity';
 import type { WorkspaceRegistration } from '../../entities/workspace';
+import { rebuildObservedWorkspaceView } from './project-observed-workspace-view';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ export async function registerWorkspace(
         registeredBy,
         registeredAt: Date.now(),
       });
+      await rebuildObservedWorkspaceView(ctx, machineId, chatroomId as Id<'chatroom_rooms'>);
     }
     // If active, no-op — return existing ID
     return existing._id;
@@ -65,6 +67,7 @@ export async function registerWorkspace(
     registeredBy,
     registeredAt: Date.now(),
   });
+  await rebuildObservedWorkspaceView(ctx, machineId, chatroomId as Id<'chatroom_rooms'>);
 
   return id;
 }

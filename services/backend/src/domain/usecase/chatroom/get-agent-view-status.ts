@@ -13,7 +13,7 @@ export interface AgentViewStatus {
   teamId: string; teamName: string; teamRoles: string[]; agents: AgentViewRole[]; hasHistory: boolean;
 }
 
-export async function getAgentViewStatus(ctx: QueryCtx, input: { chatroomId: Id<'chatroom_rooms'>; userId: Id<'users'> }): Promise<AgentViewStatus | null> {
+async function getAgentViewStatusLegacy(ctx: QueryCtx, input: { chatroomId: Id<'chatroom_rooms'>; userId: Id<'users'> }): Promise<AgentViewStatus | null> {
   const chatroom = await ctx.db.get('chatroom_rooms', input.chatroomId);
   if (!chatroom || chatroom.ownerId !== input.userId || !chatroom.teamId || !chatroom.teamRoles) return null;
   const { teamRoles } = getTeamRolesFromChatroom(chatroom);
@@ -34,4 +34,33 @@ export async function getAgentViewStatus(ctx: QueryCtx, input: { chatroomId: Id<
     return { role, state, type: (participant?.agentType ?? 'remote') as AgentType, machineId: row?.machineId, machineName: row?.machineId ? machineNames.get(row.machineId) : undefined, lastSeenAt: participant?.lastSeenAt ?? null, lastSeenAction: participant?.lastSeenAction ?? null, lastStatus, lastDesiredState: participant?.lastDesiredState ?? null, agentType: participant?.agentType ?? 'remote', isAlive: row?.isAlive ?? false };
   });
   return { teamId: chatroom.teamId, teamName: chatroom.teamName ?? chatroom.teamId, teamRoles, agents, hasHistory: firstUserMessage !== null };
+}
+
+async function getMachineHostname(ctx: QueryCtx, machineId: string): Promise<string | undefined> {
+  const identity = await ctx.db.query('chatroom_machineIdentity').withIndex('by_machineId', (q) => q.eq('machineId', machineId)).first();
+  return identity?.hostname;
+}
+
+export async function getAgentViewStatus(ctx: QueryCtx, input: { chatroomId: Id<'chatroom_rooms'>; userId: Id<'users'> }): Promise<AgentViewStatus | null> {
+  const metadata = await ctx.db.query('chatroom_agentViewMetadata').withIndex('by_chatroom', (q) => q.eq('chatroomId', input.chatroomId)).first();
+  if (!metadata) return getAgentViewStatusLegacy(ctx, input);
+  if (metadata.ownerId !== input.userId || !metadata.teamId || metadata.teamRoles.length === 0) return null;
+  const rows = await ctx.db.query('chatroom_agentRoleOperationalStatus').withIndex('by_chatroom', (q) => q.eq('chatroomId', input.chatroomId)).collect();
+  const participants = await ctx.db.query('chatroom_participants').withIndex('by_chatroom', (q) => q.eq('chatroomId', input.chatroomId)).collect();
+  const rowByRole = new Map(rows.map((r) => [r.role.toLowerCase(), r]));
+  const participantByRole = new Map(participants.map((p) => [p.role.toLowerCase(), p]));
+  const machineNames = new Map<string, string>();
+  for (const machineId of [...new Set(rows.flatMap((r) => (r.machineId ? [r.machineId] : [])))]) {
+    const hostname = await getMachineHostname(ctx, machineId);
+    if (hostname) machineNames.set(machineId, hostname);
+  }
+  const agents = metadata.teamRoles.map((role): AgentViewRole => {
+    const row = rowByRole.get(role.toLowerCase());
+    const participant = participantByRole.get(role.toLowerCase());
+    const lastStatus = participant?.lastStatus ?? null;
+    const inferred = row ? deriveAgentRoleViewState({ desiredState: row.operationalState === 'circuit_open' ? 'stopped' : 'running', circuitState: row.operationalState === 'circuit_open' ? 'open' : 'closed', spawnedAgentPid: row.isAlive ? 1 : null }, row.daemonConnected, lastStatus) : 'stopped';
+    const state = row?.viewState === 'stopped' && inferred === 'starting' ? 'starting' : (row?.viewState ?? inferred);
+    return { role, state, type: (participant?.agentType ?? 'remote') as AgentType, machineId: row?.machineId, machineName: row?.machineId ? machineNames.get(row.machineId) : undefined, lastSeenAt: participant?.lastSeenAt ?? null, lastSeenAction: participant?.lastSeenAction ?? null, lastStatus, lastDesiredState: participant?.lastDesiredState ?? null, agentType: participant?.agentType ?? 'remote', isAlive: row?.isAlive ?? false };
+  });
+  return { teamId: metadata.teamId, teamName: metadata.teamName, teamRoles: metadata.teamRoles, agents, hasHistory: metadata.hasHistory };
 }

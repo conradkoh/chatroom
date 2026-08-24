@@ -3,6 +3,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { getAgentViewStatus } from '../../src/domain/usecase/chatroom/get-agent-view-status';
+import { markAgentViewHasHistory } from '../../src/domain/usecase/chatroom/project-agent-view-metadata';
 import { t } from '../../test.setup';
 import { createDuoTeamChatroom, createTestSession, registerMachineWithDaemon, setupRemoteAgentConfig } from '../helpers/integration';
 
@@ -112,5 +113,31 @@ describe('getAgentViewStatus — stale roles', () => {
     const { sessionId } = await createTestSession('view-stale'); const machineId = 'view-stale-machine'; await registerMachineWithDaemon(sessionId as any, machineId); const room = await createThreeRoleChatroom(sessionId); for (const role of ['planner', 'builder', 'architect']) await setupRemoteAgentConfig(sessionId as any, room, machineId, role);
     await t.mutation(api.chatrooms.updateTeam, { sessionId: sessionId as any, chatroomId: room, teamId: 'duo', teamName: 'Duo Team', teamRoles: ['planner', 'builder'], teamEntryPoint: 'planner' });
     const result = await query(room); expect(result!.agents).toHaveLength(2); expect(result!.agents.map((a) => a.role)).toEqual(['planner', 'builder']);
+  });
+});
+
+describe('getAgentViewStatus — projection fast path', () => {
+  test('hasHistory stays false until the projection marker is written', async () => {
+    const { sessionId } = await createTestSession('view-history-projection');
+    const room = await createDuoTeamChatroom(sessionId as any);
+    expect((await query(room))?.hasHistory).toBe(false);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_messages', { chatroomId: room, senderRole: 'assistant', content: 'progress', type: 'progress' });
+    });
+    expect((await query(room))?.hasHistory).toBe(false);
+    await t.run((ctx) => markAgentViewHasHistory(ctx, room));
+    expect((await query(room))?.hasHistory).toBe(true);
+  });
+});
+
+describe('getAgentViewStatus — decoy isolation', () => {
+  test('resolves the assigned machine name with unrelated machines present', async () => {
+    const { sessionId } = await createTestSession('view-decoy-isolation');
+    const target = 'view-decoy-target';
+    await registerMachineWithDaemon(sessionId as any, target);
+    const room = await createDuoTeamChatroom(sessionId as any);
+    await setupRemoteAgentConfig(sessionId as any, room, target, 'builder');
+    for (let i = 0; i < 5; i++) await registerMachineWithDaemon(sessionId as any, `view-decoy-${i}`);
+    expect((await query(room))?.agents.find((a) => a.role === 'builder')?.machineName).toBe('test-host');
   });
 });

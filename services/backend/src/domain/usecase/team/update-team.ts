@@ -20,6 +20,7 @@ import {
   projectAssignedTaskSnapshotsForMachines,
 } from '../machine/patch-team-agent-config';
 import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
+import { upsertAgentViewMetadata } from '../chatroom/project-agent-view-metadata';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,8 @@ export async function updateTeam(
     teamRoles,
     teamEntryPoint,
   });
+  const updatedRoom = await ctx.db.get('chatroom_rooms', chatroomId);
+  if (updatedRoom) await upsertAgentViewMetadata(ctx, { chatroomId, ownerId: updatedRoom.ownerId, teamId, teamName, teamRoles });
 
   await reassignInFlightTasksOnTeamSwitch(ctx, chatroomId);
 
