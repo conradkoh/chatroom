@@ -585,6 +585,22 @@ export const backfillAgentViewMetadata = migrations.define({
   },
 });
 
+export const backfillMachineTaskStatusSignalHeads = migrations.define({
+  table: 'chatroom_machines',
+  migrateOne: async (ctx, machine) => {
+    const existing = await ctx.db.query('chatroom_machineTaskStatusSignalHeads').withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId)).first();
+    if (existing) return;
+    const signals = await ctx.db.query('chatroom_machineTaskStatusSignals').withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machine.machineId)).order('desc').take(2);
+    if (signals.length === 0) return;
+    const [latest, previous] = signals;
+    await ctx.db.insert('chatroom_machineTaskStatusSignalHeads', {
+      machineId: machine.machineId,
+      ...(previous ? { previousSignalKey: previous.signalKey } : {}),
+      latestSignal: { chatroomId: latest.chatroomId, taskId: latest.taskId, targetRole: latest.targetRole, taskStatus: latest.taskStatus, signalKey: latest.signalKey, taskUpdatedAt: latest.taskUpdatedAt },
+    });
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================
@@ -701,4 +717,5 @@ export const runAll = migrations.runner([
   internal.migrations.backfillAgentOverviewSummaries,
   internal.migrations.backfillMachineIdentities,
   internal.migrations.backfillAgentViewMetadata,
+  internal.migrations.backfillMachineTaskStatusSignalHeads,
 ]);

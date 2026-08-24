@@ -195,6 +195,14 @@ export const subscribeTaskStatusSignalsSince = query({
       Math.max(args.limit ?? DEFAULT_TASK_STATUS_SIGNALS_LIMIT, 1),
       MAX_TASK_STATUS_SIGNALS_LIMIT
     );
+    const head = await ctx.db.query('chatroom_machineTaskStatusSignalHeads').withIndex('by_machineId', (q) => q.eq('machineId', args.machineId)).first();
+    if (head) {
+      if (head.latestSignal.signalKey <= args.afterKey) return null;
+      if (head.previousSignalKey === undefined || args.afterKey >= head.previousSignalKey) {
+        const item = head.latestSignal;
+        return { items: [item], highKey: item.signalKey, hasMore: false };
+      }
+    }
     const page = await ctx.db
       .query('chatroom_machineTaskStatusSignals')
       .withIndex('by_machineId_signalKey', (q) =>
