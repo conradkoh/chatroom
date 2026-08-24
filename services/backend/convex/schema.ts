@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 
 import { storedFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
 import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
+import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 
 const attachedSnippetValidator = v.object({
   reference: v.string(),
@@ -1251,6 +1252,33 @@ export default defineSchema({
    * Each row represents one discrete event. Consumers read forward from a
    * checkpoint and react to events without fetching additional data.
    */
+  /** Short-lived nudge/claim/ack inbox; remove legacy shim after daemon migration. */
+  chatroom_machineCommandInbox: defineTable(
+    v.union(
+      v.object({
+        machineId: v.string(),
+        command: machineCommandPayloadValidator,
+        createdAt: v.number(),
+        deadline: v.number(),
+        attemptCount: v.number(),
+        status: v.literal('pending'),
+      }),
+      v.object({
+        machineId: v.string(),
+        command: machineCommandPayloadValidator,
+        createdAt: v.number(),
+        deadline: v.number(),
+        attemptCount: v.number(),
+        status: v.literal('processing'),
+        claimedBySessionId: v.string(),
+        leaseExpiresAt: v.number(),
+      })
+    )
+  )
+    .index('by_machine_status_deadline', ['machineId', 'status', 'deadline'])
+    .index('by_status_leaseExpiresAt', ['status', 'leaseExpiresAt'])
+    .index('by_deadline', ['deadline']),
+
   chatroom_eventStream: defineTable(
     v.union(
       // Agent spawned successfully
