@@ -1,9 +1,9 @@
+import { dispatchCommandInboundEvent } from './command-inbound-registry.js';
 import { routeInboundEvent, type EventRouterDeps } from './event-router.js';
 import type { InboundEvent } from '../domain/entities/inbound-event.js';
 import type { ConvexSubscriberDeps } from '../infrastructure/convex/subscriber-deps.js';
 import { startAgenticQueryPromptSubscriber } from '../infrastructure/convex/subscribers/agentic-query-prompt.js';
 import { startAgenticQuerySessionSubscriber } from '../infrastructure/convex/subscribers/agentic-query-session.js';
-import { startCommandEventsSubscriber } from '../infrastructure/convex/subscribers/command-events.js';
 import { startCommandRunSubscriber } from '../infrastructure/convex/subscribers/command-run.js';
 import { startDirectHarnessCommandSubscriber } from '../infrastructure/convex/subscribers/direct-harness-command.js';
 import { startDirectHarnessPromptSubscriber } from '../infrastructure/convex/subscribers/direct-harness-prompt.js';
@@ -14,6 +14,7 @@ import { startFileTreeReleaseRequestSubscriber } from '../infrastructure/convex/
 import { startFileTreeRequestSubscriber } from '../infrastructure/convex/subscribers/file-tree-request.js';
 import { startFileWriteRequestSubscriber } from '../infrastructure/convex/subscribers/file-write-request.js';
 import { startGitRequestSubscriber } from '../infrastructure/convex/subscribers/git-request.js';
+import { startMachineCommandInboxSubscriber } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { startWorkspaceListSubscriber } from '../infrastructure/convex/subscribers/workspace-list.js';
 
 export type SubscriberRegistryDeps = ConvexSubscriberDeps & {
@@ -30,7 +31,13 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const session = startDirectHarnessSessionSubscriber(deps, onEvent);
   const prompt = startDirectHarnessPromptSubscriber(deps, onEvent);
   const directHarnessCommand = startDirectHarnessCommandSubscriber(deps, onEvent);
-  const commandEvents = startCommandEventsSubscriber(deps, onEvent);
+  const commandEvents = startMachineCommandInboxSubscriber(deps, async (claimed) => {
+    await dispatchCommandInboundEvent({
+      type: 'command.received',
+      commandId: claimed.commandId,
+      claimedCommand: claimed,
+    });
+  });
   const commandRun = startCommandRunSubscriber(deps, onEvent);
   const workspaceList = startWorkspaceListSubscriber(deps, onEvent);
   const gitRequest = startGitRequestSubscriber(deps, onEvent);

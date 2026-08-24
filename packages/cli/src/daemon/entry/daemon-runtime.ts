@@ -61,6 +61,7 @@ import { onDaemonShutdownEffect } from '../../events/lifecycle/on-daemon-shutdow
 import { getErrorMessage } from '../../utils/convex-error.js';
 import type { BoundHarness } from '../domain/entities/bound-harness.js';
 import type { SessionHandle } from '../domain/usecase/open-harness-session.js';
+import type { AgentLifecycleOutboxRegistry } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
 
 const PROCESS_KILL_TIMEOUT_MS = 6_000;
 const CLOSE_TIMEOUT_MS = 3_000;
@@ -72,7 +73,7 @@ export type DaemonRuntimeHandle = {
 };
 
 export type DaemonRuntimeDeps = {
-  agentLifecycleOutbox?: import('../infrastructure/outbox/agent-lifecycle-outbox.js').AgentLifecycleOutboxRegistry;
+  agentLifecycleOutbox?: AgentLifecycleOutboxRegistry;
   wsClient: ConvexClient;
   layers: Layer.Layer<
     DaemonSessionService | DaemonAgentProcessManagerService | DaemonMutableStateService
@@ -323,7 +324,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
           dedupTracker,
           effectContext,
           session,
-          event.commandEvent
+          event.claimedCommand ?? (event.commandEvent as never)
         );
       } else {
         await drainActionableCommandRuns(session, commandRunRuntime);

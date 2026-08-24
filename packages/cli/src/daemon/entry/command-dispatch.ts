@@ -2,7 +2,10 @@
  * Command event dispatch — handles daemon command events from v2 inbound nudges.
  */
 
-import { AGENT_REQUEST_DEADLINE_MS } from '@workspace/backend/config/reliability.js';
+import {
+  AGENT_REQUEST_DEADLINE_MS,
+  MACHINE_COMMAND_LEASE_RENEWAL_INTERVAL_MS,
+} from '@workspace/backend/config/reliability.js';
 import type { FunctionReturnType } from 'convex/server';
 import { Effect, Layer, Ref, type Context } from 'effect';
 
@@ -18,7 +21,7 @@ import {
   type DaemonSessionServiceShape,
 } from './daemon-services.js';
 import { formatTimestamp } from './daemon-utils.js';
-import type { InboundCommandEventPayload } from '../domain/entities/inbound-event.js';
+import type { ClaimedMachineCommand } from '../infrastructure/convex/subscribers/machine-command-inbox.js';
 import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event-emitter.js';
 import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
@@ -87,7 +90,9 @@ function handleRequestStartEffect(
   return Effect.gen(function* () {
     const eventId = event._id.toString();
     if (tracker.commandIds.has(eventId)) return;
-    yield* onRequestStartAgentEffect(event as Parameters<typeof onRequestStartAgentEffect>[0]);
+    yield* onRequestStartAgentEffect(
+      event as unknown as Parameters<typeof onRequestStartAgentEffect>[0]
+    );
     tracker.commandIds.set(eventId, Date.now());
   });
 }
@@ -99,7 +104,9 @@ function handleRequestRestartEffect(
   return Effect.gen(function* () {
     const eventId = event._id.toString();
     if (tracker.commandIds.has(eventId)) return;
-    yield* onRequestRestartAgentEffect(event as Parameters<typeof onRequestRestartAgentEffect>[0]);
+    yield* onRequestRestartAgentEffect(
+      event as unknown as Parameters<typeof onRequestRestartAgentEffect>[0]
+    );
     tracker.commandIds.set(eventId, Date.now());
   });
 }
@@ -297,23 +304,30 @@ export async function handleInboundCommandEvent(
   tracker: DedupTracker,
   effectContext: Context.Context<CommandDispatchDeps>,
   session: DaemonSessionServiceShape,
-  commandEvent?: InboundCommandEventPayload
+  claimedCommand: ClaimedMachineCommand
 ): Promise<void> {
-  let event: CommandEvent | undefined;
-  if (commandEvent?._id.toString() === commandId) {
-    // The subscriber already received the complete command payload. The cast
-    // only bridges the generic inbound transport shape to Convex's inferred
-    // discriminated return type; dispatch handlers validate the event type.
-    event = commandEvent as unknown as CommandEvent;
-  } else {
-    const result = await session.backend.query(api.machines.getCommandEvents, {
+  if (claimedCommand.commandId !== commandId) return;
+  const renewTimer = setInterval(() => {
+    void session.backend
+      .mutation(api.daemon.machineCommandInbox.renewClaim, {
+        sessionId: session.sessionId,
+        commandId: claimedCommand.commandId,
+      })
+      .catch(() => undefined);
+  }, MACHINE_COMMAND_LEASE_RENEWAL_INTERVAL_MS);
+  try {
+    const { commandId: _id, machineId, deadline, timestamp, ...rest } = claimedCommand;
+    await Effect.runPromise(
+      dispatchCommandEventEffect(
+        { _id, machineId, deadline, timestamp, ...rest } as unknown as CommandEvent,
+        tracker
+      ).pipe(Effect.provide(effectContext))
+    );
+    await session.backend.mutation(api.daemon.machineCommandInbox.acknowledge, {
       sessionId: session.sessionId,
-      machineId: session.machineId,
+      commandId: claimedCommand.commandId,
     });
-    event = result?.events?.find((e: CommandEvent) => e._id.toString() === commandId);
+  } finally {
+    clearInterval(renewTimer);
   }
-  if (!event) return;
-  await Effect.runPromise(
-    dispatchCommandEventEffect(event, tracker).pipe(Effect.provide(effectContext))
-  );
 }

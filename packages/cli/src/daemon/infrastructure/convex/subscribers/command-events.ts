@@ -37,7 +37,7 @@ export function startCommandEventsSubscriber(
           commandId: event._id,
           // The follow-up dispatch can use this payload directly instead of
           // re-querying the full command event list over HTTP.
-          commandEvent: event as InboundCommandEventPayload,
+          commandEvent: event as unknown as InboundCommandEventPayload,
         });
       }
     },
