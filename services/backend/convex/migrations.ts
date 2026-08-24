@@ -19,6 +19,7 @@ import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-mac
 import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
 import { rebuildObservedWorkspaceView } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 import { isActiveWorkspace } from '../src/domain/entities/workspace';
+import { upsertMessageReadModel, ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
 
@@ -612,6 +613,16 @@ export const backfillMachineObservedWorkspaceViews = migrations.define({
   },
 });
 
+export const backfillMessageReadModels = migrations.define({
+  table: 'chatroom_messages',
+  migrateOne: async (ctx, message) => { await upsertMessageReadModel(ctx, message); },
+});
+
+export const backfillMessageReadModelState = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (ctx, room) => { await ensureMessageReadModelState(ctx, room._id); },
+});
+
 // ========================================
 // Batch Runners
 // ========================================
@@ -730,4 +741,6 @@ export const runAll = migrations.runner([
   internal.migrations.backfillAgentViewMetadata,
   internal.migrations.backfillMachineTaskStatusSignalHeads,
   internal.migrations.backfillMachineObservedWorkspaceViews,
+  internal.migrations.backfillMessageReadModels,
+  internal.migrations.backfillMessageReadModelState,
 ]);

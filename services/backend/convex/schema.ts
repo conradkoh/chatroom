@@ -506,6 +506,19 @@ export default defineSchema({
     .index('by_chatroom_senderRole_createdAt', ['chatroomId', 'senderRole'])
     .index('by_scheduledPromptId', ['scheduledPromptId']),
 
+  /** Slim selection headers; used only after per-room completeness is marked. */
+  chatroom_messageReadModels: defineTable({
+    messageId: v.id('chatroom_messages'), chatroomId: v.id('chatroom_rooms'), messageCreatedAt: v.number(), senderRole: v.string(),
+    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join'), v.literal('progress'), v.literal('new-context')),
+    isTimeline: v.boolean(), taskId: v.optional(v.id('chatroom_tasks')),
+    taskStatus: v.optional(v.union(v.literal('pending'), v.literal('acknowledged'), v.literal('in_progress'), v.literal('completed'), v.literal('closed'), v.literal('backlog'), v.literal('pending_user_review'), v.literal('backlog_acknowledged'))),
+    acknowledgedAt: v.optional(v.number()),
+  }).index('by_messageId', ['messageId']).index('by_chatroom_createdAt', ['chatroomId', 'messageCreatedAt']).index('by_chatroom_timeline_createdAt', ['chatroomId', 'isTimeline', 'messageCreatedAt']),
+
+  chatroom_messageReadModelState: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+  }).index('by_chatroom', ['chatroomId']),
+
   /**
    * Staging table for queued user messages.
    * Messages are stored here when received while a task is active.

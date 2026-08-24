@@ -30,6 +30,7 @@ import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueue-user-message-at-front';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
+import { insertChatroomMessage } from '../src/domain/usecase/message/message-read-model';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
 import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
 import {
@@ -465,7 +466,7 @@ async function _sendMessageHandler(
     return result.messageId;
   }
   // ─── Non-user messages: always write to chatroom_messages ────────────────
-  const messageId = await ctx.db.insert('chatroom_messages', {
+  const messageId = await insertChatroomMessage(ctx, {
     chatroomId: args.chatroomId,
     senderRole: args.senderRole,
     content: args.content,
@@ -858,7 +859,7 @@ export async function runHandoffHandler(
     : args.content;
 
   // Step 2: Send the handoff message
-  const messageId = await ctx.db.insert('chatroom_messages', {
+  const messageId = await insertChatroomMessage(ctx, {
     chatroomId: args.chatroomId,
     senderRole: args.senderRole,
     content: handoffContent,

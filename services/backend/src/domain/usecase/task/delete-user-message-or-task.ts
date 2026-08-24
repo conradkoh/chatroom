@@ -8,6 +8,7 @@ import { adjustTaskCount, statusToCountField } from './task-counts';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { ACTIVE_TASK_STATUSES } from '../../entities/task';
+import { deleteMessageReadModel } from '../message/message-read-model';
 
 export type DeleteUserMessageOrTaskArgs =
   | { type: 'task'; taskId: Id<'chatroom_tasks'> }
@@ -71,6 +72,7 @@ async function deleteMaterializedUserMessage(
 ): Promise<void> {
   const message = resolved.record;
   if (!message.taskId) {
+    await deleteMessageReadModel(ctx, message._id);
     await ctx.db.delete('chatroom_messages', message._id);
     return;
   }
@@ -81,6 +83,7 @@ async function deleteMaterializedUserMessage(
     return;
   }
 
+  await deleteMessageReadModel(ctx, message._id);
   await ctx.db.delete('chatroom_messages', message._id);
 }
 
@@ -108,6 +111,7 @@ async function decrementTaskStatusCount(
 async function deleteMessagesForTask(ctx: MutationCtx, task: Doc<'chatroom_tasks'>): Promise<void> {
   const messageIds = await collectMessageIdsForTask(ctx, task);
   for (const messageId of messageIds) {
+    await deleteMessageReadModel(ctx, messageId);
     await ctx.db.delete('chatroom_messages', messageId);
   }
 }

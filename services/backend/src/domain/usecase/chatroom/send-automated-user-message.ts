@@ -8,6 +8,7 @@ import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-pla
 import { createTask as createTaskUsecase, shouldEnqueueMessage } from '../task/create-task';
 import { adjustTaskCount } from '../task/task-counts';
 import { markAgentViewHasHistory } from './project-agent-view-metadata';
+import { insertChatroomMessage } from '../message/message-read-model';
 
 export type SendAutomatedUserMessageResult =
   | { ok: true; messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> }
@@ -81,7 +82,7 @@ export async function sendAutomatedUserMessage(
     return { ok: true, messageId: queuedMessageId };
   }
 
-  const messageId = await ctx.db.insert('chatroom_messages', {
+  const messageId = await insertChatroomMessage(ctx, {
     chatroomId: args.chatroomId,
     senderRole: 'user',
     content: trimmed,

@@ -9,6 +9,7 @@ import { isActiveParticipant, toParticipantPresence } from '../src/domain/entiti
 import { insertEmptyOperationalSummaryForRoom } from '../src/domain/usecase/agent/project-agent-operational-status';
 import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
 import { rebuildObservedWorkspaceViewsForChatroom } from '../src/domain/usecase/workspace/project-observed-workspace-view';
+import { ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
 import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
@@ -47,6 +48,7 @@ export const create = mutation({
       teamId: args.teamId,
     });
     await upsertAgentViewMetadata(ctx, { chatroomId, ownerId: auth.userId, teamId: args.teamId, teamName: args.teamName, teamRoles: args.teamRoles, hasHistory: false });
+    await ensureMessageReadModelState(ctx, chatroomId);
     return chatroomId;
   },
 });

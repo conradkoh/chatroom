@@ -5,6 +5,7 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
 import { markAgentViewHasHistory } from '../chatroom/project-agent-view-metadata';
+import { insertChatroomMessage } from '../message/message-read-model';
 
 /**
  * Promotes a staged message from chatroom_messageQueue to chatroom_messages,
@@ -33,7 +34,7 @@ export async function promoteQueuedMessage(
   const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
   // Copy from staging → messages
-  const messageId = await ctx.db.insert('chatroom_messages', {
+  const messageId = await insertChatroomMessage(ctx, {
     chatroomId: queueRecord.chatroomId,
     senderRole: queueRecord.senderRole,
     targetRole: queueRecord.targetRole,
