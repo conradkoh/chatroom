@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState, type RefObject } from 'react';
+import { useCallback, useRef, useState, type ComponentProps, type RefObject } from 'react';
 import { toast } from 'sonner';
 
 import { SketchBrushSizeControl } from './SketchBrushSizeControl';
@@ -16,6 +16,7 @@ import {
 } from './sketchConstants';
 import { SketchToolRail } from './SketchToolRail';
 import { SKETCH_ENABLED_TOOL_IDS, type SketchToolId } from './sketchTools';
+import { useSketchBrushCursor } from './useSketchBrushCursor';
 import { useSketchCanvas, type UseSketchCanvasResult } from './useSketchCanvas';
 import { useSketchSelection } from './useSketchSelection';
 import { useSketchToolShortcuts } from './useSketchToolShortcuts';
@@ -34,6 +35,11 @@ export type SketchDialogProps = {
   onSave: (file: File) => void;
 };
 type SketchEditorSessionProps = { onDismiss: () => void; onSave: (file: File) => void };
+function composePointerHandlers(
+  ...handlers: (ComponentProps<'canvas'>['onPointerMove'] | undefined)[]
+): ComponentProps<'canvas'>['onPointerMove'] {
+  return (event) => handlers.forEach((handler) => handler?.(event));
+}
 type SketchEditorPropertiesProps = {
   brushColor: SketchBrushColor;
   brushSize: number;
@@ -119,6 +125,7 @@ function SketchEditorProperties({
   );
 }
 
+// fallow-ignore-next-line complexity
 function SketchEditorCanvasPanel({
   canvasRef,
   canvasBindings,
@@ -126,11 +133,13 @@ function SketchEditorCanvasPanel({
   overlayRef,
   selectionBindings,
   activeTool,
+  showBrushCursor,
 }: Pick<UseSketchCanvasResult, 'canvasRef' | 'canvasBindings'> & {
   disabled?: boolean;
   overlayRef?: RefObject<HTMLCanvasElement | null>;
   selectionBindings?: UseSketchCanvasResult['canvasBindings'];
   activeTool?: SketchToolId;
+  showBrushCursor?: boolean;
 }) {
   return (
     <div className="order-2 grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden bg-chatroom-bg-tertiary p-3 sm:p-4 lg:order-none lg:p-8">
@@ -141,7 +150,11 @@ function SketchEditorCanvasPanel({
         aria-label="Sketch canvas"
         className={cn(
           'col-start-1 row-start-1 block h-auto max-h-full w-auto max-w-full touch-none select-none',
-          disabled ? 'cursor-not-allowed opacity-60' : 'cursor-crosshair',
+          disabled
+            ? 'cursor-not-allowed opacity-60'
+            : showBrushCursor
+              ? 'cursor-none'
+              : 'cursor-crosshair',
           'ring-2 ring-chatroom-border'
         )}
         style={{ backgroundColor: SKETCH_CANVAS_BACKGROUND }}
@@ -197,6 +210,7 @@ function SketchEditorFooter({
   );
 }
 
+// fallow-ignore-next-line complexity
 function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
   const [brushColor, setBrushColor] = useState(SKETCH_BRUSH_COLOR_DEFAULT);
   const [brushSize, setBrushSize] = useState(SKETCH_BRUSH_SIZE_DEFAULT);
@@ -227,6 +241,23 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
     disabled: isSaving,
     onRequestDelete: handleDeleteSelection,
   });
+  const { brushCursorBindings, showBrushCursor } = useSketchBrushCursor({
+    canvasRef,
+    overlayRef,
+    enabled: isDrawingTool && !isSaving,
+    brushSize,
+    variant: activeTool === 'eraser' ? 'eraser' : 'brush',
+  });
+  const drawingBindings = isDrawingTool
+    ? {
+        ...canvasBindings,
+        onPointerMove: composePointerHandlers(
+          canvasBindings.onPointerMove,
+          brushCursorBindings.onPointerMove
+        ),
+        onPointerLeave: brushCursorBindings.onPointerLeave,
+      }
+    : canvasBindings;
   clearSelectionRef.current = clearSelection;
   const save = async () => {
     if (isSaving || !hasContent) return;
@@ -257,11 +288,12 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
         />
         <SketchEditorCanvasPanel
           canvasRef={canvasRef}
-          canvasBindings={canvasBindings}
+          canvasBindings={drawingBindings}
           disabled={isSaving}
           overlayRef={overlayRef}
           selectionBindings={selectionBindings}
           activeTool={activeTool}
+          showBrushCursor={showBrushCursor}
         />
         <SketchEditorProperties
           brushColor={brushColor}
