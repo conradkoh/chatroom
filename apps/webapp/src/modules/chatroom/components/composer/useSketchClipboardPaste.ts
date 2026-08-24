@@ -16,6 +16,7 @@ export function useSketchClipboardPaste({
 }) {
   const [isImporting, setIsImporting] = useState(false);
   const onPaste = async (event: ClipboardEvent) => {
+    if (isImporting) return;
     if (
       disabled ||
       (event.target instanceof HTMLElement &&

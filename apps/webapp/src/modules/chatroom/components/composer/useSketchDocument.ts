@@ -328,9 +328,9 @@ export function useSketchDocument({
   }, [doc, mark, scheduleComposite]);
   const importPastedImage = useCallback(
     async (file: File) => {
+      let objectUrl: string | null = null;
       try {
         let decoded: ImageBitmap | HTMLImageElement;
-        let objectUrl: string | null = null;
         try {
           decoded = await createImageBitmap(file);
         } catch {
@@ -346,7 +346,6 @@ export function useSketchDocument({
         if (!decoded.width || !decoded.height) return false;
         bitmap.getContext('2d')?.drawImage(decoded, 0, 0);
         if ('close' in decoded) decoded.close();
-        if (objectUrl) URL.revokeObjectURL(objectUrl);
         const id = createLayerId();
         const transform = computeContainTransform(bitmap.width, bitmap.height);
         floatingBitmapRef.current = bitmap;
@@ -375,6 +374,8 @@ export function useSketchDocument({
         return true;
       } catch {
         return false;
+      } finally {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
       }
     },
     [scheduleComposite]

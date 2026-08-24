@@ -7,9 +7,35 @@ import {
   setActiveLayer,
   setFloating,
   setSelection,
+  removeLayer,
+  countPastedImageLayers,
 } from './sketchDocument';
 
 describe('sketchDocument', () => {
+  it('removes pasted layers and activates the remaining layer', () => {
+    const doc = addLayer(createInitialDocument(), {
+      id: 'p1',
+      name: 'Pasted image 1',
+      kind: 'pasted-image',
+      hasContent: false,
+    });
+    const next = removeLayer(doc, 'p1');
+    expect(next.layers).toHaveLength(1);
+    expect(next.layers[0].kind).toBe('paint');
+  });
+  it('counts pasted image layers only', () => {
+    expect(countPastedImageLayers(createInitialDocument())).toBe(0);
+    expect(
+      countPastedImageLayers(
+        addLayer(createInitialDocument(), {
+          id: 'p1',
+          name: 'P1',
+          kind: 'pasted-image',
+          hasContent: false,
+        })
+      )
+    ).toBe(1);
+  });
   it('creates a Drawing 1 paint layer', () => {
     const doc = createInitialDocument();
     expect(doc.layers).toHaveLength(1);
