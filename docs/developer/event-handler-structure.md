@@ -44,7 +44,7 @@ export async function onAgentExited(ctx, args) {
 
 ## Backend (`services/backend/src/events/`)
 
-Backend event handlers contain domain logic that reacts to events written to `chatroom_eventStream`. They are called from Convex internal mutations (e.g. `recordAgentExited`) — the mutation writes the event and invokes the handler.
+Backend event handlers contain domain logic that reacts to lifecycle transitions (e.g. agent exit, task activation). They are called directly from Convex internal mutations (e.g. `recordAgentExited`) after authoritative state is updated — there is no separate Convex event-stream table.
 
 **Target structure:**
 

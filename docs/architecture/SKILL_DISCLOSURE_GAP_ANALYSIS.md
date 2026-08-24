@@ -2,7 +2,9 @@
 
 ## Executive Summary
 
-Registry skills are **not automatically disclosed** to agents because the system prompt generation logic does not read from the `chatroom_eventStream` to find activated skills. While skill activation writes `skill.activated` events with full prompt content, these events are never injected into the agent's system prompt.
+Registry skills are **not automatically disclosed** to agents because system prompt generation does not track which skills have been activated for a chatroom. `activateSkill` returns the skill prompt to the caller (CLI/UI) but nothing persists activation state for later prompt composition.
+
+> **Note (2026-08):** The Convex `chatroom_eventStream` table was removed. Skill activation no longer writes audit events; disclosure must use a dedicated store or query if auto-injection into system prompts is required.
 
 ## Current Architecture
 
@@ -26,20 +28,20 @@ Registry skills are **not automatically disclosed** to agents because the system
 When `chatroom skill activate` is called:
 
 1. Skill is looked up in registry
-2. Prompt is generated with `cliEnvPrefix` injected
-3. **`skill.activated` event is written to `chatroom_eventStream`** with full prompt content
+2. Prompt is generated with `cliEnvPrefix` injected (and optional chatroom customization applied)
+3. **Prompt is returned in the mutation result** — not persisted to Convex
 
-**Event Structure** (from `services/backend/src/domain/entities/events.ts`):
+**Mutation result** (from `activate-skill.ts`):
 
 ```typescript
-SkillActivatedEvent = {
-  type: 'skill.activated';
-  chatroomId: Id<'chatroom_rooms'>;
-  skillId: string;
-  skillName: string;
-  role: string;
-  prompt: string;  // ← Full skill prompt content
-  timestamp: number;
+ActivateSkillResult = {
+  success: true;
+  skill: {
+    skillId: string;
+    name: string;
+    description: string;
+    prompt: string; // Full skill prompt content
+  };
 }
 ```
 
@@ -72,8 +74,8 @@ SkillActivatedEvent = {
 
 - Fetches the initialization prompt for agents
 - Calls `composeInitPrompt()` to generate system prompt
-- No reference to event stream or activated skills
-- **Gap**: Does not query `chatroom_eventStream` for `skill.activated` events
+- No reference to activated skills
+- **Gap**: Does not include skills activated via `skills.activate` in the composed prompt
 
 ### 5. Skill Customizations Table
 
@@ -93,9 +95,9 @@ SkillActivatedEvent = {
 Agent starts → receives system prompt
 System prompt includes glossary
 Glossary says "run skill list to discover skills"
-Agent manually discovers and activates skills
-→ Event written to stream
-→ But event never injected back into agent's context
+Agent manually discovers and activates skills via CLI
+→ Prompt returned to caller
+→ But activation is not persisted or injected into agent init prompt
 ```
 
 **What should happen:**
@@ -111,52 +113,48 @@ System prompt includes:
 
 ### Specific Issues
 
-1. **System Prompt Generation** doesn't read `chatroom_eventStream`
-   - `composeInitPrompt()` only reads from team config, not events
-   - No query to fetch `skill.activated` events
+1. **System Prompt Generation** does not track activated skills
+   - `composeInitPrompt()` only reads from team config
+   - No query or table for chatroom skill activation state
 
 2. **Glossary Section** is generic
    - Same glossary shown to all agents regardless of activated skills
    - Doesn't reflect chatroom-specific skill activation state
 
-3. **Skill Activation Events** are written but orphaned
-   - Events contain full prompt content (with `cliEnvPrefix` injected)
-   - Events are readable but never consumed for disclosure
-   - No mechanism to list activated skills for a chatroom
+3. **Skill Activation** is ephemeral
+   - Mutation returns prompt to caller only
+   - No mechanism to list activated skills for a chatroom later
 
 4. **No Activated Skills Registry**
    - Can query all skills from registry
-   - Can activate a skill (writes event)
+   - Can activate a skill (returns prompt)
    - But can't query "which skills are activated for this chatroom?"
-   - No database index or query for this
 
 ## Required Changes for Auto-Disclosure
 
 To enable automatic disclosure of activated skills to agents:
 
-### 1. Query Active Skills by Chatroom
+### 1. Persist or Query Active Skills by Chatroom
 
-- Add query to find all `skill.activated` events for a chatroom
-- Index on `(chatroomId, role, type)` to efficiently query by chatroom + skill.activated events
-- Return active skills grouped by role or as unified list
+- Add a table or query to track skill activations per chatroom/role
+- Return active skills for prompt composition
 
 ### 2. Enhance System Prompt Generation
 
-- Modify `composeInitPrompt()` to optionally query activated skills
+- Modify `composeInitPrompt()` to optionally include activated skills
 - Create new section (or extend glossary) for "Activated Skills"
 - Include full skill prompts for activated skills
 
 ### 3. Modify Glossary Section
 
-- Split into "Known Skills" (registry) and "Activated Skills" (events)
+- Split into "Known Skills" (registry) and "Activated Skills" (persisted state)
 - For activated skills, show full prompt instead of just "(1 skill available)"
 - For known but unactivated skills, show discovery instructions
 
 ### 4. Consider Role-Specific Activation
 
-- `skill.activated` event includes `role` field
+- Activation is per `role` argument on `skills.activate`
 - Should skills be role-specific, or chatroom-wide?
-- Current design: activation is per-role, so different roles see different skills
 
 ## Code Entry Points for Implementation
 
@@ -165,12 +163,10 @@ To enable automatic disclosure of activated skills to agents:
    - `services/backend/prompts/sections/glossary.ts` - `getGlossarySection()`
 
 2. **Query Active Skills**:
-   - `services/backend/convex/messages.ts` - extend or add new query
-   - `services/backend/convex/skills.ts` - add query function
+   - `services/backend/convex/skills.ts` — add persistence/query for activations
 
-3. **Event Reading**:
-   - `services/backend/src/domain/entities/events.ts` - already has `SkillActivatedEvent` type
-   - Use Convex query to find recent `skill.activated` events
+3. **Skill activation**:
+   - `services/backend/src/domain/usecase/skills/activate-skill.ts` — extend to persist if disclosure is required
 
 ## Test Points
 
@@ -205,9 +201,7 @@ Significant gaps in test coverage for skill disclosure:
    - Missing test would have caught development-workflow gap immediately
 
 2. **No Activated Skill Disclosure Tests**
-   - `skills.spec.ts` tests activation writes events but NOT consumption
-   - No test verifies `skill.activated` events are read and injected into system prompt
-   - Orphaned events are never detected
+   - `skills.spec.ts` tests activation return value but NOT init-prompt injection
 
 3. **Limited Prompt Generation Tests**
    - `agent-system-prompt.spec.ts` has snapshot tests but doesn't verify skill coverage
@@ -229,10 +223,9 @@ Significant gaps in test coverage for skill disclosure:
    - File: `services/backend/prompts/sections/glossary.ts`
    - Include skill name, description, and linkedSkillId
 
-2. **Create query to fetch activated skills by chatroom**
-   - Query format: `skills.getActivated(chatroomId, role?)`
-   - Returns list of `skill.activated` events
-   - Include cliEnvPrefix in prompt when needed
+2. **Create persistence/query for activated skills by chatroom**
+   - e.g. `skills.getActivated(chatroomId, role?)`
+   - Store activation on `skills.activate` if auto-disclosure is desired
 
 3. **Extend system prompt generation to include activated skills**
    - Modify `composeInitPrompt()` to optionally query activated skills
@@ -248,8 +241,7 @@ Significant gaps in test coverage for skill disclosure:
 
 5. **Verify role-specific activation behavior**
    - Document: Should skills be per-role or chatroom-wide?
-   - Current design: role field on `skill.activated` event suggests per-role
-   - May need separate "Activated Skills" section per role in prompt
+   - `skills.activate` accepts a `role` argument
 
 ## Test Files to Update
 
