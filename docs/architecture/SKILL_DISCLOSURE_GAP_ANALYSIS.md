@@ -2,9 +2,9 @@
 
 ## Executive Summary
 
-Registry skills are **not automatically disclosed** to agents because system prompt generation does not track which skills have been activated for a chatroom. `activateSkill` returns the skill prompt to the caller (CLI/UI) but nothing persists activation state for later prompt composition.
+**Resolved (2026-08):** Skill activations are persisted per chatroom and role in `chatroom_skillActivations`, and subsequent init and role prompts include the full activated skill prompt in an `# Activated Skills` section.
 
-> **Note (2026-08):** The Convex `chatroom_eventStream` table was removed. Skill activation no longer writes audit events; disclosure must use a dedicated store or query if auto-injection into system prompts is required.
+> **Implementation note (2026-08):** Activation rows are upserted by `(chatroomId, role, skillId)` and prompt reads are role-scoped, preventing cross-role disclosure.
 
 ## Current Architecture
 
@@ -85,7 +85,7 @@ ActivateSkillResult = {
 - Separate from the registry and skill activation mechanism
 - Not used in current system prompt generation
 
-## The Disclosure Gap
+## The Disclosure Gap (Resolved 2026-08)
 
 ### What's Missing
 
