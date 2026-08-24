@@ -30,8 +30,8 @@ vi.mock('../hooks/useChatInputFileDrop', () => ({
     redo: vi.fn(),
   }),
 }));
-vi.mock('./composer/useSketchCanvas', () => ({
-  useSketchCanvas: () => ({
+vi.mock('./composer/useSketchDocument', () => ({
+  useSketchDocument: () => ({
     canvasRef: { current: document.createElement('canvas') },
     canvasBindings: {},
     hasContent: true,

@@ -25,7 +25,7 @@ import { SketchDiscardDialog } from './SketchDiscardDialog';
 import { SketchToolRail } from './SketchToolRail';
 import { SKETCH_ENABLED_TOOL_IDS, type SketchToolId } from './sketchTools';
 import { useSketchBrushCursor } from './useSketchBrushCursor';
-import { useSketchCanvas, type UseSketchCanvasResult } from './useSketchCanvas';
+import { useSketchDocument, type UseSketchDocumentResult } from './useSketchDocument';
 import { useSketchSelection } from './useSketchSelection';
 import { useSketchToolShortcuts } from './useSketchToolShortcuts';
 import {
@@ -146,10 +146,10 @@ function SketchEditorCanvasPanel({
   selectionBindings,
   activeTool,
   showBrushCursor,
-}: Pick<UseSketchCanvasResult, 'canvasRef' | 'canvasBindings'> & {
+}: Pick<UseSketchDocumentResult, 'canvasRef' | 'canvasBindings'> & {
   disabled?: boolean;
   overlayRef?: RefObject<HTMLCanvasElement | null>;
-  selectionBindings?: UseSketchCanvasResult['canvasBindings'];
+  selectionBindings?: UseSketchDocumentResult['canvasBindings'];
   activeTool?: SketchToolId;
   showBrushCursor?: boolean;
 }) {
@@ -238,7 +238,7 @@ function SketchEditorSession({
   const brushInputDisabled = isSaving || !isDrawingTool;
   const effectiveBrushColor =
     activeTool === 'eraser' ? (SKETCH_CANVAS_BACKGROUND as SketchBrushColor) : brushColor;
-  const { canvasRef, canvasBindings, hasContent, exportPngFile, deleteRegion } = useSketchCanvas({
+  const { canvasRef, canvasBindings, hasContent, exportPngFile, deleteRegion } = useSketchDocument({
     brushColor: effectiveBrushColor,
     brushSize,
     disabled: brushInputDisabled,

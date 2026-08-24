@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-file unused-export
+// fallow-ignore-file unused-export
 import type { SketchSelectionRect } from './sketchCanvasSelection';
 
 export type SketchLayerId = string;
@@ -89,4 +89,14 @@ export function setFloating(
 }
 export function documentHasContent(state: SketchDocumentState): boolean {
   return state.layers.some((layer) => layer.hasContent);
+}
+export function updateLayerHasContent(
+  state: SketchDocumentState,
+  layerId: SketchLayerId,
+  hasContent: boolean
+): SketchDocumentState {
+  return {
+    ...state,
+    layers: state.layers.map((layer) => (layer.id === layerId ? { ...layer, hasContent } : layer)),
+  };
 }
