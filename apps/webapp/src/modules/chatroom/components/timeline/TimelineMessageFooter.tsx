@@ -7,7 +7,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { MessageDownloadMenu } from './MessageDownloadMenu';
 import { useAttachments } from '../../attachments';
 import type { Message } from '../../types/message';
-import { formatTimestamp } from '../../viewModels/eventStreamViewModel';
+import { formatTimestamp, formatTimestampFull } from '../../utils/chatroomTimestamp';
 
 /** Small copy-to-clipboard button with brief check-mark feedback. */
 
@@ -119,7 +119,9 @@ export const TimelineMessageFooter = memo(function TimelineMessageFooter({
           </button>
         )}
         <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
-          {formatTimestamp(message._creationTime)}
+          <span title={formatTimestampFull(message._creationTime)}>
+            {formatTimestamp(message._creationTime)}
+          </span>
         </span>
       </div>
     </div>

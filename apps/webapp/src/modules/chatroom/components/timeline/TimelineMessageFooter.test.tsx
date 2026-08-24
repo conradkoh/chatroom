@@ -24,7 +24,7 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-vi.mock('../../viewModels/eventStreamViewModel', () => ({
+vi.mock('../../utils/chatroomTimestamp', () => ({
   formatTimestamp: (time: number) => `TS:${time}`,
 }));
 
