@@ -63,6 +63,7 @@ type SketchEditorPropertiesProps = {
   activeTool: SketchToolId;
   selection: SketchSelectionRect | null;
   onRequestDelete: (selection: SketchSelectionRect) => void;
+  isImporting?: boolean;
   floating?: UseSketchDocumentResult['floating'];
   onApplyFloating?: () => void;
   onCancelFloating?: () => void;
@@ -81,6 +82,7 @@ function SketchEditorProperties({
   floating,
   onApplyFloating,
   onCancelFloating,
+  isImporting,
 }: SketchEditorPropertiesProps) {
   return (
     <div
@@ -91,6 +93,11 @@ function SketchEditorProperties({
         'lg:border-b-0 lg:border-l-2 lg:p-4'
       )}
     >
+      {isImporting ? (
+        <p aria-live="polite" className="text-sm text-chatroom-text-muted">
+          Pasting image…
+        </p>
+      ) : null}
       {activeTool === 'select' ? (
         <>
           <p className="hidden text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted lg:block">
@@ -241,6 +248,7 @@ type SketchEditorFooterProps = {
   onDismiss: () => void;
   onSave: () => void;
   className?: string;
+  isImporting?: boolean;
 };
 function SketchEditorFooter({
   isSaving,
@@ -248,6 +256,7 @@ function SketchEditorFooter({
   onDismiss,
   onSave,
   className,
+  isImporting,
 }: SketchEditorFooterProps) {
   return (
     <DialogFooter className={className}>
@@ -262,7 +271,7 @@ function SketchEditorFooter({
       <button
         type="button"
         className={cn(chatroomIndustrialButtonPrimaryClassName, 'min-w-24')}
-        disabled={!hasContent || isSaving}
+        disabled={!hasContent || isSaving || isImporting}
         onClick={onSave}
       >
         {isSaving ? 'Adding…' : 'Add sketch'}
@@ -314,6 +323,7 @@ function SketchEditorSession({
     importPastedImage,
     onTransformRequested: () => setActiveTool('transform'),
   });
+  const inputDisabled = isSaving || isImporting;
   const clearSelectionRef = useRef<() => void>(() => {});
   const handleDeleteSelection = useCallback(
     (selection: SketchSelectionRect) => {
@@ -328,7 +338,7 @@ function SketchEditorSession({
     selection: docSelection,
     onSelectionChange,
     enabled: activeTool === 'select',
-    disabled: isSaving,
+    disabled: inputDisabled,
     onRequestDelete: handleDeleteSelection,
   });
   const { brushCursorBindings, showBrushCursor } = useSketchBrushCursor({
@@ -352,7 +362,7 @@ function SketchEditorSession({
     canvasRef,
     overlayRef,
     activeTool: activeTool === 'transform' ? 'transform' : 'move',
-    disabled: isSaving,
+    disabled: inputDisabled,
     selection: docSelection,
     floating,
     beginFloatingSelection,
@@ -404,13 +414,13 @@ function SketchEditorSession({
         <SketchToolRail
           activeTool={activeTool}
           enabledTools={SKETCH_ENABLED_TOOL_IDS}
-          disabled={isSaving}
+          disabled={isSaving || isImporting}
           onToolChange={setActiveTool}
         />
         <SketchEditorCanvasPanel
           canvasRef={canvasRef}
           canvasBindings={drawingBindings}
-          disabled={isSaving}
+          disabled={isSaving || isImporting}
           overlayRef={overlayRef}
           selectionBindings={selectionBindings}
           activeTool={activeTool}
@@ -420,7 +430,7 @@ function SketchEditorSession({
         <SketchEditorProperties
           brushColor={brushColor}
           brushSize={brushSize}
-          disabled={isSaving}
+          disabled={isSaving || isImporting}
           activeTool={activeTool}
           selection={selection}
           onRequestDelete={handleDeleteSelection}
@@ -429,6 +439,7 @@ function SketchEditorSession({
           floating={floating}
           onApplyFloating={applyFloatingSelection}
           onCancelFloating={cancelFloatingSelection}
+          isImporting={isImporting}
         />
       </div>
       <SketchEditorFooter
@@ -437,6 +448,7 @@ function SketchEditorSession({
         hasContent={hasContent}
         onDismiss={requestDismiss}
         onSave={save}
+        isImporting={isImporting}
       />
       <SketchDiscardDialog
         open={discardOpen}
