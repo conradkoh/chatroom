@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useRef, useState, type ComponentProps, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type RefObject,
+} from 'react';
 import { toast } from 'sonner';
 
 import { SketchBrushSizeControl } from './SketchBrushSizeControl';
@@ -14,6 +21,7 @@ import {
   SKETCH_CANVAS_WIDTH,
   type SketchBrushColor,
 } from './sketchConstants';
+import { SketchDiscardDialog } from './SketchDiscardDialog';
 import { SketchToolRail } from './SketchToolRail';
 import { SKETCH_ENABLED_TOOL_IDS, type SketchToolId } from './sketchTools';
 import { useSketchBrushCursor } from './useSketchBrushCursor';
@@ -34,7 +42,11 @@ export type SketchDialogProps = {
   onOpenChange: (open: boolean) => void;
   onSave: (file: File) => void;
 };
-type SketchEditorSessionProps = { onDismiss: () => void; onSave: (file: File) => void };
+type SketchEditorSessionProps = {
+  onDismiss: () => void;
+  onSave: (file: File) => void;
+  registerRequestDismiss: (requestDismiss: () => void) => void;
+};
 function composePointerHandlers(
   ...handlers: (ComponentProps<'canvas'>['onPointerMove'] | undefined)[]
 ): ComponentProps<'canvas'>['onPointerMove'] {
@@ -211,10 +223,15 @@ function SketchEditorFooter({
 }
 
 // fallow-ignore-next-line complexity
-function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
+function SketchEditorSession({
+  onDismiss,
+  onSave,
+  registerRequestDismiss,
+}: SketchEditorSessionProps) {
   const [brushColor, setBrushColor] = useState(SKETCH_BRUSH_COLOR_DEFAULT);
   const [brushSize, setBrushSize] = useState(SKETCH_BRUSH_SIZE_DEFAULT);
   const [isSaving, setIsSaving] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [activeTool, setActiveTool] = useState<SketchToolId>('brush');
   useSketchToolShortcuts({ enabledTools: SKETCH_ENABLED_TOOL_IDS, onToolChange: setActiveTool });
   const isDrawingTool = activeTool === 'brush' || activeTool === 'eraser';
@@ -274,6 +291,19 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
       setIsSaving(false);
     }
   };
+  const requestDismiss = useCallback(() => {
+    if (isSaving) return;
+    if (!hasContent) {
+      onDismiss();
+      return;
+    }
+    setDiscardOpen(true);
+  }, [hasContent, isSaving, onDismiss]);
+  useEffect(() => registerRequestDismiss(requestDismiss), [registerRequestDismiss, requestDismiss]);
+  const confirmDiscard = useCallback(() => {
+    setDiscardOpen(false);
+    onDismiss();
+  }, [onDismiss]);
   return (
     <div aria-busy={isSaving} className="flex min-h-0 flex-1 flex-col">
       <DialogHeader className="min-h-12 shrink-0 justify-center border-b-2 border-chatroom-border px-4 pr-12 text-left">
@@ -310,21 +340,44 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
         className="shrink-0 px-4 py-3 lg:px-5"
         isSaving={isSaving}
         hasContent={hasContent}
-        onDismiss={onDismiss}
+        onDismiss={requestDismiss}
         onSave={save}
+      />
+      <SketchDiscardDialog
+        open={discardOpen}
+        onOpenChange={setDiscardOpen}
+        onConfirm={confirmDiscard}
       />
     </div>
   );
 }
 
 export function SketchDialog({ open, onOpenChange, onSave }: SketchDialogProps) {
+  const requestDismissRef = useRef<() => void>(() => onOpenChange(false));
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen) onOpenChange(true);
+      else requestDismissRef.current();
+    },
+    [onOpenChange]
+  );
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         floating
+        onEscapeKeyDown={(event) => {
+          event.preventDefault();
+          requestDismissRef.current();
+        }}
         className="flex h-[min(90dvh,760px)] w-[calc(100vw-1rem)] max-w-[1100px] flex-col gap-0 p-0 sm:h-[min(85dvh,760px)] sm:w-[min(92vw,1100px)] lg:h-[calc(100dvh-2rem)] lg:w-[calc(100vw-2rem)] lg:max-w-none"
       >
-        <SketchEditorSession onDismiss={() => onOpenChange(false)} onSave={onSave} />
+        <SketchEditorSession
+          onDismiss={() => onOpenChange(false)}
+          onSave={onSave}
+          registerRequestDismiss={(requestDismiss) => {
+            requestDismissRef.current = requestDismiss;
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

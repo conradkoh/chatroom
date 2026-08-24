@@ -130,6 +130,7 @@ export function useSketchSelection({
         selectAll();
       } else if (a === 'clear') {
         e.preventDefault();
+        e.stopPropagation();
         clearSelection();
       } else if (a === 'request-delete' && selection) {
         e.preventDefault();
