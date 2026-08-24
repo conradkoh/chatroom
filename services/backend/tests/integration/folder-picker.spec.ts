@@ -10,6 +10,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
 import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
+import { getInboxCommandsForMachine } from '../helpers/machine-command-inbox';
 
 const SELECTED_PATH = '/tmp/workspace-picker';
 
@@ -36,18 +37,11 @@ describe('folder picker requests', () => {
     expect(request!.status).toBe('pending');
     expect(request!.machineId).toBe(machineId);
 
-    const events = await t.run(async (ctx) =>
-      ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_machineId_type', (q) =>
-          q.eq('machineId', machineId).eq('type', 'daemon.pickFolder')
-        )
-        .collect()
-    );
-    expect(events).toHaveLength(1);
-    expect(events[0].type).toBe('daemon.pickFolder');
-    if (events[0].type === 'daemon.pickFolder') {
-      expect(events[0].requestId).toBe(requestId);
+    const inbox = await getInboxCommandsForMachine(machineId, 'daemon.pickFolder');
+    expect(inbox).toHaveLength(1);
+    expect(inbox[0]!.command.type).toBe('daemon.pickFolder');
+    if (inbox[0]!.command.type === 'daemon.pickFolder') {
+      expect(inbox[0]!.command.requestId).toBe(requestId);
     }
   });
 
