@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { FULL_SKETCH_SELECTION } from './sketchCanvasSelection';
 import { SKETCH_CANVAS_HEIGHT, SKETCH_CANVAS_WIDTH } from './sketchConstants';
 import { useSketchSelection } from './useSketchSelection';
 
@@ -159,6 +160,49 @@ describe('useSketchSelection', () => {
     });
     rerender({ enabled: false });
     expect(result.current.selection).toBeNull();
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true })
+      );
+    });
+    expect(result.current.selection).toBeNull();
+  });
+
+  it('selects the full canvas on Cmd+A and Ctrl+A', () => {
+    const canvas = setupCanvas();
+    const onRequestDelete = vi.fn();
+    const { result } = renderHook(() =>
+      useSketchSelection({
+        canvasRef: { current: canvas },
+        enabled: true,
+        disabled: false,
+        onRequestDelete,
+      })
+    );
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true })
+      );
+    });
+    expect(result.current.selection).toEqual(FULL_SKETCH_SELECTION);
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true })
+      );
+    });
+    expect(result.current.selection).toEqual(FULL_SKETCH_SELECTION);
+  });
+
+  it('ignores select-all when the hook is disabled', () => {
+    const canvas = setupCanvas();
+    const { result } = renderHook(() =>
+      useSketchSelection({
+        canvasRef: { current: canvas },
+        enabled: true,
+        disabled: true,
+        onRequestDelete: vi.fn(),
+      })
+    );
     act(() => {
       document.dispatchEvent(
         new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true })

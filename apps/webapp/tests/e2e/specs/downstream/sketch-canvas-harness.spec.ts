@@ -119,6 +119,18 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       await page.getByRole('button', { name: 'Delete pixels' }).click();
       await expect(page.getByRole('button', { name: 'Add sketch' })).toBeDisabled();
     });
+    test('Cmd+A selects entire canvas and confirmed delete clears sketch', async ({ page }) => {
+      await openSketch(page);
+      const canvas = page.getByLabel('Sketch canvas');
+      await mouseStroke(page, canvas);
+      await page.getByRole('button', { name: 'Select tool' }).click();
+      await page.keyboard.press('Meta+a');
+      await expect(page.getByText('Entire canvas selected.')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
+      await page.getByRole('button', { name: 'Delete selection' }).click();
+      await page.getByRole('button', { name: 'Delete pixels' }).click();
+      await expect(page.getByRole('button', { name: 'Add sketch' })).toBeDisabled();
+    });
   });
   test.describe('mobile', () => {
     const { defaultBrowserType: _defaultBrowserType, ...iphone14 } = devices['iPhone 14'];

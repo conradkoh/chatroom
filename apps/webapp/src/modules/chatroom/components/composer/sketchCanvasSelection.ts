@@ -4,7 +4,7 @@ import { SKETCH_CANVAS_HEIGHT, SKETCH_CANVAS_WIDTH } from './sketchConstants';
 
 export type SketchSelectionRect = { x: number; y: number; width: number; height: number };
 export type SketchSelectionAction = 'select-all' | 'request-delete' | 'clear';
-const FULL_SKETCH_SELECTION: SketchSelectionRect = {
+export const FULL_SKETCH_SELECTION: SketchSelectionRect = {
   x: 0,
   y: 0,
   width: SKETCH_CANVAS_WIDTH,

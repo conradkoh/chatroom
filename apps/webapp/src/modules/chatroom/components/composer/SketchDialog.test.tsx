@@ -119,4 +119,12 @@ describe('SketchDialog', () => {
     await user.keyboard('m');
     expect(screen.getByRole('button', { name: 'Delete selection' })).toBeDisabled();
   });
+  it('shows entire canvas status after Cmd+A in Select mode', async () => {
+    const user = userEvent.setup();
+    render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
+    await user.keyboard('m');
+    await user.keyboard('{Meta>}a{/Meta}');
+    expect(screen.getByText('Entire canvas selected.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
+  });
 });

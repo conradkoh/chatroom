@@ -14,6 +14,7 @@ import {
 import { mapClientPointToCanvas } from './sketchCanvasDrawing';
 import {
   drawSketchSelectionMarquee,
+  FULL_SKETCH_SELECTION,
   resolveSketchSelectionAction,
   type SketchSelectionRect,
 } from './sketchCanvasSelection';
@@ -52,6 +53,10 @@ export function useSketchSelection({
     paint(null);
   }, [paint]);
   useLayoutEffect(() => paint(selection), [paint, selection]);
+  const selectAll = useCallback(() => {
+    setSelection(FULL_SKETCH_SELECTION);
+    paint(FULL_SKETCH_SELECTION);
+  }, [paint]);
   useEffect(() => {
     if (!enabled) clearSelection();
   }, [enabled, clearSelection]);
@@ -119,7 +124,11 @@ export function useSketchSelection({
     if (!enabled || disabled) return;
     const listener = (e: KeyboardEvent) => {
       const a = resolveSketchSelectionAction(e, selection !== null);
-      if (a === 'clear') {
+      if (a === 'select-all') {
+        e.preventDefault();
+        e.stopPropagation();
+        selectAll();
+      } else if (a === 'clear') {
         e.preventDefault();
         clearSelection();
       } else if (a === 'request-delete' && selection) {
@@ -129,7 +138,7 @@ export function useSketchSelection({
     };
     document.addEventListener('keydown', listener, true);
     return () => document.removeEventListener('keydown', listener, true);
-  }, [clearSelection, disabled, enabled, onRequestDelete, selection]);
+  }, [clearSelection, disabled, enabled, onRequestDelete, selectAll, selection]);
   return {
     overlayRef,
     selection,
@@ -140,7 +149,7 @@ export function useSketchSelection({
       onPointerCancel,
       onLostPointerCapture: onPointerCancel,
     },
-    selectAll: () => {},
+    selectAll,
     clearSelection,
   };
 }

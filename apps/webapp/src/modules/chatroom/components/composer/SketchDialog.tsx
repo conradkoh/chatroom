@@ -4,7 +4,7 @@ import { useState, type RefObject } from 'react';
 import { toast } from 'sonner';
 
 import { SketchBrushSizeControl } from './SketchBrushSizeControl';
-import type { SketchSelectionRect } from './sketchCanvasSelection';
+import { isFullSketchSelection, type SketchSelectionRect } from './sketchCanvasSelection';
 import { SketchColorPicker } from './SketchColorPicker';
 import {
   SKETCH_BRUSH_COLOR_DEFAULT,
@@ -46,6 +46,7 @@ type SketchEditorPropertiesProps = {
   onRequestDelete: (selection: SketchSelectionRect) => void;
 };
 
+// fallow-ignore-next-line complexity
 function SketchEditorProperties({
   brushColor,
   brushSize,
@@ -71,11 +72,14 @@ function SketchEditorProperties({
             Selection
           </p>
           <p className="text-sm text-chatroom-text-secondary">
-            Drag on canvas to select an area. Press Delete to remove selected pixels.
+            Drag on canvas to select an area. Press Delete to remove selected pixels. Cmd/Ctrl+A
+            selects all.
           </p>
           <p aria-live="polite" className="text-sm text-chatroom-text-muted">
             {selection
-              ? `${Math.round(selection.width)} × ${Math.round(selection.height)} px`
+              ? isFullSketchSelection(selection)
+                ? 'Entire canvas selected.'
+                : `${Math.round(selection.width)} × ${Math.round(selection.height)} px`
               : 'Drag on canvas to select an area'}
           </p>
           <button
