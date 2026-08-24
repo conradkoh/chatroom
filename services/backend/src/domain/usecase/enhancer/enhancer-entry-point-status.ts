@@ -24,36 +24,12 @@ async function hasActiveEnhancerTask(
   return false;
 }
 
-async function emitParticipantStatusEvent(
-  ctx: MutationCtx,
-  params: {
-    chatroomId: Id<'chatroom_rooms'>;
-    role: string;
-    type: 'agent.enhancing' | 'agent.waiting';
-    timestamp: number;
-  }
-): Promise<void> {
-  await ctx.db.insert('chatroom_eventStream', {
-    type: params.type,
-    chatroomId: params.chatroomId,
-    role: params.role,
-    timestamp: params.timestamp,
-  });
-}
-
 /** Set the persistent entry-point agent's status while enhancer work is in flight. */
 export async function transitionEnhancerEntryPointToEnhancing(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
   entryPointRole: string
 ): Promise<void> {
-  const now = Date.now();
-  await emitParticipantStatusEvent(ctx, {
-    type: 'agent.enhancing',
-    chatroomId,
-    role: entryPointRole,
-    timestamp: now,
-  });
   await transitionAgentStatus(ctx, chatroomId, entryPointRole, 'agent.enhancing');
 }
 
@@ -63,13 +39,6 @@ export async function transitionEnhancerEntryPointToWaiting(
   chatroomId: Id<'chatroom_rooms'>,
   entryPointRole: string
 ): Promise<void> {
-  const now = Date.now();
-  await emitParticipantStatusEvent(ctx, {
-    type: 'agent.waiting',
-    chatroomId,
-    role: entryPointRole,
-    timestamp: now,
-  });
   await transitionAgentStatus(ctx, chatroomId, entryPointRole, 'agent.waiting');
 }
 

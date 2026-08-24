@@ -9,8 +9,6 @@
  *   2. Mark participant as exited — only if the config still belongs to the same machine
  *      (prevents overwriting a running agent's status during machine switch)
  *
- * After clearing the PID, `processConfigRemoval()` is called to handle any
- * pending config-removal requests.
  */
 
 import { transitionAgentStatus } from './transition-agent-status';
