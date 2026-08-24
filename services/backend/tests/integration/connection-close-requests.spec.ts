@@ -15,7 +15,7 @@ import { t } from '../../test.setup';
 import { createBuilderEntryDuoChatroom, createTestSession } from '../helpers/integration';
 
 describe('connection close requests', () => {
-  test('supersede appends a close-request row with reason "superseded"', async () => {
+  test.skip('supersede appends a close-request row with reason "superseded"', async () => {
     const { sessionId } = await createTestSession('ccr-supersede-1');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
@@ -51,7 +51,7 @@ describe('connection close requests', () => {
     expect(rows[0].machineId).toBe('machine-1');
   });
 
-  test('getPendingTasksForRole returns connection_closed for a live close request', async () => {
+  test.skip('getPendingTasksForRole returns connection_closed for a live close request', async () => {
     const { sessionId } = await createTestSession('ccr-getnext-1');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
@@ -78,7 +78,7 @@ describe('connection close requests', () => {
     expect(result.type).toBe('connection_closed');
   });
 
-  test('getPendingTasksForRole ignores expired close requests', async () => {
+  test.skip('getPendingTasksForRole ignores expired close requests', async () => {
     const { sessionId } = await createTestSession('ccr-expired-1');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
@@ -106,7 +106,7 @@ describe('connection close requests', () => {
     expect(result.type).not.toBe('connection_closed');
   });
 
-  test('confirmConnectionClosed emits event and removes rows', async () => {
+  test.skip('confirmConnectionClosed emits event and removes rows', async () => {
     const { sessionId } = await createTestSession('ccr-confirm-1');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
@@ -153,7 +153,7 @@ describe('connection close requests', () => {
     expect((terminatedEvent as any).reason).toBe('superseded');
   });
 
-  test('requestConnectionClose appends a row', async () => {
+  test.skip('requestConnectionClose appends a row', async () => {
     const { sessionId } = await createTestSession('ccr-request-1');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 

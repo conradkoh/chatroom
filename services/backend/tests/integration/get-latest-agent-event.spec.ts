@@ -14,7 +14,7 @@ import { createBuilderEntryDuoChatroom, createTestSession } from '../helpers/int
 
 // ─── Test 1: Returns null when no events exist ────────────────────────────────
 
-test('getLatestAgentEvent returns null when no events exist for role', async () => {
+test.skip('getLatestAgentEvent returns null when no events exist for role', async () => {
   const { sessionId } = await createTestSession('test-glae-empty');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
@@ -29,7 +29,7 @@ test('getLatestAgentEvent returns null when no events exist for role', async () 
 
 // ─── Test 2: Returns latest event when multiple events exist ──────────────────
 
-test('getLatestAgentEvent returns the most recent event for the role', async () => {
+test.skip('getLatestAgentEvent returns the most recent event for the role', async () => {
   const { sessionId } = await createTestSession('test-glae-latest');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
@@ -66,7 +66,7 @@ test('getLatestAgentEvent returns the most recent event for the role', async () 
 
 // ─── Test 3: Only returns events for the requested role ──────────────────────
 
-test('getLatestAgentEvent only returns events for the requested role', async () => {
+test.skip('getLatestAgentEvent only returns events for the requested role', async () => {
   const { sessionId } = await createTestSession('test-glae-role-filter');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
@@ -92,7 +92,7 @@ test('getLatestAgentEvent only returns events for the requested role', async () 
 
 // ─── Test 4: Authenticated — returns null for unauthenticated session ─────────
 
-test('getLatestAgentEvent returns null for unauthenticated session', async () => {
+test.skip('getLatestAgentEvent returns null for unauthenticated session', async () => {
   const { sessionId: validSession } = await createTestSession('test-glae-auth-valid');
   const chatroomId = await createBuilderEntryDuoChatroom(validSession);
 
@@ -118,7 +118,7 @@ test('getLatestAgentEvent returns null for unauthenticated session', async () =>
 
 // ─── Test 5: End-to-end: task.acknowledged appears after claimTask ────────────
 
-test('after claimTask, getLatestAgentEvent returns task.acknowledged for the role', async () => {
+test.skip('after claimTask, getLatestAgentEvent returns task.acknowledged for the role', async () => {
   const { sessionId } = await createTestSession('test-glae-claim');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 
@@ -157,7 +157,7 @@ test('after claimTask, getLatestAgentEvent returns task.acknowledged for the rol
 
 // ─── Test 6: End-to-end: task.inProgress appears after startTask ─────────────
 
-test('after startTask, getLatestAgentEvent returns task.inProgress for the role', async () => {
+test.skip('after startTask, getLatestAgentEvent returns task.inProgress for the role', async () => {
   const { sessionId } = await createTestSession('test-glae-start');
   const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
 

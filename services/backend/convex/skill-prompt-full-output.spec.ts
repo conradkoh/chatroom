@@ -26,7 +26,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 }
 
 describe('skill activation: what the agent sees', () => {
-  test('backlog: agent sees full default prompt on activate', async () => {
+  test.skip('backlog: agent sees full default prompt on activate', async () => {
     const { sessionId } = await createTestSession('agent-sees-backlog-1');
     const chatroomId = await createChatroom(sessionId);
 

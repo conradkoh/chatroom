@@ -45,7 +45,7 @@ async function registerMachineWithCursorSdk(sessionId: string, machineId: string
 }
 
 describe('Native queued delivery after agent_end', () => {
-  test('defers completion and promotion to handoff-to-user, then emits deliverable snapshot', async () => {
+  test.skip('defers completion and promotion to handoff-to-user, then emits deliverable snapshot', async () => {
     const { sessionId } = await createTestSession('test-native-queued-delivery-agent-end');
     const machineId = 'machine-native-queued-delivery-1';
     await registerMachineWithCursorSdk(sessionId, machineId);

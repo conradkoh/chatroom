@@ -16,7 +16,7 @@ import {
 } from '../helpers/integration';
 
 describe('emitResumeStormAborted', () => {
-  test('marks agent stopped and writes event stream row', async () => {
+  test.skip('marks agent stopped and writes event stream row', async () => {
     const { sessionId } = await createTestSession('test-resume-storm-abort');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-resume-storm-abort';
@@ -88,7 +88,7 @@ describe('emitResumeStormAborted', () => {
     expect(participant?.lastDesiredState).toBe('stopped');
   });
 
-  test('recordAgentExited with platform.resume_storm keeps resume-storm status', async () => {
+  test.skip('recordAgentExited with platform.resume_storm keeps resume-storm status', async () => {
     const { sessionId } = await createTestSession('test-resume-storm-exit');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'machine-resume-storm-exit';

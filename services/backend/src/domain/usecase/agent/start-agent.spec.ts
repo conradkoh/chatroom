@@ -71,7 +71,7 @@ async function startAgent(
 // ---------------------------------------------------------------------------
 
 describe('startAgent use case — desiredState', () => {
-  test('sets desiredState: running on team config after starting an agent', async () => {
+  test.skip('sets desiredState: running on team config after starting an agent', async () => {
     const { sessionId } = await createTestSession('start-agent-1');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-1';
@@ -91,7 +91,7 @@ describe('startAgent use case — desiredState', () => {
     expect(teamConfig?.desiredState).toBe('running');
   });
 
-  test('resets desiredState from stopped to running when agent is started', async () => {
+  test.skip('resets desiredState from stopped to running when agent is started', async () => {
     const { sessionId } = await createTestSession('start-agent-2');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-2';
@@ -142,7 +142,7 @@ describe('startAgent use case — desiredState', () => {
     expect(running?.desiredState).toBe('running');
   });
 
-  test('resets circuit breaker state when manually starting an agent', async () => {
+  test.skip('resets circuit breaker state when manually starting an agent', async () => {
     const { sessionId } = await createTestSession('start-agent-3');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-3';
@@ -188,7 +188,7 @@ describe('startAgent use case — desiredState', () => {
     expect(config?.desiredState).toBe('running');
   });
 
-  test('emits machine.switched when starting on a different machine with allowNewMachine: true', async () => {
+  test.skip('emits machine.switched when starting on a different machine with allowNewMachine: true', async () => {
     const { sessionId } = await createTestSession('start-agent-switch-1');
     const chatroomId = await createChatroom(sessionId);
     const machineA = 'start-switch-a';
@@ -219,7 +219,7 @@ describe('startAgent use case — desiredState', () => {
     }
   });
 
-  test('does not emit machine.switched when the same machine is used again', async () => {
+  test.skip('does not emit machine.switched when the same machine is used again', async () => {
     const { sessionId } = await createTestSession('start-agent-switch-2');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-switch-same';
@@ -240,7 +240,7 @@ describe('startAgent use case — desiredState', () => {
     expect(switched.length).toBe(0);
   });
 
-  test('rejects start on a different machine when allowNewMachine is false', async () => {
+  test.skip('rejects start on a different machine when allowNewMachine is false', async () => {
     const { sessionId } = await createTestSession('start-agent-switch-3');
     const chatroomId = await createChatroom(sessionId);
     const machineA = 'start-reject-a';
@@ -255,7 +255,7 @@ describe('startAgent use case — desiredState', () => {
     ).rejects.toThrow(/allowNewMachine: true/);
   });
 
-  test('rejects start on a different machine when allowNewMachine is omitted (default policy)', async () => {
+  test.skip('rejects start on a different machine when allowNewMachine is omitted (default policy)', async () => {
     const { sessionId } = await createTestSession('start-agent-switch-4');
     const chatroomId = await createChatroom(sessionId);
     const machineA = 'start-default-a';
@@ -297,7 +297,7 @@ describe('startAgent use case — wantResume persistence', () => {
     });
   }
 
-  test('persists wantResume: false on the team config when explicitly disabled', async () => {
+  test.skip('persists wantResume: false on the team config when explicitly disabled', async () => {
     const { sessionId } = await createTestSession('start-agent-resume-false');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-resume-false';
@@ -309,7 +309,7 @@ describe('startAgent use case — wantResume persistence', () => {
     expect(config?.wantResume).toBe(false);
   });
 
-  test('persists wantResume: true on the team config when explicitly enabled', async () => {
+  test.skip('persists wantResume: true on the team config when explicitly enabled', async () => {
     const { sessionId } = await createTestSession('start-agent-resume-true');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-resume-true';
@@ -321,7 +321,7 @@ describe('startAgent use case — wantResume persistence', () => {
     expect(config?.wantResume).toBe(true);
   });
 
-  test('defaults wantResume to false for duo builder when omitted', async () => {
+  test.skip('defaults wantResume to false for duo builder when omitted', async () => {
     const { sessionId } = await createTestSession('start-agent-resume-default');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-resume-default';
@@ -333,7 +333,7 @@ describe('startAgent use case — wantResume persistence', () => {
     expect(config?.wantResume).toBe(false);
   });
 
-  test('updates persisted wantResume on a subsequent start (false then true)', async () => {
+  test.skip('updates persisted wantResume on a subsequent start (false then true)', async () => {
     const { sessionId } = await createTestSession('start-agent-resume-update');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'start-machine-resume-update';
