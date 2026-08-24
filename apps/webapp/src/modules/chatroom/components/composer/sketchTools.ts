@@ -1,15 +1,17 @@
-export type SketchToolId = 'move' | 'select' | 'brush';
+export type SketchToolId = 'move' | 'select' | 'brush' | 'eraser';
 
 export const SKETCH_TOOLS = {
   move: { label: 'Move', shortcut: 'V' },
   select: { label: 'Select', shortcut: 'M' },
   brush: { label: 'Brush', shortcut: 'B' },
+  eraser: { label: 'Eraser', shortcut: 'E' },
 } as const satisfies Record<SketchToolId, { label: string; shortcut: string }>;
 
 /** Enable a tool only after its pointer behavior and tests ship. */
 export const SKETCH_ENABLED_TOOL_IDS = [
   'select',
   'brush',
+  'eraser',
 ] as const satisfies readonly SketchToolId[];
 
 function isEditableTarget(target: EventTarget | null): boolean {

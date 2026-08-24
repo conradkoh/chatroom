@@ -90,6 +90,18 @@ function SketchEditorProperties({
             Delete selection
           </button>
         </>
+      ) : activeTool === 'eraser' ? (
+        <>
+          <p className="hidden text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted lg:block">
+            Eraser
+          </p>
+          <p className="text-sm text-chatroom-text-secondary">Drag on canvas to erase pixels.</p>
+          <SketchBrushSizeControl
+            value={brushSize}
+            onChange={onBrushSizeChange}
+            disabled={disabled}
+          />
+        </>
       ) : (
         <>
           <p className="hidden text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted lg:block">
@@ -191,11 +203,15 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [activeTool, setActiveTool] = useState<SketchToolId>('brush');
   useSketchToolShortcuts({ enabledTools: SKETCH_ENABLED_TOOL_IDS, onToolChange: setActiveTool });
-  const brushInputDisabled = isSaving || activeTool !== 'brush';
+  const isDrawingTool = activeTool === 'brush' || activeTool === 'eraser';
+  const brushInputDisabled = isSaving || !isDrawingTool;
+  const effectiveBrushColor =
+    activeTool === 'eraser' ? (SKETCH_CANVAS_BACKGROUND as SketchBrushColor) : brushColor;
   const { canvasRef, canvasBindings, hasContent, exportPngFile, deleteRegion } = useSketchCanvas({
-    brushColor,
+    brushColor: effectiveBrushColor,
     brushSize,
     disabled: brushInputDisabled,
+    eraserMode: activeTool === 'eraser',
   });
   const clearSelectionRef = useRef<() => void>(() => {});
   const handleDeleteSelection = useCallback(

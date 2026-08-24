@@ -15,6 +15,7 @@ const event = (key: string, target: EventTarget | null = document.body, modifier
 describe('sketch tool shortcuts', () => {
   it('enables Brush and Select while reserving Move', () => {
     expect(resolveSketchToolShortcut(event('b'), SKETCH_ENABLED_TOOL_IDS)).toBe('brush');
+    expect(resolveSketchToolShortcut(event('e'), SKETCH_ENABLED_TOOL_IDS)).toBe('eraser');
     expect(resolveSketchToolShortcut(event('v'), SKETCH_ENABLED_TOOL_IDS)).toBeNull();
     expect(resolveSketchToolShortcut(event('m'), SKETCH_ENABLED_TOOL_IDS)).toBe('select');
     expect(resolveSketchToolShortcut(event('v'), ['move', 'select', 'brush'])).toBe('move');

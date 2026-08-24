@@ -36,6 +36,7 @@ export type UseSketchCanvasArgs = {
   brushColor: SketchBrushColor;
   brushSize: number;
   disabled: boolean;
+  eraserMode?: boolean;
 };
 export type UseSketchCanvasResult = {
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -52,6 +53,7 @@ export function useSketchCanvas({
   brushColor,
   brushSize,
   disabled,
+  eraserMode = false,
 }: UseSketchCanvasArgs): UseSketchCanvasResult {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -103,9 +105,9 @@ export function useSketchCanvas({
       if (!context) return;
       contextRef.current = context;
       drawSketchDot(context, point, brush, getCssToCanvasScale(canvas));
-      markHasContent();
+      eraserMode ? syncHasContent() : markHasContent();
     },
-    [markHasContent]
+    [eraserMode, markHasContent, syncHasContent]
   );
   const drawSegment = useCallback(
     (from: SketchPoint, to: SketchPoint, brush: SketchBrush, canvas: HTMLCanvasElement) => {
@@ -113,9 +115,9 @@ export function useSketchCanvas({
       if (!context) return;
       contextRef.current = context;
       drawSketchSegment(context, from, to, brush, getCssToCanvasScale(canvas));
-      markHasContent();
+      eraserMode ? syncHasContent() : markHasContent();
     },
-    [markHasContent]
+    [eraserMode, markHasContent, syncHasContent]
   );
   const onPointerDown: ComponentProps<'canvas'>['onPointerDown'] = useCallback(
     (event: ReactPointerEvent<HTMLCanvasElement>) => {

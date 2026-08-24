@@ -1,6 +1,6 @@
 'use client';
 
-import { BoxSelect, Brush, Move } from 'lucide-react';
+import { BoxSelect, Brush, Eraser, Move } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { SKETCH_TOOLS, type SketchToolId } from './sketchTools';
@@ -11,6 +11,7 @@ const SKETCH_TOOL_ICONS: Record<SketchToolId, LucideIcon> = {
   move: Move,
   select: BoxSelect,
   brush: Brush,
+  eraser: Eraser,
 };
 
 export type SketchToolRailProps = {

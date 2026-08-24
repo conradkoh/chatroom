@@ -60,6 +60,14 @@ function draw(canvas: HTMLCanvasElement) {
   );
 }
 describe('SketchDialog', () => {
+  it('shows Eraser tool and activates it with E', async () => {
+    const user = userEvent.setup();
+    render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
+    const eraserTool = screen.getByRole('button', { name: 'Eraser tool' });
+    expect(eraserTool).toHaveAttribute('aria-keyshortcuts', 'E');
+    await user.keyboard('e');
+    expect(eraserTool).toHaveAttribute('aria-pressed', 'true');
+  });
   it('shows Brush tool with Photoshop shortcut semantics', () => {
     render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
     const brushTool = screen.getByRole('button', { name: 'Brush tool' });
