@@ -1,7 +1,10 @@
 import { expect } from 'vitest';
 
-import type { Id } from '../../convex/_generated/dataModel';
+import type { Doc, Id } from '../../convex/_generated/dataModel';
+import type { MachineCommandType } from '../../src/domain/entities/machine-command';
 import { t } from '../../test.setup';
+
+type InboxRow = Doc<'chatroom_machineCommandInbox'>;
 
 const COMMAND_EVENT_TYPES = [
   'agent.requestStart',
@@ -40,6 +43,50 @@ export async function getMachineCommandInboxAll(machineId: string) {
       )
       .collect()),
   ]);
+}
+
+export async function getInboxCommandsForMachine(
+  machineId: string,
+  commandType?: MachineCommandType
+): Promise<InboxRow[]> {
+  const rows = await getMachineCommandInboxAll(machineId);
+  if (!commandType) return rows;
+  return rows.filter((row) => row.command.type === commandType);
+}
+
+export async function getInboxCommandsForChatroom(
+  chatroomId: Id<'chatroom_rooms'>,
+  commandType: MachineCommandType
+): Promise<InboxRow[]> {
+  return t.run(async (ctx) => {
+    const rows = await ctx.db.query('chatroom_machineCommandInbox').collect();
+    return rows.filter(
+      (row) =>
+        'chatroomId' in row.command &&
+        row.command.chatroomId === chatroomId &&
+        row.command.type === commandType
+    );
+  });
+}
+
+export async function getStopCommandMachineIdsForRole(
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+): Promise<string[]> {
+  const rows = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStop');
+  return rows
+    .filter((row) => row.command.type === 'agent.requestStop' && row.command.role === role)
+    .map((row) => row.machineId);
+}
+
+export async function getGitRefreshCommandsForMachine(
+  machineId: string,
+  workingDir: string
+): Promise<InboxRow[]> {
+  const rows = await getInboxCommandsForMachine(machineId, 'daemon.gitRefresh');
+  return rows.filter(
+    (row) => row.command.type === 'daemon.gitRefresh' && row.command.workingDir === workingDir
+  );
 }
 
 export async function assertNoCommandVariantsOnEventStream(chatroomId: Id<'chatroom_rooms'>) {
