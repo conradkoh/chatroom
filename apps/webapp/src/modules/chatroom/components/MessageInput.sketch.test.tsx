@@ -33,12 +33,8 @@ vi.mock('../hooks/useChatInputFileDrop', () => ({
 vi.mock('./composer/useSketchCanvas', () => ({
   useSketchCanvas: () => ({
     canvasRef: { current: document.createElement('canvas') },
-    bindCanvas: vi.fn(() => vi.fn()),
+    canvasBindings: {},
     hasContent: true,
-    brushColor: '#171717',
-    setBrushColor: vi.fn(),
-    brushSize: 3,
-    setBrushSize: vi.fn(),
     exportPngFile: () =>
       Promise.resolve(new File(['png'], 'sketch-20260816-120000.png', { type: 'image/png' })),
   }),
