@@ -19,6 +19,7 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -99,6 +100,9 @@ async function purgeTeamAgentConfigsForMachine(
 
   for (const config of configs) {
     await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+  }
+  if (configs.length > 0) {
+    await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, { pruneStale: true });
   }
 }
 
