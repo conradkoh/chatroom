@@ -436,19 +436,15 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
     const task = tasks.find((t) => t._id === taskId);
     expect(task?.status).toBe('completed');
 
-    // Verify task.completed event WAS emitted (always emitted — it's the authoritative record)
-    // AND it carries skipAgentStatusUpdate: true so consumers know not to update agent status
-    const eventsAfter = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-    const taskCompletedEvents = eventsAfter.filter((e) => e.type === 'task.completed');
-    expect(taskCompletedEvents.length).toBe(1);
-    expect(
-      (taskCompletedEvents[0] as { skipAgentStatusUpdate?: boolean }).skipAgentStatusUpdate
-    ).toBe(true);
+    const participant = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique()
+    );
+    expect(participant?.lastStatus).not.toBe('task.completed');
   });
 
   test('force-complete: participant lastStatus NOT updated when skipAgentStatusUpdate=true', async () => {
@@ -527,18 +523,13 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
     // Normal completion (not force)
     await t.mutation(api.tasks.completeTask, { sessionId, chatroomId, role: 'builder' });
 
-    // task.completed event SHOULD be emitted for normal completion
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
+    const completed = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-    const taskCompletedEvents = events.filter((e) => e.type === 'task.completed');
-    expect(taskCompletedEvents.length).toBe(1);
-    // Normal completion: skipAgentStatusUpdate should NOT be set
-    expect(
-      (taskCompletedEvents[0] as { skipAgentStatusUpdate?: boolean }).skipAgentStatusUpdate
-    ).toBeUndefined();
+        .filter((q) => q.eq(q.field('status'), 'completed'))
+        .first()
+    );
+    expect(completed).not.toBeNull();
   });
 });

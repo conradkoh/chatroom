@@ -18,7 +18,7 @@ const V2_SUBSCRIBED_QUERIES = [
   'api.workspaceFiles.getPendingFileWriteRequests',
   'api.workspaces.listRecentlyObservedWorkspacesForMachine',
   'api.daemon.commands.listActionableCommandRuns',
-  'api.machines.getCommandEvents',
+  'api.daemon.machineCommandInbox.watchNext',
   'api.daemon.enhancer.index.pendingForMachine',
 ] as const;
 
@@ -48,7 +48,9 @@ describe('subscriber-registry duplicate guard (G4)', () => {
     expect(registrySource).toContain('startDirectHarnessSessionSubscriber');
     expect(registrySource).toContain('startDirectHarnessPromptSubscriber');
     expect(registrySource).toContain('startDirectHarnessCommandSubscriber');
-    expect(registrySource).toContain('startCommandEventsSubscriber');
+    expect(registrySource).toContain('startMachineCommandInboxSubscriber');
+    expect(registrySource).not.toContain('startCommandEventsSubscriber');
+    expect(registrySource).not.toContain('getCommandEvents');
     expect(registrySource).toContain('startCommandRunSubscriber');
     expect(registrySource).toContain('startWorkspaceListSubscriber');
     expect(registrySource).toContain('startGitRequestSubscriber');

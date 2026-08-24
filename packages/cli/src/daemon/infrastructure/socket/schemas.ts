@@ -39,7 +39,7 @@ export const eventStreamHistoryInputSchema = z.object({
 }) satisfies z.ZodType<EventStreamQuery>;
 
 /**
- * Wire contract for forwarding a chatroom_eventStream document to the daemon
+ * Wire contract for forwarding a machine command to the daemon
  * log server. The event stream is a discriminated union whose variants carry
  * different fields, so the common envelope is validated here and the
  * variant-specific fields are preserved unchanged.

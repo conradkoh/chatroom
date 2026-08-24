@@ -1,5 +1,5 @@
 /**
- * Handles an agent.restart event from chatroom_eventStream.
+ * Handles an agent.restart command from the machine command inbox.
  * Delegates to v2 restartAgent use case via agent-control bridge.
  */
 
@@ -11,7 +11,7 @@ import { createRestartAgentDeps } from '../../../../daemon/entry/bridge/agent-co
 import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
 
 export interface AgentRestartEventPayload {
-  _id: Id<'chatroom_eventStream'>;
+  _id: Id<'chatroom_machineCommandInbox'>;
   chatroomId: Id<'chatroom_rooms'>;
   machineId: string;
   role: string;

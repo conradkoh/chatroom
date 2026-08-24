@@ -15,6 +15,7 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { getInboxCommandsForChatroom } from '../helpers/machine-command-inbox';
 
 function createThreeRoleChatroom(sessionId: string) {
   return t.mutation(api.chatrooms.create, {
@@ -80,18 +81,10 @@ describe('updateTeam — stop events', () => {
       teamEntryPoint: 'planner',
     });
 
-    // Check stop events were dispatched
-    const stopEvents = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStop')
-        )
-        .collect();
-    });
-
-    const teamSwitchStops = stopEvents.filter(
-      (e) => 'reason' in e && e.reason === 'platform.team_switch'
+    const stopRows = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStop');
+    const teamSwitchStops = stopRows.filter(
+      (row) =>
+        row.command.type === 'agent.requestStop' && row.command.reason === 'platform.team_switch'
     );
     // Both planner and builder had desiredState=running from setupRemoteAgentConfig
     expect(teamSwitchStops.length).toBeGreaterThanOrEqual(2);
@@ -119,17 +112,10 @@ describe('updateTeam — start events', () => {
       teamEntryPoint: 'planner',
     });
 
-    const startEvents = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStart')
-        )
-        .collect();
-    });
-
-    const teamSwitchStarts = startEvents.filter(
-      (e) => e.type === 'agent.requestStart' && e.reason === 'platform.team_switch'
+    const inboxStarts = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStart');
+    const teamSwitchStarts = inboxStarts.filter(
+      (row) =>
+        row.command.type === 'agent.requestStart' && row.command.reason === 'platform.team_switch'
     );
     expect(teamSwitchStarts.length).toBeGreaterThanOrEqual(2);
 

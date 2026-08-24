@@ -1,4 +1,3 @@
-import { buildAgentRestartEvent } from './build-agent-restart-event';
 import { getAgentConfig } from './get-agent-config';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
@@ -13,6 +12,7 @@ import {
   type AgentRestartResult,
   type RunnableRemoteAgentConfig,
 } from '../../entities/agent-restart';
+import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
 import { releaseTasksOnAgentExit } from '../task/release-tasks-on-agent-exit';
@@ -111,13 +111,20 @@ async function persistRestartAndEmit(
       },
     });
   }
-  await ctx.db.insert(
-    'chatroom_eventStream',
-    buildAgentRestartEvent(
-      { ...resolved, chatroomId: input.chatroomId, role: input.role, correlationId },
-      now
-    )
-  );
+  await enqueueMachineCommand(ctx, {
+    machineId: resolved.machineId,
+    now,
+    command: {
+      type: 'agent.restart',
+      chatroomId: input.chatroomId,
+      role: input.role,
+      agentHarness: resolved.agentHarness,
+      model: resolved.model,
+      workingDir: resolved.workingDir,
+      correlationId,
+      wantResume: resolved.wantResume,
+    },
+  });
   await transitionAgentStatus(ctx, input.chatroomId, input.role, 'agent.restart', 'running');
   await refreshSnapshotDeliveryConfigForChatroomRole(ctx, input.chatroomId, input.role);
   const teamId = chatroom?.teamId;

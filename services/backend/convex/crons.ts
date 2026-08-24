@@ -28,6 +28,17 @@ crons.interval(
   internal.storageCleanup.cleanupCachedContent
 );
 
+crons.interval(
+  'recover expired machine command claims',
+  { minutes: 1 },
+  internal.machineCommandCleanup.recoverExpiredClaims
+);
+crons.interval(
+  'cleanup expired machine commands',
+  { minutes: 15 },
+  internal.machineCommandCleanup.cleanupExpiredMachineCommands
+);
+
 // Machine status — transition online→offline when heartbeat expires (every 60s)
 crons.interval(
   'transition offline machines',

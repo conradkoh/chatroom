@@ -17,15 +17,13 @@ import {
   Trash2,
   Database,
   FileText,
-  Activity,
 } from 'lucide-react';
-import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, memo, useEffect, useRef, useMemo } from 'react';
 
-import { EventStreamTab } from './EventStreamTab';
 import { useDaemonConnected } from '../../../hooks/useDaemonConnected';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
-import { useAgentStatuses } from '../hooks/useAgentStatuses';
-import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
+import { InlineAgentListPanel } from './AgentPanel/InlineAgentListPanel';
+import { useInlineAgentList } from './AgentPanel/useInlineAgentList';
 import type { SettingsTab } from './CommandPalette/types';
 import { CopyButton } from './CopyButton';
 import { IntegrationsTab } from './IntegrationsTab';
@@ -48,7 +46,6 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
-import { PromptsContext } from '@/contexts/PromptsContext';
 import { getDaemonStartCommand } from '@/lib/environment';
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 
@@ -75,7 +72,6 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'workspaces', label: 'Workspaces', icon: <HardDrive size={16} /> },
   { id: 'skills', label: 'Skills', icon: <FileText size={16} /> },
   { id: 'integrations', label: 'Integrations', icon: <Plug size={16} /> },
-  { id: 'event-stream', label: 'Event Stream', icon: <Activity size={16} /> },
 ];
 
 // ─── Tab Content Components ─────────────────────────────────────────────
@@ -809,72 +805,9 @@ const WorkspacesContent = memo(function WorkspacesContent({ chatroomId }: { chat
   );
 });
 
-/**
- * Agents tab — shows a flat list of all agents for the team.
- * Uses InlineAgentCard for each agent to show full configuration details
- * (status, controls, machine, model, restart stats).
- */
+/** Agents tab — shows a flat list of all agents for the team. */
 const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: string }) {
-  const {
-    agents: agentRoleViews,
-    teamRoles,
-    connectedMachines,
-    machineConfigs: agentConfigs,
-    sendCommand,
-    isLoading: isPanelLoading,
-    teamId,
-    lifecycle,
-  } = useAgentPanelData(chatroomId, { loadConfigs: true });
-
-  const { agents: agentStatusList } = useAgentStatuses(teamRoles, lifecycle?.participants);
-
-  // Build a status lookup map
-  const statusMap = useMemo(() => {
-    const map = new Map<string, (typeof agentStatusList)[number]>();
-    for (const agent of agentStatusList) {
-      map.set(agent.role.toLowerCase(), agent);
-    }
-    return map;
-  }, [agentStatusList]);
-
-  // Build a role → AgentRoleView map for InlineAgentCard
-  const agentRoleViewMap = useMemo(() => {
-    const map = new Map<string, (typeof agentRoleViews)[number]>();
-    for (const agent of agentRoleViews) {
-      map.set(agent.role.toLowerCase(), agent);
-    }
-    return map;
-  }, [agentRoleViews]);
-
-  // Safe prompt generation — works inside and outside PromptsProvider
-  const promptsContext = useContext(PromptsContext);
-  const generatePrompt = useCallback(
-    (role: string): string => promptsContext?.getAgentPrompt(role) ?? '',
-    [promptsContext]
-  );
-
-  // Batch restart summaries for all roles
-  const allRoles = useMemo(() => agentStatusList.map((a) => a.role), [agentStatusList]);
-  const restartSummaries = useSessionQuery(api.machines.getAgentRestartSummariesByRoles, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    roles: allRoles,
-  });
-  const restartSummaryMap = useMemo(() => {
-    const map = new Map<string, { count3h: number; count3d: number }>();
-    if (restartSummaries) {
-      for (const summary of restartSummaries) {
-        map.set(summary.role.toLowerCase(), {
-          count3h: summary.count3h,
-          count3d: summary.count3d,
-        });
-      }
-    }
-    return map;
-  }, [restartSummaries]);
-
-  const totalAgents = agentStatusList.length;
-  const onlineAgents = agentStatusList.filter((a) => a.online).length;
-
+  const { onlineCount, totalCount } = useInlineAgentList(chatroomId);
   return (
     <div className="space-y-6">
       <div>
@@ -882,42 +815,14 @@ const AgentsContent = memo(function AgentsContent({ chatroomId }: { chatroomId: 
           Agents
         </h3>
         <p className="text-xs text-chatroom-text-muted">
-          {onlineAgents}/{totalAgents} agents online.
+          {onlineCount}/{totalCount} agents online.
         </p>
       </div>
-
-      {agentStatusList.length === 0 ? (
-        <div className="p-4 text-center text-chatroom-text-muted text-xs border border-chatroom-border bg-chatroom-bg-tertiary">
-          No agents configured
-        </div>
-      ) : (
-        <div className="border border-chatroom-border bg-chatroom-bg-surface">
-          {agentStatusList.map((agent) => {
-            const status = statusMap.get(agent.role.toLowerCase());
-
-            return (
-              <InlineAgentCard
-                key={`${teamId}-${agent.role}`}
-                role={agent.role}
-                allRoles={teamRoles}
-                online={status?.online ?? false}
-                lastSeenAt={status?.lastSeenAt}
-                latestEventType={status?.latestEventType}
-                statusVariant={status?.statusVariant ?? 'offline'}
-                prompt={generatePrompt(agent.role)}
-                chatroomId={chatroomId}
-                connectedMachines={connectedMachines}
-                isLoadingMachines={isPanelLoading}
-                agentConfigs={agentConfigs}
-                sendCommand={sendCommand}
-                agentRoleView={agentRoleViewMap.get(agent.role.toLowerCase())}
-                restartSummary={restartSummaryMap.get(agent.role.toLowerCase())}
-                teamId={teamId}
-              />
-            );
-          })}
-        </div>
-      )}
+      <InlineAgentListPanel
+        chatroomId={chatroomId}
+        variant="bordered"
+        emptyClassName="p-4 text-center text-chatroom-text-muted text-xs border border-chatroom-border bg-chatroom-bg-tertiary"
+      />
     </div>
   );
 });
@@ -1011,9 +916,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           </ResponsivePickerShell>
         </div>
 
-        <FixedModalBody
-          className={activeTab === 'event-stream' ? 'p-4 flex flex-col min-h-0' : 'p-6'}
-        >
+        <FixedModalBody className="p-6">
           {activeTab === 'setup' && (
             <SetupContent chatroomId={chatroomId} onArchiveComplete={onClose} />
           )}
@@ -1029,12 +932,6 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
           {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
           {activeTab === 'skills' && <SkillsTab chatroomId={chatroomId} />}
           {activeTab === 'integrations' && <IntegrationsTab chatroomId={chatroomId} />}
-          {activeTab === 'event-stream' && (
-            <EventStreamTab
-              chatroomId={chatroomId}
-              isActive={isOpen && activeTab === 'event-stream'}
-            />
-          )}
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>

@@ -14,6 +14,7 @@ import {
   createTestSession,
   registerMachineWithDaemon,
 } from '../helpers/integration';
+import { getInboxCommandsForChatroom } from '../helpers/machine-command-inbox';
 import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
 describe('sendCommand start-agent wantResume', () => {
@@ -37,17 +38,11 @@ describe('sendCommand start-agent wantResume', () => {
       },
     });
 
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-
-    const start = events.find((e) => e.type === 'agent.requestStart');
-    expect(start?.type).toBe('agent.requestStart');
-    if (start?.type === 'agent.requestStart') {
-      expect(start.wantResume).toBe(true);
+    const inboxStarts = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStart');
+    const start = inboxStarts.find((row) => row.command.type === 'agent.requestStart');
+    expect(start?.command.type).toBe('agent.requestStart');
+    if (start?.command.type === 'agent.requestStart') {
+      expect(start.command.wantResume).toBe(true);
     }
   });
 
@@ -71,16 +66,10 @@ describe('sendCommand start-agent wantResume', () => {
       },
     });
 
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-
-    const start = events.find((e) => e.type === 'agent.requestStart');
-    if (start?.type === 'agent.requestStart') {
-      expect(start.wantResume).toBe(false);
+    const inboxStarts = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStart');
+    const start = inboxStarts.find((row) => row.command.type === 'agent.requestStart');
+    if (start?.command.type === 'agent.requestStart') {
+      expect(start.command.wantResume).toBe(false);
     }
   });
 
@@ -120,18 +109,11 @@ describe('sendCommand start-agent wantResume', () => {
       },
     });
 
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-
-    const startEvents = events.filter((e) => e.type === 'agent.requestStart');
-    const latest = startEvents.at(-1);
-    expect(latest?.type).toBe('agent.requestStart');
-    if (latest?.type === 'agent.requestStart') {
-      expect(latest.wantResume).toBe(false);
+    const inboxStarts = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStart');
+    const latest = inboxStarts.at(-1);
+    expect(latest?.command.type).toBe('agent.requestStart');
+    if (latest?.command.type === 'agent.requestStart') {
+      expect(latest.command.wantResume).toBe(false);
     }
   });
 });

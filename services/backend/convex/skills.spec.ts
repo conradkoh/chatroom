@@ -36,7 +36,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 // ---------------------------------------------------------------------------
 
 describe('skills.activate', () => {
-  test('activates the backlog skill and writes a skill.activated event', async () => {
+  test('activates the backlog skill and returns the skill prompt', async () => {
     const { sessionId } = await createTestSession('skills-activate-valid-1');
     const chatroomId = await createChatroom(sessionId);
 
@@ -51,19 +51,7 @@ describe('skills.activate', () => {
     expect(result.skill.skillId).toBe('backlog');
     expect(result.skill.name).toBe('Backlog Reference');
 
-    // Verify a skill.activated event was written (not a task)
-    const event = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) => q.eq(q.field('type'), 'skill.activated'))
-        .first();
-    });
-
-    expect(event).toBeDefined();
-    expect(event?.type).toBe('skill.activated');
-    expect(event?.skillId).toBe('backlog');
-    expect(event?.prompt).toContain('Continuous Backlog Execution');
+    expect(result.skill.prompt).toContain('Continuous Backlog Execution');
   });
 
   test('activates the defragmentation skill with workflow guidance', async () => {
@@ -110,27 +98,18 @@ describe('skills.activate', () => {
     });
   });
 
-  test('activate correctly sets role on the skill.activated event', async () => {
+  test('activate succeeds for the requested role', async () => {
     const { sessionId } = await createTestSession('skills-activate-createdby-1');
     const chatroomId = await createChatroom(sessionId);
 
-    await t.mutation(api.skills.activate, {
+    const activated = await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
       skillId: 'backlog',
       role: 'planner',
     });
 
-    const event = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) => q.eq(q.field('type'), 'skill.activated'))
-        .first();
-    });
-
-    expect(event).toBeDefined();
-    expect(event?.role).toBe('planner');
+    expect(activated.success).toBe(true);
   });
 
   test('activate fails if sessionId is invalid', async () => {
@@ -275,7 +254,7 @@ describe('skills.activate — cliEnvPrefix injection', () => {
     const { sessionId } = await createTestSession('skills-activate-prefix-1');
     const chatroomId = await createChatroom(sessionId);
 
-    await t.mutation(api.skills.activate, {
+    const activated = await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
       skillId: 'backlog',
@@ -283,15 +262,7 @@ describe('skills.activate — cliEnvPrefix injection', () => {
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    const event = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) => q.eq(q.field('type'), 'skill.activated'))
-        .first();
-    });
-
-    expect(event?.prompt).toContain(
+    expect(activated.skill.prompt).toContain(
       'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list'
     );
   });

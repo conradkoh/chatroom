@@ -78,7 +78,6 @@ SSOT today: `apps/webapp/src/modules/chatroom/components/shared/overlayLayers.ts
 | `apps/webapp/src/modules/chatroom/components/AgentSettingsModal.tsx`             | Sidebar + tabs; **nested `DialogContent floating`** (purge cache confirm) |
 | `apps/webapp/src/modules/chatroom/components/ReviewPanel/ReviewPanel.tsx`        | Split-pane review                                                         |
 | `apps/webapp/src/modules/chatroom/components/FileSelector/FilePreviewDialog.tsx` | File tree sidebar + preview                                               |
-| `apps/webapp/src/modules/chatroom/components/EventStreamModal.tsx`               | Sidebar event list                                                        |
 
 ### Wave 4 — Workspace / large viewport modals
 

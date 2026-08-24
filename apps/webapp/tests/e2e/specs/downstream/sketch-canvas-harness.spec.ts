@@ -23,14 +23,25 @@ async function openSketch(page: Page) {
   await page.getByText('Sketch', { exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByLabel('Sketch canvas')).toBeVisible();
+  await waitForCanvasReady(page.getByLabel('Sketch canvas'));
 }
 async function mouseStroke(page: Page, canvas: Locator) {
+  await waitForCanvasReady(canvas);
   const box = await canvas.boundingBox();
   if (!box) throw new Error('canvas missing bounding box');
   await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.5);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width * 0.75, box.y + box.height * 0.5);
+  await page.mouse.move(box.x + box.width * 0.75, box.y + box.height * 0.5, { steps: 15 });
   await page.mouse.up();
+}
+async function waitForCanvasReady(canvas: Locator) {
+  await expect(canvas).toBeVisible();
+  await expect
+    .poll(async () => {
+      const box = await canvas.boundingBox();
+      return box ? box.width * box.height : 0;
+    })
+    .toBeGreaterThan(0);
 }
 test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
   test.describe('desktop', () => {
@@ -48,7 +59,7 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       const box = await canvas.boundingBox();
       if (!box) throw new Error('canvas missing bounding box');
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-      await expect.poll(() => countNonWhitePixels(canvas)).toBeGreaterThan(0);
+      await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(0);
       await expect(page.getByRole('button', { name: 'Add sketch' })).toBeEnabled();
       await page.getByRole('button', { name: 'Add sketch' }).click();
       await expect(page.getByTestId('saved-sketch-preview')).toBeVisible();
@@ -59,19 +70,20 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       await openSketch(page);
       const canvas = page.getByLabel('Sketch canvas');
       await mouseStroke(page, canvas);
-      await expect.poll(() => countNonWhitePixels(canvas)).toBeGreaterThan(10);
+      await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(10);
     });
     test('desktop dialog fills near-viewport workspace with properties panel and drawable canvas', async ({
       page,
     }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await openSketch(page);
-      await page.waitForTimeout(300);
       const dialog = page.getByRole('dialog');
-      const dialogBox = await dialog.boundingBox();
-      expect(dialogBox).not.toBeNull();
-      expect(dialogBox!.width).toBeGreaterThan(1440 * 0.95);
-      expect(dialogBox!.height).toBeGreaterThan(900 * 0.95);
+      await expect
+        .poll(async () => (await dialog.boundingBox())?.width ?? 0)
+        .toBeGreaterThan(1440 * 0.95);
+      await expect
+        .poll(async () => (await dialog.boundingBox())?.height ?? 0)
+        .toBeGreaterThan(900 * 0.95);
       await expect(page.getByRole('group', { name: 'Color' })).toBeVisible();
       await expect(page.getByRole('toolbar', { name: 'Sketch tools' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Brush tool' })).toBeVisible();
@@ -79,13 +91,14 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       await expect(page.getByRole('button', { name: 'Add sketch' })).toBeVisible();
       await mouseStroke(page, page.getByLabel('Sketch canvas'));
       await expect
-        .poll(() => countNonWhitePixels(page.getByLabel('Sketch canvas')))
+        .poll(() => countNonWhitePixels(page.getByLabel('Sketch canvas')), { timeout: 5000 })
         .toBeGreaterThan(10);
     });
     test('rectangular selection delete clears pixels inside marquee', async ({ page }) => {
       await openSketch(page);
       const canvas = page.getByLabel('Sketch canvas');
       await mouseStroke(page, canvas);
+      await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(10);
       const before = await countNonWhitePixels(canvas);
       expect(before).toBeGreaterThan(10);
       await page.getByRole('button', { name: 'Select tool' }).click();
@@ -93,7 +106,7 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       if (!box) throw new Error('canvas missing bounding box');
       await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3);
       await page.mouse.down();
-      await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.7);
+      await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.7, { steps: 10 });
       await page.mouse.up();
       await expect(page.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
       await page.getByRole('button', { name: 'Delete selection' }).click();
@@ -106,12 +119,13 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       await openSketch(page);
       const canvas = page.getByLabel('Sketch canvas');
       await mouseStroke(page, canvas);
+      await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(10);
       await page.getByRole('button', { name: 'Select tool' }).click();
       const box = await canvas.boundingBox();
       if (!box) throw new Error('canvas missing bounding box');
       await page.mouse.move(box.x + 4, box.y + 4);
       await page.mouse.down();
-      await page.mouse.move(box.x + box.width - 4, box.y + box.height - 4);
+      await page.mouse.move(box.x + box.width - 4, box.y + box.height - 4, { steps: 10 });
       await page.mouse.up();
       await expect(page.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
       await page.getByRole('button', { name: 'Delete selection' }).click();
@@ -121,6 +135,7 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       await openSketch(page);
       const canvas = page.getByLabel('Sketch canvas');
       await mouseStroke(page, canvas);
+      await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(10);
       await page.getByRole('button', { name: 'Select tool' }).click();
       await page.keyboard.press('Meta+a');
       await expect(page.getByText('Entire canvas selected.')).toBeVisible();
@@ -160,9 +175,9 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
         clientX: box.x + box.width / 2,
         clientY: box.y + box.height / 2,
       });
-      await expect.poll(() => countNonWhitePixels(canvas)).toBeGreaterThan(0);
+      await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(0);
       await mouseStroke(page, canvas);
-      await expect.poll(() => countNonWhitePixels(canvas)).toBeGreaterThan(10);
+      await expect.poll(() => countNonWhitePixels(canvas), { timeout: 5000 }).toBeGreaterThan(10);
     });
   });
 });

@@ -1,4 +1,4 @@
-/** Daemon-side normalized command event from chatroom_eventStream (machine-scoped). */
+/** Daemon-side normalized command event from the machine command inbox. */
 export const DAEMON_COMMAND_EVENT_TYPES = [
   'agent.requestStart',
   'agent.restart',

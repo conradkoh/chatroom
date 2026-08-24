@@ -35,7 +35,6 @@ vi.mock('../../api.js', () => ({
   api: {
     machines: {
       getCommandEvents: 'mock-getCommandEvents',
-      ackPing: 'mock-ackPing',
       updateDaemonStatus: 'mock-updateDaemonStatus',
       register: 'mock-register',
       daemonHeartbeat: 'mock-daemonHeartbeat',

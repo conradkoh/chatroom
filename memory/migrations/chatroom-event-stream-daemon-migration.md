@@ -1,16 +1,18 @@
 ---
 type: decision-log
 title: Chatroom event stream daemon migration
-description: Move chatroom_eventStream capture from Convex to daemon-local SQLite to reduce bandwidth. Events are chatroom-scoped and pull-based (no live rebroadcast).
+description: Historical plan to move chatroom_eventStream capture from Convex to daemon-local SQLite (migration completed).
 tags: [chatroom, events, daemon, bandwidth, migration]
-status: active
+status: completed
 ---
 
 # Chatroom event stream daemon migration
 
+> **Completed (2026-08):** Convex `chatroom_eventStream` was fully removed in [PR #1499](https://github.com/conradkoh/chatroom/pull/1499). Machine commands use `chatroom_machineCommandInbox`; daemon audit uses local SQLite `event_stream_entries`; the webapp Event Stream UI was deleted. This document is retained as historical context only.
+
 ## Context
 
-The webapp event stream reads from Convex `chatroom_eventStream` — a large, reactive table synced to every connected client. High event volume (agent lifecycle, tasks, daemon pings, enhancer jobs) creates significant Convex bandwidth and subscription cost.
+Previously the webapp event stream read from Convex `chatroom_eventStream` — a large, reactive table synced to every connected client. High event volume created significant Convex bandwidth and subscription cost.
 
 The daemon already captures agent session logs locally (`log_entries` + `logs.stream.subscribe`). This migration moves **structured chatroom events** to the same local-first model without duplicating Convex state mutations.
 

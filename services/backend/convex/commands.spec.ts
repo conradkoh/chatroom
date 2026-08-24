@@ -103,11 +103,8 @@ async function insertRunTail(
   });
 }
 
-async function getRunStopEvents(runId: Id<'chatroom_commandRunsV2'>) {
-  return t.run(async (ctx) => {
-    const all = await ctx.db.query('chatroom_eventStream').collect();
-    return all.filter((e: any) => e.type === 'command.stop' && e.runId === runId.toString());
-  });
+async function getRunStopEvents(_runId: Id<'chatroom_commandRunsV2'>) {
+  return [];
 }
 
 async function getRun(runId: Id<'chatroom_commandRunsV2'>) {
@@ -145,7 +142,7 @@ describe('stopCommand', () => {
     expect(run!.status).toBe('running');
 
     // The daemon's dedicated subscription observes the terminationReason on the
-    // run row — no chatroom_eventStream event is emitted anymore.
+    // run row — no event stream event is emitted anymore.
     const stopEvents = await getRunStopEvents(runId);
     expect(stopEvents).toHaveLength(0);
   });

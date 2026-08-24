@@ -10,6 +10,7 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
+import { getInboxCommandsForMachine } from '../../../../tests/helpers/machine-command-inbox';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -201,19 +202,13 @@ describe('stopAgent use case — eager cleanup', () => {
       });
     });
 
-    const events = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom_type', (q) =>
-          q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStop')
-        )
-        .collect();
-    });
-
-    const stopEvent = events.find((e) => e.type === 'agent.requestStop' && e.role === 'builder');
-    expect(stopEvent).toBeDefined();
-    if (stopEvent && stopEvent.type === 'agent.requestStop') {
-      expect(stopEvent.pid).toBe(54321);
+    const inbox = await getInboxCommandsForMachine(machineId, 'agent.requestStop');
+    const stopCmd = inbox.find(
+      (row) => row.command.type === 'agent.requestStop' && row.command.role === 'builder'
+    );
+    expect(stopCmd).toBeDefined();
+    if (stopCmd?.command.type === 'agent.requestStop') {
+      expect(stopCmd.command.pid).toBe(54321);
     }
   });
 

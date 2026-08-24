@@ -59,7 +59,6 @@ export async function releaseTasksOnAgentExit(
 
       await transitionTask(ctx, task._id, 'pending', 'releaseTaskOnAgentExit', undefined, {
         skipAgentStatusUpdate: true,
-        skipEventStreamWrite: true,
       });
       released++;
     }
@@ -103,7 +102,7 @@ export async function reassignInFlightTasksOnTeamSwitch(
         'pending',
         'reassignTaskOnTeamSwitch',
         { assignedTo: entryPoint },
-        { skipAgentStatusUpdate: true, skipEventStreamWrite: true }
+        { skipAgentStatusUpdate: true }
       );
       reassigned++;
     }
@@ -170,7 +169,7 @@ export async function reassignTasksOnTeamSwitch(
         'pending',
         'reassignTaskOnTeamSwitch',
         { assignedTo: entryPoint },
-        { skipAgentStatusUpdate: true, skipEventStreamWrite: true }
+        { skipAgentStatusUpdate: true }
       );
       reassigned++;
     }

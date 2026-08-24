@@ -10,16 +10,16 @@
 
 import { buildSeedTeamAgentConfigFields } from './seed-team-config-on-switch';
 import { startTargetTeamAgentsOnSwitch } from './start-target-team-agents-on-switch';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey, teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
+import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
+import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import {
   patchTeamAgentConfig,
   projectAssignedTaskSnapshotsForMachines,
 } from '../machine/patch-team-agent-config';
 import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
-import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -83,15 +83,16 @@ export async function updateTeam(
       affectedMachineIds.add(config.machineId);
     }
     if (config.machineId && (config.desiredState === 'running' || config.spawnedAgentPid != null)) {
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'agent.requestStop',
-        chatroomId,
+      await enqueueMachineCommand(ctx, {
         machineId: config.machineId,
-        role: config.role,
-        reason: 'platform.team_switch',
-        deadline: now + AGENT_REQUEST_DEADLINE_MS,
-        timestamp: now,
-        pid: config.spawnedAgentPid ?? undefined,
+        now,
+        command: {
+          type: 'agent.requestStop',
+          chatroomId,
+          role: config.role,
+          reason: 'platform.team_switch',
+          pid: config.spawnedAgentPid ?? undefined,
+        },
       });
       stoppedAgentCount++;
 

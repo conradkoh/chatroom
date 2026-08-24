@@ -1,5 +1,12 @@
 import type { AgentHarness } from '../../src/domain/entities/agent';
 
+export interface ActivatedSkillSnapshot {
+  skillId: string;
+  name: string;
+  description: string;
+  prompt: string;
+}
+
 export interface InitPromptInput {
   chatroomId: string;
   role: string;
@@ -12,6 +19,7 @@ export interface InitPromptInput {
   agentType?: 'remote' | 'custom' | 'unset';
   /** Remote agent harness — determines native vs CLI init prompt sections */
   agentHarness?: AgentHarness;
+  activatedSkills?: ActivatedSkillSnapshot[];
 }
 
 export interface ComposedInitPrompt {

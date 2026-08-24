@@ -16,22 +16,11 @@ import {
   joinParticipant,
   registerMachineWithDaemon,
 } from '../helpers/integration';
+import { getGitRefreshCommandsForMachine } from '../helpers/machine-command-inbox';
 
-interface GitRefreshEvent {
-  type: 'daemon.gitRefresh';
-  machineId: string;
-  workingDir: string;
-  timestamp: number;
-}
-
-/** Collect all daemon.gitRefresh events for a given workingDir, if any. */
-async function findGitRefreshEvents(workingDir: string): Promise<GitRefreshEvent[]> {
-  return t.run(async (ctx) => {
-    const events = await ctx.db.query('chatroom_eventStream').collect();
-    return events.filter(
-      (e): e is GitRefreshEvent => e.type === 'daemon.gitRefresh' && e.workingDir === workingDir
-    );
-  });
+/** Collect all daemon.gitRefresh inbox commands for a machine + workingDir. */
+async function findGitRefreshCommands(machineId: string, workingDir: string) {
+  return getGitRefreshCommandsForMachine(machineId, workingDir);
 }
 
 async function registerChatroomWorkspace(
@@ -69,8 +58,8 @@ describe('Handoff-to-user workspace sync', () => {
       content: 'Handing work to builder.',
     });
     expect(builderHandoff.success).toBe(true);
-    expect(await findGitRefreshEvents('/sync/ws-1')).toHaveLength(0);
-    expect(await findGitRefreshEvents('/sync/ws-2')).toHaveLength(0);
+    expect(await findGitRefreshCommands('sync-machine-1', '/sync/ws-1')).toHaveLength(0);
+    expect(await findGitRefreshCommands('sync-machine-1', '/sync/ws-2')).toHaveLength(0);
 
     // Handoff to user must enqueue gitRefresh for every active workspace
     const userHandoff = await t.mutation(api.messages.handoff, {
@@ -82,12 +71,12 @@ describe('Handoff-to-user workspace sync', () => {
     });
     expect(userHandoff.success).toBe(true);
 
-    const ws1Events = await findGitRefreshEvents('/sync/ws-1');
-    const ws2Events = await findGitRefreshEvents('/sync/ws-2');
-    expect(ws1Events).toHaveLength(1);
-    expect(ws2Events).toHaveLength(1);
-    expect(ws1Events[0].machineId).toBe('sync-machine-1');
-    expect(ws2Events[0].machineId).toBe('sync-machine-1');
+    const ws1Rows = await findGitRefreshCommands('sync-machine-1', '/sync/ws-1');
+    const ws2Rows = await findGitRefreshCommands('sync-machine-1', '/sync/ws-2');
+    expect(ws1Rows).toHaveLength(1);
+    expect(ws2Rows).toHaveLength(1);
+    expect(ws1Rows[0]!.machineId).toBe('sync-machine-1');
+    expect(ws2Rows[0]!.machineId).toBe('sync-machine-1');
   });
 
   test('soft-deleted workspaces are excluded from gitRefresh enqueue', async () => {
@@ -123,11 +112,11 @@ describe('Handoff-to-user workspace sync', () => {
       content: 'Handing back to user after cleanup.',
     });
 
-    const activeEvents = await findGitRefreshEvents('/sync/ws-active');
-    const removedEvents = await findGitRefreshEvents('/sync/ws-removed');
-    expect(activeEvents).toHaveLength(1);
-    expect(activeEvents[0].machineId).toBe('sync-machine-2');
-    expect(removedEvents).toHaveLength(0);
+    const activeRows = await findGitRefreshCommands('sync-machine-2', '/sync/ws-active');
+    const removedRows = await findGitRefreshCommands('sync-machine-2', '/sync/ws-removed');
+    expect(activeRows).toHaveLength(1);
+    expect(activeRows[0]!.machineId).toBe('sync-machine-2');
+    expect(removedRows).toHaveLength(0);
     expect(activeWs).not.toBe(removedWs);
   });
 });

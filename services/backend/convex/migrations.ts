@@ -168,84 +168,6 @@ export const migrateTeamRoleKeyAddTeamId = migrations.define({
 });
 
 /**
- * Migration: Rename agent.exited stopReason values to actor-prefixed convention.
- * Idempotent: documents already using new-format values are skipped.
- */
-export const migrateStopReasonToActorPrefixed = migrations.define({
-  table: 'chatroom_eventStream',
-  migrateOne: async (_ctx, event) => {
-    const RENAME_MAP: Record<string, string> = {
-      intentional_stop: 'user.stop',
-      daemon_respawn_stop: 'daemon.respawn',
-      process_exited_with_success: 'agent_process.exited_clean',
-      process_terminated_with_signal: 'agent_process.signal',
-      process_terminated_unexpectedly: 'agent_process.crashed',
-    };
-
-    const raw = event as Record<string, unknown>;
-    if (raw.type !== 'agent.exited') return;
-
-    const oldReason = raw.stopReason as string | undefined;
-    if (!oldReason || !(oldReason in RENAME_MAP)) return;
-
-    return { stopReason: RENAME_MAP[oldReason] };
-  },
-});
-
-/**
- * Migration: Unify agent start/stop event reason values to actor-prefixed dot notation.
- * Idempotent: documents already using new-format values are skipped.
- */
-export const migrateEventReasonsToActorPrefixed = migrations.define({
-  table: 'chatroom_eventStream',
-  migrateOne: async (_ctx, event) => {
-    const STOP_REASON_MAP: Record<string, string> = {
-      'user-stop': 'user.stop',
-      'dedup-stop': 'platform.dedup',
-      'team-switch': 'platform.team_switch',
-    };
-
-    const START_REASON_MAP: Record<string, string> = {
-      'user-start': 'user.start',
-      'user-restart': 'user.restart',
-    };
-
-    const raw = event as Record<string, unknown>;
-
-    if (raw.type === 'agent.requestStop') {
-      const oldReason = raw.reason as string | undefined;
-      if (oldReason && oldReason in STOP_REASON_MAP) {
-        return { reason: STOP_REASON_MAP[oldReason] } as never;
-      }
-    }
-
-    if (raw.type === 'agent.requestStart') {
-      const oldReason = raw.reason as string | undefined;
-      if (oldReason && oldReason in START_REASON_MAP) {
-        return { reason: START_REASON_MAP[oldReason] } as never;
-      }
-    }
-  },
-});
-
-/**
- * Migration: Delete deprecated command.run and command.stop events from chatroom_eventStream.
- * Command dispatch moved to dedicated chatroom_commandRunsV2 subscription — these events
- * are no longer emitted. Legacy rows carry v1 chatroom_commandRuns runIds that block schema
- * validation after the V2 table migration.
- * Idempotent: only deletes events with type command.run or command.stop.
- */
-export const deleteDeprecatedCommandEventStreamEvents = migrations.define({
-  table: 'chatroom_eventStream',
-  migrateOne: async (ctx, event) => {
-    const raw = event as Record<string, unknown>;
-    if (raw.type === 'command.run' || raw.type === 'command.stop') {
-      await ctx.db.delete('chatroom_eventStream', event._id);
-    }
-  },
-});
-
-/**
  * Migration: Deduplicate chatroom_teamAgentConfigs by teamRoleKey.
  * Keeps the most recently created row per teamRoleKey and deletes duplicates.
  * Note: This uses a full-table scan approach since dedup requires grouping.
@@ -691,10 +613,6 @@ export const runAll = migrations.runner([
   internal.migrations.deleteLegacyMessageQueueDocuments,
   internal.migrations.migrateQueuedTasks,
   internal.migrations.migrateTeamRoleKeyAddTeamId,
-  // Event Stream
-  internal.migrations.migrateStopReasonToActorPrefixed,
-  internal.migrations.migrateEventReasonsToActorPrefixed,
-  internal.migrations.deleteDeprecatedCommandEventStreamEvents,
   // Cleanup
   internal.migrations.deduplicateTeamAgentConfigs,
   internal.migrations.purgeWorkspaceCommitDetails,

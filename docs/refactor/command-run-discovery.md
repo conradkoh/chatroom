@@ -20,7 +20,7 @@
 - **`chatroom_runnableCommands`** (15 fields + 1 index): Maps machine+workspace to discoverable commands. Index: `by_machine_workingDir`.
 - **`chatroom_commandRuns`** (10 fields + 3 indexes): Status lifecycle record. Status union: `pending | running | completed | failed | stopped | killed`. Fields include `terminationReason`, `pid`, `startedAt`, `completedAt`, `exitCode`, `requestedBy`. Indexes: `by_machine_workingDir`, `by_machine_workingDir_status`, `by_status`.
 - **`chatroom_commandOutput`** (4 fields + 1 index): Append-only output chunks per run. Index: `by_runId_chunkIndex`.
-- **`chatroom_eventStream`** includes `command.run` and `command.stop` event types.
+- Command dispatch uses `chatroom_commandRuns` / `chatroom_commandRunsV2` subscriptions (legacy `command.run` / `command.stop` event-stream types were removed).
 
 ### Backend test: `services/backend/convex/commands.spec.ts` (274 LOC)
 

@@ -265,13 +265,7 @@ export const startTask = mutation({
             await writeTimelineTaskStatusSignal(ctx, reassignedTask);
           }
         }
-        await ctx.db.insert('chatroom_eventStream', {
-          type: 'task.inProgress',
-          chatroomId: args.chatroomId,
-          role: args.role,
-          taskId: acknowledgedTask._id,
-          timestamp: now,
-        });
+
         await transitionAgentStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
         return {
           taskId: acknowledgedTask._id,

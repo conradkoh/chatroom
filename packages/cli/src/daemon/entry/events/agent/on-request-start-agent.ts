@@ -1,5 +1,5 @@
 /**
- * Handles an agent.requestStart event from chatroom_eventStream.
+ * Handles an agent.requestStart command from the machine command inbox.
  * Delegates to v2 startAgent use case via agent-control bridge.
  */
 
@@ -12,7 +12,7 @@ import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../da
 import type { AgentHarness } from '../../daemon-types.js';
 
 export interface AgentRequestStartEventPayload {
-  _id: Id<'chatroom_eventStream'>;
+  _id: Id<'chatroom_machineCommandInbox'>;
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   agentHarness: AgentHarness;
