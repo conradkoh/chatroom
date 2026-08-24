@@ -1,15 +1,18 @@
-export type SketchToolId = 'move' | 'select' | 'brush' | 'eraser';
+export type SketchToolId = 'move' | 'select' | 'transform' | 'brush' | 'eraser';
 
 export const SKETCH_TOOLS = {
   move: { label: 'Move', shortcut: 'V' },
   select: { label: 'Select', shortcut: 'M' },
+  transform: { label: 'Transform', shortcut: 'T' },
   brush: { label: 'Brush', shortcut: 'B' },
   eraser: { label: 'Eraser', shortcut: 'E' },
 } as const satisfies Record<SketchToolId, { label: string; shortcut: string }>;
 
 /** Enable a tool only after its pointer behavior and tests ship. */
 export const SKETCH_ENABLED_TOOL_IDS = [
+  'move',
   'select',
+  'transform',
   'brush',
   'eraser',
 ] as const satisfies readonly SketchToolId[];

@@ -26,6 +26,7 @@ import { SketchToolRail } from './SketchToolRail';
 import { SKETCH_ENABLED_TOOL_IDS, type SketchToolId } from './sketchTools';
 import { useSketchBrushCursor } from './useSketchBrushCursor';
 import { useSketchDocument, type UseSketchDocumentResult } from './useSketchDocument';
+import { useSketchManipulation } from './useSketchManipulation';
 import { useSketchSelection } from './useSketchSelection';
 import { useSketchToolShortcuts } from './useSketchToolShortcuts';
 import {
@@ -61,6 +62,9 @@ type SketchEditorPropertiesProps = {
   activeTool: SketchToolId;
   selection: SketchSelectionRect | null;
   onRequestDelete: (selection: SketchSelectionRect) => void;
+  floating?: UseSketchDocumentResult['floating'];
+  onApplyFloating?: () => void;
+  onCancelFloating?: () => void;
 };
 
 // fallow-ignore-next-line complexity
@@ -73,6 +77,9 @@ function SketchEditorProperties({
   activeTool,
   selection,
   onRequestDelete,
+  floating,
+  onApplyFloating,
+  onCancelFloating,
 }: SketchEditorPropertiesProps) {
   return (
     <div
@@ -107,6 +114,41 @@ function SketchEditorProperties({
           >
             Delete selection
           </button>
+        </>
+      ) : activeTool === 'move' || activeTool === 'transform' ? (
+        <>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+            {activeTool}
+          </p>
+          <p className="text-sm text-chatroom-text-secondary">
+            {floating
+              ? 'Adjust the floating selection, then apply or cancel.'
+              : 'Select an area first.'}
+          </p>
+          {floating ? (
+            <p aria-live="polite" className="text-sm text-chatroom-text-muted">
+              {Math.round(floating.sourceWidth * floating.transform.scaleX)} ×{' '}
+              {Math.round(floating.sourceHeight * floating.transform.scaleY)} px
+            </p>
+          ) : null}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={!floating || disabled}
+              onClick={onApplyFloating}
+              className={chatroomIndustrialButtonPrimaryClassName}
+            >
+              Apply
+            </button>
+            <button
+              type="button"
+              disabled={!floating || disabled}
+              onClick={onCancelFloating}
+              className={chatroomIndustrialButtonSecondaryClassName}
+            >
+              Cancel
+            </button>
+          </div>
         </>
       ) : activeTool === 'eraser' ? (
         <>
@@ -146,12 +188,14 @@ function SketchEditorCanvasPanel({
   selectionBindings,
   activeTool,
   showBrushCursor,
+  manipulationBindings,
 }: Pick<UseSketchDocumentResult, 'canvasRef' | 'canvasBindings'> & {
   disabled?: boolean;
   overlayRef?: RefObject<HTMLCanvasElement | null>;
   selectionBindings?: UseSketchDocumentResult['canvasBindings'];
   activeTool?: SketchToolId;
   showBrushCursor?: boolean;
+  manipulationBindings?: UseSketchDocumentResult['canvasBindings'];
 }) {
   return (
     <div className="order-2 grid min-h-0 min-w-0 flex-1 place-items-center overflow-hidden bg-chatroom-bg-tertiary p-3 sm:p-4 lg:order-none lg:p-8">
@@ -170,7 +214,11 @@ function SketchEditorCanvasPanel({
           'ring-2 ring-chatroom-border'
         )}
         style={{ backgroundColor: SKETCH_CANVAS_BACKGROUND }}
-        {...(activeTool === 'select' ? selectionBindings : canvasBindings)}
+        {...(activeTool === 'select'
+          ? selectionBindings
+          : activeTool === 'move' || activeTool === 'transform'
+            ? manipulationBindings
+            : canvasBindings)}
       />
       {overlayRef ? (
         <canvas
@@ -248,6 +296,11 @@ function SketchEditorSession({
     clearSelection,
     onSelectionChange,
     activeLayerId,
+    floating,
+    beginFloatingSelection,
+    updateFloatingTransform,
+    applyFloatingSelection,
+    cancelFloatingSelection,
   } = useSketchDocument({
     brushColor: effectiveBrushColor,
     brushSize,
@@ -288,6 +341,16 @@ function SketchEditorSession({
         onPointerLeave: brushCursorBindings.onPointerLeave,
       }
     : canvasBindings;
+  const { manipulationBindings } = useSketchManipulation({
+    canvasRef,
+    overlayRef,
+    activeTool: activeTool === 'transform' ? 'transform' : 'move',
+    disabled: isSaving,
+    selection: docSelection,
+    floating,
+    beginFloatingSelection,
+    updateFloatingTransform,
+  });
   clearSelectionRef.current = clearSelection;
   const save = async () => {
     if (isSaving || !hasContent) return;
@@ -337,6 +400,7 @@ function SketchEditorSession({
           selectionBindings={selectionBindings}
           activeTool={activeTool}
           showBrushCursor={showBrushCursor}
+          manipulationBindings={manipulationBindings}
         />
         <SketchEditorProperties
           brushColor={brushColor}
@@ -347,6 +411,9 @@ function SketchEditorSession({
           onRequestDelete={handleDeleteSelection}
           onBrushColorChange={setBrushColor}
           onBrushSizeChange={setBrushSize}
+          floating={floating}
+          onApplyFloating={applyFloatingSelection}
+          onCancelFloating={cancelFloatingSelection}
         />
       </div>
       <SketchEditorFooter

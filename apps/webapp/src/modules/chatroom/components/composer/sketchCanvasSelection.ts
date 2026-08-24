@@ -1,6 +1,7 @@
 // fallow-ignore-file complexity
 import type { SketchPoint } from './sketchCanvasDrawing';
 import { SKETCH_CANVAS_HEIGHT, SKETCH_CANVAS_WIDTH } from './sketchConstants';
+import type { SketchTransform } from './sketchDocument';
 
 export type SketchSelectionRect = { x: number; y: number; width: number; height: number };
 export type SketchSelectionAction = 'select-all' | 'request-delete' | 'clear';
@@ -102,4 +103,32 @@ export function drawSketchSelectionMarquee(
     ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, width - 1), Math.max(0, height - 1));
     ctx.restore();
   }
+}
+export function drawSketchTransformOverlay(
+  ctx: CanvasRenderingContext2D,
+  t: SketchTransform,
+  w: number,
+  h: number,
+  mode: 'move' | 'transform'
+): void {
+  ctx.clearRect(0, 0, SKETCH_CANVAS_WIDTH, SKETCH_CANVAS_HEIGHT);
+  ctx.save();
+  ctx.strokeStyle = '#fff';
+  ctx.strokeRect(t.x + 0.5, t.y + 0.5, w * t.scaleX - 1, h * t.scaleY - 1);
+  ctx.strokeStyle = '#000';
+  ctx.setLineDash([4, 4]);
+  ctx.strokeRect(t.x + 0.5, t.y + 0.5, w * t.scaleX - 1, h * t.scaleY - 1);
+  if (mode === 'transform')
+    for (const p of [
+      { x: t.x, y: t.y },
+      { x: t.x + w * t.scaleX, y: t.y },
+      { x: t.x + w * t.scaleX, y: t.y + h * t.scaleY },
+      { x: t.x, y: t.y + h * t.scaleY },
+    ]) {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(p.x - 4, p.y - 4, 8, 8);
+      ctx.strokeStyle = '#000';
+      ctx.strokeRect(p.x - 4, p.y - 4, 8, 8);
+    }
+  ctx.restore();
 }

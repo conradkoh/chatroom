@@ -37,8 +37,11 @@ import {
   updateLayerHasContent,
   type SketchLayerId,
   type SketchSelection,
+  type SketchFloatingSelectionMeta,
+  type SketchTransform,
 } from './sketchDocument';
 import { buildSketchFileName } from './sketchFileName';
+import { applySketchTransform } from './sketchTransform';
 
 export type UseSketchDocumentArgs = {
   brushColor: SketchBrushColor;
@@ -60,6 +63,11 @@ export type UseSketchDocumentResult = {
   >;
   exportPngFile: () => Promise<File | null>;
   deleteRegion: (selection: SketchSelectionRect) => void;
+  floating: SketchFloatingSelectionMeta | null;
+  beginFloatingSelection: () => boolean;
+  updateFloatingTransform: (transform: SketchTransform) => void;
+  applyFloatingSelection: () => void;
+  cancelFloatingSelection: () => void;
 };
 export function useSketchDocument({
   brushColor,
@@ -72,6 +80,8 @@ export function useSketchDocument({
   const activeRef = useRef<ActiveSketchStroke | null>(null);
   const rafRef = useRef<number | null>(null);
   const [doc, setDoc] = useState(createInitialDocument);
+  const floatingBitmapRef = useRef<HTMLCanvasElement | null>(null);
+  const floatingBackupRef = useRef<ImageData | null>(null);
   const onSelectionChange = useCallback((selection: SketchSelection | null) => {
     setDoc((state) => setSelection(state, selection));
   }, []);
@@ -88,7 +98,9 @@ export function useSketchDocument({
           doc.layers
             .map((layer) => layersRef.current.get(layer.id))
             .filter((layer): layer is HTMLCanvasElement => Boolean(layer)),
-          null
+          doc.floating && floatingBitmapRef.current
+            ? { bitmap: floatingBitmapRef.current, transform: doc.floating.transform }
+            : null
         );
     });
   }, [doc.layers]);
@@ -211,6 +223,75 @@ export function useSketchDocument({
     },
     [activeContext, mark, scheduleComposite]
   );
+  const beginFloatingSelection = useCallback(() => {
+    const selection = doc.selection;
+    const layer =
+      selection && selection.layerId === doc.activeLayerId
+        ? layersRef.current.get(doc.activeLayerId)
+        : null;
+    const ctx = layer?.getContext('2d');
+    if (!selection || !layer || !ctx || doc.floating) return false;
+    const r = selection.rect;
+    const backup = ctx.getImageData(r.x, r.y, r.width, r.height);
+    const bitmap = document.createElement('canvas');
+    bitmap.width = r.width;
+    bitmap.height = r.height;
+    bitmap.getContext('2d')?.putImageData(backup, 0, 0);
+    ctx.clearRect(r.x, r.y, r.width, r.height);
+    floatingBitmapRef.current = bitmap;
+    floatingBackupRef.current = backup;
+    setDoc((state) => ({
+      ...state,
+      selection: null,
+      floating: {
+        layerId: doc.activeLayerId,
+        sourceWidth: r.width,
+        sourceHeight: r.height,
+        transform: { x: r.x, y: r.y, scaleX: 1, scaleY: 1, rotationRadians: 0 },
+        originRect: r,
+        provenance: 'selection',
+        priorActiveLayerId: null,
+      },
+    }));
+    return true;
+  }, [doc]);
+  const updateFloatingTransform = useCallback(
+    (transform: SketchTransform) =>
+      setDoc((state) =>
+        state.floating ? { ...state, floating: { ...state.floating, transform } } : state
+      ),
+    []
+  );
+  const cancelFloatingSelection = useCallback(() => {
+    if (!doc.floating) return;
+    const layer = layersRef.current.get(doc.activeLayerId);
+    const ctx = layer?.getContext('2d');
+    if (ctx && doc.floating.originRect && floatingBackupRef.current)
+      ctx.putImageData(
+        floatingBackupRef.current,
+        doc.floating.originRect.x,
+        doc.floating.originRect.y
+      );
+    floatingBitmapRef.current = null;
+    floatingBackupRef.current = null;
+    setDoc((state) => ({ ...state, floating: null }));
+  }, [doc]);
+  const applyFloatingSelection = useCallback(() => {
+    if (!doc.floating || !floatingBitmapRef.current) return;
+    const ctx = layersRef.current.get(doc.activeLayerId)?.getContext('2d');
+    const bitmap = floatingBitmapRef.current;
+    if (ctx && bitmap)
+      applySketchTransform(ctx, doc.floating.transform, () => ctx.drawImage(bitmap, 0, 0));
+    floatingBitmapRef.current = null;
+    floatingBackupRef.current = null;
+    setDoc((state) => ({
+      ...state,
+      floating: null,
+      layers: state.layers.map((l) =>
+        l.id === state.activeLayerId ? { ...l, hasContent: true } : l
+      ),
+    }));
+  }, [doc]);
   const exportPngFile = useCallback(
     () =>
       new Promise<File | null>((resolve) => {
@@ -250,5 +331,10 @@ export function useSketchDocument({
     },
     exportPngFile,
     deleteRegion,
+    floating: doc.floating,
+    beginFloatingSelection,
+    updateFloatingTransform,
+    applyFloatingSelection,
+    cancelFloatingSelection,
   };
 }
