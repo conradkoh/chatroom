@@ -1,11 +1,14 @@
-// fallow-ignore-file unused-file
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { MACHINE_COMMAND_TTL_MS, type MachineCommandPayload } from '../../entities/machine-command';
 
-export async function enqueueMachineCommand(
-  ctx: MutationCtx,
-  input: { machineId: string; command: MachineCommandPayload; now?: number }
-) {
+export interface EnqueueMachineCommandInput {
+  machineId: string;
+  command: MachineCommandPayload;
+  now?: number;
+}
+
+/** Insert a pending command, deriving its deadline from the command type. */
+export async function enqueueMachineCommand(ctx: MutationCtx, input: EnqueueMachineCommandInput) {
   const now = input.now ?? Date.now();
   return await ctx.db.insert('chatroom_machineCommandInbox', {
     machineId: input.machineId,
