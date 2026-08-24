@@ -5,6 +5,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useMemo,
   type ComponentProps,
   type RefObject,
 } from 'react';
@@ -22,6 +23,7 @@ import {
   type SketchBrushColor,
 } from './sketchConstants';
 import { SketchDiscardDialog } from './SketchDiscardDialog';
+import { SketchLayersPanel } from './SketchLayersPanel';
 import { SketchToolRail } from './SketchToolRail';
 import { SKETCH_ENABLED_TOOL_IDS, type SketchToolId } from './sketchTools';
 import { useSketchBrushCursor } from './useSketchBrushCursor';
@@ -312,6 +314,8 @@ function SketchEditorSession({
     updateFloatingTransform,
     applyFloatingSelection,
     cancelFloatingSelection,
+    layers,
+    setActiveLayerId,
   } = useSketchDocument({
     brushColor: effectiveBrushColor,
     brushSize,
@@ -324,6 +328,8 @@ function SketchEditorSession({
     onTransformRequested: () => setActiveTool('transform'),
   });
   const inputDisabled = isSaving || isImporting;
+  const layersTopFirst = useMemo(() => [...layers].reverse(), [layers]);
+  const layersDisabled = inputDisabled || floating != null;
   const clearSelectionRef = useRef<() => void>(() => {});
   const handleDeleteSelection = useCallback(
     (selection: SketchSelectionRect) => {
@@ -410,7 +416,7 @@ function SketchEditorSession({
       <DialogHeader className="min-h-12 shrink-0 justify-center border-b-2 border-chatroom-border px-4 pr-12 text-left">
         <DialogTitle>Sketch attachment</DialogTitle>
       </DialogHeader>
-      <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[3.5rem_minmax(0,1fr)_15rem]">
+      <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[3.5rem_minmax(0,1fr)_17rem]">
         <SketchToolRail
           activeTool={activeTool}
           enabledTools={SKETCH_ENABLED_TOOL_IDS}
@@ -427,20 +433,29 @@ function SketchEditorSession({
           showBrushCursor={showBrushCursor}
           manipulationBindings={manipulationBindings}
         />
-        <SketchEditorProperties
-          brushColor={brushColor}
-          brushSize={brushSize}
-          disabled={isSaving || isImporting}
-          activeTool={activeTool}
-          selection={selection}
-          onRequestDelete={handleDeleteSelection}
-          onBrushColorChange={setBrushColor}
-          onBrushSizeChange={setBrushSize}
-          floating={floating}
-          onApplyFloating={applyFloatingSelection}
-          onCancelFloating={cancelFloatingSelection}
-          isImporting={isImporting}
-        />
+        <aside className="order-1 flex shrink-0 flex-col border-b-2 border-chatroom-border lg:order-none lg:min-h-0 lg:border-b-0 lg:border-l-2">
+          <SketchEditorProperties
+            brushColor={brushColor}
+            brushSize={brushSize}
+            disabled={isSaving || isImporting}
+            activeTool={activeTool}
+            selection={selection}
+            onRequestDelete={handleDeleteSelection}
+            onBrushColorChange={setBrushColor}
+            onBrushSizeChange={setBrushSize}
+            floating={floating}
+            onApplyFloating={applyFloatingSelection}
+            onCancelFloating={cancelFloatingSelection}
+            isImporting={isImporting}
+          />
+          <SketchLayersPanel
+            layersTopFirst={layersTopFirst}
+            activeLayerId={activeLayerId}
+            disabled={layersDisabled}
+            onActiveLayerChange={setActiveLayerId}
+            className="min-h-0 lg:flex-1"
+          />
+        </aside>
       </div>
       <SketchEditorFooter
         className="shrink-0 px-4 py-3 lg:px-5"

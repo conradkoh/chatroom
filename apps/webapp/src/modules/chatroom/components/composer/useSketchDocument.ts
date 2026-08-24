@@ -35,7 +35,6 @@ import {
   createLayerId,
   documentHasContent,
   setSelection,
-  setActiveLayer,
   updateLayerHasContent,
   type SketchLayerId,
   type SketchSelection,
@@ -44,6 +43,7 @@ import {
   addLayer,
   countPastedImageLayers,
   removeLayer,
+  setActiveLayer,
 } from './sketchDocument';
 import { buildSketchFileName } from './sketchFileName';
 import { applySketchTransform, computeContainTransform } from './sketchTransform';
@@ -74,6 +74,7 @@ export type UseSketchDocumentResult = {
   applyFloatingSelection: () => void;
   cancelFloatingSelection: () => void;
   importPastedImage: (file: File) => Promise<boolean>;
+  setActiveLayerId: (id: SketchLayerId) => void;
 };
 export function useSketchDocument({
   brushColor,
@@ -114,6 +115,17 @@ export function useSketchDocument({
         );
     });
   }, [doc.layers, doc.floating]);
+  const setActiveLayerId = useCallback(
+    (id: SketchLayerId) => {
+      if (doc.floating) return;
+      floatingBitmapRef.current = null;
+      floatingTransformRef.current = null;
+      floatingBackupRef.current = null;
+      setDoc((state) => setActiveLayer(state, id));
+      scheduleComposite();
+    },
+    [doc.floating, scheduleComposite]
+  );
   useLayoutEffect(() => {
     for (const layer of doc.layers) {
       if (!layersRef.current.has(layer.id))
@@ -448,5 +460,6 @@ export function useSketchDocument({
     applyFloatingSelection,
     cancelFloatingSelection,
     importPastedImage,
+    setActiveLayerId,
   };
 }
