@@ -50,6 +50,7 @@ vi.mock('./composer/useSketchDocument', () => ({
     updateFloatingTransform: vi.fn(),
     applyFloatingSelection: vi.fn(),
     cancelFloatingSelection: vi.fn(),
+    discardFloatingSelection: vi.fn(),
   }),
 }));
 describe('MessageInput sketch integration', () => {

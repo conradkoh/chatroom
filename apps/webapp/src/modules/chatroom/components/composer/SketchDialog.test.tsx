@@ -135,4 +135,41 @@ describe('SketchDialog', () => {
     expect(screen.getByText('Entire canvas selected.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
   });
+  it('shows Delete selection on Move tool when a marquee exists', async () => {
+    const user = userEvent.setup();
+    render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
+    await user.keyboard('m');
+    const canvas = screen.getByLabelText('Sketch canvas') as HTMLCanvasElement;
+    setupCanvas(canvas);
+    await act(async () => {
+      canvas.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true,
+          button: 0,
+          pointerId: 1,
+          clientX: 50,
+          clientY: 50,
+          isPrimary: true,
+        })
+      );
+      canvas.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          pointerId: 1,
+          clientX: 150,
+          clientY: 120,
+          isPrimary: true,
+        })
+      );
+      canvas.dispatchEvent(
+        new PointerEvent('pointerup', { bubbles: true, pointerId: 1, isPrimary: true })
+      );
+    });
+    await user.keyboard('v');
+    expect(screen.getByRole('button', { name: 'Move tool' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(screen.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
+  });
 });

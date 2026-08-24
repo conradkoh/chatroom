@@ -50,7 +50,12 @@ function event(canvas: HTMLCanvasElement, type: string, init: PointerEventInit =
     clientY: native.clientY,
   };
 }
-function controlled(initial: SketchSelection | null = null, enabled = true, disabled = false) {
+function controlled(
+  initial: SketchSelection | null = null,
+  enabled = true,
+  disabled = false,
+  keyboardEnabled?: boolean
+) {
   const canvas = setupCanvas();
   let selection = initial;
   const onSelectionChange = vi.fn((next: SketchSelection | null) => {
@@ -58,17 +63,18 @@ function controlled(initial: SketchSelection | null = null, enabled = true, disa
   });
   const onRequestDelete = vi.fn();
   const hook = renderHook(
-    (p: { enabled: boolean; disabled: boolean }) =>
+    (p: { enabled: boolean; disabled: boolean; keyboardEnabled?: boolean }) =>
       useSketchSelection({
         canvasRef: { current: canvas },
         activeLayerId: ACTIVE_LAYER_ID,
         selection,
         onSelectionChange,
         enabled: p.enabled,
+        keyboardEnabled: p.keyboardEnabled,
         disabled: p.disabled,
         onRequestDelete,
       }),
-    { initialProps: { enabled, disabled } }
+    { initialProps: { enabled, disabled, keyboardEnabled } }
   );
   return { ...hook, canvas, onSelectionChange, onRequestDelete, getSelection: () => selection };
 }
@@ -103,6 +109,21 @@ describe('useSketchSelection', () => {
     });
     expect(api.getSelection()).toEqual(prior);
   });
+  it('requests delete when keyboardEnabled without marquee enabled', () => {
+    const api = controlled(
+      {
+        layerId: ACTIVE_LAYER_ID,
+        rect: { x: 300, y: 300, width: 600, height: 450 },
+      },
+      false,
+      false,
+      true
+    );
+    act(() =>
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }))
+    );
+    expect(api.onRequestDelete).toHaveBeenCalledWith(expect.objectContaining({ width: 600 }));
+  });
   it('requests delete and clears on Escape', () => {
     const api = controlled({
       layerId: ACTIVE_LAYER_ID,
@@ -120,7 +141,7 @@ describe('useSketchSelection', () => {
   it('preserves selection when enabled becomes false', () => {
     const api = controlled();
     drag(api);
-    api.rerender({ enabled: false, disabled: false });
+    api.rerender({ enabled: false, disabled: false, keyboardEnabled: undefined });
     expect(api.getSelection()?.rect).toEqual({ x: 300, y: 300, width: 600, height: 450 });
   });
   it('ignores select-all when not enabled', () => {
