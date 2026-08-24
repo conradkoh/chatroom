@@ -37,6 +37,19 @@ vi.mock('./composer/useSketchDocument', () => ({
     hasContent: true,
     exportPngFile: () =>
       Promise.resolve(new File(['png'], 'sketch-20260816-120000.png', { type: 'image/png' })),
+    deleteRegion: vi.fn(),
+    selection: null,
+    clearSelection: vi.fn(),
+    onSelectionChange: vi.fn(),
+    activeLayerId: 'layer-1',
+    layers: [{ id: 'layer-1', name: 'Drawing 1', kind: 'paint', hasContent: true }],
+    setActiveLayerId: vi.fn(),
+    importPastedImage: vi.fn(),
+    floating: null,
+    beginFloatingSelection: vi.fn(),
+    updateFloatingTransform: vi.fn(),
+    applyFloatingSelection: vi.fn(),
+    cancelFloatingSelection: vi.fn(),
   }),
 }));
 describe('MessageInput sketch integration', () => {
