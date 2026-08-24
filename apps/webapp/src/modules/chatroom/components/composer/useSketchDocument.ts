@@ -35,6 +35,7 @@ import {
   createLayerId,
   documentHasContent,
   setSelection,
+  setActiveLayer,
   updateLayerHasContent,
   type SketchLayerId,
   type SketchSelection,
@@ -123,8 +124,19 @@ export function useSketchDocument({
     const canvas = canvasRef.current;
     const context = canvas?.getContext('2d');
     if (canvas && context && typeof context.save === 'function') {
-      const bitmap = layersRef.current.get(layer.id);
-      if (bitmap) renderSketchComposite(context, [bitmap], null);
+      const bitmaps = doc.layers
+        .map((item) => layersRef.current.get(item.id))
+        .filter((b): b is HTMLCanvasElement => Boolean(b));
+      renderSketchComposite(
+        context,
+        bitmaps,
+        doc.floating && floatingBitmapRef.current
+          ? {
+              bitmap: floatingBitmapRef.current,
+              transform: floatingTransformRef.current ?? doc.floating.transform,
+            }
+          : null
+      );
     }
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -287,7 +299,15 @@ export function useSketchDocument({
       layersRef.current.delete(floating.layerId);
       floatingBitmapRef.current = null;
       floatingTransformRef.current = null;
-      setDoc((state) => removeLayer(state, floating.layerId));
+      setDoc((state) => {
+        let next = removeLayer(state, floating.layerId);
+        if (
+          floating.priorActiveLayerId &&
+          next.layers.some((l) => l.id === floating.priorActiveLayerId)
+        )
+          next = setActiveLayer(next, floating.priorActiveLayerId);
+        return next;
+      });
       scheduleComposite();
       return;
     }
@@ -309,12 +329,24 @@ export function useSketchDocument({
   const importPastedImage = useCallback(
     async (file: File) => {
       try {
-        const decoded = await createImageBitmap(file);
+        let decoded: ImageBitmap | HTMLImageElement;
+        let objectUrl: string | null = null;
+        try {
+          decoded = await createImageBitmap(file);
+        } catch {
+          objectUrl = URL.createObjectURL(file);
+          const image = new Image();
+          image.src = objectUrl;
+          await image.decode();
+          decoded = image;
+        }
         const bitmap = document.createElement('canvas');
         bitmap.width = decoded.width;
         bitmap.height = decoded.height;
+        if (!decoded.width || !decoded.height) return false;
         bitmap.getContext('2d')?.drawImage(decoded, 0, 0);
-        decoded.close();
+        if ('close' in decoded) decoded.close();
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
         const id = createLayerId();
         const transform = computeContainTransform(bitmap.width, bitmap.height);
         floatingBitmapRef.current = bitmap;
