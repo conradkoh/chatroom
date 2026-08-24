@@ -19,6 +19,13 @@ import {
   type SketchBrush,
   type SketchPoint,
 } from './sketchCanvasDrawing';
+import {
+  endSketchStroke,
+  getCoalescedPointerEvents,
+  processCoalescedPointerMove,
+  shouldStartSketchStroke,
+  type ActiveSketchStroke,
+} from './sketchCanvasPointer';
 import { type SketchBrushColor } from './sketchConstants';
 import { buildSketchFileName } from './sketchFileName';
 
@@ -36,9 +43,6 @@ export type UseSketchCanvasResult = {
   hasContent: boolean;
   exportPngFile: () => Promise<File | null>;
 };
-type ActiveStroke = { pointerId: number; lastPoint: SketchPoint; brush: SketchBrush };
-
-// fallow-ignore-next-line complexity
 export function useSketchCanvas({
   brushColor,
   brushSize,
@@ -47,7 +51,7 @@ export function useSketchCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const hasContentRef = useRef(false);
-  const activeStrokeRef = useRef<ActiveStroke | null>(null);
+  const activeStrokeRef = useRef<ActiveSketchStroke | null>(null);
   const [hasContent, setHasContent] = useState(false);
 
   useLayoutEffect(() => {
@@ -88,14 +92,17 @@ export function useSketchCanvas({
     },
     [markHasContent]
   );
-  const endStroke = useCallback((canvas: HTMLCanvasElement, pointerId: number) => {
-    if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
-    if (activeStrokeRef.current?.pointerId === pointerId) activeStrokeRef.current = null;
-  }, []);
-
   const onPointerDown: ComponentProps<'canvas'>['onPointerDown'] = useCallback(
     (event: ReactPointerEvent<HTMLCanvasElement>) => {
-      if (disabled || !event.isPrimary || event.button !== 0 || activeStrokeRef.current) return;
+      if (
+        !shouldStartSketchStroke(
+          disabled,
+          event.isPrimary,
+          event.button,
+          activeStrokeRef.current != null
+        )
+      )
+        return;
       const canvas = canvasRef.current;
       if (!canvas) return;
       const point = mapClientPointToCanvas(event.clientX, event.clientY, canvas);
@@ -112,25 +119,22 @@ export function useSketchCanvas({
       const canvas = canvasRef.current;
       const active = activeStrokeRef.current;
       if (!canvas || !active || active.pointerId !== event.pointerId) return;
-      const coalesced =
-        typeof event.nativeEvent.getCoalescedEvents === 'function'
-          ? event.nativeEvent.getCoalescedEvents()
-          : [];
-      const events = coalesced.length ? coalesced : [event.nativeEvent];
-      for (const coalesced of events) {
-        const point = mapClientPointToCanvas(coalesced.clientX, coalesced.clientY, canvas);
-        if (!point) continue;
-        drawSegment(active.lastPoint, point, active.brush, canvas);
-        active.lastPoint = point;
-      }
+      processCoalescedPointerMove(
+        canvas,
+        getCoalescedPointerEvents(event.nativeEvent),
+        active,
+        drawSegment
+      );
     },
     [drawSegment]
   );
   const onPointerUp: ComponentProps<'canvas'>['onPointerUp'] = useCallback(
     (event: ReactPointerEvent<HTMLCanvasElement>) => {
-      if (canvasRef.current) endStroke(canvasRef.current, event.pointerId);
+      if (!canvasRef.current) return;
+      endSketchStroke(canvasRef.current, event.pointerId, activeStrokeRef.current);
+      if (activeStrokeRef.current?.pointerId === event.pointerId) activeStrokeRef.current = null;
     },
-    [endStroke]
+    []
   );
   const onPointerCancel: ComponentProps<'canvas'>['onPointerCancel'] = onPointerUp;
   const onLostPointerCapture: ComponentProps<'canvas'>['onLostPointerCapture'] = useCallback(

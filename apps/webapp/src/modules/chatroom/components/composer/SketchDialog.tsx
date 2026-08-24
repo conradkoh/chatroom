@@ -11,8 +11,9 @@ import {
   SKETCH_CANVAS_BACKGROUND,
   SKETCH_CANVAS_HEIGHT,
   SKETCH_CANVAS_WIDTH,
+  type SketchBrushColor,
 } from './sketchConstants';
-import { useSketchCanvas } from './useSketchCanvas';
+import { useSketchCanvas, type UseSketchCanvasResult } from './useSketchCanvas';
 import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
@@ -25,8 +26,77 @@ export type SketchDialogProps = {
   onSave: (file: File) => void;
 };
 type SketchEditorSessionProps = { onDismiss: () => void; onSave: (file: File) => void };
+type SketchEditorToolbarProps = {
+  brushColor: SketchBrushColor;
+  brushSize: number;
+  isSaving: boolean;
+  onBrushColorChange: (color: SketchBrushColor) => void;
+  onBrushSizeChange: (size: number) => void;
+};
 
-// fallow-ignore-next-line complexity
+function SketchEditorToolbar({
+  brushColor,
+  brushSize,
+  isSaving,
+  onBrushColorChange,
+  onBrushSizeChange,
+}: SketchEditorToolbarProps) {
+  return (
+    <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <SketchColorPicker value={brushColor} onChange={onBrushColorChange} disabled={isSaving} />
+      <SketchBrushSizeControl value={brushSize} onChange={onBrushSizeChange} disabled={isSaving} />
+    </div>
+  );
+}
+
+function SketchEditorCanvasPanel({
+  canvasRef,
+  canvasBindings,
+}: Pick<UseSketchCanvasResult, 'canvasRef' | 'canvasBindings'>) {
+  return (
+    <div className="grid min-h-0 flex-1 place-items-center overflow-hidden border-2 border-chatroom-border bg-chatroom-bg-secondary">
+      <canvas
+        ref={canvasRef}
+        width={SKETCH_CANVAS_WIDTH}
+        height={SKETCH_CANVAS_HEIGHT}
+        aria-label="Sketch canvas"
+        className="block h-auto max-h-full w-auto max-w-full touch-none select-none cursor-crosshair"
+        style={{ backgroundColor: SKETCH_CANVAS_BACKGROUND }}
+        {...canvasBindings}
+      />
+    </div>
+  );
+}
+
+type SketchEditorFooterProps = {
+  isSaving: boolean;
+  hasContent: boolean;
+  onDismiss: () => void;
+  onSave: () => void;
+};
+function SketchEditorFooter({ isSaving, hasContent, onDismiss, onSave }: SketchEditorFooterProps) {
+  return (
+    <DialogFooter>
+      <button
+        type="button"
+        className={chatroomIndustrialButtonSecondaryClassName}
+        disabled={isSaving}
+        onClick={onDismiss}
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        className={chatroomIndustrialButtonPrimaryClassName}
+        disabled={!hasContent || isSaving}
+        onClick={onSave}
+      >
+        {isSaving ? 'Adding…' : 'Add sketch'}
+      </button>
+    </DialogFooter>
+  );
+}
+
 function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
   const [brushColor, setBrushColor] = useState(SKETCH_BRUSH_COLOR_DEFAULT);
   const [brushSize, setBrushSize] = useState(SKETCH_BRUSH_SIZE_DEFAULT);
@@ -56,39 +126,20 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
       <DialogHeader>
         <DialogTitle>Sketch attachment</DialogTitle>
       </DialogHeader>
-      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <SketchColorPicker value={brushColor} onChange={setBrushColor} disabled={isSaving} />
-        <SketchBrushSizeControl value={brushSize} onChange={setBrushSize} disabled={isSaving} />
-      </div>
-      <div className="grid min-h-0 flex-1 place-items-center overflow-hidden border-2 border-chatroom-border bg-chatroom-bg-secondary">
-        <canvas
-          ref={canvasRef}
-          width={SKETCH_CANVAS_WIDTH}
-          height={SKETCH_CANVAS_HEIGHT}
-          aria-label="Sketch canvas"
-          className="block h-auto max-h-full w-auto max-w-full touch-none select-none cursor-crosshair"
-          style={{ backgroundColor: SKETCH_CANVAS_BACKGROUND }}
-          {...canvasBindings}
-        />
-      </div>
-      <DialogFooter>
-        <button
-          type="button"
-          className={chatroomIndustrialButtonSecondaryClassName}
-          disabled={isSaving}
-          onClick={onDismiss}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          className={chatroomIndustrialButtonPrimaryClassName}
-          disabled={!hasContent || isSaving}
-          onClick={save}
-        >
-          {isSaving ? 'Adding…' : 'Add sketch'}
-        </button>
-      </DialogFooter>
+      <SketchEditorToolbar
+        brushColor={brushColor}
+        brushSize={brushSize}
+        isSaving={isSaving}
+        onBrushColorChange={setBrushColor}
+        onBrushSizeChange={setBrushSize}
+      />
+      <SketchEditorCanvasPanel canvasRef={canvasRef} canvasBindings={canvasBindings} />
+      <SketchEditorFooter
+        isSaving={isSaving}
+        hasContent={hasContent}
+        onDismiss={onDismiss}
+        onSave={save}
+      />
     </div>
   );
 }
