@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type RefObject } from 'react';
+import { useCallback, useRef, useState, type RefObject } from 'react';
 import { toast } from 'sonner';
 
 import { SketchBrushSizeControl } from './SketchBrushSizeControl';
@@ -14,7 +14,6 @@ import {
   SKETCH_CANVAS_WIDTH,
   type SketchBrushColor,
 } from './sketchConstants';
-import { SketchDeleteSelectionDialog } from './SketchDeleteSelectionDialog';
 import { SketchToolRail } from './SketchToolRail';
 import { SKETCH_ENABLED_TOOL_IDS, type SketchToolId } from './sketchTools';
 import { useSketchCanvas, type UseSketchCanvasResult } from './useSketchCanvas';
@@ -191,8 +190,6 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
   const [brushSize, setBrushSize] = useState(SKETCH_BRUSH_SIZE_DEFAULT);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTool, setActiveTool] = useState<SketchToolId>('brush');
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<SketchSelectionRect | null>(null);
   useSketchToolShortcuts({ enabledTools: SKETCH_ENABLED_TOOL_IDS, onToolChange: setActiveTool });
   const brushInputDisabled = isSaving || activeTool !== 'brush';
   const { canvasRef, canvasBindings, hasContent, exportPngFile, deleteRegion } = useSketchCanvas({
@@ -200,16 +197,21 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
     brushSize,
     disabled: brushInputDisabled,
   });
-  const requestDelete = (selection: SketchSelectionRect) => {
-    setPendingDelete(selection);
-    setDeleteOpen(true);
-  };
+  const clearSelectionRef = useRef<() => void>(() => {});
+  const handleDeleteSelection = useCallback(
+    (selection: SketchSelectionRect) => {
+      deleteRegion(selection);
+      clearSelectionRef.current();
+    },
+    [deleteRegion]
+  );
   const { overlayRef, selection, selectionBindings, clearSelection } = useSketchSelection({
     canvasRef,
     enabled: activeTool === 'select',
-    disabled: isSaving || deleteOpen,
-    onRequestDelete: requestDelete,
+    disabled: isSaving,
+    onRequestDelete: handleDeleteSelection,
   });
+  clearSelectionRef.current = clearSelection;
   const save = async () => {
     if (isSaving || !hasContent) return;
     setIsSaving(true);
@@ -251,7 +253,7 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
           disabled={isSaving}
           activeTool={activeTool}
           selection={selection}
-          onRequestDelete={requestDelete}
+          onRequestDelete={handleDeleteSelection}
           onBrushColorChange={setBrushColor}
           onBrushSizeChange={setBrushSize}
         />
@@ -262,17 +264,6 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
         hasContent={hasContent}
         onDismiss={onDismiss}
         onSave={save}
-      />
-      <SketchDeleteSelectionDialog
-        open={deleteOpen}
-        selection={pendingDelete}
-        onOpenChange={setDeleteOpen}
-        onConfirm={() => {
-          if (pendingDelete) deleteRegion(pendingDelete);
-          clearSelection();
-          setPendingDelete(null);
-          setDeleteOpen(false);
-        }}
       />
     </div>
   );

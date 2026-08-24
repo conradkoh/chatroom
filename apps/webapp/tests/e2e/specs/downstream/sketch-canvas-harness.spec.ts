@@ -97,7 +97,6 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       await page.mouse.up();
       await expect(page.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
       await page.getByRole('button', { name: 'Delete selection' }).click();
-      await page.getByRole('button', { name: 'Delete pixels' }).click();
       const after = await countNonWhitePixels(canvas);
       expect(after).toBeLessThan(before);
       expect(after).toBeGreaterThan(0);
@@ -116,7 +115,6 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       await page.mouse.up();
       await expect(page.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
       await page.getByRole('button', { name: 'Delete selection' }).click();
-      await page.getByRole('button', { name: 'Delete pixels' }).click();
       await expect(page.getByRole('button', { name: 'Add sketch' })).toBeDisabled();
     });
     test('Cmd+A selects entire canvas and confirmed delete clears sketch', async ({ page }) => {
@@ -128,7 +126,6 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       await expect(page.getByText('Entire canvas selected.')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Delete selection' })).toBeEnabled();
       await page.getByRole('button', { name: 'Delete selection' }).click();
-      await page.getByRole('button', { name: 'Delete pixels' }).click();
       await expect(page.getByRole('button', { name: 'Add sketch' })).toBeDisabled();
     });
   });
