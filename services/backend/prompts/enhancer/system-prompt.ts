@@ -5,12 +5,16 @@ import {
   formatStdinHeredocCommand,
 } from '../cli/stdin-heredoc.js';
 import { getFrontendDesignUxTriggerDescription } from '../utils/frontend-design-ux-checklist';
+import { getGeneralKnowledgeSections } from '../sections/general-knowledge';
+import { composeSections } from '../types/sections';
+import { shouldIncludeGeneralKnowledge } from '../config/agent-general-knowledge';
 
 export interface RenderEnhancerSystemPromptParams {
   chatroomId: string;
   jobId: string;
   cliEnvPrefix: string;
   originUserMessageId?: string;
+  convexUrl?: string;
 }
 
 export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptParams): string {
@@ -21,7 +25,11 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
     { messageMarker: HANDOFF_MESSAGE_MARKER }
   );
 
+  const generalKnowledge = shouldIncludeGeneralKnowledge('enhancer') && params.convexUrl !== undefined
+    ? composeSections(getGeneralKnowledgeSections({ chatroomId: params.chatroomId, role: 'enhancer', convexUrl: params.convexUrl, compactSkills: true, nativeIntegration: true }, { includeHistory: false }))
+    : '';
   return [
+    generalKnowledge,
     'You are a single-turn, memoryless **design advisor**. Produce a high-intelligence first design for the user request; you are not an implementer.',
     '',
     '## Your role',

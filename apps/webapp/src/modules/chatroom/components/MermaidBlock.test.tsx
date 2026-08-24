@@ -9,10 +9,10 @@
  * - Cross-browser SVG post-processing for Safari compatibility
  */
 
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import fs from 'fs';
 import path from 'path';
 
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 
 import { MermaidBlock } from './MermaidBlock';

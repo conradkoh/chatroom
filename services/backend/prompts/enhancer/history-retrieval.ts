@@ -2,6 +2,7 @@ import {
   messagesAnchorCommand,
   messagesDownloadSinceCommand,
 } from '../utils/proof-of-verification';
+import { getHistoryRetrievalGuidance } from '../cli/history-retrieval/guidance';
 
 export interface EnhancerHistoryRetrievalParams {
   chatroomId: string;
@@ -33,6 +34,7 @@ export function getEnhancerHistoryRetrievalGuidance(
     ? `The backend identified \`${params.originUserMessageId}\` as the originating user message. Treat it as the authoritative anchor for this job.`
     : 'This legacy job has no origin message ID. Run the anchor command first, then replace `<origin-user-message-id>` below with the ID it prints.';
 
+  const sharedGuidance = getHistoryRetrievalGuidance({ chatroomId: params.chatroomId, role: 'enhancer', cliEnvPrefix: params.cliEnvPrefix });
   return `## Recover user context (do this first)
 
 ${originLine}
@@ -46,5 +48,7 @@ ${downloadCmd}
 
 For jobs with a supplied origin ID, the download command is the primary path; \`messages anchor\` is useful for seeing prior user-message previews when the request is terse. Use the **absolute path** printed by the CLI and read the downloaded messages before forming conclusions.
 
-If the triggering request depends on earlier context, download broader history without \`--since-message-id\` and increase \`--limit\` (for example 200 or 500). If output reports \`truncated=true\`, increase the limit again. Treat actual user messages as authoritative.`;
+${sharedGuidance}
+
+Treat actual user messages as authoritative.`;
 }
