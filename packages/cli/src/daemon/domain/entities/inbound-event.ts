@@ -4,20 +4,17 @@
  */
 
 /**
- * Command payload already delivered by the command-events subscription.
+ * Command payload delivered by the machine-command inbox claim.
  * Keeping it on the inbound event avoids fetching the same event list again
  * before dispatching a command.
  */
 import type { ClaimedMachineCommand } from '../../infrastructure/convex/subscribers/machine-command-inbox.js';
 
-export type InboundCommandEventPayload = ClaimedMachineCommand;
-
 export type InboundEvent =
   | {
       type: 'command.received';
       commandId: string;
-      claimedCommand?: ClaimedMachineCommand;
-      commandEvent?: InboundCommandEventPayload;
+      claimedCommand: ClaimedMachineCommand;
     }
   | { type: 'direct-harness.session-opened'; harnessSessionId: string }
   | { type: 'direct-harness.prompt'; harnessSessionId: string }

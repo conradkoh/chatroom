@@ -3,9 +3,12 @@ import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../../api.js';
 import type { ConvexSubscriberDeps } from '../subscriber-deps.js';
 
-export type ClaimedMachineCommand = NonNullable<
+type RawClaimedMachineCommand = NonNullable<
   FunctionReturnType<typeof api.daemon.machineCommandInbox.claimNext>
 >;
+export type ClaimedMachineCommand = Omit<RawClaimedMachineCommand, 'commandId'> & {
+  commandId: string;
+};
 export type SubscriberHandle = { stop(): Promise<void> };
 
 /** Watches for lightweight nudges and serially claims full machine commands. */

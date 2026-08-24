@@ -31,7 +31,7 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
   const session = startDirectHarnessSessionSubscriber(deps, onEvent);
   const prompt = startDirectHarnessPromptSubscriber(deps, onEvent);
   const directHarnessCommand = startDirectHarnessCommandSubscriber(deps, onEvent);
-  const commandEvents = startMachineCommandInboxSubscriber(deps, async (claimed) => {
+  const machineCommands = startMachineCommandInboxSubscriber(deps, async (claimed) => {
     await dispatchCommandInboundEvent({
       type: 'command.received',
       commandId: claimed.commandId,
@@ -55,7 +55,7 @@ export function startAllSubscribers(deps: SubscriberRegistryDeps): SubscriberReg
         session.stop(),
         prompt.stop(),
         directHarnessCommand.stop(),
-        commandEvents.stop(),
+        machineCommands.stop(),
         commandRun.stop(),
         workspaceList.stop(),
         gitRequest.stop(),

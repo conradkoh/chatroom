@@ -10,6 +10,13 @@ describe('handleCommandEvent', () => {
     const event: CommandInboundEvent = {
       type: 'command.received',
       commandId: 'cmd_1',
+      claimedCommand: {
+        commandId: 'cmd_1',
+        machineId: 'm',
+        deadline: Date.now() + 1000,
+        timestamp: Date.now(),
+        type: 'daemon.ping',
+      },
     };
 
     await handleCommandEvent(deps, event);

@@ -324,7 +324,7 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
           dedupTracker,
           effectContext,
           session,
-          event.claimedCommand ?? (event.commandEvent as never)
+          event.claimedCommand
         );
       } else {
         await drainActionableCommandRuns(session, commandRunRuntime);
