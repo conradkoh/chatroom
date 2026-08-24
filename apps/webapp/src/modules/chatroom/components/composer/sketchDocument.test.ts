@@ -36,4 +36,14 @@ describe('sketchDocument', () => {
     ).toBeNull();
     expect(documentHasContent(next)).toBe(true);
   });
+  it('rejects selection for non-active layer', () => {
+    const doc = createInitialDocument();
+    const withTwo = addLayer(doc, { id: 'other', name: 'Other', kind: 'paint', hasContent: false });
+    expect(() =>
+      setSelection(withTwo, {
+        layerId: doc.activeLayerId,
+        rect: { x: 0, y: 0, width: 1, height: 1 },
+      })
+    ).toThrow(/active layer/i);
+  });
 });

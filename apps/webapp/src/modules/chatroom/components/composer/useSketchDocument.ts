@@ -197,6 +197,17 @@ export function useSketchDocument({
       clearSketchRegion(ctx, selection);
       mark(layerHasNonTransparentPixels(ctx));
       scheduleComposite();
+      const canvas = canvasRef.current;
+      const compositeContext = canvas?.getContext('2d');
+      if (canvas && compositeContext && typeof compositeContext.save === 'function') {
+        renderSketchComposite(
+          compositeContext,
+          doc.layers
+            .map((layer) => layersRef.current.get(layer.id))
+            .filter((layer): layer is HTMLCanvasElement => Boolean(layer)),
+          null
+        );
+      }
     },
     [activeContext, mark, scheduleComposite]
   );
