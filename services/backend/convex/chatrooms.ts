@@ -8,6 +8,7 @@ import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
 import { insertEmptyOperationalSummaryForRoom } from '../src/domain/usecase/agent/project-agent-operational-status';
 import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
+import { rebuildObservedWorkspaceViewsForChatroom } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
@@ -641,6 +642,7 @@ export const recordChatroomObservation = mutation({
         patch.lastRefreshedAt = now;
       }
       await ctx.db.patch('chatroom_observation', existing._id, patch);
+      await rebuildObservedWorkspaceViewsForChatroom(ctx, args.chatroomId);
     } else {
       // Create new observation record
       await ctx.db.insert('chatroom_observation', {
@@ -648,6 +650,7 @@ export const recordChatroomObservation = mutation({
         lastObservedAt: now,
         lastRefreshedAt: args.refresh ? now : undefined,
       });
+      await rebuildObservedWorkspaceViewsForChatroom(ctx, args.chatroomId);
     }
   },
 });

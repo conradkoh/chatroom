@@ -17,6 +17,8 @@ import {
 } from '../src/domain/usecase/agent/project-agent-operational-status';
 import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
+import { rebuildObservedWorkspaceView } from '../src/domain/usecase/workspace/project-observed-workspace-view';
+import { isActiveWorkspace } from '../src/domain/entities/workspace';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
 
@@ -601,6 +603,15 @@ export const backfillMachineTaskStatusSignalHeads = migrations.define({
   },
 });
 
+export const backfillMachineObservedWorkspaceViews = migrations.define({
+  table: 'chatroom_machines',
+  migrateOne: async (ctx, machine) => {
+    const workspaces = await ctx.db.query('chatroom_workspaces').withIndex('by_machine', (q) => q.eq('machineId', machine.machineId)).collect();
+    const chatroomIds = [...new Set(workspaces.filter((ws) => isActiveWorkspace(ws.removedAt)).map((ws) => ws.chatroomId))];
+    for (const chatroomId of chatroomIds) await rebuildObservedWorkspaceView(ctx, machine.machineId, chatroomId);
+  },
+});
+
 // ========================================
 // Batch Runners
 // ========================================
@@ -718,4 +729,5 @@ export const runAll = migrations.runner([
   internal.migrations.backfillMachineIdentities,
   internal.migrations.backfillAgentViewMetadata,
   internal.migrations.backfillMachineTaskStatusSignalHeads,
+  internal.migrations.backfillMachineObservedWorkspaceViews,
 ]);

@@ -11,6 +11,7 @@ import { internalMutation } from './_generated/server';
 import { rebuildAgentOperationalStatusForChatroom } from '../src/domain/usecase/agent/project-agent-operational-status';
 import { deleteMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { deleteMachineTaskStatusSignalHead } from '../src/domain/usecase/task/project-machine-task-status-signal-head';
+import { deleteObservedWorkspaceViewsForMachine } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -203,6 +204,7 @@ export const cleanupMachines = internalMutation({
       }
       await deleteMachineIdentity(ctx, mid);
       await deleteMachineTaskStatusSignalHead(ctx, mid);
+      await deleteObservedWorkspaceViewsForMachine(ctx, mid);
 
       const workspaces = await ctx.db
         .query('chatroom_workspaces')

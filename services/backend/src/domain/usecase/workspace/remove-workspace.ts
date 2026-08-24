@@ -20,6 +20,7 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
+import { rebuildObservedWorkspaceView } from './project-observed-workspace-view';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,7 @@ export async function removeWorkspace(
   await ctx.db.patch('chatroom_workspaces', input.workspaceId, {
     removedAt: Date.now(),
   });
+  await rebuildObservedWorkspaceView(ctx, workspace.machineId, workspace.chatroomId);
 
   // Purge workspace-scoped data to prevent ghost machines
   await purgeTeamAgentConfigsForMachine(

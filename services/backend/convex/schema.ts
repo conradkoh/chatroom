@@ -2479,6 +2479,11 @@ export default defineSchema({
     .index('by_chatroomId', ['chatroomId'])
     .index('by_lastObservedAt', ['lastObservedAt']),
 
+  /** Per-machine/chatroom observation projection; recency remains query-time. */
+  chatroom_machineObservedWorkspaceViews: defineTable({
+    machineId: v.string(), chatroomId: v.id('chatroom_rooms'), lastObservedAt: v.number(), workingDirs: v.array(v.string()),
+  }).index('by_machineId', ['machineId']).index('by_machineId_chatroomId', ['machineId', 'chatroomId']),
+
   // ─── direct-harness (feature flag: directHarnessWorkers) ─────────────────
 
   /**
