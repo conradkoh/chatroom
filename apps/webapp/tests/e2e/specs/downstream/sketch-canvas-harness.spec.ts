@@ -73,6 +73,8 @@ test.describe('Sketch canvas harness', { tag: [TAG_DOWNSTREAM] }, () => {
       expect(dialogBox!.width).toBeGreaterThan(1440 * 0.95);
       expect(dialogBox!.height).toBeGreaterThan(900 * 0.95);
       await expect(page.getByRole('group', { name: 'Color' })).toBeVisible();
+      await expect(page.getByRole('toolbar', { name: 'Sketch tools' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Brush tool' })).toBeVisible();
       await expect(page.getByLabel('Sketch canvas')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Add sketch' })).toBeVisible();
       await mouseStroke(page, page.getByLabel('Sketch canvas'));

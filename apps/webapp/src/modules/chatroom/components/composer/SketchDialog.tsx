@@ -13,7 +13,10 @@ import {
   SKETCH_CANVAS_WIDTH,
   type SketchBrushColor,
 } from './sketchConstants';
+import { SketchToolRail } from './SketchToolRail';
+import { SKETCH_ENABLED_TOOL_IDS, type SketchToolId } from './sketchTools';
 import { useSketchCanvas, type UseSketchCanvasResult } from './useSketchCanvas';
+import { useSketchToolShortcuts } from './useSketchToolShortcuts';
 import {
   chatroomIndustrialButtonPrimaryClassName,
   chatroomIndustrialButtonSecondaryClassName,
@@ -125,10 +128,13 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
   const [brushColor, setBrushColor] = useState(SKETCH_BRUSH_COLOR_DEFAULT);
   const [brushSize, setBrushSize] = useState(SKETCH_BRUSH_SIZE_DEFAULT);
   const [isSaving, setIsSaving] = useState(false);
+  const [activeTool, setActiveTool] = useState<SketchToolId>('brush');
+  useSketchToolShortcuts({ enabledTools: SKETCH_ENABLED_TOOL_IDS, onToolChange: setActiveTool });
+  const canvasDisabled = isSaving || activeTool !== 'brush';
   const { canvasRef, canvasBindings, hasContent, exportPngFile } = useSketchCanvas({
     brushColor,
     brushSize,
-    disabled: isSaving,
+    disabled: canvasDisabled,
   });
   const save = async () => {
     if (isSaving || !hasContent) return;
@@ -150,11 +156,17 @@ function SketchEditorSession({ onDismiss, onSave }: SketchEditorSessionProps) {
       <DialogHeader className="min-h-12 shrink-0 justify-center border-b-2 border-chatroom-border px-4 pr-12 text-left">
         <DialogTitle>Sketch attachment</DialogTitle>
       </DialogHeader>
-      <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_15rem]">
+      <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[3.5rem_minmax(0,1fr)_15rem]">
+        <SketchToolRail
+          activeTool={activeTool}
+          enabledTools={SKETCH_ENABLED_TOOL_IDS}
+          disabled={isSaving}
+          onToolChange={setActiveTool}
+        />
         <SketchEditorCanvasPanel
           canvasRef={canvasRef}
           canvasBindings={canvasBindings}
-          disabled={isSaving}
+          disabled={canvasDisabled}
         />
         <SketchEditorProperties
           brushColor={brushColor}

@@ -60,6 +60,12 @@ function draw(canvas: HTMLCanvasElement) {
   );
 }
 describe('SketchDialog', () => {
+  it('shows Brush tool with Photoshop shortcut semantics', () => {
+    render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
+    const brushTool = screen.getByRole('button', { name: 'Brush tool' });
+    expect(brushTool).toHaveAttribute('aria-keyshortcuts', 'B');
+    expect(brushTool).toHaveAttribute('aria-pressed', 'true');
+  });
   it('shows MVP controls and disables confirm when blank', () => {
     render(<SketchDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
