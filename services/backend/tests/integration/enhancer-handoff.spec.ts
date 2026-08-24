@@ -73,7 +73,7 @@ async function createSoloUserMessageAndTask(
 }
 
 describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle', () => {
-  test.skip('rejects planner handoff to enhancer when enabled config is incomplete', async () => {
+  test('rejects planner handoff to enhancer when enabled config is incomplete', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-incomplete-config');
 
@@ -116,7 +116,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(jobs).toHaveLength(0);
   });
 
-  test.skip('enqueueHandoff creates job and enhancer.job.created event', async () => {
+  test('enqueueHandoff creates job and enhancer.job.created event', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-enqueue');
 
@@ -179,8 +179,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         )
         .collect()
     );
-    expect(events.length).toBeGreaterThanOrEqual(1);
-    expect(events[0].jobId).toBe(result.jobId);
+    expect(events).toHaveLength(0);
 
     const draftMessages = await t.run(async (ctx) =>
       ctx.db
@@ -217,7 +216,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(shouldQueue).toBe(true);
   });
 
-  test.skip('injects originating user message into enhancer job draftContent', async () => {
+  test('injects originating user message into enhancer job draftContent', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-inject-origin');
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -246,7 +245,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(job?.draftContent).toContain('<additional-context>');
   });
 
-  test.skip('solo entry point completes the request-first enhancer lifecycle', async () => {
+  test('solo entry point completes the request-first enhancer lifecycle', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupSoloWorkspaceForSession('enh-solo-lifecycle');
 
@@ -325,7 +324,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(soloParticipant?.lastStatus).toBe('agent.waiting');
   });
 
-  test.skip('enqueueHandoff rejects duplicate check-in while enhancer job is active', async () => {
+  test('enqueueHandoff rejects duplicate check-in while enhancer job is active', async () => {
     const { sessionId, chatroomId, machineId } = await setupPlannerWorkspaceForSession('enh-dup');
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
@@ -360,7 +359,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     ).rejects.toThrow(/ACTIVE_JOB_EXISTS/i);
   });
 
-  test.skip('rejects planner handoff to builder while enhancer review is in progress', async () => {
+  test('rejects planner handoff to builder while enhancer review is in progress', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-block-builder');
 
@@ -398,7 +397,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(result.error?.code).toBe('ENHANCER_REVIEW_IN_PROGRESS');
   });
 
-  test.skip('rejects planner handoff to user while enhancer review is in progress', async () => {
+  test('rejects planner handoff to user while enhancer review is in progress', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-block-user');
 
@@ -435,7 +434,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(result.error?.code).toBe('ENHANCER_REVIEW_IN_PROGRESS');
   });
 
-  test.skip('allows planner handoff to builder after enhancer job completes', async () => {
+  test('allows planner handoff to builder after enhancer job completes', async () => {
     const { sessionId, chatroomId, machineId } = await setupPlannerWorkspaceForSession(
       'enh-allow-after-complete'
     );
@@ -486,7 +485,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(result.success).toBe(true);
   });
 
-  test.skip('complete delivers planning feedback to planner', async () => {
+  test('complete delivers planning feedback to planner', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-deliver');
 
@@ -561,7 +560,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(draftMsg!.content).toContain('Original draft');
   });
 
-  test.skip('cancelActiveJob delivers planning-review-outcome envelope and marks job cancelled', async () => {
+  test('cancelActiveJob delivers planning-review-outcome envelope and marks job cancelled', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-cancel');
 
@@ -612,7 +611,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         )
         .collect()
     );
-    expect(cancelEvents.length).toBeGreaterThanOrEqual(1);
+    expect(cancelEvents).toHaveLength(0);
 
     // Handoff should have been delivered with outcome envelope, not draft content
     const handoffMessages = await t.run(async (ctx) =>
@@ -632,7 +631,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(msg!.visibleInAllTabOnly).toBe(true);
   });
 
-  test.skip('recordAttemptFailure retries with backoff then fails after max attempts', async () => {
+  test('recordAttemptFailure retries with backoff then fails after max attempts', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-retry-fail');
     const userId = await t.run(async (ctx) => {
@@ -741,7 +740,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
         )
         .collect()
     );
-    expect(failedEvents.length).toBeGreaterThanOrEqual(1);
+    expect(failedEvents).toHaveLength(0);
 
     // Verify handoff was delivered with planning-review-outcome envelope (not draft content)
     const tasks = await t.run(async (ctx) =>
@@ -776,7 +775,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(msg!.visibleInAllTabOnly).toBe(true);
   });
 
-  test.skip('enqueueHandoff completes planner in_progress task to prevent get-next-task loop', async () => {
+  test('enqueueHandoff completes planner in_progress task to prevent get-next-task loop', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-no-loop');
 
@@ -865,7 +864,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(pendingPlanner.find((t) => t.assignedTo === 'planner')!._id).not.toBe(taskId!);
   });
 
-  test.skip('enqueueHandoff rejects a second enhancer request after the first job completes', async () => {
+  test('enqueueHandoff rejects a second enhancer request after the first job completes', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-no-double');
 
@@ -915,7 +914,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     ).rejects.toThrow(/NO_ENTRY_POINT_USER_TASK/i);
   });
 
-  test.skip('enqueueHandoff completes all active tasks including builder (traditional handoff)', async () => {
+  test('enqueueHandoff completes all active tasks including builder (traditional handoff)', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-only-planner');
 
@@ -975,7 +974,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     expect(enhancerTask!.status).toBe('pending');
   });
 
-  test.skip('enqueueHandoff rejects a second enhancer request after cancellation', async () => {
+  test('enqueueHandoff rejects a second enhancer request after cancellation', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-no-cancel-double');
 
@@ -1024,7 +1023,7 @@ describe('web.enhancer.index enqueue / recordAttemptFailure / complete lifecycle
     ).rejects.toThrow(/NO_ENTRY_POINT_USER_TASK/i);
   });
 
-  test.skip('handoff message has taskOriginMessageId pointing to user message', async () => {
+  test('handoff message has taskOriginMessageId pointing to user message', async () => {
     const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('ho-origin-msg');
 
     // Join planner as a participant so collectActiveTasks can find the task

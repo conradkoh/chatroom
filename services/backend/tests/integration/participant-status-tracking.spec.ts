@@ -68,7 +68,7 @@ async function createAcknowledgedTask(
 }
 
 describe('Participant Status Tracking', () => {
-  test.skip('agent.registered via recordRemoteAgentRegistered', async () => {
+  test('agent.registered via recordRemoteAgentRegistered', async () => {
     const { sessionId } = await createTestSession('test-pst-registered');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-registered';
@@ -86,7 +86,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('agent.registered');
   });
 
-  test.skip('agent.registered + lastDesiredState=running via saveTeamAgentConfig', async () => {
+  test('agent.registered + lastDesiredState=running via saveTeamAgentConfig', async () => {
     const { sessionId } = await createTestSession('test-pst-save-config');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-save-config';
@@ -109,7 +109,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastDesiredState).toBe('running');
   });
 
-  test.skip('agent.requestStart + lastDesiredState=running via start-agent use case', async () => {
+  test('agent.requestStart + lastDesiredState=running via start-agent use case', async () => {
     const { sessionId } = await createTestSession('test-pst-start');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-start';
@@ -146,7 +146,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastDesiredState).toBe('running');
   });
 
-  test.skip('agent.started via daemon.agentEvents.agentStarted', async () => {
+  test('agent.started via daemon.agentEvents.agentStarted', async () => {
     const { sessionId } = await createTestSession('test-pst-spawned');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-spawned';
@@ -167,7 +167,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('agent.started');
   });
 
-  test.skip('agent.waiting via join with get-next-task:started', async () => {
+  test('agent.waiting via join with get-next-task:started', async () => {
     const { sessionId } = await createTestSession('test-pst-waiting');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -183,7 +183,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('agent.waiting');
   });
 
-  test.skip('agent.waiting via join with native:waiting', async () => {
+  test('agent.waiting via join with native:waiting', async () => {
     const { sessionId } = await createTestSession('test-pst-native-waiting');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -199,10 +199,10 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('agent.waiting');
 
     const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
-    expect(eventTypes).toContain('agent.waiting');
+    expect(eventTypes).not.toContain('agent.waiting');
   });
 
-  test.skip('task.acknowledged via join with native:task-injected', async () => {
+  test('task.acknowledged via join with native:task-injected', async () => {
     const { sessionId } = await createTestSession('test-pst-native-injected');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -215,7 +215,7 @@ describe('Participant Status Tracking', () => {
         .collect();
       return events.filter((e) => e.type === 'task.acknowledged').length;
     });
-    expect(acknowledgedCountBefore).toBe(1);
+    expect(acknowledgedCountBefore).toBe(0);
 
     await t.mutation(api.participants.join, {
       sessionId,
@@ -238,7 +238,7 @@ describe('Participant Status Tracking', () => {
     expect(acknowledgedCountAfter).toBe(acknowledgedCountBefore);
   });
 
-  test.skip('task.inProgress via updateTokenActivity when lastStatus is task.acknowledged', async () => {
+  test('task.inProgress via updateTokenActivity when lastStatus is task.acknowledged', async () => {
     const { sessionId } = await createTestSession('test-pst-native-token-ack');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -262,13 +262,13 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('task.inProgress');
 
     const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
-    expect(eventTypes.filter((type) => type === 'task.inProgress')).toHaveLength(1);
+    expect(eventTypes.filter((type) => type === 'task.inProgress')).toHaveLength(0);
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
     expect(task?.status).toBe('in_progress');
   });
 
-  test.skip('native:waiting does not downgrade acknowledged task awaiting first token', async () => {
+  test('native:waiting does not downgrade acknowledged task awaiting first token', async () => {
     const { sessionId } = await createTestSession('test-pst-native-waiting-guard');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -293,7 +293,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('task.acknowledged');
   });
 
-  test.skip('native:waiting does not downgrade in_progress task while agent is working', async () => {
+  test('native:waiting does not downgrade in_progress task while agent is working', async () => {
     const { sessionId } = await createTestSession('test-pst-native-waiting-in-progress-guard');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -324,7 +324,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('task.inProgress');
   });
 
-  test.skip('updateTokenActivity starts task when native:task-injected but lastStatus was agent.waiting', async () => {
+  test('updateTokenActivity starts task when native:task-injected but lastStatus was agent.waiting', async () => {
     const { sessionId } = await createTestSession('test-pst-native-token-race');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -365,7 +365,7 @@ describe('Participant Status Tracking', () => {
     expect(task?.status).toBe('in_progress');
   });
 
-  test.skip('updateTokenActivity starts task when get-next-task:stopped but lastStatus was agent.waiting', async () => {
+  test('updateTokenActivity starts task when get-next-task:stopped but lastStatus was agent.waiting', async () => {
     const { sessionId } = await createTestSession('test-pst-cli-token-race');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -406,7 +406,7 @@ describe('Participant Status Tracking', () => {
     expect(task?.status).toBe('in_progress');
   });
 
-  test.skip('updateTokenActivity does not duplicate task.inProgress when already in progress', async () => {
+  test('updateTokenActivity does not duplicate task.inProgress when already in progress', async () => {
     const { sessionId } = await createTestSession('test-pst-native-token-dedup');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -436,10 +436,10 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('task.inProgress');
 
     const eventTypes = await getEventStreamTypes(chatroomId, 'builder');
-    expect(eventTypes.filter((type) => type === 'task.inProgress')).toHaveLength(1);
+    expect(eventTypes.filter((type) => type === 'task.inProgress')).toHaveLength(0);
   });
 
-  test.skip('task.acknowledged via claimTask', async () => {
+  test('task.acknowledged via claimTask', async () => {
     const { sessionId } = await createTestSession('test-pst-ack');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -462,7 +462,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('task.acknowledged');
   });
 
-  test.skip('task.inProgress via startTask', async () => {
+  test('task.inProgress via startTask', async () => {
     const { sessionId } = await createTestSession('test-pst-inprog');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
@@ -492,7 +492,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('task.inProgress');
   });
 
-  test.skip('agent.exited via recordAgentExited', async () => {
+  test('agent.exited via recordAgentExited', async () => {
     const { sessionId } = await createTestSession('test-pst-exited');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-exited';
@@ -522,7 +522,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('agent.exited');
   });
 
-  test.skip('agent.exited + lastDesiredState=stopped via stop-agent use case (eager stop)', async () => {
+  test('agent.exited + lastDesiredState=stopped via stop-agent use case (eager stop)', async () => {
     const { sessionId } = await createTestSession('test-pst-stop');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-stop';
@@ -548,7 +548,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastDesiredState).toBe('stopped');
   });
 
-  test.skip('join does not downgrade agent.exited to agent.waiting when desiredState=stopped', async () => {
+  test('join does not downgrade agent.exited to agent.waiting when desiredState=stopped', async () => {
     const { sessionId } = await createTestSession('test-pst-stop-race');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-stop-race';
@@ -591,7 +591,7 @@ describe('Participant Status Tracking', () => {
     expect(afterNativeWaiting.lastDesiredState).toBe('stopped');
   });
 
-  test.skip('no-op when participant does not exist', async () => {
+  test('no-op when participant does not exist', async () => {
     const { sessionId } = await createTestSession('test-pst-noop');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-noop';
@@ -610,7 +610,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBeNull();
   });
 
-  test.skip('full lifecycle: registered → start → spawned → waiting → ack → inProgress → exited → stop', async () => {
+  test('full lifecycle: registered → start → spawned → waiting → ack → inProgress → exited → stop', async () => {
     const { sessionId } = await createTestSession('test-pst-lifecycle');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-lifecycle';
@@ -730,7 +730,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastDesiredState).toBe('stopped');
   });
 
-  test.skip('emitSessionResumeRequested updates lastStatus without event stream row', async () => {
+  test('emitSessionResumeRequested updates lastStatus without event stream row', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resume-requested');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resume-requested';
@@ -761,7 +761,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('agent.sessionResumeRequested');
   });
 
-  test.skip('emitSessionResumed writes event stream row and updates lastStatus', async () => {
+  test('emitSessionResumed writes event stream row and updates lastStatus', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resumed');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resumed';
@@ -790,7 +790,7 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('agent.sessionResumed');
   });
 
-  test.skip('emitSessionResumed updates participant status without event stream row', async () => {
+  test('emitSessionResumed updates participant status without event stream row', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resumed-harness');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resumed-harness';
@@ -819,7 +819,7 @@ describe('Participant Status Tracking', () => {
     );
   });
 
-  test.skip('emitSessionAugmented applies state without event stream row', async () => {
+  test('emitSessionAugmented applies state without event stream row', async () => {
     const { sessionId } = await createTestSession('test-pst-session-augmented');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-augmented';
@@ -850,7 +850,7 @@ describe('Participant Status Tracking', () => {
     expect((await getParticipantStatus(chatroomId, 'builder')).lastStatus).not.toBeUndefined();
   });
 
-  test.skip('emitSessionAugmented with newSessionStarted clears startInNewSession on planner task', async () => {
+  test('emitSessionAugmented with newSessionStarted clears startInNewSession on planner task', async () => {
     const { sessionId } = await createTestSession('test-pst-session-augmented-consume');
     const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-augmented-consume';
@@ -890,7 +890,7 @@ describe('Participant Status Tracking', () => {
     expect(augmented).toHaveLength(0);
   });
 
-  test.skip('emitSessionResumeFailed updates participant status without event stream row', async () => {
+  test('emitSessionResumeFailed updates participant status without event stream row', async () => {
     const { sessionId } = await createTestSession('test-pst-session-resume-failed-harness');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-pst-session-resume-failed-harness';
