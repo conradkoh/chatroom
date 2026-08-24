@@ -82,6 +82,7 @@ export function useSketchDocument({
   const [doc, setDoc] = useState(createInitialDocument);
   const floatingBitmapRef = useRef<HTMLCanvasElement | null>(null);
   const floatingBackupRef = useRef<ImageData | null>(null);
+  const floatingTransformRef = useRef<SketchTransform | null>(null);
   const onSelectionChange = useCallback((selection: SketchSelection | null) => {
     setDoc((state) => setSelection(state, selection));
   }, []);
@@ -99,7 +100,10 @@ export function useSketchDocument({
             .map((layer) => layersRef.current.get(layer.id))
             .filter((layer): layer is HTMLCanvasElement => Boolean(layer)),
           doc.floating && floatingBitmapRef.current
-            ? { bitmap: floatingBitmapRef.current, transform: doc.floating.transform }
+            ? {
+                bitmap: floatingBitmapRef.current,
+                transform: floatingTransformRef.current ?? doc.floating.transform,
+              }
             : null
         );
     });
@@ -249,6 +253,7 @@ export function useSketchDocument({
       provenance: 'selection',
       priorActiveLayerId: null,
     };
+    floatingTransformRef.current = meta.transform;
     setDoc((state) => ({
       ...state,
       selection: null,
@@ -262,6 +267,7 @@ export function useSketchDocument({
       setDoc((state) =>
         state.floating ? { ...state, floating: { ...state.floating, transform } } : state
       );
+      floatingTransformRef.current = transform;
       scheduleComposite();
     },
     [scheduleComposite]
@@ -278,6 +284,7 @@ export function useSketchDocument({
       );
     floatingBitmapRef.current = null;
     floatingBackupRef.current = null;
+    floatingTransformRef.current = null;
     if (ctx) mark(layerHasNonTransparentPixels(ctx));
     setDoc((state) => ({ ...state, floating: null }));
     scheduleComposite();
@@ -290,6 +297,7 @@ export function useSketchDocument({
       applySketchTransform(ctx, doc.floating.transform, () => ctx.drawImage(bitmap, 0, 0));
     floatingBitmapRef.current = null;
     floatingBackupRef.current = null;
+    floatingTransformRef.current = null;
     setDoc((state) => ({
       ...state,
       floating: null,
@@ -312,7 +320,10 @@ export function useSketchDocument({
               .map((layer) => layersRef.current.get(layer.id))
               .filter((layer): layer is HTMLCanvasElement => Boolean(layer)),
             doc.floating && floatingBitmapRef.current
-              ? { bitmap: floatingBitmapRef.current, transform: doc.floating.transform }
+              ? {
+                  bitmap: floatingBitmapRef.current,
+                  transform: floatingTransformRef.current ?? doc.floating.transform,
+                }
               : null
           );
         canvas.toBlob(

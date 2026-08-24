@@ -9,7 +9,7 @@ import {
   type RefObject,
 } from 'react';
 
-import { mapClientPointToCanvas } from './sketchCanvasDrawing';
+import { mapClientPointToCanvas, getCssToCanvasScale } from './sketchCanvasDrawing';
 import { drawSketchTransformOverlay } from './sketchCanvasSelection';
 import type { SketchSelection, SketchFloatingSelectionMeta } from './sketchDocument';
 import {
@@ -76,7 +76,7 @@ export function useSketchManipulation({
               started.transform,
               started.sourceWidth,
               started.sourceHeight,
-              1
+              getCssToCanvasScale(c)
             )
           : 'move';
       if (!handle) return;
@@ -105,30 +105,38 @@ export function useSketchManipulation({
           a.start,
           f.sourceWidth,
           f.sourceHeight,
-          true
+          !['north', 'south', 'east', 'west'].includes(a.handle)
         );
       else next = translateTransform(a.transform, p.x - a.start.x, p.y - a.start.y);
       updateFloatingTransform(clampTransformToCanvas(next, f.sourceWidth, f.sourceHeight));
     },
     [canvasRef, floating, updateFloatingTransform]
   );
-  const finish: ComponentProps<'canvas'>['onPointerUp'] = useCallback(
-    (e: ReactPointerEvent<HTMLCanvasElement>) => {
+  const endDrag = useCallback(
+    (e: ReactPointerEvent<HTMLCanvasElement>, cancel: boolean) => {
       const c = canvasRef.current;
       if (active.current?.id !== e.pointerId || !c) return;
       if (c.hasPointerCapture(e.pointerId)) c.releasePointerCapture(e.pointerId);
-      if (active.current && floating) updateFloatingTransform(active.current.transform);
+      if (cancel && active.current && floating) updateFloatingTransform(active.current.transform);
       active.current = null;
     },
     [canvasRef, floating, updateFloatingTransform]
+  );
+  const finish: ComponentProps<'canvas'>['onPointerUp'] = useCallback(
+    (e: ReactPointerEvent<HTMLCanvasElement>) => endDrag(e, false),
+    [endDrag]
+  );
+  const cancel: ComponentProps<'canvas'>['onPointerCancel'] = useCallback(
+    (e: ReactPointerEvent<HTMLCanvasElement>) => endDrag(e, true),
+    [endDrag]
   );
   return {
     manipulationBindings: {
       onPointerDown: down,
       onPointerMove: move,
       onPointerUp: finish,
-      onPointerCancel: finish,
-      onLostPointerCapture: finish,
+      onPointerCancel: cancel,
+      onLostPointerCapture: cancel,
     },
   };
 }
