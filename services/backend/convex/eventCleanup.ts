@@ -3,6 +3,9 @@
  *
  * Scheduled cleanup of old events from chatroom_eventStream.
  * Prevents unbounded growth of the event table.
+ *
+ * Uses the `by_timestamp` index so each batch is range-bounded rather than
+ * scanning the full table. All event variants carry `timestamp`.
  */
 
 import { internal } from './_generated/api';
@@ -16,23 +19,22 @@ const BATCH_SIZE = 2000;
 
 /**
  * Delete old events from chatroom_eventStream.
- * Runs as a scheduled cron job.
+ * Runs as a scheduled cron job every 15 minutes.
  */
 export const cleanupOldEvents = internalMutation({
   args: {},
   handler: async (ctx) => {
     const cutoff = Date.now() - MAX_EVENT_AGE_MS;
 
-    // Query old events (by creation time, oldest first)
     const oldEvents = await ctx.db
       .query('chatroom_eventStream')
+      .withIndex('by_timestamp', (q) => q.lt('timestamp', cutoff))
       .order('asc')
-      .filter((q) => q.lt(q.field('_creationTime'), cutoff))
       .take(BATCH_SIZE);
 
     let deleted = 0;
     for (const event of oldEvents) {
-      await ctx.db.delete("chatroom_eventStream", event._id);
+      await ctx.db.delete('chatroom_eventStream', event._id);
       deleted++;
     }
 

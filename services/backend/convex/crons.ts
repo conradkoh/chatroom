@@ -28,6 +28,10 @@ crons.interval(
   internal.storageCleanup.cleanupCachedContent
 );
 
+// Event stream — bounded retention for chatroom_eventStream (24h TTL, every 15 min)
+// Required for getCommandEvents read bandwidth; see eventCleanup.ts
+crons.interval('cleanup old events', { minutes: 15 }, internal.eventCleanup.cleanupOldEvents);
+
 // Machine status — transition online→offline when heartbeat expires (every 60s)
 crons.interval(
   'transition offline machines',
