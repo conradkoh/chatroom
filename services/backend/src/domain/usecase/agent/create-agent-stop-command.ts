@@ -4,6 +4,7 @@ import type { AgentStopReason } from '../../entities/agent';
 import { agentStopScopeKey, buildAgentStopRevisionKey, buildAgentStopTargetKey, normalizeAgentStopRole, type AgentStopScope } from '../../entities/agent-stop-command';
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
+import { projectAgentStopStateForRole } from './project-agent-operational-status';
 
 export interface CreateAgentStopCommandInput { chatroomId: Id<'chatroom_rooms'>; scope: AgentStopScope; reason: AgentStopReason; requestedBy?: Id<'users'>; machineId?: string; }
 export interface CreateAgentStopCommandResult { stopCommandId: Id<'chatroom_agentStopCommands'>; coalesced: boolean; }
@@ -28,5 +29,6 @@ export async function createAgentStopCommand(ctx: MutationCtx, input: CreateAgen
     await ctx.db.insert('chatroom_agentStopMachineExecutions', { stopCommandId, chatroomId: input.chatroomId, machineId, inboxCommandId, status: 'pending' });
   }
   if (targets.length === 0) await ctx.db.patch('chatroom_agentStopCommands', stopCommandId, { status: 'completed', completedAt: Date.now() });
+  for (const role of [...new Set(matchingConfigs.map((config) => config.role))]) await projectAgentStopStateForRole(ctx, input.chatroomId, role);
   return { stopCommandId, coalesced: false };
 }

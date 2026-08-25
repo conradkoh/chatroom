@@ -8,6 +8,7 @@ export interface AgentViewRole {
   role: string; state: OperationalState; type: AgentType; machineId?: string; machineName?: string;
   lastSeenAt: number | null; lastSeenAction: string | null; lastStatus: string | null;
   lastDesiredState: string | null; agentType: 'remote' | 'custom'; isAlive: boolean;
+  stopState?: 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed'; activeStopCommandId?: string;
 }
 export interface AgentViewStatus {
   teamId: string; teamName: string; teamRoles: string[]; agents: AgentViewRole[]; hasHistory: boolean;
@@ -31,7 +32,7 @@ async function getAgentViewStatusLegacy(ctx: QueryCtx, input: { chatroomId: Id<'
     const inferred = row ? deriveAgentRoleViewState({ desiredState: row.operationalState === 'circuit_open' ? 'stopped' : 'running', circuitState: row.operationalState === 'circuit_open' ? 'open' : 'closed', spawnedAgentPid: row.isAlive ? 1 : null }, row.daemonConnected, lastStatus) : 'stopped';
     // Participant transitions can race projection writes; retain the established starting signal.
     const state = row?.viewState === 'stopped' && inferred === 'starting' ? 'starting' : (row?.viewState ?? inferred);
-    return { role, state, type: (participant?.agentType ?? 'remote') as AgentType, machineId: row?.machineId, machineName: row?.machineId ? machineNames.get(row.machineId) : undefined, lastSeenAt: participant?.lastSeenAt ?? null, lastSeenAction: participant?.lastSeenAction ?? null, lastStatus, lastDesiredState: participant?.lastDesiredState ?? null, agentType: participant?.agentType ?? 'remote', isAlive: row?.isAlive ?? false };
+    return { role, state, type: (participant?.agentType ?? 'remote') as AgentType, machineId: row?.machineId, machineName: row?.machineId ? machineNames.get(row.machineId) : undefined, lastSeenAt: participant?.lastSeenAt ?? null, lastSeenAction: participant?.lastSeenAction ?? null, lastStatus, lastDesiredState: participant?.lastDesiredState ?? null, agentType: participant?.agentType ?? 'remote', isAlive: row?.isAlive ?? false, stopState: row?.stopState, activeStopCommandId: row?.activeStopCommandId };
   });
   return { teamId: chatroom.teamId, teamName: chatroom.teamName ?? chatroom.teamId, teamRoles, agents, hasHistory: firstUserMessage !== null };
 }
@@ -60,7 +61,7 @@ export async function getAgentViewStatus(ctx: QueryCtx, input: { chatroomId: Id<
     const lastStatus = participant?.lastStatus ?? null;
     const inferred = row ? deriveAgentRoleViewState({ desiredState: row.operationalState === 'circuit_open' ? 'stopped' : 'running', circuitState: row.operationalState === 'circuit_open' ? 'open' : 'closed', spawnedAgentPid: row.isAlive ? 1 : null }, row.daemonConnected, lastStatus) : 'stopped';
     const state = row?.viewState === 'stopped' && inferred === 'starting' ? 'starting' : (row?.viewState ?? inferred);
-    return { role, state, type: (participant?.agentType ?? 'remote') as AgentType, machineId: row?.machineId, machineName: row?.machineId ? machineNames.get(row.machineId) : undefined, lastSeenAt: participant?.lastSeenAt ?? null, lastSeenAction: participant?.lastSeenAction ?? null, lastStatus, lastDesiredState: participant?.lastDesiredState ?? null, agentType: participant?.agentType ?? 'remote', isAlive: row?.isAlive ?? false };
+    return { role, state, type: (participant?.agentType ?? 'remote') as AgentType, machineId: row?.machineId, machineName: row?.machineId ? machineNames.get(row.machineId) : undefined, lastSeenAt: participant?.lastSeenAt ?? null, lastSeenAction: participant?.lastSeenAction ?? null, lastStatus, lastDesiredState: participant?.lastDesiredState ?? null, agentType: participant?.agentType ?? 'remote', isAlive: row?.isAlive ?? false, stopState: row?.stopState, activeStopCommandId: row?.activeStopCommandId };
   });
   return { teamId: metadata.teamId, teamName: metadata.teamName, teamRoles: metadata.teamRoles, agents, hasHistory: metadata.hasHistory };
 }
