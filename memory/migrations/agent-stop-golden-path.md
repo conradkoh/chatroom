@@ -32,18 +32,18 @@ status: active
 
 ### Stage 1 implementation deviations
 
-- `teamRoleKey.deleteStaleTeamAgentConfigs` inlines inbox enqueue (avoids convex/utils → domain import cycle); behavior matches `requestAgentStop` intent — **cleanup in Pre-Stage 2**
-- `machines.sendCommand` stop-agent retained as compat shim for integration tests — **cleanup in Pre-Stage 2**
+- [x] `teamRoleKey.deleteStaleTeamAgentConfigs` — moved to domain usecase (`delete-stale-team-agent-configs.ts`); cycle broken (`896a18a0e`)
+- [x] `machines.sendCommand` stop-agent shim removed; tests use `api.agentStops.request` (`f79ccca8c`, `1cca0ac69`)
 
 ## Pre-Stage 2 — Cleanup before durable command work
 
 Small, low-risk cleanups that do not require the aggregate schema. Do these first (or in parallel with schema design).
 
-- [ ] **Reason enum alignment** — `agent-stop-command.ts` uses `dedup` / `team.switch` / `stale-config`; runtime uses `platform.dedup` / `platform.team_switch` from `agent.ts`. Pick one SSOT and map at boundaries.
-- [ ] **Remove `sendCommand` stop-agent shim** — migrate `services/backend/tests/integration/*.spec.ts` to call `requestAgentStop` or `api.agentStops.request`; delete stop-agent branch in `machines.sendCommand`.
-- [ ] **Remove webapp `stop-agent` type** — delete from `apps/webapp/src/modules/chatroom/types/machine.ts` `SendCommandArgs` union once shim is gone.
-- [ ] **Break `teamRoleKey` import cycle** — extract a cycle-free enqueue helper (e.g. `enqueue-agent-request-stop.ts` under domain) so `deleteStaleTeamAgentConfigs` can call `requestAgentStop` instead of inlining.
-- [ ] **Verify Slice 3** — run and log: `pnpm --dir packages/cli exec vitest run src/daemon/entry/events/agent/on-request-stop-agent.test.ts src/daemon/infrastructure/agent-process-manager/stop-agent-scope-adapter.test.ts`
+- [x] **Reason enum alignment** — `agent.ts` SSOT; legacy inbox reasons mapped at daemon boundary (`f79ccca8c`)
+- [x] **Remove `sendCommand` stop-agent shim** — production branch deleted; integration tests migrated (`f79ccca8c`, `1cca0ac69`, `74bc3950f`)
+- [x] **Remove webapp `stop-agent` type** — removed from `SendCommandArgs` (`f79ccca8c`)
+- [x] **Break `teamRoleKey` import cycle** — `delete-stale-team-agent-configs.ts` in domain (`896a18a0e`)
+- [x] **Verify Slice 3** — `on-request-stop-agent` + `stop-agent-scope-adapter` tests pass (9 CLI tests, 2026-08-25)
 - [ ] **Infra (out of band)** — pre-push hook suite failures; backlog `ps739rcf3905vy52wermd8wm7d8d4ss3`
 
 ## Stage 2 — Durable command + confirmed behavior
@@ -51,15 +51,15 @@ Small, low-risk cleanups that do not require the aggregate schema. Do these firs
 ### Slice A — Schema & aggregate (resolved)
 
 - [x] Convex tables: command aggregate + per-machine execution + per-target rows
-- [ ] Extend `services/backend/src/domain/entities/agent-stop-command.ts` validators to match chosen schema
-- [ ] **Tech debt:** [low] eliminate cross-package import `packages/cli` → `services/backend/.../agent-stop-command.ts` by moving shared types to `packages/shared` or code-generating from one SSOT
+- [x] Extend `services/backend/src/domain/entities/agent-stop-command.ts` validators to match chosen schema (Convex validators + shared pure helpers)
+- [x] **Tech debt:** [low] shared stop contracts in `@workspace/shared/domain/agent-stop-command` (`f79ccca8c`)
 
 ### Slice B — Backend API & inbox migration
 
 - [x] Upgrade `api.agentStops.request` from stub to create durable `AgentStopCommand` + fan-out machine executions
 - [x] Inbox payload `agent.stopScope` with stable `stopCommandId` (replace transient `agent.requestStop`)
 - [x] Daemon begin / report-target / complete / redrive mutations
-- [ ] **Tech debt:** [low] `stopAgentScope` vs `stopAgentScopeWithBracket` duplication — collapse once inbox carries `stopCommandId`
+- [x] **Tech debt:** [low] `stopAgentScopeWithBracket` removed; `runRoleScopedStop` delegates to `stopAgentScope` (`74bc3950f`)
 
 ### Slice C — Confirmed lifecycle side effects
 
@@ -71,14 +71,15 @@ Small, low-risk cleanups that do not require the aggregate schema. Do these firs
 
 - [x] Project `stopState` on role/summary views (pending / stopping / stopped / failed)
 - [x] `useAgentStop` reads command status reactively; no optimistic "Stopped" toasts
-- [ ] **UX (resolved):** keep current per-surface patterns — inline stop in `AgentControls`, existing AlertDialogs for stop-all; no shared `AgentStopConfirmDialog`
+- [x] **UX (resolved):** keep current per-surface patterns — inline stop in `AgentControls`, existing AlertDialogs for stop-all; no shared `AgentStopConfirmDialog`
 
 ### Slice E — Daemon hardening
 
 - [x] **Tech debt:** [medium] `agent-lifecycle-port-adapters` harness stop routes via slot.harness metadata (audit §9.2)
 - [x] Daemon shutdown uses durable chatroom-scoped stop intent; lifecycle outbox stays alive until shutdown stops finish
-- [ ] Idempotency + revision-gating integration tests
-- [ ] PR to `master`
+- [x] Idempotency + revision-gating integration tests (`project-agent-lifecycle-fact.spec.ts`, `stop-agent.spec.ts` — Slice C + tech-debt verification)
+- [ ] PR to `master` (open: https://github.com/conradkoh/chatroom/pull/1506)
+- [ ] **Optional:** dedicated unit tests for harness routing, shutdown orchestration, daemon-runtime outbox ordering (covered by typecheck + integration suites; not blocking)
 
 ## Resolved decisions
 
@@ -222,3 +223,5 @@ type AgentStopState =
 - Slice C verification: `pnpm --dir services/backend exec vitest run src/domain/usecase/agent/derive-agent-operational-state.spec.ts tests/integration/project-agent-lifecycle-fact.spec.ts src/domain/usecase/agent/stop-agent.spec.ts` (24 passed); backend and CLI typechecks passed.
 - Slice D verification: backend typecheck, webapp typecheck, and stop-state unit tests passed.
 - Slice E verification: backend, CLI, and webapp typechecks passed; harness routing and requestScope shutdown foundation landed.
+- Tech-debt cleanup (2026-08-25): commits `f79ccca8c`, `896a18a0e`, `1cca0ac69`, `74bc3950f` on `fix/stop-command-daemon-lifecycle`.
+- Tech-debt verification: backend 5 files 40 passed; CLI 3 files 9 passed (stop-agent, start-agent, send-command-stop-reason, get-agent-view-status, project-agent-lifecycle-fact; on-request-stop-agent, stop-agent-scope-adapter, stop-agent-confirmed).
