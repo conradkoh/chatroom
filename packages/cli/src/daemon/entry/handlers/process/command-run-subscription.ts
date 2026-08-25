@@ -2,7 +2,7 @@
 /**
  * Reactive subscription for imperative process-host commands.
  *
- * Isolated from the multiplexed getCommandEvents stream so UI run/stop
+ * Isolated from the machine command inbox stream so UI run/stop
  * requests are not blocked by agent lifecycle or git events. The backend's
  * chatroom_commandRunsV2 rows are the source of truth: pending rows need a
  * spawn, running rows with terminationReason === 'user-stop' need a kill.

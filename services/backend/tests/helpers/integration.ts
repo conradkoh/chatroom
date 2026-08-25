@@ -9,6 +9,7 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { expect } from 'vitest';
 
+import { getInboxCommandsForMachine } from './machine-command-inbox';
 import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from './test-models';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
@@ -179,10 +180,14 @@ export async function assertDuoTeamOnly(chatroomId: Id<'chatroom_rooms'>): Promi
   });
 }
 
-export async function getCommandEvents(sessionId: SessionId, machineId: string) {
-  const result = await t.query(api.machines.getCommandEvents, {
-    sessionId,
-    machineId,
-  });
-  return result.events;
+export async function getCommandEvents(_sessionId: SessionId, machineId: string) {
+  const rows = await getInboxCommandsForMachine(machineId);
+  return rows.map((row) => ({
+    _id: row._id,
+    _creationTime: row.createdAt,
+    machineId: row.machineId,
+    deadline: row.deadline,
+    timestamp: row.createdAt,
+    ...row.command,
+  }));
 }

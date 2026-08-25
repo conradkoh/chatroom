@@ -2,7 +2,7 @@
  * Folder Picker — Integration Tests
  *
  * Covers requestFolderPicker, getFolderPickerRequest, reportFolderPickerResult,
- * and end-to-end delivery of daemon.pickFolder via getCommandEvents.
+ * and end-to-end delivery of daemon.pickFolder via the machine command inbox.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -123,7 +123,7 @@ describe('folder picker requests', () => {
     expect(request!.selectedPath).toBe(SELECTED_PATH);
   });
 
-  test('end-to-end: request → getCommandEvents → report → poll', async () => {
+  test('end-to-end: request → inbox → report → poll', async () => {
     const { sessionId, machineId } = await setupMachine('test-fp-e2e', 'machine-fp-e2e');
 
     const { requestId } = await t.mutation(api.machines.requestFolderPicker, {
@@ -131,13 +131,11 @@ describe('folder picker requests', () => {
       machineId,
     });
 
-    const commandEvents = await t.query(api.machines.getCommandEvents, {
-      sessionId,
-      machineId,
-    });
-    const pickFolderEvent = commandEvents.events.find((e) => e.type === 'daemon.pickFolder');
-    expect(pickFolderEvent).toBeDefined();
-    if (pickFolderEvent?.type === 'daemon.pickFolder') {
+    const inbox = await getInboxCommandsForMachine(machineId, 'daemon.pickFolder');
+    expect(inbox).toHaveLength(1);
+    const pickFolderEvent = inbox[0]!.command;
+    expect(pickFolderEvent.type).toBe('daemon.pickFolder');
+    if (pickFolderEvent.type === 'daemon.pickFolder') {
       expect(pickFolderEvent.requestId).toBe(requestId);
     }
 

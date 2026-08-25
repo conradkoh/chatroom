@@ -43,7 +43,6 @@ import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
-import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { getAssignedTaskForAction as getAssignedTaskForActionForMachine } from '../src/domain/usecase/machine/get-assigned-task-for-action';
 import { listMachineAssignedTaskSnapshots as listMachineAssignedTaskSnapshotsUseCase } from '../src/domain/usecase/machine/list-machine-assigned-task-snapshots';
 import {
@@ -52,6 +51,7 @@ import {
   projectAssignedTaskSnapshotsForMachines,
   upsertTeamAgentConfigByTeamRoleKey,
 } from '../src/domain/usecase/machine/patch-team-agent-config';
+import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
@@ -210,7 +210,11 @@ export const register = mutation({
 
       // Dual-write into dedicated models table (re-register / update path)
       await upsertMachineModels(ctx, args.machineId, args.availableModels);
-      await upsertMachineIdentity(ctx, { machineId: args.machineId, userId, hostname: args.hostname });
+      await upsertMachineIdentity(ctx, {
+        machineId: args.machineId,
+        userId,
+        hostname: args.hostname,
+      });
 
       return { machineId: args.machineId, isNew: false };
     }
@@ -231,7 +235,11 @@ export const register = mutation({
 
     // Dual-write into dedicated models table (new-insert path)
     await upsertMachineModels(ctx, args.machineId, args.availableModels);
-    await upsertMachineIdentity(ctx, { machineId: args.machineId, userId, hostname: args.hostname });
+    await upsertMachineIdentity(ctx, {
+      machineId: args.machineId,
+      userId,
+      hostname: args.hostname,
+    });
 
     return { machineId: args.machineId, isNew: true };
   },
@@ -773,35 +781,6 @@ export const getMachineAgentConfigs = query({
     });
 
     return { configs: configsWithMachine };
-  },
-});
-
-/** Legacy compatibility shim; removable once supported daemons use the inbox subscriber. */
-export const getCommandEvents = query({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getMachineOwner(ctx, args.sessionId, args.machineId);
-    if (!auth) return { events: [] };
-
-    const pending = await ctx.db
-      .query('chatroom_machineCommandInbox')
-      .withIndex('by_machine_status_deadline', (q) =>
-        q.eq('machineId', args.machineId).eq('status', 'pending').gt('deadline', Date.now())
-      )
-      .take(256);
-    return {
-      events: pending.map((row) => ({
-        _id: row._id,
-        _creationTime: row.createdAt,
-        machineId: row.machineId,
-        deadline: row.deadline,
-        timestamp: row.createdAt,
-        ...row.command,
-      })),
-    };
   },
 });
 

@@ -16,7 +16,7 @@ export function isDaemonCommandEventType(value: string): value is DaemonCommandE
   return (DAEMON_COMMAND_EVENT_TYPES as readonly string[]).includes(value);
 }
 
-/** Base fields present on all command events from getCommandEvents. */
+/** Base fields present on all daemon command events from the machine command inbox. */
 export interface CommandEventBase {
   commandId: string; // Convex _id as string
   machineId: string;
