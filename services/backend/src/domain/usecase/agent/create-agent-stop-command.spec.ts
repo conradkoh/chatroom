@@ -14,12 +14,15 @@ async function setup(id: string) {
 }
 
 describe('createAgentStopCommand', () => {
-  test('coalesces pending command', async () => {
-    const { chatroomId, machineId } = await setup('stop-command-coalesce');
+  test('supersedes inflight command per chatroom', async () => {
+    const { chatroomId, machineId } = await setup('stop-command-supersede');
     await t.run(async (ctx) => { const config = await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))).first(); if (config) await ctx.db.patch(config._id, { spawnedAgentPid: 12345 }); });
     const first = await t.run((ctx) => createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'agent', role: 'builder' }, reason: 'user.stop', machineId }));
     const second = await t.run((ctx) => createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'agent', role: 'builder' }, reason: 'user.stop', machineId }));
-    expect(second).toEqual({ stopCommandId: first.stopCommandId, coalesced: true });
+    expect(second.coalesced).toBe(false);
+    expect(second.stopCommandId).not.toBe(first.stopCommandId);
+    const command = await t.run((ctx) => ctx.db.get('chatroom_agentStopCommands', first.stopCommandId));
+    expect(command?.status).toBe('failed');
   });
   test('filters role targets', async () => { const { chatroomId, machineId } = await setup('stop-command-filter'); const result = await t.run((ctx) => createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'agent', role: 'planner' }, reason: 'user.stop', machineId })); const targets = await t.run((ctx) => ctx.db.query('chatroom_agentStopTargets').withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', result.stopCommandId)).collect()); expect(targets).toHaveLength(0); });
   test('completes zero-target command', async () => { const { chatroomId, machineId } = await setup('stop-command-empty'); const result = await t.run((ctx) => createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'agent', role: 'planner' }, reason: 'user.stop', machineId })); const command = await t.run((ctx) => ctx.db.get('chatroom_agentStopCommands', result.stopCommandId)); expect(command?.status).toBe('completed'); });
