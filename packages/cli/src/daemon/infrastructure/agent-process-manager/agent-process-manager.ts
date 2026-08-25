@@ -24,6 +24,7 @@ import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/h
 import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
+import { buildStopTargetDescriptor, runConfirmedStop } from './stop-agent-confirmed-adapter.js';
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
@@ -50,6 +51,7 @@ import {
   type AgentExitAuditArgs,
   type AgentLifecycleFact,
 } from '../../domain/entities/agent-lifecycle-fact.js';
+import { AgentStopError, type AgentStopReason } from '../../domain/entities/agent-stop.js';
 import { resolveResumableHarnessSessionId } from '../../domain/entities/harness-session-id-pair.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 import { resolveStopReason } from '../../domain/entities/stop-reason.js';
@@ -2250,21 +2252,6 @@ export class AgentProcessManager {
     await this.clearAgentPidQuietly(chatroomId, role);
   }
 
-  private recordStopExit(slot: AgentSlot, pid: number, opts: StopOpts): void {
-    const exitArgs = {
-      sessionId: this.deps.sessionId,
-      machineId: this.deps.machineId,
-      chatroomId: opts.chatroomId,
-      role: opts.role,
-      pid,
-      stopReason: opts.reason,
-      exitCode: undefined as number | undefined,
-      signal: undefined as string | undefined,
-      agentHarness: slot.harness,
-    };
-    this.recordAgentExit(opts.role, exitArgs, 'Failed to record agent exit event');
-  }
-
   private async doStop(
     key: string,
     slot: AgentSlot,
@@ -2283,14 +2270,38 @@ export class AgentProcessManager {
         service
       );
 
-      if (service) {
-        await service.stop(pid, { preserveForResume });
-        service.untrack(pid);
-      } else {
+      if (!harness) {
         await this.killProcessWithFallback(pid);
+        if (isProcessAlive(this.deps.processes.kill, pid)) return { success: false };
+      } else {
+        await runConfirmedStop({
+          deps: {
+            machineId: this.deps.machineId,
+            sessionId: this.deps.sessionId,
+            agentServices: this.deps.agentServices,
+            processes: this.deps.processes,
+            lifecycleOutbox: this.deps.lifecycleOutbox,
+            logEvent: this.deps.logEvent,
+            clock: this.deps.clock,
+            killProcessWithFallback: this.killProcessWithFallback.bind(this),
+          },
+          target: buildStopTargetDescriptor({
+            machineId: this.deps.machineId,
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            pid,
+            agentHarness: harness,
+          }),
+          reason: opts.reason as AgentStopReason,
+          preserveForResume,
+        });
       }
-    } catch {
-      // Process cleanup is best-effort
+    } catch (error) {
+      if (error instanceof AgentStopError) {
+        console.log(`   ⚠️  stop failed (${error.code}): ${error.message}`);
+        return { success: false };
+      }
+      return { success: false };
     }
 
     if (slot.stopGeneration !== stopGeneration) {
@@ -2298,8 +2309,6 @@ export class AgentProcessManager {
     }
 
     this.resetSlotAfterStop(slot);
-    this.recordStopExit(slot, pid, opts);
-
     try {
       await this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
     } catch {
