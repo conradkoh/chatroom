@@ -59,4 +59,14 @@ describe('stopAgentScope', () => {
       stopAgentScope(d, { chatroomId: 'c', scope: { kind: 'chatroom' }, reason: 'user.stop' })
     ).resolves.toEqual({ targets: [], failures: [] });
   });
+  it('isolates a target failure while stopping its sibling', async () => {
+    const { d, release } = setup([make('a', 1), make('b', 2)]);
+    d.harnessStop.stop.mockRejectedValueOnce(new Error('failed'));
+    d.liveness.isAlive.mockReturnValue(true);
+    d.liveness.isAlive.mockReturnValueOnce(true).mockReturnValueOnce(false).mockReturnValueOnce(false);
+    const r = await stopAgentScope(d, { chatroomId: 'c', scope: { kind: 'chatroom' }, reason: 'user.stop' });
+    expect(r.targets).toHaveLength(1);
+    expect(r.failures).toHaveLength(1);
+    expect(release).toHaveBeenCalledOnce();
+  });
 });

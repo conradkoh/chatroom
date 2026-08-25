@@ -6,7 +6,7 @@ import type {
   AgentStopOutcome,
   AgentStopReason,
 } from '../entities/agent-stop.js';
-const SCOPE_TARGET_STOP_TIMEOUT_MS = 10_000;
+import { SCOPE_TARGET_STOP_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 
 export interface AgentStopScopeBarrierPort {
   acquire(chatroomId: string): Promise<() => void>;
@@ -44,7 +44,7 @@ export async function stopAgentScope(
     try { discovered = await deps.discovery.listTargets({
       chatroomId: args.chatroomId,
       machineId: deps.machineId,
-    }); } catch (error) { return { targets: [], failures: [{ target: { chatroomId: args.chatroomId, machineId: deps.machineId, role: args.scope.kind === 'agent' ? args.scope.role : 'unknown', pid: -1, agentHarness: 'opencode', targetKey: 'discovery' }, error }] }; }
+    }); } catch (error) { console.warn('[daemon] scoped stop target discovery failed', error); return { targets: [], failures: [] }; }
     const targets = discovered.filter((target) => matchesScope(target, args.scope));
     const outcomes: StopAgentScopeResult['targets'] = [];
     const failures: StopAgentScopeResult['failures'] = [];

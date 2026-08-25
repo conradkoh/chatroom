@@ -56,11 +56,13 @@ export async function stopAgentConfirmed(
     }
     return outcome;
   }
+  let usedForceKill = false;
   try {
     if (args.timeoutMs && deps.forceKill) {
       let timer: ReturnType<typeof setTimeout> | undefined;
       await Promise.race([deps.harnessStop.stop(target, { preserveForResume: args.preserveForResume ?? false }), new Promise<void>((_, reject) => { timer = setTimeout(() => reject(new AgentStopError('stop_timed_out', `Timed out stopping ${target.role}`)), args.timeoutMs); })]).finally(() => { if (timer) clearTimeout(timer); }).catch(async (cause) => {
         if (!(cause instanceof AgentStopError) || cause.code !== 'stop_timed_out') throw cause;
+        usedForceKill = true;
         await deps.forceKill!.forceKill(target);
       });
     } else await deps.harnessStop.stop(target, { preserveForResume: args.preserveForResume ?? false });
@@ -76,7 +78,7 @@ export async function stopAgentConfirmed(
       'still_alive',
       `Process still alive after harness stop for ${target.role} pid=${target.pid}`
     );
-  const outcome: AgentStopOutcome = { kind: 'stopped', pid: target.pid, termination: 'graceful' };
+  const outcome: AgentStopOutcome = { kind: 'stopped', pid: target.pid, termination: usedForceKill ? 'forced' : 'graceful' };
   try {
     await deps.lifecycle.awaitExitedFact({ target, reason, revisionKey, outcome });
   } catch (cause) {

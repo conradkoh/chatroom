@@ -62,4 +62,16 @@ describe('stopAgentConfirmed', () => {
       stopAgentConfirmed(d, { target, reason: 'user.stop', revisionKey: 'r' })
     ).resolves.toMatchObject({ kind: 'already_stopped' });
   });
+  it('force-kills and reports forced termination after timeout', async () => {
+    vi.useFakeTimers();
+    const d = deps();
+    d.harnessStop.stop.mockReturnValue(new Promise(() => {}));
+    d.liveness.isAlive.mockReturnValueOnce(true).mockReturnValue(false);
+    const forceKill = vi.fn(async () => {});
+    const pending = stopAgentConfirmed({ ...d, forceKill: { forceKill } }, { target, reason: 'user.stop', revisionKey: 'r', timeoutMs: 10 });
+    await vi.advanceTimersByTimeAsync(10);
+    await expect(pending).resolves.toMatchObject({ kind: 'stopped', termination: 'forced' });
+    expect(forceKill).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
 });
