@@ -58,14 +58,14 @@ Small, low-risk cleanups that do not require the aggregate schema. Do these firs
 
 - [x] Upgrade `api.agentStops.request` from stub to create durable `AgentStopCommand` + fan-out machine executions
 - [x] Inbox payload `agent.stopScope` with stable `stopCommandId` (replace transient `agent.requestStop`)
-- [ ] Daemon begin / report-target / complete / redrive mutations
+- [x] Daemon begin / report-target / complete / redrive mutations
 - [ ] **Tech debt:** [low] `stopAgentScope` vs `stopAgentScopeWithBracket` duplication — collapse once inbox carries `stopCommandId`
 
 ### Slice C — Confirmed lifecycle side effects
 
-- [ ] PID/revision-gated `agentExited`; clear PID only when revision matches
-- [ ] Task release only on applied lifecycle fact (not on stop request)
-- [ ] `deriveAgentRoleViewState` must not treat `desiredState !== 'running'` as stopped while PID alive
+- [x] PID/revision-gated `agentExited`; clear PID only when revision matches
+- [x] Task release only on applied lifecycle fact (not on stop request)
+- [x] `deriveAgentRoleViewState` must not treat `desiredState !== 'running'` as stopped while PID alive
 
 ### Slice D — UI reactive stop state
 
@@ -219,3 +219,4 @@ type AgentStopState =
 - Slice 4: `pnpm --dir services/backend exec vitest run src/domain/usecase/agent/stop-agent.spec.ts src/domain/usecase/agent/ensure-only-agent-for-role.spec.ts tests/integration/stop-agent.spec.ts tests/integration/send-command-stop-reason.spec.ts` (16 passed).
 - Slice 5: `pnpm --dir apps/webapp exec vitest run src/modules/chatroom/components/ChatroomSidebar.test.tsx` (15 passed).
 - Slice 6: legacy daemon stop handler removed; UI zero `sendCommand` stop-agent producers; handler tests passed.
+- Slice C verification: `pnpm --dir services/backend exec vitest run src/domain/usecase/agent/derive-agent-operational-state.spec.ts tests/integration/project-agent-lifecycle-fact.spec.ts src/domain/usecase/agent/stop-agent.spec.ts` (24 passed); backend and CLI typechecks passed.
