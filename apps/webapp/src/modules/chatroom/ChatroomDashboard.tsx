@@ -1489,8 +1489,9 @@ export function ChatroomDashboard({
   const hasRunningRemoteAgents = useMemo(
     () =>
       isRestartingAllAgents ||
+      agentPanelData.hasActiveEnhancerWork ||
       agentPanelData.agents.some((a) => a.state === 'running' || a.state === 'starting'),
-    [agentPanelData.agents, isRestartingAllAgents]
+    [agentPanelData.agents, agentPanelData.hasActiveEnhancerWork, isRestartingAllAgents]
   );
 
   useEffect(() => {

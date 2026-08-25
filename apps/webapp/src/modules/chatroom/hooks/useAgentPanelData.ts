@@ -24,6 +24,7 @@ export interface AgentPanelData {
   connectedMachines: MachineInfo[];
   machineConfigs: AgentConfig[];
   isLoading: boolean;
+  hasActiveEnhancerWork: boolean;
   sendCommand: ReturnType<typeof useSessionMutation>;
   teamId?: string;
   lifecycle: {
@@ -109,6 +110,7 @@ export function useAgentPanelData(
     connectedMachines,
     machineConfigs,
     isLoading,
+    hasActiveEnhancerWork: statusResult?.hasActiveEnhancerWork ?? false,
     sendCommand,
     teamId: statusResult?.teamId,
     lifecycle,
