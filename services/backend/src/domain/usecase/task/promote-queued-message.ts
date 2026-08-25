@@ -5,7 +5,7 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUtils';
 import { getTeamEntryPoint } from '../../entities/team';
 import { markAgentViewHasHistory } from '../chatroom/project-agent-view-metadata';
-import { insertChatroomMessage } from '../message/message-read-model';
+import { insertChatroomMessage, linkMessageToTask } from '../message/message-read-model';
 
 /**
  * Promotes a staged message from chatroom_messageQueue to chatroom_messages,
@@ -87,7 +87,7 @@ export async function promoteQueuedMessage(
   });
 
   // Patch message with taskId (bidirectional link)
-  await ctx.db.patch('chatroom_messages', messageId, { taskId });
+  await linkMessageToTask(ctx, messageId, taskId);
 
   // Delete the queue record (no longer needed after promotion)
   await ctx.db.delete('chatroom_messageQueue', queuedMessageId);
