@@ -1423,6 +1423,15 @@ export class AgentProcessManager {
     }
   }
 
+  public async syncSlotsAfterScopedStop(result: { targets: Array<{ target: { chatroomId: string; role: string; pid: number } }>; failures: Array<{ target: { chatroomId: string; role: string; pid: number } }> }): Promise<void> {
+    for (const { target } of [...result.targets, ...result.failures]) {
+      const slot = this.slots.get(agentKey(target.chatroomId, target.role));
+      if (!slot || slot.pid !== target.pid) continue;
+      this.resetSlotAfterStop(slot);
+      await this.clearAgentPidQuietly(target.chatroomId, target.role);
+    }
+  }
+
   /**
    * Queue a failed agent.exited log event for retry.
    * Starts the retry interval timer if not already running.

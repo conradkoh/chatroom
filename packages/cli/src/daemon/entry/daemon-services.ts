@@ -190,8 +190,9 @@ export const DaemonAgentProcessManagerServiceLive = (
       if (!begun.shouldExecute) return;
       const { runScopedStopFromInbox } = await import('../infrastructure/agent-process-manager/stop-agent-scope-adapter.js');
       const { finalizeScopedStopExecution } = await import('./finalize-scoped-stop-execution.js');
-      const result = await runScopedStopFromInbox({ apm: mgr, confirmedDeps: mgr.getConfirmedStopAdapterDeps(), stopCommandId: event.stopCommandId, chatroomId: event.chatroomId, scope: event.scope, reason: reason as any });
-      await finalizeScopedStopExecution({ sessionId: sessionDeps.sessionId, machineId: sessionDeps.machineId, stopCommandId: event.stopCommandId, chatroomId: event.chatroomId, backend: sessionDeps.backend, result });
+      let result: any = { targets: [], failures: [] };
+      try { result = await runScopedStopFromInbox({ apm: mgr, confirmedDeps: mgr.getConfirmedStopAdapterDeps(), stopCommandId: event.stopCommandId, chatroomId: event.chatroomId, scope: event.scope, reason: reason as any }); } catch (error) { console.warn('[daemon] scoped stop execution failed', error); }
+      finally { await finalizeScopedStopExecution({ sessionId: sessionDeps.sessionId, machineId: sessionDeps.machineId, stopCommandId: event.stopCommandId, chatroomId: event.chatroomId, backend: sessionDeps.backend, result }); await mgr.syncSlotsAfterScopedStop(result); }
     }),
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
     stop: (opts) => Effect.promise(() => mgr.stop(opts)),

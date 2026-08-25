@@ -12,6 +12,7 @@ export async function executeScopedStopForCommand(args: {
   const finalize = await import('./finalize-scoped-stop-execution.js');
   const begun = await args.backend.mutation(api.agentStops.beginMachineExecution, { sessionId: args.sessionId, stopCommandId: args.stopCommandId as any, machineId: args.machineId, inboxCommandId: args.inboxCommandId as any }) as { shouldExecute: boolean };
   if (!begun.shouldExecute) return;
-  const result = await runScopedStopFromInbox({ apm: args.apm, confirmedDeps: args.apm.getConfirmedStopAdapterDeps(), stopCommandId: args.stopCommandId, chatroomId: args.chatroomId, scope: args.scope, reason: args.reason });
-  await finalize.finalizeScopedStopExecution({ ...args, result });
+  let result: any = { targets: [], failures: [] };
+  try { result = await runScopedStopFromInbox({ apm: args.apm, confirmedDeps: args.apm.getConfirmedStopAdapterDeps(), stopCommandId: args.stopCommandId, chatroomId: args.chatroomId, scope: args.scope, reason: args.reason }); } catch (error) { console.warn('[daemon] scoped stop execution failed', error); }
+  finally { await finalize.finalizeScopedStopExecution({ ...args, result }); await args.apm.syncSlotsAfterScopedStop(result); }
 }
