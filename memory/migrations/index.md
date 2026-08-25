@@ -5,5 +5,4 @@
 - [Daemon outbox consolidation](daemon-outbox-consolidation.md) — file-tree outbox architecture (coalescing checkpoints, FIFO deltas), ownership boundaries, and migration tracker
 - [Task inbox machine-level migration](task-inbox-machine-level-migration.md) — machine-scoped task signals; implementation complete (PR #1471); four-stage post-migration cleanup tracker
 - [Agent operational status projection](agent-operational-status-projection.md) — daemon-authoritative agent operational state via outbox + materialized Convex projection tables; phased migration tracker
-- [Agent stop golden path](agent-stop-golden-path.md) — single durable stop command, confirmed harness termination, projection-driven UI; Stage 1/2 tracker
 - [Agent operational status daemon integration](development/agent-operational-status-daemon-integration.md) — plan to replace task-snapshot desiredState workaround with operational projection SSOT

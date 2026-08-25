@@ -1,5 +1,5 @@
 /**
- * Convex mutations for agent stop requests (Stage 1 stub — delegates to requestAgentStop).
+ * Convex mutations for agent stop commands — request boundaries and guarded state-machine transitions.
  */
 
 import { v } from 'convex/values';
