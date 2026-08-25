@@ -121,6 +121,8 @@ export const DAEMON_LIVENESS_WRITE_INTERVAL_MS = 90_000;
 
 /** Max exits allowed in CIRCUIT_WINDOW_MS before circuit trips. */
 export const CIRCUIT_BREAKER_MAX_EXITS = 3;
+export const AGENT_STOP_EXPIRY_LEASE_GRACE_MS = 30_000;
+export const AGENT_STOP_TERMINAL_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 /** Per-target budget for scoped stop fan-out before force-kill (ms). */
 export const SCOPE_TARGET_STOP_TIMEOUT_MS = 10_000;
 

@@ -59,10 +59,12 @@ export const reportTargetOutcome = mutation({
   handler: async (ctx, args) => {
   await requireMachineOwner(ctx, args.sessionId, args.machineId);
   const target = await ctx.db.query('chatroom_agentStopTargets').withIndex('by_stopCommandId_targetKey', (q) => q.eq('stopCommandId', args.stopCommandId).eq('targetKey', args.targetKey)).first();
-  const fields = { status: args.status, outcome: args.outcome, errorMessage: args.errorMessage, completedAt: args.status === 'completed' || args.status === 'failed' ? Date.now() : undefined };
-  if (target) await ctx.db.patch(target._id, fields); else await ctx.db.insert('chatroom_agentStopTargets', { stopCommandId: args.stopCommandId, chatroomId: args.chatroomId, machineId: args.machineId, role: args.role, pid: args.pid, targetKey: args.targetKey, revisionKey: `${args.stopCommandId}:${args.targetKey}`, ...fields });
+  const fields = { status: args.status, ...(args.outcome !== 'failed' ? { outcome: args.outcome } : {}), errorMessage: args.errorMessage, completedAt: args.status === 'completed' || args.status === 'failed' ? Date.now() : undefined };
+  if (!target) return { ok: true as const, applied: false };
+  if (target.status === 'completed' || target.status === 'failed' || target.status === 'superseded') return { ok: true as const, applied: false };
+  await ctx.db.patch(target._id, fields);
   await rollupAgentStopCommandStatus(ctx, args.stopCommandId);
-  return { ok: true as const };
+  return { ok: true as const, applied: true };
   },
 });
 

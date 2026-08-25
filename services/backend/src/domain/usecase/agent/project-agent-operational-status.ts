@@ -80,8 +80,6 @@ export async function writeOperationalSummary(
   input: SummaryWriteInput
 ): Promise<void> {
   const normalized = normalizeOperationalSummary(input);
-  const roleRows = await ctx.db.query('chatroom_agentRoleOperationalStatus').withIndex('by_chatroom', (q) => q.eq('chatroomId', input.chatroomId)).collect();
-  const stoppingRoles = roleRows.filter((row) => row.stopState === 'pending' || row.stopState === 'stopping').map((row) => row.role);
   const existing = await summaryFor(ctx, input.chatroomId);
   const comparable = existing && {
     teamId: existing.teamId,
@@ -90,7 +88,6 @@ export async function writeOperationalSummary(
     aliveRoles: existing.aliveRoles,
     runningAgents: existing.runningAgents,
     remoteConfigCount: existing.remoteConfigCount,
-    stoppingRoles: existing.stoppingRoles ?? [],
   };
   if (
     existing &&
@@ -99,7 +96,7 @@ export async function writeOperationalSummary(
     operationalSummariesEqual(comparable, normalized)
   )
     return;
-  const fields = { ownerId: input.ownerId, ...normalized, stoppingRoles, projectedAt: Date.now() };
+  const fields = { ownerId: input.ownerId, ...normalized, projectedAt: Date.now() };
   if (existing) await ctx.db.patch('chatroom_agentOperationalSummary', existing._id, fields);
   else
     await ctx.db.insert('chatroom_agentOperationalSummary', {
