@@ -70,7 +70,7 @@ export async function projectAgentLifecycleFact(
     return { success: true, clearedCount };
   }
   if (fact.kind === 'exited') {
-    await agentExitedUseCase(ctx, { ...fact, machineId });
+    await agentExitedUseCase(ctx, { ...fact, machineId, revisionKey: fact.revisionKey });
     await onAgentExited(ctx, fact);
     return { success: true };
   }

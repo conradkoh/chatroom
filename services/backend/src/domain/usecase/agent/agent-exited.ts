@@ -22,6 +22,7 @@ import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 /** Input parameters for the agentExited use case. */
 export interface AgentExitedInput {
+  revisionKey?: string;
   /** The chatroom the agent was running in. */
   chatroomId: Id<'chatroom_rooms'>;
   /** The role of the exited agent. */
@@ -65,6 +66,11 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .first();
+
+  if (input.revisionKey && !input.revisionKey.startsWith('exited:')) {
+    const target = await ctx.db.query('chatroom_agentStopTargets').withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role)).filter((q) => q.eq(q.field('revisionKey'), input.revisionKey)).first();
+    if (!target || target.pid !== pid || target.machineId !== machineId) return;
+  }
 
   // 1. Clear PID on config — PID-gated idempotency
   //    Only clear if BOTH the PID and machineId match. This prevents clearing
