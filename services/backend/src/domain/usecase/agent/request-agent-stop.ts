@@ -8,10 +8,8 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import type { AgentStopReason } from '../../entities/agent';
-import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
-import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
+import { createAgentStopCommand } from './create-agent-stop-command';
 
 export interface RequestAgentStopInput {
   machineId: string;
@@ -29,39 +27,6 @@ export async function requestAgentStop(
   ctx: MutationCtx,
   input: RequestAgentStopInput
 ): Promise<RequestAgentStopResult> {
-  const { machineId, chatroomId, role, reason } = input;
-  const now = Date.now();
-
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  let teamConfig = null;
-  if (chatroom?.teamId) {
-    const teamRoleKey = buildTeamRoleKey(chatroomId, chatroom.teamId, role);
-    teamConfig = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-      .first();
-  }
-
-  await enqueueMachineCommand(ctx, {
-    machineId,
-    now,
-    command: {
-      type: 'agent.requestStop',
-      chatroomId,
-      role,
-      reason,
-      pid: teamConfig?.spawnedAgentPid ?? undefined,
-    },
-  });
-
-  if (teamConfig) {
-    await patchTeamAgentConfig(
-      ctx,
-      teamConfig._id,
-      { desiredState: 'stopped' },
-      { projectScope: 'chatroom' }
-    );
-  }
-
+  await createAgentStopCommand(ctx, { chatroomId: input.chatroomId, scope: { kind: 'agent', role: input.role }, reason: input.reason, machineId: input.machineId });
   return {};
 }

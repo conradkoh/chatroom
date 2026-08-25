@@ -3,6 +3,7 @@ export const DAEMON_COMMAND_EVENT_TYPES = [
   'agent.requestStart',
   'agent.restart',
   'agent.requestStop',
+  'agent.stopScope',
   'daemon.ping',
   'daemon.gitRefresh',
   'daemon.localAction',
@@ -49,6 +50,10 @@ export interface AgentRequestStopCommandEvent extends CommandEventBase {
   role: string;
   reason: string;
 }
+export interface AgentStopScopeCommandEvent extends CommandEventBase {
+  type: 'agent.stopScope'; stopCommandId: string; chatroomId: string;
+  scope: { kind: 'chatroom' } | { kind: 'agent'; role: string }; reason: string;
+}
 
 export interface DaemonPingCommandEvent extends CommandEventBase {
   type: 'daemon.ping';
@@ -77,6 +82,7 @@ export type CommandEvent =
   | AgentRequestStartCommandEvent
   | AgentRequestRestartCommandEvent
   | AgentRequestStopCommandEvent
+  | AgentStopScopeCommandEvent
   | DaemonPingCommandEvent
   | DaemonGitRefreshCommandEvent
   | DaemonLocalActionCommandEvent
