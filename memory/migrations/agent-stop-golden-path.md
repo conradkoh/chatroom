@@ -48,7 +48,7 @@ Small, low-risk cleanups that do not require the aggregate schema. Do these firs
 
 ## Stage 2 — Durable command + confirmed behavior
 
-### Slice A — Schema & aggregate (needs user decision on shape — see Open decisions)
+### Slice A — Schema & aggregate (resolved)
 
 - [ ] Convex tables: command aggregate + per-machine execution + per-target rows (see proposed shape below)
 - [ ] Extend `services/backend/src/domain/entities/agent-stop-command.ts` validators to match chosen schema
@@ -88,9 +88,30 @@ Small, low-risk cleanups that do not require the aggregate schema. Do these firs
 | Sidebar agent vs command-run stop | **Separate** — agent stop via `useAgentStop`; command runs via `stopAllCommandRunsForChatroom` (Stage 1)                                                         | 2026-08-25 |
 | Stage 1 eager cleanup             | **Removed** — PID/participant/task side effects deferred to daemon-confirmed lifecycle fact                                                                      | 2026-08-25 |
 
-## Open decisions
+## Chosen schema
 
-### [medium] `AgentStopCommand` aggregate schema shape
+The signed-off Option C model uses three tables:
+
+- `chatroom_agentStopCommands`: `chatroomId`, `scope`, `scopeKey`, `reason`, `requestedBy`, `status`, timestamps.
+- `chatroom_agentStopMachineExecutions`: one row per command and machine, with inbox ID, status, claim/completion timestamps, and error.
+- `chatroom_agentStopTargets`: one row per PID target with machine, role, target/revision keys, status, outcome, and error.
+
+`chatroom` scope covers all running agents across all bound machines. Daemon shutdown creates one command per chatroom. Active duplicate requests coalesce by `(chatroomId, scopeKey)` while pending or processing. UI stop-in-progress remains per-role in the agent panel only.
+
+### Resolved schema decisions
+
+| Decision                | Resolution                                                                         | Date       |
+| ----------------------- | ---------------------------------------------------------------------------------- | ---------- |
+| Table model             | Command + machine execution + target rows (Option C)                               | 2026-08-25 |
+| Chatroom scope          | All running agents in the chatroom across all bound machines                       | 2026-08-25 |
+| Daemon shutdown         | One stop command per chatroom                                                      | 2026-08-25 |
+| Reason enum SSOT        | `agent.ts` `AGENT_STOP_REASONS` literals                                           | 2026-08-25 |
+| Double-stop idempotency | Coalesce existing pending/processing command for the same `(chatroomId, scopeKey)` | 2026-08-25 |
+| UI stop-in-progress     | Per-role in agent panel only; no chatroom-level sidebar spinner                    | 2026-08-25 |
+
+<!-- Rejected design alternatives and open questions were removed after approval. -->
+
+<!--
 
 **Why your input is needed:** Stage 2 is not a pure refactor — it commits to **durable product semantics** (what users see during a stop, how idempotency works, what we audit, how multi-agent stops aggregate). The stub types in `agent-stop-command.ts` are a sketch, not a signed-off contract. Wrong choices here are expensive to unwind (migrations, UI projections, daemon redrive logic).
 
@@ -184,6 +205,8 @@ type AgentStopState =
 | Scope rules for user stop vs shutdown  | Error message copy in UI |
 | Reason enum SSOT                       | Redrive cron interval    |
 | Coalesce vs new command on double-stop |                          |
+
+-->
 
 ## Verification log
 

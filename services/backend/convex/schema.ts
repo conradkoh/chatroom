@@ -2,7 +2,16 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { storedFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
-import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
+import {
+  agentHarnessValidator,
+  agentTypeValidator,
+  agentStopReasonValidator,
+} from '../src/domain/entities/agent';
+import {
+  agentStopScopeValidator,
+  agentStopStatusValidator,
+  agentStopTargetStatusValidator,
+} from '../src/domain/entities/agent-stop-command';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 
 const attachedSnippetValidator = v.object({
@@ -1196,6 +1205,25 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_role', ['chatroomId', 'role'])
     .index('by_machineId', ['machineId']),
+
+  chatroom_agentStopCommands: defineTable({
+    chatroomId: v.id('chatroom_rooms'), scope: agentStopScopeValidator, scopeKey: v.string(),
+    reason: agentStopReasonValidator, requestedBy: v.optional(v.id('users')), status: agentStopStatusValidator,
+    createdAt: v.number(), completedAt: v.optional(v.number()),
+  }).index('by_chatroom_created', ['chatroomId', 'createdAt']).index('by_chatroom_scopeKey_status', ['chatroomId', 'scopeKey', 'status']),
+
+  chatroom_agentStopMachineExecutions: defineTable({
+    stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), machineId: v.string(),
+    inboxCommandId: v.optional(v.id('chatroom_machineCommandInbox')), status: agentStopStatusValidator,
+    claimedAt: v.optional(v.number()), completedAt: v.optional(v.number()), errorMessage: v.optional(v.string()),
+  }).index('by_stopCommandId', ['stopCommandId']).index('by_stopCommandId_machineId', ['stopCommandId', 'machineId']).index('by_machineId_status', ['machineId', 'status']),
+
+  chatroom_agentStopTargets: defineTable({
+    stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), machineId: v.string(),
+    role: v.string(), pid: v.number(), targetKey: v.string(), revisionKey: v.string(), status: agentStopTargetStatusValidator,
+    outcome: v.optional(v.union(v.literal('stopped'), v.literal('already_stopped'), v.literal('failed'))),
+    errorMessage: v.optional(v.string()), completedAt: v.optional(v.number()),
+  }).index('by_stopCommandId', ['stopCommandId']).index('by_stopCommandId_targetKey', ['stopCommandId', 'targetKey']).index('by_chatroom_role', ['chatroomId', 'role']),
 
   /**
    * Materialized per-chatroom agent overview for sidebar subscriptions.
