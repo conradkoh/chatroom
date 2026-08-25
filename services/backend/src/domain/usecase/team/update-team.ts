@@ -14,7 +14,8 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey, teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
 import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
-import { requestAgentStop } from '../agent/request-agent-stop';
+import { createAgentStopCommand } from '../agent/create-agent-stop-command';
+import type { AgentStopSelectedConfig } from '../agent/select-agent-stop-configs';
 import { upsertAgentViewMetadata } from '../chatroom/project-agent-view-metadata';
 import { projectAssignedTaskSnapshotsForMachines } from '../machine/patch-team-agent-config';
 import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
@@ -63,6 +64,13 @@ export async function updateTeam(
   let restoredCount = 0;
   let seededCount = 0;
 
+  const outgoingConfigs = existingTeamConfigs.filter((c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId));
+  const outgoingStoppable = outgoingConfigs.filter((c): c is AgentStopSelectedConfig => c.type === 'remote' && c.machineId != null && c.spawnedAgentPid != null && c.agentHarness != null);
+  if (outgoingStoppable.length > 0) {
+    await createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'chatroom' }, reason: 'platform.team_switch', selectedConfigs: outgoingStoppable });
+    stoppedAgentCount = outgoingStoppable.length;
+  }
+
   await ctx.db.patch('chatroom_rooms', chatroomId, {
     teamId,
     teamName,
@@ -83,22 +91,10 @@ export async function updateTeam(
 
   const affectedMachineIds = new Set<string>();
 
-  for (const config of existingTeamConfigs.filter(
-    (c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId)
-  )) {
+  for (const config of outgoingConfigs) {
     if (config.machineId) {
       affectedMachineIds.add(config.machineId);
     }
-    if (config.machineId && (config.desiredState === 'running' || config.spawnedAgentPid != null)) {
-      await requestAgentStop(ctx, {
-        machineId: config.machineId,
-        chatroomId,
-        role: config.role,
-        reason: 'platform.team_switch',
-      });
-      stoppedAgentCount++;
-    }
-
     preservedCount++;
   }
 

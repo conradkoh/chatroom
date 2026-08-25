@@ -1225,7 +1225,7 @@ export default defineSchema({
     role: v.string(), pid: v.number(), agentHarness: v.optional(agentHarnessValidator), targetKey: v.string(), revisionKey: v.string(), status: agentStopTargetStatusValidator,
     outcome: v.optional(v.union(v.literal('stopped'), v.literal('already_stopped'), v.literal('failed'))),
     errorMessage: v.optional(v.string()), completedAt: v.optional(v.number()),
-  }).index('by_stopCommandId', ['stopCommandId']).index('by_stopCommandId_targetKey', ['stopCommandId', 'targetKey']).index('by_chatroom_role', ['chatroomId', 'role']),
+  }).index('by_stopCommandId', ['stopCommandId']).index('by_stopCommandId_targetKey', ['stopCommandId', 'targetKey']).index('by_stopCommandId_machineId', ['stopCommandId', 'machineId']).index('by_chatroom_role', ['chatroomId', 'role']),
 
   /**
    * Materialized per-chatroom agent overview for sidebar subscriptions.
