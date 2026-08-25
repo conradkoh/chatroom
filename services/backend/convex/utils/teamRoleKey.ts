@@ -1,4 +1,4 @@
-import { enqueueMachineCommand } from '../../src/domain/usecase/machine/enqueue-machine-command';
+import { createAgentStopCommand } from '../../src/domain/usecase/agent/create-agent-stop-command';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
@@ -37,19 +37,13 @@ export async function deleteStaleTeamAgentConfigs(
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .collect();
-  const now = Date.now();
   for (const row of stale) {
     if (row.spawnedAgentPid != null && row.machineId) {
-      await enqueueMachineCommand(ctx, {
+      await createAgentStopCommand(ctx, {
+        chatroomId: row.chatroomId,
+        scope: { kind: 'agent', role: row.role },
+        reason: 'platform.dedup',
         machineId: row.machineId,
-        now,
-        command: {
-          type: 'agent.requestStop',
-          chatroomId: row.chatroomId,
-          role: row.role,
-          reason: 'platform.dedup',
-          pid: row.spawnedAgentPid,
-        },
       });
       await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
     } else {
