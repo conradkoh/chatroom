@@ -10,6 +10,9 @@ import type {
 } from '../../domain/entities/agent-stop.js';
 import { stopAgentConfirmed } from '../../domain/usecase/stop-agent-confirmed.js';
 import type { StopAgentScopeDeps } from '../../domain/usecase/stop-agent-scope.js';
+import { stopAgentScope } from '../../domain/usecase/stop-agent-scope.js';
+import { buildAgentStopRevisionKey } from '../../../../../../services/backend/src/domain/entities/agent-stop-command.js';
+import type { AgentStopScope } from '../../../../../../services/backend/src/domain/entities/agent-stop-command.js';
 
 const activeChatroomScopes = new Set<string>();
 export function isChatroomStopScopeActive(chatroomId: string): boolean {
@@ -115,4 +118,14 @@ export async function runRoleScopedStop(args: {
     scope: { kind: 'agent', role: args.role },
     reason: args.reason,
   });
+}
+
+export function createStopAgentScopeDepsForCommand(args: { apm: AgentProcessManager; confirmedDeps: ConfirmedStopAdapterDeps; stopCommandId: string }): StopAgentScopeDeps {
+  const base = createStopAgentScopeDeps(args);
+  return { ...base, buildRevisionKey: (target) => buildAgentStopRevisionKey({ stopCommandId: args.stopCommandId, targetKey: target.targetKey }) };
+}
+
+export async function runScopedStopFromInbox(args: { apm: AgentProcessManager; confirmedDeps: ConfirmedStopAdapterDeps; stopCommandId: string; chatroomId: string; scope: AgentStopScope; reason: AgentStopReason }) {
+  const deps = createStopAgentScopeDepsForCommand(args);
+  return stopAgentScope(deps, { chatroomId: args.chatroomId, scope: args.scope, reason: args.reason });
 }
