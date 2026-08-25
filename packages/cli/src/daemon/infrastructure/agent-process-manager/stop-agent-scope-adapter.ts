@@ -1,14 +1,19 @@
+import { buildAgentStopRevisionKey } from '@workspace/shared/domain/agent-stop-command';
+import {
+  normalizeAgentStopRole,
+  type AgentStopTargetDescriptor,
+} from '@workspace/shared/domain/agent-stop-command';
+
 import type { AgentProcessManager } from './agent-process-manager.js';
 import {
   createStopAgentConfirmedDeps,
   type ConfirmedStopAdapterDeps,
 } from './stop-agent-confirmed-adapter.js';
+import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import { buildExitedLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 import type { AgentStopReason } from '../../domain/entities/agent-stop.js';
 import type { StopAgentScopeDeps } from '../../domain/usecase/stop-agent-scope.js';
 import { stopAgentScope } from '../../domain/usecase/stop-agent-scope.js';
-import { buildAgentStopRevisionKey } from '@workspace/shared/domain/agent-stop-command';
-import type { AgentStopScope, AgentStopTargetDescriptor } from '@workspace/shared/domain/agent-stop-command';
 
 const activeChatroomScopeDepth = new Map<string, number>();
 export function isChatroomStopScopeActive(chatroomId: string): boolean {
@@ -28,7 +33,9 @@ export function createChatroomScopeBarrier() {
   };
 }
 // fallow-ignore-next-line unused-export
-export function resetChatroomScopeBarrierForTests(): void { activeChatroomScopeDepth.clear(); }
+export function resetChatroomScopeBarrierForTests(): void {
+  activeChatroomScopeDepth.clear();
+}
 // fallow-ignore-next-line unused-export
 export function createStopAgentScopeDeps(args: {
   apm: AgentProcessManager;
@@ -62,23 +69,48 @@ export async function runRoleScopedStop(args: {
   reason: AgentStopReason;
 }) {
   const deps = createStopAgentScopeDeps(args);
+  const discovered = await args.apm.discoverStopTargets(args.chatroomId);
+  const targets = discovered.filter(
+    (target) => normalizeAgentStopRole(target.role) === normalizeAgentStopRole(args.role)
+  );
   return stopAgentScope(deps, {
     chatroomId: args.chatroomId,
     scope: { kind: 'agent', role: args.role },
     reason: args.reason,
+    targets,
   });
 }
 
-export function createStopAgentScopeDepsForCommand(args: { apm: AgentProcessManager; confirmedDeps: ConfirmedStopAdapterDeps; stopCommandId: string }): StopAgentScopeDeps {
+export function createStopAgentScopeDepsForCommand(args: {
+  apm: AgentProcessManager;
+  confirmedDeps: ConfirmedStopAdapterDeps;
+  stopCommandId: string;
+}): StopAgentScopeDeps {
   const base = createStopAgentScopeDeps(args);
-  return { ...base, buildRevisionKey: (target) => buildAgentStopRevisionKey({ stopCommandId: args.stopCommandId, targetKey: target.targetKey }) };
+  return {
+    ...base,
+    buildRevisionKey: (target) =>
+      buildAgentStopRevisionKey({ stopCommandId: args.stopCommandId, targetKey: target.targetKey }),
+  };
 }
 
-export async function runScopedStopFromInbox(args: { apm: AgentProcessManager; confirmedDeps: ConfirmedStopAdapterDeps; stopCommandId: string; chatroomId: string; scope: AgentStopScope; reason: AgentStopReason }) {
+export async function runExactTargetsStop(args: {
+  apm: AgentProcessManager;
+  confirmedDeps: ConfirmedStopAdapterDeps;
+  stopCommandId: string;
+  chatroomId: string;
+  targets: AgentStopTargetDescriptor[];
+  reason: AgentStopReason;
+}) {
   const deps = createStopAgentScopeDepsForCommand(args);
-  return stopAgentScope(deps, { chatroomId: args.chatroomId, scope: args.scope, reason: args.reason });
-}
-export async function runExactTargetsStop(args: { apm: AgentProcessManager; confirmedDeps: ConfirmedStopAdapterDeps; stopCommandId: string; chatroomId: string; targets: AgentStopTargetDescriptor[]; reason: AgentStopReason }) {
-  const deps = createStopAgentScopeDepsForCommand(args);
-  return stopAgentScope(deps, { chatroomId: args.chatroomId, scope: { kind: 'chatroom' }, reason: args.reason, targets: args.targets });
+  const targets = args.targets.map((target) => ({
+    ...target,
+    agentHarness: target.agentHarness as AgentHarness,
+  }));
+  return stopAgentScope(deps, {
+    chatroomId: args.chatroomId,
+    scope: { kind: 'chatroom' },
+    reason: args.reason,
+    targets,
+  });
 }

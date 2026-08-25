@@ -11,14 +11,15 @@ import type { Runtime } from 'effect';
 import { Context, Effect, Layer, Ref } from 'effect';
 
 import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
-import { api } from '../../api.js';
-import { isAgentStopReason } from '../../../../../services/backend/src/domain/entities/agent.js';
 import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
 import type { ConvexClient, SessionId, WorkspaceForSync } from './daemon-types.js';
 import type { DaemonEventBus } from './events/event-bus.js';
+import { isAgentStopReason } from '../../../../../services/backend/src/domain/entities/agent.js';
+import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/types.js';
 import type { TryConsumeResult } from '../../infrastructure/services/harness-spawning/index.js';
+import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import type {
   AgentProcessManager,
   AgentSlot,
@@ -28,7 +29,6 @@ import type {
   StopOpts,
 } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 import type { AgentRequestStopEventPayload } from './events/agent/on-request-stop-agent.js';
-import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import { executeScopedStopForCommand } from './execute-scoped-stop-command.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 import type {
@@ -115,9 +115,23 @@ export const DaemonSpawningServiceLive = (ops: SpawningOps): Layer.Layer<DaemonS
 
 /** Effect service wrapping AgentProcessManager — precise types from the class. */
 export interface DaemonAgentProcessManagerServiceShape {
-  executeScopedStopForCommand?: (args: { stopCommandId: string; chatroomId: string; scope: { kind: 'chatroom' } | { kind: 'agent'; role: string }; reason: any; inboxCommandId: string }) => Effect.Effect<void>;
+  executeScopedStopForCommand?: (args: {
+    stopCommandId: string;
+    chatroomId: string;
+    scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
+    reason: any;
+    inboxCommandId: string;
+  }) => Effect.Effect<void>;
   runInboxRoleScopedStop?: (event: AgentRequestStopEventPayload) => Effect.Effect<void>;
-  runInboxScopedStop?: (event: { commandId?: string; _id?: string; stopCommandId: string; chatroomId: string; scope: { kind: 'chatroom' } | { kind: 'agent'; role: string }; reason: string; deadline: number }) => Effect.Effect<void>;
+  runInboxScopedStop?: (event: {
+    commandId?: string;
+    _id?: string;
+    stopCommandId: string;
+    chatroomId: string;
+    scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
+    reason: string;
+    deadline: number;
+  }) => Effect.Effect<void>;
   ensureRunning: (opts: EnsureRunningOpts) => Effect.Effect<OperationResult>;
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
@@ -148,19 +162,30 @@ export class DaemonAgentProcessManagerService extends Context.Tag(
 
 export const DaemonAgentProcessManagerServiceLive = (
   mgr: AgentProcessManager,
-  sessionDeps?: { sessionId: string; machineId: string; backend: DaemonSessionServiceShape['backend'] }
+  sessionDeps?: {
+    sessionId: string;
+    machineId: string;
+    backend: DaemonSessionServiceShape['backend'];
+  }
 ): Layer.Layer<DaemonAgentProcessManagerService> =>
   Layer.succeed(DaemonAgentProcessManagerService, {
-    executeScopedStopForCommand: (args) => Effect.promise(async () => {
-      if (!sessionDeps) return;
-      await executeScopedStopForCommand({ ...sessionDeps, apm: mgr, ...args });
-    }),
+    executeScopedStopForCommand: (args) =>
+      Effect.promise(async () => {
+        if (!sessionDeps) return;
+        await executeScopedStopForCommand({ ...sessionDeps, apm: mgr, ...args });
+      }),
     runInboxRoleScopedStop: (event) =>
       Effect.promise(async () => {
         const { runRoleScopedStop } =
           await import('../infrastructure/agent-process-manager/stop-agent-scope-adapter.js');
-        const legacyReason: Record<string, string> = { 'team.switch': 'platform.team_switch', dedup: 'platform.dedup', 'stale-config': 'platform.dedup' };
-        const reason = isAgentStopReason(event.reason) ? event.reason : (legacyReason[event.reason] ?? 'user.stop');
+        const legacyReason: Record<string, string> = {
+          'team.switch': 'platform.team_switch',
+          dedup: 'platform.dedup',
+          'stale-config': 'platform.dedup',
+        };
+        const reason = isAgentStopReason(event.reason)
+          ? event.reason
+          : (legacyReason[event.reason] ?? 'user.stop');
         if (Date.now() > event.deadline) return;
         const result = await runRoleScopedStop({
           apm: mgr,
@@ -182,18 +207,23 @@ export const DaemonAgentProcessManagerServiceLive = (
             failure.error
           );
       }),
-    runInboxScopedStop: (event) => Effect.promise(async () => {
-      if (!sessionDeps || Date.now() > event.deadline) return;
-      const inboxCommandId = (event.commandId ?? event._id) as any;
-      const reason = isAgentStopReason(event.reason) ? event.reason : 'user.stop';
-      const begun = await sessionDeps.backend.mutation(api.agentStops.beginMachineExecution, { sessionId: sessionDeps.sessionId, stopCommandId: event.stopCommandId as any, machineId: sessionDeps.machineId, inboxCommandId }) as { shouldExecute: boolean };
-      if (!begun.shouldExecute) return;
-      const { runScopedStopFromInbox } = await import('../infrastructure/agent-process-manager/stop-agent-scope-adapter.js');
-      const { finalizeScopedStopExecution } = await import('./finalize-scoped-stop-execution.js');
-      let result: any = { targets: [], failures: [] };
-      try { result = await runScopedStopFromInbox({ apm: mgr, confirmedDeps: mgr.getConfirmedStopAdapterDeps(), stopCommandId: event.stopCommandId, chatroomId: event.chatroomId, scope: event.scope, reason: reason as any }); } catch (error) { console.warn('[daemon] scoped stop execution failed', error); }
-      finally { await finalizeScopedStopExecution({ sessionId: sessionDeps.sessionId, machineId: sessionDeps.machineId, stopCommandId: event.stopCommandId, chatroomId: event.chatroomId, backend: sessionDeps.backend, result }); await mgr.syncSlotsAfterScopedStop(result); }
-    }),
+    runInboxScopedStop: (event) =>
+      Effect.promise(async () => {
+        if (!sessionDeps) return;
+        const inboxCommandId = (event.commandId ?? event._id) as string;
+        const reason = isAgentStopReason(event.reason) ? event.reason : 'user.stop';
+        await executeScopedStopForCommand({
+          sessionId: sessionDeps.sessionId,
+          machineId: sessionDeps.machineId,
+          backend: sessionDeps.backend,
+          apm: mgr,
+          stopCommandId: event.stopCommandId,
+          chatroomId: event.chatroomId,
+          scope: event.scope,
+          reason: reason as AgentStopReason,
+          inboxCommandId,
+        });
+      }),
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
     stop: (opts) => Effect.promise(() => mgr.stop(opts)),
     handleExit: (opts) => Effect.promise(() => mgr.handleExit(opts)),

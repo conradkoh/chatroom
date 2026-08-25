@@ -57,28 +57,63 @@ export async function stopAgentConfirmed(
     return outcome;
   }
   let usedForceKill = false;
+  const forceKill = deps.forceKill;
   try {
-    if (args.timeoutMs && deps.forceKill) {
+    if (args.timeoutMs && forceKill) {
       let timer: ReturnType<typeof setTimeout> | undefined;
-      await Promise.race([deps.harnessStop.stop(target, { preserveForResume: args.preserveForResume ?? false }), new Promise<void>((_, reject) => { timer = setTimeout(() => reject(new AgentStopError('stop_timed_out', `Timed out stopping ${target.role}`)), args.timeoutMs); })]).finally(() => { if (timer) clearTimeout(timer); }).catch(async (cause) => {
-        if (!(cause instanceof AgentStopError) || cause.code !== 'stop_timed_out') throw cause;
-        usedForceKill = true;
-        await deps.forceKill!.forceKill(target);
-      });
-    } else await deps.harnessStop.stop(target, { preserveForResume: args.preserveForResume ?? false });
+      await Promise.race([
+        deps.harnessStop.stop(target, { preserveForResume: args.preserveForResume ?? false }),
+        new Promise<void>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new AgentStopError('stop_timed_out', `Timed out stopping ${target.role}`)),
+            args.timeoutMs
+          );
+        }),
+      ])
+        .finally(() => {
+          if (timer) clearTimeout(timer);
+        })
+        .catch(async (cause) => {
+          if (!(cause instanceof AgentStopError) || cause.code !== 'stop_timed_out') throw cause;
+          usedForceKill = true;
+          await forceKill.forceKill(target);
+        });
+    } else
+      await deps.harnessStop.stop(target, { preserveForResume: args.preserveForResume ?? false });
   } catch (cause) {
-    throw new AgentStopError(
-      'harness_stop_failed',
-      `Harness stop failed for ${target.role} pid=${target.pid}`,
-      cause
-    );
+    if (!deps.forceKill) {
+      throw new AgentStopError(
+        'harness_stop_failed',
+        `Harness stop failed for ${target.role} pid=${target.pid}`,
+        cause
+      );
+    }
+    usedForceKill = true;
+    await deps.forceKill.forceKill(target);
+    if (deps.liveness.isAlive(target.pid)) {
+      throw new AgentStopError(
+        'harness_stop_failed',
+        `Harness stop failed and force-kill did not terminate ${target.role} pid=${target.pid}`,
+        cause
+      );
+    }
   }
-  if (deps.liveness.isAlive(target.pid))
-    throw new AgentStopError(
-      'still_alive',
-      `Process still alive after harness stop for ${target.role} pid=${target.pid}`
-    );
-  const outcome: AgentStopOutcome = { kind: 'stopped', pid: target.pid, termination: usedForceKill ? 'forced' : 'graceful' };
+  if (deps.liveness.isAlive(target.pid)) {
+    if (deps.forceKill) {
+      usedForceKill = true;
+      await deps.forceKill.forceKill(target);
+    }
+    if (deps.liveness.isAlive(target.pid))
+      throw new AgentStopError(
+        'still_alive',
+        `Process still alive after harness stop for ${target.role} pid=${target.pid}`
+      );
+  }
+  const outcome: AgentStopOutcome = {
+    kind: 'stopped',
+    pid: target.pid,
+    termination: usedForceKill ? 'forced' : 'graceful',
+  };
   try {
     await deps.lifecycle.awaitExitedFact({ target, reason, revisionKey, outcome });
   } catch (cause) {

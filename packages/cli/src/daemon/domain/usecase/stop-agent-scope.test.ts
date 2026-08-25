@@ -30,6 +30,7 @@ describe('stopAgentScope', () => {
       chatroomId: 'c',
       scope: { kind: 'chatroom' },
       reason: 'user.stop',
+      targets: [make('a', 1), make('b', 2)],
     });
     expect(r.targets).toHaveLength(2);
   });
@@ -39,6 +40,7 @@ describe('stopAgentScope', () => {
       chatroomId: 'c',
       scope: { kind: 'agent', role: 'builder' },
       reason: 'user.stop',
+      targets: [make('Builder', 1)],
     });
     expect(r.targets).toHaveLength(1);
   });
@@ -49,8 +51,11 @@ describe('stopAgentScope', () => {
       chatroomId: 'c',
       scope: { kind: 'chatroom' },
       reason: 'user.stop',
+      targets: [make('a', 1)],
     });
-    expect(r.failures).toHaveLength(1);
+    expect(r.failures).toHaveLength(0);
+    expect(r.targets).toHaveLength(1);
+    expect(r.targets[0]?.lifecycleWarning).toContain('Failed to deliver');
     expect(release).toHaveBeenCalledTimes(1);
   });
   it('returns empty discovery', async () => {
@@ -63,8 +68,16 @@ describe('stopAgentScope', () => {
     const { d, release } = setup([make('a', 1), make('b', 2)]);
     d.harnessStop.stop.mockRejectedValueOnce(new Error('failed'));
     d.liveness.isAlive.mockReturnValue(true);
-    d.liveness.isAlive.mockReturnValueOnce(true).mockReturnValueOnce(false).mockReturnValueOnce(false);
-    const r = await stopAgentScope(d, { chatroomId: 'c', scope: { kind: 'chatroom' }, reason: 'user.stop' });
+    d.liveness.isAlive
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(false);
+    const r = await stopAgentScope(d, {
+      chatroomId: 'c',
+      scope: { kind: 'chatroom' },
+      reason: 'user.stop',
+      targets: [make('a', 1), make('b', 2)],
+    });
     expect(r.targets).toHaveLength(1);
     expect(r.failures).toHaveLength(1);
     expect(release).toHaveBeenCalledOnce();

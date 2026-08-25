@@ -1,3 +1,4 @@
+import { SCOPE_TARGET_STOP_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 import { Effect } from 'effect';
 
 import { api } from '../../api.js';
@@ -20,7 +21,12 @@ export const onDaemonShutdownEffect: Effect.Effect<
   yield* shutdownAllCommandsEffect;
 
   // Wait for any in-progress agent turn to end gracefully
-  yield* agentPm.whenTurnEndsIdle();
+  yield* Effect.race(
+    agentPm.whenTurnEndsIdle(),
+    Effect.sleep(SCOPE_TARGET_STOP_TIMEOUT_MS).pipe(
+      Effect.tap(() => Effect.sync(() => console.log('[shutdown] idle wait timed out, proceeding')))
+    )
+  );
 
   const activeAgents = agentPm.listActive();
 
@@ -29,18 +35,32 @@ export const onDaemonShutdownEffect: Effect.Effect<
 
     const chatroomIds = [...new Set(activeAgents.map(({ chatroomId }) => chatroomId))];
     yield* Effect.all(
-      chatroomIds.map((chatroomId) => Effect.promise(async () => {
-        const result = await session.backend.mutation(api.agentStops.requestScope, {
-          sessionId: session.sessionId, machineId: session.machineId, chatroomId,
-          scope: { kind: 'chatroom' }, reason: 'daemon.shutdown',
-        });
-        if (!result.inboxCommandId) return;
-        if (!agentPm.executeScopedStopForCommand) return;
-        await Effect.runPromise(agentPm.executeScopedStopForCommand({
-          stopCommandId: result.stopCommandId as string, chatroomId,
-          scope: { kind: 'chatroom' }, reason: 'daemon.shutdown', inboxCommandId: result.inboxCommandId as string,
-        }));
-      }).pipe(Effect.catchAll((e) => Effect.sync(() => console.log(`   ⚠️  Failed chatroom stop: ${(e as Error).message}`))))) ,
+      chatroomIds.map((chatroomId) =>
+        Effect.promise(async () => {
+          const result = await session.backend.mutation(api.agentStops.requestScope, {
+            sessionId: session.sessionId,
+            machineId: session.machineId,
+            chatroomId,
+            scope: { kind: 'chatroom' },
+            reason: 'daemon.shutdown',
+          });
+          if (!result.inboxCommandId) return;
+          if (!agentPm.executeScopedStopForCommand) return;
+          await Effect.runPromise(
+            agentPm.executeScopedStopForCommand({
+              stopCommandId: result.stopCommandId as string,
+              chatroomId,
+              scope: { kind: 'chatroom' },
+              reason: 'daemon.shutdown',
+              inboxCommandId: result.inboxCommandId as string,
+            })
+          );
+        }).pipe(
+          Effect.catchAll((e) =>
+            Effect.sync(() => console.log(`   ⚠️  Failed chatroom stop: ${(e as Error).message}`))
+          )
+        )
+      ),
       { concurrency: 'unbounded' }
     );
 
