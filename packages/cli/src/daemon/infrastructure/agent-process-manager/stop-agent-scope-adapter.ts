@@ -10,19 +10,25 @@ import { stopAgentScope } from '../../domain/usecase/stop-agent-scope.js';
 import { buildAgentStopRevisionKey } from '@workspace/shared/domain/agent-stop-command';
 import type { AgentStopScope } from '@workspace/shared/domain/agent-stop-command';
 
-const activeChatroomScopes = new Set<string>();
+const activeChatroomScopeDepth = new Map<string, number>();
 export function isChatroomStopScopeActive(chatroomId: string): boolean {
-  return activeChatroomScopes.has(chatroomId);
+  return (activeChatroomScopeDepth.get(chatroomId) ?? 0) > 0;
 }
 // fallow-ignore-next-line unused-export
 export function createChatroomScopeBarrier() {
   return {
     acquire: async (chatroomId: string) => {
-      activeChatroomScopes.add(chatroomId);
-      return () => activeChatroomScopes.delete(chatroomId);
+      activeChatroomScopeDepth.set(chatroomId, (activeChatroomScopeDepth.get(chatroomId) ?? 0) + 1);
+      return () => {
+        const next = (activeChatroomScopeDepth.get(chatroomId) ?? 1) - 1;
+        if (next <= 0) activeChatroomScopeDepth.delete(chatroomId);
+        else activeChatroomScopeDepth.set(chatroomId, next);
+      };
     },
   };
 }
+// fallow-ignore-next-line unused-export
+export function resetChatroomScopeBarrierForTests(): void { activeChatroomScopeDepth.clear(); }
 // fallow-ignore-next-line unused-export
 export function createStopAgentScopeDeps(args: {
   apm: AgentProcessManager;

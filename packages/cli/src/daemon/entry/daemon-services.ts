@@ -186,15 +186,12 @@ export const DaemonAgentProcessManagerServiceLive = (
       if (!sessionDeps || Date.now() > event.deadline) return;
       const inboxCommandId = (event.commandId ?? event._id) as any;
       const reason = isAgentStopReason(event.reason) ? event.reason : 'user.stop';
-      await sessionDeps.backend.mutation(api.agentStops.beginMachineExecution, { sessionId: sessionDeps.sessionId, stopCommandId: event.stopCommandId as any, machineId: sessionDeps.machineId, inboxCommandId });
+      const begun = await sessionDeps.backend.mutation(api.agentStops.beginMachineExecution, { sessionId: sessionDeps.sessionId, stopCommandId: event.stopCommandId as any, machineId: sessionDeps.machineId, inboxCommandId }) as { shouldExecute: boolean };
+      if (!begun.shouldExecute) return;
       const { runScopedStopFromInbox } = await import('../infrastructure/agent-process-manager/stop-agent-scope-adapter.js');
+      const { finalizeScopedStopExecution } = await import('./finalize-scoped-stop-execution.js');
       const result = await runScopedStopFromInbox({ apm: mgr, confirmedDeps: mgr.getConfirmedStopAdapterDeps(), stopCommandId: event.stopCommandId, chatroomId: event.chatroomId, scope: event.scope, reason: reason as any });
-      for (const { target, outcome } of result.targets) {
-        const mapped = outcome.kind === 'stopped' ? { status: 'completed' as const, outcome: 'stopped' as const } : { status: 'completed' as const, outcome: 'already_stopped' as const };
-        await sessionDeps.backend.mutation(api.agentStops.reportTargetOutcome, { sessionId: sessionDeps.sessionId, stopCommandId: event.stopCommandId as any, chatroomId: event.chatroomId as any, machineId: sessionDeps.machineId, targetKey: target.targetKey, role: target.role, pid: target.pid, ...mapped });
-      }
-      for (const failure of result.failures) await sessionDeps.backend.mutation(api.agentStops.reportTargetOutcome, { sessionId: sessionDeps.sessionId, stopCommandId: event.stopCommandId as any, chatroomId: event.chatroomId as any, machineId: sessionDeps.machineId, targetKey: failure.target.targetKey, role: failure.target.role, pid: failure.target.pid, status: 'failed', outcome: 'failed', errorMessage: String(failure.error) });
-      await sessionDeps.backend.mutation(api.agentStops.completeMachineExecution, { sessionId: sessionDeps.sessionId, stopCommandId: event.stopCommandId as any, machineId: sessionDeps.machineId, status: result.failures.length ? 'failed' : 'completed', errorMessage: result.failures.length ? `${result.failures.length} target(s) failed` : undefined });
+      await finalizeScopedStopExecution({ sessionId: sessionDeps.sessionId, machineId: sessionDeps.machineId, stopCommandId: event.stopCommandId, chatroomId: event.chatroomId, backend: sessionDeps.backend, result });
     }),
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
     stop: (opts) => Effect.promise(() => mgr.stop(opts)),
