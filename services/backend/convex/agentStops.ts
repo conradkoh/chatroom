@@ -14,6 +14,8 @@ import { agentStopScopeValidator, agentStopTargetStatusValidator } from '../src/
 import { rollupAgentStopCommandStatus } from '../src/domain/usecase/agent/rollup-agent-stop-command';
 import { reconcileUnreportedStopTargets } from '../src/domain/usecase/agent/reconcile-unreported-stop-targets';
 import { selectConfigsForAgentStop } from '../src/domain/usecase/agent/select-agent-stop-configs';
+import { beginMachineStopExecution } from '../src/domain/usecase/agent/begin-machine-stop-execution';
+import { completeMachineStopExecution } from '../src/domain/usecase/agent/complete-machine-stop-execution';
 import { applySuccessfulTargetLifecycle } from '../src/domain/usecase/agent/apply-successful-target-lifecycle';
 
 export const requestAgent = mutation({
@@ -74,16 +76,7 @@ export const reportTargetOutcome = mutation({
 
 export const beginMachineExecution = mutation({ args: { ...SessionIdArg, stopCommandId: v.id('chatroom_agentStopCommands'), machineId: v.string(), inboxCommandId: v.id('chatroom_machineCommandInbox') }, handler: async (ctx, args) => {
   await requireMachineOwner(ctx, args.sessionId, args.machineId);
-  const command = await ctx.db.get('chatroom_agentStopCommands', args.stopCommandId);
-  if (!command) throw new Error('Stop command not found');
-  const execution = await ctx.db.query('chatroom_agentStopMachineExecutions').withIndex('by_stopCommandId_machineId', (q) => q.eq('stopCommandId', args.stopCommandId).eq('machineId', args.machineId)).unique();
-  if (!execution) throw new Error('Machine execution not found');
-  const pendingTargets = await ctx.db.query('chatroom_agentStopTargets').withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', args.stopCommandId)).collect();
-  const shouldExecute = command.status === 'pending' || command.status === 'processing';
-  if (!shouldExecute) return { scope: command.scope, reason: command.reason, chatroomId: command.chatroomId, shouldExecute: false, pendingTargets: [] };
-  if (execution.status === 'pending') await ctx.db.patch(execution._id, { status: 'processing', claimedAt: Date.now(), inboxCommandId: args.inboxCommandId });
-  if (command.status === 'pending') await ctx.db.patch(command._id, { status: 'processing' });
-  return { scope: command.scope, reason: command.reason, chatroomId: command.chatroomId, shouldExecute: true, pendingTargets: pendingTargets.filter((target) => target.machineId === args.machineId && (target.status === 'pending' || target.status === 'processing')) };
+  return beginMachineStopExecution(ctx, args);
 }, });
 
 export const reconcileMachineStopTargets = mutation({ args: { ...SessionIdArg, stopCommandId: v.id('chatroom_agentStopCommands'), machineId: v.string(), reportedTargetKeys: v.array(v.string()) }, handler: async (ctx, args) => {
@@ -94,9 +87,6 @@ export const reconcileMachineStopTargets = mutation({ args: { ...SessionIdArg, s
 
 export const completeMachineExecution = mutation({ args: { ...SessionIdArg, stopCommandId: v.id('chatroom_agentStopCommands'), machineId: v.string(), status: v.union(v.literal('completed'), v.literal('failed')), errorMessage: v.optional(v.string()) }, handler: async (ctx, args) => {
   await requireMachineOwner(ctx, args.sessionId, args.machineId);
-  const execution = await ctx.db.query('chatroom_agentStopMachineExecutions').withIndex('by_stopCommandId_machineId', (q) => q.eq('stopCommandId', args.stopCommandId).eq('machineId', args.machineId)).unique();
-  if (!execution) throw new Error('Machine execution not found');
-  if (execution.status !== 'completed' && execution.status !== 'failed') await ctx.db.patch(execution._id, { status: args.status, completedAt: Date.now(), errorMessage: args.errorMessage });
-  await rollupAgentStopCommandStatus(ctx, args.stopCommandId);
+  await completeMachineStopExecution(ctx, args);
   return { ok: true as const };
 }, });
