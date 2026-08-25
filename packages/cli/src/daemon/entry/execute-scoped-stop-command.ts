@@ -8,11 +8,11 @@ export async function executeScopedStopForCommand(args: {
   apm: AgentProcessManager; stopCommandId: string; chatroomId: string; scope: AgentStopScope;
   reason: AgentStopReason; inboxCommandId: string;
 }): Promise<void> {
-  const { runScopedStopFromInbox } = await import('../infrastructure/agent-process-manager/stop-agent-scope-adapter.js');
+  const { runExactTargetsStop } = await import('../infrastructure/agent-process-manager/stop-agent-scope-adapter.js');
   const finalize = await import('./finalize-scoped-stop-execution.js');
-  const begun = await args.backend.mutation(api.agentStops.beginMachineExecution, { sessionId: args.sessionId, stopCommandId: args.stopCommandId as any, machineId: args.machineId, inboxCommandId: args.inboxCommandId as any }) as { shouldExecute: boolean };
+  const begun = await args.backend.mutation(api.agentStops.beginMachineExecution, { sessionId: args.sessionId, stopCommandId: args.stopCommandId as any, machineId: args.machineId, inboxCommandId: args.inboxCommandId as any }) as { shouldExecute: boolean; targets: any[] };
   if (!begun.shouldExecute) return;
   let result: any = { targets: [], failures: [] };
-  try { result = await runScopedStopFromInbox({ apm: args.apm, confirmedDeps: args.apm.getConfirmedStopAdapterDeps(), stopCommandId: args.stopCommandId, chatroomId: args.chatroomId, scope: args.scope, reason: args.reason }); } catch (error) { console.warn('[daemon] scoped stop execution failed', error); }
+  try { result = await runExactTargetsStop({ apm: args.apm, confirmedDeps: args.apm.getConfirmedStopAdapterDeps(), stopCommandId: args.stopCommandId, chatroomId: args.chatroomId, targets: begun.targets, reason: args.reason }); } catch (error) { console.warn('[daemon] scoped stop execution failed', error); }
   finally { await finalize.finalizeScopedStopExecution({ ...args, result }); await args.apm.syncSlotsAfterScopedStop(result); }
 }

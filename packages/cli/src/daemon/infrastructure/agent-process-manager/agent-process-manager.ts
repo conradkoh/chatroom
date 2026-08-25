@@ -1423,8 +1423,8 @@ export class AgentProcessManager {
     }
   }
 
-  public async syncSlotsAfterScopedStop(result: { targets: Array<{ target: { chatroomId: string; role: string; pid: number } }>; failures: Array<{ target: { chatroomId: string; role: string; pid: number } }> }): Promise<void> {
-    for (const { target } of [...result.targets, ...result.failures]) {
+  public async syncSlotsAfterScopedStop(result: { targets: Array<{ target: { chatroomId: string; role: string; pid: number } }> }): Promise<void> {
+    for (const { target } of result.targets) {
       const slot = this.slots.get(agentKey(target.chatroomId, target.role));
       if (!slot || slot.pid !== target.pid) continue;
       this.resetSlotAfterStop(slot);

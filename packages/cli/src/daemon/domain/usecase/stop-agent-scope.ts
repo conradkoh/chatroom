@@ -11,19 +11,12 @@ import { SCOPE_TARGET_STOP_TIMEOUT_MS } from '@workspace/backend/config/reliabil
 export interface AgentStopScopeBarrierPort {
   acquire(chatroomId: string): Promise<() => void>;
 }
-export interface AgentStopTargetDiscoveryPort {
-  listTargets(args: {
-    chatroomId: string;
-    machineId: string;
-  }): Promise<AgentStopTargetDescriptor[]>;
-}
 export interface StopAgentScopeResult {
   targets: { target: AgentStopTargetDescriptor; outcome: AgentStopOutcome }[];
   failures: { target: AgentStopTargetDescriptor; error: unknown }[];
 }
 export interface StopAgentScopeDeps extends StopAgentConfirmedDeps {
   barrier: AgentStopScopeBarrierPort;
-  discovery: AgentStopTargetDiscoveryPort;
   machineId: string;
   buildRevisionKey: (target: AgentStopTargetDescriptor) => string;
 }
@@ -36,16 +29,11 @@ function matchesScope(target: AgentStopTargetDescriptor, scope: AgentStopScope):
 // fallow-ignore-next-line unused-export
 export async function stopAgentScope(
   deps: StopAgentScopeDeps,
-  args: { chatroomId: string; scope: AgentStopScope; reason: AgentStopReason }
+  args: { chatroomId: string; scope: AgentStopScope; reason: AgentStopReason; targets?: AgentStopTargetDescriptor[] }
 ): Promise<StopAgentScopeResult> {
   const release = await deps.barrier.acquire(args.chatroomId);
   try {
-    let discovered: AgentStopTargetDescriptor[];
-    try { discovered = await deps.discovery.listTargets({
-      chatroomId: args.chatroomId,
-      machineId: deps.machineId,
-    }); } catch (error) { console.warn('[daemon] scoped stop target discovery failed', error); return { targets: [], failures: [] }; }
-    const targets = discovered.filter((target) => matchesScope(target, args.scope));
+    const targets = args.targets ?? [];
     const outcomes: StopAgentScopeResult['targets'] = [];
     const failures: StopAgentScopeResult['failures'] = [];
     await Promise.all(

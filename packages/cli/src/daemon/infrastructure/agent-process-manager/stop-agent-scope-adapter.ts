@@ -8,7 +8,7 @@ import type { AgentStopReason } from '../../domain/entities/agent-stop.js';
 import type { StopAgentScopeDeps } from '../../domain/usecase/stop-agent-scope.js';
 import { stopAgentScope } from '../../domain/usecase/stop-agent-scope.js';
 import { buildAgentStopRevisionKey } from '@workspace/shared/domain/agent-stop-command';
-import type { AgentStopScope } from '@workspace/shared/domain/agent-stop-command';
+import type { AgentStopScope, AgentStopTargetDescriptor } from '@workspace/shared/domain/agent-stop-command';
 
 const activeChatroomScopeDepth = new Map<string, number>();
 export function isChatroomStopScopeActive(chatroomId: string): boolean {
@@ -39,7 +39,6 @@ export function createStopAgentScopeDeps(args: {
     ...confirmed,
     machineId: args.confirmedDeps.machineId,
     barrier: createChatroomScopeBarrier(),
-    discovery: { listTargets: ({ chatroomId }) => args.apm.discoverStopTargets(chatroomId) },
     buildRevisionKey: (target) =>
       buildExitedLifecycleFact(
         {
@@ -78,4 +77,8 @@ export function createStopAgentScopeDepsForCommand(args: { apm: AgentProcessMana
 export async function runScopedStopFromInbox(args: { apm: AgentProcessManager; confirmedDeps: ConfirmedStopAdapterDeps; stopCommandId: string; chatroomId: string; scope: AgentStopScope; reason: AgentStopReason }) {
   const deps = createStopAgentScopeDepsForCommand(args);
   return stopAgentScope(deps, { chatroomId: args.chatroomId, scope: args.scope, reason: args.reason });
+}
+export async function runExactTargetsStop(args: { apm: AgentProcessManager; confirmedDeps: ConfirmedStopAdapterDeps; stopCommandId: string; chatroomId: string; targets: AgentStopTargetDescriptor[]; reason: AgentStopReason }) {
+  const deps = createStopAgentScopeDepsForCommand(args);
+  return stopAgentScope(deps, { chatroomId: args.chatroomId, scope: { kind: 'chatroom' }, reason: args.reason, targets: args.targets });
 }
