@@ -15,12 +15,13 @@ export async function createAgentStopCommand(ctx: MutationCtx, input: CreateAgen
     if (existing) return { stopCommandId: existing._id, coalesced: true };
   }
   const configs = await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_chatroom', (q) => q.eq('chatroomId', input.chatroomId)).collect();
-  const targets = configs.filter((config) => config.spawnedAgentPid != null && !!config.machineId && (!input.machineId || config.machineId === input.machineId) && (input.scope.kind === 'chatroom' || normalizeAgentStopRole(config.role) === normalizeAgentStopRole(input.scope.role)));
+  const matchingConfigs = configs.filter((config) => !!config.machineId && (!input.machineId || config.machineId === input.machineId) && (input.scope.kind === 'chatroom' || normalizeAgentStopRole(config.role) === normalizeAgentStopRole(input.scope.role)));
+  const targets = matchingConfigs.filter((config) => config.spawnedAgentPid != null);
   const stopCommandId = await ctx.db.insert('chatroom_agentStopCommands', { chatroomId: input.chatroomId, scope: input.scope, scopeKey, reason: input.reason, requestedBy: input.requestedBy, status: 'pending', createdAt: Date.now() });
+  for (const config of matchingConfigs) await patchTeamAgentConfig(ctx, config._id, { desiredState: 'stopped' }, { projectScope: 'chatroom' });
   for (const target of targets) {
     const targetKey = buildAgentStopTargetKey({ machineId: target.machineId!, role: target.role, pid: target.spawnedAgentPid! });
     await ctx.db.insert('chatroom_agentStopTargets', { stopCommandId, chatroomId: input.chatroomId, machineId: target.machineId!, role: target.role, pid: target.spawnedAgentPid!, targetKey, revisionKey: buildAgentStopRevisionKey({ stopCommandId, targetKey }), status: 'pending' });
-    await patchTeamAgentConfig(ctx, target._id, { desiredState: 'stopped' }, { projectScope: 'chatroom' });
   }
   for (const machineId of [...new Set(targets.map((target) => target.machineId!))]) {
     const inboxCommandId = await enqueueMachineCommand(ctx, { machineId, now: Date.now(), command: { type: 'agent.stopScope', stopCommandId, chatroomId: input.chatroomId, scope: input.scope, reason: input.reason } });

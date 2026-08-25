@@ -214,6 +214,7 @@ type AgentStopState =
 - Slice 2: `pnpm --dir packages/cli exec vitest run src/daemon/infrastructure/agent-process-manager/agent-process-manager.test.ts` (103 passed); `pnpm --dir packages/cli typecheck` (passed).
 - Slice 3: scoped inbox stop wiring implemented; verification pending (see Pre-Stage 2).
 - Slice B: durable command creation, coalescing, target/execution fan-out, and `agent.stopScope` payload landed; daemon report mutations remain for follow-up.
+- Slice B backend tests: create-agent-stop-command, rollup, stop-agent agent.stopScope (10 passed).
 - Slice B final: `pnpm --dir packages/cli typecheck`, `pnpm --dir services/backend typecheck`, and scoped handler tests passed.
 - Slice 4: `pnpm --dir services/backend exec vitest run src/domain/usecase/agent/stop-agent.spec.ts src/domain/usecase/agent/ensure-only-agent-for-role.spec.ts tests/integration/stop-agent.spec.ts tests/integration/send-command-stop-reason.spec.ts` (16 passed).
 - Slice 5: `pnpm --dir apps/webapp exec vitest run src/modules/chatroom/components/ChatroomSidebar.test.tsx` (15 passed).
