@@ -64,13 +64,7 @@ describe('stopAgent use case — desiredState', () => {
       agentHarness: 'opencode',
     });
 
-    // Dispatch a stop-agent command via sendCommand
-    await t.mutation(api.machines.sendCommand, {
-      sessionId,
-      machineId,
-      type: 'stop-agent',
-      payload: { chatroomId, role: 'builder' },
-    });
+    await t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'builder' });
 
     // Verify the team config now has desiredState: 'stopped'
     const teamConfig = await t.run(async (ctx) => {
@@ -93,14 +87,7 @@ describe('stopAgent use case — desiredState', () => {
     await registerMachine(sessionId, machineId);
 
     // Stop without any team config in the DB — must not throw
-    await expect(
-      t.mutation(api.machines.sendCommand, {
-        sessionId,
-        machineId,
-        type: 'stop-agent',
-        payload: { chatroomId, role: 'builder' },
-      })
-    ).resolves.not.toThrow();
+    await expect(t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'builder' })).resolves.toBeDefined();
   });
 });
 
