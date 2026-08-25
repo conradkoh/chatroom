@@ -22,6 +22,7 @@ import { createChatroomSelectKeyDown } from './chatroom-select-keydown';
 import { ChatroomSidebarSkeleton } from './ChatroomSidebarSkeleton';
 import { LifecycleConfirmDialog } from './LifecycleConfirmDialog';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
+import { useAgentStop } from '../hooks/useAgentStop';
 import { getChatStatusIndicatorClasses } from '../utils/chatStatusDisplay';
 import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionChatroomListing';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
@@ -48,7 +49,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const [startModalOpen, setStartModalOpen] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
-  const sendCommand = useSessionMutation(api.machines.sendCommand);
+  const { stopAgents } = useAgentStop();
   const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
   const restartOfflineAgents = useSessionMutation(api.machines.restartOfflineAgentsFromConfig);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
@@ -59,22 +60,20 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
       e.stopPropagation();
       e.preventDefault();
       try {
-        await Promise.all([
-          ...chatroom.runningAgentConfigs.map(({ machineId, role }) =>
-            sendCommand({
-              machineId,
-              type: 'stop-agent',
-              payload: { chatroomId: chatroom._id as Id<'chatroom_rooms'>, role },
-            })
-          ),
-          stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> }),
-        ]);
+        await stopAgents(
+          chatroom.runningAgentConfigs.map(({ machineId, role }) => ({
+            chatroomId: chatroom._id as Id<'chatroom_rooms'>,
+            machineId,
+            role,
+          }))
+        );
+        await stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> });
       } catch (error) {
-        console.error('Failed to stop agent and processes:', error);
-        toast.error(error instanceof Error ? error.message : 'Failed to stop');
+        console.error('Failed to stop agents:', error);
+        toast.error(error instanceof Error ? error.message : 'Failed to stop agents');
       }
     },
-    [chatroom.runningAgentConfigs, chatroom._id, sendCommand, stopAllCommandRuns]
+    [chatroom.runningAgentConfigs, chatroom._id, stopAgents, stopAllCommandRuns]
   );
 
   const handleStart = useCallback(

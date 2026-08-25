@@ -1,7 +1,6 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentRoleView } from '../hooks/useAgentPanelData';
 import {
   Play,
   Square,
@@ -15,6 +14,7 @@ import {
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
+import type { AgentRoleView } from '../hooks/useAgentPanelData';
 import { MachineConfigQuickPick } from './AgentPanel/MachineConfigQuickPick';
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
@@ -50,6 +50,7 @@ import { useMachineConfigFavorites } from '../features/machine-config/hooks/useM
 import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachineConfigUsage';
 import { computeRecommendedMachineConfigs } from '../features/machine-config/lib/computeRecommendedMachineConfigs';
 import { buildMachineConfigScopeKey } from '../features/machine-config/lib/machineConfigScopeKey';
+import { useAgentStop } from '../hooks/useAgentStop';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
 import { en } from '../lang/en';
 import type {
@@ -273,6 +274,7 @@ export function useAgentControls({
   lockedMachineId?: string;
   lockedWorkingDir?: string;
 }) {
+  const { stopAgent, isStopping: isStopRequestInFlight } = useAgentStop();
   // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
   const initialTeamConfigHarnessRef = useRef(teamConfigHarness);
   const previousTeamIdRef = useRef(teamId);
@@ -291,7 +293,6 @@ export function useAgentControls({
   });
   const { seedFromTeamConfig, effectiveWantResume } = teamBehavior;
   const [isStarting, setIsStarting] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [rehomeConfirmOpen, setRehomeConfirmOpen] = useState(false);
@@ -487,6 +488,7 @@ export function useAgentControls({
   ]);
 
   const isAgentRunning = !!displayAgentConfig;
+  const isStopping = isStopRequestInFlight;
   const isBusy = isStarting || isStopping;
   const hasModels = availableModelsForHarness.length > 0;
   const canStart =
@@ -585,22 +587,19 @@ export function useAgentControls({
 
   const handleStopAgent = useCallback(async () => {
     if (!displayAgentConfig) return;
-    setIsStopping(true);
     setError(null);
     try {
-      await sendCommand({
+      await stopAgent({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
         machineId: displayAgentConfig.machineId,
-        type: 'stop-agent',
-        payload: { chatroomId: chatroomId as Id<'chatroom_rooms'>, role },
+        role,
       });
-      setSuccess('Stop command sent!');
+      setSuccess('Stop requested');
       setTimeout(() => setSuccess(null), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to stop agent');
-    } finally {
-      setIsStopping(false);
     }
-  }, [displayAgentConfig, sendCommand, chatroomId, role]);
+  }, [displayAgentConfig, stopAgent, chatroomId, role]);
 
   const handleRestartAgent = useCallback(async () => {
     if (!displayAgentConfig) return;

@@ -77,6 +77,7 @@ import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
+import { useAgentStop } from './hooks/useAgentStop';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
@@ -1102,6 +1103,7 @@ export function ChatroomDashboard({
 
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData(chatroomId, { loadConfigs: true });
+  const { stopAgents } = useAgentStop();
   const lifecycle = agentPanelData.lifecycle;
 
   // Per-role "last used" config derived from the persisted teamAgentConfigs
@@ -1430,27 +1432,25 @@ export function ChatroomDashboard({
       return;
     }
 
-    const results = await Promise.allSettled(
-      stoppableAgents.map((agent) => {
-        const mid = agent.machineId;
-        if (!mid) return null;
-        return agentPanelData.sendCommand({
+    const targets = stoppableAgents.flatMap((agent) => {
+      const mid = agent.machineId;
+      if (!mid) return [];
+      return [
+        {
+          chatroomId: chatroomIdTyped,
           machineId: mid,
-          type: 'stop-agent' as const,
-          payload: {
-            chatroomId: chatroomIdTyped,
-            role: agent.role,
-          },
-        });
-      })
-    );
+          role: agent.role,
+        },
+      ];
+    });
+
+    const { rejected } = await stopAgents(targets);
     setIsStoppingAllAgents(false);
 
-    const failed = results
-      .map((r, i) =>
-        r.status === 'rejected' ? { role: stoppableAgents[i].role, reason: r.reason } : null
-      )
-      .filter(Boolean) as { role: string; reason: unknown }[];
+    const failed = rejected.map((target) => ({
+      role: target.role,
+      reason: new Error('Stop request failed'),
+    }));
     if (failed.length > 0) {
       const failedRoles = failed.map((f) => f.role).join(', ');
       const errorDetails = failed
@@ -1460,9 +1460,9 @@ export function ChatroomDashboard({
         description: errorDetails,
       });
     } else {
-      toast.success(`Stopped ${stoppableAgents.length} agent(s)`);
+      toast.success(`Stop requested for ${stoppableAgents.length} agent(s)`);
     }
-  }, [agentPanelData, chatroomId]);
+  }, [agentPanelData.agents, chatroomId, stopAgents]);
 
   // Restart all remote agents through the atomic backend restart path.
   const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);

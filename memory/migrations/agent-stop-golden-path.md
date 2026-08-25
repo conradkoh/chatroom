@@ -26,7 +26,7 @@ status: active
 - [x] Slice 2: wire `stopAgentConfirmed` into `AgentProcessManager.doStop`; explicit harness; typed errors; remove swallowed catch
 - [x] Slice 3: route daemon inbox handler through `stopAgentScope`; keep `agent.requestStop` payload temporarily
 - [x] Slice 4: migrate backend producers (`stop-agent.ts`, `ensure-only-agent-for-role.ts`, `update-team.ts`, `teamRoleKey.ts`) to golden-path stop intent (no eager PID clear / exit / task release)
-- [ ] Slice 5: migrate UI (`ChatroomSidebar`, `ChatroomDashboard`, `AgentControls`, command palette) to single mutation hook (stub mutation OK if schema not ready)
+- [x] Slice 5: migrate UI (`ChatroomSidebar`, `ChatroomDashboard`, `AgentControls`, command palette) to single mutation hook (stub mutation OK if schema not ready)
 - [ ] Slice 6: delete legacy paths after `rg` shows zero producers
 
 ## Stage 2 — Durable command + confirmed behavior
@@ -49,4 +49,5 @@ status: active
 - Slice 1: `pnpm --dir packages/cli exec vitest run src/daemon/domain/usecase/stop-agent-confirmed.test.ts src/daemon/domain/usecase/stop-agent-scope.test.ts` (10 passed); `pnpm --dir packages/cli typecheck` (passed).
 - Slice 2: `pnpm --dir packages/cli exec vitest run src/daemon/infrastructure/agent-process-manager/agent-process-manager.test.ts` (103 passed); `pnpm --dir packages/cli typecheck` (passed).
 - Slice 3: scoped inbox stop wiring implemented; verification pending.
-- Slice 4: `pnpm --dir services/backend exec vitest run src/domain/usecase/agent/stop-agent.spec.ts src/domain/usecase/agent/ensure-only-agent-for-role.spec.ts tests/integration/stop-agent.spec.ts tests/integration/send-command-stop-reason.spec.ts` (16 passed).
+- Slice 4: `pnpm --dir services/backend exec vitest run ...` (16 passed).
+- Slice 5: `pnpm --dir apps/webapp exec vitest run src/modules/chatroom/components/ChatroomSidebar.test.tsx` (15 passed).
