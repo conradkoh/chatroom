@@ -17,15 +17,12 @@ export async function deriveRoleStopState(
       q.eq('chatroomId', chatroomId).eq('scopeKey', `agent:${roleKey}`).eq('status', status)).first();
     if (cmd) return { stopState: status === 'pending' ? 'pending' : 'stopping', activeStopCommandId: cmd._id };
   }
-  const targets = await ctx.db.query('chatroom_agentStopTargets').withIndex('by_chatroom_role', (q) =>
-    q.eq('chatroomId', chatroomId).eq('role', roleKey)).collect();
-  const inflight = targets.find((target) => target.status === 'pending' || target.status === 'processing');
-  if (inflight) {
-    const command = await ctx.db.get('chatroom_agentStopCommands', inflight.stopCommandId);
-    return { stopState: command?.status === 'pending' ? 'pending' : 'stopping', activeStopCommandId: inflight.stopCommandId };
-  }
-  const failed = targets.find((target) => target.status === 'failed');
-  if (failed) return { stopState: 'failed', activeStopCommandId: failed.stopCommandId };
+  const latest = await ctx.db.query('chatroom_agentStopTargets').withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', roleKey)).order('desc').first();
+  const room = await ctx.db.get('chatroom_rooms', chatroomId);
+  const config = room?.teamId ? await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', `${chatroomId}:${room.teamId}:${role}`)).first() : null;
+  const current = latest && config?.spawnedAgentPid === latest.pid && config.machineId === latest.machineId;
+  if (current && latest.status === 'failed') return { stopState: 'failed', activeStopCommandId: latest.stopCommandId };
+  if (current && (latest.status === 'pending' || latest.status === 'processing')) { const command = await ctx.db.get('chatroom_agentStopCommands', latest.stopCommandId); return { stopState: command?.status === 'pending' ? 'pending' : 'stopping', activeStopCommandId: latest.stopCommandId }; }
   if (opts.desiredState === 'stopped' && !opts.isAlive) return { stopState: 'stopped' };
   return { stopState: 'idle' };
 }
