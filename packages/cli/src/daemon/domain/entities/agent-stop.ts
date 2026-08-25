@@ -1,11 +1,10 @@
 // fallow-ignore-file unused-file unused-export unused-type
 import type { AgentHarness } from './harness-shared-types.js';
 import type {
-  AgentStopReason,
   AgentStopScope,
-} from '/shared/domain/agent-stop-command';
+} from '@workspace/shared/domain/agent-stop-command';
+export type AgentStopReason = 'user.stop' | 'daemon.shutdown' | 'platform.dedup' | 'platform.team_switch' | 'platform.crash_recovery' | 'platform.resume_storm' | 'platform.task_start_in_new_session' | 'daemon.respawn' | 'user.restart';
 
-export type { AgentStopReason };
 export type AgentStopTermination = 'graceful' | 'forced' | 'absent';
 export type AgentStopOutcome =
   | { kind: 'stopped'; pid: number; termination: Exclude<AgentStopTermination, 'absent'> }

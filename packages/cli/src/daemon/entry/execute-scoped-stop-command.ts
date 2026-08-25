@@ -1,5 +1,5 @@
 import { api } from '../../api.js';
-import type { AgentStopScope } from '/shared/domain/agent-stop-command';
+import type { AgentStopScope } from '@workspace/shared/domain/agent-stop-command';
 import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 

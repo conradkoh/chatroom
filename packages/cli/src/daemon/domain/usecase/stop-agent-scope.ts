@@ -1,6 +1,6 @@
 import { stopAgentConfirmed, type StopAgentConfirmedDeps } from './stop-agent-confirmed.js';
-import type { AgentStopScope } from '/shared/domain/agent-stop-command';
-import { normalizeAgentStopRole } from '/shared/domain/agent-stop-command';
+import type { AgentStopScope } from '@workspace/shared/domain/agent-stop-command';
+import { normalizeAgentStopRole } from '@workspace/shared/domain/agent-stop-command';
 import type {
   AgentStopTargetDescriptor,
   AgentStopOutcome,

@@ -109,12 +109,7 @@ describe('startAgent use case — desiredState', () => {
     });
 
     // Mark it as stopped
-    await t.mutation(api.machines.sendCommand, {
-      sessionId,
-      machineId,
-      type: 'stop-agent',
-      payload: { chatroomId, role: 'builder' },
-    });
+    await t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'builder' });
 
     // Verify it's stopped
     const stopped = await t.run(async (ctx) => {

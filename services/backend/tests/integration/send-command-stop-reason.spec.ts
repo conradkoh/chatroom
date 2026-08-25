@@ -30,15 +30,7 @@ describe('sendCommand stop-agent reason', () => {
 
     // ===== ACTION =====
     // Call sendCommand without a reason field — should default to 'user.stop'
-    await t.mutation(api.machines.sendCommand, {
-      sessionId,
-      machineId,
-      type: 'stop-agent',
-      payload: {
-        chatroomId,
-        role: 'builder',
-      },
-    });
+    await t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'builder' });
 
     // ===== VERIFY =====
     const events = await getCommandEvents(sessionId, machineId);
@@ -58,16 +50,7 @@ describe('sendCommand stop-agent reason', () => {
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
     // ===== ACTION =====
-    await t.mutation(api.machines.sendCommand, {
-      sessionId,
-      machineId,
-      type: 'stop-agent',
-      payload: {
-        chatroomId,
-        role: 'builder',
-        reason: 'platform.dedup',
-      },
-    });
+    await t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'builder', reason: 'platform.dedup' });
 
     // ===== VERIFY =====
     const events = await getCommandEvents(sessionId, machineId);
