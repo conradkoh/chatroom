@@ -4,7 +4,7 @@ import { t } from '../../../../test.setup';
 import { reconcileUnreportedStopTargets } from './reconcile-unreported-stop-targets';
 
 describe('reconcileUnreportedStopTargets', () => {
-  test('marks missing daemon targets already stopped', async () => {
+  test('does not fabricate already_stopped for unreported targets', async () => {
     const sessionId = 'reconcile-spec' as any;
     await t.mutation(api.auth.loginAnon, { sessionId });
     const chatroomId = await t.mutation(api.chatrooms.create, { sessionId, teamId: 'duo', teamName: 'Duo', teamRoles: ['planner', 'builder'], teamEntryPoint: 'planner' });
@@ -16,6 +16,7 @@ describe('reconcileUnreportedStopTargets', () => {
     });
     await t.run((ctx) => reconcileUnreportedStopTargets(ctx, { stopCommandId: ids, machineId: 'machine', reportedTargetKeys: new Set() }));
     const target = await t.run((ctx) => ctx.db.query('chatroom_agentStopTargets').withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', ids)).first());
-    expect(target?.outcome).toBe('already_stopped');
+    expect(target?.status).toBe('processing');
+    expect(target?.outcome).toBeUndefined();
   });
 });

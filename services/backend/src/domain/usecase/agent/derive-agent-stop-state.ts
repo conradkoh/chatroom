@@ -19,7 +19,7 @@ export async function deriveRoleStopState(
     if (cmd) return { stopState: status === 'pending' ? 'pending' : 'stopping', activeStopCommandId: cmd._id };
   }
   const latest = await ctx.db.query('chatroom_agentStopTargets').withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', roleKey)).order('desc').first();
-  const room = await ctx.db.get('chatroom_rooms', chatroomId);
+  const room = latest ? await ctx.db.get('chatroom_rooms', chatroomId) : null;
   const config = room?.teamId ? await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, room.teamId!, role))).first() : null;
   const current = latest && config?.spawnedAgentPid === latest.pid && config.machineId === latest.machineId;
   if (current && latest.status === 'failed') return { stopState: 'failed', activeStopCommandId: latest.stopCommandId };
