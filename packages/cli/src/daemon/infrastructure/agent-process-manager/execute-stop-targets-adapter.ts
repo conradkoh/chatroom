@@ -12,8 +12,8 @@ import {
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import { buildExitedLifecycleFact } from '../../domain/entities/agent-lifecycle-fact.js';
 import type { AgentStopReason } from '../../domain/entities/agent-stop.js';
-import type { StopAgentScopeDeps } from '../../domain/usecase/stop-agent-scope.js';
-import { stopAgentScope } from '../../domain/usecase/stop-agent-scope.js';
+import type { StopAgentTargetsDeps } from '../../domain/usecase/stop-agent-targets.js';
+import { stopAgentTargets } from '../../domain/usecase/stop-agent-targets.js';
 
 const activeChatroomScopeDepth = new Map<string, number>();
 export function isChatroomStopScopeActive(chatroomId: string): boolean {
@@ -37,10 +37,10 @@ export function resetChatroomScopeBarrierForTests(): void {
   activeChatroomScopeDepth.clear();
 }
 // fallow-ignore-next-line unused-export
-export function createStopAgentScopeDeps(args: {
+export function createStopAgentTargetsDeps(args: {
   apm: AgentProcessManager;
   confirmedDeps: ConfirmedStopAdapterDeps;
-}): StopAgentScopeDeps {
+}): StopAgentTargetsDeps {
   const confirmed = createStopAgentConfirmedDeps(args.confirmedDeps);
   return {
     ...confirmed,
@@ -68,12 +68,12 @@ export async function runRoleScopedStop(args: {
   role: string;
   reason: AgentStopReason;
 }) {
-  const deps = createStopAgentScopeDeps(args);
+  const deps = createStopAgentTargetsDeps(args);
   const discovered = await args.apm.discoverStopTargets(args.chatroomId);
   const targets = discovered.filter(
     (target) => normalizeAgentStopRole(target.role) === normalizeAgentStopRole(args.role)
   );
-  return stopAgentScope(deps, {
+  return stopAgentTargets(deps, {
     chatroomId: args.chatroomId,
     scope: { kind: 'agent', role: args.role },
     reason: args.reason,
@@ -81,12 +81,12 @@ export async function runRoleScopedStop(args: {
   });
 }
 
-export function createStopAgentScopeDepsForCommand(args: {
+export function createStopAgentTargetsDepsForCommand(args: {
   apm: AgentProcessManager;
   confirmedDeps: ConfirmedStopAdapterDeps;
   stopCommandId: string;
-}): StopAgentScopeDeps {
-  const base = createStopAgentScopeDeps(args);
+}): StopAgentTargetsDeps {
+  const base = createStopAgentTargetsDeps(args);
   return {
     ...base,
     buildRevisionKey: (target) =>
@@ -102,12 +102,12 @@ export async function runExactTargetsStop(args: {
   targets: AgentStopTargetDescriptor[];
   reason: AgentStopReason;
 }) {
-  const deps = createStopAgentScopeDepsForCommand(args);
+  const deps = createStopAgentTargetsDepsForCommand(args);
   const targets = args.targets.map((target) => ({
     ...target,
     agentHarness: target.agentHarness as AgentHarness,
   }));
-  return stopAgentScope(deps, {
+  return stopAgentTargets(deps, {
     chatroomId: args.chatroomId,
     scope: { kind: 'chatroom' },
     reason: args.reason,

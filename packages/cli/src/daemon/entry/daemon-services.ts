@@ -177,7 +177,7 @@ export const DaemonAgentProcessManagerServiceLive = (
     runInboxRoleScopedStop: (event) =>
       Effect.promise(async () => {
         const { runRoleScopedStop } =
-          await import('../infrastructure/agent-process-manager/stop-agent-scope-adapter.js');
+          await import('../infrastructure/agent-process-manager/execute-stop-targets-adapter.js');
         const legacyReason: Record<string, string> = {
           'team.switch': 'platform.team_switch',
           dedup: 'platform.dedup',

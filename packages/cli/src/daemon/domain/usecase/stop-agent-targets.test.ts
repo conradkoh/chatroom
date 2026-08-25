@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { stopAgentScope } from './stop-agent-scope.js';
+import { stopAgentTargets } from './stop-agent-targets.js';
 
 const make = (role: string, pid: number) => ({
   chatroomId: 'c',
@@ -23,10 +23,10 @@ function setup(targets: ReturnType<typeof make>[]) {
   };
   return { d, release };
 }
-describe('stopAgentScope', () => {
+describe('stopAgentTargets', () => {
   it('stops all targets for chatroom scope', async () => {
     const { d } = setup([make('a', 1), make('b', 2)]);
-    const r = await stopAgentScope(d, {
+    const r = await stopAgentTargets(d, {
       chatroomId: 'c',
       scope: { kind: 'chatroom' },
       reason: 'user.stop',
@@ -36,7 +36,7 @@ describe('stopAgentScope', () => {
   });
   it('matches agent roles case-insensitively', async () => {
     const { d } = setup([make('Builder', 1), make('reviewer', 2)]);
-    const r = await stopAgentScope(d, {
+    const r = await stopAgentTargets(d, {
       chatroomId: 'c',
       scope: { kind: 'agent', role: 'builder' },
       reason: 'user.stop',
@@ -47,7 +47,7 @@ describe('stopAgentScope', () => {
   it('releases the barrier on failures', async () => {
     const { d, release } = setup([make('a', 1)]);
     d.lifecycle.awaitExitedFact.mockRejectedValue(new Error('x'));
-    const r = await stopAgentScope(d, {
+    const r = await stopAgentTargets(d, {
       chatroomId: 'c',
       scope: { kind: 'chatroom' },
       reason: 'user.stop',
@@ -61,7 +61,7 @@ describe('stopAgentScope', () => {
   it('returns empty discovery', async () => {
     const { d } = setup([]);
     await expect(
-      stopAgentScope(d, { chatroomId: 'c', scope: { kind: 'chatroom' }, reason: 'user.stop' })
+      stopAgentTargets(d, { chatroomId: 'c', scope: { kind: 'chatroom' }, reason: 'user.stop' })
     ).resolves.toEqual({ targets: [], failures: [] });
   });
   it('isolates a target failure while stopping its sibling', async () => {
@@ -72,7 +72,7 @@ describe('stopAgentScope', () => {
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(false);
-    const r = await stopAgentScope(d, {
+    const r = await stopAgentTargets(d, {
       chatroomId: 'c',
       scope: { kind: 'chatroom' },
       reason: 'user.stop',

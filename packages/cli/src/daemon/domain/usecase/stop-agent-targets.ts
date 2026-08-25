@@ -12,7 +12,7 @@ import type {
 export interface AgentStopScopeBarrierPort {
   acquire(chatroomId: string): Promise<() => void>;
 }
-export interface StopAgentScopeResult {
+export interface StopAgentTargetsResult {
   targets: {
     target: AgentStopTargetDescriptor;
     outcome: AgentStopOutcome;
@@ -20,26 +20,26 @@ export interface StopAgentScopeResult {
   }[];
   failures: { target: AgentStopTargetDescriptor; error: unknown }[];
 }
-export interface StopAgentScopeDeps extends StopAgentConfirmedDeps {
+export interface StopAgentTargetsDeps extends StopAgentConfirmedDeps {
   barrier: AgentStopScopeBarrierPort;
   machineId: string;
   buildRevisionKey: (target: AgentStopTargetDescriptor) => string;
 }
 // fallow-ignore-next-line unused-export
-export async function stopAgentScope(
-  deps: StopAgentScopeDeps,
+export async function stopAgentTargets(
+  deps: StopAgentTargetsDeps,
   args: {
     chatroomId: string;
     scope: AgentStopScope;
     reason: AgentStopReason;
     targets?: AgentStopTargetDescriptor[];
   }
-): Promise<StopAgentScopeResult> {
+): Promise<StopAgentTargetsResult> {
   const release = await deps.barrier.acquire(args.chatroomId);
   try {
     const targets = args.targets ?? [];
-    const outcomes: StopAgentScopeResult['targets'] = [];
-    const failures: StopAgentScopeResult['failures'] = [];
+    const outcomes: StopAgentTargetsResult['targets'] = [];
+    const failures: StopAgentTargetsResult['failures'] = [];
     await Promise.all(
       targets.map(async (target) => {
         try {

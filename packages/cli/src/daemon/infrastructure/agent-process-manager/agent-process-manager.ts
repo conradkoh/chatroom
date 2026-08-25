@@ -26,7 +26,7 @@ import { Effect } from 'effect';
 
 import { buildStopTargetDescriptor, runConfirmedStop } from './stop-agent-confirmed-adapter.js';
 import type { ConfirmedStopAdapterDeps } from './stop-agent-confirmed-adapter.js';
-import { isChatroomStopScopeActive } from './stop-agent-scope-adapter.js';
+import { isChatroomStopScopeActive } from './execute-stop-targets-adapter.js';
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';

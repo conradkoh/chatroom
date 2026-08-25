@@ -16,7 +16,7 @@ export async function executeScopedStopForCommand(args: {
   inboxCommandId: string;
 }): Promise<void> {
   const { runExactTargetsStop } =
-    await import('../infrastructure/agent-process-manager/stop-agent-scope-adapter.js');
+    await import('../infrastructure/agent-process-manager/execute-stop-targets-adapter.js');
   const finalize = await import('./finalize-scoped-stop-execution.js');
   const begun = (await args.backend.mutation(api.agentStops.beginMachineExecution, {
     sessionId: args.sessionId,
