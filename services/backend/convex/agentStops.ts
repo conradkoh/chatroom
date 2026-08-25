@@ -36,7 +36,8 @@ export const requestScope = mutation({
     const auth = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
     const result = await createAgentStopCommand(ctx, { chatroomId: args.chatroomId, machineId: args.machineId, scope: args.scope, reason: args.reason ?? 'daemon.shutdown', requestedBy: auth.session.userId });
-    return { ok: true as const, stopCommandId: result.stopCommandId, coalesced: result.coalesced };
+    const execution = await ctx.db.query('chatroom_agentStopMachineExecutions').withIndex('by_stopCommandId_machineId', (q) => q.eq('stopCommandId', result.stopCommandId).eq('machineId', args.machineId)).unique();
+    return { ok: true as const, stopCommandId: result.stopCommandId, coalesced: result.coalesced, inboxCommandId: execution?.inboxCommandId };
   },
 });
 

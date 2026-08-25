@@ -29,6 +29,7 @@ import type {
 } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 import type { AgentRequestStopEventPayload } from './events/agent/on-request-stop-agent.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
+import { executeScopedStopForCommand } from './execute-scoped-stop-command.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 import type {
   AgentLifecycleOutboxRegistry,
@@ -114,6 +115,7 @@ export const DaemonSpawningServiceLive = (ops: SpawningOps): Layer.Layer<DaemonS
 
 /** Effect service wrapping AgentProcessManager — precise types from the class. */
 export interface DaemonAgentProcessManagerServiceShape {
+  executeScopedStopForCommand?: (args: { stopCommandId: string; chatroomId: string; scope: { kind: 'chatroom' } | { kind: 'agent'; role: string }; reason: any; inboxCommandId: string }) => Effect.Effect<void>;
   runInboxRoleScopedStop?: (event: AgentRequestStopEventPayload) => Effect.Effect<void>;
   runInboxScopedStop?: (event: { commandId?: string; _id?: string; stopCommandId: string; chatroomId: string; scope: { kind: 'chatroom' } | { kind: 'agent'; role: string }; reason: string; deadline: number }) => Effect.Effect<void>;
   ensureRunning: (opts: EnsureRunningOpts) => Effect.Effect<OperationResult>;
@@ -149,6 +151,10 @@ export const DaemonAgentProcessManagerServiceLive = (
   sessionDeps?: { sessionId: string; machineId: string; backend: DaemonSessionServiceShape['backend'] }
 ): Layer.Layer<DaemonAgentProcessManagerService> =>
   Layer.succeed(DaemonAgentProcessManagerService, {
+    executeScopedStopForCommand: (args) => Effect.promise(async () => {
+      if (!sessionDeps) return;
+      await executeScopedStopForCommand({ ...sessionDeps, apm: mgr, ...args });
+    }),
     runInboxRoleScopedStop: (event) =>
       Effect.promise(async () => {
         const { runRoleScopedStop } =

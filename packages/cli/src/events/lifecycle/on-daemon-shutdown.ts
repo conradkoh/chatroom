@@ -27,16 +27,20 @@ export const onDaemonShutdownEffect: Effect.Effect<
   if (activeAgents.length > 0) {
     console.log(`[${formatTimestamp()}] Stopping ${activeAgents.length} agent(s)...`);
 
+    const chatroomIds = [...new Set(activeAgents.map(({ chatroomId }) => chatroomId))];
     yield* Effect.all(
-      activeAgents.map(({ chatroomId, role, slot }) => {
-        const pid = slot.pid;
-        return agentPm.stop({ chatroomId, role, reason: 'daemon.shutdown' }).pipe(
-          Effect.tap(() => Effect.sync(() => console.log(`   Stopped ${role} (PID ${pid})`))),
-          Effect.catchAll((e) =>
-            Effect.sync(() => console.log(`   ⚠️  Failed to stop ${role}: ${(e as Error).message}`))
-          )
-        );
-      }),
+      chatroomIds.map((chatroomId) => Effect.promise(async () => {
+        const result = await session.backend.mutation(api.agentStops.requestScope, {
+          sessionId: session.sessionId, machineId: session.machineId, chatroomId,
+          scope: { kind: 'chatroom' }, reason: 'daemon.shutdown',
+        });
+        if (!result.inboxCommandId) return;
+        if (!agentPm.executeScopedStopForCommand) return;
+        await Effect.runPromise(agentPm.executeScopedStopForCommand({
+          stopCommandId: result.stopCommandId as string, chatroomId,
+          scope: { kind: 'chatroom' }, reason: 'daemon.shutdown', inboxCommandId: result.inboxCommandId as string,
+        }));
+      }).pipe(Effect.catchAll((e) => Effect.sync(() => console.log(`   ⚠️  Failed chatroom stop: ${(e as Error).message}`))))) ,
       { concurrency: 'unbounded' }
     );
 
