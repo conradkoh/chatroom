@@ -6,7 +6,7 @@ import {
   AGENT_REQUEST_DEADLINE_MS,
   MACHINE_COMMAND_LEASE_RENEWAL_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
-import type { FunctionReturnType } from 'convex/server';
+import type { MachineCommandPayload } from '@workspace/backend/src/domain/entities/machine-command.js';
 import { Effect, Layer, Ref, type Context } from 'effect';
 
 import { pushSingleWorkspaceGitStateEffect } from './workspace-git/git-heartbeat.js';
@@ -35,11 +35,14 @@ import { getErrorMessage } from '../../utils/convex-error.js';
 import { refreshMachineCapabilities } from '../domain/usecase/refresh-machine-capabilities.js';
 import { makeGitStateKey } from '../infrastructure/git/types.js';
 
-/** The inferred return type of the getCommandEvents Convex query. */
-type CommandEventsResult = FunctionReturnType<typeof api.machines.getCommandEvents>;
-
-/** A single event from the command event stream. */
-type CommandEvent = CommandEventsResult['events'][number];
+/** Event shape delivered from the machine command inbox (formerly machines.getCommandEvents). */
+type CommandEvent = {
+  _id: string;
+  _creationTime: number;
+  machineId: string;
+  deadline: number;
+  timestamp: number;
+} & MachineCommandPayload;
 
 /** Consolidates dedup maps into a single container. */
 export interface DedupTracker {

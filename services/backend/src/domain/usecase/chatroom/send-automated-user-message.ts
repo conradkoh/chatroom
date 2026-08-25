@@ -1,3 +1,4 @@
+import { markAgentViewHasHistory } from './project-agent-view-metadata';
 import { reserveFrontQueuePosition } from './reserve-front-queue-position';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -5,10 +6,9 @@ import { getAndIncrementQueuePosition } from '../../../../convex/lib/chatroomUti
 import { getTeamEntryPoint } from '../../entities/team';
 import { restartOfflineAgentsOnUserMessage } from '../agent/restart-offline-agents-on-user-message';
 import { resolvePlannerEnhancerEnabledFromConfig } from '../enhancer/resolve-planner-enhancer-enabled';
+import { insertChatroomMessage, linkMessageToTask } from '../message/message-read-model';
 import { createTask as createTaskUsecase, shouldEnqueueMessage } from '../task/create-task';
 import { adjustTaskCount } from '../task/task-counts';
-import { markAgentViewHasHistory } from './project-agent-view-metadata';
-import { insertChatroomMessage } from '../message/message-read-model';
 
 export type SendAutomatedUserMessageResult =
   | { ok: true; messageId: Id<'chatroom_messages'> | Id<'chatroom_messageQueue'> }
@@ -112,7 +112,7 @@ export async function sendAutomatedUserMessage(
     startInNewSession: args.startInNewSession,
     ...(plannerEnhancerEnabled !== undefined ? { plannerEnhancerEnabled } : {}),
   });
-  await ctx.db.patch('chatroom_messages', messageId, { taskId });
+  await linkMessageToTask(ctx, messageId, taskId);
   await restartOfflineAgentsOnUserMessage(ctx, args.chatroomId);
   return { ok: true, messageId };
 }
