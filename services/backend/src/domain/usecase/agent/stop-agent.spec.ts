@@ -161,7 +161,7 @@ describe('stopAgent use case — deferred physical stop', () => {
     expect(config?.desiredState).toBe('stopped');
   });
 
-  test('includes pid in the agent.requestStop event', async () => {
+  test('creates agent.stopScope inbox with stopCommandId', async () => {
     const { sessionId, userId } = await createTestSession('stop-agent-pid-1');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'stop-machine-pid-1';
@@ -202,13 +202,14 @@ describe('stopAgent use case — deferred physical stop', () => {
       });
     });
 
-    const inbox = await getInboxCommandsForMachine(machineId, 'agent.requestStop');
-    const stopCmd = inbox.find(
-      (row) => row.command.type === 'agent.requestStop' && row.command.role === 'builder'
-    );
+    const inbox = await getInboxCommandsForMachine(machineId, 'agent.stopScope');
+    const stopCmd = inbox.find((row) => row.command.type === 'agent.stopScope');
     expect(stopCmd).toBeDefined();
-    if (stopCmd?.command.type === 'agent.requestStop') {
-      expect(stopCmd.command.pid).toBe(54321);
+    if (stopCmd?.command.type === 'agent.stopScope') {
+      expect(stopCmd.command.scope).toEqual({ kind: 'agent', role: 'builder' });
+      expect(stopCmd.command.stopCommandId).toBeDefined();
+      const target = await t.run(async (ctx) => ctx.db.query('chatroom_agentStopTargets').withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', stopCmd.command.stopCommandId)).first());
+      expect(target?.pid).toBe(54321);
     }
   });
 

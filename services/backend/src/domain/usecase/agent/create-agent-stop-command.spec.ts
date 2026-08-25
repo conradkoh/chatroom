@@ -1,0 +1,12 @@
+import { describe, expect, test } from 'vitest';
+import { api } from '../../../../convex/_generated/api';
+import { t } from '../../../../test.setup';
+import { createAgentStopCommand } from './create-agent-stop-command';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+
+async function setup(id: string) { const login = await t.mutation(api.auth.loginAnon, { sessionId: id as any }); const chatroomId = await t.mutation(api.chatrooms.create, { sessionId: id as any, teamId: 'duo', teamName: 'Duo', teamRoles: ['planner', 'builder'], teamEntryPoint: 'planner' }); const machineId = `stop-test-${id}`; await t.mutation(api.machines.register, { sessionId: id as any, machineId, hostname: 'test', os: 'linux', availableHarnesses: ['opencode'] }); await t.mutation(api.machines.saveTeamAgentConfig, { sessionId: id as any, chatroomId, role: 'builder', type: 'remote', machineId, agentHarness: 'opencode' }); return { chatroomId, machineId, userId: login.userId }; }
+describe('createAgentStopCommand', () => {
+  test('coalesces pending command', async () => { const { chatroomId, machineId } = await setup('stop-command-coalesce'); const first = await t.run((ctx) => createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'agent', role: 'builder' }, reason: 'user.stop', machineId })); const second = await t.run((ctx) => createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'agent', role: 'builder' }, reason: 'user.stop', machineId })); expect(second).toEqual({ stopCommandId: first.stopCommandId, coalesced: true }); });
+  test('filters role targets', async () => { const { chatroomId, machineId } = await setup('stop-command-filter'); const result = await t.run((ctx) => createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'agent', role: 'planner' }, reason: 'user.stop', machineId })); const targets = await t.run((ctx) => ctx.db.query('chatroom_agentStopTargets').withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', result.stopCommandId)).collect()); expect(targets).toHaveLength(0); });
+  test('completes zero-target command', async () => { const { chatroomId, machineId } = await setup('stop-command-empty'); const result = await t.run((ctx) => createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'agent', role: 'planner' }, reason: 'user.stop', machineId })); const command = await t.run((ctx) => ctx.db.get('chatroom_agentStopCommands', result.stopCommandId)); expect(command?.status).toBe('completed'); });
+});
