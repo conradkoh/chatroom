@@ -15,6 +15,7 @@ import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { normalizeAgentStopRole } from '../../entities/agent-stop-command';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
@@ -54,12 +55,17 @@ export interface AgentExitedInput {
  * @param ctx - Convex mutation context
  * @param input - The exit parameters
  */
-export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Promise<void> {
+export type AgentExitedResult = { applied: boolean };
+
+export async function agentExited(
+  ctx: MutationCtx,
+  input: AgentExitedInput
+): Promise<AgentExitedResult> {
   const { chatroomId, role, machineId, pid, stopReason } = input;
 
   // Look up the current config for this role
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (!chatroom?.teamId) return;
+  if (!chatroom?.teamId) return { applied: false };
 
   const teamRoleKey = buildTeamRoleKey(chatroomId, chatroom.teamId, role);
   const config = await ctx.db
@@ -68,8 +74,14 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
     .first();
 
   if (input.revisionKey && !input.revisionKey.startsWith('exited:')) {
-    const target = await ctx.db.query('chatroom_agentStopTargets').withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role)).filter((q) => q.eq(q.field('revisionKey'), input.revisionKey)).first();
-    if (!target || target.pid !== pid || target.machineId !== machineId) return;
+    const target = await ctx.db
+      .query('chatroom_agentStopTargets')
+      .withIndex('by_chatroom_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', normalizeAgentStopRole(role))
+      )
+      .filter((q) => q.eq(q.field('revisionKey'), input.revisionKey))
+      .first();
+    if (!target || target.pid !== pid || target.machineId !== machineId) return { applied: false };
   }
 
   // 1. Clear PID on config — PID-gated idempotency
@@ -121,4 +133,5 @@ export async function agentExited(ctx: MutationCtx, input: AgentExitedInput): Pr
       });
     }
   }
+  return { applied: true };
 }
