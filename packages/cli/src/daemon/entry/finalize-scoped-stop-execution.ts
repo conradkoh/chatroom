@@ -16,7 +16,7 @@ export async function finalizeScopedStopExecution(args: {
   };
   executionError?: unknown;
 }): Promise<void> {
-  for (const { target, outcome } of args.result.targets) {
+  for (const { target, outcome, lifecycleWarning } of args.result.targets) {
     await args.backend.mutation(api.agentStops.reportTargetOutcome, {
       sessionId: args.sessionId,
       stopCommandId: args.stopCommandId as any,
@@ -28,9 +28,7 @@ export async function finalizeScopedStopExecution(args: {
       status: 'completed',
       outcome: outcome.kind === 'stopped' ? 'stopped' : 'already_stopped',
       termination: outcome.termination,
-      lifecycleWarning: args.result.targets.find(
-        (entry) => entry.target.targetKey === target.targetKey
-      )?.lifecycleWarning,
+      lifecycleWarning,
     });
   }
   for (const failure of args.result.failures) {
