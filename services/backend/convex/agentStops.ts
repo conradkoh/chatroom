@@ -14,6 +14,7 @@ import { agentStopScopeValidator, agentStopTargetStatusValidator } from '../src/
 import { rollupAgentStopCommandStatus } from '../src/domain/usecase/agent/rollup-agent-stop-command';
 import { reconcileUnreportedStopTargets } from '../src/domain/usecase/agent/reconcile-unreported-stop-targets';
 import { selectConfigsForAgentStop } from '../src/domain/usecase/agent/select-agent-stop-configs';
+import { applySuccessfulTargetLifecycle } from '../src/domain/usecase/agent/apply-successful-target-lifecycle';
 
 export const requestAgent = mutation({
   args: {
@@ -63,6 +64,9 @@ export const reportTargetOutcome = mutation({
   if (!target) return { ok: true as const, applied: false };
   if (target.status === 'completed' || target.status === 'failed' || target.status === 'superseded') return { ok: true as const, applied: false };
   await ctx.db.patch(target._id, fields);
+  const command = await ctx.db.get('chatroom_agentStopCommands', args.stopCommandId);
+  const updatedTarget = await ctx.db.get(target._id);
+  if (command && updatedTarget) await applySuccessfulTargetLifecycle(ctx, { command, target: updatedTarget });
   await rollupAgentStopCommandStatus(ctx, args.stopCommandId);
   return { ok: true as const, applied: true };
   },
