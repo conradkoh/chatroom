@@ -34,6 +34,8 @@ export const onDaemonShutdownEffect: Effect.Effect<
     console.log(`[${formatTimestamp()}] Stopping ${activeAgents.length} agent(s)...`);
 
     const chatroomIds = [...new Set(activeAgents.map(({ chatroomId }) => chatroomId))];
+    let totalStopped = 0;
+    let totalFailed = 0;
     yield* Effect.all(
       chatroomIds.map((chatroomId) =>
         Effect.promise(async () => {
@@ -46,7 +48,7 @@ export const onDaemonShutdownEffect: Effect.Effect<
           });
           if (!result.inboxCommandId) return;
           if (!agentPm.executeScopedStopForCommand) return;
-          await Effect.runPromise(
+          const summary = await Effect.runPromise(
             agentPm.executeScopedStopForCommand({
               stopCommandId: result.stopCommandId as string,
               chatroomId,
@@ -55,16 +57,25 @@ export const onDaemonShutdownEffect: Effect.Effect<
               inboxCommandId: result.inboxCommandId as string,
             })
           );
+          totalStopped += summary.stoppedCount;
+          totalFailed += summary.failedCount;
         }).pipe(
           Effect.catchAll((e) =>
-            Effect.sync(() => console.log(`   ⚠️  Failed chatroom stop: ${(e as Error).message}`))
+            Effect.sync(() => {
+              totalFailed += 1;
+              console.log(`   ⚠️  Failed chatroom stop: ${(e as Error).message}`);
+            })
           )
         )
       ),
       { concurrency: 'unbounded' }
     );
 
-    console.log(`[${formatTimestamp()}] All agents stopped`);
+    if (totalFailed > 0) {
+      console.log(`[${formatTimestamp()}] Shutdown stops: ${totalStopped} stopped, ${totalFailed} failed`);
+    } else if (totalStopped > 0) {
+      console.log(`[${formatTimestamp()}] Shutdown stops: ${totalStopped} stopped`);
+    }
   }
 
   // Update daemon status to disconnected (best-effort)

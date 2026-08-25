@@ -4,6 +4,12 @@ import { api } from '../../api.js';
 import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
 
+export interface ScopedStopExecutionSummary {
+  stoppedCount: number;
+  failedCount: number;
+  executionError?: unknown;
+}
+
 export async function executeScopedStopForCommand(args: {
   sessionId: string;
   machineId: string;
@@ -14,7 +20,7 @@ export async function executeScopedStopForCommand(args: {
   scope: AgentStopScope;
   reason: AgentStopReason;
   inboxCommandId: string;
-}): Promise<void> {
+}): Promise<ScopedStopExecutionSummary> {
   const { runExactTargetsStop } =
     await import('../infrastructure/agent-process-manager/execute-stop-targets-adapter.js');
   const finalize = await import('./finalize-scoped-stop-execution.js');
@@ -24,7 +30,7 @@ export async function executeScopedStopForCommand(args: {
     machineId: args.machineId,
     inboxCommandId: args.inboxCommandId as any,
   })) as { shouldExecute: boolean; targets: any[] };
-  if (!begun.shouldExecute) return;
+  if (!begun.shouldExecute) return { stoppedCount: 0, failedCount: 0 };
   let result: any = { targets: [], failures: [] };
   let executionError: unknown;
   try {
@@ -43,4 +49,9 @@ export async function executeScopedStopForCommand(args: {
     await finalize.finalizeScopedStopExecution({ ...args, result, executionError });
     await args.apm.syncSlotsAfterScopedStop(result);
   }
+  return {
+    stoppedCount: result.targets.length,
+    failedCount: result.failures.length + (executionError != null ? 1 : 0),
+    executionError,
+  };
 }

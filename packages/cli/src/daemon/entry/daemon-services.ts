@@ -121,7 +121,7 @@ export interface DaemonAgentProcessManagerServiceShape {
     scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
     reason: any;
     inboxCommandId: string;
-  }) => Effect.Effect<void>;
+  }) => Effect.Effect<import('./execute-scoped-stop-command.js').ScopedStopExecutionSummary>;
   runInboxRoleScopedStop?: (event: AgentRequestStopEventPayload) => Effect.Effect<void>;
   runInboxScopedStop?: (event: {
     commandId?: string;
@@ -171,8 +171,8 @@ export const DaemonAgentProcessManagerServiceLive = (
   Layer.succeed(DaemonAgentProcessManagerService, {
     executeScopedStopForCommand: (args) =>
       Effect.promise(async () => {
-        if (!sessionDeps) return;
-        await executeScopedStopForCommand({ ...sessionDeps, apm: mgr, ...args });
+        if (!sessionDeps) return { stoppedCount: 0, failedCount: 0 };
+        return executeScopedStopForCommand({ ...sessionDeps, apm: mgr, ...args });
       }),
     runInboxRoleScopedStop: (event) =>
       Effect.promise(async () => {
