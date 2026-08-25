@@ -6,6 +6,7 @@ import type {
   AgentStopOutcome,
   AgentStopReason,
 } from '../entities/agent-stop.js';
+const SCOPE_TARGET_STOP_TIMEOUT_MS = 10_000;
 
 export interface AgentStopScopeBarrierPort {
   acquire(chatroomId: string): Promise<() => void>;
@@ -39,10 +40,11 @@ export async function stopAgentScope(
 ): Promise<StopAgentScopeResult> {
   const release = await deps.barrier.acquire(args.chatroomId);
   try {
-    const discovered = await deps.discovery.listTargets({
+    let discovered: AgentStopTargetDescriptor[];
+    try { discovered = await deps.discovery.listTargets({
       chatroomId: args.chatroomId,
       machineId: deps.machineId,
-    });
+    }); } catch (error) { return { targets: [], failures: [{ target: { chatroomId: args.chatroomId, machineId: deps.machineId, role: args.scope.kind === 'agent' ? args.scope.role : 'unknown', pid: -1, agentHarness: 'opencode', targetKey: 'discovery' }, error }] }; }
     const targets = discovered.filter((target) => matchesScope(target, args.scope));
     const outcomes: StopAgentScopeResult['targets'] = [];
     const failures: StopAgentScopeResult['failures'] = [];
@@ -53,6 +55,7 @@ export async function stopAgentScope(
             target,
             reason: args.reason,
             revisionKey: deps.buildRevisionKey(target),
+            timeoutMs: SCOPE_TARGET_STOP_TIMEOUT_MS,
           });
           outcomes.push({ target, outcome });
         } catch (error) {

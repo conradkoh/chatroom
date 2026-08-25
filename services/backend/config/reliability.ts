@@ -121,6 +121,8 @@ export const DAEMON_LIVENESS_WRITE_INTERVAL_MS = 90_000;
 
 /** Max exits allowed in CIRCUIT_WINDOW_MS before circuit trips. */
 export const CIRCUIT_BREAKER_MAX_EXITS = 3;
+/** Per-target budget for scoped stop fan-out before force-kill (ms). */
+export const SCOPE_TARGET_STOP_TIMEOUT_MS = 10_000;
 
 /** Rolling window for counting exits. Circuit trips if agent exits ≥ MAX_EXITS in this window. */
 export const CIRCUIT_WINDOW_MS = 300_000; // 5 minutes

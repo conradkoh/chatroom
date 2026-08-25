@@ -24,6 +24,7 @@ export interface StopAgentConfirmedDeps {
   harnessStop: HarnessStopPort;
   liveness: ProcessLivenessPort;
   lifecycle: LifecycleDeliveryPort;
+  forceKill?: { forceKill(target: AgentStopTargetDescriptor): Promise<void> };
 }
 export async function stopAgentConfirmed(
   deps: StopAgentConfirmedDeps,
@@ -32,6 +33,7 @@ export async function stopAgentConfirmed(
     reason: AgentStopReason;
     revisionKey: string;
     preserveForResume?: boolean;
+    timeoutMs?: number;
   }
 ): Promise<AgentStopOutcome> {
   const { target, reason, revisionKey } = args;
@@ -55,7 +57,13 @@ export async function stopAgentConfirmed(
     return outcome;
   }
   try {
-    await deps.harnessStop.stop(target, { preserveForResume: args.preserveForResume ?? false });
+    if (args.timeoutMs && deps.forceKill) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([deps.harnessStop.stop(target, { preserveForResume: args.preserveForResume ?? false }), new Promise<void>((_, reject) => { timer = setTimeout(() => reject(new AgentStopError('stop_timed_out', `Timed out stopping ${target.role}`)), args.timeoutMs); })]).finally(() => { if (timer) clearTimeout(timer); }).catch(async (cause) => {
+        if (!(cause instanceof AgentStopError) || cause.code !== 'stop_timed_out') throw cause;
+        await deps.forceKill!.forceKill(target);
+      });
+    } else await deps.harnessStop.stop(target, { preserveForResume: args.preserveForResume ?? false });
   } catch (cause) {
     throw new AgentStopError(
       'harness_stop_failed',

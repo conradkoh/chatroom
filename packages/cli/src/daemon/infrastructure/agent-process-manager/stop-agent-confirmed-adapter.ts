@@ -74,6 +74,7 @@ export function createStopAgentConfirmedDeps(
           throw new AgentStopError('lifecycle_delivery_failed', 'Lifecycle outbox enqueue failed');
       },
     },
+    forceKill: { forceKill: async (target) => { await deps.killProcessWithFallback(target.pid); deps.agentServices.get(target.agentHarness)?.untrack(target.pid); } },
   };
 }
 

@@ -21,7 +21,7 @@ export class AgentStopError extends Error {
   readonly _tag = 'AgentStopError' as const;
   constructor(
     readonly code:
-      'harness_missing' | 'harness_stop_failed' | 'still_alive' | 'lifecycle_delivery_failed',
+      'harness_missing' | 'harness_stop_failed' | 'still_alive' | 'lifecycle_delivery_failed' | 'stop_timed_out',
     message: string,
     readonly cause?: unknown
   ) {
