@@ -69,8 +69,8 @@ Small, low-risk cleanups that do not require the aggregate schema. Do these firs
 
 ### Slice D — UI reactive stop state
 
-- [ ] Project `stopState` on role/summary views (pending / stopping / stopped / failed)
-- [ ] `useAgentStop` reads command status reactively; no optimistic "Stopped" toasts
+- [x] Project `stopState` on role/summary views (pending / stopping / stopped / failed)
+- [x] `useAgentStop` reads command status reactively; no optimistic "Stopped" toasts
 - [ ] **UX (resolved):** keep current per-surface patterns — inline stop in `AgentControls`, existing AlertDialogs for stop-all; no shared `AgentStopConfirmDialog`
 
 ### Slice E — Daemon hardening
@@ -220,3 +220,4 @@ type AgentStopState =
 - Slice 5: `pnpm --dir apps/webapp exec vitest run src/modules/chatroom/components/ChatroomSidebar.test.tsx` (15 passed).
 - Slice 6: legacy daemon stop handler removed; UI zero `sendCommand` stop-agent producers; handler tests passed.
 - Slice C verification: `pnpm --dir services/backend exec vitest run src/domain/usecase/agent/derive-agent-operational-state.spec.ts tests/integration/project-agent-lifecycle-fact.spec.ts src/domain/usecase/agent/stop-agent.spec.ts` (24 passed); backend and CLI typechecks passed.
+- Slice D verification: backend typecheck, webapp typecheck, and stop-state unit tests passed.

@@ -274,7 +274,7 @@ export function useAgentControls({
   lockedMachineId?: string;
   lockedWorkingDir?: string;
 }) {
-  const { stopAgent, isStopping: isStopRequestInFlight } = useAgentStop();
+  const { stopAgent, isRoleStopping } = useAgentStop(chatroomId as any);
   // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
   const initialTeamConfigHarnessRef = useRef(teamConfigHarness);
   const previousTeamIdRef = useRef(teamId);
@@ -488,7 +488,7 @@ export function useAgentControls({
   ]);
 
   const isAgentRunning = !!displayAgentConfig;
-  const isStopping = isStopRequestInFlight;
+  const isStopping = isRoleStopping(role);
   const isBusy = isStarting || isStopping;
   const hasModels = availableModelsForHarness.length > 0;
   const canStart =
@@ -594,7 +594,6 @@ export function useAgentControls({
         machineId: displayAgentConfig.machineId,
         role,
       });
-      setSuccess('Stop requested');
       setTimeout(() => setSuccess(null), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to stop agent');

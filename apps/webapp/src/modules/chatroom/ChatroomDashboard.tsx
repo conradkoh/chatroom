@@ -1103,7 +1103,7 @@ export function ChatroomDashboard({
 
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData(chatroomId, { loadConfigs: true });
-  const { stopAgents } = useAgentStop();
+  const { stopAgents, isStopping } = useAgentStop(chatroomId as Id<'chatroom_rooms'>);
   const lifecycle = agentPanelData.lifecycle;
 
   // Per-role "last used" config derived from the persisted teamAgentConfigs
@@ -1417,17 +1417,14 @@ export function ChatroomDashboard({
   }, []);
 
   // Actual stop action after confirmation
-  const [isStoppingAllAgents, setIsStoppingAllAgents] = useState(false);
   const executeStopAllRemoteAgents = useCallback(async () => {
     setStopAllConfirmOpen(false);
-    setIsStoppingAllAgents(true);
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
     const stoppableAgents = agentPanelData.agents.filter(
       (a) => (a.state === 'running' || a.state === 'starting') && a.machineId
     );
 
     if (stoppableAgents.length === 0) {
-      setIsStoppingAllAgents(false);
       toast.success('No running agents to stop');
       return;
     }
@@ -1445,7 +1442,6 @@ export function ChatroomDashboard({
     });
 
     const { rejected } = await stopAgents(targets);
-    setIsStoppingAllAgents(false);
 
     const failed = rejected.map((target) => ({
       role: target.role,
@@ -1460,7 +1456,6 @@ export function ChatroomDashboard({
         description: errorDetails,
       });
     } else {
-      toast.success(`Stop requested for ${stoppableAgents.length} agent(s)`);
     }
   }, [agentPanelData.agents, chatroomId, stopAgents]);
 
@@ -1536,7 +1531,7 @@ export function ChatroomDashboard({
   }, [isRestartingAllAgents, agentPanelData.agents]);
 
   const isAgentActionInProgress =
-    isStartingAllAgents || isStoppingAllAgents || isAnyAgentRestartInProgress;
+    isStartingAllAgents || isStopping || isAnyAgentRestartInProgress;
 
   const handleRestartRemoteAgent = useCallback(
     async (role: string) => {
@@ -1697,7 +1692,7 @@ export function ChatroomDashboard({
     onStartAllRemoteAgents:
       isStartingAllAgents || isAnyAgentRestartInProgress ? null : handleStartAllRemoteAgents,
     onStopAllRemoteAgents:
-      isStoppingAllAgents || isAnyAgentRestartInProgress ? null : handleStopAllRemoteAgents,
+      isStopping || isAnyAgentRestartInProgress ? null : handleStopAllRemoteAgents,
     onRestartAllRemoteAgents: isAnyAgentRestartInProgress ? null : handleRestartAllRemoteAgents,
     restartableAgentRoles: isAnyAgentRestartInProgress ? [] : restartableAgentRoles,
     onRestartRemoteAgent: isAnyAgentRestartInProgress ? null : handleRestartRemoteAgent,
