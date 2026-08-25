@@ -24,7 +24,7 @@ status: active
 
 - [x] Slice 1: migration tracker + daemon type contracts + `stopAgentConfirmed` / `stopAgentScope` use cases + tests
 - [x] Slice 2: wire `stopAgentConfirmed` into `AgentProcessManager.doStop`; explicit harness; typed errors; remove swallowed catch
-- [ ] Slice 3: route daemon inbox handler through `stopAgentScope`; keep `agent.requestStop` payload temporarily
+- [x] Slice 3: route daemon inbox handler through `stopAgentScope`; keep `agent.requestStop` payload temporarily
 - [ ] Slice 4: migrate backend producers (`stop-agent.ts`, `ensure-only-agent-for-role.ts`, `update-team.ts`, `teamRoleKey.ts`) to `requestAgentStop`
 - [ ] Slice 5: migrate UI (`ChatroomSidebar`, `ChatroomDashboard`, `AgentControls`, command palette) to single mutation hook (stub mutation OK if schema not ready)
 - [ ] Slice 6: delete legacy paths after `rg` shows zero producers
@@ -47,3 +47,4 @@ _(record here as slices land)_
 
 - Slice 1: `pnpm --dir packages/cli exec vitest run src/daemon/domain/usecase/stop-agent-confirmed.test.ts src/daemon/domain/usecase/stop-agent-scope.test.ts` (10 passed); `pnpm --dir packages/cli typecheck` (passed).
 - Slice 2: `pnpm --dir packages/cli exec vitest run src/daemon/infrastructure/agent-process-manager/agent-process-manager.test.ts` (103 passed); `pnpm --dir packages/cli typecheck` (passed).
+- Slice 3: scoped inbox stop wiring implemented; verification pending.

@@ -23,9 +23,10 @@ function createEvent(
 
 describe('onRequestStopAgentEffect', () => {
   test('skips expired events without calling stop', async () => {
-    const stopSpy = vi.fn().mockReturnValue(Effect.succeed({ success: true }));
+    const stopSpy = vi.fn().mockReturnValue(Effect.void);
     const apmLayer = Layer.succeed(DaemonAgentProcessManagerService, {
-      stop: stopSpy,
+      stop: vi.fn(),
+      runInboxRoleScopedStop: stopSpy,
       ensureRunning: vi.fn(),
       handleExit: vi.fn(),
       recover: vi.fn(),
@@ -45,9 +46,10 @@ describe('onRequestStopAgentEffect', () => {
   });
 
   test('calls executeStopAgentEffect for valid events', async () => {
-    const stopSpy = vi.fn().mockReturnValue(Effect.succeed({ success: true }));
+    const stopSpy = vi.fn().mockReturnValue(Effect.void);
     const apmLayer = Layer.succeed(DaemonAgentProcessManagerService, {
-      stop: stopSpy,
+      stop: vi.fn(),
+      runInboxRoleScopedStop: stopSpy,
       ensureRunning: vi.fn(),
       handleExit: vi.fn(),
       recover: vi.fn(),
@@ -63,12 +65,6 @@ describe('onRequestStopAgentEffect', () => {
 
     await Effect.runPromise(onRequestStopAgentEffect(event).pipe(Effect.provide(apmLayer)));
 
-    expect(stopSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chatroomId: event.chatroomId,
-        role: event.role,
-        reason: event.reason,
-      })
-    );
+    expect(stopSpy).toHaveBeenCalledWith(event);
   });
 });

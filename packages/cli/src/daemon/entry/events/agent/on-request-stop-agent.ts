@@ -6,8 +6,6 @@
 import { Effect } from 'effect';
 
 import type { Id } from '../../../../api.js';
-import { stopAgent } from '../../../../daemon/domain/usecase/stop-agent.js';
-import { createStopAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
 import { DaemonAgentProcessManagerService } from '../../daemon-services.js';
 
 export interface AgentRequestStopEventPayload {
@@ -24,13 +22,6 @@ export const onRequestStopAgentEffect = (
   Effect.gen(function* () {
     const agentMgr = yield* DaemonAgentProcessManagerService;
 
-    yield* Effect.promise(() =>
-      stopAgent(createStopAgentDeps(agentMgr), {
-        chatroomId: event.chatroomId as string,
-        role: event.role,
-        reason: event.reason,
-        deadline: event.deadline,
-        pid: event.pid,
-      })
-    );
+    if (Date.now() > event.deadline) return;
+    if (agentMgr.runInboxRoleScopedStop) yield* agentMgr.runInboxRoleScopedStop(event);
   });

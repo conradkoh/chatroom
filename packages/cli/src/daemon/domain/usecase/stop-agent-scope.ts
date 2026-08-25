@@ -1,5 +1,4 @@
 import { stopAgentConfirmed, type StopAgentConfirmedDeps } from './stop-agent-confirmed.js';
-// fallow-ignore-file unused-file unused-export unused-type
 import type { AgentStopScope } from '../../../../../../services/backend/src/domain/entities/agent-stop-command.js';
 import { normalizeAgentStopRole } from '../../../../../../services/backend/src/domain/entities/agent-stop-command.js';
 import type {
@@ -33,6 +32,7 @@ function matchesScope(target: AgentStopTargetDescriptor, scope: AgentStopScope):
     normalizeAgentStopRole(target.role) === normalizeAgentStopRole(scope.role)
   );
 }
+// fallow-ignore-next-line unused-export
 export async function stopAgentScope(
   deps: StopAgentScopeDeps,
   args: { chatroomId: string; scope: AgentStopScope; reason: AgentStopReason }
