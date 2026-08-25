@@ -10,7 +10,7 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { requireMachineOwner } from './auth/cli/machineAccess';
 import { agentStopReasonValidator } from '../src/domain/entities/agent';
 import { createAgentStopCommand } from '../src/domain/usecase/agent/create-agent-stop-command';
-import { agentStopTargetStatusValidator } from '../src/domain/entities/agent-stop-command';
+import { agentStopScopeValidator, agentStopTargetStatusValidator } from '../src/domain/entities/agent-stop-command';
 import { rollupAgentStopCommandStatus } from '../src/domain/usecase/agent/rollup-agent-stop-command';
 
 export const request = mutation({
@@ -26,6 +26,16 @@ export const request = mutation({
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
     const result = await createAgentStopCommand(ctx, { machineId: args.machineId, chatroomId: args.chatroomId, scope: { kind: 'agent', role: args.role }, reason: args.reason ?? 'user.stop', requestedBy: auth.session.userId });
+    return { ok: true as const, stopCommandId: result.stopCommandId, coalesced: result.coalesced };
+  },
+});
+
+export const requestScope = mutation({
+  args: { ...SessionIdArg, chatroomId: v.id('chatroom_rooms'), machineId: v.string(), scope: agentStopScopeValidator, reason: v.optional(agentStopReasonValidator) },
+  handler: async (ctx, args) => {
+    const auth = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    const result = await createAgentStopCommand(ctx, { chatroomId: args.chatroomId, machineId: args.machineId, scope: args.scope, reason: args.reason ?? 'daemon.shutdown', requestedBy: auth.session.userId });
     return { ok: true as const, stopCommandId: result.stopCommandId, coalesced: result.coalesced };
   },
 });

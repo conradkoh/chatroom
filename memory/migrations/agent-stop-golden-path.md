@@ -75,8 +75,8 @@ Small, low-risk cleanups that do not require the aggregate schema. Do these firs
 
 ### Slice E — Daemon hardening
 
-- [ ] **Tech debt:** [medium] `agent-lifecycle-port-adapters` harness `stop` tries every service — route via slot.harness metadata through `stopAgentConfirmed` adapter (audit §9.2)
-- [ ] Daemon shutdown uses `stopAgentScope` with `daemon.shutdown` reason; lifecycle outbox stays alive until shutdown stops finish
+- [x] **Tech debt:** [medium] `agent-lifecycle-port-adapters` harness stop routes via slot.harness metadata (audit §9.2)
+- [x] Daemon shutdown uses durable chatroom-scoped stop intent; lifecycle outbox stays alive until shutdown stops finish
 - [ ] Idempotency + revision-gating integration tests
 - [ ] PR to `master`
 
@@ -221,3 +221,4 @@ type AgentStopState =
 - Slice 6: legacy daemon stop handler removed; UI zero `sendCommand` stop-agent producers; handler tests passed.
 - Slice C verification: `pnpm --dir services/backend exec vitest run src/domain/usecase/agent/derive-agent-operational-state.spec.ts tests/integration/project-agent-lifecycle-fact.spec.ts src/domain/usecase/agent/stop-agent.spec.ts` (24 passed); backend and CLI typechecks passed.
 - Slice D verification: backend typecheck, webapp typecheck, and stop-state unit tests passed.
+- Slice E verification: backend, CLI, and webapp typechecks passed; harness routing and requestScope shutdown foundation landed.

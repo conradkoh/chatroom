@@ -1016,8 +1016,6 @@ export default defineSchema({
     machineId: v.string(),
     lastSeenAt: v.number(),
     daemonConnected: v.boolean(),
-    stopState: v.optional(v.union(v.literal('idle'), v.literal('pending'), v.literal('stopping'), v.literal('stopped'), v.literal('failed'))),
-    activeStopCommandId: v.optional(v.id('chatroom_agentStopCommands')),
   }).index('by_machineId', ['machineId']),
 
   /**
@@ -1201,6 +1199,8 @@ export default defineSchema({
     isAlive: v.boolean(),
     isRunning: v.boolean(),
     daemonConnected: v.boolean(),
+    stopState: v.optional(v.union(v.literal('idle'), v.literal('pending'), v.literal('stopping'), v.literal('stopped'), v.literal('failed'))),
+    activeStopCommandId: v.optional(v.id('chatroom_agentStopCommands')),
     projectedAt: v.number(),
     revisionKey: v.string(),
   })

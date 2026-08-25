@@ -39,6 +39,7 @@ export type ChatroomOperationalSummary = {
   aliveRoles: string[];
   runningAgents: { role: string; machineId: string }[];
   remoteConfigCount: number;
+  stoppingRoles?: string[];
 };
 
 export type NormalizedOperationalSummary = ChatroomOperationalSummary;
@@ -55,6 +56,7 @@ export function normalizeOperationalSummary(
     runningRoles: dedupeSort(summary.runningRoles),
     aliveRoles: dedupeSort(summary.aliveRoles),
     runningAgents,
+    stoppingRoles: [...new Set((summary.stoppingRoles ?? []).map((r) => r.toLowerCase()))].sort(),
   };
 }
 
