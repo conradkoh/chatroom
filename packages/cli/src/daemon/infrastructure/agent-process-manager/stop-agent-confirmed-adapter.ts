@@ -2,10 +2,10 @@ import { buildAgentStopTargetKey } from '../../../../../../services/backend/src/
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import type { Signals } from '../../../infrastructure/types/signals.js';
-import type {
-  AgentLifecycleFact,
+import {
   buildExitedLifecycleFact,
   type AgentExitAuditArgs,
+  type AgentLifecycleFact,
 } from '../../domain/entities/agent-lifecycle-fact.js';
 import type {
   AgentStopReason,
