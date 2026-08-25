@@ -50,14 +50,14 @@ Small, low-risk cleanups that do not require the aggregate schema. Do these firs
 
 ### Slice A — Schema & aggregate (resolved)
 
-- [ ] Convex tables: command aggregate + per-machine execution + per-target rows (see proposed shape below)
+- [x] Convex tables: command aggregate + per-machine execution + per-target rows
 - [ ] Extend `services/backend/src/domain/entities/agent-stop-command.ts` validators to match chosen schema
 - [ ] **Tech debt:** [low] eliminate cross-package import `packages/cli` → `services/backend/.../agent-stop-command.ts` by moving shared types to `packages/shared` or code-generating from one SSOT
 
 ### Slice B — Backend API & inbox migration
 
 - [x] Upgrade `api.agentStops.request` from stub to create durable `AgentStopCommand` + fan-out machine executions
-- [ ] Inbox payload `agent.stopScope` with stable `stopCommandId` (replace transient `agent.requestStop`)
+- [x] Inbox payload `agent.stopScope` with stable `stopCommandId` (replace transient `agent.requestStop`)
 - [ ] Daemon begin / report-target / complete / redrive mutations
 - [ ] **Tech debt:** [low] `stopAgentScope` vs `stopAgentScopeWithBracket` duplication — collapse once inbox carries `stopCommandId`
 
@@ -214,6 +214,7 @@ type AgentStopState =
 - Slice 2: `pnpm --dir packages/cli exec vitest run src/daemon/infrastructure/agent-process-manager/agent-process-manager.test.ts` (103 passed); `pnpm --dir packages/cli typecheck` (passed).
 - Slice 3: scoped inbox stop wiring implemented; verification pending (see Pre-Stage 2).
 - Slice B: durable command creation, coalescing, target/execution fan-out, and `agent.stopScope` payload landed; daemon report mutations remain for follow-up.
+- Slice B final: `pnpm --dir packages/cli typecheck`, `pnpm --dir services/backend typecheck`, and scoped handler tests passed.
 - Slice 4: `pnpm --dir services/backend exec vitest run src/domain/usecase/agent/stop-agent.spec.ts src/domain/usecase/agent/ensure-only-agent-for-role.spec.ts tests/integration/stop-agent.spec.ts tests/integration/send-command-stop-reason.spec.ts` (16 passed).
 - Slice 5: `pnpm --dir apps/webapp exec vitest run src/modules/chatroom/components/ChatroomSidebar.test.tsx` (15 passed).
 - Slice 6: legacy daemon stop handler removed; UI zero `sendCommand` stop-agent producers; handler tests passed.
