@@ -11,8 +11,8 @@ import type {
 import { stopAgentConfirmed } from '../../domain/usecase/stop-agent-confirmed.js';
 import type { StopAgentScopeDeps } from '../../domain/usecase/stop-agent-scope.js';
 import { stopAgentScope } from '../../domain/usecase/stop-agent-scope.js';
-import { buildAgentStopRevisionKey } from '../../../../../../services/backend/src/domain/entities/agent-stop-command.js';
-import type { AgentStopScope } from '../../../../../../services/backend/src/domain/entities/agent-stop-command.js';
+import { buildAgentStopRevisionKey } from '/shared/domain/agent-stop-command';
+import type { AgentStopScope } from '/shared/domain/agent-stop-command';
 
 const activeChatroomScopes = new Set<string>();
 export function isChatroomStopScopeActive(chatroomId: string): boolean {

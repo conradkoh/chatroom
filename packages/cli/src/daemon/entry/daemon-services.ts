@@ -159,15 +159,8 @@ export const DaemonAgentProcessManagerServiceLive = (
       Effect.promise(async () => {
         const { runRoleScopedStop } =
           await import('../infrastructure/agent-process-manager/stop-agent-scope-adapter.js');
-        const reason = [
-          'user.stop',
-          'daemon.shutdown',
-          'team.switch',
-          'dedup',
-          'stale-config',
-        ].includes(event.reason)
-          ? event.reason
-          : 'user.stop';
+        const legacyReason: Record<string, string> = { 'team.switch': 'platform.team_switch', dedup: 'platform.dedup', 'stale-config': 'platform.dedup' };
+        const reason = isAgentStopReason(event.reason) ? event.reason : (legacyReason[event.reason] ?? 'user.stop');
         if (Date.now() > event.deadline) return;
         const result = await runRoleScopedStop({
           apm: mgr,

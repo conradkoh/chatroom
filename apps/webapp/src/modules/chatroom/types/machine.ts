@@ -77,7 +77,6 @@ export type SendCommandArgs =
     }
   | {
       machineId: string;
-      type: 'stop-agent';
       payload: {
         chatroomId: Id<'chatroom_rooms'>;
         role: string;

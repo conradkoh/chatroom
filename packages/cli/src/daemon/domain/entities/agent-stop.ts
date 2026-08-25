@@ -3,7 +3,7 @@ import type { AgentHarness } from './harness-shared-types.js';
 import type {
   AgentStopReason,
   AgentStopScope,
-} from '../../../../../../services/backend/src/domain/entities/agent-stop-command.js';
+} from '/shared/domain/agent-stop-command';
 
 export type { AgentStopReason };
 export type AgentStopTermination = 'graceful' | 'forced' | 'absent';

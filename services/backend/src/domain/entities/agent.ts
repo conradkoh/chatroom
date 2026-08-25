@@ -94,7 +94,6 @@ export const isAgentType = (value: unknown): value is AgentType =>
  */
 export const MACHINE_COMMAND_TYPES = [
   'start-agent',
-  'stop-agent',
   'restart-agent',
   'ping',
   'status',

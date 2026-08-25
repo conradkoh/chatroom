@@ -2,12 +2,13 @@
 import { v } from 'convex/values';
 
 import { agentStopReasonValidator, type AgentStopReason } from './agent';
+export { agentStopScopeKey, buildAgentStopRevisionKey, buildAgentStopTargetKey, normalizeAgentStopRole } from '@workspace/shared/domain/agent-stop-command';
+export type { AgentStopScope } from '@workspace/shared/domain/agent-stop-command';
 
 export const agentStopScopeValidator = v.union(
   v.object({ kind: v.literal('chatroom') }),
   v.object({ kind: v.literal('agent'), role: v.string() })
 );
-export type AgentStopScope = typeof agentStopScopeValidator.type;
 
 export { agentStopReasonValidator, type AgentStopReason };
 
@@ -23,23 +24,3 @@ export const agentStopTargetStatusValidator = v.union(
   v.literal('pending'), v.literal('processing'), v.literal('completed'), v.literal('failed')
 );
 export type AgentStopTargetStatus = typeof agentStopTargetStatusValidator.type;
-
-export function normalizeAgentStopRole(role: string): string {
-  return role.trim().toLowerCase();
-}
-export function agentStopScopeKey(scope: AgentStopScope): string {
-  return scope.kind === 'chatroom' ? 'chatroom' : `agent:${normalizeAgentStopRole(scope.role)}`;
-}
-export function buildAgentStopTargetKey(args: {
-  machineId: string;
-  role: string;
-  pid: number;
-}): string {
-  return `${args.machineId}:${normalizeAgentStopRole(args.role)}:${args.pid}`;
-}
-export function buildAgentStopRevisionKey(args: {
-  stopCommandId: string;
-  targetKey: string;
-}): string {
-  return `${args.stopCommandId}:${args.targetKey}`;
-}
