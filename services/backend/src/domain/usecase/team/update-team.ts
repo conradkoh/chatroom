@@ -14,13 +14,10 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey, teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
 import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
-import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
-import {
-  patchTeamAgentConfig,
-  projectAssignedTaskSnapshotsForMachines,
-} from '../machine/patch-team-agent-config';
-import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
+import { requestAgentStop } from '../agent/request-agent-stop';
 import { upsertAgentViewMetadata } from '../chatroom/project-agent-view-metadata';
+import { projectAssignedTaskSnapshotsForMachines } from '../machine/patch-team-agent-config';
+import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -73,7 +70,14 @@ export async function updateTeam(
     teamEntryPoint,
   });
   const updatedRoom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (updatedRoom) await upsertAgentViewMetadata(ctx, { chatroomId, ownerId: updatedRoom.ownerId, teamId, teamName, teamRoles });
+  if (updatedRoom)
+    await upsertAgentViewMetadata(ctx, {
+      chatroomId,
+      ownerId: updatedRoom.ownerId,
+      teamId,
+      teamName,
+      teamRoles,
+    });
 
   await reassignInFlightTasksOnTeamSwitch(ctx, chatroomId);
 
@@ -86,29 +90,13 @@ export async function updateTeam(
       affectedMachineIds.add(config.machineId);
     }
     if (config.machineId && (config.desiredState === 'running' || config.spawnedAgentPid != null)) {
-      await enqueueMachineCommand(ctx, {
+      await requestAgentStop(ctx, {
         machineId: config.machineId,
-        now,
-        command: {
-          type: 'agent.requestStop',
-          chatroomId,
-          role: config.role,
-          reason: 'platform.team_switch',
-          pid: config.spawnedAgentPid ?? undefined,
-        },
+        chatroomId,
+        role: config.role,
+        reason: 'platform.team_switch',
       });
       stoppedAgentCount++;
-
-      await patchTeamAgentConfig(
-        ctx,
-        config._id,
-        {
-          spawnedAgentPid: undefined,
-          spawnedAt: undefined,
-          desiredState: 'stopped',
-        },
-        { skipProject: true }
-      );
     }
 
     preservedCount++;

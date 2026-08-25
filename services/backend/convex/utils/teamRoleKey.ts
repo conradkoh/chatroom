@@ -48,6 +48,7 @@ export async function deleteStaleTeamAgentConfigs(
           chatroomId: row.chatroomId,
           role: row.role,
           reason: 'platform.dedup',
+          pid: row.spawnedAgentPid,
         },
       });
       await ctx.db.delete('chatroom_teamAgentConfigs', row._id);

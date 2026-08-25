@@ -104,8 +104,8 @@ describe('stopAgent use case — desiredState', () => {
   });
 });
 
-describe('stopAgent use case — eager cleanup', () => {
-  test('eagerly clears spawnedAgentPid and spawnedAt on team config', async () => {
+describe('stopAgent use case — deferred physical stop', () => {
+  test('retains spawnedAgentPid until daemon confirms exit', async () => {
     const { sessionId, userId } = await createTestSession('stop-agent-eager-1');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'stop-machine-eager-1';
@@ -156,8 +156,8 @@ describe('stopAgent use case — eager cleanup', () => {
         .first();
     });
 
-    expect(config?.spawnedAgentPid).toBeUndefined();
-    expect(config?.spawnedAt).toBeUndefined();
+    expect(config?.spawnedAgentPid).toBe(99999);
+    expect(config?.spawnedAt).toBeDefined();
     expect(config?.desiredState).toBe('stopped');
   });
 
@@ -212,7 +212,7 @@ describe('stopAgent use case — eager cleanup', () => {
     }
   });
 
-  test('transitions participant to agent.exited (not agent.requestStop)', async () => {
+  test('does not transition participant to agent.exited on stop request', async () => {
     const { sessionId, userId } = await createTestSession('stop-agent-transition-1');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'stop-machine-transition-1';
@@ -253,12 +253,12 @@ describe('stopAgent use case — eager cleanup', () => {
         .unique();
     });
 
-    // Should be 'agent.exited' (not 'agent.requestStop') for immediate OFFLINE
-    expect(participant?.lastStatus).toBe('agent.exited');
-    expect(participant?.lastDesiredState).toBe('stopped');
+    // Participant status unchanged until daemon confirms harness stop
+    expect(participant?.lastStatus).not.toBe('agent.exited');
+    expect(participant?.lastDesiredState).not.toBe('stopped');
   });
 
-  test('releases in_progress tasks to pending on user.stop', async () => {
+  test('does not release in_progress tasks on stop request', async () => {
     const { sessionId, userId } = await createTestSession('stop-agent-release-1');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'stop-machine-release-1';
@@ -300,9 +300,7 @@ describe('stopAgent use case — eager cleanup', () => {
     });
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(task?.status).toBe('pending');
+    expect(task?.status).toBe('in_progress');
     expect(task?.assignedTo).toBe('builder');
-    expect(task?.acknowledgedAt).toBeUndefined();
-    expect(task?.startedAt).toBeUndefined();
   });
 });
