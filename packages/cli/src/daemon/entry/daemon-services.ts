@@ -11,6 +11,8 @@ import type { Runtime } from 'effect';
 import { Context, Effect, Layer, Ref } from 'effect';
 
 import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
+import { api } from '../../api.js';
+import { isAgentStopReason } from '../../../../../services/backend/src/domain/entities/agent.js';
 import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
 import type { ConvexClient, SessionId, WorkspaceForSync } from './daemon-types.js';
 import type { DaemonEventBus } from './events/event-bus.js';
@@ -113,7 +115,7 @@ export const DaemonSpawningServiceLive = (ops: SpawningOps): Layer.Layer<DaemonS
 /** Effect service wrapping AgentProcessManager — precise types from the class. */
 export interface DaemonAgentProcessManagerServiceShape {
   runInboxRoleScopedStop?: (event: AgentRequestStopEventPayload) => Effect.Effect<void>;
-  runInboxScopedStop?: (event: { commandId: string; stopCommandId: string; chatroomId: string; scope: { kind: 'chatroom' } | { kind: 'agent'; role: string }; reason: string; deadline: number }) => Effect.Effect<void>;
+  runInboxScopedStop?: (event: { commandId?: string; _id?: string; stopCommandId: string; chatroomId: string; scope: { kind: 'chatroom' } | { kind: 'agent'; role: string }; reason: string; deadline: number }) => Effect.Effect<void>;
   ensureRunning: (opts: EnsureRunningOpts) => Effect.Effect<OperationResult>;
   stop: (opts: StopOpts) => Effect.Effect<{ success: boolean }>;
   handleExit: (opts: HandleExitOpts) => Effect.Effect<void>;
@@ -143,7 +145,8 @@ export class DaemonAgentProcessManagerService extends Context.Tag(
 )<DaemonAgentProcessManagerService, DaemonAgentProcessManagerServiceShape>() {}
 
 export const DaemonAgentProcessManagerServiceLive = (
-  mgr: AgentProcessManager
+  mgr: AgentProcessManager,
+  sessionDeps?: { sessionId: string; machineId: string; backend: DaemonSessionServiceShape['backend'] }
 ): Layer.Layer<DaemonAgentProcessManagerService> =>
   Layer.succeed(DaemonAgentProcessManagerService, {
     runInboxRoleScopedStop: (event) =>
@@ -180,6 +183,20 @@ export const DaemonAgentProcessManagerServiceLive = (
             failure.error
           );
       }),
+    runInboxScopedStop: (event) => Effect.promise(async () => {
+      if (!sessionDeps || Date.now() > event.deadline) return;
+      const inboxCommandId = (event.commandId ?? event._id) as any;
+      const reason = isAgentStopReason(event.reason) ? event.reason : 'user.stop';
+      await sessionDeps.backend.mutation(api.agentStops.beginMachineExecution, { sessionId: sessionDeps.sessionId, stopCommandId: event.stopCommandId as any, machineId: sessionDeps.machineId, inboxCommandId });
+      const { runScopedStopFromInbox } = await import('../infrastructure/agent-process-manager/stop-agent-scope-adapter.js');
+      const result = await runScopedStopFromInbox({ apm: mgr, confirmedDeps: mgr.getConfirmedStopAdapterDeps(), stopCommandId: event.stopCommandId, chatroomId: event.chatroomId, scope: event.scope, reason: reason as any });
+      for (const { target, outcome } of result.targets) {
+        const mapped = outcome.kind === 'stopped' ? { status: 'completed' as const, outcome: 'stopped' as const } : { status: 'completed' as const, outcome: 'already_stopped' as const };
+        await sessionDeps.backend.mutation(api.agentStops.reportTargetOutcome, { sessionId: sessionDeps.sessionId, stopCommandId: event.stopCommandId as any, chatroomId: event.chatroomId as any, machineId: sessionDeps.machineId, targetKey: target.targetKey, role: target.role, pid: target.pid, ...mapped });
+      }
+      for (const failure of result.failures) await sessionDeps.backend.mutation(api.agentStops.reportTargetOutcome, { sessionId: sessionDeps.sessionId, stopCommandId: event.stopCommandId as any, chatroomId: event.chatroomId as any, machineId: sessionDeps.machineId, targetKey: failure.target.targetKey, role: failure.target.role, pid: failure.target.pid, status: 'failed', outcome: 'failed', errorMessage: String(failure.error) });
+      await sessionDeps.backend.mutation(api.agentStops.completeMachineExecution, { sessionId: sessionDeps.sessionId, stopCommandId: event.stopCommandId as any, machineId: sessionDeps.machineId, status: result.failures.length ? 'failed' : 'completed', errorMessage: result.failures.length ? `${result.failures.length} target(s) failed` : undefined });
+    }),
     ensureRunning: (opts) => Effect.promise(() => mgr.ensureRunning(opts)),
     stop: (opts) => Effect.promise(() => mgr.stop(opts)),
     handleExit: (opts) => Effect.promise(() => mgr.handleExit(opts)),
