@@ -1211,8 +1211,8 @@ export default defineSchema({
   chatroom_agentStopCommands: defineTable({
     chatroomId: v.id('chatroom_rooms'), scope: agentStopScopeValidator, scopeKey: v.string(),
     reason: agentStopReasonValidator, requestedBy: v.optional(v.id('users')), status: agentStopStatusValidator,
-    createdAt: v.number(), completedAt: v.optional(v.number()),
-  }).index('by_chatroom_created', ['chatroomId', 'createdAt']).index('by_chatroom_scopeKey_status', ['chatroomId', 'scopeKey', 'status']),
+    deadlineAt: v.optional(v.number()), createdAt: v.number(), completedAt: v.optional(v.number()), errorCode: v.optional(v.string()), errorMessage: v.optional(v.string()),
+  }).index('by_chatroom_status', ['chatroomId', 'status']).index('by_chatroom_scopeKey_status', ['chatroomId', 'scopeKey', 'status']),
 
   chatroom_agentStopMachineExecutions: defineTable({
     stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), machineId: v.string(),
@@ -1221,8 +1221,8 @@ export default defineSchema({
   }).index('by_stopCommandId', ['stopCommandId']).index('by_stopCommandId_machineId', ['stopCommandId', 'machineId']).index('by_machineId_status', ['machineId', 'status']),
 
   chatroom_agentStopTargets: defineTable({
-    stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), machineId: v.string(),
-    role: v.string(), pid: v.number(), targetKey: v.string(), revisionKey: v.string(), status: agentStopTargetStatusValidator,
+    stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), agentConfigId: v.optional(v.id('chatroom_teamAgentConfigs')), machineId: v.string(),
+    role: v.string(), pid: v.number(), agentHarness: v.optional(agentHarnessValidator), targetKey: v.string(), revisionKey: v.string(), status: agentStopTargetStatusValidator,
     outcome: v.optional(v.union(v.literal('stopped'), v.literal('already_stopped'), v.literal('failed'))),
     errorMessage: v.optional(v.string()), completedAt: v.optional(v.number()),
   }).index('by_stopCommandId', ['stopCommandId']).index('by_stopCommandId_targetKey', ['stopCommandId', 'targetKey']).index('by_chatroom_role', ['chatroomId', 'role']),
