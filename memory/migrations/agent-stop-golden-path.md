@@ -45,4 +45,4 @@ _(record here as slices land)_
 
 ## Verification log
 
-- Slice 1: pending final typecheck/test verification.
+- Slice 1: `pnpm --dir packages/cli exec vitest run src/daemon/domain/usecase/stop-agent-confirmed.test.ts src/daemon/domain/usecase/stop-agent-scope.test.ts` (10 passed); `pnpm --dir packages/cli typecheck` (passed).
