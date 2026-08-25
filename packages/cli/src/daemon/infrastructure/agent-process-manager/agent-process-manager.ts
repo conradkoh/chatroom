@@ -53,10 +53,10 @@ import {
   type AgentExitAuditArgs,
   type AgentLifecycleFact,
 } from '../../domain/entities/agent-lifecycle-fact.js';
+import { AgentStopError } from '../../domain/entities/agent-stop.js';
 import type {
   AgentStopTargetDescriptor,
-  AgentStopError,
-  type AgentStopReason,
+  AgentStopReason,
 } from '../../domain/entities/agent-stop.js';
 import { resolveResumableHarnessSessionId } from '../../domain/entities/harness-session-id-pair.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
