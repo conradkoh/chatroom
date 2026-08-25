@@ -10,12 +10,14 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { AgentStopReason } from '../../entities/agent';
 import { createAgentStopCommand } from './create-agent-stop-command';
+import { selectConfigsForAgentStop, type AgentStopSelectedConfig } from './select-agent-stop-configs';
 
 export interface RequestAgentStopInput {
   machineId: string;
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   reason: AgentStopReason;
+  selectedConfigs?: AgentStopSelectedConfig[];
 }
 
 export interface RequestAgentStopResult {
@@ -27,6 +29,7 @@ export async function requestAgentStop(
   ctx: MutationCtx,
   input: RequestAgentStopInput
 ): Promise<RequestAgentStopResult> {
-  await createAgentStopCommand(ctx, { chatroomId: input.chatroomId, scope: { kind: 'agent', role: input.role }, reason: input.reason, machineId: input.machineId });
+  const selectedConfigs = input.selectedConfigs ?? await selectConfigsForAgentStop(ctx, { chatroomId: input.chatroomId, scope: { kind: 'agent', role: input.role }, machineId: input.machineId });
+  await createAgentStopCommand(ctx, { chatroomId: input.chatroomId, scope: { kind: 'agent', role: input.role }, reason: input.reason, selectedConfigs });
   return {};
 }

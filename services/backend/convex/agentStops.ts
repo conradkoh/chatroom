@@ -13,8 +13,9 @@ import { createAgentStopCommand } from '../src/domain/usecase/agent/create-agent
 import { agentStopScopeValidator, agentStopTargetStatusValidator } from '../src/domain/entities/agent-stop-command';
 import { rollupAgentStopCommandStatus } from '../src/domain/usecase/agent/rollup-agent-stop-command';
 import { reconcileUnreportedStopTargets } from '../src/domain/usecase/agent/reconcile-unreported-stop-targets';
+import { selectConfigsForAgentStop } from '../src/domain/usecase/agent/select-agent-stop-configs';
 
-export const request = mutation({
+export const requestAgent = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
@@ -26,21 +27,32 @@ export const request = mutation({
     const auth = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
 
-    const result = await createAgentStopCommand(ctx, { machineId: args.machineId, chatroomId: args.chatroomId, scope: { kind: 'agent', role: args.role }, reason: args.reason ?? 'user.stop', requestedBy: auth.session.userId });
-    return { ok: true as const, stopCommandId: result.stopCommandId, coalesced: result.coalesced };
+    const selectedConfigs = await selectConfigsForAgentStop(ctx, { chatroomId: args.chatroomId, scope: { kind: 'agent', role: args.role }, machineId: args.machineId });
+    const result = await createAgentStopCommand(ctx, { chatroomId: args.chatroomId, scope: { kind: 'agent', role: args.role }, reason: args.reason ?? 'user.stop', requestedBy: auth.session.userId, selectedConfigs });
+    return { ok: true as const, stopCommandId: result.stopCommandId };
   },
 });
 
-export const requestScope = mutation({
+export const requestMachineScope = mutation({
   args: { ...SessionIdArg, chatroomId: v.id('chatroom_rooms'), machineId: v.string(), scope: agentStopScopeValidator, reason: v.optional(agentStopReasonValidator) },
   handler: async (ctx, args) => {
     const auth = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
-    const result = await createAgentStopCommand(ctx, { chatroomId: args.chatroomId, machineId: args.machineId, scope: args.scope, reason: args.reason ?? 'daemon.shutdown', requestedBy: auth.session.userId });
-    const execution = await ctx.db.query('chatroom_agentStopMachineExecutions').withIndex('by_stopCommandId_machineId', (q) => q.eq('stopCommandId', result.stopCommandId).eq('machineId', args.machineId)).unique();
-    return { ok: true as const, stopCommandId: result.stopCommandId, coalesced: result.coalesced, inboxCommandId: execution?.inboxCommandId };
+    const selectedConfigs = await selectConfigsForAgentStop(ctx, { chatroomId: args.chatroomId, scope: args.scope, machineId: args.machineId });
+    const result = await createAgentStopCommand(ctx, { chatroomId: args.chatroomId, scope: args.scope, reason: args.reason ?? 'daemon.shutdown', requestedBy: auth.session.userId, selectedConfigs });
+    return { ok: true as const, stopCommandId: result.stopCommandId, inboxCommandId: result.inboxCommandIdsByMachine[args.machineId] };
   },
 });
+
+export const requestChatroom = mutation({ args: { ...SessionIdArg, chatroomId: v.id('chatroom_rooms'), reason: v.optional(agentStopReasonValidator) }, handler: async (ctx, args) => {
+  const auth = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+  const scope = { kind: 'chatroom' as const };
+  const selectedConfigs = await selectConfigsForAgentStop(ctx, { chatroomId: args.chatroomId, scope });
+  const result = await createAgentStopCommand(ctx, { chatroomId: args.chatroomId, scope, reason: args.reason ?? 'user.stop', requestedBy: auth.session.userId, selectedConfigs });
+  return { ok: true as const, stopCommandId: result.stopCommandId };
+} });
+export const request = requestAgent;
+export const requestScope = requestMachineScope;
 
 export const reportTargetOutcome = mutation({
   args: { ...SessionIdArg, stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), machineId: v.string(), targetKey: v.string(), role: v.string(), pid: v.number(), status: agentStopTargetStatusValidator, outcome: v.optional(v.union(v.literal('stopped'), v.literal('already_stopped'), v.literal('failed'))), errorMessage: v.optional(v.string()) },
