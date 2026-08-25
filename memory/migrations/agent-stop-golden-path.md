@@ -46,4 +46,4 @@ _(record here as slices land)_
 ## Verification log
 
 - Slice 1: `pnpm --dir packages/cli exec vitest run src/daemon/domain/usecase/stop-agent-confirmed.test.ts src/daemon/domain/usecase/stop-agent-scope.test.ts` (10 passed); `pnpm --dir packages/cli typecheck` (passed).
-- Slice 2: `pnpm --dir packages/cli typecheck` (passed); focused APM tests expose three legacy fixture expectations that assume no liveness probe / fire-and-forget audit.
+- Slice 2: `pnpm --dir packages/cli exec vitest run src/daemon/infrastructure/agent-process-manager/agent-process-manager.test.ts` (103 passed); `pnpm --dir packages/cli typecheck` (passed).
