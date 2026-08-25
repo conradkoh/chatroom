@@ -11,6 +11,7 @@
 import type * as admin_invites from "../admin/invites.js";
 import type * as admin_users from "../admin/users.js";
 import type * as agentResumeStorm from "../agentResumeStorm.js";
+import type * as agentStops from "../agentStops.js";
 import type * as agenticQueryCleanup from "../agenticQueryCleanup.js";
 import type * as allTabConversation from "../allTabConversation.js";
 import type * as api_agenticQueryHelpers from "../api/agenticQueryHelpers.js";
@@ -174,6 +175,7 @@ declare const fullApi: ApiFromModules<{
   "admin/invites": typeof admin_invites;
   "admin/users": typeof admin_users;
   agentResumeStorm: typeof agentResumeStorm;
+  agentStops: typeof agentStops;
   agenticQueryCleanup: typeof agenticQueryCleanup;
   allTabConversation: typeof allTabConversation;
   "api/agenticQueryHelpers": typeof api_agenticQueryHelpers;
