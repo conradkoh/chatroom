@@ -53,13 +53,6 @@ export interface StartAgentDeps {
   machine: Pick<MachineStateOps, 'persistAgentPid' | 'listAgentEntries'>;
 }
 
-/** Dependencies for handleStopAgent */
-export interface StopAgentDeps {
-  backend: BackendOps;
-  processes: ProcessOps;
-  machine: Pick<MachineStateOps, 'clearAgentPid' | 'listAgentEntries'>;
-}
-
 /** Dependencies for recoverAgentState */
 export interface StateRecoveryDeps {
   backend: BackendOps;

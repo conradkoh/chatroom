@@ -27,7 +27,7 @@ status: active
 - [x] Slice 3: route daemon inbox handler through `stopAgentScope`; keep `agent.requestStop` payload temporarily
 - [x] Slice 4: migrate backend producers (`stop-agent.ts`, `ensure-only-agent-for-role.ts`, `update-team.ts`, `teamRoleKey.ts`) to golden-path stop intent (no eager PID clear / exit / task release)
 - [x] Slice 5: migrate UI (`ChatroomSidebar`, `ChatroomDashboard`, `AgentControls`, command palette) to single mutation hook (stub mutation OK if schema not ready)
-- [ ] Slice 6: delete legacy paths after `rg` shows zero producers
+- [x] Slice 6: delete legacy paths after `rg` shows zero producers
 
 ## Stage 2 — Durable command + confirmed behavior
 
@@ -42,6 +42,9 @@ status: active
 ## Deviations
 
 - Slice 4: `teamRoleKey.deleteStaleTeamAgentConfigs` inlines inbox enqueue (avoids convex→domain import cycle); behavior matches `requestAgentStop` intent.
+- Slice 6: `machines.sendCommand` stop-agent retained as compat shim delegating to `stopAgent` → `requestAgentStop`.
+- [medium] `agent-lifecycle-port-adapters` harness `stop` still tries every service — consolidate with confirmed-stop adapter in Stage 2.
+- [low] Cross-package import: `packages/cli` → `services/backend/.../agent-stop-command.ts` (Stage 2).
 - Slice 4: `machines.sendCommand` stop-agent no longer calls eager exit/PID clear (delegates to `requestAgentStop`).
 
 ## Verification log
@@ -51,3 +54,5 @@ status: active
 - Slice 3: scoped inbox stop wiring implemented; verification pending.
 - Slice 4: `pnpm --dir services/backend exec vitest run ...` (16 passed).
 - Slice 5: `pnpm --dir apps/webapp exec vitest run src/modules/chatroom/components/ChatroomSidebar.test.tsx` (15 passed).
+- Slice 6: removed legacy daemon `handlers/stop-agent.ts` + `domain/usecase/stop-agent.ts`; UI has zero `stop-agent` sendCommand producers (`rg` — only `types/machine.ts` union remains for compat).
+- Slice 6: `pnpm --dir packages/cli exec vitest run src/daemon/entry/handlers/daemon-handlers-effect.test.ts src/daemon/entry/events/agent/on-request-stop-agent.test.ts` (passed).
