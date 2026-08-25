@@ -97,7 +97,7 @@ The signed-off Option C model uses three tables:
 - `chatroom_agentStopMachineExecutions`: one row per command and machine, with inbox ID, status, claim/completion timestamps, and error.
 - `chatroom_agentStopTargets`: one row per PID target with machine, role, target/revision keys, status, outcome, and error.
 
-`chatroom` scope covers all running agents across all bound machines. Daemon shutdown creates one command per chatroom. Active duplicate requests coalesce by `(chatroomId, scopeKey)` while pending or processing. UI stop-in-progress remains per-role in the agent panel only.
+`chatroom` scope covers all running agents across all bound machines. Daemon shutdown creates one command per chatroom. A newer stop request supersedes all pending or processing stop commands for that chatroom, regardless of scope key. UI stop-in-progress remains per-role in the agent panel only.
 
 ### Resolved schema decisions
 
@@ -107,7 +107,7 @@ The signed-off Option C model uses three tables:
 | Chatroom scope          | All running agents in the chatroom across all bound machines                       | 2026-08-25 |
 | Daemon shutdown         | One stop command per chatroom                                                      | 2026-08-25 |
 | Reason enum SSOT        | `agent.ts` `AGENT_STOP_REASONS` literals                                           | 2026-08-25 |
-| Double-stop idempotency | Coalesce existing pending/processing command for the same `(chatroomId, scopeKey)` | 2026-08-25 |
+| Double-stop idempotency | Per-chatroom supersede: newer request terminalizes all pending/processing commands, regardless of scope key | 2026-08-25 |
 | UI stop-in-progress     | Per-role in agent panel only; no chatroom-level sidebar spinner                    | 2026-08-25 |
 
 <!-- Rejected design alternatives and open questions were removed after approval. -->
