@@ -33,6 +33,16 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface ChatroomSidebarItemProps {
   chatroom: ChatroomWithStatus;
@@ -48,33 +58,36 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const displayName = getChatroomDisplayName(chatroom);
   const [startModalOpen, setStartModalOpen] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
+  const [isSubmittingStop, setIsSubmittingStop] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
-  const { stopAgents } = useAgentStop();
+  const { requestChatroomStop } = useAgentStop();
   const stopAllCommandRuns = useSessionMutation(api.commands.stopAllCommandRunsForChatroom);
   const restartOfflineAgents = useSessionMutation(api.machines.restartOfflineAgentsFromConfig);
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
 
-  const handleStop = useCallback(
-    async (e: React.MouseEvent) => {
+  const handleStop = useCallback((e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      try {
-        await stopAgents(
-          chatroom.runningAgentConfigs.map(({ machineId, role }) => ({
-            chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-            machineId,
-            role,
-          }))
-        );
-        await stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> });
-      } catch (error) {
-        console.error('Failed to stop agents:', error);
-        toast.error(error instanceof Error ? error.message : 'Failed to stop agents');
-      }
-    },
-    [chatroom.runningAgentConfigs, chatroom._id, stopAgents, stopAllCommandRuns]
-  );
+      setStopConfirmOpen(true);
+  }, []);
+
+  const confirmStop = useCallback(async () => {
+      setIsSubmittingStop(true);
+      const [agentStop, commandStop] = await Promise.allSettled([
+        requestChatroomStop(chatroom._id as Id<'chatroom_rooms'>),
+        stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> }),
+      ]);
+      // Independent branches: one failure must not skip the other.
+      const failures = [
+        agentStop.status === 'rejected' ? `Agents: ${String(agentStop.reason)}` : null,
+        commandStop.status === 'rejected' ? `Command runs: ${String(commandStop.reason)}` : null,
+      ].filter(Boolean);
+      if (failures.length > 0) toast.error(failures.join('; '));
+      setIsSubmittingStop(false);
+      setStopConfirmOpen(false);
+  }, [chatroom._id, requestChatroomStop, stopAllCommandRuns]);
 
   const handleStart = useCallback(
     async (e: React.MouseEvent) => {
@@ -172,7 +185,11 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           {chatroom.remoteAgentStatus === 'running' && (
             <button
               onClick={handleStop}
-              title="Stop agent and processes"
+              title="Stop agents and command runs"
+              aria-label="Stop agents and command runs"
+              aria-busy={isSubmittingStop}
+              type="button"
+              disabled={isSubmittingStop}
               className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
             >
               <Square size={8} fill="currentColor" />
@@ -229,6 +246,23 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         chatroomId={chatroom._id as Id<'chatroom_rooms'>}
         action="archive"
       />
+
+      <AlertDialog open={stopConfirmOpen} onOpenChange={setStopConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop agents and command runs?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will stop all agents and active command runs in {displayName}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmittingStop}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(event) => { event.preventDefault(); void confirmStop(); }} disabled={isSubmittingStop}>
+              {isSubmittingStop ? 'Stopping…' : 'Stop all'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 });

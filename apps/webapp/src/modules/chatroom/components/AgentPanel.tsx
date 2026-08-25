@@ -36,7 +36,8 @@ interface AgentPanelProps {
   onStartAllRemoteAgents?: () => void;
   onStopAllRemoteAgents?: () => void;
   onRestartAllRemoteAgents?: () => void;
-  isAgentActionInProgress?: boolean;
+  isRestartingAgents?: boolean;
+  isStoppingAgents?: boolean;
   isStartingAllAgents?: boolean;
 }
 
@@ -163,7 +164,8 @@ export const AgentPanel = memo(function AgentPanel({
   onStartAllRemoteAgents,
   onStopAllRemoteAgents,
   onRestartAllRemoteAgents,
-  isAgentActionInProgress,
+  isRestartingAgents,
+  isStoppingAgents,
   isStartingAllAgents,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
@@ -243,7 +245,8 @@ export const AgentPanel = memo(function AgentPanel({
           </div>
           <RemoteAgentQuickActions
             hasRunningAgents={hasRunningRemoteAgents ?? false}
-            isRestarting={isAgentActionInProgress}
+            isRestarting={isRestartingAgents}
+            isStopping={isStoppingAgents}
             onStart={onStartAllRemoteAgents}
             onStop={onStopAllRemoteAgents}
             onRestart={onRestartAllRemoteAgents}
