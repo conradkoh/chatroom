@@ -345,7 +345,11 @@ export class AgentProcessManager {
     }
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.getOrCreateSlot(key);
-    if (slot.state !== 'idle' && opts.lifecycleRevision !== undefined && slot.authorizedLifecycleRevision !== opts.lifecycleRevision) {
+    if (
+      slot.state !== 'idle' &&
+      opts.lifecycleRevision !== undefined &&
+      slot.authorizedLifecycleRevision !== opts.lifecycleRevision
+    ) {
       return { success: false, error: 'stale_revision' };
     }
 
@@ -1427,7 +1431,9 @@ export class AgentProcessManager {
     }
   }
 
-  public async syncSlotsAfterScopedStop(result: { targets: Array<{ target: { chatroomId: string; role: string; pid: number } }> }): Promise<void> {
+  public async syncSlotsAfterScopedStop(result: {
+    targets: Array<{ target: { chatroomId: string; role: string; pid: number } }>;
+  }): Promise<void> {
     for (const { target } of result.targets) {
       const slot = this.slots.get(agentKey(target.chatroomId, target.role));
       if (!slot || slot.pid !== target.pid) continue;
@@ -2029,7 +2035,9 @@ export class AgentProcessManager {
           this.resetSlotIdle(slot);
         }
       })
-      .catch((err: Error) => console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`));
+      .catch((err: Error) =>
+        console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`)
+      );
   }
 
   private registerSpawnCallbacks(

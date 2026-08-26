@@ -73,7 +73,11 @@ export const RemoteAgentQuickActions = memo(function RemoteAgentQuickActions({
             : inactiveClass
         )}
       >
-        {isStopping ? <Loader2 size={10} className="animate-spin" /> : <Square size={8} fill="currentColor" />}
+        {isStopping ? (
+          <Loader2 size={10} className="animate-spin" />
+        ) : (
+          <Square size={8} fill="currentColor" />
+        )}
       </button>
       <button
         type="button"

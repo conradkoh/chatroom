@@ -1,7 +1,6 @@
 import { v } from 'convex/values';
 
-import { agentHarnessValidator } from './agent';
-import { agentStopReasonValidator } from './agent';
+import { agentHarnessValidator , agentStopReasonValidator } from './agent';
 import { agentStopScopeValidator } from './agent-stop-command';
 import {
   AGENT_REQUEST_DEADLINE_MS,
@@ -26,7 +25,13 @@ const localActionValidator = v.union(
   ).map(v.literal)
 );
 export const machineCommandPayloadValidator = v.union(
-  v.object({ type: v.literal('agent.stopScope'), stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), scope: agentStopScopeValidator, reason: agentStopReasonValidator }),
+  v.object({
+    type: v.literal('agent.stopScope'),
+    stopCommandId: v.id('chatroom_agentStopCommands'),
+    chatroomId: v.id('chatroom_rooms'),
+    scope: agentStopScopeValidator,
+    reason: agentStopReasonValidator,
+  }),
   v.object({
     type: v.literal('agent.requestStart'),
     chatroomId: v.id('chatroom_rooms'),

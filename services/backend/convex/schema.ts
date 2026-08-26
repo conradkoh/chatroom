@@ -517,12 +517,36 @@ export default defineSchema({
 
   /** Slim selection headers; used only after per-room completeness is marked. */
   chatroom_messageReadModels: defineTable({
-    messageId: v.id('chatroom_messages'), chatroomId: v.id('chatroom_rooms'), messageCreatedAt: v.number(), senderRole: v.string(),
-    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join'), v.literal('progress'), v.literal('new-context')),
-    isTimeline: v.boolean(), taskId: v.optional(v.id('chatroom_tasks')),
-    taskStatus: v.optional(v.union(v.literal('pending'), v.literal('acknowledged'), v.literal('in_progress'), v.literal('completed'), v.literal('closed'), v.literal('backlog'), v.literal('pending_user_review'), v.literal('backlog_acknowledged'))),
+    messageId: v.id('chatroom_messages'),
+    chatroomId: v.id('chatroom_rooms'),
+    messageCreatedAt: v.number(),
+    senderRole: v.string(),
+    type: v.union(
+      v.literal('message'),
+      v.literal('handoff'),
+      v.literal('join'),
+      v.literal('progress'),
+      v.literal('new-context')
+    ),
+    isTimeline: v.boolean(),
+    taskId: v.optional(v.id('chatroom_tasks')),
+    taskStatus: v.optional(
+      v.union(
+        v.literal('pending'),
+        v.literal('acknowledged'),
+        v.literal('in_progress'),
+        v.literal('completed'),
+        v.literal('closed'),
+        v.literal('backlog'),
+        v.literal('pending_user_review'),
+        v.literal('backlog_acknowledged')
+      )
+    ),
     acknowledgedAt: v.optional(v.number()),
-  }).index('by_messageId', ['messageId']).index('by_chatroom_createdAt', ['chatroomId', 'messageCreatedAt']).index('by_chatroom_timeline_createdAt', ['chatroomId', 'isTimeline', 'messageCreatedAt']),
+  })
+    .index('by_messageId', ['messageId'])
+    .index('by_chatroom_createdAt', ['chatroomId', 'messageCreatedAt'])
+    .index('by_chatroom_timeline_createdAt', ['chatroomId', 'isTimeline', 'messageCreatedAt']),
 
   chatroom_messageReadModelState: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -662,7 +686,11 @@ export default defineSchema({
     .index('by_chatroom_status_assignedTo', ['chatroomId', 'status', 'assignedTo'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition'])
     .index('by_assignedTo_status', ['assignedTo', 'status'])
-    .index('by_chatroom_assignedTo_originUserMessageId', ['chatroomId', 'assignedTo', 'originUserMessageId']),
+    .index('by_chatroom_assignedTo_originUserMessageId', [
+      'chatroomId',
+      'assignedTo',
+      'originUserMessageId',
+    ]),
 
   /**
    * Slim timeline task-status signals — one row per FSM transition.
@@ -710,9 +738,21 @@ export default defineSchema({
     machineId: v.string(),
     previousSignalKey: v.optional(v.string()),
     latestSignal: v.object({
-      chatroomId: v.id('chatroom_rooms'), taskId: v.id('chatroom_tasks'), targetRole: v.string(),
-      taskStatus: v.union(v.literal('pending'), v.literal('acknowledged'), v.literal('in_progress'), v.literal('completed'), v.literal('closed'), v.literal('backlog'), v.literal('pending_user_review'), v.literal('backlog_acknowledged')),
-      signalKey: v.string(), taskUpdatedAt: v.number(),
+      chatroomId: v.id('chatroom_rooms'),
+      taskId: v.id('chatroom_tasks'),
+      targetRole: v.string(),
+      taskStatus: v.union(
+        v.literal('pending'),
+        v.literal('acknowledged'),
+        v.literal('in_progress'),
+        v.literal('completed'),
+        v.literal('closed'),
+        v.literal('backlog'),
+        v.literal('pending_user_review'),
+        v.literal('backlog_acknowledged')
+      ),
+      signalKey: v.string(),
+      taskUpdatedAt: v.number(),
     }),
   }).index('by_machineId', ['machineId']),
 
@@ -1211,7 +1251,15 @@ export default defineSchema({
     isAlive: v.boolean(),
     isRunning: v.boolean(),
     daemonConnected: v.boolean(),
-    stopState: v.optional(v.union(v.literal('idle'), v.literal('pending'), v.literal('stopping'), v.literal('stopped'), v.literal('failed'))),
+    stopState: v.optional(
+      v.union(
+        v.literal('idle'),
+        v.literal('pending'),
+        v.literal('stopping'),
+        v.literal('stopped'),
+        v.literal('failed')
+      )
+    ),
     /** Derived eligibility to accept tasks; populated by later projection logic. */
     acceptsTasks: v.optional(v.boolean()),
     activeStopCommandId: v.optional(v.id('chatroom_agentStopCommands')),
@@ -1223,24 +1271,63 @@ export default defineSchema({
     .index('by_machineId', ['machineId']),
 
   chatroom_agentStopCommands: defineTable({
-    chatroomId: v.id('chatroom_rooms'), scope: agentStopScopeValidator, scopeKey: v.string(),
-    reason: agentStopReasonValidator, requestedBy: v.optional(v.id('users')), status: agentStopStatusValidator,
-    deadlineAt: v.optional(v.number()), createdAt: v.number(), postStopDesiredState: v.optional(v.union(v.literal('running'), v.literal('stopped'))), completedAt: v.optional(v.number()), errorCode: v.optional(v.string()), errorMessage: v.optional(v.string()),
-  }).index('by_chatroom_status', ['chatroomId', 'status']).index('by_status_deadlineAt', ['status', 'deadlineAt']).index('by_status_completedAt', ['status', 'completedAt']).index('by_chatroom_scopeKey_status', ['chatroomId', 'scopeKey', 'status']),
+    chatroomId: v.id('chatroom_rooms'),
+    scope: agentStopScopeValidator,
+    scopeKey: v.string(),
+    reason: agentStopReasonValidator,
+    requestedBy: v.optional(v.id('users')),
+    status: agentStopStatusValidator,
+    deadlineAt: v.optional(v.number()),
+    createdAt: v.number(),
+    postStopDesiredState: v.optional(v.union(v.literal('running'), v.literal('stopped'))),
+    completedAt: v.optional(v.number()),
+    errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+  })
+    .index('by_chatroom_status', ['chatroomId', 'status'])
+    .index('by_status_deadlineAt', ['status', 'deadlineAt'])
+    .index('by_status_completedAt', ['status', 'completedAt'])
+    .index('by_chatroom_scopeKey_status', ['chatroomId', 'scopeKey', 'status']),
 
   chatroom_agentStopMachineExecutions: defineTable({
-    stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), machineId: v.string(),
-    inboxCommandId: v.optional(v.id('chatroom_machineCommandInbox')), status: agentStopStatusValidator,
-    claimedAt: v.optional(v.number()), completedAt: v.optional(v.number()), errorMessage: v.optional(v.string()),
-  }).index('by_stopCommandId', ['stopCommandId']).index('by_stopCommandId_machineId', ['stopCommandId', 'machineId']).index('by_machineId_status', ['machineId', 'status']),
+    stopCommandId: v.id('chatroom_agentStopCommands'),
+    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
+    inboxCommandId: v.optional(v.id('chatroom_machineCommandInbox')),
+    status: agentStopStatusValidator,
+    claimedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+  })
+    .index('by_stopCommandId', ['stopCommandId'])
+    .index('by_stopCommandId_machineId', ['stopCommandId', 'machineId'])
+    .index('by_machineId_status', ['machineId', 'status']),
 
   chatroom_agentStopTargets: defineTable({
-    stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), agentConfigId: v.optional(v.id('chatroom_teamAgentConfigs')), machineId: v.string(),
-    role: v.string(), pid: v.number(), agentHarness: v.optional(agentHarnessValidator), targetKey: v.string(), revisionKey: v.string(), status: agentStopTargetStatusValidator,
+    stopCommandId: v.id('chatroom_agentStopCommands'),
+    chatroomId: v.id('chatroom_rooms'),
+    agentConfigId: v.optional(v.id('chatroom_teamAgentConfigs')),
+    machineId: v.string(),
+    role: v.string(),
+    pid: v.number(),
+    agentHarness: v.optional(agentHarnessValidator),
+    targetKey: v.string(),
+    revisionKey: v.string(),
+    status: agentStopTargetStatusValidator,
     outcome: v.optional(v.union(v.literal('stopped'), v.literal('already_stopped'))),
-    termination: v.optional(v.union(v.literal('graceful'), v.literal('forced'), v.literal('absent'))), lifecycleWarning: v.optional(v.string()), lifecycleAppliedAt: v.optional(v.number()), errorCode: v.optional(v.string()),
-    errorMessage: v.optional(v.string()), completedAt: v.optional(v.number()),
-  }).index('by_stopCommandId', ['stopCommandId']).index('by_stopCommandId_targetKey', ['stopCommandId', 'targetKey']).index('by_stopCommandId_machineId', ['stopCommandId', 'machineId']).index('by_chatroom_role', ['chatroomId', 'role']),
+    termination: v.optional(
+      v.union(v.literal('graceful'), v.literal('forced'), v.literal('absent'))
+    ),
+    lifecycleWarning: v.optional(v.string()),
+    lifecycleAppliedAt: v.optional(v.number()),
+    errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+  })
+    .index('by_stopCommandId', ['stopCommandId'])
+    .index('by_stopCommandId_targetKey', ['stopCommandId', 'targetKey'])
+    .index('by_stopCommandId_machineId', ['stopCommandId', 'machineId'])
+    .index('by_chatroom_role', ['chatroomId', 'role']),
 
   /**
    * Materialized per-chatroom agent overview for sidebar subscriptions.
@@ -2540,8 +2627,13 @@ export default defineSchema({
 
   /** Per-machine/chatroom observation projection; recency remains query-time. */
   chatroom_machineObservedWorkspaceViews: defineTable({
-    machineId: v.string(), chatroomId: v.id('chatroom_rooms'), lastObservedAt: v.number(), workingDirs: v.array(v.string()),
-  }).index('by_machineId', ['machineId']).index('by_machineId_chatroomId', ['machineId', 'chatroomId']),
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    lastObservedAt: v.number(),
+    workingDirs: v.array(v.string()),
+  })
+    .index('by_machineId', ['machineId'])
+    .index('by_machineId_chatroomId', ['machineId', 'chatroomId']),
 
   // ─── direct-harness (feature flag: directHarnessWorkers) ─────────────────
 

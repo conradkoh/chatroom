@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
+
 import { api } from '../../convex/_generated/api';
-import { t } from '../../test.setup';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
+import { t } from '../../test.setup';
 import {
   createDuoTeamChatroom,
   createTestSession,
@@ -45,11 +46,25 @@ describe('agent operational status projection', () => {
       const room = await ctx.db.get(chatroomId);
       await ctx.db.patch(chatroomId, { teamRoles: ['planner', 'enhancer', 'builder'] });
       await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: buildTeamRoleKey(chatroomId, room!.teamId!, 'enhancer'), chatroomId, role: 'enhancer', type: 'remote', machineId,
-        agentHarness: 'opencode', model: 'test', workingDir: '/workspace', enabled: true, desiredState: 'running', lifecycleRevision: 0, createdAt: Date.now(), updatedAt: Date.now(),
+        teamRoleKey: buildTeamRoleKey(chatroomId, room!.teamId!, 'enhancer'),
+        chatroomId,
+        role: 'enhancer',
+        type: 'remote',
+        machineId,
+        agentHarness: 'opencode',
+        model: 'test',
+        workingDir: '/workspace',
+        enabled: true,
+        desiredState: 'running',
+        lifecycleRevision: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
       });
     });
-    await t.mutation(api.machines.backfillAgentOperationalStatusForMachine, { sessionId: sessionId as any, machineId });
+    await t.mutation(api.machines.backfillAgentOperationalStatusForMachine, {
+      sessionId: sessionId as any,
+      machineId,
+    });
     const projection = await projectionFor(chatroomId, 'enhancer');
     expect(projection.role?.acceptsTasks).toBe(true);
     expect(projection.role?.viewState).toBe('idle');

@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest';
 
-import { createChatroomScopeBarrier, isChatroomStopScopeActive, resetChatroomScopeBarrierForTests } from './execute-stop-targets-adapter.js';
+import {
+  createChatroomScopeBarrier,
+  isChatroomStopScopeActive,
+  resetChatroomScopeBarrierForTests,
+} from './execute-stop-targets-adapter.js';
 
 describe('execute-stop-targets-adapter', () => {
   test('barrier tracks active chatrooms and releases', async () => {

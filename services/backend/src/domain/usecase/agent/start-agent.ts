@@ -15,6 +15,7 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import { transitionAgentStatus } from './transition-agent-status';
@@ -25,7 +26,6 @@ import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/a
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
-import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -140,7 +140,10 @@ export async function startAgent(
       },
     });
 
-    const currentConfig = await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey)).first();
+    const currentConfig = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+      .first();
     if (currentConfig) {
       const lifecycleRevision = await advanceAgentLifecycleRevision(ctx, currentConfig._id);
       input.lifecycleRevision = lifecycleRevision;

@@ -6,11 +6,14 @@
  * those happen only after the daemon confirms harness termination.
  */
 
+import { createAgentStopCommand } from './create-agent-stop-command';
+import {
+  selectConfigsForAgentStop,
+  type AgentStopSelectedConfig,
+} from './select-agent-stop-configs';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { AgentStopReason } from '../../entities/agent';
-import { createAgentStopCommand } from './create-agent-stop-command';
-import { selectConfigsForAgentStop, type AgentStopSelectedConfig } from './select-agent-stop-configs';
 
 export interface RequestAgentStopInput {
   machineId: string;
@@ -29,7 +32,18 @@ export async function requestAgentStop(
   ctx: MutationCtx,
   input: RequestAgentStopInput
 ): Promise<RequestAgentStopResult> {
-  const selectedConfigs = input.selectedConfigs ?? await selectConfigsForAgentStop(ctx, { chatroomId: input.chatroomId, scope: { kind: 'agent', role: input.role }, machineId: input.machineId });
-  await createAgentStopCommand(ctx, { chatroomId: input.chatroomId, scope: { kind: 'agent', role: input.role }, reason: input.reason, selectedConfigs });
+  const selectedConfigs =
+    input.selectedConfigs ??
+    (await selectConfigsForAgentStop(ctx, {
+      chatroomId: input.chatroomId,
+      scope: { kind: 'agent', role: input.role },
+      machineId: input.machineId,
+    }));
+  await createAgentStopCommand(ctx, {
+    chatroomId: input.chatroomId,
+    scope: { kind: 'agent', role: input.role },
+    reason: input.reason,
+    selectedConfigs,
+  });
   return {};
 }

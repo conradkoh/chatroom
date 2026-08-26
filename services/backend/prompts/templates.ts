@@ -20,9 +20,17 @@ export interface RoleTemplate {
  */
 export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
   enhancer: {
-    role: 'enhancer', title: 'Enhancer',
-    description: 'You are a single-turn, memoryless design advisor. Produce one complete recommended design for the user request; you are not an implementer.',
-    responsibilities: ['Recover authoritative user request and history before analysis', 'Inspect the repository for patterns, constraints, and change surfaces', 'Return one complete recommended design — not multiple options', 'Complete frontend and data/query design at code granularity when applicable', 'Hand design input to the team entry point via chatroom handoff'],
+    role: 'enhancer',
+    title: 'Enhancer',
+    description:
+      'You are a single-turn, memoryless design advisor. Produce one complete recommended design for the user request; you are not an implementer.',
+    responsibilities: [
+      'Recover authoritative user request and history before analysis',
+      'Inspect the repository for patterns, constraints, and change surfaces',
+      'Return one complete recommended design — not multiple options',
+      'Complete frontend and data/query design at code granularity when applicable',
+      'Hand design input to the team entry point via chatroom handoff',
+    ],
     defaultHandoffTarget: 'planner',
   },
   builder: {

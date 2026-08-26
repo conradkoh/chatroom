@@ -92,12 +92,7 @@ export const isAgentType = (value: unknown): value is AgentType =>
 /**
  * Types of commands that can be dispatched to a machine daemon.
  */
-export const MACHINE_COMMAND_TYPES = [
-  'start-agent',
-  'restart-agent',
-  'ping',
-  'status',
-] as const;
+export const MACHINE_COMMAND_TYPES = ['start-agent', 'restart-agent', 'ping', 'status'] as const;
 
 export type MachineCommandType = (typeof MACHINE_COMMAND_TYPES)[number];
 
@@ -206,9 +201,7 @@ export const agentPostStopDesiredStateValidator = v.union(
   v.literal('stopped')
 );
 
-export const isAgentPostStopDesiredState = (
-  value: unknown
-): value is AgentPostStopDesiredState =>
+export const isAgentPostStopDesiredState = (value: unknown): value is AgentPostStopDesiredState =>
   (AGENT_POST_STOP_DESIRED_STATES as readonly string[]).includes(value as string);
 
 export const AgentStopReasonEnum = Object.fromEntries(AGENT_STOP_REASONS.map((r) => [r, r])) as {

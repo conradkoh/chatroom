@@ -1,10 +1,10 @@
 import { agentExited as agentExitedUseCase } from './agent-exited';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
+import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { onAgentExited } from '../../../events/agent/on-agent-exited';
-import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 export type AgentLifecycleFactInput =
@@ -77,8 +77,14 @@ export async function projectAgentLifecycleFact(
     if (result.applied) await onAgentExited(ctx, fact);
     return { success: true, skipped: !result.applied };
   }
-  if (fact.lifecycleRevision === undefined) return { success: true, skipped: true, rejectionReason: 'stale_revision' };
-  const registration = await registerSpawnedAgentIfAuthorized(ctx, { ...fact, machineId, lifecycleRevision: fact.lifecycleRevision });
-  if (!registration.accepted) return { success: true, skipped: true, rejectionReason: registration.reason };
+  if (fact.lifecycleRevision === undefined)
+    return { success: true, skipped: true, rejectionReason: 'stale_revision' };
+  const registration = await registerSpawnedAgentIfAuthorized(ctx, {
+    ...fact,
+    machineId,
+    lifecycleRevision: fact.lifecycleRevision,
+  });
+  if (!registration.accepted)
+    return { success: true, skipped: true, rejectionReason: registration.reason };
   return { success: true };
 }

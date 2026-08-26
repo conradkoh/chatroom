@@ -3,8 +3,8 @@
  */
 
 import { getBuilderGuidance } from './builder';
-import { getPlannerGuidance } from './planner';
 import { getEnhancerGuidance } from './enhancer';
+import { getPlannerGuidance } from './planner';
 
 /**
  * Generate role-specific guidance based on the role
@@ -24,7 +24,8 @@ export function getRoleSpecificGuidance(
   if (normalizedRole === 'builder') {
     return getBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
   }
-  if (normalizedRole === 'enhancer') return getEnhancerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
+  if (normalizedRole === 'enhancer')
+    return getEnhancerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
 
   return '';
 }

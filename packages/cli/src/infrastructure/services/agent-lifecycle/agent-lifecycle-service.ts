@@ -184,7 +184,11 @@ export const AgentLifecycleServiceLive: Layer.Layer<
         // Actual stop via harness port (if pid exists)
         if (stoppingSlot.pid) {
           yield* ports.harness
-            .stop(stoppingSlot.pid, { preserveForResume: false }, (stoppingSlot as AgentLifecycleSlot).harness)
+            .stop(
+              stoppingSlot.pid,
+              { preserveForResume: false },
+              (stoppingSlot as AgentLifecycleSlot).harness
+            )
             .pipe(Effect.ignore);
         }
 
