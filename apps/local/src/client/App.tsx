@@ -91,7 +91,7 @@ function DashboardView({
   onDeleteBackup: (id: string) => void;
 }) {
   const selectedProcess = processes.find((p) => p.id === selectedId);
-  const logLines = logsByProcess[selectedId] ?? [];
+  const logLines = useMemo(() => logsByProcess[selectedId] ?? [], [logsByProcess, selectedId]);
   const logUrls = useMemo(() => collectUrlsFromLogLines(logLines), [logLines]);
 
   const statusColor =
@@ -224,7 +224,7 @@ function DashboardView({
         </div>
         {logUrls.length > 0 && <LogUrlBar urls={logUrls} />}
         <div key={selectedId} className="min-h-0 flex-1 overflow-hidden">
-          <LogViewer logLines={logLines} processId={selectedId} />
+          <LogViewer key={selectedId} logLines={logLines} processId={selectedId} />
         </div>
       </main>
     </div>
@@ -282,7 +282,12 @@ export function App() {
           )}
           aria-hidden={!showSetup}
         >
-          <SetupPanel defaults={defaults} disabled={phase !== 'idle'} onStart={startStack} />
+          <SetupPanel
+            key={defaults ? JSON.stringify(defaults) : 'defaults-loading'}
+            defaults={defaults}
+            disabled={phase !== 'idle'}
+            onStart={startStack}
+          />
         </div>
         <div
           className={cn(

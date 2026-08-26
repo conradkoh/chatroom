@@ -24,9 +24,7 @@ export async function markChatroomUnread(
 ): Promise<void> {
   const existing = await ctx.db
     .query('chatroom_unreadStatus')
-    .withIndex('by_userId_chatroomId', (q: any) =>
-      q.eq('userId', ownerId).eq('chatroomId', chatroomId)
-    )
+    .withIndex('by_userId_chatroomId', (q) => q.eq('userId', ownerId).eq('chatroomId', chatroomId))
     .first();
 
   if (existing) {
@@ -59,9 +57,7 @@ export async function clearChatroomUnread(
 ): Promise<void> {
   const existing = await ctx.db
     .query('chatroom_unreadStatus')
-    .withIndex('by_userId_chatroomId', (q: any) =>
-      q.eq('userId', userId).eq('chatroomId', chatroomId)
-    )
+    .withIndex('by_userId_chatroomId', (q) => q.eq('userId', userId).eq('chatroomId', chatroomId))
     .first();
 
   if (existing) {

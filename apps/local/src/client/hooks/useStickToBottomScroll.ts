@@ -1,29 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { isScrollAtBottom } from './isScrollAtBottom';
 import { isScrollAtTop } from './isScrollAtTop';
 
-export function useStickToBottomScroll(itemCount: number, resetKey?: string) {
+export function useStickToBottomScroll(itemCount: number) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isPinned, setIsPinned] = useState(true);
-  const [hasUnseenBelow, setHasUnseenBelow] = useState(false);
   const [isAtTop, setIsAtTop] = useState(true);
-  const prevCountRef = useRef(itemCount);
+  const lastSeenCountRef = useRef(itemCount);
 
-  useEffect(() => {
-    setIsPinned(true);
-    setHasUnseenBelow(false);
-    setIsAtTop(true);
-    prevCountRef.current = itemCount;
-  }, [resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const scrollToEnd = useCallback((behavior: ScrollBehavior = 'auto') => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior });
-    setIsPinned(true);
-    setHasUnseenBelow(false);
-  }, []);
+  const scrollToEnd = useCallback(
+    (behavior: ScrollBehavior = 'auto') => {
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior });
+      setIsPinned(true);
+      lastSeenCountRef.current = itemCount;
+    },
+    [itemCount]
+  );
 
   const scrollToTop = useCallback((behavior: ScrollBehavior = 'auto') => {
     const el = scrollRef.current;
@@ -39,15 +34,10 @@ export function useStickToBottomScroll(itemCount: number, resetKey?: string) {
     const atTop = isScrollAtTop(el);
     setIsPinned(atBottom);
     setIsAtTop(atTop);
-    if (atBottom) setHasUnseenBelow(false);
-  }, []);
+    if (atBottom) lastSeenCountRef.current = itemCount;
+  }, [itemCount]);
 
-  useEffect(() => {
-    if (itemCount > prevCountRef.current && !isPinned) {
-      setHasUnseenBelow(true);
-    }
-    prevCountRef.current = itemCount;
-  }, [itemCount, isPinned]);
+  const hasUnseenBelow = !isPinned && itemCount > lastSeenCountRef.current;
 
   return {
     scrollRef,

@@ -27,21 +27,21 @@ export async function listBacklogItems(ctx: QueryCtx, args: ListBacklogItemsArgs
   if (args.statusFilter === 'backlog') {
     items = await ctx.db
       .query('chatroom_backlog')
-      .withIndex('by_chatroom_status', (q: any) =>
+      .withIndex('by_chatroom_status', (q) =>
         q.eq('chatroomId', args.chatroomId).eq('status', 'backlog')
       )
       .collect();
   } else if (args.statusFilter === 'pending_user_review') {
     items = await ctx.db
       .query('chatroom_backlog')
-      .withIndex('by_chatroom_status', (q: any) =>
+      .withIndex('by_chatroom_status', (q) =>
         q.eq('chatroomId', args.chatroomId).eq('status', 'pending_user_review')
       )
       .collect();
   } else if (args.statusFilter === 'closed') {
     items = await ctx.db
       .query('chatroom_backlog')
-      .withIndex('by_chatroom_status', (q: any) =>
+      .withIndex('by_chatroom_status', (q) =>
         q.eq('chatroomId', args.chatroomId).eq('status', 'closed')
       )
       .collect();
@@ -50,13 +50,13 @@ export async function listBacklogItems(ctx: QueryCtx, args: ListBacklogItemsArgs
     const [backlogItems, reviewItems] = await Promise.all([
       ctx.db
         .query('chatroom_backlog')
-        .withIndex('by_chatroom_status', (q: any) =>
+        .withIndex('by_chatroom_status', (q) =>
           q.eq('chatroomId', args.chatroomId).eq('status', 'backlog')
         )
         .collect(),
       ctx.db
         .query('chatroom_backlog')
-        .withIndex('by_chatroom_status', (q: any) =>
+        .withIndex('by_chatroom_status', (q) =>
           q.eq('chatroomId', args.chatroomId).eq('status', 'pending_user_review')
         )
         .collect(),

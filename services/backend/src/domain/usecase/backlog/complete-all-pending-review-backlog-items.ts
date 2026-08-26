@@ -14,7 +14,7 @@ export async function completeAllPendingReviewBacklogItems(
 ): Promise<number> {
   const items = await ctx.db
     .query('chatroom_backlog')
-    .withIndex('by_chatroom_status', (q: any) =>
+    .withIndex('by_chatroom_status', (q) =>
       q.eq('chatroomId', chatroomId).eq('status', 'pending_user_review')
     )
     .collect();
