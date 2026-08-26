@@ -81,30 +81,4 @@ export async function projectAgentLifecycleFact(
   const registration = await registerSpawnedAgentIfAuthorized(ctx, { ...fact, machineId, lifecycleRevision: fact.lifecycleRevision });
   if (!registration.accepted) return { success: true, skipped: true, rejectionReason: registration.reason };
   return { success: true };
-/*
-  await assertMachineBelongsToChatroom(ctx, {
-    chatroomId: fact.chatroomId as Id<'chatroom_rooms'>,
-    machineId,
-    role: fact.role,
-    allowNewMachine: false,
-  });
-  const room = await ctx.db.get('chatroom_rooms', fact.chatroomId);
-  const teamId = (room as { teamId?: string } | null)?.teamId;
-  if (!teamId) return { success: true, skipped: true };
-  const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(fact.chatroomId, teamId, fact.role))
-    )
-    .first();
-  if (!config) return { success: true, skipped: true };
-  if (config.spawnedAgentPid === fact.pid) return { success: true, skipped: true };
-  await patchTeamAgentConfig(ctx, config._id, {
-    spawnedAgentPid: fact.pid,
-    spawnedAt: Date.now(),
-    ...(fact.model !== undefined ? { model: fact.model } : {}),
-  });
-  await recordAgentSpawnedState(ctx, { ...fact, machineId });
-  return { success: true };
-*/
 }
