@@ -16,6 +16,7 @@ export interface AssignedTaskAgentConfig {
   spawnedAgentPid?: number;
   desiredState?: AgentDesiredState;
   circuitState?: AgentCircuitState;
+  configLifecycleRevision?: number;
 }
 
 export interface AssignedTaskParticipant {

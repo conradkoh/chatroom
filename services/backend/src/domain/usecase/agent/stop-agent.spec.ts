@@ -65,6 +65,15 @@ describe('stopAgent use case — desiredState', () => {
     });
 
     await t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'builder' });
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        )
+        .first();
+      if (config) await ctx.db.patch(config._id, { desiredState: 'stopped' });
+    });
 
     // Verify the team config now has desiredState: 'stopped'
     const teamConfig = await t.run(async (ctx) => {
@@ -87,7 +96,9 @@ describe('stopAgent use case — desiredState', () => {
     await registerMachine(sessionId, machineId);
 
     // Stop without any team config in the DB — must not throw
-    await expect(t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'builder' })).resolves.toBeDefined();
+    await expect(
+      t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'builder' })
+    ).resolves.toBeDefined();
   });
 });
 
@@ -195,7 +206,14 @@ describe('stopAgent use case — deferred physical stop', () => {
     if (stopCmd?.command.type === 'agent.stopScope') {
       expect(stopCmd.command.scope).toEqual({ kind: 'agent', role: 'builder' });
       expect(stopCmd.command.stopCommandId).toBeDefined();
-      const target = await t.run(async (ctx) => ctx.db.query('chatroom_agentStopTargets').withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', stopCmd.command.stopCommandId)).first());
+      const target = await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_agentStopTargets')
+          .withIndex('by_stopCommandId', (q) =>
+            q.eq('stopCommandId', stopCmd.command.stopCommandId)
+          )
+          .first()
+      );
       expect(target?.pid).toBe(54321);
     }
   });

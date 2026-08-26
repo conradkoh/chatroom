@@ -33,15 +33,18 @@ describe('emitNativeWaitingAfterSpawn', () => {
     expect(args.action).toBe('native:waiting');
   });
 
-  it('does not call participants.join for daemon worker (enhancer)', async () => {
-    const mutation = vi.fn();
+  it('calls participants.join for enhancer on native harness', async () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
     const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'enhancer' };
 
     const result = await emitNativeWaitingAfterSpawn(ctx, 'opencode-sdk');
 
-    expect(result).toBe(false);
-    expect(mutation).not.toHaveBeenCalled();
+    expect(result).toBe(true);
+    expect(mutation).toHaveBeenCalledTimes(1);
+    const args = mutation.mock.calls[0][1] as Record<string, unknown>;
+    expect(args.role).toBe('enhancer');
+    expect(args.action).toBe('native:waiting');
   });
 
   it('does not call participants.join for non-native harness', async () => {
@@ -91,8 +94,8 @@ describe('wireThrottledTokenActivityOnOutput', () => {
     expect(args.role).toBe('builder');
   });
 
-  it('does nothing for daemon worker (enhancer)', async () => {
-    const mutation = vi.fn();
+  it('fires updateTokenActivity for enhancer team role', async () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
     const spawnResult = mockSpawnResult();
     const ctx = {
@@ -101,12 +104,16 @@ describe('wireThrottledTokenActivityOnOutput', () => {
       chatroomId: 'c',
       role: 'enhancer',
       spawnResult,
+      now: () => 1000,
+      throttleMs: 30_000,
     };
 
     wireThrottledTokenActivityOnOutput(ctx);
     spawnResult._fireOutput();
 
-    expect(mutation).not.toHaveBeenCalled();
+    expect(mutation).toHaveBeenCalledTimes(1);
+    const args = mutation.mock.calls[0][1] as Record<string, unknown>;
+    expect(args.role).toBe('enhancer');
   });
 
   it('does not fire updateTokenActivity again within throttle window', async () => {

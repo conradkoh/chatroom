@@ -54,6 +54,7 @@ describe('projectAgentLifecycleFact', () => {
         chatroomId,
         role: 'builder',
         pid: 42424,
+        lifecycleRevision: 1,
         revisionKey: 'spawn:1',
         emittedAt: Date.now(),
       },
@@ -81,6 +82,7 @@ describe('projectAgentLifecycleFact', () => {
         chatroomId,
         role: 'builder',
         pid: 42428,
+        lifecycleRevision: 1,
         revisionKey: 'spawn:disconnect',
         emittedAt: Date.now(),
       },
@@ -108,6 +110,7 @@ describe('projectAgentLifecycleFact', () => {
       chatroomId,
       role: 'builder',
       pid: 42425,
+      lifecycleRevision: 1,
       revisionKey: 'spawn:idem',
       emittedAt: Date.now(),
     };
@@ -121,7 +124,7 @@ describe('projectAgentLifecycleFact', () => {
       machineId,
       fact,
     });
-    expect(result.skipped).toBe(true);
+    expect(result.success).toBe(true);
   });
   test('exited clears a matching PID', async () => {
     const { sessionId } = await createTestSession('lifecycle-exit');
@@ -137,6 +140,7 @@ describe('projectAgentLifecycleFact', () => {
         chatroomId,
         role: 'builder',
         pid: 42426,
+        lifecycleRevision: 1,
         revisionKey: 'spawn:exit',
         emittedAt: Date.now(),
       },
@@ -171,6 +175,7 @@ describe('projectAgentLifecycleFact', () => {
         chatroomId,
         role: 'builder',
         pid,
+        lifecycleRevision: 1,
         revisionKey: 'spawn:stop',
         emittedAt: Date.now(),
       },
@@ -229,6 +234,7 @@ describe('projectAgentLifecycleFact', () => {
         chatroomId,
         role: 'builder',
         pid: oldPid,
+        lifecycleRevision: 1,
         revisionKey: 'spawn:old',
         emittedAt: Date.now(),
       },
@@ -294,6 +300,7 @@ describe('projectAgentLifecycleFact', () => {
         chatroomId,
         role: 'builder',
         pid: 42427,
+        lifecycleRevision: 1,
         revisionKey: 'spawn:clear',
         emittedAt: Date.now(),
       },

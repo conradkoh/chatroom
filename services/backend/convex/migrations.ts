@@ -20,6 +20,10 @@ import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-
 import { rebuildObservedWorkspaceView } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 import { isActiveWorkspace } from '../src/domain/entities/workspace';
 import { upsertMessageReadModel, ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
+import {
+  mergeCanonicalEnhancerIntoTeamRoles,
+  migrateEnhancerConfigRow,
+} from '../src/domain/usecase/enhancer/migrate-legacy-enhancer-config';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
 
@@ -333,6 +337,75 @@ export const setDuoBuilderWantResumeFalse = migrations.define({
     if (config.role.toLowerCase() !== 'builder') return;
     if (config.wantResume === false) return;
     return { wantResume: false };
+  },
+});
+
+/** Backfill additive lifecycle defaults on existing team agent configs. */
+export const backfillTeamAgentConfigLifecycleDefaults = migrations.define({
+  table: 'chatroom_teamAgentConfigs',
+  migrateOne: async (_ctx, config) => {
+    const patch: { enabled?: boolean; lifecycleRevision?: number } = {};
+    if (config.enabled === undefined) patch.enabled = true;
+    if (config.lifecycleRevision === undefined) patch.lifecycleRevision = 0;
+    return Object.keys(patch).length > 0 ? patch : undefined;
+  },
+});
+
+/** Backfill snapshot lifecycle revisions; safe to rerun. */
+export const backfillMachineAssignedTaskSnapshotLifecycleRevision = migrations.define({
+  table: 'chatroom_machineAssignedTaskSnapshots',
+  migrateOne: async (_ctx, row) =>
+    row.configLifecycleRevision === undefined ? { configLifecycleRevision: 0 } : undefined,
+});
+
+/** Existing stop commands are operator stops and therefore restore stopped state. */
+export const backfillAgentStopCommandPostStopDesiredState = migrations.define({
+  table: 'chatroom_agentStopCommands',
+  migrateOne: async (_ctx, row) =>
+    row.postStopDesiredState === undefined ? { postStopDesiredState: 'stopped' as const } : undefined,
+});
+
+// Enhancer unified runtime: cold-path migration from legacy enhancer records.
+export const migrateEnhancerConfigToTeamAgentConfig = migrations.define({
+  table: 'chatroom_enhancerConfigs',
+  migrateOne: async (ctx, row) => {
+    await migrateEnhancerConfigRow(ctx, row);
+  },
+});
+
+export const migrateAddEnhancerToRoomTeamRoles = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (_ctx, room) => {
+    const merged = mergeCanonicalEnhancerIntoTeamRoles(room.teamId, room.teamRoles ?? []);
+    if (JSON.stringify(merged) === JSON.stringify(room.teamRoles ?? [])) return;
+    return { teamRoles: merged };
+  },
+});
+
+export const migrateAgentViewMetadataEnhancerRole = migrations.define({
+  table: 'chatroom_agentViewMetadata',
+  migrateOne: async (_ctx, row) => {
+    const merged = mergeCanonicalEnhancerIntoTeamRoles(row.teamId, row.teamRoles);
+    if (JSON.stringify(merged) === JSON.stringify(row.teamRoles)) return;
+    return { teamRoles: merged };
+  },
+});
+
+export const migrateEnhancerJobOriginToTask = migrations.define({
+  table: 'chatroom_enhancerJobs',
+  migrateOne: async (ctx, job) => {
+    if (!job.taskId || !job.originUserMessageId) return;
+    const task = await ctx.db.get('chatroom_tasks', job.taskId);
+    if (!task || task.originUserMessageId) return;
+    await ctx.db.patch('chatroom_tasks', job.taskId, { originUserMessageId: job.originUserMessageId });
+  },
+});
+
+export const migrateTaskEnhancerEnabledSnapshot = migrations.define({
+  table: 'chatroom_tasks',
+  migrateOne: async (_ctx, task) => {
+    if (task.enhancerEnabledAtEnqueue !== undefined || task.plannerEnhancerEnabled === undefined) return;
+    return { enhancerEnabledAtEnqueue: task.plannerEnhancerEnabled };
   },
 });
 
@@ -727,6 +800,15 @@ export const runAll = migrations.runner([
   internal.migrations.backfillSavedCommandScope,
   // Agent Config
   internal.migrations.setDuoBuilderWantResumeFalse,
+  internal.migrations.backfillTeamAgentConfigLifecycleDefaults,
+  internal.migrations.backfillMachineAssignedTaskSnapshotLifecycleRevision,
+  internal.migrations.backfillAgentStopCommandPostStopDesiredState,
+  // Enhancer unified runtime
+  internal.migrations.migrateEnhancerConfigToTeamAgentConfig,
+  internal.migrations.migrateAddEnhancerToRoomTeamRoles,
+  internal.migrations.migrateAgentViewMetadataEnhancerRole,
+  internal.migrations.migrateEnhancerJobOriginToTask,
+  internal.migrations.migrateTaskEnhancerEnabledSnapshot,
   // Machine Config Favorites
   internal.migrations.migrateMachineConfigFavoritesToMachineScope,
   // Standing Instructions History

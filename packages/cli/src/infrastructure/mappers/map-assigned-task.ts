@@ -27,6 +27,7 @@ export function mapAssignedTaskSnapshot(
       spawnedAgentPid: row.agentConfig.spawnedAgentPid,
       desiredState: row.agentConfig.desiredState,
       circuitState: row.agentConfig.circuitState,
+      configLifecycleRevision: row.agentConfig.configLifecycleRevision,
     },
     participant: row.participant,
   };

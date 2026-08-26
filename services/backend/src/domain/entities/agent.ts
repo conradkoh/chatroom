@@ -180,6 +180,7 @@ export const isAgentStartReason = (value: unknown): value is AgentStartReason =>
  * - `platform.team_switch`: Agent stopped because the chatroom's team was changed (no auto-restart)
  * - `daemon.respawn`: Daemon killed agent to spawn a fresh instance
  * - `daemon.shutdown`: Daemon process shutting down (SIGINT/SIGTERM/SIGHUP) — all agents stopped
+ * - `platform.ephemeral_task_complete`: Ephemeral enhancer capacity released after task completion
  * - `test`: Used in integration and unit tests only
  */
 export const AGENT_STOP_REASONS = [
@@ -191,10 +192,24 @@ export const AGENT_STOP_REASONS = [
   'daemon.respawn',
   'daemon.shutdown',
   'daemon.stop_timeout',
+  'platform.ephemeral_task_complete',
   'test',
 ] as const;
 
 export type AgentStopReason = (typeof AGENT_STOP_REASONS)[number];
+
+export const AGENT_POST_STOP_DESIRED_STATES = ['running', 'stopped'] as const;
+export type AgentPostStopDesiredState = (typeof AGENT_POST_STOP_DESIRED_STATES)[number];
+
+export const agentPostStopDesiredStateValidator = v.union(
+  v.literal('running'),
+  v.literal('stopped')
+);
+
+export const isAgentPostStopDesiredState = (
+  value: unknown
+): value is AgentPostStopDesiredState =>
+  (AGENT_POST_STOP_DESIRED_STATES as readonly string[]).includes(value as string);
 
 export const AgentStopReasonEnum = Object.fromEntries(AGENT_STOP_REASONS.map((r) => [r, r])) as {
   readonly [K in AgentStopReason]: K;

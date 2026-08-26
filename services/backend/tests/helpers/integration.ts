@@ -13,6 +13,7 @@ import { getInboxCommandsForMachine } from './machine-command-inbox';
 import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from './test-models';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 
 // ---------------------------------------------------------------------------
@@ -159,6 +160,111 @@ export async function setupRemoteAgentConfig(
   });
   // Note: sendCommand for start-agent now emits an agent.requestStart event to the
   // event stream. No chatroom_machineCommands acking is needed (table removed in Phase D).
+}
+
+/**
+ * Register a spawned PID on a team config using the current lifecycle revision.
+ */
+export async function updateSpawnedAgentInTest(
+  sessionId: SessionId,
+  machineId: string,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string,
+  pid: number
+): Promise<void> {
+  const lifecycleRevision = await t.run(async (ctx) => {
+    const room = await ctx.db.get('chatroom_rooms', chatroomId);
+    if (!room?.teamId) return 0;
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, room.teamId, role))
+      )
+      .first();
+    return config?.lifecycleRevision ?? 0;
+  });
+  const result = await t.mutation(api.machines.updateSpawnedAgent, {
+    sessionId,
+    machineId,
+    chatroomId,
+    role,
+    pid,
+    lifecycleRevision,
+  });
+  expect(result.accepted).toBe(true);
+}
+
+/**
+ * After setupRemoteAgentConfig, mark the agent as running with a test PID.
+ */
+export async function seedRunningAgentPid(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string,
+  role: string,
+  pid = 4242
+): Promise<void> {
+  await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, role, pid);
+}
+
+/**
+ * Patch chatroom teamRoles to include enhancer for enhancer integration tests.
+ */
+export async function enableEnhancerTeamAgent(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  machineId: string
+): Promise<void> {
+  await addEnhancerToTeamRoles(chatroomId);
+  await t.mutation(api.web.enhancer.index.upsertConfig, {
+    sessionId,
+    chatroomId,
+    enabled: true,
+    targetId: 'handoff:planner-to-builder',
+    agentHarness: 'opencode',
+    model: 'anthropic/claude-opus-4',
+    machineId,
+  });
+  await t.run(async (ctx) => {
+    const room = await ctx.db.get('chatroom_rooms', chatroomId);
+    if (!room?.teamId) return;
+    const teamRoleKey = buildTeamRoleKey(chatroomId, room.teamId, 'enhancer');
+    const existing = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { enabled: true, machineId, desiredState: 'stopped' });
+      return;
+    }
+    await ctx.db.insert('chatroom_teamAgentConfigs', {
+      teamRoleKey,
+      chatroomId,
+      role: 'enhancer',
+      type: 'remote',
+      machineId,
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-opus-4',
+      workingDir: '/workspace',
+      enabled: true,
+      desiredState: 'stopped',
+      lifecycleRevision: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  });
+}
+
+export async function addEnhancerToTeamRoles(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
+  await t.run(async (ctx) => {
+    const room = await ctx.db.get('chatroom_rooms', chatroomId);
+    if (!room) return;
+    const roles = new Set(room.teamRoles ?? []);
+    roles.add('planner');
+    roles.add('builder');
+    roles.add('enhancer');
+    await ctx.db.patch(chatroomId, { teamRoles: [...roles] });
+  });
 }
 
 // ---------------------------------------------------------------------------

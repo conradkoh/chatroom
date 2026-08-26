@@ -101,6 +101,8 @@ export async function upsertTeamAgentConfigByTeamRoleKey(
   await deleteStaleTeamAgentConfigs(ctx, args.teamRoleKey);
   const configId = await ctx.db.insert('chatroom_teamAgentConfigs', {
     ...fields,
+    enabled: fields.enabled ?? true,
+    lifecycleRevision: fields.lifecycleRevision ?? 0,
     createdAt: args.createdAt ?? now,
   });
   return { configId, wasInsert: true };

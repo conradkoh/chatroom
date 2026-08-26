@@ -4,6 +4,7 @@
 
 import { getBuilderGuidance } from './builder';
 import { getPlannerGuidance } from './planner';
+import { getEnhancerGuidance } from './enhancer';
 
 /**
  * Generate role-specific guidance based on the role
@@ -23,12 +24,13 @@ export function getRoleSpecificGuidance(
   if (normalizedRole === 'builder') {
     return getBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
   }
+  if (normalizedRole === 'enhancer') return getEnhancerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
 
   return '';
 }
 
 // Re-export individual role functions for direct access
-export { getBuilderGuidance, getPlannerGuidance };
+export { getBuilderGuidance, getPlannerGuidance, getEnhancerGuidance };
 
 // Re-export SelectorContext-based adapters (Phase 1.2)
 export {

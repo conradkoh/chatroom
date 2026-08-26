@@ -42,6 +42,7 @@ export const getSpawnPayload = query({
       jobId: job._id,
       chatroomId: job.chatroomId,
       originUserMessageId: job.originUserMessageId,
+      entryPointRole: job.fromRole,
       outputTemplateContent: job.templateSnapshot,
       requestContent: job.draftContent,
       cliCompleteCommand,

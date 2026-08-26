@@ -167,6 +167,7 @@ export interface AgentSlot {
   recentLogLines?: string[];
   /** User's persisted reconnect-on-start preference for this run. */
   wantResume?: boolean;
+  authorizedLifecycleRevision?: number;
   /** Turn-end already emitted startFailed for a terminal provider error. */
   terminalProviderFailureHandled?: boolean;
   /** Provider-unavailable event already emitted for this spawn. */
@@ -344,6 +345,9 @@ export class AgentProcessManager {
     }
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.getOrCreateSlot(key);
+    if (slot.state !== 'idle' && opts.lifecycleRevision !== undefined && slot.authorizedLifecycleRevision !== opts.lifecycleRevision) {
+      return { success: false, error: 'stale_revision' };
+    }
 
     // Stale slot — process died without onExit; reset before kill/spawn
     if (
@@ -1973,10 +1977,11 @@ export class AgentProcessManager {
   }
 
   private emitSpawnedAgentUpdate(
+    slot: AgentSlot,
     opts: EnsureRunningOpts,
     spawnResult: SpawnResult,
     pid: number
-  ): void {
+  ): Promise<void> {
     void logDaemonAuditEvent(this.deps.logEvent, {
       type: 'agent.started',
       chatroomId: opts.chatroomId,
@@ -1992,8 +1997,14 @@ export class AgentProcessManager {
       console.log(`   ⚠️  Failed to record agent.started event: ${err.message}`);
     });
 
+    const lifecycleRevision = slot.authorizedLifecycleRevision ?? opts.lifecycleRevision;
+    if (lifecycleRevision === undefined) {
+      this.deps.processes.kill(pid, 'SIGTERM');
+      this.resetSlotIdle(slot);
+      return Promise.resolve();
+    }
     const emittedAt = this.deps.clock.now();
-    void this.deps.lifecycleOutbox
+    return this.deps.lifecycleOutbox
       .enqueue({
         kind: 'spawned',
         chatroomId: opts.chatroomId,
@@ -2009,10 +2020,16 @@ export class AgentProcessManager {
           emittedAt,
         }),
         emittedAt,
+        lifecycleRevision,
       })
-      .catch((err: Error) =>
-        console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`)
-      );
+      .then((result) => {
+        if (result.rejectionReason) {
+          console.log(`   ⚠️  Spawn rejected by backend: ${result.rejectionReason}`);
+          this.deps.processes.kill(pid, 'SIGTERM');
+          this.resetSlotIdle(slot);
+        }
+      })
+      .catch((err: Error) => console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`));
   }
 
   private registerSpawnCallbacks(
@@ -2095,7 +2112,7 @@ export class AgentProcessManager {
     const { pid } = spawnResult;
 
     this.assignRunningSlotState(key, slot, opts, spawnResult, wantResume, pid);
-    this.emitSpawnedAgentUpdate(opts, spawnResult, pid);
+    await this.emitSpawnedAgentUpdate(slot, opts, spawnResult, pid);
 
     try {
       await this.deps.persistence.persistAgentPid(
@@ -2146,6 +2163,19 @@ export class AgentProcessManager {
     opts: EnsureRunningOpts
   ): Promise<OperationResult> {
     slot.state = 'spawning';
+    const authorization = await this.deps.backend.mutation(api.machines.authorizeAgentStart, {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      lifecycleRevision: opts.lifecycleRevision,
+      taskId: opts.taskId as any,
+    });
+    if (!authorization.allowed) {
+      this.resetSlotIdle(slot);
+      return { success: false, error: authorization.reason };
+    }
+    slot.authorizedLifecycleRevision = authorization.lifecycleRevision;
     const wantResume = opts.wantResume;
 
     console.log(

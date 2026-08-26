@@ -22,6 +22,7 @@ export interface AgentRequestStartEventPayload {
   reason: string;
   deadline: number;
   wantResume?: boolean;
+  lifecycleRevision?: number;
 }
 
 export const onRequestStartAgentEffect = (
@@ -42,6 +43,7 @@ export const onRequestStartAgentEffect = (
         reason: event.reason,
         deadline: event.deadline,
         wantResume: event.wantResume,
+        lifecycleRevision: event.lifecycleRevision,
       });
       await drainPendingEnhancerJobsIfRegistered();
     });

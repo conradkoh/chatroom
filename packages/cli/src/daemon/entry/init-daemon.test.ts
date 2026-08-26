@@ -41,7 +41,7 @@ vi.mock('../../infrastructure/auth/storage.js', () => ({
 vi.mock('../../infrastructure/convex/client.js', () => ({
   getConvexUrl: vi.fn().mockReturnValue('http://localhost:3210'),
   getConvexClient: vi.fn().mockResolvedValue({
-    mutation: vi.fn().mockResolvedValue(undefined),
+    mutation: vi.fn().mockImplementation(defaultMutationMock),
     query: vi.fn().mockResolvedValue({ valid: true, userId: 'user-1', userName: 'Test User' }),
   }),
 }));
@@ -79,7 +79,15 @@ vi.mock('../../version.js', () => ({
   getVersion: vi.fn().mockReturnValue('1.0.0-test'),
 }));
 
-const { recoverEffectRun } = vi.hoisted(() => ({ recoverEffectRun: vi.fn() }));
+const { recoverEffectRun, defaultMutationMock } = vi.hoisted(() => ({
+  recoverEffectRun: vi.fn(),
+  defaultMutationMock: (_endpoint: unknown, args?: Record<string, unknown>) => {
+    if (args && 'fact' in args) {
+      return Promise.resolve({ success: true, clearedCount: 0 });
+    }
+    return Promise.resolve(undefined);
+  },
+}));
 
 vi.mock('./handlers/state-recovery.js', async () => {
   const { Effect } = await import('effect');
@@ -160,7 +168,7 @@ beforeEach(() => {
   vi.mocked(getOtherSessionUrls).mockResolvedValue([]);
   vi.mocked(getConvexUrl).mockReturnValue('http://localhost:3210');
   vi.mocked(getConvexClient).mockResolvedValue({
-    mutation: vi.fn().mockResolvedValue(undefined),
+    mutation: vi.fn().mockImplementation(defaultMutationMock),
     query: vi.fn().mockResolvedValue({ valid: true, userId: 'user-1', userName: 'Test User' }),
   } as never);
   vi.mocked(ensureMachineRegistered).mockResolvedValue({
@@ -691,7 +699,7 @@ describe('initDaemon', () => {
     mockClient.mutation
       .mockResolvedValueOnce(undefined) // 1st: machines.register / registerCapabilities
       .mockResolvedValueOnce(undefined) // 2nd: updateDaemonStatus
-      .mockResolvedValueOnce(undefined) // 3rd: clearAllSpawnedPids
+      .mockResolvedValueOnce({ success: true, clearedCount: 0 }) // 3rd: clearAllSpawnedPids
       .mockResolvedValueOnce({ reapedCount: 3 }); // 4th: reapOrphansForDaemonRestart
 
     await initDaemon();
@@ -708,7 +716,7 @@ describe('initDaemon', () => {
     mockClient.mutation
       .mockResolvedValueOnce(undefined) // 1st: registerCapabilities
       .mockResolvedValueOnce(undefined) // 2nd: updateDaemonStatus
-      .mockResolvedValueOnce(undefined) // 3rd: clearAllSpawnedPids
+      .mockResolvedValueOnce({ success: true, clearedCount: 0 }) // 3rd: clearAllSpawnedPids
       .mockResolvedValueOnce({ reapedCount: 0 }); // 4th: reapOrphansForDaemonRestart
 
     await initDaemon();
@@ -723,7 +731,7 @@ describe('initDaemon', () => {
     mockClient.mutation
       .mockResolvedValueOnce(undefined) // 1st: registerCapabilities
       .mockResolvedValueOnce(undefined) // 2nd: updateDaemonStatus
-      .mockResolvedValueOnce(undefined) // 3rd: clearAllSpawnedPids
+      .mockResolvedValueOnce({ success: true, clearedCount: 0 }) // 3rd: clearAllSpawnedPids
       .mockRejectedValueOnce(new Error('network error during reap')); // 4th: reapOrphansForDaemonRestart
 
     // Should not throw — daemon startup continues despite reap failure

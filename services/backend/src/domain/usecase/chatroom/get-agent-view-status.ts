@@ -33,7 +33,8 @@ async function getAgentViewStatusLegacy(ctx: QueryCtx, input: { chatroomId: Id<'
     const lastStatus = participant?.lastStatus ?? null;
     const inferred = row ? deriveAgentRoleViewState({ desiredState: row.operationalState === 'circuit_open' ? 'stopped' : 'running', circuitState: row.operationalState === 'circuit_open' ? 'open' : 'closed', spawnedAgentPid: row.isAlive ? 1 : null }, row.daemonConnected, lastStatus) : 'stopped';
     // Participant transitions can race projection writes; retain the established starting signal.
-    const state = row?.viewState === 'stopped' && inferred === 'starting' ? 'starting' : (row?.viewState ?? inferred);
+    const projectedState = row?.viewState === 'idle' ? undefined : row?.viewState;
+    const state = projectedState === 'stopped' && inferred === 'starting' ? 'starting' : (projectedState ?? inferred);
     return { role, state, type: (participant?.agentType ?? 'remote') as AgentType, machineId: row?.machineId, machineName: row?.machineId ? machineNames.get(row.machineId) : undefined, lastSeenAt: participant?.lastSeenAt ?? null, lastSeenAction: participant?.lastSeenAction ?? null, lastStatus, lastDesiredState: participant?.lastDesiredState ?? null, agentType: participant?.agentType ?? 'remote', isAlive: row?.isAlive ?? false, stopState: row?.stopState, activeStopCommandId: row?.activeStopCommandId };
   });
   return { teamId: chatroom.teamId, teamName: chatroom.teamName ?? chatroom.teamId, teamRoles, agents, hasHistory: firstUserMessage !== null, hasActiveEnhancerWork: await hasActiveEnhancerWork(ctx, input.chatroomId) };
@@ -62,7 +63,8 @@ export async function getAgentViewStatus(ctx: QueryCtx, input: { chatroomId: Id<
     const participant = participantByRole.get(role.toLowerCase());
     const lastStatus = participant?.lastStatus ?? null;
     const inferred = row ? deriveAgentRoleViewState({ desiredState: row.operationalState === 'circuit_open' ? 'stopped' : 'running', circuitState: row.operationalState === 'circuit_open' ? 'open' : 'closed', spawnedAgentPid: row.isAlive ? 1 : null }, row.daemonConnected, lastStatus) : 'stopped';
-    const state = row?.viewState === 'stopped' && inferred === 'starting' ? 'starting' : (row?.viewState ?? inferred);
+    const projectedState = row?.viewState === 'idle' ? undefined : row?.viewState;
+    const state = projectedState === 'stopped' && inferred === 'starting' ? 'starting' : (projectedState ?? inferred);
     return { role, state, type: (participant?.agentType ?? 'remote') as AgentType, machineId: row?.machineId, machineName: row?.machineId ? machineNames.get(row.machineId) : undefined, lastSeenAt: participant?.lastSeenAt ?? null, lastSeenAction: participant?.lastSeenAction ?? null, lastStatus, lastDesiredState: participant?.lastDesiredState ?? null, agentType: participant?.agentType ?? 'remote', isAlive: row?.isAlive ?? false, stopState: row?.stopState, activeStopCommandId: row?.activeStopCommandId };
   });
   return { teamId: metadata.teamId, teamName: metadata.teamName, teamRoles: metadata.teamRoles, agents, hasHistory: metadata.hasHistory, hasActiveEnhancerWork: await hasActiveEnhancerWork(ctx, input.chatroomId) };

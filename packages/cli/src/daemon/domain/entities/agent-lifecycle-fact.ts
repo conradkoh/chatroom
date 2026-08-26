@@ -10,6 +10,7 @@ export type AgentLifecycleFact =
       harnessSessionId?: string;
       revisionKey: string;
       emittedAt: number;
+      lifecycleRevision?: number;
     }
   | {
       kind: 'exited';

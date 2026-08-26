@@ -62,12 +62,20 @@ async function saveNativeAgentConfig(
   agentHarness: NativeAgentHarness,
   machineSuffix: string
 ): Promise<void> {
+  const machineId = `machine-native-${machineSuffix}`;
+  await t.mutation(api.machines.register, {
+    sessionId,
+    machineId,
+    hostname: 'test-host',
+    os: 'darwin',
+    availableHarnesses: [agentHarness],
+  });
   await t.mutation(api.machines.saveTeamAgentConfig, {
     sessionId,
     chatroomId,
     role,
     type: 'remote',
-    machineId: `machine-native-${machineSuffix}`,
+    machineId,
     agentHarness,
     model: 'auto',
     workingDir: '/test/workspace',
@@ -119,6 +127,14 @@ describe('Native init prompt (integration)', () => {
     const { sessionId } = await createTestSession('test-native-init-opencode-cli');
     const chatroomId = await createTeamChatroom(sessionId, 'duo');
     await joinParticipants(sessionId, chatroomId, ['builder']);
+
+    await t.mutation(api.machines.register, {
+      sessionId,
+      machineId: 'machine-native-opencode-cli',
+      hostname: 'test-host',
+      os: 'darwin',
+      availableHarnesses: ['opencode'],
+    });
 
     await t.mutation(api.machines.saveTeamAgentConfig, {
       sessionId,

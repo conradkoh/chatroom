@@ -51,6 +51,8 @@ export interface CreateTaskArgs {
   attachedTaskIds?: Id<'chatroom_tasks'>[];
   queuePosition: number;
   plannerEnhancerEnabled?: boolean;
+  originUserMessageId?: Id<'chatroom_messages'>;
+  enhancerEnabledAtEnqueue?: boolean;
   startInNewSession: boolean | undefined;
 }
 
@@ -127,6 +129,10 @@ export async function createTask(
       }),
     ...(args.plannerEnhancerEnabled !== undefined
       ? { plannerEnhancerEnabled: args.plannerEnhancerEnabled }
+      : {}),
+    ...(args.originUserMessageId ? { originUserMessageId: args.originUserMessageId } : {}),
+    ...(args.enhancerEnabledAtEnqueue !== undefined
+      ? { enhancerEnabledAtEnqueue: args.enhancerEnabledAtEnqueue }
       : {}),
     ...(args.startInNewSession !== undefined ? { startInNewSession: args.startInNewSession } : {}),
   });

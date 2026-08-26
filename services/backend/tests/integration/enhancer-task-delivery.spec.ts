@@ -11,7 +11,8 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { joinParticipant } from '../helpers/integration';
+import { insertLegacyEnhancerJob } from '../helpers/enhancer-legacy-job';
+import { addEnhancerToTeamRoles, joinParticipant } from '../helpers/integration';
 import {
   setupPlannerWorkspaceForSession,
   setupSoloWorkspaceForSession,
@@ -201,9 +202,10 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
       await setupPlannerWorkspaceForSession('enh-delivery-feedback');
     await setPlannerAsEntryPoint(chatroomId);
     await enableEnhancer(sessionId, chatroomId, machineId);
+    await addEnhancerToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
-    await t.run(async (ctx) => {
+    const originUserMessageId = await t.run(async (ctx) => {
       const msgId = await ctx.db.insert('chatroom_messages', {
         chatroomId,
         senderRole: 'user',
@@ -222,14 +224,16 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
         updatedAt: Date.now(),
         queuePosition: 1,
       });
+      return msgId;
     });
 
-    const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
-      sessionId,
+    const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
+    const { jobId } = await insertLegacyEnhancerJob({
       chatroomId,
-      senderRole: 'planner',
-      targetRole: 'enhancer',
-      content: 'Check-in draft',
+      userId,
+      machineId,
+      originUserMessageId,
+      draftContent: 'Check-in draft',
     });
 
     await t.mutation(api.daemon.enhancer.index.claimForSpawn, {

@@ -15,11 +15,12 @@ export interface RenderEnhancerSystemPromptParams {
   cliEnvPrefix: string;
   originUserMessageId?: string;
   convexUrl?: string;
+  entryPointRole?: string;
 }
 
 export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptParams): string {
-  const completeCmd = formatStdinHeredocCommand(
-    `chatroom enhancer complete --chatroom-id=${params.chatroomId} --job-id=${params.jobId}`,
+  const handoffCmd = formatStdinHeredocCommand(
+    `chatroom handoff --chatroom-id=${params.chatroomId} --role=enhancer --next-role=${params.entryPointRole ?? 'planner'}`,
     ENHANCER_STDIN_DELIMITER,
     '[Design input markdown — follow the output template]',
     { messageMarker: HANDOFF_MESSAGE_MARKER }
@@ -69,10 +70,10 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
     '- Do NOT treat <forwarded-request> as the only source of context; download message history first.',
     '- Output must match <output-template>. **Recommended implementation sequence** and **Files touched** are the last sections.',
     '',
-    '## Complete command (MANDATORY — run as your final action)',
+    '## Handoff command (MANDATORY — run as your final action)',
     'Run this command after writing the complete design input. Stdout alone does not deliver it to the team entry point.',
     'Even when the request is already clear, complete the template with concise, useful findings.',
     'Failure to run complete means your work is lost and the team entry point is told the enhancer failed.',
-    completeCmd,
+    handoffCmd,
   ].join('\n');
 }

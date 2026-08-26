@@ -16,6 +16,7 @@ import {
   filterTeamAgentConfigsForTeam,
 } from '../../../../convex/utils/teamRoleKey';
 import { deriveRoleStopState } from './derive-agent-stop-state';
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
 type RebuildOptions = { pruneStale?: boolean };
 
@@ -140,6 +141,8 @@ export async function projectAgentOperationalStatusForRole(
   const projectedAt = Date.now();
   const key = revisionKey ?? `operational:${chatroomId}:${projectedAt}`;
   const roleKey = role.toLowerCase();
+  const stop = await deriveRoleStopState(ctx, chatroomId, roleKey, { isAlive: projection.isAlive, desiredState: config.desiredState });
+  const acceptsTasks = config.enabled !== false && config.desiredState === 'running' && config.circuitState !== 'open' && !['pending', 'processing'].includes(stop.stopState ?? '');
   const fields = {
     chatroomId,
     role: roleKey,
@@ -149,14 +152,17 @@ export async function projectAgentOperationalStatusForRole(
     isAlive: projection.isAlive,
     isRunning: projection.isRunning,
     daemonConnected: projection.daemonConnected,
-    viewState: deriveAgentRoleViewState(
+    viewState: isEphemeralAgentRole(roleKey) && acceptsTasks && !projection.isAlive
+      ? ('idle' as const)
+      : deriveAgentRoleViewState(
       snapshot(config, room.teamId),
       projection.daemonConnected,
       opts?.lastStatus
     ),
+    acceptsTasks,
     projectedAt,
     revisionKey: key,
-    ...(await deriveRoleStopState(ctx, chatroomId, roleKey, { isAlive: projection.isAlive, desiredState: config.desiredState })),
+    ...stop,
   };
   const existing = await ctx.db
     .query('chatroom_agentRoleOperationalStatus')
@@ -173,6 +179,7 @@ export async function projectAgentOperationalStatusForRole(
     existing.teamId !== fields.teamId
     || existing.stopState !== fields.stopState
     || existing.activeStopCommandId !== fields.activeStopCommandId
+    || existing.acceptsTasks !== fields.acceptsTasks
   ) {
     if (existing) await ctx.db.patch('chatroom_agentRoleOperationalStatus', existing._id, fields);
     else await ctx.db.insert('chatroom_agentRoleOperationalStatus', fields);

@@ -30,9 +30,15 @@ export function createAgentLifecycleSend(
       machineId: session.machineId,
       fact: toConvexLifecycleFact(fact),
     } satisfies ProjectAgentLifecycleFactArgs;
-    return (await session.backend.mutation(
+    const result = (await session.backend.mutation(
       api.machines.projectAgentLifecycleFact,
       args
     )) as AgentLifecycleOutboxResult;
+    return {
+      ...result,
+      ...(result.skipped && result.rejectionReason
+        ? { rejectionReason: result.rejectionReason }
+        : {}),
+    };
   };
 }
