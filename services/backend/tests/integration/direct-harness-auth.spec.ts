@@ -20,7 +20,11 @@ afterEach(() => {
 
 describe('daemon directHarness machine auth', () => {
   test('listPendingCommands rejects caller without owner access to machineId', async () => {
-    const { sessionId: _sessionId, machineId, workspaceId } = await setupWorkspaceForSession('dh-auth-list');
+    const {
+      sessionId: _sessionId,
+      machineId,
+      workspaceId,
+    } = await setupWorkspaceForSession('dh-auth-list');
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_directHarnessCommands', {
