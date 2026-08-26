@@ -8,7 +8,7 @@
  * Pure state + memo + effects — no Convex calls inside this hook.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import type { HarnessVersionInfo } from '../../types/machine';
 import type { AgentOption, ProviderOption } from '../components/harness-selectors/types';
@@ -82,7 +82,7 @@ export function useHarnessConfig({
     [currentHarness]
   );
 
-  const providers = currentHarness?.providers ?? [];
+  const providers = useMemo(() => currentHarness?.providers ?? [], [currentHarness]);
 
   const modelOptions = useMemo(() => {
     const list: { value: string; label: string }[] = [];
@@ -120,56 +120,6 @@ export function useHarnessConfig({
     (agentDefaultModelKey && modelOptions.find((m) => m.value === agentDefaultModelKey)?.value) ??
     modelOptions[0]?.value ??
     '';
-
-  // ── Display-state sync effects ───────────────────────────────────────────────
-
-  // Use refs to read stable current values without adding them to effect deps,
-  // preventing infinite re-render loops.
-  const selectedAgentRef = useRef(selectedAgent);
-  selectedAgentRef.current = selectedAgent;
-
-  // Effect 1: Sync selectedAgent when eligibleAgents loads or the harness changes.
-  // If the current selection is invalid (empty or agent no longer in list), reset.
-  useEffect(() => {
-    if (eligibleAgents.length === 0) return;
-    const currentAgent = selectedAgentRef.current;
-    const isValid = eligibleAgents.some((a) => a.name === currentAgent);
-    if (isValid) return;
-    // Empty or stale selection — pick the best default
-    const fallback =
-      eligibleAgents.find((a) => a.name === (initial?.agent ?? ''))?.name ??
-      eligibleAgents[0]?.name ??
-      '';
-    setSelectedAgent(fallback);
-  }, [eligibleAgents, initial?.agent]);
-
-  // Effect 2: On user-driven agent change (after initial mount), overwrite
-  // selectedModel with the new agent's default model (or first visible).
-  // On initial mount, do NOT overwrite if initial.model was provided — that
-  // preserves the session-restore behavior when initial is populated.
-  const initialMountRef = useRef(true);
-  const prevResolvedAgentRef = useRef(resolvedAgent);
-
-  useEffect(() => {
-    if (initialMountRef.current) {
-      initialMountRef.current = false;
-      prevResolvedAgentRef.current = resolvedAgent;
-      return;
-    }
-    if (resolvedAgent === prevResolvedAgentRef.current) return;
-    prevResolvedAgentRef.current = resolvedAgent;
-
-    // Agent changed after mount — switch model to the new agent's default
-    const agent = eligibleAgents.find((a) => a.name === resolvedAgent);
-    if (agent?.model) {
-      const key = `${agent.model.providerID}::${agent.model.modelID}`;
-      // Use the agent default if visible; otherwise fall through to first visible
-      const isVisible = modelOptions.some((m) => m.value === key);
-      setSelectedModel(isVisible ? key : (modelOptions[0]?.value ?? ''));
-    } else {
-      setSelectedModel(modelOptions[0]?.value ?? '');
-    }
-  }, [resolvedAgent, eligibleAgents, modelOptions]);
 
   return {
     selectedAgent,
