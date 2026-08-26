@@ -31,19 +31,20 @@ import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueu
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
-import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
 import {
   hasActiveEnhancerWork,
   transitionEnhancerEntryPointToEnhancing,
   transitionEnhancerEntryPointToWaiting,
 } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
 import { resolveEnhancerHandoffContent } from '../src/domain/usecase/enhancer/enhancer-handoff-content';
+import { findEnhancerTaskForOrigin } from '../src/domain/usecase/enhancer/find-enhancer-task-for-origin';
+import { getEnhancerTeamAgentConfig } from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
+import { validateEnhancerHandoff } from '../src/domain/usecase/enhancer/validate-enhancer-handoff';
 import { getEnhancerConfigForUser } from '../src/domain/usecase/enhancer/get-enhancer-config-for-user';
 import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import {
   resolvePlannerEnhancerEnabledFromConfig,
   resolveTaskPlannerEnhancerEnabled,
-  validatePlannerEnhancerHandoff,
 } from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
 import {
   insertChatroomMessage,
@@ -591,11 +592,9 @@ export async function runHandoffHandler(
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
   let chatroom;
-  let session;
   try {
     const result = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     chatroom = result.chatroom;
-    session = result.session;
   } catch (error) {
     // Convert generic Error to structured error response
     return {
@@ -634,6 +633,8 @@ export async function runHandoffHandler(
   const normalizedTargetRole = args.targetRole.toLowerCase();
   const isHandoffToUser = normalizedTargetRole === 'user';
   const isHandoffToEnhancer = normalizedTargetRole === 'enhancer';
+  let enhancerConfig: Awaited<ReturnType<typeof getEnhancerTeamAgentConfig>> = null;
+  let enhancerEnabledAtEnqueue: boolean | undefined;
 
   if (normalizedSenderRole === normalizedEnhancerEntryPointRole && !isHandoffToEnhancer) {
     const enhancerReviewInProgress = await hasActiveEnhancerWork(ctx, args.chatroomId);
@@ -654,6 +655,9 @@ export async function runHandoffHandler(
   }
 
   if (isHandoffToEnhancer) {
+    if (!normalizedTeamRoles.includes('enhancer')) {
+      return { success: false, error: { code: 'INVALID_TARGET_ROLE', message: 'Enhancer is not part of the current team' }, messageId: null, completedTaskIds: [], newTaskId: null, promotedTaskId: null };
+    }
     if (!enhancerEntryPointRole || !isEnhancerEntryPointRole(chatroom, args.senderRole)) {
       return {
         success: false,
@@ -668,27 +672,16 @@ export async function runHandoffHandler(
       };
     }
 
-    const enhancerReviewInProgress = await hasActiveEnhancerWork(ctx, args.chatroomId);
-    if (enhancerReviewInProgress) {
-      return {
-        success: false,
-        error: {
-          code: 'ACTIVE_JOB_EXISTS',
-          message: 'An enhancer job is already active for this handoff',
-        },
-        messageId: null,
-        completedTaskIds: [],
-        newTaskId: null,
-        promotedTaskId: null,
-      };
-    }
-
-    const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
+    enhancerConfig = await getEnhancerTeamAgentConfig(ctx, args.chatroomId, chatroom.teamId!);
 
     const activeEntryPointTasks = await collectActiveTasks(ctx, args.chatroomId, {
       assignedTo: enhancerEntryPointRole,
     });
     if (activeEntryPointTasks.length === 0) {
+      const priorEnhancerTask = (await ctx.db.query('chatroom_tasks').withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId)).collect()).find((task) => task.assignedTo?.toLowerCase() === 'enhancer' && task.originUserMessageId);
+      if (priorEnhancerTask) {
+        return { success: false, error: { code: 'ENHANCER_ALREADY_USED', message: 'Enhancer analysis already ran for this originating user message' }, messageId: null, completedTaskIds: [], newTaskId: null, promotedTaskId: null };
+      }
       return {
         success: false,
         error: {
@@ -704,6 +697,7 @@ export async function runHandoffHandler(
 
     const userOriginTask =
       activeEntryPointTasks.find((t) => t.createdBy === 'user') ?? activeEntryPointTasks[0];
+    enhancerEnabledAtEnqueue = userOriginTask?.plannerEnhancerEnabled;
 
     const originUserMessageId = userOriginTask?.sourceMessageId
       ? await walkToUserMessageId(ctx, userOriginTask.sourceMessageId)
@@ -722,13 +716,8 @@ export async function runHandoffHandler(
       };
     }
 
-    const existingOriginJob = await ctx.db
-      .query('chatroom_enhancerJobs')
-      .withIndex('by_chatroom_originUserMessageId', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('originUserMessageId', originUserMessageId)
-      )
-      .first();
-    if (existingOriginJob) {
+    const existingOriginTask = await findEnhancerTaskForOrigin(ctx, { chatroomId: args.chatroomId, originUserMessageId });
+    if (existingOriginTask) {
       return {
         success: false,
         error: {
@@ -742,7 +731,18 @@ export async function runHandoffHandler(
       };
     }
 
-    const handoffValidation = validatePlannerEnhancerHandoff({
+    if (await hasActiveEnhancerWork(ctx, args.chatroomId)) {
+      return {
+        success: false,
+        error: { code: 'ACTIVE_JOB_EXISTS', message: 'An enhancer job is already active for this handoff' },
+        messageId: null,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+      };
+    }
+
+    const handoffValidation = validateEnhancerHandoff({
       taskPlannerEnhancerEnabled: userOriginTask?.plannerEnhancerEnabled,
       config: enhancerConfig,
     });
@@ -911,6 +911,9 @@ export async function runHandoffHandler(
       assignedTo: args.targetRole,
       sourceMessageId: messageId,
       queuePosition,
+      ...(isHandoffToEnhancer && taskOriginMessageId
+        ? { originUserMessageId: taskOriginMessageId, enhancerEnabledAtEnqueue }
+        : {}),
       startInNewSession: undefined,
     });
     newTaskId = createdTaskId;
@@ -927,27 +930,6 @@ export async function runHandoffHandler(
         message: 'Enhancer handoff is missing a supported team entry point',
       });
     }
-    const enhancerConfig = await getEnhancerConfigForUser(ctx, args.chatroomId, session.userId);
-    if (!enhancerConfig) {
-      throw new ConvexError({ code: 'ENHANCER_NOT_ENABLED', message: 'Enhancer not enabled' });
-    }
-
-    enhancerJobId = await createEnhancerJobFromHandoff(ctx, {
-      chatroomId: args.chatroomId,
-      userId: session.userId,
-      chatroom,
-      entryPointRole: enhancerEntryPointRole,
-      content: handoffContent,
-      taskId: newTaskId,
-      messageId,
-      originUserMessageId: taskOriginMessageId,
-      attachedArtifactIds: args.attachedArtifactIds,
-      machineId: enhancerConfig.machineId,
-      agentHarness: enhancerConfig.agentHarness,
-      model: enhancerConfig.model,
-    });
-
-    await ctx.db.patch('chatroom_messages', messageId, { enhancerJobId });
     await transitionEnhancerEntryPointToEnhancing(ctx, args.chatroomId, enhancerEntryPointRole);
   }
 

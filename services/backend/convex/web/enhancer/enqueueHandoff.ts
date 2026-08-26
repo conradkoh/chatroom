@@ -31,13 +31,14 @@ export const enqueueHandoff = mutation({
       });
     }
 
-    if (!result.enhancerJobId) {
+    const legacyJobId = (result as { enhancerJobId?: string | null }).enhancerJobId;
+    if (!legacyJobId) {
       throw new ConvexError({
         code: 'HANDOFF_FAILED',
         message: 'Expected enhancer job from entry-point→enhancer handoff',
       });
     }
 
-    return { jobId: result.enhancerJobId };
+    return { jobId: legacyJobId };
   },
 });
