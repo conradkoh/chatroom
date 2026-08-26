@@ -18,7 +18,6 @@ import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 
-
 const OPERATIONAL_STATUSES = new Set([
   'agent.waiting',
   'agent.enhancing',

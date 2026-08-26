@@ -15,7 +15,6 @@ describe('rawTextToHtml', () => {
   });
 
   it('returns empty string for falsy input', () => {
-     
     expect(rawTextToHtml(undefined as any)).toBe('');
   });
 

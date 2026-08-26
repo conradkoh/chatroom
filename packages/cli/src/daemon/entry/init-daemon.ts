@@ -397,7 +397,9 @@ function assembleDaemonSessionInit(args: {
     spawning: deps.spawning,
     crashLoop: new CrashLoopTracker(),
     convexUrl,
-    lifecycleOutbox: { enqueue: (fact) => enqueueAgentLifecycleFact(agentLifecycleOutbox, machineId, fact) },
+    lifecycleOutbox: {
+      enqueue: (fact) => enqueueAgentLifecycleFact(agentLifecycleOutbox, machineId, fact),
+    },
   });
 
   return {

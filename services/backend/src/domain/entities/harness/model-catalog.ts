@@ -25,7 +25,11 @@ import {
   type CodexReasoningLevel,
 } from './codex-sdk.model-variants';
 import { expandModelVariantCatalog } from './model-variant';
-import { inferCopilotModelProvider, prefixCatalogModels, prefixCatalogModelsWithInfer } from './model-provider';
+import {
+  inferCopilotModelProvider,
+  prefixCatalogModels,
+  prefixCatalogModelsWithInfer,
+} from './model-provider';
 
 /** Harness ids with a server-curated catalog. */
 export type CatalogBackedHarness = Extract<
@@ -33,7 +37,10 @@ export type CatalogBackedHarness = Extract<
   'codex-sdk' | 'copilot' | 'claude' | 'claude-sdk'
 >;
 const claudeModelVariants = () =>
-  prefixCatalogModels('anthropic', expandModelVariantCatalog(CLAUDE_CATALOG_BASE_MODEL_IDS, CLAUDE_MODEL_VARIANT_COMBINATIONS));
+  prefixCatalogModels(
+    'anthropic',
+    expandModelVariantCatalog(CLAUDE_CATALOG_BASE_MODEL_IDS, CLAUDE_MODEL_VARIANT_COMBINATIONS)
+  );
 
 // ─── Codex variants (typed template strings — catalog entries are compile-checked) ───
 
@@ -61,10 +68,10 @@ const CODEX_MODEL_IDS: readonly CodexModelId[] = [
  * `reasoning=none` for explicitly opting out of a reasoning level.
  */
 function codexModelVariants(): CodexModelVariantString[] {
-  return prefixCatalogModels('openai', expandModelVariantCatalog(
-    CODEX_MODEL_IDS,
-    CODEX_MODEL_VARIANT_COMBINATIONS
-  )) as CodexModelVariantString[];
+  return prefixCatalogModels(
+    'openai',
+    expandModelVariantCatalog(CODEX_MODEL_IDS, CODEX_MODEL_VARIANT_COMBINATIONS)
+  ) as CodexModelVariantString[];
 }
 
 // ─── Catalog ────────────────────────────────────────────────────────────────

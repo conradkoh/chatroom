@@ -200,5 +200,4 @@ export class CodexSdkStreamAdapter extends NativeStreamAdapterBase {
       )
     );
   }
-
 }

@@ -10,10 +10,7 @@ import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
 import { HandoffStructuredContent } from './HandoffStructuredContent';
 import { DetailModalMarkdownSurface, detailModalMarkdownProseClassNames } from './detail-modal';
-import {
-  modalMarkdownComponents,
-  taskDetailProseClassNames,
-} from './markdown-utils';
+import { modalMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
 import { getStatusBadge } from './WorkQueue/utils';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 import { useAttachments } from '../attachments';
@@ -31,7 +28,6 @@ import {
   FixedModalContent,
   FixedModalHeader,
 } from '@/components/ui/fixed-modal';
-
 
 interface Task {
   _id: Id<'chatroom_tasks'>;
@@ -161,7 +157,10 @@ export function TaskDetailModal({
   }
 
   const badge = getStatusBadge(task.status);
-  const taskModalProseClassNames = cn(detailModalMarkdownProseClassNames, taskDetailProseClassNames);
+  const taskModalProseClassNames = cn(
+    detailModalMarkdownProseClassNames,
+    taskDetailProseClassNames
+  );
 
   return (
     <FixedModal

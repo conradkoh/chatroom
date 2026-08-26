@@ -263,7 +263,9 @@ export async function getSessionId(): Promise<SessionId | null> {
 /**
  * Get all available sessions (for debugging/error messages)
  */
-export async function getAllSessions(): Promise<{ url: string; sessionId: string; createdAt?: string }[]> {
+export async function getAllSessions(): Promise<
+  { url: string; sessionId: string; createdAt?: string }[]
+> {
   const rawData = await loadRawAuthData();
   if (!rawData) {
     return [];

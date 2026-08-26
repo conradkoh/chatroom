@@ -12,12 +12,12 @@ describe('StatusDot', () => {
     // Use the label defined in STATUS_STYLES rather than capitalising the status key,
     // since some statuses have a different display label (e.g. 'idle' → 'Reconnecting').
     const labelMap: Record<SessionStatus, string> = {
-      pending:   'Pending',
-      spawning:  'Spawning',
-      active:    'Active',
-      idle:      'Reconnecting',
-      closed:    'Closed',
-      failed:    'Failed',
+      pending: 'Pending',
+      spawning: 'Spawning',
+      active: 'Active',
+      idle: 'Reconnecting',
+      closed: 'Closed',
+      failed: 'Failed',
     };
     expect(screen.getByRole('generic', { name: labelMap[status] })).toBeInTheDocument();
   });

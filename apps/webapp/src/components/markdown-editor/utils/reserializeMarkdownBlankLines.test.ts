@@ -11,7 +11,10 @@ describe('reserializeMarkdownBlankLines', () => {
     expect(out).toContain('This is some content!\n\n&nbsp;\n\n```txt');
     expect(out).toContain('```\n\n&nbsp;');
 
-    const afterContent = out.slice(out.indexOf('content!') + 'content!'.length, out.indexOf('```txt'));
+    const afterContent = out.slice(
+      out.indexOf('content!') + 'content!'.length,
+      out.indexOf('```txt')
+    );
     expect(Array.from(afterContent).map((c) => c.charCodeAt(0))).toEqual([
       10, 10, 38, 110, 98, 115, 112, 59, 10, 10,
     ]);

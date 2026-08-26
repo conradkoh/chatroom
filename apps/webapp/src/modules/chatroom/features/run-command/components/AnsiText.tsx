@@ -18,7 +18,10 @@ import type { AnserJsonEntry } from 'anser';
 // ESM interop gymnastics.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Anser = require('anser') as {
-  ansiToJson(txt: string, options?: { use_classes?: boolean; remove_empty?: boolean }): AnserJsonEntry[];
+  ansiToJson(
+    txt: string,
+    options?: { use_classes?: boolean; remove_empty?: boolean }
+  ): AnserJsonEntry[];
 };
 
 // ─── URL linkification ────────────────────────────────────────────────────────

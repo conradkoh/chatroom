@@ -62,10 +62,26 @@ describe('useChatInputFileDrop', () => {
   it('exposes attachFiles with upload path and reference insertion', () => {
     const setMessage = vi.fn();
     const textareaRef = { current: { selectionStart: 0 } as HTMLTextAreaElement };
-    const { result } = renderHook(() => useChatInputFileDrop({ machineId: 'machine-1', workingDir: '/workspace', message: '', setMessage, textareaRef }));
-    act(() => result.current.attachFiles([new File(['png'], 'sketch-20260816-120000.png', { type: 'image/png' })]));
+    const { result } = renderHook(() =>
+      useChatInputFileDrop({
+        machineId: 'machine-1',
+        workingDir: '/workspace',
+        message: '',
+        setMessage,
+        textareaRef,
+      })
+    );
+    act(() =>
+      result.current.attachFiles([
+        new File(['png'], 'sketch-20260816-120000.png', { type: 'image/png' }),
+      ])
+    );
     expect(setMessage).toHaveBeenCalledWith(expect.stringContaining('sketch-20260816-120000.png'));
-    expect(mockStartUpload).toHaveBeenCalledWith(expect.stringContaining('.chatroom/downloads/attachments/files/'), expect.any(File), { uploadKind: 'chatAttachment' });
+    expect(mockStartUpload).toHaveBeenCalledWith(
+      expect.stringContaining('.chatroom/downloads/attachments/files/'),
+      expect.any(File),
+      { uploadKind: 'chatAttachment' }
+    );
   });
 
   it('inserts multiple paths in one setMessage call preserving order', () => {

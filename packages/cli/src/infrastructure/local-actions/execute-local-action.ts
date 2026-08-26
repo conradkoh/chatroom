@@ -143,9 +143,14 @@ async function openGithubDesktop(workingDir: string): Promise<LocalActionResult>
   execFireAndForget(`github ${escapeShellArg(workingDir)}`, 'open-github-desktop');
   return { success: true };
 }
-async function openDaemonLogs(_workingDir: string, options?: LocalActionOptions): Promise<LocalActionResult> {
-  const params = new URLSearchParams(); if (options?.chatroomId) params.set('chatroomId', options.chatroomId);
-  const qs = params.toString(); const url = `http://127.0.0.1:${resolveLocalWebPort()}/${qs ? `?${qs}` : ''}`;
+async function openDaemonLogs(
+  _workingDir: string,
+  options?: LocalActionOptions
+): Promise<LocalActionResult> {
+  const params = new URLSearchParams();
+  if (options?.chatroomId) params.set('chatroomId', options.chatroomId);
+  const qs = params.toString();
+  const url = `http://127.0.0.1:${resolveLocalWebPort()}/${qs ? `?${qs}` : ''}`;
   execFireAndForget(
     `${resolveOpenUrlCommand(process.platform)} ${escapeShellArg(url)}`,
     'open-daemon-logs'

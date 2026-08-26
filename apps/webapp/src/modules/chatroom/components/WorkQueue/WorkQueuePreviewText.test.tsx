@@ -29,7 +29,9 @@ describe('WorkQueuePreviewText', () => {
   });
 
   it('renders legacy HTML content as plain text without tags', () => {
-    const { container } = render(<WorkQueuePreviewText content={'<p class="text-xs">Hello world</p>'} />);
+    const { container } = render(
+      <WorkQueuePreviewText content={'<p class="text-xs">Hello world</p>'} />
+    );
     expect(container.textContent).toContain('Hello world');
     expect(container.textContent).not.toContain('<p');
   });

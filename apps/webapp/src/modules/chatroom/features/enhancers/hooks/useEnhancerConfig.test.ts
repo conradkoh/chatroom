@@ -11,10 +11,23 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: (...args: unknown[]) => mockMutation(...args),
 }));
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
-  api: { web: { enhancer: { index: { getConfig: 'getConfig', upsertConfig: 'upsert', disableConfig: 'disable' } } } },
+  api: {
+    web: {
+      enhancer: {
+        index: { getConfig: 'getConfig', upsertConfig: 'upsert', disableConfig: 'disable' },
+      },
+    },
+  },
 }));
 
-const complete = { enabled: true, targetId: 'handoff:planner-to-builder' as const, agentHarness: 'opencode' as const, model: 'model', machineId: 'machine', updatedAt: 1 };
+const complete = {
+  enabled: true,
+  targetId: 'handoff:planner-to-builder' as const,
+  agentHarness: 'opencode' as const,
+  model: 'model',
+  machineId: 'machine',
+  updatedAt: 1,
+};
 
 describe('useEnhancerConfig hydration', () => {
   beforeEach(() => {
@@ -43,7 +56,9 @@ describe('useEnhancerConfig hydration', () => {
 
   it('keeps stale config inactive when disable rejects', async () => {
     mockQuery.mockReturnValue({ ...complete, machineId: ' ' });
-    mockMutation.mockReturnValueOnce(vi.fn()).mockReturnValueOnce(vi.fn().mockRejectedValue(new Error('offline')));
+    mockMutation
+      .mockReturnValueOnce(vi.fn())
+      .mockReturnValueOnce(vi.fn().mockRejectedValue(new Error('offline')));
     const { result } = renderHook(() => useEnhancerConfig('room-1'));
     await waitFor(() => expect(result.current.isActive).toBe(false));
     await act(async () => Promise.resolve());

@@ -111,7 +111,9 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
       (role) => {
         const config = roleConfigs.get(role.toLowerCase());
         if (!config) return null;
-        const persistedConfig = agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase());
+        const persistedConfig = agentConfigs.find(
+          (c) => c.role.toLowerCase() === role.toLowerCase()
+        );
         return {
           machineId,
           chatroomId: chatroomIdTyped,

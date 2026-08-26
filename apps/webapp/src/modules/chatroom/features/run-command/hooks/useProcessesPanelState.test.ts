@@ -81,9 +81,7 @@ describe('useProcessesPanelState', () => {
       makeRun('r2', 'build', 'completed'),
       makeRun('r3', 'test', 'failed'),
     ];
-    const { result } = renderHook(() =>
-      useProcessesPanelState({ ...defaultOpts, runs })
-    );
+    const { result } = renderHook(() => useProcessesPanelState({ ...defaultOpts, runs }));
     expect(result.current.runningProcesses).toHaveLength(1);
     expect(result.current.recentRuns).toHaveLength(2);
   });
@@ -127,9 +125,7 @@ describe('useProcessesPanelState', () => {
 
     it('Enter selects the focused workspace', () => {
       const onClearRun = vi.fn();
-      const { result } = renderHook(() =>
-        useProcessesPanelState({ ...defaultOpts, onClearRun })
-      );
+      const { result } = renderHook(() => useProcessesPanelState({ ...defaultOpts, onClearRun }));
 
       act(() => result.current.handleKeyDown(makeKeyEvent('Enter')));
 

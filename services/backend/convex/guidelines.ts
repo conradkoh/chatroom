@@ -17,9 +17,9 @@ export const GUIDELINE_TYPES = ['coding', 'security', 'design', 'performance', '
 export type GuidelineType = (typeof GUIDELINE_TYPES)[number];
 
 /** Enum-like object: GuidelineTypeEnum.coding === 'coding', etc. */
-export const GuidelineTypeEnum = Object.fromEntries(
-  GUIDELINE_TYPES.map((g) => [g, g])
-) as { readonly [K in GuidelineType]: K };
+export const GuidelineTypeEnum = Object.fromEntries(GUIDELINE_TYPES.map((g) => [g, g])) as {
+  readonly [K in GuidelineType]: K;
+};
 
 /** Convex validator for guideline types. */
 export const guidelineTypeValidator = v.union(...toLiteralValidators(GUIDELINE_TYPES));

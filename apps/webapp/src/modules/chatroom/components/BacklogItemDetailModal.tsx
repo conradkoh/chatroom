@@ -237,7 +237,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
                           setInitialClickCoords(null);
-                  enterEdit(null);
+                          enterEdit(null);
                         }
                       }
                     : undefined

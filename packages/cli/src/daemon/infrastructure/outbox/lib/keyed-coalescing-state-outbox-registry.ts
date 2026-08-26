@@ -17,8 +17,8 @@ export type KeyedCoalescingStateOutboxRegistryOptions<TState, TResult> = {
   maxRetryDelayMs?: number;
   onError?: (key: string, error: unknown) => void;
   store?: import('./durable-coalescing-state-store.js').DurableCoalescingStateStore;
-  serialize?: (state:TState)=>string;
-  deserialize?: (json:string)=>TState;
+  serialize?: (state: TState) => string;
+  deserialize?: (json: string) => TState;
 };
 
 export function createKeyedCoalescingStateOutboxRegistry<TState, TResult>(
@@ -34,7 +34,14 @@ export function createKeyedCoalescingStateOutboxRegistry<TState, TResult>(
         retryDelayMs: options.retryDelayMs,
         maxRetryDelayMs: options.maxRetryDelayMs,
         onError: (error) => options.onError?.(key, error),
-        ...(options.store ? { store: options.store, deliveryKey: key, serialize: options.serialize, deserialize: options.deserialize } : {}),
+        ...(options.store
+          ? {
+              store: options.store,
+              deliveryKey: key,
+              serialize: options.serialize,
+              deserialize: options.deserialize,
+            }
+          : {}),
       });
       outboxes.set(key, outbox);
     }

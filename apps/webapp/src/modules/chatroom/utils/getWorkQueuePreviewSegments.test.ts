@@ -66,7 +66,9 @@ describe('getWorkQueuePreviewSegments', () => {
   });
 
   it('strips legacy HTML and renders plain text', () => {
-    const text = formatWorkQueuePreviewPlainText(getWorkQueuePreviewSegments('<p>Hello <strong>world</strong></p>'));
+    const text = formatWorkQueuePreviewPlainText(
+      getWorkQueuePreviewSegments('<p>Hello <strong>world</strong></p>')
+    );
     expect(text).toBe('Hello world');
     expect(text).not.toContain('<p');
   });

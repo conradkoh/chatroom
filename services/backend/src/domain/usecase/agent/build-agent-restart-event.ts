@@ -34,13 +34,7 @@ export function buildAgentRestartEvent(input: AgentRestartEventInput, now: numbe
 }
 
 export type AgentRestartPhase =
-  | 'reset'
-  | 'spawn'
-  | 'await_session'
-  | 'ready'
-  | 'deliver'
-  | 'completed'
-  | 'failed';
+  'reset' | 'spawn' | 'await_session' | 'ready' | 'deliver' | 'completed' | 'failed';
 
 export function buildAgentRestartPhaseEvent(
   input: {

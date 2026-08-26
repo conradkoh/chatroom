@@ -200,7 +200,9 @@ export const cleanupMachines = internalMutation({
       const affectedChatroomIds = [...new Set(teamConfigs.map((row) => row.chatroomId))];
       for (const row of teamConfigs) await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
       for (const chatroomId of affectedChatroomIds) {
-        await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, { pruneStale: true });
+        await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, {
+          pruneStale: true,
+        });
       }
       await deleteMachineIdentity(ctx, mid);
       await deleteMachineTaskStatusSignalHead(ctx, mid);

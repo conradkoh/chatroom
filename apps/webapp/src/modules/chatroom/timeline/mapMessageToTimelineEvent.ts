@@ -20,8 +20,7 @@ export function mapMessageToTimelineEvent(message: Message): TimelineEvent {
     return { ...base, kind: 'context', message };
   }
 
-  const isUserMessage =
-    message.senderRole.toLowerCase() === 'user' && message.type === 'message';
+  const isUserMessage = message.senderRole.toLowerCase() === 'user' && message.type === 'message';
 
   if (isUserMessage) {
     return { ...base, kind: 'user_message', message };

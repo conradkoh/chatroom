@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { AgentOperationalReadModel, isOperationalDesiredRunning } from './agent-operational-read-model.js';
+import {
+  AgentOperationalReadModel,
+  isOperationalDesiredRunning,
+} from './agent-operational-read-model.js';
 
 const row = (revisionKey: string, operationalState: 'running' | 'stopped' = 'running') => ({
-  chatroomId: 'room-1', role: 'Builder', operationalState, isAlive: true, isRunning: true,
-  daemonConnected: true, projectedAt: 1, revisionKey,
+  chatroomId: 'room-1',
+  role: 'Builder',
+  operationalState,
+  isAlive: true,
+  isRunning: true,
+  daemonConnected: true,
+  projectedAt: 1,
+  revisionKey,
 });
 
 describe('AgentOperationalReadModel', () => {

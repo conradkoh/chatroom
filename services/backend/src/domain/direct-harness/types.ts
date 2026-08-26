@@ -151,16 +151,13 @@ export interface HarnessSendMessageInput {
 }
 
 export type HarnessSendMessageResult =
-  | { turnSeq: number; queued?: never }
-  | { queued: true; turnSeq?: never };
+  { turnSeq: number; queued?: never } | { queued: true; turnSeq?: never };
 
 // ─── Direct-Harness Commands ────────────────────────────────────────────────
 
 /** Discriminated union of all direct-harness command types. */
 export type DirectHarnessCommandType =
-  | 'refreshCapabilities'
-  | 'refreshSessionTitle'
-  | 'closeSession';
+  'refreshCapabilities' | 'refreshSessionTitle' | 'closeSession';
 
 /** Payload for a refreshCapabilities command. */
 export interface DirectHarnessRefreshCapabilitiesPayload {

@@ -13,11 +13,13 @@ describe('app URL helpers', () => {
     const location = { pathname: '/', search: '?role=builder' };
     vi.stubGlobal('window', {
       location,
-      history: { replaceState: (_state: unknown, _title: string, url: string) => {
-        const [pathname, search = ''] = url.split('?');
-        location.pathname = pathname;
-        location.search = search ? `?${search}` : '';
-      } },
+      history: {
+        replaceState: (_state: unknown, _title: string, url: string) => {
+          const [pathname, search = ''] = url.split('?');
+          location.pathname = pathname;
+          location.search = search ? `?${search}` : '';
+        },
+      },
     });
     replaceAppUrlParams({ tab: 'event-stream', chatroomId: 'room-a' });
     expect(window.location.search).toBe('?role=builder&tab=event-stream&chatroomId=room-a');

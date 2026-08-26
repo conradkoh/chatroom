@@ -113,5 +113,4 @@ export class PiSdkStreamAdapter extends NativeStreamAdapterBase {
     }
     this.thinkingBuffer = remaining;
   }
-
 }

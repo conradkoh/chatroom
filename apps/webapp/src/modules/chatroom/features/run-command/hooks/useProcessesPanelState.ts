@@ -141,10 +141,7 @@ export function useProcessesPanelState({
 
   // Separate running/recent runs
   const runningProcesses = useMemo(() => runs.filter((r) => isActiveRun(r.status)), [runs]);
-  const recentRuns = useMemo(
-    () => runs.filter((r) => !isActiveRun(r.status)).slice(0, 10),
-    [runs]
-  );
+  const recentRuns = useMemo(() => runs.filter((r) => !isActiveRun(r.status)).slice(0, 10), [runs]);
 
   return {
     searchQuery,

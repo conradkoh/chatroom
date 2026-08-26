@@ -40,9 +40,19 @@ export function useSendLocalAction() {
   const mutation = useSessionMutation(api.machines.sendLocalAction);
 
   return useCallback(
-    async (machineId: string, action: LocalActionType, workingDir: string, options?: SendLocalActionOptions) => {
+    async (
+      machineId: string,
+      action: LocalActionType,
+      workingDir: string,
+      options?: SendLocalActionOptions
+    ) => {
       try {
-        await mutation({ machineId, action, workingDir, ...(options?.chatroomId !== undefined ? { chatroomId: options.chatroomId } : {}) });
+        await mutation({
+          machineId,
+          action,
+          workingDir,
+          ...(options?.chatroomId !== undefined ? { chatroomId: options.chatroomId } : {}),
+        });
       } catch (err) {
         console.warn(`[sendLocalAction] ${action} failed:`, err);
       }

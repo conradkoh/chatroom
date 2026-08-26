@@ -25,19 +25,31 @@ export function useEventStream(filters: EventStreamFilterValues) {
     void (async () => {
       try {
         const range = resolveTimeRange(filters);
-        const response = await fetchEventStreamHistory({ chatroomId, fromTimestamp: range.fromMs, toTimestamp: range.toMs, limit: 500 });
+        const response = await fetchEventStreamHistory({
+          chatroomId,
+          fromTimestamp: range.fromMs,
+          toTimestamp: range.toMs,
+          limit: 500,
+        });
         if (!response.ok) throw new Error(response.error.message);
         if (active) {
           setEntries(response.data.entries);
           unsubscribe = subscribeEventStream((entry) => {
             const eventChatroomId = entry.payload?.chatroomId;
             const range = resolveTimeRange(filters);
-            if (entry.timestamp < range.fromMs || entry.timestamp > range.toMs || typeof eventChatroomId !== 'string' || eventChatroomId !== chatroomId) return;
-            setEntries((prev) => prev.some((e) => e.id === entry.id) ? prev : [...prev, entry]);
+            if (
+              entry.timestamp < range.fromMs ||
+              entry.timestamp > range.toMs ||
+              typeof eventChatroomId !== 'string' ||
+              eventChatroomId !== chatroomId
+            )
+              return;
+            setEntries((prev) => (prev.some((e) => e.id === entry.id) ? prev : [...prev, entry]));
           });
         }
       } catch (cause) {
-        if (active) setError(cause instanceof Error ? cause.message : 'Failed to load event stream');
+        if (active)
+          setError(cause instanceof Error ? cause.message : 'Failed to load event stream');
       } finally {
         if (active) setLoading(false);
       }

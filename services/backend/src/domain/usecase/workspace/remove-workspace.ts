@@ -104,7 +104,9 @@ async function purgeTeamAgentConfigsForMachine(
     await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
   }
   if (configs.length > 0) {
-    await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, { pruneStale: true });
+    await rebuildAgentOperationalStatusForChatroom(ctx, chatroomId, undefined, {
+      pruneStale: true,
+    });
   }
 }
 

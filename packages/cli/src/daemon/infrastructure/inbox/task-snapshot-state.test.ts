@@ -44,5 +44,4 @@ describe('MachineTaskSnapshotState', () => {
 
     expect(state.listForRole('room-1', 'builder')).toHaveLength(0);
   });
-
 });

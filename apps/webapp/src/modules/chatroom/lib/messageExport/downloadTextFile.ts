@@ -9,9 +9,7 @@ export type SaveFileOptions = {
 };
 
 export type SaveFileHandleResult =
-  | { kind: 'handle'; handle: FileSystemFileHandle }
-  | { kind: 'anchor' }
-  | { kind: 'cancelled' };
+  { kind: 'handle'; handle: FileSystemFileHandle } | { kind: 'anchor' } | { kind: 'cancelled' };
 
 // Minimal DOM declarations for showSaveFilePicker if not in TS libs
 type SaveFilePickerAcceptType = {

@@ -20,7 +20,13 @@ const FIXTURE: ModelListItem[] = [
     variants: [
       { params: [], displayName: 'Default', isDefault: true },
       { params: [{ id: 'effort', value: 'high' }], displayName: 'High' },
-      { params: [{ id: 'effort', value: 'low' }, { id: 'fast', value: 'enabled' }], displayName: 'Low Fast' },
+      {
+        params: [
+          { id: 'effort', value: 'low' },
+          { id: 'fast', value: 'enabled' },
+        ],
+        displayName: 'Low Fast',
+      },
     ],
   },
   {

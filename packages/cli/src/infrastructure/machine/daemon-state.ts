@@ -226,7 +226,10 @@ export async function listAgentEntries(
  * Best-effort: if the write fails, logs a warning but does not throw.
  * Call this after each processed batch of stream events to survive daemon restarts.
  */
-export async function persistEventCursor(machineId: string, lastSeenEventId: string): Promise<void> {
+export async function persistEventCursor(
+  machineId: string,
+  lastSeenEventId: string
+): Promise<void> {
   try {
     const state = await loadOrCreate(machineId);
     state.lastSeenEventId = lastSeenEventId;

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { markdownSurfaceBaseProseClassNames, markdownSurfaceFeedProseClassNames, markdownSurfaceModalProseClassNames } from './markdownSurfacePresets';
+import {
+  markdownSurfaceBaseProseClassNames,
+  markdownSurfaceFeedProseClassNames,
+  markdownSurfaceModalProseClassNames,
+} from './markdownSurfacePresets';
 describe('markdown surface presets', () => {
   it('composes canonical base styles', () => {
     expect(markdownSurfaceBaseProseClassNames).toContain('prose-pre:bg-chatroom-bg-secondary');
@@ -11,6 +15,8 @@ describe('markdown surface presets', () => {
   it('composes modal editor selectors once', () => {
     expect(markdownSurfaceModalProseClassNames).toContain('ProseMirror_pre');
     const sig = 'prose-pre:overflow-x-hidden';
-    expect(markdownSurfaceModalProseClassNames.indexOf(sig)).toBe(markdownSurfaceModalProseClassNames.lastIndexOf(sig));
+    expect(markdownSurfaceModalProseClassNames.indexOf(sig)).toBe(
+      markdownSurfaceModalProseClassNames.lastIndexOf(sig)
+    );
   });
 });

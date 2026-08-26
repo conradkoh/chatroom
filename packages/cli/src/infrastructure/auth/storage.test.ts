@@ -105,11 +105,15 @@ describe('auth storage', () => {
     mkdirSync(join(testHome, '.chatroom'), { recursive: true });
     writeFileSync(
       legacyAuthPath,
-      `// Chatroom CLI Authentication\n${JSON.stringify({
-        sessionId: 'legacy-session',
-        createdAt: '2023-11-22T10:11:12.000Z',
-        deviceName: 'legacy-host (linux)',
-      }, null, 2)}\n`,
+      `// Chatroom CLI Authentication\n${JSON.stringify(
+        {
+          sessionId: 'legacy-session',
+          createdAt: '2023-11-22T10:11:12.000Z',
+          deviceName: 'legacy-host (linux)',
+        },
+        null,
+        2
+      )}\n`,
       'utf-8'
     );
 
@@ -138,14 +142,16 @@ describe('auth storage', () => {
   it('warns and returns null when the auth file is corrupted', async () => {
     const storage = await loadStorage();
     mkdirSync(join(testHome, '.chatroom'), { recursive: true });
-    writeFileSync(storage.getAuthFilePath(), '// Chatroom CLI Authentication\n{ not-json }\n', 'utf-8');
+    writeFileSync(
+      storage.getAuthFilePath(),
+      '// Chatroom CLI Authentication\n{ not-json }\n',
+      'utf-8'
+    );
 
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     await expect(storage.loadAuthData()).resolves.toBeNull();
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to read auth file at')
-    );
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to read auth file at'));
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('If this is unexpected, check the file for corruption.')
     );

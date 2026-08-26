@@ -27,6 +27,7 @@ ActivityBar → third icon → **Direct Harness** view.
 ## Backend
 
 See `services/backend/convex/chatroom/directHarness/` for:
+
 - `sessions` — `openSession`, `getSession`, `listSessions`
 - `prompts` — `submitPrompt`
 - `capabilities` — `getMachineRegistry`

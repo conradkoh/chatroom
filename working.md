@@ -169,12 +169,12 @@ agent.requestStart events:
 
 ### Migration map
 
-| Frontend File                                     | Current Backend API                         | New Backend API                       |
-| ------------------------------------------------- | ------------------------------------------- | ------------------------------------- |
-| `hooks/useAgentPanelData.ts`                      | `api.machines.getAgentPanel`                | `api.machines.getAgentViewStatus`    |
-| `context/ChatroomListingContext.tsx`              | `api.machines.listRemoteAgentRunningStatus` | `api.machines.listAgentOverview`      |
-| `components/AgentStartModal.tsx`                  | `useAgentPanelData` (machineConfigs)        | `api.machines.getAgentStartConfig`    |
-| `components/AgentPanel/UnifiedAgentListModal.tsx` | `useAgentPanelData`                         | `api.machines.getAgentViewStatus`    |
+| Frontend File                                     | Current Backend API                         | New Backend API                           |
+| ------------------------------------------------- | ------------------------------------------- | ----------------------------------------- |
+| `hooks/useAgentPanelData.ts`                      | `api.machines.getAgentPanel`                | `api.machines.getAgentViewStatus`         |
+| `context/ChatroomListingContext.tsx`              | `api.machines.listRemoteAgentRunningStatus` | `api.machines.listAgentOverview`          |
+| `components/AgentStartModal.tsx`                  | `useAgentPanelData` (machineConfigs)        | `api.machines.getAgentStartConfig`        |
+| `components/AgentPanel/UnifiedAgentListModal.tsx` | `useAgentPanelData`                         | `api.machines.getAgentViewStatus`         |
 | `hooks/useWorkspaces.ts`                          | `TeamAgentConfig` from `useAgentPanelData`  | `WorkspaceView` from `getAgentViewStatus` |
 | `components/AgentPanel/InlineAgentCard.tsx`       | `TeamAgentConfig`                           | `AgentRoleView` from `getAgentViewStatus` |
 

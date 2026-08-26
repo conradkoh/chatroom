@@ -53,7 +53,11 @@ export function openDurableFifoQueueStore(dbPath: string): DurableFifoQueueStore
       ).run(Date.now(), id);
     },
     updatePayload: (id, payloadJson) => {
-      db.prepare('UPDATE fifo_outbox_entries SET payload_json=?, updated_at=? WHERE id=?').run(payloadJson, Date.now(), id);
+      db.prepare('UPDATE fifo_outbox_entries SET payload_json=?, updated_at=? WHERE id=?').run(
+        payloadJson,
+        Date.now(),
+        id
+      );
     },
     markPendingRetry: (id, error) => {
       db.prepare(

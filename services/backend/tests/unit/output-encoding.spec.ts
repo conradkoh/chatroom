@@ -70,7 +70,8 @@ Line 3`;
   });
 
   test('round-trips binary-looking ANSI bytes', () => {
-    const original = '\x1B[1;31mERROR\x1B[0m: something went wrong\n\x1B[33mWARN\x1B[0m: check config';
+    const original =
+      '\x1B[1;31mERROR\x1B[0m: something went wrong\n\x1B[33mWARN\x1B[0m: check config';
     const encoded = encodeOutput(original);
     expect(decodeOutput(encoded)).toBe(original);
   });

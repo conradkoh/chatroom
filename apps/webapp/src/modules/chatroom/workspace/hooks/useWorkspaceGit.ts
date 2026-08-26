@@ -260,9 +260,7 @@ export interface PRCommitEntry {
 }
 
 export type PRCommitsState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'available'; commits: PRCommitEntry[] };
+  { status: 'idle' } | { status: 'loading' } | { status: 'available'; commits: PRCommitEntry[] };
 
 /**
  * Returns the list of commits for a specific PR and a request function.

@@ -15,6 +15,8 @@ describe('normalizeChatroomMarkdownContent', () => {
 
   it('decodes HTML-entity-encoded tags as envelopes', () => {
     const encoded = '&lt;handoff-overview&gt;Summary&lt;/handoff-overview&gt;';
-    expect(normalizeChatroomMarkdownContent(encoded)).toBe('<handoff-overview>Summary</handoff-overview>');
+    expect(normalizeChatroomMarkdownContent(encoded)).toBe(
+      '<handoff-overview>Summary</handoff-overview>'
+    );
   });
 });

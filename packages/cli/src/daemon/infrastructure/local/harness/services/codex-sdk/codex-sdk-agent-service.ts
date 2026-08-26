@@ -128,7 +128,10 @@ type CodexModelVariant = ValidatedModelVariant<typeof CODEX_MODEL_VARIANT_COMBIN
  */
 function decodeCodexVariant(encoded: string | undefined): CodexModelVariant | undefined {
   if (encoded === undefined) return undefined;
-  return validateModelVariantParams(decodeModelVariant(stripProviderPrefix('openai', encoded)), CODEX_MODEL_VARIANT_COMBINATIONS);
+  return validateModelVariantParams(
+    decodeModelVariant(stripProviderPrefix('openai', encoded)),
+    CODEX_MODEL_VARIANT_COMBINATIONS
+  );
 }
 
 function buildThreadOptions(workingDir: string, variant?: CodexModelVariant): ThreadOptions {

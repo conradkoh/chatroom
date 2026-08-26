@@ -63,8 +63,7 @@ export function useChatroomLifecycle(chatroomId: Id<'chatroom_rooms'>): UseChatr
   const [selectedHarnessSessionId, setSelectedHarnessSessionId] = useHarnessSessionId(chatroomId);
   const [explorerSplitViewEnabled, setExplorerSplitViewEnabled] =
     useExplorerSplitViewEnabled(chatroomId);
-  const [explorerSyncEnabled, setExplorerSyncEnabled] =
-    useExplorerSyncPreference(chatroomId);
+  const [explorerSyncEnabled, setExplorerSyncEnabled] = useExplorerSyncPreference(chatroomId);
 
   return {
     fileTabs,

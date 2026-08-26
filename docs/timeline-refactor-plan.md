@@ -3,6 +3,7 @@
 Ordered by **increasing risk** and **decreasing certainty**. Each phase is independently shippable, revertable, and small enough to verify in <5 minutes per round. After each phase, user verifies in production and says "good" or "bad" — we continue or revert.
 
 Hard rules:
+
 - One phase = one PR off `release/v1.51.0` (or the current release branch).
 - Each PR has a single revertable commit.
 - Do not proceed to the next phase until the previous one is confirmed in real-app testing.
@@ -38,6 +39,7 @@ useEffect(() => {
 **Fixes:** load-older anchor drift caused by under-estimated prepended rows.
 
 **Verify checklist:**
+
 - Initial load: latest messages visible.
 - Pinned + new message: stays at tail.
 - Load older: viewport stays on the same row (less anchor drift than today).
@@ -50,6 +52,7 @@ useEffect(() => {
 **Tried:** dropped both `syncVirtualizerScrollFromDom()` calls from `followTail()`.
 
 **Result:** broke three user-observable behaviors:
+
 1. Pinned + send message: view did not fully scroll to include the new message (TanStack's cached `scrollOffset` was stale, so the `wasAtEnd` check in `shouldAdjustScrollPositionOnItemSizeChange` failed to fire as new rows measured in).
 2. Scroll-up felt more stuttery (cached offset drift between scroll events).
 3. Agent-response arrival did not show jump-to-new-message chip when user was scrolled up.
@@ -65,6 +68,7 @@ useEffect(() => {
 **Caveat:** assumes scrolls target `getMaxScrollTop()`. Need to parameterize or skip for `applyPrependScrollTop` (mid-list target).
 
 **Verify checklist:**
+
 - Click jump chip on long history: smooth animation runs, pin stays true throughout, chip disappears at end.
 - All Phase 1+2 checks pass.
 
@@ -77,6 +81,7 @@ useEffect(() => {
 **Result:** blank rows, rows flashing then going blank during scroll. Behavior was reportedly broken to the point of being hard to characterize further.
 
 **Hypotheses:**
+
 1. The deleted `wheel`/`touchmove` listeners' debounced reconciliation (setPinned at the end of the 200 ms timeout) reconciled pin state AFTER the user's scroll gesture ended. TanStack's `isScrolling` debounces too, but no scroll event fires after scrolling stops, so the post-scroll reconciliation never runs. Pin state can become wrong, which then triggers an erroneous `followTail` on the next data update.
 2. Removing the wheel/touchmove listeners may have changed event-listener order or removed some side effect TanStack relies on. Unclear without browser debugging.
 
@@ -91,6 +96,7 @@ useEffect(() => {
 **Mechanism:** build `initialMeasurementsCache` from `measurementCacheRef` on first mount.
 
 **Verify checklist:**
+
 - Initial load: small feed (≤40 messages) lands on latest message reliably.
 - All previous checks.
 

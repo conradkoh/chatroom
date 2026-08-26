@@ -163,11 +163,7 @@ function PlainInlineCode({
   if (className?.startsWith('language-')) {
     return <code className={className}>{children}</code>;
   }
-  return (
-    <code className={detailModalInlineCodeClassNames}>
-      {children}
-    </code>
-  );
+  return <code className={detailModalInlineCodeClassNames}>{children}</code>;
 }
 
 function PlainMarkdownLink({ children }: { children?: React.ReactNode }) {
@@ -318,9 +314,7 @@ export function CodeBlock({
         </div>
       ) : (
         <pre className={detailModalFencedCodePreClassNames}>
-          <code className={className || ''}>
-            {children}
-          </code>
+          <code className={className || ''}>{children}</code>
         </pre>
       )}
     </div>

@@ -79,8 +79,7 @@ describe('backlog modal markdown prose SSOT', () => {
 
 describe('modal markdown spacing', () => {
   it('renders nbsp spacer paragraphs around code blocks in modal preview', () => {
-    const markdown =
-      'This is some content!\n\n&nbsp;\n\n```txt\nasdasd\nasdsad\n```\n\n&nbsp;\n';
+    const markdown = 'This is some content!\n\n&nbsp;\n\n```txt\nasdasd\nasdsad\n```\n\n&nbsp;\n';
     const { container } = render(
       <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
         {markdown}

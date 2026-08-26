@@ -984,13 +984,21 @@ const MobileWorkspaceModal = memo(function MobileWorkspaceModal({
 export const WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX = 120;
 export const WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS = 300;
 
-export function shouldSuppressWorkspaceBottomBarSafeArea(keyboardInsetPx: number, composerFocused: boolean, insetSettled = true): boolean {
+export function shouldSuppressWorkspaceBottomBarSafeArea(
+  keyboardInsetPx: number,
+  composerFocused: boolean,
+  insetSettled = true
+): boolean {
   if (composerFocused) return true;
   if (!insetSettled) return false;
   return keyboardInsetPx >= WORKSPACE_BOTTOM_BAR_KEYBOARD_SUPPRESS_THRESHOLD_PX;
 }
 
-export function getWorkspaceBottomBarShellStyle(mobile: boolean, keyboardInsetPx: number, suppressBottomInset: boolean): CSSProperties {
+export function getWorkspaceBottomBarShellStyle(
+  mobile: boolean,
+  keyboardInsetPx: number,
+  suppressBottomInset: boolean
+): CSSProperties {
   return {
     ...getChatroomMobileFooterSafeAreaStyle(mobile, { suppressBottomInset }),
     ...getMobileStickyFooterOffsetStyle(keyboardInsetPx),
@@ -1009,10 +1017,17 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
       return;
     }
     setInsetSettled(false);
-    const id = window.setTimeout(() => setInsetSettled(true), WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS);
+    const id = window.setTimeout(
+      () => setInsetSettled(true),
+      WORKSPACE_BOTTOM_BAR_KEYBOARD_INSET_SETTLE_MS
+    );
     return () => window.clearTimeout(id);
   }, [mobile]);
-  const suppressBottomInset = shouldSuppressWorkspaceBottomBarSafeArea(keyboardInsetPx, composerFocused, insetSettled);
+  const suppressBottomInset = shouldSuppressWorkspaceBottomBarSafeArea(
+    keyboardInsetPx,
+    composerFocused,
+    insetSettled
+  );
 
   return (
     <div
@@ -1020,7 +1035,12 @@ export function WorkspaceBottomBarShell({ children }: { children: ReactNode }) {
       className="shrink-0 border-t-2 border-chatroom-border-strong bg-chatroom-bg-primary select-none"
       style={getWorkspaceBottomBarShellStyle(mobile, keyboardInsetPx, suppressBottomInset)}
     >
-      <div data-testid="workspace-bottom-bar-content" className="flex items-center h-8 min-h-[32px] px-2">{children}</div>
+      <div
+        data-testid="workspace-bottom-bar-content"
+        className="flex items-center h-8 min-h-[32px] px-2"
+      >
+        {children}
+      </div>
     </div>
   );
 }

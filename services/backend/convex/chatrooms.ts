@@ -47,7 +47,14 @@ export const create = mutation({
       ownerId: auth.userId,
       teamId: args.teamId,
     });
-    await upsertAgentViewMetadata(ctx, { chatroomId, ownerId: auth.userId, teamId: args.teamId, teamName: args.teamName, teamRoles: args.teamRoles, hasHistory: false });
+    await upsertAgentViewMetadata(ctx, {
+      chatroomId,
+      ownerId: auth.userId,
+      teamId: args.teamId,
+      teamName: args.teamName,
+      teamRoles: args.teamRoles,
+      hasHistory: false,
+    });
     await ensureMessageReadModelState(ctx, chatroomId);
     return chatroomId;
   },
