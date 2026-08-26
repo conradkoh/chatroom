@@ -11,6 +11,11 @@
 
 import { computeIntraLineDiff, type DiffSegment } from './intra-line-diff';
 
+function required<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('Expected diff value');
+  return value;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface DiffLine {
@@ -63,12 +68,12 @@ export function enrichWithIntraLineDiff(lines: DiffLine[]): DiffLine[] {
   while (i < result.length) {
     // Scan for a block of consecutive deletions
     const delStart = i;
-    while (i < result.length && result[i]!.type === 'deletion') i++;
+    while (i < result.length && required(result[i]).type === 'deletion') i++;
     const delEnd = i;
 
     // Immediately followed by a block of consecutive additions
     const addStart = i;
-    while (i < result.length && result[i]!.type === 'addition') i++;
+    while (i < result.length && required(result[i]).type === 'addition') i++;
     const addEnd = i;
 
     const delCount = delEnd - delStart;
@@ -78,8 +83,8 @@ export function enrichWithIntraLineDiff(lines: DiffLine[]): DiffLine[] {
       // Pair up: min(delCount, addCount) pairs
       const pairs = Math.min(delCount, addCount);
       for (let p = 0; p < pairs; p++) {
-        const delLine = result[delStart + p]!;
-        const addLine = result[addStart + p]!;
+        const delLine = required(result[delStart + p]);
+        const addLine = required(result[addStart + p]);
         // Strip the leading -/+ for diff computation
         const oldContent = delLine.content.slice(1);
         const newContent = addLine.content.slice(1);
@@ -133,7 +138,7 @@ export function parseDiff(content: string): FileDiffSection[] {
       if (line.startsWith('diff --git ')) {
         // e.g. "diff --git a/foo/bar.ts b/foo/bar.ts"
         const match = /diff --git a\/.+ b\/(.+)/.exec(line);
-        if (match) filePath = filePath || match[1]!;
+        if (match) filePath = filePath || required(match[1]);
       }
     }
 
@@ -164,8 +169,8 @@ export function parseDiff(content: string): FileDiffSection[] {
         // Parse hunk header: @@ -oldStart[,oldCount] +newStart[,newCount] @@
         const match = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(raw);
         if (match) {
-          oldLineNum = parseInt(match[1]!, 10);
-          newLineNum = parseInt(match[2]!, 10);
+          oldLineNum = parseInt(required(match[1]), 10);
+          newLineNum = parseInt(required(match[2]), 10);
         }
         parsedLines.push({ type: 'hunk', content: raw });
       } else if (raw.startsWith('+')) {
@@ -177,7 +182,7 @@ export function parseDiff(content: string): FileDiffSection[] {
         if (
           raw === '' &&
           parsedLines.length > 0 &&
-          parsedLines[parsedLines.length - 1]!.type === 'hunk'
+          required(parsedLines[parsedLines.length - 1]).type === 'hunk'
         ) {
           // skip trailing empty lines after hunk headers
           continue;

@@ -2,6 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
+import type { ActivityView } from '../components/ActivityBar';
 import { useActivityView } from './persistence/useActivityView';
 import { useExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
 import type { ExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
@@ -29,9 +30,9 @@ export interface UseChatroomLifecycleReturn {
   /** All workspaces for the chatroom (including unconnected). */
   workspaces: Workspace[];
   /** Current activity view ('messages' | 'explorer' | 'direct-harness'), persisted per chatroom. */
-  activityView: import('../components/ActivityBar').ActivityView;
+  activityView: ActivityView;
   /** Setter for the activity view. */
-  setActivityView: (view: import('../components/ActivityBar').ActivityView) => void;
+  setActivityView: (view: ActivityView) => void;
   /** Selected direct-harness session ID (null = "new session"), persisted per chatroom. */
   selectedHarnessSessionId: string | null;
   /** Setter for the selected harness session ID. */

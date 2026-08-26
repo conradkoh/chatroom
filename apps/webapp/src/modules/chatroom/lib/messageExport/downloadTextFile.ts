@@ -60,7 +60,9 @@ export async function saveBlobFile(
   }
 
   try {
-    const handle = await (window as SaveFilePickerWindow).showSaveFilePicker!({
+    const showSaveFilePicker = (window as SaveFilePickerWindow).showSaveFilePicker;
+    if (!showSaveFilePicker) return 'downloaded';
+    const handle = await showSaveFilePicker({
       suggestedName,
       types: [
         {
@@ -91,7 +93,9 @@ export async function promptSaveFile(
     return { kind: 'anchor' };
   }
   try {
-    const handle = await (window as SaveFilePickerWindow).showSaveFilePicker!({
+    const showSaveFilePicker = (window as SaveFilePickerWindow).showSaveFilePicker;
+    if (!showSaveFilePicker) return { kind: 'anchor' };
+    const handle = await showSaveFilePicker({
       suggestedName,
       types: [
         {

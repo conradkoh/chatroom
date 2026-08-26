@@ -43,7 +43,7 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
   prActionLoading,
   prActionError,
 }: WorkspacePRReviewProps) {
-  const prNumber = activePR.prNumber!;
+  const prNumber = activePR.prNumber ?? 0;
   const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, prNumber);
 
   // Always request a fresh diff when the selected PR changes (cached rows may be stale).
