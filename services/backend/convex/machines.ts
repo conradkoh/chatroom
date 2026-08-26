@@ -536,9 +536,6 @@ export const getCapabilitiesRefreshBatch = query({
       .withIndex('by_batchId', (q) => q.eq('batchId', args.batchId))
       .collect();
 
-    if (args.lifecycleRevision === undefined) {
-      return { success: true, accepted: false, reason: 'stale_revision' };
-    }
     return {
       batch: {
         _id: batch._id,
@@ -1294,6 +1291,9 @@ export const updateSpawnedAgent = mutation({
         spawnedAt: undefined,
       });
       return { success: true, accepted: true };
+    }
+    if (args.lifecycleRevision === undefined) {
+      return { success: true, accepted: false, reason: 'stale_revision' };
     }
     return {
       success: true,
