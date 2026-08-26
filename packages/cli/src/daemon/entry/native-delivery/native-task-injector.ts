@@ -341,6 +341,17 @@ function injectNativeTaskPrompt(
       catch: (err) => err,
     });
 
+    yield* Effect.tryPromise({
+      try: () =>
+        deps.backend.mutation(api.tasks.startTaskAtDelivery, {
+          sessionId: deps.sessionId,
+          chatroomId,
+          role,
+          taskId,
+        }),
+      catch: (err) => err,
+    });
+
     yield* emitSessionAugmentationIfNeeded(
       task,
       deps,

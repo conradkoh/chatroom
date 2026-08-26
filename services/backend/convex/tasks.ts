@@ -30,6 +30,7 @@ import { fetchTaskSourceAttachments } from '../src/domain/usecase/task/fetch-tas
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
 import { releaseOrphanedTasksForRole } from '../src/domain/usecase/task/release-tasks-on-agent-exit';
+import { startTaskAtDelivery as startTaskAtDeliveryUsecase } from '../src/domain/usecase/task/start-task-at-delivery';
 import {
   countActiveTasksFromSource,
   resolveActiveCountsForRead,
@@ -333,6 +334,25 @@ export const readTask = mutation({
       role: args.role,
       taskId: args.taskId,
     });
+  },
+});
+
+/** Marks a task started when the CLI explicitly delivers it. */
+export const startTaskAtDelivery = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await startTaskAtDeliveryUsecase(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      taskId: args.taskId,
+    });
+    return { ok: true };
   },
 });
 

@@ -24,7 +24,6 @@ import { hasActiveEntryPointEnhancerJob } from '../src/domain/usecase/enhancer/e
 import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { handleNativeAgentEnd as handleNativeAgentEndUsecase } from '../src/domain/usecase/participant/handle-native-agent-end';
-import { startTaskFromTokenActivity } from '../src/domain/usecase/participant/start-task-from-token-activity';
 import {
   findActiveAssignedTaskForRole,
   findAcknowledgedTaskForRole,
@@ -290,7 +289,7 @@ export const leave = mutation({
   },
 });
 
-/** Updates lastSeenTokenAt and may start an acknowledged task when harness output is detected. */
+/** Updates lastSeenTokenAt; token activity is liveness only and does not start tasks. */
 export const updateTokenActivity = mutation({
   args: {
     ...SessionIdArg,
@@ -301,8 +300,6 @@ export const updateTokenActivity = mutation({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const participant = await getParticipantByChatroomRole(ctx, args.chatroomId, args.role);
     if (participant) {
-      await startTaskFromTokenActivity(ctx, args, participant);
-
       await ctx.db.patch('chatroom_participants', participant._id, {
         lastSeenTokenAt: Date.now(),
       });
