@@ -52,6 +52,7 @@ export interface EnsureRunningOpts {
   readonly reason: string;
   readonly wantResume: boolean;
   readonly lifecycleRevision?: number;
+  readonly taskId?: string;
   readonly initPrompt?: string;
   readonly systemPrompt?: string;
 }

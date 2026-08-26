@@ -1293,7 +1293,7 @@ export const updateSpawnedAgent = mutation({
 });
 
 export const authorizeAgentStart = mutation({
-  args: { ...SessionIdArg, machineId: v.string(), chatroomId: v.id('chatroom_rooms'), role: v.string(), lifecycleRevision: v.optional(v.number()) },
+  args: { ...SessionIdArg, machineId: v.string(), chatroomId: v.id('chatroom_rooms'), role: v.string(), lifecycleRevision: v.optional(v.number()), taskId: v.optional(v.id('chatroom_tasks')) },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
     return authorizeAgentStartUseCase(ctx, args);

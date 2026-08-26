@@ -37,6 +37,7 @@ import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 import { TERMINAL_TASK_STATUSES } from '../../entities/task';
 import { projectAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-assigned-task-snapshot-sync';
+import { requestEphemeralAgentRelease } from '../agent/request-ephemeral-agent-release';
 
 // ============================================================================
 // TYPES
@@ -127,6 +128,7 @@ export async function transitionTask(
   if (TERMINAL_TASK_STATUSES.has(newStatus) && !options?.skipAutoPromotion) {
     const task = await ctx.db.get('chatroom_tasks', taskId);
     if (task) {
+      await requestEphemeralAgentRelease(ctx, task);
       await maybePromoteNextQueuedTask(ctx, task.chatroomId);
     }
   }

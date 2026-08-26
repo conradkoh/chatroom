@@ -106,6 +106,7 @@ export const handoffEffect = (
         };
         supportsNativeIntegration?: boolean;
         enhancerJobId?: string | null;
+        enhancerRequestQueued?: boolean;
       }>(api.messages.handoff, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
