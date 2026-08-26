@@ -2,7 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Check, Paperclip, MoreHorizontal, StopCircle, Trash2, X } from 'lucide-react';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import Markdown from 'react-markdown';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
@@ -59,8 +59,32 @@ export function TaskDetailModal({
   onForceComplete,
   isProtected = false,
 }: TaskDetailModalProps) {
+  if (!isOpen || !task) return null;
+  return (
+    <TaskDetailForm
+      key={task._id}
+      isOpen
+      task={task}
+      onClose={onClose}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      onForceComplete={onForceComplete}
+      isProtected={isProtected}
+    />
+  );
+}
+
+function TaskDetailForm({
+  isOpen,
+  task,
+  onClose,
+  onEdit,
+  onDelete,
+  onForceComplete,
+  isProtected = false,
+}: TaskDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedContent, setEditedContent] = useState('');
+  const [editedContent, setEditedContent] = useState(task.content);
   const [initialClickCoords, setInitialClickCoords] = useState<{
     left: number;
     top: number;
@@ -71,38 +95,16 @@ export function TaskDetailModal({
   // Attachments context for adding to chat
   const { add, isAttached, canAddMore } = useAttachments();
 
-  // Track which task we've initialized for - prevents resetting during edits
-  const [initializedTaskId, setInitializedTaskId] = useState<string | null>(null);
-
-  // Reset state when modal opens with a different task
-  useEffect(() => {
-    if (isOpen && task && task._id !== initializedTaskId) {
-      setEditedContent(task.content);
-      setIsEditing(false);
-      setInitialClickCoords(null);
-      setError(null);
-      setInitializedTaskId(task._id);
-    } else if (!isOpen) {
-      // Reset when modal closes
-      setInitializedTaskId(null);
-      setError(null);
-      setInitialClickCoords(null);
-    }
-  }, [isOpen, task, initializedTaskId]);
-
   /** Escape / header close / backdrop (when not editing): exit edit first, then close modal. */
   const cancelEdit = useCallback(() => {
-    if (task) setEditedContent(task.content);
+    setEditedContent(task?.content ?? '');
     setIsEditing(false);
     setInitialClickCoords(null);
   }, [task]);
 
   const dismissFromChrome = useCallback(() => {
-    if (isEditing) {
-      cancelEdit();
-    } else {
-      onClose();
-    }
+    if (!isEditing) return onClose();
+    cancelEdit();
   }, [isEditing, cancelEdit, onClose]);
 
   const handleSave = useCallback(async () => {
