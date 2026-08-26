@@ -12,7 +12,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import Markdown from 'react-markdown';
 
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
@@ -62,17 +62,27 @@ interface BacklogItemDetailModalProps {
  * Supports inline editing, lifecycle mutations, and attaching items to context.
  */
 export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDetailModalProps) {
+  if (!isOpen || !item) return null;
+  return <BacklogItemDetailForm key={item._id} isOpen item={item} onClose={onClose} />;
+}
+
+function BacklogItemDetailForm({
+  isOpen,
+  item,
+  onClose,
+}: {
+  isOpen: boolean;
+  item: BacklogItem;
+  onClose: () => void;
+}) {
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedContent, setEditedContent] = useState('');
+  const [editedContent, setEditedContent] = useState(item.content);
   const [initialClickCoords, setInitialClickCoords] = useState<{
     left: number;
     top: number;
   } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
-  // Track which item we've initialized for — prevents resetting during edits
-  const [initializedItemId, setInitializedItemId] = useState<string | null>(null);
 
   const { add, isAttached } = useAttachments();
 
@@ -84,20 +94,6 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
   const closeItem = useSessionMutation(api.backlog.closeBacklogItem);
   const updateItem = useSessionMutation(api.backlog.updateBacklogItem);
   const deleteItem = useSessionMutation(api.backlog.deleteBacklogItem);
-
-  // Reset state when modal opens with a different item
-  useEffect(() => {
-    if (isOpen && item && item._id !== initializedItemId) {
-      setEditedContent(item.content);
-      // Backlog items open read-only; click the content to edit.
-      setIsEditing(false);
-      setInitialClickCoords(null);
-      setInitializedItemId(item._id);
-    } else if (!isOpen) {
-      setInitializedItemId(null);
-      setInitialClickCoords(null);
-    }
-  }, [isOpen, item, initializedItemId]);
 
   /** Cancel an in-progress edit, restoring the source content. */
   const cancelEdit = useCallback(() => {
@@ -155,8 +151,6 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
     setDeleteDialogOpen(false);
     await handleMutation(() => deleteItem({ chatroomId: item.chatroomId, itemId: item._id }));
   };
-
-  if (!item) return null;
 
   const badge = getBacklogStatusBadge(item.status);
   const isAttachedToContext = isAttached('backlog', item._id);
