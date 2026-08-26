@@ -59,10 +59,11 @@ describe('renderEnhancerSystemPrompt', () => {
     expect(result).not.toContain('optional **Defragmentation** section');
   });
 
-  it('contains the mandatory completion command for this job', () => {
+  it('contains the mandatory handoff command for this job', () => {
     const result = renderEnhancerSystemPrompt(params);
     expect(result).toContain('CHATROOM_ENHANCER_END');
-    expect(result).toContain('enhancer complete');
-    expect(result).toContain('job-id=job-123');
+    expect(result).toContain('chatroom handoff');
+    expect(result).toContain('--next-role=planner');
+    expect(result).not.toContain('enhancer complete');
   });
 });

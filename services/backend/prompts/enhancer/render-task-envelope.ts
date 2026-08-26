@@ -7,6 +7,7 @@ export interface RenderEnhancerTaskEnvelopeParams {
   outputTemplateContent: string;
   requestContent: string;
   cliCompleteCommand: string;
+  entryPointRole?: string;
 }
 
 export function renderEnhancerTaskEnvelope(params: RenderEnhancerTaskEnvelopeParams): string {
@@ -32,9 +33,9 @@ export function renderEnhancerTaskEnvelope(params: RenderEnhancerTaskEnvelopePar
     '- Follow the output-template section order; **Files touched (index)** must be last.',
     '- Run the CLI complete command as your final action. Stdout alone does not deliver design input.',
     '</requirements>',
-    '<cli-complete-command>',
+    '<cli-handoff-command>',
     escapeXmlText(params.cliCompleteCommand),
-    '</cli-complete-command>',
+    '</cli-handoff-command>',
     '</enhancer-job>',
   ];
   return lines.join('\n');

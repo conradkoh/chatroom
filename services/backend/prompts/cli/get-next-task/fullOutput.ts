@@ -56,6 +56,7 @@ export interface FullCliOutputParams {
   standingInstructions?: string | null;
   /** When true, entry-point task delivery includes handoff-enhancer guidance. */
   plannerEnhancerEnabled?: boolean;
+  entryPointRole?: string;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -73,6 +74,7 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     sourceAttachments,
     standingInstructions,
     plannerEnhancerEnabled,
+    entryPointRole,
   } = params;
 
   return generateNativeTaskDeliveryOutput({
@@ -87,6 +89,7 @@ function buildNativeTaskDeliveryOutput(params: FullCliOutputParams): string {
     sourceAttachments,
     standingInstructions,
     plannerEnhancerEnabled,
+    entryPointRole,
   });
 }
 

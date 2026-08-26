@@ -132,6 +132,8 @@ function executeCliNudge(
         workingDir,
         reason: 'platform.task_monitor_nudge',
         wantResume,
+        lifecycleRevision: task.agentConfig.configLifecycleRevision,
+        taskId: task.taskId,
       });
       if (shouldEmitSessionAugmentation(role, augmentationMode)) {
         yield* Effect.tryPromise({
@@ -195,6 +197,8 @@ function runNativeReviveEffect(
         workingDir,
         reason: 'platform.task_monitor_nudge',
         wantResume,
+        lifecycleRevision: task.agentConfig.configLifecycleRevision,
+        taskId: task.taskId,
       });
     }).pipe(
       Effect.provide(effectContext),
@@ -231,6 +235,8 @@ function runNativeWakeEffect(
         workingDir,
         reason: 'platform.pending_task_wake',
         wantResume,
+        lifecycleRevision: task.agentConfig.configLifecycleRevision,
+        taskId: task.taskId,
       });
     }).pipe(
       Effect.provide(effectContext),

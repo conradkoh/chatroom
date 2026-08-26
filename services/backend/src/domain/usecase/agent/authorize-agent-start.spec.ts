@@ -36,4 +36,21 @@ describe('authorizeAgentStart', () => {
     await t.run((ctx) => ctx.db.insert('chatroom_agentStopCommands', { chatroomId, scope: { kind: 'chatroom' }, scopeKey: 'chatroom', reason: 'user.stop', status: 'pending', createdAt: Date.now() }));
     expect(await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'builder', machineId }))).toEqual({ allowed: false, reason: 'stop_in_flight' });
   });
+
+  test('requires an active task for ephemeral enhancer starts', async () => {
+    const { chatroomId, machineId } = await setup('authorize-ephemeral');
+    const enhancerId = await t.run(async (ctx) => ctx.db.insert('chatroom_teamAgentConfigs', {
+      teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'), chatroomId, role: 'enhancer',
+      type: 'remote', machineId, agentHarness: 'opencode', model: 'test', workingDir: '/workspace',
+      enabled: true, desiredState: 'running', lifecycleRevision: 0, createdAt: Date.now(), updatedAt: Date.now(),
+    }));
+    expect(enhancerId).toBeDefined();
+    expect(await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'enhancer', machineId }))).toEqual({ allowed: false, reason: 'no_active_task' });
+    const taskId = await t.run((ctx) => ctx.db.insert('chatroom_tasks', {
+      chatroomId, createdBy: 'user', content: 'Enhance', status: 'pending', assignedTo: 'enhancer', createdAt: Date.now(), updatedAt: Date.now(), queuePosition: 1,
+    }));
+    expect(await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'enhancer', machineId, taskId }))).toEqual({ allowed: true, lifecycleRevision: 0 });
+    await t.run((ctx) => ctx.db.patch('chatroom_tasks', taskId, { status: 'completed' }));
+    expect(await t.run((ctx) => authorizeAgentStart(ctx, { chatroomId, role: 'enhancer', machineId, taskId }))).toEqual({ allowed: false, reason: 'no_active_task' });
+  });
 });

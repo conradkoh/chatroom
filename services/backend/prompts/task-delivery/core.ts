@@ -17,6 +17,7 @@ import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/messa
 import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
 import { handoffCommand } from '../cli/handoff/command';
 import { appendNativeDeliveryHandoffTemplates as appendTaskDeliveryHandoffTemplates } from '../native/delivery-handoff-templates.js';
+import { appendEnhancerRoleTaskDeliveryGuidance } from './enhancer-role-guidance';
 
 export interface TaskDeliveryParams {
   chatroomId: string;
@@ -31,6 +32,8 @@ export interface TaskDeliveryParams {
   standingInstructions?: string | null;
   /** When true, entry-point task delivery includes handoff-enhancer guidance. */
   plannerEnhancerEnabled?: boolean;
+  originUserMessageId?: string;
+  entryPointRole?: string;
 }
 
 function appendPlannerEnhancerGuidanceForMessage(
@@ -59,6 +62,9 @@ function appendEnabledEnhancerGuidance(
     | 'role'
     | 'cliEnvPrefix'
     | 'plannerEnhancerEnabled'
+    | 'originUserMessageId'
+    | 'teamId'
+    | 'entryPointRole'
     | 'message'
     | 'task'
     | 'isEntryPoint'
@@ -159,6 +165,9 @@ function appendTaskDeliveryNextSteps(
     | 'availableHandoffTargets'
     | 'isEntryPoint'
     | 'plannerEnhancerEnabled'
+    | 'originUserMessageId'
+    | 'entryPointRole'
+    | 'teamId'
   >
 ): void {
   const {
@@ -169,8 +178,14 @@ function appendTaskDeliveryNextSteps(
     availableHandoffTargets,
     isEntryPoint,
     plannerEnhancerEnabled,
+    teamId,
   } = params;
   const senderRole = getTaskSenderRole(message);
+  if (role.toLowerCase() === 'enhancer') {
+    appendEnhancerRoleTaskDeliveryGuidance(lines, { chatroomId, role, cliEnvPrefix, entryPointRole: params.entryPointRole ?? (teamId?.toLowerCase() === 'solo' ? 'solo' : 'planner'), originUserMessageId: params.originUserMessageId });
+    lines.push('', '</next-steps>');
+    return;
+  }
   const primaryTarget = inferPrimaryHandoffTarget({
     senderRole,
     role,
