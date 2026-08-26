@@ -8,9 +8,13 @@ import {
   isCliIdleNotListening,
   isStaleCliGetNextTaskWaiting,
 } from '../../domain/native-integration/predicates.js';
-import { isOperationalDesiredRunning } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
+import {
+  isOperationalDesiredRunning,
+  isOperationalStopIntentActive,
+} from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import { STOPPING_TIMEOUT_MS } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
+import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
 import { getNativeDeliverySession } from '../native-delivery/native-delivery-session-registry.js';
 import { isAgentReadyForNativeDelivery } from '../native-delivery/native-ready-invariant.js';
 import { isNativeHarness } from '../native-delivery/native-task-injector-logic.js';
@@ -123,8 +127,10 @@ export function listNativeTasksNeedingRevive(
 function isNativePendingTaskNeedingWake(task: AssignedTaskSnapshotView): boolean {
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
   if (task.status !== 'pending') return false;
+  if (isChatroomStopScopeActive(task.chatroomId)) return false;
   const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(task.chatroomId, task.agentConfig.role);
   if (isOperationalDesiredRunning(op)) return false;
+  if (isOperationalStopIntentActive(op)) return false;
   return Boolean(task.agentConfig.workingDir);
 }
 

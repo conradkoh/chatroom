@@ -1,3 +1,5 @@
+export type RoleStopState = 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed';
+
 export type MachineAgentOperationalRow = {
   chatroomId: string;
   role: string;
@@ -10,18 +12,18 @@ export type MachineAgentOperationalRow = {
   stopState?: RoleStopState;
 };
 
-export type RoleStopState = 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed';
-
-export function isOperationalStopIntentActive(
-  row: MachineAgentOperationalRow | undefined
-): boolean {
-  return row?.stopState === 'stopped' || row?.stopState === 'stopping' || row?.stopState === 'pending';
-}
-
 const roleKey = (chatroomId: string, role: string) => `${chatroomId}:${role.toLowerCase()}`;
 
 export function isOperationalDesiredRunning(row: MachineAgentOperationalRow | undefined): boolean {
   return row?.operationalState === 'running' || row?.operationalState === 'starting';
+}
+
+export function isOperationalStopIntentActive(row: MachineAgentOperationalRow | undefined): boolean {
+  return (
+    row?.stopState === 'stopped' ||
+    row?.stopState === 'stopping' ||
+    row?.stopState === 'pending'
+  );
 }
 
 export class AgentOperationalReadModel {

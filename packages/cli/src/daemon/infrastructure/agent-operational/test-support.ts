@@ -2,8 +2,23 @@ import { AgentOperationalReadModel, type MachineAgentOperationalRow } from './ag
 import { registerNativeDeliverySession, type NativeDeliverySessionContext } from '../../entry/native-delivery/native-delivery-session-registry.js';
 import { MachineTaskSnapshotState } from '../inbox/task-snapshot-state.js';
 
-export function operationalRow(chatroomId: string, role: string, operationalState: MachineAgentOperationalRow['operationalState'] = 'running'): MachineAgentOperationalRow {
-  return { chatroomId, role, operationalState, isAlive: operationalState !== 'stopped', isRunning: operationalState === 'running', daemonConnected: true, projectedAt: Date.now(), revisionKey: `test:${chatroomId}:${role}:${operationalState}` };
+export function operationalRow(
+  chatroomId: string,
+  role: string,
+  operationalState: MachineAgentOperationalRow['operationalState'] = 'running',
+  stopState?: MachineAgentOperationalRow['stopState']
+): MachineAgentOperationalRow {
+  return {
+    chatroomId,
+    role,
+    operationalState,
+    isAlive: operationalState !== 'stopped',
+    isRunning: operationalState === 'running',
+    daemonConnected: true,
+    projectedAt: Date.now(),
+    revisionKey: `test:${chatroomId}:${role}:${operationalState}`,
+    stopState,
+  };
 }
 export function createOperationalReadModel(rows: MachineAgentOperationalRow[]): AgentOperationalReadModel {
   const model = new AgentOperationalReadModel();
