@@ -1,6 +1,7 @@
 import { v, ConvexError } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import type { Doc } from './_generated/dataModel';
 import { mutation, query, internalQuery } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 
@@ -14,7 +15,7 @@ function redactBotToken(token?: string): string | undefined {
 }
 
 /** Redact sensitive fields from an integration record for frontend display. */
-function redactIntegration(integration: any) {
+function redactIntegration(integration: Doc<'chatroom_integrations'>) {
   return {
     ...integration,
     config: {

@@ -27,7 +27,7 @@ function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckAccessDeps {
     getMachineByMachineId: async (machineId: string) => {
       const machine = await ctx.db
         .query('chatroom_machines')
-        .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
       if (!machine) return null;
       return { userId: str(machine.userId) };
@@ -43,7 +43,7 @@ function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckAccessDeps {
     getWorkspacesForMachine: async (machineId: string) => {
       const workspaces = await ctx.db
         .query('chatroom_workspaces')
-        .withIndex('by_machine', (q: any) => q.eq('machineId', machineId))
+        .withIndex('by_machine', (q) => q.eq('machineId', machineId))
         .collect();
       return workspaces
         .filter((w) => !w.removedAt)

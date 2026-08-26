@@ -54,7 +54,7 @@ export const cleanupCommandOutput = internalMutation({
     }
 
     if (deleted > 0) {
-      console.log(`[StorageCleanup] Deleted ${deleted} command output chunks`);
+      console.warn(`[StorageCleanup] Deleted ${deleted} command output chunks`);
     }
   },
 });
@@ -103,7 +103,7 @@ export const cleanupCommandRuns = internalMutation({
     }
 
     if (deleted > 0) {
-      console.log(`[StorageCleanup] Deleted ${deleted} old command runs`);
+      console.warn(`[StorageCleanup] Deleted ${deleted} old command runs`);
     }
   },
 });
@@ -142,7 +142,7 @@ export const cleanupCommitDetails = internalMutation({
     }
 
     if (deleted > 0) {
-      console.log(`[StorageCleanup] Deleted ${deleted} old commit details`);
+      console.warn(`[StorageCleanup] Deleted ${deleted} old commit details`);
     }
   },
 });
@@ -229,7 +229,7 @@ export const cleanupCachedContent = internalMutation({
     }
 
     if (totalDeleted > 0) {
-      console.log(`[StorageCleanup] Deleted ${totalDeleted} cached content records`);
+      console.warn(`[StorageCleanup] Deleted ${totalDeleted} cached content records`);
     }
   },
 });

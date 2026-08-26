@@ -74,7 +74,7 @@ export const cleanupWorkspaceFileTree = internalMutation({
     }
 
     if (deleted > 0) {
-      console.log(`[ChatroomCleanup] Deleted ${deleted} stale workspaceFileTree rows`);
+      console.warn(`[ChatroomCleanup] Deleted ${deleted} stale workspaceFileTree rows`);
     }
 
     // Self-reschedule if we hit the batch limit
@@ -112,7 +112,7 @@ export const cleanupReadCursors = internalMutation({
     }
 
     if (deleted > 0) {
-      console.log(`[ChatroomCleanup] Deleted ${deleted} orphaned read cursors`);
+      console.warn(`[ChatroomCleanup] Deleted ${deleted} orphaned read cursors`);
     }
 
     // Only reschedule if we actually deleted records AND hit our delete cap
@@ -348,7 +348,7 @@ export const cleanupMachines = internalMutation({
     }
 
     if (deletedMachines > 0) {
-      console.log(
+      console.warn(
         `[ChatroomCleanup] Deleted ${deletedMachines} inactive machines (90d+) and all related rows`
       );
     }
@@ -384,7 +384,7 @@ export const cleanupParticipants = internalMutation({
     }
 
     if (deleted > 0) {
-      console.log(`[ChatroomCleanup] Deleted ${deleted} orphaned participants`);
+      console.warn(`[ChatroomCleanup] Deleted ${deleted} orphaned participants`);
     }
 
     // Only reschedule if we hit the delete cap (more orphans may exist)
@@ -439,7 +439,7 @@ export const cleanupCliSessions = internalMutation({
     }
 
     if (deletedIds.size > 0) {
-      console.log(`[ChatroomCleanup] Deleted ${deletedIds.size} old/stale CLI sessions`);
+      console.warn(`[ChatroomCleanup] Deleted ${deletedIds.size} old/stale CLI sessions`);
     }
 
     // Self-reschedule if either query hit batch limit
@@ -481,7 +481,7 @@ export const cleanupCliAuthRequests = internalMutation({
     }
 
     if (deleted > 0) {
-      console.log(`[ChatroomCleanup] Deleted ${deleted} old CLI auth requests`);
+      console.warn(`[ChatroomCleanup] Deleted ${deleted} old CLI auth requests`);
     }
 
     // Self-reschedule if we hit the batch limit
@@ -529,7 +529,7 @@ export const cleanupCompletedTasks = internalMutation({
     }
 
     if (deleted > 0) {
-      console.log(`[ChatroomCleanup] Deleted ${deleted} old completed/closed tasks`);
+      console.warn(`[ChatroomCleanup] Deleted ${deleted} old completed/closed tasks`);
     }
 
     // Self-reschedule if we hit the batch limit

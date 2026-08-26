@@ -294,8 +294,8 @@ export async function transitionBacklogItem(
 
   // Build patch object
   const now = Date.now();
-  const patch: Partial<BacklogItem> = {
-    status: newStatus as any,
+  const patch: Partial<BacklogItem> & Record<string, unknown> = {
+    status: newStatus,
     updatedAt: now,
   };
 
@@ -303,11 +303,11 @@ export async function transitionBacklogItem(
   if (rule.setFields) {
     for (const [field, value] of Object.entries(rule.setFields)) {
       if (value === 'NOW') {
-        (patch as any)[field] = now;
+        patch[field] = now;
       } else if (value === 'PROVIDED') {
         // Field must come from overrides (already validated above)
         if (overrides && overrides[field as keyof BacklogItem] !== undefined) {
-          (patch as any)[field] = overrides[field as keyof BacklogItem];
+          patch[field] = overrides[field as keyof BacklogItem];
         }
       }
     }
@@ -316,7 +316,7 @@ export async function transitionBacklogItem(
   // Apply clearFields rules
   if (rule.clearFields) {
     for (const field of rule.clearFields) {
-      (patch as any)[field] = undefined;
+      patch[field] = undefined;
     }
   }
 
@@ -324,7 +324,7 @@ export async function transitionBacklogItem(
   if (overrides) {
     for (const [field, value] of Object.entries(overrides)) {
       if (!rule.clearFields || !rule.clearFields.includes(field as keyof BacklogItem)) {
-        (patch as any)[field] = value;
+        patch[field] = value;
       }
     }
   }
@@ -334,7 +334,7 @@ export async function transitionBacklogItem(
 
   // Log transition for auditing (suppress during testing)
   if (process.env.NODE_ENV !== 'test') {
-    console.log(
+    console.warn(
       `[FSM] Backlog item ${backlogItemId} transitioned: ${currentStatus} → ${newStatus} (trigger: ${trigger})`
     );
   }

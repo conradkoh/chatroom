@@ -1,7 +1,8 @@
+import type { Id } from '../../_generated/dataModel';
 import { isTerminal } from '../fsm';
 import type { CommandRunStatus } from '../types';
 
-export type RunId = any;
+export type RunId = Id<'chatroom_commandRunsV2'>;
 
 export function buildStatusUpdate(
   status: CommandRunStatus,

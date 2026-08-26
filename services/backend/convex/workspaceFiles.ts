@@ -115,7 +115,7 @@ const MAX_SEARCH_QUERY_LENGTH = 200;
 async function requireMachineAccess(
   ctx: QueryCtx | MutationCtx,
   machineId: string,
-  userId: any
+  userId: Id<'users'>
 ): Promise<void> {
   // write-access includes owner fallback — a machine owner always has at least write-access
   await requireAccess(ctx, {
@@ -180,7 +180,7 @@ export const getFileTree = query({
 
     const tree = await ctx.db
       .query('chatroom_workspaceFileTree')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
@@ -227,7 +227,7 @@ export const requestFileContent = mutation({
     // Check for cached content (fresh if < 5 minutes old)
     const cached = await ctx.db
       .query('chatroom_workspaceFileContentV2')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
+      .withIndex('by_machine_workingDir_path', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
       )
       .first();
@@ -240,7 +240,7 @@ export const requestFileContent = mutation({
     // Check for existing pending request
     const existingRequest = await ctx.db
       .query('chatroom_workspaceFileContentRequests')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
+      .withIndex('by_machine_workingDir_path', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
       )
       .first();
@@ -299,7 +299,7 @@ export const getFileContent = query({
 
     const content = await ctx.db
       .query('chatroom_workspaceFileContent')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
+      .withIndex('by_machine_workingDir_path', (q) =>
         q
           .eq('machineId', args.machineId)
           .eq('workingDir', args.workingDir)
@@ -346,7 +346,7 @@ export const getPendingFileContentRequests = query({
 
     const requests = await ctx.db
       .query('chatroom_workspaceFileContentRequests')
-      .withIndex('by_machine_status', (q: any) =>
+      .withIndex('by_machine_status', (q) =>
         q.eq('machineId', args.machineId).eq('status', 'pending')
       )
       .take(MAX_PENDING_REQUESTS);
@@ -440,7 +440,7 @@ export const getPendingFileTreeRequests = query({
 
     const requests = await ctx.db
       .query('chatroom_workspaceFileTreeRequests')
-      .withIndex('by_machine_status', (q: any) =>
+      .withIndex('by_machine_status', (q) =>
         q.eq('machineId', args.machineId).eq('status', 'pending')
       )
       .take(MAX_PENDING_REQUESTS);
@@ -477,7 +477,7 @@ export const fulfillFileTreeRequest = mutation({
 
     const request = await ctx.db
       .query('chatroom_workspaceFileTreeRequests')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
@@ -500,7 +500,7 @@ async function upsertPendingFileTreeReleaseRequest(
 ): Promise<void> {
   const existing = await ctx.db
     .query('chatroom_workspaceFileTreeReleaseRequests')
-    .withIndex('by_machine_workingDir', (q: any) =>
+    .withIndex('by_machine_workingDir', (q) =>
       q.eq('machineId', machineId).eq('workingDir', workingDir)
     )
     .first();
@@ -533,7 +533,7 @@ async function clearPendingFileTreeReleaseRequest(
 ): Promise<void> {
   const existing = await ctx.db
     .query('chatroom_workspaceFileTreeReleaseRequests')
-    .withIndex('by_machine_workingDir', (q: any) =>
+    .withIndex('by_machine_workingDir', (q) =>
       q.eq('machineId', machineId).eq('workingDir', workingDir)
     )
     .first();
@@ -566,7 +566,7 @@ export const adjustFileTreeWatch = mutation({
 
     const row = await ctx.db
       .query('chatroom_workspaceFileTreeWatches')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
@@ -621,7 +621,7 @@ export const getPendingFileTreeReleaseRequests = query({
 
     const requests = await ctx.db
       .query('chatroom_workspaceFileTreeReleaseRequests')
-      .withIndex('by_machine_status', (q: any) =>
+      .withIndex('by_machine_status', (q) =>
         q.eq('machineId', args.machineId).eq('status', 'pending')
       )
       .take(MAX_PENDING_REQUESTS);
@@ -654,7 +654,7 @@ export const fulfillFileTreeReleaseRequest = mutation({
 
     const request = await ctx.db
       .query('chatroom_workspaceFileTreeReleaseRequests')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
@@ -691,7 +691,7 @@ export const purgeFileTree = mutation({
     // Delete stored file tree
     const tree = await ctx.db
       .query('chatroom_workspaceFileTree')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
@@ -702,7 +702,7 @@ export const purgeFileTree = mutation({
     // Delete pending requests
     const requests = await ctx.db
       .query('chatroom_workspaceFileTreeRequests')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
@@ -712,7 +712,7 @@ export const purgeFileTree = mutation({
 
     const watch = await ctx.db
       .query('chatroom_workspaceFileTreeWatches')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .first();
@@ -722,7 +722,7 @@ export const purgeFileTree = mutation({
 
     const releaseRequests = await ctx.db
       .query('chatroom_workspaceFileTreeReleaseRequests')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
@@ -733,7 +733,7 @@ export const purgeFileTree = mutation({
     // Delete file content cache
     const contents = await ctx.db
       .query('chatroom_workspaceFileContent')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
+      .withIndex('by_machine_workingDir_path', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
@@ -744,8 +744,8 @@ export const purgeFileTree = mutation({
     // Delete file content requests (uses different index)
     const contentRequests = await ctx.db
       .query('chatroom_workspaceFileContentRequests')
-      .withIndex('by_machine_status', (q: any) => q.eq('machineId', args.machineId))
-      .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
+      .withIndex('by_machine_status', (q) => q.eq('machineId', args.machineId))
+      .filter((q) => q.eq(q.field('workingDir'), args.workingDir))
       .collect();
     for (const req of contentRequests) {
       await ctx.db.delete('chatroom_workspaceFileContentRequests', req._id);
@@ -1125,7 +1125,7 @@ export const fulfillFileContentV2 = mutation({
     // Upsert file content
     const existing = await ctx.db
       .query('chatroom_workspaceFileContentV2')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
+      .withIndex('by_machine_workingDir_path', (q) =>
         q
           .eq('machineId', args.machineId)
           .eq('workingDir', args.workingDir)
@@ -1152,7 +1152,7 @@ export const fulfillFileContentV2 = mutation({
     // Mark request as done (requests table is shared, not v2-specific)
     const request = await ctx.db
       .query('chatroom_workspaceFileContentRequests')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
+      .withIndex('by_machine_workingDir_path', (q) =>
         q
           .eq('machineId', args.machineId)
           .eq('workingDir', args.workingDir)
@@ -1197,7 +1197,7 @@ export const getFileContentV2 = query({
     const workingDir = normalizeWorkingDir(args.workingDir);
     const content = await ctx.db
       .query('chatroom_workspaceFileContentV2')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
+      .withIndex('by_machine_workingDir_path', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir).eq('filePath', args.filePath)
       )
       .first();
@@ -1364,7 +1364,7 @@ export const requestFileWrite = mutation({
 
     const pathRequests = await ctx.db
       .query('chatroom_workspaceFileWriteRequests')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
+      .withIndex('by_machine_workingDir_path', (q) =>
         q
           .eq('machineId', args.machineId)
           .eq('workingDir', args.workingDir)
@@ -1480,7 +1480,7 @@ async function hasNewerActiveRequestForPath(
 ): Promise<boolean> {
   const pathRequests = await ctx.db
     .query('chatroom_workspaceFileWriteRequests')
-    .withIndex('by_machine_workingDir_path', (q: any) =>
+    .withIndex('by_machine_workingDir_path', (q) =>
       q
         .eq('machineId', request.machineId)
         .eq('workingDir', request.workingDir)
@@ -1604,7 +1604,7 @@ export const getPendingFileWriteRequests = query({
 
     const requests = await ctx.db
       .query('chatroom_workspaceFileWriteRequests')
-      .withIndex('by_machine_status', (q: any) =>
+      .withIndex('by_machine_status', (q) =>
         q.eq('machineId', args.machineId).eq('status', 'pending')
       )
       .take(MAX_PENDING_REQUESTS);
@@ -1706,7 +1706,7 @@ export const completeFileWriteRequest = mutation({
         const now = Date.now();
         const existing = await ctx.db
           .query('chatroom_workspaceFileContentV2')
-          .withIndex('by_machine_workingDir_path', (q: any) =>
+          .withIndex('by_machine_workingDir_path', (q) =>
             q
               .eq('machineId', request.machineId)
               .eq('workingDir', workingDir)
@@ -1732,7 +1732,7 @@ export const completeFileWriteRequest = mutation({
 
         const contentRequest = await ctx.db
           .query('chatroom_workspaceFileContentRequests')
-          .withIndex('by_machine_workingDir_path', (q: any) =>
+          .withIndex('by_machine_workingDir_path', (q) =>
             q
               .eq('machineId', request.machineId)
               .eq('workingDir', workingDir)
@@ -1748,7 +1748,7 @@ export const completeFileWriteRequest = mutation({
       } else if (request.operation === 'delete') {
         const cached = await ctx.db
           .query('chatroom_workspaceFileContentV2')
-          .withIndex('by_machine_workingDir_path', (q: any) =>
+          .withIndex('by_machine_workingDir_path', (q) =>
             q
               .eq('machineId', request.machineId)
               .eq('workingDir', workingDir)
@@ -1784,7 +1784,7 @@ export const discardUnattachedWorkspaceUpload = mutation({
 
     const attached = await ctx.db
       .query('chatroom_workspaceFileWriteRequests')
-      .filter((q: any) => q.eq(q.field('storageId'), args.storageId))
+      .filter((q) => q.eq(q.field('storageId'), args.storageId))
       .first();
 
     if (attached && (attached.status === 'pending' || attached.status === 'processing')) {
@@ -1821,7 +1821,7 @@ export const purgeFileTreeV2 = mutation({
     // Delete v2 file tree (singleton)
     const treeV2 = await ctx.db
       .query('chatroom_workspaceFileTreeV2')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
@@ -1830,14 +1830,14 @@ export const purgeFileTreeV2 = mutation({
     // Delete v3 manifest + shards (batch shards, delete manifest only after all done)
     const manifestV3 = await ctx.db
       .query('chatroom_workspaceFileTreeManifestV3')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
     if (manifestV3) {
       const shards = await ctx.db
         .query('chatroom_workspaceFileTreeShardV3')
-        .withIndex('by_machine_workingDir_syncGeneration', (q: any) =>
+        .withIndex('by_machine_workingDir_syncGeneration', (q) =>
           q
             .eq('machineId', args.machineId)
             .eq('workingDir', workingDir)
@@ -1857,7 +1857,7 @@ export const purgeFileTreeV2 = mutation({
     // Delete incremental checkpoint (singleton)
     const checkpoint = await ctx.db
       .query('chatroom_workspaceFileTreeCheckpointV2')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
@@ -1868,7 +1868,7 @@ export const purgeFileTreeV2 = mutation({
     // Delete deltas (batched)
     const deltas = await ctx.db
       .query('chatroom_workspaceFileTreeDelta')
-      .withIndex('by_machine_workingDir_revision', (q: any) =>
+      .withIndex('by_machine_workingDir_revision', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .take(PURGE_FILE_TREE_BATCH_SIZE);
@@ -1880,7 +1880,7 @@ export const purgeFileTreeV2 = mutation({
     // Delete delta operations (batched)
     const deltaOperations = await ctx.db
       .query('chatroom_workspaceFileTreeDeltaOperation')
-      .withIndex('by_machine_workingDir_operationId', (q: any) =>
+      .withIndex('by_machine_workingDir_operationId', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .take(PURGE_FILE_TREE_BATCH_SIZE);
@@ -1892,7 +1892,7 @@ export const purgeFileTreeV2 = mutation({
     // Delete v1 file tree (singleton)
     const treeV1 = await ctx.db
       .query('chatroom_workspaceFileTree')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .first();
@@ -1901,7 +1901,7 @@ export const purgeFileTreeV2 = mutation({
     // Delete pending requests (batched)
     const requests = await ctx.db
       .query('chatroom_workspaceFileTreeRequests')
-      .withIndex('by_machine_workingDir', (q: any) =>
+      .withIndex('by_machine_workingDir', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', workingDir)
       )
       .take(PURGE_FILE_TREE_BATCH_SIZE);
@@ -1931,7 +1931,7 @@ export const purgeFileContentV2 = mutation({
     // Delete v2 file content
     const contentsV2 = await ctx.db
       .query('chatroom_workspaceFileContentV2')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
+      .withIndex('by_machine_workingDir_path', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
@@ -1940,7 +1940,7 @@ export const purgeFileContentV2 = mutation({
     // Delete v1 file content
     const contentsV1 = await ctx.db
       .query('chatroom_workspaceFileContent')
-      .withIndex('by_machine_workingDir_path', (q: any) =>
+      .withIndex('by_machine_workingDir_path', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
@@ -1949,8 +1949,8 @@ export const purgeFileContentV2 = mutation({
     // Delete file content requests
     const requests = await ctx.db
       .query('chatroom_workspaceFileContentRequests')
-      .withIndex('by_machine_status', (q: any) => q.eq('machineId', args.machineId))
-      .filter((q: any) => q.eq(q.field('workingDir'), args.workingDir))
+      .withIndex('by_machine_status', (q) => q.eq('machineId', args.machineId))
+      .filter((q) => q.eq(q.field('workingDir'), args.workingDir))
       .collect();
     for (const req of requests)
       await ctx.db.delete('chatroom_workspaceFileContentRequests', req._id);
@@ -1981,7 +1981,7 @@ async function getOrCreateDirListingWatchRow(
 ) {
   const existing = await ctx.db
     .query('chatroom_workspaceDirListingWatch')
-    .withIndex('by_machine_workingDir', (q: any) =>
+    .withIndex('by_machine_workingDir', (q) =>
       q.eq('machineId', machineId).eq('workingDir', workingDir)
     )
     .first();
@@ -2103,7 +2103,7 @@ export const listDirListingWatchTargets = query({
 
     const rows = await ctx.db
       .query('chatroom_workspaceDirListingWatch')
-      .withIndex('by_machineId_observerCount', (q: any) =>
+      .withIndex('by_machineId_observerCount', (q) =>
         q.eq('machineId', args.machineId).gte('observerCount', 1)
       )
       .collect();
@@ -2136,7 +2136,7 @@ export const requestDirListing = mutation({
     if (!args.force) {
       const existing = await ctx.db
         .query('chatroom_workspaceDirListingV2')
-        .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+        .withIndex('by_machine_workingDir_dirPath', (q) =>
           q
             .eq('machineId', args.machineId)
             .eq('workingDir', args.workingDir)
@@ -2150,7 +2150,7 @@ export const requestDirListing = mutation({
 
     const existingRequest = await ctx.db
       .query('chatroom_workspaceDirListingRequests')
-      .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+      .withIndex('by_machine_workingDir_dirPath', (q) =>
         q
           .eq('machineId', args.machineId)
           .eq('workingDir', args.workingDir)
@@ -2202,7 +2202,7 @@ export const getDirListingV2 = query({
 
     const row = await ctx.db
       .query('chatroom_workspaceDirListingV2')
-      .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+      .withIndex('by_machine_workingDir_dirPath', (q) =>
         q
           .eq('machineId', args.machineId)
           .eq('workingDir', args.workingDir)
@@ -2234,7 +2234,7 @@ export const getPendingDirListingRequests = query({
 
     const requests = await ctx.db
       .query('chatroom_workspaceDirListingRequests')
-      .withIndex('by_machine_status', (q: any) =>
+      .withIndex('by_machine_status', (q) =>
         q.eq('machineId', args.machineId).eq('status', 'pending')
       )
       .take(MAX_PENDING_REQUESTS);
@@ -2269,7 +2269,7 @@ async function upsertDirListingV2Row(
 
   const existing = await ctx.db
     .query('chatroom_workspaceDirListingV2')
-    .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+    .withIndex('by_machine_workingDir_dirPath', (q) =>
       q
         .eq('machineId', args.machineId)
         .eq('workingDir', args.workingDir)
@@ -2387,7 +2387,7 @@ export const fulfillDirListingRequest = mutation({
 
     const request = await ctx.db
       .query('chatroom_workspaceDirListingRequests')
-      .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+      .withIndex('by_machine_workingDir_dirPath', (q) =>
         q
           .eq('machineId', args.machineId)
           .eq('workingDir', args.workingDir)
@@ -2425,7 +2425,7 @@ export const requestFileSearch = mutation({
     if (!args.force) {
       const existing = await ctx.db
         .query('chatroom_workspaceFileSearchV2')
-        .withIndex('by_machine_workingDir_query', (q: any) =>
+        .withIndex('by_machine_workingDir_query', (q) =>
           q
             .eq('machineId', args.machineId)
             .eq('workingDir', args.workingDir)
@@ -2439,7 +2439,7 @@ export const requestFileSearch = mutation({
 
     const existingRequest = await ctx.db
       .query('chatroom_workspaceFileSearchRequests')
-      .withIndex('by_machine_workingDir_query', (q: any) =>
+      .withIndex('by_machine_workingDir_query', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('query', args.query)
       )
       .first();
@@ -2488,7 +2488,7 @@ export const getFileSearchV2 = query({
 
     const row = await ctx.db
       .query('chatroom_workspaceFileSearchV2')
-      .withIndex('by_machine_workingDir_query', (q: any) =>
+      .withIndex('by_machine_workingDir_query', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('query', args.query)
       )
       .first();
@@ -2517,7 +2517,7 @@ export const getPendingFileSearchRequests = query({
 
     const requests = await ctx.db
       .query('chatroom_workspaceFileSearchRequests')
-      .withIndex('by_machine_status', (q: any) =>
+      .withIndex('by_machine_status', (q) =>
         q.eq('machineId', args.machineId).eq('status', 'pending')
       )
       .take(MAX_PENDING_REQUESTS);
@@ -2559,7 +2559,7 @@ export const syncFileSearchV2 = mutation({
 
     const existing = await ctx.db
       .query('chatroom_workspaceFileSearchV2')
-      .withIndex('by_machine_workingDir_query', (q: any) =>
+      .withIndex('by_machine_workingDir_query', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('query', args.query)
       )
       .first();
@@ -2601,7 +2601,7 @@ export const fulfillFileSearchRequest = mutation({
 
     const request = await ctx.db
       .query('chatroom_workspaceFileSearchRequests')
-      .withIndex('by_machine_workingDir_query', (q: any) =>
+      .withIndex('by_machine_workingDir_query', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('query', args.query)
       )
       .first();
@@ -2628,7 +2628,7 @@ export const purgeDirListingsV2 = mutation({
 
     const listings = await ctx.db
       .query('chatroom_workspaceDirListingV2')
-      .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+      .withIndex('by_machine_workingDir_dirPath', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
@@ -2636,7 +2636,7 @@ export const purgeDirListingsV2 = mutation({
 
     const listingRequests = await ctx.db
       .query('chatroom_workspaceDirListingRequests')
-      .withIndex('by_machine_workingDir_dirPath', (q: any) =>
+      .withIndex('by_machine_workingDir_dirPath', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
@@ -2645,7 +2645,7 @@ export const purgeDirListingsV2 = mutation({
 
     const searches = await ctx.db
       .query('chatroom_workspaceFileSearchV2')
-      .withIndex('by_machine_workingDir_query', (q: any) =>
+      .withIndex('by_machine_workingDir_query', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();
@@ -2653,7 +2653,7 @@ export const purgeDirListingsV2 = mutation({
 
     const searchRequests = await ctx.db
       .query('chatroom_workspaceFileSearchRequests')
-      .withIndex('by_machine_workingDir_query', (q: any) =>
+      .withIndex('by_machine_workingDir_query', (q) =>
         q.eq('machineId', args.machineId).eq('workingDir', args.workingDir)
       )
       .collect();

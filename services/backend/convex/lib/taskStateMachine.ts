@@ -340,8 +340,8 @@ export async function transitionTask(
 
   // Build patch object
   const now = Date.now();
-  const patch: Partial<Task> = {
-    status: newStatus as any,
+  const patch: Partial<Task> & Record<string, unknown> = {
+    status: newStatus,
     updatedAt: now,
   };
 
@@ -349,11 +349,11 @@ export async function transitionTask(
   if (rule.setFields) {
     for (const [field, value] of Object.entries(rule.setFields)) {
       if (value === 'NOW') {
-        (patch as any)[field] = now;
+        patch[field] = now;
       } else if (value === 'PROVIDED') {
         // Field must come from overrides (already validated above)
         if (overrides && overrides[field as keyof Task] !== undefined) {
-          (patch as any)[field] = overrides[field as keyof Task];
+          patch[field] = overrides[field as keyof Task];
         }
       }
     }
@@ -362,7 +362,7 @@ export async function transitionTask(
   // Apply clearFields rules
   if (rule.clearFields) {
     for (const field of rule.clearFields) {
-      (patch as any)[field] = undefined;
+      patch[field] = undefined;
     }
   }
 
@@ -370,7 +370,7 @@ export async function transitionTask(
   if (overrides) {
     for (const [field, value] of Object.entries(overrides)) {
       if (!rule.clearFields || !rule.clearFields.includes(field as keyof Task)) {
-        (patch as any)[field] = value;
+        patch[field] = value;
       }
     }
   }
@@ -380,7 +380,7 @@ export async function transitionTask(
 
   // Log transition for auditing (suppress during testing)
   if (process.env.NODE_ENV !== 'test') {
-    console.log(
+    console.warn(
       `[FSM] Task ${taskId} transitioned: ${currentStatus} → ${newStatus} (trigger: ${trigger})`
     );
   }

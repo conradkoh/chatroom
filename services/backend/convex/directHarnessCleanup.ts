@@ -68,7 +68,7 @@ export const purgeFinalizedChunks = internalMutation({
     }
 
     if (chunksDeleted > 0) {
-      console.log(`[harness-cleanup] purged ${chunksDeleted} chunks across ${turnsScanned} turns`);
+      console.warn(`[harness-cleanup] purged ${chunksDeleted} chunks across ${turnsScanned} turns`);
     }
 
     return { turnsScanned, chunksDeleted };

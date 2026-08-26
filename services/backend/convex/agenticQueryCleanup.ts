@@ -176,7 +176,7 @@ export const cleanupStaleAgenticQueries = internalMutation({
     }
 
     if (rowsDeleted > 0) {
-      console.log(
+      console.warn(
         `[AgenticQueryCleanup] Deleted ${rowsDeleted} rows across ${queriesFullyRemoved}/${queriesProcessed} stale queries`
       );
     }
