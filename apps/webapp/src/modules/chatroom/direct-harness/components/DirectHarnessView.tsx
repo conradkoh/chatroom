@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { ChevronLeft, MonitorOff, Plus, SquarePen } from 'lucide-react';
-import { memo, useEffect, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 
 import { HarnessWorkspaceSwitcher } from './HarnessWorkspaceSwitcher';
 import { NewSessionComposer } from './SessionComposer';
@@ -72,9 +72,9 @@ export const DirectHarnessView = memo(function DirectHarnessView({
   const machinesResult = useSessionQuery(api.machines.listMachines, {});
   const registerWorkspace = useSessionMutation(api.workspaces.registerWorkspace);
 
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<Id<'chatroom_workspaces'> | null>(
-    null
-  );
+  const [userSelectedWorkspaceId, setUserSelectedWorkspaceId] =
+    useState<Id<'chatroom_workspaces'> | null>(null);
+  const selectedWorkspaceId = userSelectedWorkspaceId ?? workspaces?.[0]?._id ?? null;
   // null = existing session selected; undefined = new session pane open
   const [selectedSessionId, setSelectedSessionId] = useState<
     Id<'chatroom_harnessSessions'> | null | undefined
@@ -98,21 +98,14 @@ export const DirectHarnessView = memo(function DirectHarnessView({
 
   const machines = machinesResult?.machines ?? [];
 
-  // Auto-select first workspace
-  useEffect(() => {
-    if (selectedWorkspaceId !== null || !workspaces?.length) return;
-    setSelectedWorkspaceId(workspaces[0]._id);
-  }, [workspaces, selectedWorkspaceId]);
-
-  // Open new session pane when workspace changes
-  useEffect(() => {
-    setSelectedSessionId(undefined);
-  }, [selectedWorkspaceId]);
-
-  // Refresh capabilities when workspace is selected
-  useEffect(() => {
-    if (selectedWorkspaceId) refreshCapabilities(selectedWorkspaceId);
-  }, [selectedWorkspaceId, refreshCapabilities]);
+  const handleWorkspaceSelect = useCallback(
+    (id: Id<'chatroom_workspaces'>) => {
+      setUserSelectedWorkspaceId(id);
+      setSelectedSessionId(undefined);
+      refreshCapabilities(id);
+    },
+    [refreshCapabilities]
+  );
 
   if (workspaces === undefined || machinesResult === undefined) {
     return (
@@ -171,7 +164,7 @@ export const DirectHarnessView = memo(function DirectHarnessView({
             <HarnessWorkspaceSwitcher
               workspaces={workspaces}
               selectedWorkspaceId={selectedWorkspaceId}
-              onSelect={setSelectedWorkspaceId}
+              onSelect={handleWorkspaceSelect}
             />
           ) : (
             <span className="text-xs text-muted-foreground px-1">No workspaces</span>

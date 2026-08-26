@@ -203,7 +203,7 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
   workingDir,
 }: PullRequestsPanelProps) {
   const [filter, setFilter] = useState<PRFilter>('my-prs');
-  const [selectedPR, setSelectedPR] = useState<GitPullRequest | null>(null);
+  const [userSelectedPR, setUserSelectedPR] = useState<GitPullRequest | null>(null);
   // Layout persistence
   const [sizes, setSizes] = usePersistedState<number[]>(PR_LAYOUT_KEY, [...PR_DEFAULT_LAYOUT], {
     validate: isValidPRLayout,
@@ -253,27 +253,19 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
     }
   }, [allPRs, filter, currentUserLogin]);
 
-  // Auto-select: prefer current-branch PR, then first in filtered list
-  useEffect(() => {
-    if (selectedPR !== null) return; // already selected
-    if (filteredPRs.length === 0) return;
-
-    // Default-select current-branch PR if it's in the filtered list
+  const defaultPR = useMemo(() => {
     if (currentBranchPR) {
-      const inList = filteredPRs.find((pr) => pr.prNumber === currentBranchPR.prNumber);
-      if (inList) {
-        setSelectedPR(inList);
-        return;
-      }
+      const match = filteredPRs.find((pr) => pr.prNumber === currentBranchPR.prNumber);
+      if (match) return match;
     }
-    // Fall back to first in list
-    setSelectedPR(filteredPRs[0] ?? null);
-  }, [filteredPRs, currentBranchPR, selectedPR]);
+    return filteredPRs[0] ?? null;
+  }, [filteredPRs, currentBranchPR]);
+  const selectedPR = userSelectedPR ?? defaultPR;
 
   // Reset selection when filter changes so auto-select re-fires
   const handleFilterChange = useCallback((f: PRFilter) => {
     setFilter(f);
-    setSelectedPR(null);
+    setUserSelectedPR(null);
   }, []);
 
   const handlePRAction = useCallback(
@@ -315,7 +307,7 @@ export const PullRequestsPanel = memo(function PullRequestsPanel({
             selectedPR={selectedPR}
             currentBranchPR={currentBranchPR}
             isLoading={isLoading}
-            onSelect={setSelectedPR}
+            onSelect={setUserSelectedPR}
             onFilterChange={handleFilterChange}
           />
         </div>
