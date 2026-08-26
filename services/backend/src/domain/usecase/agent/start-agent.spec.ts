@@ -108,12 +108,16 @@ describe('startAgent use case — desiredState', () => {
       agentHarness: 'opencode',
     });
 
-    // Mark it as stopped
-    await t.mutation(api.machines.sendCommand, {
-      sessionId,
-      machineId,
-      type: 'stop-agent',
-      payload: { chatroomId, role: 'builder' },
+    // Mark it as stopped (no spawned PID on this config — patch intent directly)
+    await t.mutation(api.agentStops.request, { sessionId, machineId, chatroomId, role: 'builder' });
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        )
+        .first();
+      if (config) await ctx.db.patch(config._id, { desiredState: 'stopped' });
     });
 
     // Verify it's stopped

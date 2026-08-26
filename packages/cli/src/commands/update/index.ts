@@ -102,12 +102,10 @@ export const updateEffect = (): Effect.Effect<void, UpdateError, UpdateService> 
 
     // Install latest version
     const installResult = yield* updateService.exec('npm install -g chatroom-cli@latest').pipe(
-      Effect.mapError(
-        (cause): UpdateError => ({
-          _tag: 'UpdateFailed',
-          cause,
-        })
-      )
+      Effect.mapError((cause): UpdateError => ({
+        _tag: 'UpdateFailed',
+        cause,
+      }))
     );
 
     if (installResult.stdout) {

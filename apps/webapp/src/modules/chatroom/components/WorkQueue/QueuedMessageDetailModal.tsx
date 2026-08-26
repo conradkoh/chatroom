@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Check, MoreHorizontal, Pencil, Timer, Trash2, X } from 'lucide-react';
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import Markdown from 'react-markdown';
 
 import { QueuedMessageEnhancerToggle } from './QueuedMessageEnhancerToggle';
@@ -80,7 +80,14 @@ function QueuedMessageAttachmentsSection({ message }: { message: Message }) {
  * - Secondary Actions dropdown (Edit, Delete).
  * - Error strip (mirrors `BacklogItemDetailModal` + `TaskDetailModal` patterns).
  */
-export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
+export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal(
+  props: QueuedMessageDetailModalProps
+) {
+  if (!props.isOpen) return null;
+  return <QueuedMessageDetailForm key={props.message._id} {...props} />;
+});
+
+function QueuedMessageDetailForm({
   chatroomId: _chatroomId,
   message,
   isOpen,
@@ -94,24 +101,10 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
     left: number;
     top: number;
   } | null>(null);
-  const [initializedMessageId, setInitializedMessageId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
   const updateUserMessageOrTask = useSessionMutation(api.messages.updateUserMessageOrTask);
-
-  useEffect(() => {
-    if (isOpen && message._id !== initializedMessageId) {
-      setEditedContent(message.content);
-      setIsEditing(false);
-      setInitialClickCoords(null);
-      setEditError(null);
-      setInitializedMessageId(message._id);
-    } else if (!isOpen) {
-      setInitializedMessageId(null);
-      setInitialClickCoords(null);
-    }
-  }, [isOpen, message._id, message.content, initializedMessageId]);
 
   const formattedTime = new Date(message._creationTime).toLocaleTimeString([], {
     hour: '2-digit',
@@ -317,4 +310,4 @@ export const QueuedMessageDetailModal = memo(function QueuedMessageDetailModal({
       </FixedModalContent>
     </FixedModal>
   );
-});
+}

@@ -1,9 +1,10 @@
 'use client';
 
+import { getPermanentRoleNames, isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import { ChevronRight } from 'lucide-react';
-import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
 import { useState, useMemo, useCallback, memo } from 'react';
 
+import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
 import type { TeamConfigEntry } from '../hooks/use-team-configs';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
@@ -36,7 +37,8 @@ interface AgentPanelProps {
   onStartAllRemoteAgents?: () => void;
   onStopAllRemoteAgents?: () => void;
   onRestartAllRemoteAgents?: () => void;
-  isAgentActionInProgress?: boolean;
+  isRestartingAgents?: boolean;
+  isStoppingAgents?: boolean;
   isStartingAllAgents?: boolean;
 }
 
@@ -163,15 +165,24 @@ export const AgentPanel = memo(function AgentPanel({
   onStartAllRemoteAgents,
   onStopAllRemoteAgents,
   onRestartAllRemoteAgents,
-  isAgentActionInProgress,
+  isRestartingAgents,
+  isStoppingAgents,
   isStartingAllAgents,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
 
-  // Determine which roles to show (memoized)
+  const displayRoles = useMemo(() => {
+    const base = teamRoles.length > 0 ? teamRoles : lifecycle?.expectedRoles || [];
+    return base.filter((role) => role !== 'user');
+  }, [teamRoles, lifecycle?.expectedRoles]);
+  const permanentRoles = useMemo(() => getPermanentRoleNames(displayRoles), [displayRoles]);
+  const ephemeralRoles = useMemo(
+    () => displayRoles.filter((role) => isEphemeralAgentRole(role)),
+    [displayRoles]
+  );
   const rolesToShow = useMemo(
-    () => (teamRoles.length > 0 ? teamRoles : lifecycle?.expectedRoles || []),
-    [teamRoles, lifecycle?.expectedRoles]
+    () => [...permanentRoles, ...ephemeralRoles],
+    [permanentRoles, ephemeralRoles]
   );
 
   // Use hook to get derived agent statuses (lifecycle + event stream)
@@ -194,6 +205,18 @@ export const AgentPanel = memo(function AgentPanel({
   const closeAgentListModal = useCallback(() => {
     setIsAgentListModalOpen(false);
   }, []);
+
+  const renderAgentRows = (roles: string[]) =>
+    roles.map((role) => (
+      <AgentSidebarRow
+        key={role}
+        role={role}
+        agentStatus={agentStatuses.find((a) => a.role === role)}
+        agentConfig={agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase())}
+        isLoadingStatuses={isLoadingStatuses}
+        onOpen={openAgentListModal}
+      />
+    ));
 
   // Loading state
   if (lifecycle === undefined) {
@@ -243,7 +266,8 @@ export const AgentPanel = memo(function AgentPanel({
           </div>
           <RemoteAgentQuickActions
             hasRunningAgents={hasRunningRemoteAgents ?? false}
-            isRestarting={isAgentActionInProgress}
+            isRestarting={isRestartingAgents}
+            isStopping={isStoppingAgents}
             onStart={onStartAllRemoteAgents}
             onStop={onStopAllRemoteAgents}
             onRestart={onRestartAllRemoteAgents}
@@ -254,21 +278,15 @@ export const AgentPanel = memo(function AgentPanel({
       )}
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
-        {/* Each AgentSidebarRow is a proper component with key at the map level */}
-        {agentStatuses.flatMap(({ role }) => {
-          const row = (
-            <AgentSidebarRow
-              key={role}
-              role={role}
-              agentStatus={agentStatuses.find((a) => a.role === role)}
-              agentConfig={agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase())}
-              isLoadingStatuses={isLoadingStatuses}
-              onOpen={openAgentListModal}
-            />
-          );
-
-          return [row];
-        })}
+        {renderAgentRows(permanentRoles)}
+        {ephemeralRoles.length > 0 && (
+          <>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted px-4 py-2 border-t border-chatroom-border">
+              Ephemeral
+            </div>
+            {renderAgentRows(ephemeralRoles)}
+          </>
+        )}
       </div>
 
       {/* Unified Agent List Modal - shows ALL agents with inline config/controls */}

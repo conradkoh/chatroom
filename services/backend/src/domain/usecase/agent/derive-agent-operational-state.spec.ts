@@ -1,13 +1,21 @@
 import { describe, expect, test } from 'vitest';
+
 import {
   applyRoleToSummary,
   deriveAgentOperationalState,
+  deriveAgentRoleViewState,
   deriveRoleOperationalState,
   removeRoleFromSummary,
   recomputeAgentStatus,
 } from './derive-agent-operational-state';
+
 const base = { role: 'builder', teamId: 'team', machineId: 'm' };
 describe('derive agent operational state', () => {
+  test('reports running when PID alive despite desiredState stopped', () => {
+    expect(deriveAgentRoleViewState({ desiredState: 'stopped', spawnedAgentPid: 42 }, true)).toBe(
+      'running'
+    );
+  });
   test.each([
     [{}, 'stopped', false, false, false],
     [{ desiredState: 'running' }, 'starting', false, false, true],

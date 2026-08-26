@@ -1,6 +1,7 @@
 import { v, ConvexError } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import type { Doc } from './_generated/dataModel';
 import { mutation, query, internalQuery } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 
@@ -14,7 +15,7 @@ function redactBotToken(token?: string): string | undefined {
 }
 
 /** Redact sensitive fields from an integration record for frontend display. */
-function redactIntegration(integration: any) {
+function redactIntegration(integration: Doc<'chatroom_integrations'>) {
   return {
     ...integration,
     config: {
@@ -57,7 +58,7 @@ export const get = query({
     integrationId: v.id('chatroom_integrations'),
   },
   handler: async (ctx, args) => {
-    const integration = await ctx.db.get("chatroom_integrations", args.integrationId);
+    const integration = await ctx.db.get('chatroom_integrations', args.integrationId);
     if (!integration) {
       throw new ConvexError({
         code: 'NOT_FOUND',
@@ -123,7 +124,7 @@ export const update = mutation({
     enabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db.get("chatroom_integrations", args.integrationId);
+    const existing = await ctx.db.get('chatroom_integrations', args.integrationId);
     if (!existing) {
       throw new ConvexError({
         code: 'NOT_FOUND',
@@ -136,7 +137,7 @@ export const update = mutation({
 
     const now = Date.now();
 
-    await ctx.db.patch("chatroom_integrations", args.integrationId, {
+    await ctx.db.patch('chatroom_integrations', args.integrationId, {
       ...(args.config !== undefined ? { config: args.config } : {}),
       ...(args.enabled !== undefined ? { enabled: args.enabled } : {}),
       updatedAt: now,
@@ -156,7 +157,7 @@ export const remove = mutation({
     integrationId: v.id('chatroom_integrations'),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db.get("chatroom_integrations", args.integrationId);
+    const existing = await ctx.db.get('chatroom_integrations', args.integrationId);
     if (!existing) {
       throw new ConvexError({
         code: 'NOT_FOUND',
@@ -167,7 +168,7 @@ export const remove = mutation({
     // Validate session and chatroom ownership
     await requireChatroomAccess(ctx, args.sessionId, existing.chatroomId);
 
-    await ctx.db.delete("chatroom_integrations", args.integrationId);
+    await ctx.db.delete('chatroom_integrations', args.integrationId);
 
     return { success: true };
   },

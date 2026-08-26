@@ -94,7 +94,11 @@ export interface SpawnResult {
   ) => void;
   /** `lifecycle.output.activity` — stream or stdout/stderr activity. */
   onOutput: (cb: () => void) => void;
-  /** Typed activity emitter for TOKEN_ACTIVITY_KINDS (busy, thinking, tool). */
+  /**
+   * Typed first-activity signal for backend token reporting.
+   * Producers MUST emit at most once per agent turn (e.g. first thinking/text/tool output).
+   * When present, wireTokenActivityReporting uses this exclusively; onOutput remains for liveness/logs.
+   */
   activityEmitter?: HarnessActivityEmitter;
   /**
    * Human-readable log lines for resume-storm reason classification.

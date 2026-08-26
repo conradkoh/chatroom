@@ -1,6 +1,5 @@
-import type { Message } from '../types/message';
-
 import type { TimelineEvent } from './types';
+import type { Message } from '../types/message';
 
 /**
  * Maps a feed {@link Message} to a linear timeline event.
@@ -20,8 +19,7 @@ export function mapMessageToTimelineEvent(message: Message): TimelineEvent {
     return { ...base, kind: 'context', message };
   }
 
-  const isUserMessage =
-    message.senderRole.toLowerCase() === 'user' && message.type === 'message';
+  const isUserMessage = message.senderRole.toLowerCase() === 'user' && message.type === 'message';
 
   if (isUserMessage) {
     return { ...base, kind: 'user_message', message };

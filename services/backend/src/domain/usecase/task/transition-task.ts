@@ -30,13 +30,14 @@
 import { maybePromoteNextQueuedTask } from './maybe-promote-next-queued-task';
 import { adjustTaskCountsForTransition } from './task-counts';
 import { writeTimelineTaskStatusSignal } from './write-timeline-task-status-signal';
-import { syncMessageReadModel } from '../message/message-read-model';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 import { TERMINAL_TASK_STATUSES } from '../../entities/task';
+import { requestEphemeralAgentRelease } from '../agent/request-ephemeral-agent-release';
 import { projectAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-assigned-task-snapshot-sync';
+import { syncMessageReadModel } from '../message/message-read-model';
 
 // ============================================================================
 // TYPES
@@ -108,8 +109,12 @@ export async function transitionTask(
   const transitionedTask = await ctx.db.get('chatroom_tasks', taskId);
   if (transitionedTask) {
     await writeTimelineTaskStatusSignal(ctx, transitionedTask);
-    if (transitionedTask.sourceMessageId) await syncMessageReadModel(ctx, transitionedTask.sourceMessageId);
-    const linked = await ctx.db.query('chatroom_messages').withIndex('by_taskId', (q) => q.eq('taskId', taskId)).collect();
+    if (transitionedTask.sourceMessageId)
+      await syncMessageReadModel(ctx, transitionedTask.sourceMessageId);
+    const linked = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_taskId', (q) => q.eq('taskId', taskId))
+      .collect();
     for (const message of linked) await syncMessageReadModel(ctx, message._id);
   }
 
@@ -127,6 +132,7 @@ export async function transitionTask(
   if (TERMINAL_TASK_STATUSES.has(newStatus) && !options?.skipAutoPromotion) {
     const task = await ctx.db.get('chatroom_tasks', taskId);
     if (task) {
+      await requestEphemeralAgentRelease(ctx, task);
       await maybePromoteNextQueuedTask(ctx, task.chatroomId);
     }
   }

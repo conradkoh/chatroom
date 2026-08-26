@@ -20,7 +20,7 @@ describe('DirectHarnessView', () => {
 
   it('renders the no-workspace empty state when workspaces are empty', () => {
     mockUseSessionQuery
-      .mockReturnValueOnce([])                                                          // workspaces
+      .mockReturnValueOnce([]) // workspaces
       .mockReturnValueOnce({ machines: [{ machineId: 'm1', hostname: 'localhost' }] }); // machines
     render(<DirectHarnessView chatroomId={'fakeid' as never} />);
     expect(screen.getByText(/register a workspace/i)).toBeInTheDocument();

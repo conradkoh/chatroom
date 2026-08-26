@@ -6,6 +6,7 @@
 'use client';
 
 import { ChevronLeft } from 'lucide-react';
+
 import type { RunnableCommand } from '../types/run';
 import { extractScriptName, type WorkspaceGroup } from '../utils/grouping';
 

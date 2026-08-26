@@ -1,5 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+
+import { useProcessesPanelState } from './useProcessesPanelState';
 import type { RunnableCommand, CommandRun } from '../types/run';
 
 // Stub useCommandFavorites so we don't need localStorage
@@ -11,8 +13,6 @@ vi.mock('./useCommandFavorites', () => ({
     version: 0,
   }),
 }));
-
-import { useProcessesPanelState } from './useProcessesPanelState';
 
 const makeCommand = (name: string, subPath = '.'): RunnableCommand => ({
   _id: `cmd-${name}` as RunnableCommand['_id'],
@@ -81,9 +81,7 @@ describe('useProcessesPanelState', () => {
       makeRun('r2', 'build', 'completed'),
       makeRun('r3', 'test', 'failed'),
     ];
-    const { result } = renderHook(() =>
-      useProcessesPanelState({ ...defaultOpts, runs })
-    );
+    const { result } = renderHook(() => useProcessesPanelState({ ...defaultOpts, runs }));
     expect(result.current.runningProcesses).toHaveLength(1);
     expect(result.current.recentRuns).toHaveLength(2);
   });
@@ -127,9 +125,7 @@ describe('useProcessesPanelState', () => {
 
     it('Enter selects the focused workspace', () => {
       const onClearRun = vi.fn();
-      const { result } = renderHook(() =>
-        useProcessesPanelState({ ...defaultOpts, onClearRun })
-      );
+      const { result } = renderHook(() => useProcessesPanelState({ ...defaultOpts, onClearRun }));
 
       act(() => result.current.handleKeyDown(makeKeyEvent('Enter')));
 

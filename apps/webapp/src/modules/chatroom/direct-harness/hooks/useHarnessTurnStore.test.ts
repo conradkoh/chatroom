@@ -4,14 +4,21 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { useHarnessTurnStore } from './useHarnessTurnStore';
+
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockQuery = vi.fn();
 let olderQueryCallCount = 0;
-let tailQueryCallCount = 0;
-let mockChunkData: Array<{ _id: string; _creationTime: number; content: string; partType?: 'text' | 'reasoning' }> = [];
+let _tailQueryCallCount = 0;
+let mockChunkData: {
+  _id: string;
+  _creationTime: number;
+  content: string;
+  partType?: 'text' | 'reasoning';
+}[] = [];
 /** Configurable return value for the getTurnsSince (tail subscription) mock. */
-let mockTailData: Array<Record<string, unknown>> = [];
+let mockTailData: Record<string, unknown>[] = [];
 /** Last args received by the getStreamingTurnChunks mock. */
 let lastChunkQueryArgs: Record<string, unknown> | null = null;
 
@@ -33,7 +40,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
       return mockChunkData;
     }
     // getTurnsSince — tail subscription (configurable for tests)
-    tailQueryCallCount++;
+    _tailQueryCallCount++;
     return mockTailData;
   },
   useSessionId: () => ['session-1'] as const,
@@ -75,13 +82,11 @@ const HARNESS_SESSION_ID = 'hs1' as never;
 beforeEach(() => {
   vi.clearAllMocks();
   olderQueryCallCount = 0;
-  tailQueryCallCount = 0;
+  _tailQueryCallCount = 0;
   mockChunkData = [];
   mockTailData = [];
   lastChunkQueryArgs = null;
 });
-
-import { useHarnessTurnStore } from './useHarnessTurnStore';
 
 describe('useHarnessTurnStore — initial load', () => {
   it('initializes with turns from getLatestTurns', async () => {
@@ -258,16 +263,12 @@ describe('useHarnessTurnStore — streaming cursor (afterCreationTime)', () => {
 
     // After chunks are merged, the cursor should advance to 1001 (max _creationTime)
     // and be passed to the next getStreamingTurnChunks query.
-    await vi.waitFor(() =>
-      expect(lastChunkQueryArgs?.afterCreationTime).toBe(1001)
-    );
+    await vi.waitFor(() => expect(lastChunkQueryArgs?.afterCreationTime).toBe(1001));
   });
 
   it('resets the cursor to 0 (then re-advances) when the streaming messageId changes', async () => {
     // Phase 1: streaming turn A with a chunk at t=2000
-    mockChunkData = [
-      { _id: 'c1', _creationTime: 2000, content: 'old', partType: 'text' },
-    ];
+    mockChunkData = [{ _id: 'c1', _creationTime: 2000, content: 'old', partType: 'text' }];
     const turn1 = makeStreamingTurn('t-c1', 1, 'msg-old');
     mockQuery.mockResolvedValue({ turns: [turn1], hasMore: false, newestTurnSeq: 1 });
 
@@ -280,15 +281,13 @@ describe('useHarnessTurnStore — streaming cursor (afterCreationTime)', () => {
 
     // Phase 2: simulate turn A completing and turn B starting (new messageId)
     // Inject via the tail subscription mock so state.turns updates in-place.
-    mockChunkData = [
-      { _id: 'd1', _creationTime: 100, content: 'new', partType: 'text' },
-    ];
+    mockChunkData = [{ _id: 'd1', _creationTime: 100, content: 'new', partType: 'text' }];
     // makeStreamingTurn for turn2 (note: turn1 becomes complete)
     const turn2 = makeStreamingTurn('t-c2', 2, 'msg-new');
-    mockTailData = [
-      { ...turn1, status: 'complete' },
-      turn2,
-    ] as unknown as Array<Record<string, unknown>>;
+    mockTailData = [{ ...turn1, status: 'complete' }, turn2] as unknown as Record<
+      string,
+      unknown
+    >[];
     rerender();
 
     // The cursor should now reference msg-new and be < 2000

@@ -20,8 +20,8 @@ import { access, readFile } from 'node:fs/promises';
 import { join, relative, basename } from 'node:path';
 
 import { parseJsonc } from './jsonc.js';
-import { resolveSubWorkspaces } from './workspace-resolver.js';
 import { parseMakefileTargets } from './makefile-discovery.js';
+import { resolveSubWorkspaces } from './workspace-resolver.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

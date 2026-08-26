@@ -1,13 +1,8 @@
-import { describe, expect, test } from 'vitest';
 import { ConvexError } from 'convex/values';
+import { describe, expect, test } from 'vitest';
 
-import {
-  CommandRunStatus,
-  isTerminal,
-  isValidTransition,
-  assertValidTransition,
-  TERMINAL_STATES,
-} from './fsm';
+import type { CommandRunStatus } from './fsm';
+import { isTerminal, isValidTransition, assertValidTransition, TERMINAL_STATES } from './fsm';
 
 const ALL_STATUSES: CommandRunStatus[] = [
   'pending',

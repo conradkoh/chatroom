@@ -9,14 +9,14 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
+import { str } from './utils/types';
+import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
+import { validateWorkingDir } from './workspacePathSecurity';
+import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
-import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
-import { str } from './utils/types';
-import { validateWorkingDir } from './workspacePathSecurity';
-import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
-import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
+import { buildTeamRoleKey } from './utils/teamRoleKey';
 import {
   agentStopReasonValidator,
   agentTypeValidator,
@@ -24,6 +24,8 @@ import {
 } from '../src/domain/entities/agent';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
+import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
+import { deleteStaleTeamAgentConfigs } from '../src/domain/usecase/agent/delete-stale-team-agent-configs';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import {
@@ -36,10 +38,10 @@ import {
   projectAgentOperationalStatusForRole,
   rebuildAgentOperationalStatusForMachine,
 } from '../src/domain/usecase/agent/project-agent-operational-status';
+import { registerSpawnedAgentIfAuthorized } from '../src/domain/usecase/agent/register-spawned-agent';
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
 import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
-import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
@@ -1227,18 +1229,6 @@ export const sendCommand = mutation({
       return {};
     }
 
-    // ── stop-agent: delegate to use case ────────────────────────────────
-    if (args.type === 'stop-agent' && args.payload?.chatroomId && args.payload?.role) {
-      await stopAgentUseCase(ctx, {
-        machineId: args.machineId,
-        chatroomId: args.payload.chatroomId,
-        role: args.payload.role,
-        userId: userId,
-        reason: args.payload.reason ?? 'user.stop',
-      });
-      return {};
-    }
-
     // ── ping / status: emit daemon.ping event to stream ───────────────
     const now = Date.now();
     const pingEventId = await enqueueMachineCommand(ctx, {
@@ -1262,6 +1252,7 @@ export const updateSpawnedAgent = mutation({
     model: v.optional(v.string()), // Save model alongside PID for config persistence
     reason: v.optional(v.string()),
     harnessSessionId: v.optional(v.string()),
+    lifecycleRevision: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -1270,6 +1261,8 @@ export const updateSpawnedAgent = mutation({
     }
     await getOwnedMachine(ctx, args.machineId, auth.userId);
 
+    if (args.pid !== undefined && args.lifecycleRevision === undefined)
+      return { success: true, accepted: false, reason: 'stale_revision' as const };
     const spawnChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!spawnChatroom?.teamId) {
       throw new Error('Chatroom has no teamId — cannot look up agent config');
@@ -1292,15 +1285,44 @@ export const updateSpawnedAgent = mutation({
       throw new Error('Agent config not found');
     }
 
-    const now = Date.now();
+    if (args.pid === undefined) {
+      await patchTeamAgentConfig(ctx, config._id, {
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+      });
+      return { success: true, accepted: true };
+    }
+    if (args.lifecycleRevision === undefined) {
+      return { success: true, accepted: false, reason: 'stale_revision' };
+    }
+    return {
+      success: true,
+      ...(await registerSpawnedAgentIfAuthorized(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        machineId: args.machineId,
+        pid: args.pid,
+        lifecycleRevision: args.lifecycleRevision,
+        model: args.model,
+        harnessSessionId: args.harnessSessionId,
+        reason: args.reason,
+      })),
+    };
+  },
+});
 
-    await patchTeamAgentConfig(ctx, config._id, {
-      spawnedAgentPid: args.pid,
-      spawnedAt: args.pid ? now : undefined,
-      ...(args.model !== undefined ? { model: args.model } : {}),
-    });
-
-    return { success: true };
+export const authorizeAgentStart = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    lifecycleRevision: v.optional(v.number()),
+    taskId: v.optional(v.id('chatroom_tasks')),
+  },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    return authorizeAgentStartUseCase(ctx, args);
   },
 });
 
@@ -1732,6 +1754,8 @@ export const setWantResume = mutation({
         role: args.role,
         type: 'remote',
         wantResume: args.wantResume,
+        enabled: true,
+        lifecycleRevision: 0,
         createdAt: now,
         updatedAt: now,
       });
@@ -1819,7 +1843,7 @@ export const upsertMachineModelFilters = mutation({
 
     const existing = await ctx.db
       .query('chatroom_machineModelFilters')
-      .withIndex('by_machine_harness', (q: any) =>
+      .withIndex('by_machine_harness', (q) =>
         q.eq('machineId', args.machineId).eq('agentHarness', args.agentHarness)
       )
       .unique();
@@ -2255,6 +2279,7 @@ export const subscribeMachineAgentOperationalStatus = query({
       daemonConnected: row.daemonConnected,
       projectedAt: row.projectedAt,
       revisionKey: row.revisionKey,
+      stopState: row.stopState,
     }));
   },
 });

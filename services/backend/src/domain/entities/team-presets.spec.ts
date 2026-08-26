@@ -11,12 +11,12 @@ describe('team presets', () => {
   test('matches the supported duo and solo team shapes', () => {
     expect(TEAM_PRESETS.duo).toMatchObject({
       name: 'Duo',
-      roles: ['planner', 'builder'],
+      roles: ['planner', 'enhancer', 'builder'],
       entryPoint: 'planner',
     });
     expect(TEAM_PRESETS.solo).toMatchObject({
       name: 'Solo',
-      roles: ['solo'],
+      roles: ['solo', 'enhancer'],
       entryPoint: 'solo',
     });
     expect(DEFAULT_TEAM_PRESET_ID).toBe('duo');

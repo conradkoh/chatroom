@@ -5,6 +5,7 @@ const spawnedFact = v.object({
   chatroomId: v.id('chatroom_rooms'),
   role: v.string(),
   pid: v.number(),
+  lifecycleRevision: v.optional(v.number()),
   model: v.optional(v.string()),
   reason: v.optional(v.string()),
   harnessSessionId: v.optional(v.string()),

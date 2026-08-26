@@ -66,11 +66,7 @@ export const GitSyncButton = memo(function GitSyncButton({
       className={gitSyncButtonClassName}
       title="Pull then push"
     >
-      {isSyncing ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : (
-        <RefreshCw className="h-3 w-3" />
-      )}
+      {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
       Sync
     </button>
   );

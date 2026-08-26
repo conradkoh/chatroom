@@ -5,8 +5,7 @@
 import { execFileSync } from 'node:child_process';
 
 export type PickFolderResult =
-  | { success: true; path: string }
-  | { success: false; error: string; cancelled?: boolean };
+  { success: true; path: string } | { success: false; error: string; cancelled?: boolean };
 
 // fallow-ignore-next-line complexity
 function runPicker(command: string, args: string[]): PickFolderResult {

@@ -3,6 +3,7 @@
  */
 
 import { getBuilderGuidance } from './builder';
+import { getEnhancerGuidance } from './enhancer';
 import { getPlannerGuidance } from './planner';
 import { getSoloGuidance } from '../../teams/solo/prompts/solo';
 import type { BuilderGuidanceParams, PlannerGuidanceParams } from '../../types/cli';
@@ -64,6 +65,11 @@ export function getBaseRoleGuidanceFromContext(ctx: SelectorContext): string {
   if (normalizedRole === 'solo') {
     return getSoloGuidanceFromContext(ctx);
   }
+  if (normalizedRole === 'enhancer')
+    return getEnhancerGuidance({
+      ...toPlannerParams(ctx),
+      entryPointRole: ctx.teamConfig?.entryPoint,
+    });
 
   return '';
 }

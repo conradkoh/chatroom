@@ -1,7 +1,9 @@
-import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+
 import { DURABLE_FIFO_QUEUE_MIGRATIONS } from './durable-fifo-queue-schema.js';
+
 export type DurableFifoQueueEntry = {
   id: number;
   deliveryKey: string;
@@ -53,7 +55,11 @@ export function openDurableFifoQueueStore(dbPath: string): DurableFifoQueueStore
       ).run(Date.now(), id);
     },
     updatePayload: (id, payloadJson) => {
-      db.prepare('UPDATE fifo_outbox_entries SET payload_json=?, updated_at=? WHERE id=?').run(payloadJson, Date.now(), id);
+      db.prepare('UPDATE fifo_outbox_entries SET payload_json=?, updated_at=? WHERE id=?').run(
+        payloadJson,
+        Date.now(),
+        id
+      );
     },
     markPendingRetry: (id, error) => {
       db.prepare(

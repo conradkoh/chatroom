@@ -203,7 +203,6 @@ export class OpenCodeSdkAgentService extends OpenCodeBinaryAgentService {
     emitLogLine: (line: string) => void,
     outputCallbacks: (() => void)[]
   ): void {
-
     if (childProcess.stdout) {
       childProcess.stdout.on('data', () => {
         entry.lastOutputAt = Date.now();

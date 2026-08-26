@@ -9,6 +9,8 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  AGENT_STOP_REASONS,
+  isAgentStopReason,
   AGENT_HARNESSES,
   AgentHarnessEnum,
   agentHarnessValidator,
@@ -29,15 +31,20 @@ import {
   AgentStartReasonEnum,
   agentStartReasonValidator,
   isAgentStartReason,
-  AGENT_STOP_REASONS,
   AgentStopReasonEnum,
   agentStopReasonValidator,
-  isAgentStopReason,
   MODEL_SOURCES,
   ModelSourceEnum,
   modelSourceValidator,
   isModelSource,
 } from './agent';
+
+describe('agent stop reasons', () => {
+  test('includes platform.ephemeral_task_complete', () => {
+    expect(AGENT_STOP_REASONS).toContain('platform.ephemeral_task_complete');
+    expect(isAgentStopReason('platform.ephemeral_task_complete')).toBe(true);
+  });
+});
 
 // ─── Helper: parameterized domain test ──────────────────────────────────────
 
@@ -45,7 +52,7 @@ interface DomainSpec {
   label: string;
   values: readonly string[];
   enumObj: Record<string, string>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   validator: any;
   guard: (value: unknown) => boolean;
 }

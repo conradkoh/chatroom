@@ -1,6 +1,6 @@
 import type { ModelListItem } from '@cursor/sdk';
-import { describe, expect, it } from 'vitest';
 import { prefixCatalogModels } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
+import { describe, expect, it } from 'vitest';
 
 import {
   cursorCatalogBaseId,
@@ -20,7 +20,13 @@ const FIXTURE: ModelListItem[] = [
     variants: [
       { params: [], displayName: 'Default', isDefault: true },
       { params: [{ id: 'effort', value: 'high' }], displayName: 'High' },
-      { params: [{ id: 'effort', value: 'low' }, { id: 'fast', value: 'enabled' }], displayName: 'Low Fast' },
+      {
+        params: [
+          { id: 'effort', value: 'low' },
+          { id: 'fast', value: 'enabled' },
+        ],
+        displayName: 'Low Fast',
+      },
     ],
   },
   {

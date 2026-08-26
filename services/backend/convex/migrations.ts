@@ -11,15 +11,22 @@ import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,
 } from './utils/machineFavoriteScopeKey';
+import { isActiveWorkspace } from '../src/domain/entities/workspace';
 import {
   rebuildAgentOperationalStatusForChatroom,
   insertEmptyOperationalSummaryForRoom,
 } from '../src/domain/usecase/agent/project-agent-operational-status';
-import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
+import {
+  mergeCanonicalEnhancerIntoTeamRoles,
+  migrateEnhancerConfigRow,
+} from '../src/domain/usecase/enhancer/migrate-legacy-enhancer-config';
+import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
+import {
+  upsertMessageReadModel,
+  ensureMessageReadModelState,
+} from '../src/domain/usecase/message/message-read-model';
 import { rebuildObservedWorkspaceView } from '../src/domain/usecase/workspace/project-observed-workspace-view';
-import { isActiveWorkspace } from '../src/domain/entities/workspace';
-import { upsertMessageReadModel, ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
 
@@ -336,6 +343,80 @@ export const setDuoBuilderWantResumeFalse = migrations.define({
   },
 });
 
+/** Backfill additive lifecycle defaults on existing team agent configs. */
+export const backfillTeamAgentConfigLifecycleDefaults = migrations.define({
+  table: 'chatroom_teamAgentConfigs',
+  migrateOne: async (_ctx, config) => {
+    const patch: { enabled?: boolean; lifecycleRevision?: number } = {};
+    if (config.enabled === undefined) patch.enabled = true;
+    if (config.lifecycleRevision === undefined) patch.lifecycleRevision = 0;
+    return Object.keys(patch).length > 0 ? patch : undefined;
+  },
+});
+
+/** Backfill snapshot lifecycle revisions; safe to rerun. */
+export const backfillMachineAssignedTaskSnapshotLifecycleRevision = migrations.define({
+  table: 'chatroom_machineAssignedTaskSnapshots',
+  migrateOne: async (_ctx, row) =>
+    row.configLifecycleRevision === undefined ? { configLifecycleRevision: 0 } : undefined,
+});
+
+/** Existing stop commands are operator stops and therefore restore stopped state. */
+export const backfillAgentStopCommandPostStopDesiredState = migrations.define({
+  table: 'chatroom_agentStopCommands',
+  migrateOne: async (_ctx, row) =>
+    row.postStopDesiredState === undefined
+      ? { postStopDesiredState: 'stopped' as const }
+      : undefined,
+});
+
+// Enhancer unified runtime: cold-path migration from legacy enhancer records.
+export const migrateEnhancerConfigToTeamAgentConfig = migrations.define({
+  table: 'chatroom_enhancerConfigs',
+  migrateOne: async (ctx, row) => {
+    await migrateEnhancerConfigRow(ctx, row);
+  },
+});
+
+export const migrateAddEnhancerToRoomTeamRoles = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (_ctx, room) => {
+    const merged = mergeCanonicalEnhancerIntoTeamRoles(room.teamId, room.teamRoles ?? []);
+    if (JSON.stringify(merged) === JSON.stringify(room.teamRoles ?? [])) return;
+    return { teamRoles: merged };
+  },
+});
+
+export const migrateAgentViewMetadataEnhancerRole = migrations.define({
+  table: 'chatroom_agentViewMetadata',
+  migrateOne: async (_ctx, row) => {
+    const merged = mergeCanonicalEnhancerIntoTeamRoles(row.teamId, row.teamRoles);
+    if (JSON.stringify(merged) === JSON.stringify(row.teamRoles)) return;
+    return { teamRoles: merged };
+  },
+});
+
+export const migrateEnhancerJobOriginToTask = migrations.define({
+  table: 'chatroom_enhancerJobs',
+  migrateOne: async (ctx, job) => {
+    if (!job.taskId || !job.originUserMessageId) return;
+    const task = await ctx.db.get('chatroom_tasks', job.taskId);
+    if (!task || task.originUserMessageId) return;
+    await ctx.db.patch('chatroom_tasks', job.taskId, {
+      originUserMessageId: job.originUserMessageId,
+    });
+  },
+});
+
+export const migrateTaskEnhancerEnabledSnapshot = migrations.define({
+  table: 'chatroom_tasks',
+  migrateOne: async (_ctx, task) => {
+    if (task.enhancerEnabledAtEnqueue !== undefined || task.plannerEnhancerEnabled === undefined)
+      return;
+    return { enhancerEnabledAtEnqueue: task.plannerEnhancerEnabled };
+  },
+});
+
 /**
  * TEMPORARY local cleanup: delete pre-teamRoleKey machine config favorites.
  * Legacy rows stored favorites per (userId, machineId) only and block schema push.
@@ -576,30 +657,61 @@ export const backfillAgentOverviewSummaries = migrations.define({
 
 export const backfillMachineIdentities = migrations.define({
   table: 'chatroom_machines',
-  migrateOne: async (ctx, machine) => upsertMachineIdentity(ctx, { machineId: machine.machineId, userId: machine.userId, hostname: machine.hostname }),
+  migrateOne: async (ctx, machine) =>
+    upsertMachineIdentity(ctx, {
+      machineId: machine.machineId,
+      userId: machine.userId,
+      hostname: machine.hostname,
+    }),
 });
 
 export const backfillAgentViewMetadata = migrations.define({
   table: 'chatroom_rooms',
   migrateOne: async (ctx, room) => {
     if (!room.teamId || !room.teamRoles?.length) return;
-    const firstUserMessage = await ctx.db.query('chatroom_messages').withIndex('by_chatroom_senderRole_type_createdAt', (q) => q.eq('chatroomId', room._id).eq('senderRole', 'user').eq('type', 'message')).first();
-    await upsertAgentViewMetadata(ctx, { chatroomId: room._id, ownerId: room.ownerId, teamId: room.teamId, teamName: room.teamName ?? room.teamId, teamRoles: room.teamRoles, hasHistory: firstUserMessage !== null });
+    const firstUserMessage = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', room._id).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .first();
+    await upsertAgentViewMetadata(ctx, {
+      chatroomId: room._id,
+      ownerId: room.ownerId,
+      teamId: room.teamId,
+      teamName: room.teamName ?? room.teamId,
+      teamRoles: room.teamRoles,
+      hasHistory: firstUserMessage !== null,
+    });
   },
 });
 
 export const backfillMachineTaskStatusSignalHeads = migrations.define({
   table: 'chatroom_machines',
   migrateOne: async (ctx, machine) => {
-    const existing = await ctx.db.query('chatroom_machineTaskStatusSignalHeads').withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId)).first();
+    const existing = await ctx.db
+      .query('chatroom_machineTaskStatusSignalHeads')
+      .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+      .first();
     if (existing) return;
-    const signals = await ctx.db.query('chatroom_machineTaskStatusSignals').withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machine.machineId)).order('desc').take(2);
+    const signals = await ctx.db
+      .query('chatroom_machineTaskStatusSignals')
+      .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machine.machineId))
+      .order('desc')
+      .take(2);
     if (signals.length === 0) return;
     const [latest, previous] = signals;
     await ctx.db.insert('chatroom_machineTaskStatusSignalHeads', {
       machineId: machine.machineId,
       ...(previous ? { previousSignalKey: previous.signalKey } : {}),
-      latestSignal: { chatroomId: latest.chatroomId, taskId: latest.taskId, targetRole: latest.targetRole, taskStatus: latest.taskStatus, signalKey: latest.signalKey, taskUpdatedAt: latest.taskUpdatedAt },
+      latestSignal: {
+        chatroomId: latest.chatroomId,
+        taskId: latest.taskId,
+        targetRole: latest.targetRole,
+        taskStatus: latest.taskStatus,
+        signalKey: latest.signalKey,
+        taskUpdatedAt: latest.taskUpdatedAt,
+      },
     });
   },
 });
@@ -607,20 +719,32 @@ export const backfillMachineTaskStatusSignalHeads = migrations.define({
 export const backfillMachineObservedWorkspaceViews = migrations.define({
   table: 'chatroom_machines',
   migrateOne: async (ctx, machine) => {
-    const workspaces = await ctx.db.query('chatroom_workspaces').withIndex('by_machine', (q) => q.eq('machineId', machine.machineId)).collect();
-    const chatroomIds = [...new Set(workspaces.filter((ws) => isActiveWorkspace(ws.removedAt)).map((ws) => ws.chatroomId))];
-    for (const chatroomId of chatroomIds) await rebuildObservedWorkspaceView(ctx, machine.machineId, chatroomId);
+    const workspaces = await ctx.db
+      .query('chatroom_workspaces')
+      .withIndex('by_machine', (q) => q.eq('machineId', machine.machineId))
+      .collect();
+    const chatroomIds = [
+      ...new Set(
+        workspaces.filter((ws) => isActiveWorkspace(ws.removedAt)).map((ws) => ws.chatroomId)
+      ),
+    ];
+    for (const chatroomId of chatroomIds)
+      await rebuildObservedWorkspaceView(ctx, machine.machineId, chatroomId);
   },
 });
 
 export const backfillMessageReadModels = migrations.define({
   table: 'chatroom_messages',
-  migrateOne: async (ctx, message) => { await upsertMessageReadModel(ctx, message); },
+  migrateOne: async (ctx, message) => {
+    await upsertMessageReadModel(ctx, message);
+  },
 });
 
 export const backfillMessageReadModelState = migrations.define({
   table: 'chatroom_rooms',
-  migrateOne: async (ctx, room) => { await ensureMessageReadModelState(ctx, room._id); },
+  migrateOne: async (ctx, room) => {
+    await ensureMessageReadModelState(ctx, room._id);
+  },
 });
 
 // ========================================
@@ -727,6 +851,15 @@ export const runAll = migrations.runner([
   internal.migrations.backfillSavedCommandScope,
   // Agent Config
   internal.migrations.setDuoBuilderWantResumeFalse,
+  internal.migrations.backfillTeamAgentConfigLifecycleDefaults,
+  internal.migrations.backfillMachineAssignedTaskSnapshotLifecycleRevision,
+  internal.migrations.backfillAgentStopCommandPostStopDesiredState,
+  // Enhancer unified runtime
+  internal.migrations.migrateEnhancerConfigToTeamAgentConfig,
+  internal.migrations.migrateAddEnhancerToRoomTeamRoles,
+  internal.migrations.migrateAgentViewMetadataEnhancerRole,
+  internal.migrations.migrateEnhancerJobOriginToTask,
+  internal.migrations.migrateTaskEnhancerEnabledSnapshot,
   // Machine Config Favorites
   internal.migrations.migrateMachineConfigFavoritesToMachineScope,
   // Standing Instructions History

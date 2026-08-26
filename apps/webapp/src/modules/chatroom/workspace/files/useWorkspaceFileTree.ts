@@ -152,21 +152,16 @@ export function useWorkspaceFileTree({
 
   useEffect(() => {
     if (!enabled || !useSharded || !manifest || checkpointRevision === null) {
-      setV3Entries(undefined);
       return;
     }
     if (shardsRaw === undefined) {
-      setV3Entries(undefined);
       return;
     }
     if (shardsRaw === null) {
-      setV3Entries(null);
       return;
     }
 
     let cancelled = false;
-    setV3Entries(undefined);
-
     void (async () => {
       try {
         const payloads: FileTreeShardPayload[] = [];
@@ -232,34 +227,6 @@ export function useWorkspaceFileTree({
 
   // Rehydrate after checkpoint-required clear: if the store was cleared but we
   // still have V2/V3 data in memory, re-upsert so delta sync can resume.
-  useEffect(() => {
-    if (!enabled || checkpointRevision === null) return;
-    if (storeRevision !== null) return;
-
-    if (useSharded && v3Entries && v3Entries.length >= 0 && manifest) {
-      upsertWorkspaceFileTree(workspaceKey, v3Entries, manifest.scannedAt, checkpointRevision);
-      return;
-    }
-    if (parsedV2) {
-      upsertWorkspaceFileTree(
-        workspaceKey,
-        parsedV2.entries,
-        parsedV2.scannedAt ?? rawV2?.scannedAt ?? null,
-        checkpointRevision
-      );
-    }
-  }, [
-    checkpointRevision,
-    enabled,
-    manifest,
-    parsedV2,
-    rawV2?.scannedAt,
-    storeRevision,
-    useSharded,
-    v3Entries,
-    workspaceKey,
-  ]);
-
   const refresh = useCallback(
     (options?: { force?: boolean }) => {
       if (!enabled) return;
@@ -339,7 +306,6 @@ export function useWorkspaceFileTree({
   useEffect(() => {
     if (!enabled || hydrationPlan.kind !== 'recover') {
       recoverStartedAtRef.current = null;
-      if (!enabled || loadError !== null) setLoadError(null);
       return;
     }
     if (recoverStartedAtRef.current === null) recoverStartedAtRef.current = Date.now();
@@ -350,13 +316,10 @@ export function useWorkspaceFileTree({
         );
     }, FILE_TREE_RECOVER_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
-  }, [enabled, hydrationPlan.kind, hasTree, loadError]);
-
-  useEffect(() => {
-    if (hasTree && loadError !== null) setLoadError(null);
-  }, [hasTree, loadError]);
+  }, [enabled, hydrationPlan.kind, hasTree]);
+  const effectiveLoadError = hasTree ? null : loadError;
   const isLoading =
-    enabled && !hasTree && loadError === null && isFileTreeHydrationLoading(hydrationPlan);
+    enabled && !hasTree && effectiveLoadError === null && isFileTreeHydrationLoading(hydrationPlan);
 
   return useMemo(
     () => ({
@@ -367,8 +330,8 @@ export function useWorkspaceFileTree({
       hasTree,
       isNeverSynced,
       refresh,
-      loadError,
+      loadError: effectiveLoadError,
     }),
-    [entries, rootNodes, scannedAt, isLoading, hasTree, isNeverSynced, refresh, loadError]
+    [entries, rootNodes, scannedAt, isLoading, hasTree, isNeverSynced, refresh, effectiveLoadError]
   );
 }

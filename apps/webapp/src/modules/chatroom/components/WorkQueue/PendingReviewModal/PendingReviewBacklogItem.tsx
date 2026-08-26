@@ -1,8 +1,8 @@
 import { ChevronRight } from 'lucide-react';
 
 import { type BacklogItem, getScoringBadge } from '../../backlog';
-import { WorkQueuePreviewText } from '../WorkQueuePreviewText';
 import { formatRelativeTime } from '../utils';
+import { WorkQueuePreviewText } from '../WorkQueuePreviewText';
 
 export interface PendingReviewBacklogItemProps {
   item: BacklogItem;

@@ -6,6 +6,7 @@
 'use client';
 
 import { ChevronLeft } from 'lucide-react';
+
 import type { RunnableCommand, CommandRun } from '../types/run';
 import { isActiveRun } from '../utils/run-status';
 

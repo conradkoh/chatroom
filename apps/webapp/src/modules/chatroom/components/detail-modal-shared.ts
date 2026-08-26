@@ -1,7 +1,10 @@
 import dynamic from 'next/dynamic';
 
 export const RichTextEditor = dynamic(
-  () => import('./ChatroomModalMarkdownEditor').then((m) => ({ default: m.ChatroomModalMarkdownEditor })),
+  () =>
+    import('./ChatroomModalMarkdownEditor').then((m) => ({
+      default: m.ChatroomModalMarkdownEditor,
+    })),
   { ssr: false }
 );
 

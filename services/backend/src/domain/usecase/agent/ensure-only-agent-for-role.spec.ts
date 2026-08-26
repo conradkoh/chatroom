@@ -56,6 +56,9 @@ async function insertTeamConfig(
       agentHarness: type === 'remote' ? ('opencode' as const) : undefined,
       createdAt: now,
       updatedAt: now,
+      spawnedAgentPid:
+        type === 'remote' ? 1000 + machineId.charCodeAt(machineId.length - 1) : undefined,
+      desiredState: type === 'remote' ? 'running' : undefined,
     });
   });
 }
@@ -92,9 +95,10 @@ describe('ensureOnlyAgentForRole', () => {
       });
     });
 
-    const stoppedMachines = await getStopEventMachineIds(chatroomId, 'builder');
-    expect(stoppedMachines).toContain('machine-a');
-    expect(stoppedMachines).toContain('machine-b');
+    const rows = await getInboxCommandsForChatroom(chatroomId, 'agent.stopScope');
+    expect(rows.map((r) => r.machineId)).toEqual(
+      expect.arrayContaining(['machine-a', 'machine-b'])
+    );
   });
 
   test('skips the excluded machine when excludeMachineId is provided', async () => {
@@ -114,9 +118,9 @@ describe('ensureOnlyAgentForRole', () => {
       });
     });
 
-    const stoppedMachines = await getStopEventMachineIds(chatroomId, 'builder');
-    expect(stoppedMachines).toContain('machine-a');
-    expect(stoppedMachines).not.toContain('machine-c');
+    const rows = await getInboxCommandsForChatroom(chatroomId, 'agent.stopScope');
+    expect(rows.map((r) => r.machineId)).toContain('machine-a');
+    expect(rows.map((r) => r.machineId)).not.toContain('machine-c');
   });
 
   test('no-op when no existing configs exist', async () => {
@@ -166,14 +170,13 @@ describe('ensureOnlyAgentForRole', () => {
       });
     });
 
-    const inbox = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStop');
+    const inbox = await getInboxCommandsForChatroom(chatroomId, 'agent.stopScope');
 
     expect(inbox.length).toBe(1);
     const row = inbox[0]!;
-    expect(row.command.type).toBe('agent.requestStop');
-    if (row.command.type === 'agent.requestStop') {
+    expect(row.command.type).toBe('agent.stopScope');
+    if (row.command.type === 'agent.stopScope') {
       expect(row.machineId).toBe('machine-f');
-      expect(row.command.role).toBe('builder');
       expect(row.command.reason).toBe('platform.dedup');
       expect(row.deadline).toBeGreaterThan(before);
       expect(typeof row.createdAt).toBe('number');

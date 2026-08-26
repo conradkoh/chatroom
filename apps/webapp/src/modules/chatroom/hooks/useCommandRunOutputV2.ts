@@ -8,7 +8,9 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { decodeOutputBrowser } from '@workspace/backend/src/output-encoding-browser';
+import type { FunctionReturnType } from 'convex/server';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -84,16 +86,22 @@ export function useCommandRunOutputV2(
   useEffect(() => {
     if (!subscribeRunId) return;
 
-    void controlOutput({ runId: subscribeRunId as any, action: 'observe' });
+    void controlOutput({
+      runId: subscribeRunId as Id<'chatroom_commandRunsV2'>,
+      action: 'observe',
+    });
     return () => {
-      void controlOutput({ runId: subscribeRunId as any, action: 'unobserve' });
+      void controlOutput({
+        runId: subscribeRunId as Id<'chatroom_commandRunsV2'>,
+        action: 'unobserve',
+      });
     };
   }, [subscribeRunId, controlOutput]);
 
   const raw = useSessionQuery(
     api.commands.getRunOutputV2,
-    subscribeRunId ? { runId: subscribeRunId as any, loadFull } : 'skip'
-  ) as { run: any; tail: any; chunks: any[]; fullOutputPending: boolean } | undefined;
+    subscribeRunId ? { runId: subscribeRunId as Id<'chatroom_commandRunsV2'>, loadFull } : 'skip'
+  ) as FunctionReturnType<typeof api.commands.getRunOutputV2> | undefined;
 
   const result = raw ?? { run: null, tail: null, chunks: [], fullOutputPending: false };
 
@@ -149,13 +157,7 @@ export function useCommandRunOutputV2(
     return () => {
       cancelled = true;
     };
-  }, [decodeKey]);
-
-  useEffect(() => {
-    if (commandName === null) {
-      setLoadFull(false);
-    }
-  }, [commandName]);
+  }, [decodeKey, result.chunks, result.tail]);
 
   const isActive = result.run?.status === 'running' || result.run?.status === 'pending';
 
@@ -164,7 +166,10 @@ export function useCommandRunOutputV2(
   const loadMore = useCallback(async () => {
     if (!subscribeRunId) return;
     setLoadFull(true);
-    await controlOutput({ runId: subscribeRunId as any, action: 'requestFull' });
+    await controlOutput({
+      runId: subscribeRunId as Id<'chatroom_commandRunsV2'>,
+      action: 'requestFull',
+    });
   }, [subscribeRunId, controlOutput]);
 
   const isRunning = result.run?.status === 'running';
@@ -190,7 +195,7 @@ export function useCommandRunOutputV2(
     if (commandRunner.activeRunId) {
       commandRunner.stopCommand(commandRunner.activeRunId);
     }
-  }, [commandRunner.activeRunId, commandRunner.stopCommand]);
+  }, [commandRunner]);
 
   const detach = useCallback(() => {
     setCommandName(null);
@@ -204,7 +209,7 @@ export function useCommandRunOutputV2(
       setLoadFull(false);
       commandRunner.setActiveRunId(runId);
     },
-    [commandRunner.setActiveRunId]
+    [commandRunner]
   );
 
   const close = useCallback(() => {

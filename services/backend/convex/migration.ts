@@ -2,7 +2,7 @@
  * Database Migrations (DEPRECATED)
  *
  * @deprecated All migrations have been moved to `migrations.ts` using the
- * @convex-dev/migrations framework. This file is kept empty to maintain
+ * convex-dev/migrations framework. This file is kept empty to maintain
  * compatibility with the auto-generated Convex API types.
  *
  * To run migrations: `npx convex run migrations:runAll`

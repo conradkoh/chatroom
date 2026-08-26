@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { memo, type ReactNode } from 'react';
 
+import type { WorkspaceFileMenuProps } from './types';
 import { DropdownMenuLabel, DropdownMenuSeparator } from '../../components/ui/dropdown-menu';
 import { WorkspaceDropdownMenuItem } from '../components/WorkspaceDropdownMenuItem';
 import {
@@ -20,7 +21,6 @@ import {
   copyFullPathToClipboard,
   copyRelativePathToClipboard,
 } from '../utils/clipboard';
-import type { WorkspaceFileMenuProps } from './types';
 
 interface Section {
   label?: string;

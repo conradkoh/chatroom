@@ -10,6 +10,7 @@ import { startAgent } from '../../../../daemon/domain/usecase/start-agent.js';
 import { createStartAgentDeps } from '../../../../daemon/entry/bridge/agent-control-bridge.js';
 import { DaemonAgentProcessManagerService, DaemonSessionService } from '../../daemon-services.js';
 import type { AgentHarness } from '../../daemon-types.js';
+import { drainPendingEnhancerJobsIfRegistered } from '../../enhancer/enhancer-drain-registry.js';
 
 export interface AgentRequestStartEventPayload {
   _id: Id<'chatroom_machineCommandInbox'>;
@@ -21,6 +22,7 @@ export interface AgentRequestStartEventPayload {
   reason: string;
   deadline: number;
   wantResume?: boolean;
+  lifecycleRevision?: number;
 }
 
 export const onRequestStartAgentEffect = (
@@ -30,8 +32,8 @@ export const onRequestStartAgentEffect = (
     const agentPm = yield* DaemonAgentProcessManagerService;
     const session = yield* DaemonSessionService;
 
-    yield* Effect.promise(() =>
-      startAgent(createStartAgentDeps(agentPm, session), {
+    yield* Effect.promise(async () => {
+      await startAgent(createStartAgentDeps(agentPm, session), {
         commandId: event._id.toString(),
         chatroomId: event.chatroomId as string,
         role: event.role,
@@ -41,6 +43,8 @@ export const onRequestStartAgentEffect = (
         reason: event.reason,
         deadline: event.deadline,
         wantResume: event.wantResume,
-      })
-    );
+        lifecycleRevision: event.lifecycleRevision,
+      });
+      await drainPendingEnhancerJobsIfRegistered();
+    });
   });

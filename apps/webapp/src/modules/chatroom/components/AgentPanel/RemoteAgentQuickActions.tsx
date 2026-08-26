@@ -1,6 +1,6 @@
 'use client';
 
-import { Play, RefreshCw, Square } from 'lucide-react';
+import { Loader2, Play, RefreshCw, Square } from 'lucide-react';
 import { memo } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 export interface RemoteAgentQuickActionsProps {
   hasRunningAgents: boolean;
   isRestarting?: boolean;
+  isStopping?: boolean;
   onStart?: () => void;
   onStop?: () => void;
   onRestart?: () => void;
@@ -26,11 +27,12 @@ export const RemoteAgentQuickActions = memo(function RemoteAgentQuickActions({
   onRestart,
   disabled = false,
   isStarting = false,
+  isStopping = false,
 }: RemoteAgentQuickActionsProps) {
   const treatAsRunning = hasRunningAgents || isRestarting;
-  const startEnabled = !treatAsRunning && !disabled && !!onStart;
-  const stopEnabled = treatAsRunning && !disabled && !!onStop;
-  const restartEnabled = treatAsRunning && !disabled && !!onRestart;
+  const startEnabled = !treatAsRunning && !disabled && !!onStart && !isStopping;
+  const stopEnabled = treatAsRunning && !disabled && !!onStop && !isStopping;
+  const restartEnabled = treatAsRunning && !disabled && !!onRestart && !isStopping;
 
   const inactiveClass = 'text-chatroom-text-muted opacity-40';
 
@@ -48,6 +50,7 @@ export const RemoteAgentQuickActions = memo(function RemoteAgentQuickActions({
         aria-label="Start agents"
         className={cn(
           baseBtn,
+          startEnabled && 'enabled:cursor-pointer',
           startEnabled
             ? 'text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10'
             : inactiveClass
@@ -59,16 +62,22 @@ export const RemoteAgentQuickActions = memo(function RemoteAgentQuickActions({
         type="button"
         onClick={onStop}
         disabled={!stopEnabled}
+        aria-busy={isStopping}
         title="Stop agents"
         aria-label="Stop agents"
         className={cn(
           baseBtn,
+          stopEnabled && 'enabled:cursor-pointer',
           stopEnabled
             ? 'text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/10'
             : inactiveClass
         )}
       >
-        <Square size={8} fill="currentColor" />
+        {isStopping ? (
+          <Loader2 size={10} className="animate-spin" />
+        ) : (
+          <Square size={8} fill="currentColor" />
+        )}
       </button>
       <button
         type="button"
@@ -78,6 +87,7 @@ export const RemoteAgentQuickActions = memo(function RemoteAgentQuickActions({
         aria-label="Restart agents"
         className={cn(
           baseBtn,
+          restartEnabled && 'enabled:cursor-pointer',
           restartEnabled
             ? 'text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10'
             : inactiveClass

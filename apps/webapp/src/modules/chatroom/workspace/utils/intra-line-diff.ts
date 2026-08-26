@@ -19,6 +19,11 @@ export interface IntraLineDiffResult {
   newSegments: DiffSegment[];
 }
 
+function required<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('Expected diff value');
+  return value;
+}
+
 // ─── Tokenizer ────────────────────────────────────────────────────────────────
 
 /**
@@ -47,9 +52,9 @@ function buildLCSTable(a: string[], b: string[]): number[][] {
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
       if (a[i - 1] === b[j - 1]) {
-        dp[i]![j] = dp[i - 1]![j - 1]! + 1;
+        dp[i][j] = required(dp[i - 1])[j - 1] + 1;
       } else {
-        dp[i]![j] = Math.max(dp[i - 1]![j]!, dp[i]![j - 1]!);
+        dp[i][j] = Math.max(required(dp[i - 1])[j], dp[i][j - 1]);
       }
     }
   }
@@ -72,14 +77,14 @@ function backtrackLCS(a: string[], b: string[], dp: number[][]): TokenOp[] {
 
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-      ops.push({ type: 'same', token: a[i - 1]! });
+      ops.push({ type: 'same', token: required(a[i - 1]) });
       i--;
       j--;
-    } else if (j > 0 && (i === 0 || dp[i]![j - 1]! >= dp[i - 1]![j]!)) {
-      ops.push({ type: 'new-changed', token: b[j - 1]! });
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= required(dp[i - 1])[j])) {
+      ops.push({ type: 'new-changed', token: required(b[j - 1]) });
       j--;
     } else {
-      ops.push({ type: 'old-changed', token: a[i - 1]! });
+      ops.push({ type: 'old-changed', token: required(a[i - 1]) });
       i--;
     }
   }
@@ -98,16 +103,16 @@ function buildSegments(tokens: string[], types: ('same' | 'changed')[]): DiffSeg
   if (tokens.length === 0) return [];
 
   const segments: DiffSegment[] = [];
-  let currentText = tokens[0]!;
-  let currentType = types[0]!;
+  let currentText = required(tokens[0]);
+  let currentType = required(types[0]);
 
   for (let i = 1; i < tokens.length; i++) {
     if (types[i] === currentType) {
       currentText += tokens[i];
     } else {
       segments.push({ text: currentText, type: currentType });
-      currentText = tokens[i]!;
-      currentType = types[i]!;
+      currentText = required(tokens[i]);
+      currentType = required(types[i]);
     }
   }
   segments.push({ text: currentText, type: currentType });
@@ -141,12 +146,12 @@ function trimWhitespaceFromChangedSegments(segments: DiffSegment[]): DiffSegment
 
     // Strip leading whitespace from changed segment
     const leadingMatch = /^(\s+)/.exec(seg.text);
-    const leadingWs = leadingMatch ? leadingMatch[1]! : '';
+    const leadingWs = leadingMatch ? required(leadingMatch[1]) : '';
     const withoutLeading = leadingWs ? seg.text.slice(leadingWs.length) : seg.text;
 
     // Strip trailing whitespace from the remainder
     const trailingMatch = /(\s+)$/.exec(withoutLeading);
-    const trailingWs = trailingMatch ? trailingMatch[1]! : '';
+    const trailingWs = trailingMatch ? required(trailingMatch[1]) : '';
     const core = trailingWs ? withoutLeading.slice(0, -trailingWs.length) : withoutLeading;
 
     // Emit leading whitespace as a 'same' segment (merged with prev if it's also 'same')

@@ -1,9 +1,82 @@
 import type { EventClassification } from './event-classification';
+
 export type EventTypeMeta = { label: string; classification: EventClassification };
 const EVENT_TYPE_ROWS: Record<string, readonly [string, EventClassification]> = {
-  'agent.started': ['Agent Started', 'success'], 'agent.exited': ['Agent Exited', 'error'], 'agent.circuitOpen': ['Circuit Open', 'warning'], 'agent.requestStart': ['Agent Request Start', 'warning'], 'agent.requestStop': ['Agent Request Stop', 'error'], 'agent.registered': ['Agent Registered', 'success'], 'agent.waiting': ['Agent Waiting', 'success'], 'agent.startFailed': ['Agent Start Failed', 'error'], 'agent.providerUnavailable': ['Provider Unavailable', 'warning'], 'agent.sessionResumeRequested': ['Session Reconnect Requested', 'info'], 'agent.sessionResumed': ['Session Reconnected', 'success'], 'agent.sessionResumeFailed': ['Session Reconnect Failed', 'warning'], 'agent.sessionReopenRetry': ['Session Reopen Retry', 'info'], 'agent.sessionCompacted': ['Session Compacted', 'info'], 'agent.sessionAugmented': ['Session Augmented', 'info'], 'agent.resumeStormAborted': ['Resume Storm Aborted', 'error'], 'agent.restart': ['Agent Restarting', 'info'], 'agent.restartCompleted': ['Agent Restarted', 'success'], 'agent.restartPhase': ['Agent Restart Progress', 'info'], 'agent.restartLimitReached': ['Agent Restart Limit', 'error'], 'agent.stopTimeout': ['Agent Stop Timeout', 'warning'], 'agent.harnessSessionIdUpdated': ['Harness Session ID Updated', 'info'], 'agent.awaitingHandoff': ['Awaiting Handoff', 'warning'], 'agent.enhancing': ['Planning Review', 'info'], 'agent.taskDelivered': ['Task Delivered', 'success'], 'agent.taskDeliveryFailed': ['Task Delivery Failed', 'error'],
-  'machine.switched': ['Machine Switched', 'info'], 'connection.terminated': ['Connection Terminated', 'muted'], 'workflow.started': ['Workflow Started', 'info'], 'workflow.stepCompleted': ['Workflow Step Completed', 'success'], 'workflow.stepCancelled': ['Workflow Step Cancelled', 'warning'], 'workflow.completed': ['Workflow Completed', 'success'], 'workflow.created': ['Workflow Created', 'info'], 'workflow.specified': ['Workflow Specified', 'info'], 'workflow.stepStarted': ['Workflow Step Started', 'info'], 'task.activated': ['Task Activated', 'success'], 'task.acknowledged': ['Task Acknowledged', 'success'], 'task.inProgress': ['Task In Progress', 'info'], 'task.completed': ['Task Completed', 'success'], 'skill.activated': ['Skill Activated', 'purple'], 'daemon.ping': ['Daemon Ping', 'muted'], 'daemon.pong': ['Daemon Pong', 'muted'], 'daemon.gitRefresh': ['Git Refresh', 'muted'], 'daemon.refreshCapabilities': ['Capabilities Refresh', 'muted'], 'daemon.pickFolder': ['Pick Folder', 'muted'], 'daemon.localAction': ['Local Action', 'muted'], 'config.requestRemoval': ['Config Request Removal', 'warning'], 'command.run': ['Command Run', 'warning'], 'command.stop': ['Command Stop', 'error'], 'enhancer.job.created': ['Planning Review Started', 'info'], 'enhancer.attempt.failed': ['Planning Review Attempt Failed', 'warning'], 'enhancer.job.failed': ['Planning Review Failed', 'error'], 'enhancer.job.complete': ['Planning Review Complete', 'success'], 'enhancer.job.cancelled': ['Planning Review Cancelled', 'warning'],
+  'agent.started': ['Agent Started', 'success'],
+  'agent.exited': ['Agent Exited', 'error'],
+  'agent.circuitOpen': ['Circuit Open', 'warning'],
+  'agent.requestStart': ['Agent Request Start', 'warning'],
+  'agent.requestStop': ['Agent Request Stop', 'error'],
+  'agent.registered': ['Agent Registered', 'success'],
+  'agent.waiting': ['Agent Waiting', 'success'],
+  'agent.startFailed': ['Agent Start Failed', 'error'],
+  'agent.providerUnavailable': ['Provider Unavailable', 'warning'],
+  'agent.sessionResumeRequested': ['Session Reconnect Requested', 'info'],
+  'agent.sessionResumed': ['Session Reconnected', 'success'],
+  'agent.sessionResumeFailed': ['Session Reconnect Failed', 'warning'],
+  'agent.sessionReopenRetry': ['Session Reopen Retry', 'info'],
+  'agent.sessionCompacted': ['Session Compacted', 'info'],
+  'agent.sessionAugmented': ['Session Augmented', 'info'],
+  'agent.resumeStormAborted': ['Resume Storm Aborted', 'error'],
+  'agent.restart': ['Agent Restarting', 'info'],
+  'agent.restartCompleted': ['Agent Restarted', 'success'],
+  'agent.restartPhase': ['Agent Restart Progress', 'info'],
+  'agent.restartLimitReached': ['Agent Restart Limit', 'error'],
+  'agent.stopTimeout': ['Agent Stop Timeout', 'warning'],
+  'agent.harnessSessionIdUpdated': ['Harness Session ID Updated', 'info'],
+  'agent.awaitingHandoff': ['Awaiting Handoff', 'warning'],
+  'agent.enhancing': ['Planning Review', 'info'],
+  'agent.taskDelivered': ['Task Delivered', 'success'],
+  'agent.taskDeliveryFailed': ['Task Delivery Failed', 'error'],
+  'machine.switched': ['Machine Switched', 'info'],
+  'connection.terminated': ['Connection Terminated', 'muted'],
+  'workflow.started': ['Workflow Started', 'info'],
+  'workflow.stepCompleted': ['Workflow Step Completed', 'success'],
+  'workflow.stepCancelled': ['Workflow Step Cancelled', 'warning'],
+  'workflow.completed': ['Workflow Completed', 'success'],
+  'workflow.created': ['Workflow Created', 'info'],
+  'workflow.specified': ['Workflow Specified', 'info'],
+  'workflow.stepStarted': ['Workflow Step Started', 'info'],
+  'task.activated': ['Task Activated', 'success'],
+  'task.acknowledged': ['Task Acknowledged', 'success'],
+  'task.inProgress': ['Task In Progress', 'info'],
+  'task.completed': ['Task Completed', 'success'],
+  'skill.activated': ['Skill Activated', 'purple'],
+  'daemon.ping': ['Daemon Ping', 'muted'],
+  'daemon.pong': ['Daemon Pong', 'muted'],
+  'daemon.gitRefresh': ['Git Refresh', 'muted'],
+  'daemon.refreshCapabilities': ['Capabilities Refresh', 'muted'],
+  'daemon.pickFolder': ['Pick Folder', 'muted'],
+  'daemon.localAction': ['Local Action', 'muted'],
+  'config.requestRemoval': ['Config Request Removal', 'warning'],
+  'command.run': ['Command Run', 'warning'],
+  'command.stop': ['Command Stop', 'error'],
+  'enhancer.job.created': ['Planning Review Started', 'info'],
+  'enhancer.attempt.failed': ['Planning Review Attempt Failed', 'warning'],
+  'enhancer.job.failed': ['Planning Review Failed', 'error'],
+  'enhancer.job.complete': ['Planning Review Complete', 'success'],
+  'enhancer.job.cancelled': ['Planning Review Cancelled', 'warning'],
 };
-export const EVENT_TYPE_CATALOG: Record<string, EventTypeMeta> = Object.fromEntries(Object.entries(EVENT_TYPE_ROWS).map(([type, [label, classification]]) => [type, { label, classification }]));
-export function inferClassificationFromType(type: string): EventClassification { const lower = type.toLowerCase(); if (lower.includes('failed') || lower.includes('error') || lower.includes('timeout')) return 'error'; if (type.startsWith('task.')) return 'success'; if (type.startsWith('agent.') || type.startsWith('workflow.') || type.startsWith('enhancer.')) return 'info'; if (type.startsWith('daemon.')) return 'muted'; if (type.startsWith('command.')) return 'warning'; if (type.startsWith('skill.')) return 'purple'; return 'muted'; }
-export function resolveEventTypeMeta(type: string): EventTypeMeta { return EVENT_TYPE_CATALOG[type] ?? { label: type, classification: inferClassificationFromType(type) }; }
+export const EVENT_TYPE_CATALOG: Record<string, EventTypeMeta> = Object.fromEntries(
+  Object.entries(EVENT_TYPE_ROWS).map(([type, [label, classification]]) => [
+    type,
+    { label, classification },
+  ])
+);
+export function inferClassificationFromType(type: string): EventClassification {
+  const lower = type.toLowerCase();
+  if (lower.includes('failed') || lower.includes('error') || lower.includes('timeout'))
+    return 'error';
+  if (type.startsWith('task.')) return 'success';
+  if (type.startsWith('agent.') || type.startsWith('workflow.') || type.startsWith('enhancer.'))
+    return 'info';
+  if (type.startsWith('daemon.')) return 'muted';
+  if (type.startsWith('command.')) return 'warning';
+  if (type.startsWith('skill.')) return 'purple';
+  return 'muted';
+}
+export function resolveEventTypeMeta(type: string): EventTypeMeta {
+  return (
+    EVENT_TYPE_CATALOG[type] ?? { label: type, classification: inferClassificationFromType(type) }
+  );
+}

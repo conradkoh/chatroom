@@ -1,11 +1,11 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
+import type { AgentHarness } from '@workspace/backend/src/domain/entities/agent';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { useCallback } from 'react';
 
 import { isModelHidden, normalizeModelFilter } from '../../utils/modelSelection';
-import type { AgentHarness } from '@workspace/backend/src/domain/entities/agent';
 
 export interface MachineModelFilter {
   hiddenModels: string[];

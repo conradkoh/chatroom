@@ -1,8 +1,9 @@
 'use client';
 
+import { normalizeChatroomMarkdownContent } from '../utils/normalizeChatroomMarkdownContent';
+
 import { MarkdownEditor } from '@/components/markdown-editor';
 import { cn } from '@/lib/utils';
-import { normalizeChatroomMarkdownContent } from '../utils/normalizeChatroomMarkdownContent';
 
 export interface ChatroomModalMarkdownEditorProps {
   value: string;

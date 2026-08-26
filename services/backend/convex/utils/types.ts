@@ -7,6 +7,6 @@ import type { Id } from '../_generated/dataModel';
  * accept `string` but Convex APIs return `Id<T>`.
  * Convex IDs are strings internally, so this is always safe.
  */
-export function str(id: Id<any> | string): string {
+export function str(id: Id<'chatroom_rooms'> | string): string {
   return id as string;
 }

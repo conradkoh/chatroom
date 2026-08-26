@@ -35,15 +35,13 @@ export function EventStreamPage() {
       <div className="flex min-h-0 flex-1 gap-0">
         <div className="flex min-w-0 flex-1 flex-col">
           <EventStreamViewer
+            key={[filters.chatroomId, filters.timeRange, filters.fromMs, filters.toMs].join(':')}
             entries={entries}
             isLoading={isLoading}
             error={error}
             hasChatroom={Boolean(filters.chatroomId)}
             selectedEntry={selectedEntry}
             onSelectEntry={setSelectedEntry}
-            resetKey={[filters.chatroomId, filters.timeRange, filters.fromMs, filters.toMs].join(
-              ':'
-            )}
           />
         </div>
         {selectedEntry && (

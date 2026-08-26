@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { buildSearchConfigKey, searchConfigEntriesEqual } from './searchConfig';
 
 describe('searchConfig types', () => {

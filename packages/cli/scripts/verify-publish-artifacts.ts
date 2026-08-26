@@ -170,8 +170,7 @@ function verifyTarball(tarball: string): void {
   );
   assert(
     entries.some(
-      (entry) =>
-        entry.startsWith('package/dist/client/build/assets/') && entry.endsWith('.js')
+      (entry) => entry.startsWith('package/dist/client/build/assets/') && entry.endsWith('.js')
     ),
     'Tarball missing local-web JavaScript assets'
   );

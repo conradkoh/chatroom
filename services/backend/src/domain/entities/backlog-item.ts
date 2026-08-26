@@ -6,6 +6,7 @@
  * constants that multiple consumers need.
  */
 
+import type { Doc } from '../../../convex/_generated/dataModel';
 import type { BacklogItemStatus } from '../../../convex/lib/backlogStateMachine';
 import { canTransition as fsmCanTransition } from '../../../convex/lib/backlogStateMachine';
 
@@ -44,5 +45,5 @@ export function canEditBacklogContent(status: string): boolean {
  */
 export function canTransitionTo(current: BacklogItemStatus, target: BacklogItemStatus): boolean {
   // The FSM's canTransition requires a full BacklogItem Doc, but only uses .status for the check
-  return fsmCanTransition({ status: current } as any, target);
+  return fsmCanTransition({ status: current } as unknown as Doc<'chatroom_backlog'>, target);
 }

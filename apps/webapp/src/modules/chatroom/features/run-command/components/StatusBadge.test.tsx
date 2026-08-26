@@ -4,8 +4,9 @@
  * Covers all status labels and the killed reason-aware branching.
  */
 
-import { describe, expect, test } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { describe, expect, test } from 'vitest';
+
 import { StatusBadge } from './StatusBadge';
 
 describe('StatusBadge', () => {

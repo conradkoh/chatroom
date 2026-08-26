@@ -59,7 +59,9 @@ async function getOrCreateCounts(ctx: MutationCtx, chatroomId: Id<'chatroom_room
     ...DEFAULT_COUNTS,
   });
 
-  return (await ctx.db.get("chatroom_taskCounts", id))!;
+  const inserted = await ctx.db.get('chatroom_taskCounts', id);
+  if (!inserted) throw new Error('Task counts row was not created');
+  return inserted;
 }
 
 /**
@@ -78,7 +80,7 @@ export async function adjustTaskCount(
 ): Promise<void> {
   const counts = await getOrCreateCounts(ctx, chatroomId);
   const newValue = Math.max(0, counts[field] + delta);
-  await ctx.db.patch("chatroom_taskCounts", counts._id, { [field]: newValue });
+  await ctx.db.patch('chatroom_taskCounts', counts._id, { [field]: newValue });
 }
 
 /**
@@ -171,9 +173,7 @@ export async function hasActiveTaskFromSource(
   for (const status of ACTIVE_TASK_STATUSES) {
     const active = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', chatroomId).eq('status', status)
-      )
+      .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId).eq('status', status))
       .first();
     if (active) return true;
   }

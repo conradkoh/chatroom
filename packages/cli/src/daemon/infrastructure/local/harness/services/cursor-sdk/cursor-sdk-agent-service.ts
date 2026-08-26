@@ -31,6 +31,7 @@ import {
 } from './cursor-sdk-package.js';
 import { closeCursorAgentOnFailure } from './cursor-sdk-session-cleanup.js';
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
+import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
@@ -370,6 +371,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     } = args;
 
     const entry = this.registerProcess(pid, context);
+    const activityEmitter = createHarnessActivityEmitter();
     const logPrefix = buildAgentLogPrefix('cursor-sdk', context);
 
     const session: SdkSession = {
@@ -421,6 +423,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       assistantTextCallbacks,
       emitLogLine,
+      activityEmitter,
     });
 
     return {
@@ -445,6 +448,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       onAssistantText: (cb) => {
         assistantTextCallbacks.push(cb);
       },
+      activityEmitter,
     };
   }
 
@@ -463,6 +467,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
     agentEndCallbacks: (() => void)[];
     assistantTextCallbacks: ((text: string) => void)[];
     emitLogLine: (line: string) => void;
+    activityEmitter: ReturnType<typeof createHarnessActivityEmitter>;
   }): void {
     const {
       agent,
@@ -477,6 +482,7 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
       agentEndCallbacks,
       assistantTextCallbacks,
       emitLogLine,
+      activityEmitter,
     } = args;
 
     let exited = false;
@@ -511,8 +517,16 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
               }
             }
 
+            let turnActivityReported = false;
+            // This latch resets for each turn; raw output callbacks and lastOutputAt must still fire on every event.
+            const notifyTurnActivityOnce = () => {
+              if (turnActivityReported) return;
+              turnActivityReported = true;
+              activityEmitter.emit('busy');
+            };
             const notifyHarnessOutput = () => {
               entry.lastOutputAt = Date.now();
+              notifyTurnActivityOnce();
               for (const cb of outputCallbacks) cb();
             };
             const restoreStreamTap = tapProcessStreamWrites(notifyHarnessOutput);
@@ -544,6 +558,9 @@ export class CursorSdkAgentService extends BaseCLIAgentService {
                 outputCallbacks,
                 agentEndCallbacks,
                 entry,
+              });
+              adapter.onOutput(() => {
+                notifyTurnActivityOnce();
               });
 
               try {

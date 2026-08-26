@@ -14,6 +14,7 @@ import { t } from '../../../../test.setup';
 import {
   createTestSession,
   registerMachineWithDaemon,
+  seedRunningAgentPid,
   setupRemoteAgentConfig,
 } from '../../../../tests/helpers/integration';
 import { getInboxCommandsForChatroom } from '../../../../tests/helpers/machine-command-inbox';
@@ -209,6 +210,8 @@ describe('updateTeam use case', () => {
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await seedRunningAgentPid(sessionId as any, chatroomId, machineId, 'planner', 60101);
+    await seedRunningAgentPid(sessionId as any, chatroomId, machineId, 'builder', 60102);
 
     const result = await t.run(async (ctx) => {
       return updateTeam(ctx, {

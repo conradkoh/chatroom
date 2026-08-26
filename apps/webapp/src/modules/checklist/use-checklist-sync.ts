@@ -55,11 +55,9 @@ export function useChecklistSync({ key, title }: UseChecklistSyncProps) {
 
   // Queries
   const checklistState = useSessionQuery(api.checklists.getChecklistState, { key }) as
-    | ChecklistState
-    | undefined;
+    ChecklistState | undefined;
   const serverItems = useSessionQuery(api.checklists.getChecklistItems, { key }) as
-    | ChecklistItem[]
-    | undefined;
+    ChecklistItem[] | undefined;
 
   // Mutations
   const createChecklistMutation = useSessionMutation(api.checklists.createChecklist);

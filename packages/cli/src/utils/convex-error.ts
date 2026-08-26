@@ -5,7 +5,7 @@
  * than the generic "[Request ID: xxx] Server Error" .message property.
  */
 
-import { ConvexError } from 'convex/values';
+import { ConvexError, type Value } from 'convex/values';
 
 const SERVER_ERROR_HINT =
   'This is a generic server error — likely a backend arg-validator rejection or a CLI/backend version mismatch.' +
@@ -37,7 +37,7 @@ function formatConvexErrorObject(data: {
   return base;
 }
 
-function formatConvexErrorData(error: ConvexError<any>): string {
+function formatConvexErrorData(error: ConvexError<Value>): string {
   if (typeof error.data === 'string') return error.data;
 
   if (error.data !== null && typeof error.data === 'object') {
@@ -56,7 +56,7 @@ function formatServerError(error: Error): string {
 }
 
 export function getErrorMessage(error: unknown): string {
-  if (error instanceof ConvexError) return formatConvexErrorData(error as ConvexError<any>);
+  if (error instanceof ConvexError) return formatConvexErrorData(error as ConvexError<Value>);
   if (error instanceof Error) return formatServerError(error);
   return String(error);
 }

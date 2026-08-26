@@ -48,6 +48,20 @@ const CHATROOM_ID = 'test-chatroom';
 const ROLE = 'builder';
 const PID = 42;
 
+function createLivenessAwareProcessKill() {
+  const deadPids = new Set<number>();
+  const kill = vi.fn((pid: number, signal?: number | string) => {
+    if (signal === 0) {
+      if (deadPids.has(pid)) throw new Error('ESRCH');
+      return;
+    }
+    if (signal === 'SIGTERM' || signal === 'SIGKILL') deadPids.add(pid);
+  });
+  const markAlive = (pid: number) => deadPids.delete(pid);
+  const markDead = (pid: number) => deadPids.add(pid);
+  return { kill: Object.assign(kill, { markAlive, markDead }), markAlive, markDead };
+}
+
 function createMockService() {
   return {
     id: 'opencode',
@@ -69,8 +83,42 @@ function createMockService() {
   };
 }
 
+function mockBackendMutation(
+  defaultResult: Record<string, unknown> = {
+    needsHandoffReminder: false,
+    transitionedToWaiting: true,
+  }
+) {
+  return vi.fn().mockImplementation((endpoint: unknown, args?: Record<string, unknown>) => {
+    if (
+      args &&
+      'sessionId' in args &&
+      'machineId' in args &&
+      'chatroomId' in args &&
+      'role' in args &&
+      !('action' in args) &&
+      !('pid' in args) &&
+      !('fact' in args)
+    ) {
+      return Promise.resolve({
+        allowed: true,
+        lifecycleRevision: args.lifecycleRevision ?? 0,
+      });
+    }
+    return Promise.resolve(defaultResult);
+  });
+}
+
 function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessManagerDeps {
+  const liveness = createLivenessAwareProcessKill();
   const mockService = createMockService();
+  mockService.stop.mockImplementation(async (pid: number) => {
+    liveness.markDead(pid);
+  });
+  mockService.spawn.mockImplementation(async () => {
+    liveness.markAlive(PID);
+    return { pid: PID, onExit: vi.fn(), onOutput: vi.fn(), onAgentEnd: vi.fn() };
+  });
   return {
     logEvent: vi.fn().mockResolvedValue(undefined),
     agentServices: new Map([['opencode', mockService]]),
@@ -80,15 +128,12 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
         rolePrompt: 'You are a builder',
         initialMessage: 'Start working',
       }),
-      mutation: vi.fn().mockResolvedValue({
-        needsHandoffReminder: false,
-        transitionedToWaiting: true,
-      }),
+      mutation: mockBackendMutation(),
     },
     lifecycleOutbox: { enqueue: vi.fn().mockResolvedValue({ success: true }) },
     sessionId: 'test-session',
     machineId: 'test-machine',
-    processes: { kill: vi.fn() },
+    processes: { kill: liveness.kill },
     clock: {
       delay: vi.fn().mockResolvedValue(undefined),
       now: vi.fn().mockReturnValue(Date.now()),
@@ -1048,6 +1093,9 @@ describe('AgentProcessManager', () => {
 
     test('persisted live PID without slot is killed before spawn', async () => {
       const ORPHAN_PID = 7777;
+      (
+        deps.processes.kill as typeof deps.processes.kill & { markAlive: (pid: number) => void }
+      ).markAlive(ORPHAN_PID);
       (deps.persistence.listAgentEntries as ReturnType<typeof vi.fn>).mockResolvedValue([
         { chatroomId: CHATROOM_ID, role: ROLE, entry: { pid: ORPHAN_PID, harness: 'opencode' } },
       ]);
@@ -1270,7 +1318,8 @@ describe('AgentProcessManager', () => {
       expect(result).toEqual({ success: true });
       expect(service.stop).toHaveBeenCalledWith(PID, { preserveForResume: false });
       expect(service.untrack).toHaveBeenCalledWith(PID);
-      expect(deps.processes.kill).not.toHaveBeenCalled();
+      const killCalls = vi.mocked(deps.processes.kill).mock.calls.filter(([, sig]) => sig !== 0);
+      expect(killCalls).toHaveLength(0);
 
       const slot = manager.getSlot(CHATROOM_ID, ROLE);
       expect(slot!.state).toBe('idle');
@@ -1304,6 +1353,20 @@ describe('AgentProcessManager', () => {
         ...createDeps(),
         agentServices: new Map([['opencode-sdk', resumableService]]),
       };
+      (
+        localDeps.processes.kill as typeof localDeps.processes.kill & {
+          markAlive: (pid: number) => void;
+        }
+      ).markAlive(PID);
+      (resumableService.stop as ReturnType<typeof vi.fn>).mockImplementation(
+        async (pid: number) => {
+          (
+            localDeps.processes.kill as typeof localDeps.processes.kill & {
+              markDead: (pid: number) => void;
+            }
+          ).markDead(pid);
+        }
+      );
       const localManager = new AgentProcessManager(localDeps);
 
       await localManager.ensureRunning({
@@ -1472,6 +1535,9 @@ describe('AgentProcessManager', () => {
         stopResolve = resolve;
       });
       (service.stop as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        (
+          deps.processes.kill as typeof deps.processes.kill & { markDead: (pid: number) => void }
+        ).markDead(PID);
         await stopGate;
       });
 
@@ -1504,6 +1570,9 @@ describe('AgentProcessManager', () => {
 
       // service.stop may trigger onExit while doStop owns the lifecycle
       (service.stop as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        (
+          deps.processes.kill as typeof deps.processes.kill & { markDead: (pid: number) => void }
+        ).markDead(PID);
         if (registeredOnExit) {
           registeredOnExit({ code: null, signal: 'SIGTERM' });
         }
@@ -1517,7 +1586,7 @@ describe('AgentProcessManager', () => {
 
       // Count all log event calls — should be exactly 1 (from doStop only)
       // Before the fix, handleExit would also fire, producing 2 calls
-      expect(deps.logEvent).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(deps.logEvent).toHaveBeenCalledTimes(1));
     });
   });
 
@@ -2613,7 +2682,7 @@ describe('AgentProcessManager', () => {
             rolePrompt: 'You are a builder',
             initialMessage: 'Start working',
           }),
-          mutation: vi.fn().mockResolvedValue(undefined),
+          mutation: mockBackendMutation({}),
         },
         logEvent,
         spawning: {
@@ -2667,7 +2736,7 @@ describe('AgentProcessManager', () => {
             rolePrompt: 'You are a builder',
             initialMessage: 'Start working',
           }),
-          mutation: vi.fn().mockResolvedValue(undefined),
+          mutation: mockBackendMutation({}),
         },
         logEvent,
       });
@@ -2713,7 +2782,7 @@ describe('AgentProcessManager', () => {
             rolePrompt: 'You are a builder',
             initialMessage: 'Start working',
           }),
-          mutation: vi.fn().mockResolvedValue(undefined),
+          mutation: mockBackendMutation({}),
         },
         logEvent,
       });
@@ -2766,7 +2835,7 @@ describe('AgentProcessManager', () => {
             rolePrompt: 'You are a builder',
             initialMessage: 'Start working',
           }),
-          mutation: vi.fn().mockResolvedValue(undefined),
+          mutation: mockBackendMutation({}),
         },
         logEvent,
       });

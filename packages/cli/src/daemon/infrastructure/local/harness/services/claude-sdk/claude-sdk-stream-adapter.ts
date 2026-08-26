@@ -163,5 +163,4 @@ export class ClaudeSdkStreamAdapter extends NativeStreamAdapterBase {
     }
     this.thinkingBuffer = remaining;
   }
-
 }

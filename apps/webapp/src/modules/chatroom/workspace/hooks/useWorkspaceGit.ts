@@ -9,8 +9,9 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 
+import { useAsyncGzipDecompress } from './useAsyncGzipDecompress';
 import type {
   WorkspaceGitState,
   FullDiffState,
@@ -19,7 +20,7 @@ import type {
   GitCommit,
   GitPullRequest,
 } from '../types/git';
-import { decompressGzip, extractBase64Content } from '../utils/decompressGzip';
+import { extractBase64Content } from '../utils/decompressGzip';
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -59,33 +60,16 @@ export function useFullDiff(
   const requestedRef = useRef(false);
   /** Timestamp of the latest fetch request — hides stale cached rows until refreshed. */
   const fetchStartedAtRef = useRef(0);
-  const [decompressedContent, setDecompressedContent] = useState<string | null>(null);
+  const decompressedContent = useAsyncGzipDecompress(
+    result?.data ? extractBase64Content(result.data) : null,
+    Boolean(result?.data)
+  );
 
   const request = useCallback(() => {
     requestedRef.current = true;
     fetchStartedAtRef.current = Date.now();
     requestMutation({ machineId, workingDir });
   }, [requestMutation, machineId, workingDir]);
-
-  // V2: data is a compressed object { compression, content } — always decompress
-  useEffect(() => {
-    if (result && result.data) {
-      let cancelled = false;
-      decompressGzip(extractBase64Content(result.data))
-        .then((content) => {
-          if (!cancelled) setDecompressedContent(content);
-        })
-        .catch((err) => {
-          console.error('[useFullDiff] Failed to decompress diff:', err);
-          if (!cancelled) setDecompressedContent(null);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setDecompressedContent(null);
-  }, [result]);
 
   const state: FullDiffState = useMemo(() => {
     const awaitingFresh =
@@ -159,7 +143,7 @@ export function usePRDiff(
       truncated: result.truncated,
       diffStat: result.diffStat,
     };
-  }, [result, prNumber]);
+  }, [result]);
 
   return { state, request };
 }
@@ -176,7 +160,6 @@ export function useCommitDetail(
 ): { state: CommitDetailState; request: (sha: string) => void; clear: () => void } {
   const [activeSha, setActiveSha] = useState<string | null>(null);
   const requestMutation = useSessionMutation(api.workspaces.requestCommitDetail);
-  const [decompressedContent, setDecompressedContent] = useState<string | null>(null);
 
   // Only subscribe when we have a sha to fetch
   const result = useSessionQuery(
@@ -194,27 +177,12 @@ export function useCommitDetail(
 
   const clear = useCallback(() => {
     setActiveSha(null);
-    setDecompressedContent(null);
   }, []);
 
-  // V2: data is a compressed object when status=available — always decompress
-  useEffect(() => {
-    if (result && result.data) {
-      let cancelled = false;
-      decompressGzip(extractBase64Content(result.data))
-        .then((content) => {
-          if (!cancelled) setDecompressedContent(content);
-        })
-        .catch((err) => {
-          console.error('[useCommitDetail] Failed to decompress commit detail:', err);
-          if (!cancelled) setDecompressedContent(null);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }
-    setDecompressedContent(null);
-  }, [result]);
+  const decompressedContent = useAsyncGzipDecompress(
+    result?.data ? extractBase64Content(result.data) : null,
+    Boolean(result?.data)
+  );
 
   const state: CommitDetailState = useMemo(() => {
     if (!activeSha) return { status: 'idle' };
@@ -260,9 +228,7 @@ export interface PRCommitEntry {
 }
 
 export type PRCommitsState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'available'; commits: PRCommitEntry[] };
+  { status: 'idle' } | { status: 'loading' } | { status: 'available'; commits: PRCommitEntry[] };
 
 /**
  * Returns the list of commits for a specific PR and a request function.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import type {
   ConvexBackendMode,
@@ -11,20 +11,11 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 function useSetupFormState(defaults: RuntimeConfigDefaults | null) {
-  const [mode, setMode] = useState<ConvexBackendMode>(DEFAULT_RUNTIME_CONFIG.convexBackendMode);
-  const [webappPort, setWebappPort] = useState(String(DEFAULT_RUNTIME_CONFIG.webappPort));
-  const [convexPort, setConvexPort] = useState(String(DEFAULT_RUNTIME_CONFIG.convexPort));
-  const [convexUrl, setConvexUrl] = useState(DEFAULT_RUNTIME_CONFIG.convexUrl);
-
-  useEffect(() => {
-    if (!defaults) return;
-
-    const config = runtimeConfigFromDefaults(defaults);
-    setMode(config.convexBackendMode);
-    setWebappPort(String(config.webappPort));
-    setConvexPort(String(config.convexPort));
-    setConvexUrl(config.convexUrl);
-  }, [defaults]);
+  const initialConfig = defaults ? runtimeConfigFromDefaults(defaults) : DEFAULT_RUNTIME_CONFIG;
+  const [mode, setMode] = useState<ConvexBackendMode>(initialConfig.convexBackendMode);
+  const [webappPort, setWebappPort] = useState(String(initialConfig.webappPort));
+  const [convexPort, setConvexPort] = useState(String(initialConfig.convexPort));
+  const [convexUrl, setConvexUrl] = useState(initialConfig.convexUrl);
 
   return {
     mode,

@@ -27,7 +27,6 @@ export function createEnhancerLogWriter(
   return {
     write(message: string) {
       const formatted = formatEnhancerLogLine(message);
-      process.stdout.write(`${formatted}\n`);
       logSink?.write({
         timestamp: clock(),
         level: 'info',
@@ -47,5 +46,5 @@ export function createEnhancerLogWriter(
 
 /** @deprecated Prefer createEnhancerLogWriter for daemon log viewer support. */
 export function writeEnhancerLog(message: string): void {
-  process.stdout.write(`${formatEnhancerLogLine(message)}\n`);
+  void message;
 }

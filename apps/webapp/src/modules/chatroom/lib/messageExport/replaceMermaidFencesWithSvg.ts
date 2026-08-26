@@ -32,6 +32,9 @@ export async function replaceMermaidFencesWithSvg(
   );
 
   let i = 0;
-  const processedMarkdown = markdown.replace(MERMAID_FENCE_RE, () => replacements[i++]!);
+  const processedMarkdown = markdown.replace(
+    MERMAID_FENCE_RE,
+    (match) => replacements[i++] ?? match
+  );
   return { markdown: processedMarkdown, diagrams };
 }

@@ -1,8 +1,8 @@
 /**
  * Stop Agent — Integration Tests
  *
- * Tests the `stopAgent` use case which dispatches a stop-agent request
- * to the machine daemon via the event stream.
+ * Tests the `stopAgent` use case which enqueues scoped stop commands
+ * on the machine command inbox.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -12,19 +12,21 @@ import { t } from '../../test.setup';
 import {
   createBuilderEntryDuoChatroom,
   createTestSession,
-  getCommandEvents,
   registerMachineWithDaemon,
+  seedRunningAgentPid,
+  setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { getInboxCommandsForMachine } from '../helpers/machine-command-inbox';
 
 describe('stopAgent', () => {
-  test('dispatches an agent.requestStop event with correct payload', async () => {
-    // ===== SETUP =====
+  test('enqueues agent.stopScope when a team config exists', async () => {
     const { sessionId } = await createTestSession('test-stop-1');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-stop-1';
     await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+    await seedRunningAgentPid(sessionId, chatroomId, machineId, 'builder', 91001);
 
-    // ===== ACTION =====
     await t.run(async (ctx) => {
       const user = await ctx.db.query('users').first();
       return stopAgent(ctx, {
@@ -36,26 +38,22 @@ describe('stopAgent', () => {
       });
     });
 
-    // ===== VERIFY =====
-    const events = await getCommandEvents(sessionId, machineId);
-    const stopEvt = events.find((e) => e.type === 'agent.requestStop');
-    expect(stopEvt).toBeDefined();
-    if (stopEvt && stopEvt.type === 'agent.requestStop') {
-      expect(stopEvt.chatroomId).toBe(chatroomId);
-      expect(stopEvt.role).toBe('builder');
-      expect(stopEvt.reason).toBe('test');
-      expect(typeof stopEvt.deadline).toBe('number');
+    const inbox = await getInboxCommandsForMachine(machineId, 'agent.stopScope');
+    const stopCmd = inbox.find((row) => row.command.type === 'agent.stopScope');
+    expect(stopCmd).toBeDefined();
+    if (stopCmd?.command.type === 'agent.stopScope') {
+      expect(stopCmd.command.chatroomId).toBe(chatroomId);
+      expect(stopCmd.command.reason).toBe('test');
     }
   });
 
-  test('returns empty result (no command ID needed for event-stream delivery)', async () => {
-    // ===== SETUP =====
+  test('returns empty result (no legacy command ID)', async () => {
     const { sessionId } = await createTestSession('test-stop-2');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-stop-2';
     await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-    // ===== ACTION =====
     const result = await t.run(async (ctx) => {
       const user = await ctx.db.query('users').first();
       return stopAgent(ctx, {
@@ -67,20 +65,20 @@ describe('stopAgent', () => {
       });
     });
 
-    // stopAgent no longer returns a commandId — event stream is the delivery path
     expect(result).toBeDefined();
     expect((result as { commandId?: unknown }).commandId).toBeUndefined();
   });
 
-  test('multiple stop events can be dispatched independently', async () => {
-    // ===== SETUP =====
+  test('multiple scoped stop commands can be enqueued independently', async () => {
     const { sessionId } = await createTestSession('test-stop-3');
     const chatroomId = await createBuilderEntryDuoChatroom(sessionId);
     const machineId = 'machine-stop-3';
     await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'planner');
+    await seedRunningAgentPid(sessionId, chatroomId, machineId, 'builder', 91002);
+    await seedRunningAgentPid(sessionId, chatroomId, machineId, 'planner', 91003);
 
-    // ===== ACTION =====
-    // Dispatch stop for two different roles
     await t.run(async (ctx) => {
       const user = await ctx.db.query('users').first();
       await stopAgent(ctx, {
@@ -99,15 +97,18 @@ describe('stopAgent', () => {
       });
     });
 
-    // ===== VERIFY =====
-    const events = await getCommandEvents(sessionId, machineId);
-    const stopEvts = events.filter((e) => e.type === 'agent.requestStop');
-    expect(stopEvts.length).toBe(2);
-
-    const roles = stopEvts
-      .filter((e) => e.type === 'agent.requestStop')
-      .map((e) => (e as { role: string }).role)
-      .sort();
-    expect(new Set(roles)).toEqual(new Set(['planner', 'builder']));
+    const inbox = await getInboxCommandsForMachine(machineId, 'agent.stopScope');
+    expect(inbox.length).toBe(1);
+    const configs = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+    expect(
+      configs
+        .filter((c) => c.role === 'builder' || c.role === 'planner')
+        .every((c) => c.desiredState === 'stopped')
+    ).toBe(true);
   });
 });

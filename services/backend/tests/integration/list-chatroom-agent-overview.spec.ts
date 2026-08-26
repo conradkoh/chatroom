@@ -17,6 +17,7 @@ import {
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
+  updateSpawnedAgentInTest,
 } from '../helpers/integration';
 
 async function createSoloTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
@@ -68,13 +69,7 @@ describe('listChatroomAgentOverview — running agent', () => {
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
-    await t.mutation(api.machines.updateSpawnedAgent, {
-      sessionId: sessionId as any,
-      machineId,
-      chatroomId,
-      role: 'builder',
-      pid: 99999,
-    });
+    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 99999);
 
     const results = await t.run(async (ctx) => {
       return listChatroomAgentOverview(ctx, { userId: ownerId });
@@ -174,13 +169,7 @@ describe('listChatroomAgentOverview — daemon disconnected with PID', () => {
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
     // Set a spawned agent PID
-    await t.mutation(api.machines.updateSpawnedAgent, {
-      sessionId: sessionId as any,
-      machineId,
-      chatroomId,
-      role: 'builder',
-      pid: 88888,
-    });
+    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 88888);
 
     // Now disconnect the daemon
     await t.mutation(api.machines.updateDaemonStatus, {

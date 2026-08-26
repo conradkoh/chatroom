@@ -1,8 +1,8 @@
+import { getHistoryRetrievalGuidance } from '../cli/history-retrieval/guidance';
 import {
   messagesAnchorCommand,
   messagesDownloadSinceCommand,
 } from '../utils/proof-of-verification';
-import { getHistoryRetrievalGuidance } from '../cli/history-retrieval/guidance';
 
 export interface EnhancerHistoryRetrievalParams {
   chatroomId: string;
@@ -34,7 +34,11 @@ export function getEnhancerHistoryRetrievalGuidance(
     ? `The backend identified \`${params.originUserMessageId}\` as the originating user message. Treat it as the authoritative anchor for this job.`
     : 'This legacy job has no origin message ID. Run the anchor command first, then replace `<origin-user-message-id>` below with the ID it prints.';
 
-  const sharedGuidance = getHistoryRetrievalGuidance({ chatroomId: params.chatroomId, role: 'enhancer', cliEnvPrefix: params.cliEnvPrefix });
+  const sharedGuidance = getHistoryRetrievalGuidance({
+    chatroomId: params.chatroomId,
+    role: 'enhancer',
+    cliEnvPrefix: params.cliEnvPrefix,
+  });
   return `## Recover user context (do this first)
 
 ${originLine}

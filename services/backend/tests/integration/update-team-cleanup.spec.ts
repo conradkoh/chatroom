@@ -13,9 +13,13 @@ import { t } from '../../test.setup';
 import {
   createTestSession,
   registerMachineWithDaemon,
+  seedRunningAgentPid,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
-import { getInboxCommandsForChatroom } from '../helpers/machine-command-inbox';
+import {
+  getStopScopeCommandsForChatroom,
+  getInboxCommandsForChatroom,
+} from '../helpers/machine-command-inbox';
 
 function createThreeRoleChatroom(sessionId: string) {
   return t.mutation(api.chatrooms.create, {
@@ -71,6 +75,8 @@ describe('updateTeam — stop events', () => {
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    await seedRunningAgentPid(sessionId as any, chatroomId, machineId, 'planner', 50101);
+    await seedRunningAgentPid(sessionId as any, chatroomId, machineId, 'builder', 50102);
 
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,
@@ -81,13 +87,28 @@ describe('updateTeam — stop events', () => {
       teamEntryPoint: 'planner',
     });
 
-    const stopRows = await getInboxCommandsForChatroom(chatroomId, 'agent.requestStop');
+    const stopRows = await getStopScopeCommandsForChatroom(chatroomId);
     const teamSwitchStops = stopRows.filter(
       (row) =>
-        row.command.type === 'agent.requestStop' && row.command.reason === 'platform.team_switch'
+        row.command.type === 'agent.stopScope' && row.command.reason === 'platform.team_switch'
     );
-    // Both planner and builder had desiredState=running from setupRemoteAgentConfig
-    expect(teamSwitchStops.length).toBeGreaterThanOrEqual(2);
+    expect(teamSwitchStops.length).toBeGreaterThanOrEqual(1);
+    const stopCommandId =
+      teamSwitchStops[0]?.command.type === 'agent.stopScope'
+        ? teamSwitchStops[0].command.stopCommandId
+        : undefined;
+    if (stopCommandId) {
+      const targetCount = await t.run(
+        async (ctx) =>
+          (
+            await ctx.db
+              .query('chatroom_agentStopTargets')
+              .withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', stopCommandId))
+              .collect()
+          ).length
+      );
+      expect(targetCount).toBeGreaterThanOrEqual(2);
+    }
   });
 });
 

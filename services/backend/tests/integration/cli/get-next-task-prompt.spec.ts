@@ -443,19 +443,19 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       [TIMESTAMP] 📨 CHATROOM TASK received
 
-      <task task-id="000000000000010007chatroom_tasks" origin-message-id="000000000010006chatroom_messages" sender="user">
+      <task task-id="000000000000010011chatroom_tasks" origin-message-id="000000000010009chatroom_messages" sender="user">
 
       <attachments>
-        <attachment type="backlog" backlog-item-id="0000000000010005chatroom_backlog">
+        <attachment type="backlog" backlog-item-id="0000000000010008chatroom_backlog">
           <content>
       Fix: Agent lacks knowledge of backlog listing
 
       Add backlog section to get-next-task
           </content>
-          <hint>Work on this item. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --backlog-item-id=0000000000010005chatroom_backlog</hint>
+          <hint>Work on this item. Verified end-to-end + PR ready: chatroom backlog mark-for-review --chatroom-id="000000000000010002chatroom_rooms" --role="builder" --backlog-item-id=0000000000010008chatroom_backlog</hint>
         </attachment>
       </attachments>
-      <message sender="user" message-id="000000000010006chatroom_messages">
+      <message sender="user" message-id="000000000010009chatroom_messages">
       <message-content>
       Can we add a backlog section to the available actions? Keep it concise and follow current format.
       </message-content>

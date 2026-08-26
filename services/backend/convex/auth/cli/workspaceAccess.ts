@@ -12,9 +12,9 @@
 
 import { ConvexError } from 'convex/values';
 
+import { requireMachineOwner, requireMachineWriteAccess } from './machineAccess';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../_generated/server';
-import { requireMachineOwner, requireMachineWriteAccess } from './machineAccess';
 
 /** Auth result for workspace-scoped operations. */
 export type WorkspaceAuth = {

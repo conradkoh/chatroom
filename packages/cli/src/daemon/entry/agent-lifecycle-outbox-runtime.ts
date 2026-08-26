@@ -1,3 +1,5 @@
+import type { SessionId } from './daemon-types.js';
+import type { BackendOps } from '../../infrastructure/deps/index.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
 import {
   agentLifecycleKey,
@@ -5,8 +7,6 @@ import {
   type AgentLifecycleOutboxRegistry,
 } from '../infrastructure/outbox/agent-lifecycle-outbox.js';
 import { createAgentLifecycleSend } from '../infrastructure/outbox/agent-lifecycle-send.js';
-import type { BackendOps } from '../../infrastructure/deps/index.js';
-import type { SessionId } from './daemon-types.js';
 
 export function createAgentLifecycleOutboxForSession(args: {
   sessionId: SessionId;

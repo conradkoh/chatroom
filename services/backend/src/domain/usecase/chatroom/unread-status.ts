@@ -24,9 +24,7 @@ export async function markChatroomUnread(
 ): Promise<void> {
   const existing = await ctx.db
     .query('chatroom_unreadStatus')
-    .withIndex('by_userId_chatroomId', (q: any) =>
-      q.eq('userId', ownerId).eq('chatroomId', chatroomId)
-    )
+    .withIndex('by_userId_chatroomId', (q) => q.eq('userId', ownerId).eq('chatroomId', chatroomId))
     .first();
 
   if (existing) {
@@ -38,7 +36,7 @@ export async function markChatroomUnread(
     if (isHandoff) {
       update.hasUnreadHandoff = true;
     }
-    await ctx.db.patch("chatroom_unreadStatus", existing._id, update);
+    await ctx.db.patch('chatroom_unreadStatus', existing._id, update);
   } else {
     await ctx.db.insert('chatroom_unreadStatus', {
       chatroomId,
@@ -59,13 +57,11 @@ export async function clearChatroomUnread(
 ): Promise<void> {
   const existing = await ctx.db
     .query('chatroom_unreadStatus')
-    .withIndex('by_userId_chatroomId', (q: any) =>
-      q.eq('userId', userId).eq('chatroomId', chatroomId)
-    )
+    .withIndex('by_userId_chatroomId', (q) => q.eq('userId', userId).eq('chatroomId', chatroomId))
     .first();
 
   if (existing) {
-    await ctx.db.patch("chatroom_unreadStatus", existing._id, {
+    await ctx.db.patch('chatroom_unreadStatus', existing._id, {
       hasUnread: false,
       hasUnreadHandoff: false,
     });

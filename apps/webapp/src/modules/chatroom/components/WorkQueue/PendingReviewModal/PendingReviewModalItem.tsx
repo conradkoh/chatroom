@@ -1,6 +1,6 @@
-import { WorkQueuePreviewText } from '../WorkQueuePreviewText';
 import type { Task } from '../types';
 import { formatRelativeTime } from '../utils';
+import { WorkQueuePreviewText } from '../WorkQueuePreviewText';
 
 export interface PendingReviewModalItemProps {
   task: Task;

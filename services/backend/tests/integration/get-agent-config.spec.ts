@@ -16,8 +16,9 @@ import {
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
+  updateSpawnedAgentInTest,
 } from '../helpers/integration';
-import { TEST_MODEL_OPENCODE, TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
+import { TEST_MODEL_OPENCODE } from '../helpers/test-models';
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
@@ -215,14 +216,7 @@ describe('getAgentConfig', () => {
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
     // Simulate daemon spawning agent (sets PID in machine config)
-    await t.mutation(api.machines.updateSpawnedAgent, {
-      sessionId,
-      machineId,
-      chatroomId,
-      role: 'builder',
-      pid: 12345,
-      model: TEST_MODEL_OPENCODE_LEGACY,
-    });
+    await updateSpawnedAgentInTest(sessionId, machineId, chatroomId, 'builder', 12345);
 
     // ===== ACTION =====
     const result = await t.run(async (ctx) => {

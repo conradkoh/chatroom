@@ -13,14 +13,12 @@ import { startTargetTeamAgentsOnSwitch } from './start-target-team-agents-on-swi
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey, teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
+import { createAgentStopCommand } from '../agent/create-agent-stop-command';
 import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
-import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
-import {
-  patchTeamAgentConfig,
-  projectAssignedTaskSnapshotsForMachines,
-} from '../machine/patch-team-agent-config';
-import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
+import type { AgentStopSelectedConfig } from '../agent/select-agent-stop-configs';
 import { upsertAgentViewMetadata } from '../chatroom/project-agent-view-metadata';
+import { projectAssignedTaskSnapshotsForMachines } from '../machine/patch-team-agent-config';
+import { reassignInFlightTasksOnTeamSwitch } from '../task/release-tasks-on-agent-exit';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -66,6 +64,26 @@ export async function updateTeam(
   let restoredCount = 0;
   let seededCount = 0;
 
+  const outgoingConfigs = existingTeamConfigs.filter(
+    (c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId)
+  );
+  const outgoingStoppable = outgoingConfigs.filter(
+    (c): c is AgentStopSelectedConfig =>
+      c.type === 'remote' &&
+      c.machineId != null &&
+      c.spawnedAgentPid != null &&
+      c.agentHarness != null
+  );
+  if (outgoingStoppable.length > 0) {
+    await createAgentStopCommand(ctx, {
+      chatroomId,
+      scope: { kind: 'chatroom' },
+      reason: 'platform.team_switch',
+      selectedConfigs: outgoingStoppable,
+    });
+    stoppedAgentCount = outgoingStoppable.length;
+  }
+
   await ctx.db.patch('chatroom_rooms', chatroomId, {
     teamId,
     teamName,
@@ -73,44 +91,23 @@ export async function updateTeam(
     teamEntryPoint,
   });
   const updatedRoom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (updatedRoom) await upsertAgentViewMetadata(ctx, { chatroomId, ownerId: updatedRoom.ownerId, teamId, teamName, teamRoles });
+  if (updatedRoom)
+    await upsertAgentViewMetadata(ctx, {
+      chatroomId,
+      ownerId: updatedRoom.ownerId,
+      teamId,
+      teamName,
+      teamRoles,
+    });
 
   await reassignInFlightTasksOnTeamSwitch(ctx, chatroomId);
 
   const affectedMachineIds = new Set<string>();
 
-  for (const config of existingTeamConfigs.filter(
-    (c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId)
-  )) {
+  for (const config of outgoingConfigs) {
     if (config.machineId) {
       affectedMachineIds.add(config.machineId);
     }
-    if (config.machineId && (config.desiredState === 'running' || config.spawnedAgentPid != null)) {
-      await enqueueMachineCommand(ctx, {
-        machineId: config.machineId,
-        now,
-        command: {
-          type: 'agent.requestStop',
-          chatroomId,
-          role: config.role,
-          reason: 'platform.team_switch',
-          pid: config.spawnedAgentPid ?? undefined,
-        },
-      });
-      stoppedAgentCount++;
-
-      await patchTeamAgentConfig(
-        ctx,
-        config._id,
-        {
-          spawnedAgentPid: undefined,
-          spawnedAt: undefined,
-          desiredState: 'stopped',
-        },
-        { skipProject: true }
-      );
-    }
-
     preservedCount++;
   }
 
@@ -148,6 +145,8 @@ export async function updateTeam(
           createdAt: now,
           updatedAt: now,
           desiredState: 'stopped',
+          enabled: true,
+          lifecycleRevision: 0,
           ...seedFields,
         });
         affectedMachineIds.add(seedFields.machineId);

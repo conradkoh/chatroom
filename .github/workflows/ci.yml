@@ -30,8 +30,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm turbo run typecheck --filter=chatroom-cli
+      - name: Typecheck changed workspaces
+        run: pnpm turbo run typecheck --filter=chatroom-cli --filter=@workspace/backend --filter=@workspace/webapp
 
-      - name: Test
+      - name: Test CLI (full)
         run: pnpm turbo run test --filter=chatroom-cli
+
+      - name: Test backend stop suites
+        run: >
+          pnpm --dir services/backend exec vitest run
+          src/domain/entities/agent-stop-command.spec.ts
+          src/domain/usecase/agent/agent-stop-reaper.spec.ts
+          src/domain/usecase/agent/begin-machine-stop-execution.spec.ts
+          src/domain/usecase/agent/complete-machine-stop-execution.spec.ts
+          src/domain/usecase/agent/create-agent-stop-command.spec.ts
+          src/domain/usecase/agent/derive-agent-stop-state.spec.ts
+          src/domain/usecase/agent/reconcile-unreported-stop-targets.spec.ts
+          src/domain/usecase/agent/rollup-agent-stop-command.spec.ts
+          src/domain/usecase/agent/supersede-inflight-agent-stop-commands.spec.ts
+
+      - name: Test webapp stop suites
+        run: >
+          pnpm --dir apps/webapp exec vitest run
+          src/modules/chatroom/hooks/useAgentStop.test.ts
+          src/modules/chatroom/components/AgentControls.stop.test.tsx
+          src/modules/chatroom/components/AgentPanel/RemoteAgentQuickActions.test.tsx
+          src/modules/chatroom/components/ChatroomSidebar.test.tsx

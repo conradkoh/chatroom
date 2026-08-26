@@ -2,11 +2,6 @@ import { EventEmitter } from 'node:events';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { ProcessManager } from './process-manager.js';
-import { runCommandOrThrow } from './run-command.js';
-import { loadSavedRuntimeConfig } from './saved-runtime-config.js';
-import type { ConvexBackupStatus } from '../shared/protocol.js';
-
 import {
   backupDir,
   CONVEX_BACKEND_CWD,
@@ -15,6 +10,10 @@ import {
   formatBackupFilename,
   listBackupEntries,
 } from './convex-backup.js';
+import type { ProcessManager } from './process-manager.js';
+import { runCommandOrThrow } from './run-command.js';
+import { loadSavedRuntimeConfig } from './saved-runtime-config.js';
+import type { ConvexBackupStatus } from '../shared/protocol.js';
 
 type Events = { update: [ConvexBackupStatus] };
 

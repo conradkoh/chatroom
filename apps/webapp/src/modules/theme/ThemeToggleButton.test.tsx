@@ -6,7 +6,7 @@ import { ThemeToggleButton } from './ThemeToggleButton';
 
 const mockSetTheme = vi.fn();
 let mockTheme: string | null = 'light';
-let mockIsThemeReady = true;
+const mockIsThemeReady = true;
 
 vi.mock('./ThemeProvider', () => ({
   useTheme: () => ({

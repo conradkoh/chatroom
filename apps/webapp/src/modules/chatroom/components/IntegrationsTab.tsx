@@ -9,6 +9,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { FunctionReturnType } from 'convex/server';
 import {
   useSessionMutation,
   useSessionQuery,
@@ -36,6 +37,17 @@ import { ChatroomDestructiveTextButton } from './ui/ChatroomDestructiveTextButto
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+
+type IntegrationListItem = FunctionReturnType<typeof api.integrations.list>[number];
+
+function integrationErrorMessage(err: unknown): string {
+  if (err && typeof err === 'object' && 'data' in err) {
+    const data = (err as { data?: { message?: string } }).data;
+    if (data?.message) return data.message;
+  }
+  if (err instanceof Error) return err.message;
+  return 'Unknown error';
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -140,7 +152,7 @@ const IntegrationCard = memo(function IntegrationCard({
   integration,
   chatroomId,
 }: {
-  integration: any;
+  integration: IntegrationListItem;
   chatroomId: string;
 }) {
   const updateIntegration = useSessionMutation(api.integrations.update);
@@ -196,8 +208,8 @@ const IntegrationCard = memo(function IntegrationCard({
         setShowTestDialog(false);
         setTestSuccess(false);
       }, 2000);
-    } catch (err: any) {
-      setTestError(err?.data?.message ?? err?.message ?? 'Failed to send message');
+    } catch (err: unknown) {
+      setTestError(integrationErrorMessage(err));
     } finally {
       setIsSending(false);
     }
@@ -399,8 +411,8 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
       const info = await validateBotToken({ botToken: botToken.trim() });
       setBotInfo(info);
       setStep('enter-chat-id');
-    } catch (err: any) {
-      setError(err?.data?.message ?? err?.message ?? 'Invalid bot token. Check with @BotFather.');
+    } catch (err: unknown) {
+      setError(integrationErrorMessage(err));
     } finally {
       setIsValidating(false);
     }
@@ -424,12 +436,12 @@ const TelegramSetupWizard = memo(function TelegramSetupWizard({
       });
 
       setStep('done');
-    } catch (err: any) {
-      setError(err?.data?.message ?? err?.message ?? 'Failed to create integration');
+    } catch (err: unknown) {
+      setError(integrationErrorMessage(err));
     } finally {
       setIsConnecting(false);
     }
-  }, [botToken, chatroomId, createIntegration]);
+  }, [botToken, chatId, chatroomId, createIntegration]);
 
   return (
     <div className="border border-chatroom-border rounded-none bg-chatroom-bg-secondary overflow-hidden">

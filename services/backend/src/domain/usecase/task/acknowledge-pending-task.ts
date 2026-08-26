@@ -1,8 +1,8 @@
 import { transitionTask } from './transition-task';
-import { syncMessageReadModel } from '../message/message-read-model';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { transitionAgentStatus } from '../agent/transition-agent-status';
+import { syncMessageReadModel } from '../message/message-read-model';
 
 /** Transitions a pending task to acknowledged and emits task.acknowledged for the role. */
 export async function acknowledgePendingTask(

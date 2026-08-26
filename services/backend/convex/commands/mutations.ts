@@ -3,6 +3,7 @@ import { ConvexError } from 'convex/values';
 import { upsertRunTail, type TailPayload } from './tail';
 import type { CommandRunId } from './types';
 import { MAX_OUTPUT_CHUNK_BYTES, MAX_OUTPUT_CHUNKS_PER_RUN, MAX_TAIL_LINES_V2 } from './types';
+import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
 export async function handleRunCommand(
@@ -12,7 +13,7 @@ export async function handleRunCommand(
     workingDir: string;
     commandName: string;
     script: string;
-    requestedBy: any;
+    requestedBy: Id<'users'>;
   }
 ) {
   const { machineId, workingDir, commandName, script, requestedBy } = args;

@@ -32,6 +32,4 @@ export interface ContextTimelineEvent extends TimelineEventBase {
 }
 
 export type TimelineEvent =
-  | UserMessageTimelineEvent
-  | TeamMessageTimelineEvent
-  | ContextTimelineEvent;
+  UserMessageTimelineEvent | TeamMessageTimelineEvent | ContextTimelineEvent;

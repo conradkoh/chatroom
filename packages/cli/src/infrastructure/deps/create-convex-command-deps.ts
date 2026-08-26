@@ -1,6 +1,6 @@
+import type { BackendOps, SessionOps } from './index.js';
 import { getSessionId, getOtherSessionUrls } from '../auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../convex/client.js';
-import type { BackendOps, SessionOps } from './index.js';
 
 export type ConvexCommandDeps = {
   backend: BackendOps;

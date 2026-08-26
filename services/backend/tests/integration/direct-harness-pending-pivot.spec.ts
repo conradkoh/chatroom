@@ -10,7 +10,6 @@ import { describe, expect, test, beforeEach, afterEach } from 'vitest';
 
 import { featureFlags } from '../../config/featureFlags';
 import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { setupWorkspaceForSession, createSession } from './direct-harness/fixtures';
 
@@ -167,7 +166,7 @@ describe('daemon.queue.dequeueNext — promotes to turn row', () => {
 describe('pendingForMachine — reads turns', () => {
   test('returns user turn content and turnSeq as wire seq', async () => {
     const { sessionId, machineId, workspaceId } = await setupWorkspaceForSession('pp-pending');
-    const { sessionId: rowId } = await createSession(sessionId, workspaceId);
+    const { sessionId: _rowId } = await createSession(sessionId, workspaceId);
 
     const result = await t.query(api.daemon.directHarness.messages.pendingForMachine, {
       sessionId,

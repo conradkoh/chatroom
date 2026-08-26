@@ -65,7 +65,7 @@ export async function getAgentConfigForStart(
   for (const m of userMachines) {
     const machineStatus = await ctx.db
       .query('chatroom_machineStatus')
-      .withIndex('by_machineId', (q: any) => q.eq('machineId', m.machineId))
+      .withIndex('by_machineId', (q) => q.eq('machineId', m.machineId))
       .first();
     if (machineStatus?.status === 'online') {
       connectedMachines.push({

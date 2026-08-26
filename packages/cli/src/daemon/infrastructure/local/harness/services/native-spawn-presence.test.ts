@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   emitNativeWaitingAfterSpawn,
-  wireThrottledTokenActivityOnOutput,
+  wireTokenActivityReporting,
 } from './native-spawn-presence.js';
+import { createHarnessActivityEmitter } from '../../../agent-process-manager/harness-activity-emitter.js';
 
 function mockSpawnResult() {
   const callbacks: (() => void)[] = [];
@@ -33,15 +34,18 @@ describe('emitNativeWaitingAfterSpawn', () => {
     expect(args.action).toBe('native:waiting');
   });
 
-  it('does not call participants.join for daemon worker (enhancer)', async () => {
-    const mutation = vi.fn();
+  it('calls participants.join for enhancer on native harness', async () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
     const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'enhancer' };
 
     const result = await emitNativeWaitingAfterSpawn(ctx, 'opencode-sdk');
 
-    expect(result).toBe(false);
-    expect(mutation).not.toHaveBeenCalled();
+    expect(result).toBe(true);
+    expect(mutation).toHaveBeenCalledTimes(1);
+    const args = mutation.mock.calls[0][1] as Record<string, unknown>;
+    expect(args.role).toBe('enhancer');
+    expect(args.action).toBe('native:waiting');
   });
 
   it('does not call participants.join for non-native harness', async () => {
@@ -68,7 +72,7 @@ describe('emitNativeWaitingAfterSpawn', () => {
   });
 });
 
-describe('wireThrottledTokenActivityOnOutput', () => {
+describe('wireTokenActivityReporting', () => {
   it('fires updateTokenActivity for team agent', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
@@ -83,7 +87,7 @@ describe('wireThrottledTokenActivityOnOutput', () => {
       throttleMs: 30_000,
     };
 
-    wireThrottledTokenActivityOnOutput(ctx);
+    wireTokenActivityReporting(ctx);
     spawnResult._fireOutput();
 
     expect(mutation).toHaveBeenCalledTimes(1);
@@ -91,8 +95,8 @@ describe('wireThrottledTokenActivityOnOutput', () => {
     expect(args.role).toBe('builder');
   });
 
-  it('does nothing for daemon worker (enhancer)', async () => {
-    const mutation = vi.fn();
+  it('fires updateTokenActivity for enhancer team role', async () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
     const spawnResult = mockSpawnResult();
     const ctx = {
@@ -101,12 +105,16 @@ describe('wireThrottledTokenActivityOnOutput', () => {
       chatroomId: 'c',
       role: 'enhancer',
       spawnResult,
+      now: () => 1000,
+      throttleMs: 30_000,
     };
 
-    wireThrottledTokenActivityOnOutput(ctx);
+    wireTokenActivityReporting(ctx);
     spawnResult._fireOutput();
 
-    expect(mutation).not.toHaveBeenCalled();
+    expect(mutation).toHaveBeenCalledTimes(1);
+    const args = mutation.mock.calls[0][1] as Record<string, unknown>;
+    expect(args.role).toBe('enhancer');
   });
 
   it('does not fire updateTokenActivity again within throttle window', async () => {
@@ -124,7 +132,7 @@ describe('wireThrottledTokenActivityOnOutput', () => {
       throttleMs: 30_000,
     };
 
-    wireThrottledTokenActivityOnOutput(ctx);
+    wireTokenActivityReporting(ctx);
     spawnResult._fireOutput(); // first — fires
     clock = 15000;
     spawnResult._fireOutput(); // within 30s — should not fire
@@ -140,7 +148,7 @@ describe('wireThrottledTokenActivityOnOutput', () => {
     const spawnResult = {} as any; // no onOutput
 
     expect(() => {
-      wireThrottledTokenActivityOnOutput({
+      wireTokenActivityReporting({
         backend: backend as any,
         sessionId: 's',
         chatroomId: 'c',
@@ -148,5 +156,56 @@ describe('wireThrottledTokenActivityOnOutput', () => {
         spawnResult,
       });
     }).not.toThrow();
+  });
+
+  it('fires exactly one mutation per emitted turn activity', () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    const emitter = createHarnessActivityEmitter();
+    wireTokenActivityReporting({
+      backend: { mutation } as any,
+      sessionId: 's',
+      chatroomId: 'c',
+      role: 'builder',
+      spawnResult: mockSpawnResult(),
+      activityEmitter: emitter,
+    });
+
+    emitter.emit('busy');
+
+    expect(mutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires a second mutation for a second emitted turn activity without throttle', () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    const emitter = createHarnessActivityEmitter();
+    wireTokenActivityReporting({
+      backend: { mutation } as any,
+      sessionId: 's',
+      chatroomId: 'c',
+      role: 'builder',
+      spawnResult: mockSpawnResult(),
+      activityEmitter: emitter,
+    });
+
+    emitter.emit('busy');
+    emitter.emit('busy');
+
+    expect(mutation).toHaveBeenCalledTimes(2);
+  });
+
+  it('subscribes to the typed emitter only once', () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    const emitter = createHarnessActivityEmitter();
+    const onActivity = vi.spyOn(emitter, 'onActivity');
+    wireTokenActivityReporting({
+      backend: { mutation } as any,
+      sessionId: 's',
+      chatroomId: 'c',
+      role: 'builder',
+      spawnResult: mockSpawnResult(),
+      activityEmitter: emitter,
+    });
+
+    expect(onActivity).toHaveBeenCalledTimes(1);
   });
 });

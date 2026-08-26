@@ -3,6 +3,7 @@ export const DAEMON_COMMAND_EVENT_TYPES = [
   'agent.requestStart',
   'agent.restart',
   'agent.requestStop',
+  'agent.stopScope',
   'daemon.ping',
   'daemon.gitRefresh',
   'daemon.localAction',

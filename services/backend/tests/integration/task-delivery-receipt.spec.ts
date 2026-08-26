@@ -9,8 +9,8 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import { t } from '../../test.setup';
 import { recordTaskDelivery } from '../../src/domain/usecase/task/record-task-delivery';
+import { t } from '../../test.setup';
 import { createDuoTeamChatroom, createTestSession, joinParticipant } from '../helpers/integration';
 
 async function seedAcknowledgedTask(

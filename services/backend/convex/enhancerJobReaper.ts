@@ -30,7 +30,7 @@ export const purgeTerminalEnhancerJobs = internalMutation({
     }
 
     if (deleted > 0) {
-      console.log(`[EnhancerReaper] Purged ${deleted} terminal enhancer job(s)`);
+      console.warn(`[EnhancerReaper] Purged ${deleted} terminal enhancer job(s)`);
     }
 
     if (deleted >= MAX_PATCHES_PER_MUTATION) {

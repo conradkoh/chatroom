@@ -64,11 +64,10 @@ async function getMockClient() {
 // Setup
 // ---------------------------------------------------------------------------
 
- 
 let exitSpy: any;
- 
+
 let logSpy: any;
- 
+
 let errorSpy: any;
 
 beforeEach(() => {

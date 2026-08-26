@@ -1,10 +1,10 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentRoleView } from '../../hooks/useAgentPanelData';
 import { Loader2, Play } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
+import type { AgentRoleView } from '../../hooks/useAgentPanelData';
 import type { MachineInfo, AgentConfig, SendCommandFn, AgentHarness } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 import { getFailedAgentRoles } from '../../utils/agentBulkStart';
@@ -111,7 +111,9 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
       (role) => {
         const config = roleConfigs.get(role.toLowerCase());
         if (!config) return null;
-        const persistedConfig = agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase());
+        const persistedConfig = agentConfigs.find(
+          (c) => c.role.toLowerCase() === role.toLowerCase()
+        );
         return {
           machineId,
           chatroomId: chatroomIdTyped,

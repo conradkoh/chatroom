@@ -9,7 +9,7 @@ import {
 } from './machine-assigned-task-snapshot-sync';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { deleteStaleTeamAgentConfigs } from '../../../../convex/utils/teamRoleKey';
+import { deleteStaleTeamAgentConfigs } from '../agent/delete-stale-team-agent-configs';
 import { projectAgentOperationalStatusForRole } from '../agent/project-agent-operational-status';
 
 type TeamAgentConfigPatch = Partial<
@@ -101,6 +101,8 @@ export async function upsertTeamAgentConfigByTeamRoleKey(
   await deleteStaleTeamAgentConfigs(ctx, args.teamRoleKey);
   const configId = await ctx.db.insert('chatroom_teamAgentConfigs', {
     ...fields,
+    enabled: fields.enabled ?? true,
+    lifecycleRevision: fields.lifecycleRevision ?? 0,
     createdAt: args.createdAt ?? now,
   });
   return { configId, wasInsert: true };

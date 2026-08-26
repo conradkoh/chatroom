@@ -1,7 +1,7 @@
 'use client';
+/* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-adjust-state-on-prop-change, react-you-might-not-need-an-effect/no-chain-state-updates, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-derived-state */
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentRoleView } from '../hooks/useAgentPanelData';
 import {
   Play,
   Square,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
+import type { AgentRoleView } from '../hooks/useAgentPanelData';
 import { MachineConfigQuickPick } from './AgentPanel/MachineConfigQuickPick';
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { RemoteAgentAdvancedSettings } from './AgentPanel/RemoteAgentAdvancedSettings';
@@ -50,6 +51,7 @@ import { useMachineConfigFavorites } from '../features/machine-config/hooks/useM
 import { useMachineConfigUsage } from '../features/machine-config/hooks/useMachineConfigUsage';
 import { computeRecommendedMachineConfigs } from '../features/machine-config/lib/computeRecommendedMachineConfigs';
 import { buildMachineConfigScopeKey } from '../features/machine-config/lib/machineConfigScopeKey';
+import { isActiveAgentStopState, useAgentStop } from '../hooks/useAgentStop';
 import { useTeamAgentBehaviorSettings } from '../hooks/useTeamAgentBehaviorSettings';
 import { en } from '../lang/en';
 import type {
@@ -273,6 +275,7 @@ export function useAgentControls({
   lockedMachineId?: string;
   lockedWorkingDir?: string;
 }) {
+  const { requestAgentStop } = useAgentStop();
   // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
   const initialTeamConfigHarnessRef = useRef(teamConfigHarness);
   const previousTeamIdRef = useRef(teamId);
@@ -291,7 +294,7 @@ export function useAgentControls({
   });
   const { seedFromTeamConfig, effectiveWantResume } = teamBehavior;
   const [isStarting, setIsStarting] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
+  const [isStopSubmitting, setIsStopSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [rehomeConfirmOpen, setRehomeConfirmOpen] = useState(false);
@@ -487,6 +490,9 @@ export function useAgentControls({
   ]);
 
   const isAgentRunning = !!displayAgentConfig;
+  const stopState = agentRoleView?.stopState ?? 'idle';
+  const isStopping = isStopSubmitting || isActiveAgentStopState(stopState);
+  const stopFailed = stopState === 'failed';
   const isBusy = isStarting || isStopping;
   const hasModels = availableModelsForHarness.length > 0;
   const canStart =
@@ -585,22 +591,20 @@ export function useAgentControls({
 
   const handleStopAgent = useCallback(async () => {
     if (!displayAgentConfig) return;
-    setIsStopping(true);
     setError(null);
     try {
-      await sendCommand({
+      setIsStopSubmitting(true);
+      await requestAgentStop({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
         machineId: displayAgentConfig.machineId,
-        type: 'stop-agent',
-        payload: { chatroomId: chatroomId as Id<'chatroom_rooms'>, role },
+        role,
       });
-      setSuccess('Stop command sent!');
-      setTimeout(() => setSuccess(null), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to stop agent');
     } finally {
-      setIsStopping(false);
+      setIsStopSubmitting(false);
     }
-  }, [displayAgentConfig, sendCommand, chatroomId, role]);
+  }, [displayAgentConfig, requestAgentStop, chatroomId, role]);
 
   const handleRestartAgent = useCallback(async () => {
     if (!displayAgentConfig) return;
@@ -682,6 +686,8 @@ export function useAgentControls({
     teamBehavior,
     isStarting,
     isStopping,
+    stopFailed,
+    stopState,
     error,
     success,
     roleConfigs,
@@ -746,6 +752,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     workingDir,
     isStarting,
     isStopping,
+    stopFailed,
     availableHarnessesForMachine,
     harnessVersionsForMachine,
     availableModelsForHarness,
@@ -1211,6 +1218,8 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                         handleStopAgent();
                       }}
                       disabled={!canStop}
+                      aria-busy={isStopping}
+                      aria-label={stopFailed ? 'Retry stopping agent' : 'Stop Agent'}
                       className={`w-7 h-7 flex items-center justify-center transition-all ${
                         canStop
                           ? 'text-chatroom-status-error hover:bg-chatroom-status-error/10'
@@ -1267,6 +1276,22 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                 )}
               </div>
             )}
+          </div>
+
+          <div className="min-h-4 text-[10px]" aria-live="polite">
+            {controls.error ? (
+              <p role="alert" className="text-chatroom-status-error">
+                {controls.error}
+              </p>
+            ) : stopFailed ? (
+              <p role="alert" className="text-chatroom-status-error">
+                Stop failed. Try again.
+              </p>
+            ) : isStopping ? (
+              <p role="status" className="text-chatroom-text-secondary">
+                Stopping…
+              </p>
+            ) : null}
           </div>
 
           {displayMachineId && currentMachineConfigEntry && !currentMachineConfigIsFavorite && (

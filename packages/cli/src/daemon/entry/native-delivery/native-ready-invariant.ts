@@ -2,9 +2,7 @@ import { isNativeHarness } from '@workspace/backend/src/domain/entities/harness/
 
 import { getNativeDeliverySession } from './native-delivery-session-registry.js';
 import type { AssignedTaskSnapshotView } from '../../../daemon/domain/entities/assigned-task.js';
-import {
-  isDeliverableTaskStatus,
-} from '../../../daemon/domain/entities/assigned-task.js';
+import { isDeliverableTaskStatus } from '../../../daemon/domain/entities/assigned-task.js';
 import { isSlotRunning, isTurnPhaseIdle } from '../../../daemon/domain/usecase/check-agent-slot.js';
 import { isOperationalDesiredRunning } from '../../infrastructure/agent-operational/agent-operational-read-model.js';
 import type { AgentSlot } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
@@ -27,7 +25,10 @@ export function explainAgentReadyForNativeDeliveryBlock(
   if (!isNativeHarness(agentConfig.agentHarness)) {
     return `not_native_harness (harness=${agentConfig.agentHarness})`;
   }
-  const operational = getNativeDeliverySession()?.agentOperationalReadModel?.get(task.chatroomId, agentConfig.role);
+  const operational = getNativeDeliverySession()?.agentOperationalReadModel?.get(
+    task.chatroomId,
+    agentConfig.role
+  );
   if (!isOperationalDesiredRunning(operational)) {
     return `operational_state_not_running (state=${operational?.operationalState ?? 'missing'})`;
   }

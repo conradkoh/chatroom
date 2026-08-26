@@ -23,20 +23,16 @@ export function isEnhancerConfigActive(
 ): config is ActiveEnhancerConfig {
   return Boolean(
     config?.enabled === true &&
-      config.agentHarness &&
-      config.model.trim() &&
-      config.machineId.trim()
+    config.agentHarness &&
+    config.model.trim() &&
+    config.machineId.trim()
   );
 }
 
-export function hasEnhancerConfigFields(
-  config: EnhancerConfig | null
-): config is EnhancerConfig {
+export function hasEnhancerConfigFields(config: EnhancerConfig | null): config is EnhancerConfig {
   return Boolean(config?.agentHarness && config.model.trim() && config.machineId.trim());
 }
 
-export function toActiveEnhancerConfig(
-  config: EnhancerConfig | null
-): ActiveEnhancerConfig | null {
+export function toActiveEnhancerConfig(config: EnhancerConfig | null): ActiveEnhancerConfig | null {
   return isEnhancerConfigActive(config) ? config : null;
 }

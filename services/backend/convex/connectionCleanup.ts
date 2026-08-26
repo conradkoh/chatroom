@@ -28,7 +28,7 @@ export const cleanupExpiredConnectionCloseRequests = internalMutation({
     }
 
     if (deleted > 0) {
-      console.log(`[ConnectionCleanup] Deleted ${deleted} expired connection close requests`);
+      console.warn(`[ConnectionCleanup] Deleted ${deleted} expired connection close requests`);
     }
 
     // Self-reschedule if we hit the batch limit (more rows likely remain).

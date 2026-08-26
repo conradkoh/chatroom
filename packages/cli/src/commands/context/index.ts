@@ -12,8 +12,8 @@
 import { getContextViewTemplate } from '@workspace/backend/prompts/cli/context/context-template.js';
 import { serializeMessage } from '@workspace/backend/src/domain/usecase/message/serialize-message';
 import { toSerializableMessage } from '@workspace/backend/src/domain/usecase/message/to-serializable-message';
-import { Effect } from 'effect';
 import type { SessionId } from 'convex-helpers/server/sessions';
+import { Effect } from 'effect';
 
 import type { ContextDeps } from './deps.js';
 import { formatNewContextError } from './format-new-context-error.js';

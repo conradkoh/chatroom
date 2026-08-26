@@ -1,5 +1,5 @@
-import { stripHandoffXmlTags } from './stripHandoffXmlTags';
 import { normalizeChatroomMarkdownContent } from './normalizeChatroomMarkdownContent';
+import { stripHandoffXmlTags } from './stripHandoffXmlTags';
 
 export type WorkQueuePreviewSegment = { text: string; bold?: boolean };
 
@@ -30,7 +30,7 @@ function parseInlineSegments(
   opts?: { bold?: boolean }
 ): void {
   // Process bold markers
-  let parts = text.split(INLINE_BOLD_RE);
+  const parts = text.split(INLINE_BOLD_RE);
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
     if (!part) continue;

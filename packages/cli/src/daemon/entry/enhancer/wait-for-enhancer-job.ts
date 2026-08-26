@@ -5,7 +5,7 @@ import type { EnhancerLogWriter } from './enhancer-log.js';
 import { writeEnhancerLog } from './enhancer-log.js';
 import { subscribeToEnhancerJobOutcome } from './job-outcome-subscription.js';
 
-export type EnhancerJobResolution = 'complete' | 'failed';
+export type EnhancerJobResolution = 'complete' | 'failed' | 'aborted';
 
 export interface WaitForEnhancerJobParams {
   sessionId: string;
@@ -19,12 +19,14 @@ export interface WaitForEnhancerJobParams {
   onFailure: (error: string, forceTerminal?: boolean) => Promise<void>;
   /** Called with accumulated assistant text when agent_end fires without complete. Should call complete mutation. */
   onSalvageComplete?: (content: string) => Promise<void>;
+  signal?: AbortSignal;
 }
 
 export async function waitForEnhancerJobResolution(
   params: WaitForEnhancerJobParams
 ): Promise<EnhancerJobResolution> {
-  const { sessionId, chatroomId, jobId, wsClient, onFailure, onSalvageComplete, log } = params;
+  const { sessionId, chatroomId, jobId, wsClient, onFailure, onSalvageComplete, log, signal } =
+    params;
   const writeLog = (message: string) => (log ? log.write(message) : writeEnhancerLog(message));
 
   let outcome: EnhancerJobResolution | null = null;
@@ -47,6 +49,10 @@ export async function waitForEnhancerJobResolution(
     resolveWait?.();
     resolveWait = null;
   };
+
+  const onAbort = () => finish('aborted');
+  if (signal?.aborted) onAbort();
+  else signal?.addEventListener('abort', onAbort, { once: true });
 
   const failAfterAgentEnd = (): void => {
     writeLog('agent_end: turn ended without complete — failing terminal');
@@ -110,6 +116,7 @@ export async function waitForEnhancerJobResolution(
 
   if (agentEndTimer) clearTimeout(agentEndTimer);
   subscription.stop();
+  signal?.removeEventListener('abort', onAbort);
 
   return outcome ?? 'failed';
 }

@@ -1,6 +1,6 @@
 import type { CommandItem } from './types';
-import { sortCommandsByFrecency } from '../../lib/sortCommandsByFrecency';
 import { partitionCommandsByBlacklist } from '../../lib/partitionCommandsByBlacklist';
+import { sortCommandsByFrecency } from '../../lib/sortCommandsByFrecency';
 
 type FrecencyScores = Map<string, number>;
 

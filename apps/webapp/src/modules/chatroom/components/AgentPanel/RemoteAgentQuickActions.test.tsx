@@ -80,6 +80,22 @@ describe('RemoteAgentQuickActions', () => {
     expect(screen.getByTitle('Start agents')).toBeDisabled();
   });
 
+  test('stopping shows spinner and disables conflicting actions', () => {
+    render(
+      <RemoteAgentQuickActions
+        hasRunningAgents
+        isStopping
+        onStart={vi.fn()}
+        onStop={vi.fn()}
+        onRestart={vi.fn()}
+      />
+    );
+    expect(screen.getByTitle('Stop agents')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByTitle('Stop agents')).toBeDisabled();
+    expect(screen.getByTitle('Start agents')).toBeDisabled();
+    expect(screen.getByTitle('Restart agents')).toBeDisabled();
+  });
+
   test('click handlers fire on enabled buttons', () => {
     const onStart = vi.fn();
     const onStop = vi.fn();

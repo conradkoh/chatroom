@@ -2,10 +2,10 @@ import { ConnectionStatus } from '@/components/layout/ConnectionStatus';
 import { DaemonAppShell } from '@/components/layout/DaemonAppShell';
 import { DaemonHeader } from '@/components/layout/DaemonHeader';
 import { DaemonNav, NavTab } from '@/components/layout/DaemonNav';
-import { useDaemonHealth } from '@/hooks/use-daemon-health';
 import { useAppUrl } from '@/hooks/use-app-url';
-import { LogsPage } from '@/modules/logs/LogsPage';
+import { useDaemonHealth } from '@/hooks/use-daemon-health';
 import { EventStreamPage } from '@/modules/event-stream/EventStreamPage';
+import { LogsPage } from '@/modules/logs/LogsPage';
 
 export function App() {
   const { activeTab, setActiveTab } = useAppUrl();

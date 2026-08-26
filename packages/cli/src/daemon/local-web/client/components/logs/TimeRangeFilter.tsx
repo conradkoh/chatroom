@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useState } from 'react';
+
 import { PickerOptionRow } from '@/components/picker/PickerOptionRow';
 import {
   filterSelectTriggerClassName,
   filterSelectTriggerChevronClassName,
 } from '@/components/picker/pickerTriggerStyles';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   DEFAULT_LOG_TIME_PRESET,
   fromDatetimeLocalValue,
@@ -17,6 +18,7 @@ import {
   toDatetimeLocalValue,
 } from '@/lib/log-time-range';
 import { cn } from '@/lib/utils';
+
 const PRESETS: Exclude<LogTimePreset, 'custom'>[] = ['1h', '3h', '1d'];
 type Props = {
   value: LogTimeFilterValues;
@@ -24,27 +26,26 @@ type Props = {
   disabled?: boolean;
 };
 export function TimeRangeFilter({ value, onChange, disabled }: Props) {
-  const [open, setOpen] = useState(false),
-    [from, setFrom] = useState(''),
-    [to, setTo] = useState('');
+  const [open, setOpen] = useState(false);
+  const [draftFrom, setDraftFrom] = useState<string | null>(null);
+  const [draftTo, setDraftTo] = useState<string | null>(null);
   const p = value.timeRange ?? DEFAULT_LOG_TIME_PRESET;
-  useEffect(() => {
-    if (p === 'custom' && value.fromMs !== undefined && value.toMs !== undefined) {
-      setFrom(toDatetimeLocalValue(value.fromMs));
-      setTo(toDatetimeLocalValue(value.toMs));
-    }
-  }, [p, value.fromMs, value.toMs]);
+  const from =
+    draftFrom ??
+    (p === 'custom' && value.fromMs !== undefined ? toDatetimeLocalValue(value.fromMs) : '');
+  const to =
+    draftTo ?? (p === 'custom' && value.toMs !== undefined ? toDatetimeLocalValue(value.toMs) : '');
   const startCustom = () => {
-    const now = Date.now(),
-      f = value.fromMs ?? now - LOG_TIME_PRESET_MS['1h'],
-      t = value.toMs ?? now;
-    setFrom(toDatetimeLocalValue(f));
-    setTo(toDatetimeLocalValue(t));
+    const now = Date.now();
+    const f = value.fromMs ?? now - LOG_TIME_PRESET_MS['1h'];
+    const t = value.toMs ?? now;
+    setDraftFrom(toDatetimeLocalValue(f));
+    setDraftTo(toDatetimeLocalValue(t));
     onChange({ timeRange: 'custom', fromMs: f, toMs: t });
   };
   const apply = () => {
-    const f = fromDatetimeLocalValue(from),
-      t = fromDatetimeLocalValue(to);
+    const f = fromDatetimeLocalValue(from);
+    const t = fromDatetimeLocalValue(to);
     if (f === undefined || t === undefined || f > t) return;
     onChange({ timeRange: 'custom', fromMs: f, toMs: t });
     setOpen(false);
@@ -72,6 +73,8 @@ export function TimeRangeFilter({ value, onChange, disabled }: Props) {
               key={x}
               selected={p === x}
               onSelect={() => {
+                setDraftFrom(null);
+                setDraftTo(null);
                 onChange({ timeRange: x, fromMs: undefined, toMs: undefined });
                 setOpen(false);
               }}
@@ -89,7 +92,7 @@ export function TimeRangeFilter({ value, onChange, disabled }: Props) {
                 <input
                   type="datetime-local"
                   value={from}
-                  onChange={(e) => setFrom(e.target.value)}
+                  onChange={(e) => setDraftFrom(e.target.value)}
                   className="rounded-none border border-chatroom-border bg-chatroom-bg-secondary px-2 py-1 text-xs text-chatroom-text-primary"
                 />
               </label>
@@ -98,7 +101,7 @@ export function TimeRangeFilter({ value, onChange, disabled }: Props) {
                 <input
                   type="datetime-local"
                   value={to}
-                  onChange={(e) => setTo(e.target.value)}
+                  onChange={(e) => setDraftTo(e.target.value)}
                   className="rounded-none border border-chatroom-border bg-chatroom-bg-secondary px-2 py-1 text-xs text-chatroom-text-primary"
                 />
               </label>

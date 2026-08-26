@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { decodeXmlText } from './decodeXmlText';
 
 describe('decodeXmlText', () => {

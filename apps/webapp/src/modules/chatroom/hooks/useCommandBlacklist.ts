@@ -2,13 +2,13 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
-import { getCommandBlacklistKey } from '../lib/commandBlacklistKey';
 import type { CommandItem } from '../components/CommandPalette/types';
 import {
   getCommandBlacklistStore,
   subscribeCommandBlacklist,
   getCommandBlacklistRevision,
 } from '../features/run-command/stores/commandBlacklistStore';
+import { getCommandBlacklistKey } from '../lib/commandBlacklistKey';
 
 export function useCommandBlacklist() {
   const store = useMemo(() => getCommandBlacklistStore(), []);

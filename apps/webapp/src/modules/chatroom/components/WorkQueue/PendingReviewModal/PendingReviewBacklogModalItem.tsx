@@ -1,6 +1,6 @@
 import { type BacklogItem, getScoringBadge } from '../../backlog';
-import { WorkQueuePreviewText } from '../WorkQueuePreviewText';
 import { formatRelativeTime } from '../utils';
+import { WorkQueuePreviewText } from '../WorkQueuePreviewText';
 
 export interface PendingReviewBacklogModalItemProps {
   item: BacklogItem;

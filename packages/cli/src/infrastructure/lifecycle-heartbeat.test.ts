@@ -24,8 +24,8 @@ describe('sendLifecycleHeartbeat', () => {
     expect(args.action).toBe('some-action');
   });
 
-  it('does not call participants.join for daemon worker (enhancer)', async () => {
-    const mutation = vi.fn();
+  it('calls participants.join for ephemeral enhancer team role', async () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
     const client = { mutation };
 
     sendLifecycleHeartbeat(client, {
@@ -34,7 +34,11 @@ describe('sendLifecycleHeartbeat', () => {
       role: 'enhancer',
     });
 
-    expect(mutation).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(mutation).toHaveBeenCalledTimes(1);
+    });
+    const args = mutation.mock.calls[0][1] as Record<string, unknown>;
+    expect(args.role).toBe('enhancer');
   });
 
   it('omits action arg when not provided', async () => {

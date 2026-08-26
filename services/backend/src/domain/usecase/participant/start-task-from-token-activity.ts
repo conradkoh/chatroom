@@ -11,8 +11,8 @@ import { transitionAgentStatus } from '../agent/transition-agent-status';
 import { acknowledgePendingTask } from '../task/acknowledge-pending-task';
 import { findAcknowledgedTaskForRole } from '../task/find-acknowledged-task-for-role';
 import { readTask } from '../task/read-task';
-import { transitionTask } from '../task/transition-task';
 import { startTaskFromReceipt as startFromReceipt } from '../task/start-task-from-receipt';
+import { transitionTask } from '../task/transition-task';
 
 type ParticipantSnapshot = {
   lastStatus?: string | null;

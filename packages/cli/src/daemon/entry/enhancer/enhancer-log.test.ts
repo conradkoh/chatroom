@@ -22,7 +22,7 @@ describe('formatEnhancerLogLine', () => {
 });
 
 describe('createEnhancerLogWriter', () => {
-  it('writes formatted lines to stdout and log sink with enhancer metadata', () => {
+  it('writes formatted lines to the log sink without stdout duplication', () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     const logSink = { write: vi.fn() };
     const writer = createEnhancerLogWriter(
@@ -37,7 +37,7 @@ describe('createEnhancerLogWriter', () => {
 
     writer.write('claimed job=abc');
 
-    expect(stdoutSpy).toHaveBeenCalledWith('[enhancer] claimed job=abc\n');
+    expect(stdoutSpy).not.toHaveBeenCalled();
     expect(logSink.write).toHaveBeenCalledWith({
       timestamp: 1_700_000_000_000,
       level: 'info',

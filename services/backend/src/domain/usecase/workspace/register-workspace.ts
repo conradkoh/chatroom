@@ -11,11 +11,11 @@
  * Returns the workspace document ID.
  */
 
+import { rebuildObservedWorkspaceView } from './project-observed-workspace-view';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { normalizeWorkingDir } from '../../../../convex/workspacePathSecurity';
 import type { WorkspaceRegistration } from '../../entities/workspace';
-import { rebuildObservedWorkspaceView } from './project-observed-workspace-view';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

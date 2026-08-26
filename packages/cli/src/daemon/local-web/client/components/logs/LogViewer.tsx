@@ -14,7 +14,6 @@ type Props = {
   isLoading: boolean;
   error: string | null;
   hasChatroom: boolean;
-  resetKey?: string;
   selectedLine?: LogLine | null;
   onSelectLine?: (line: LogLine) => void;
   getChatroomName?: (id: string) => string | undefined;
@@ -24,14 +23,12 @@ export function LogViewer({
   isLoading,
   error,
   hasChatroom,
-  resetKey,
   selectedLine,
   onSelectLine,
   getChatroomName,
 }: Props) {
   const { scrollRef, isPinned, hasUnseenBelow, scrollToEnd, handleScroll } = useStickToBottomScroll(
-    lines.length,
-    resetKey
+    lines.length
   );
   useEffect(() => {
     if (isPinned && !isLoading && !error && lines.length > 0) scrollToEnd('smooth');

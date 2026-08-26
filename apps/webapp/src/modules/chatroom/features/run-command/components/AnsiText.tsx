@@ -10,15 +10,18 @@
  * - Pure component — no network calls, no hooks beyond useMemo.
  */
 
+import type { AnserJsonEntry } from 'anser';
 import { useMemo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import type { AnserJsonEntry } from 'anser';
 // anser is a CJS module (module.exports = Anser). Use require so both webpack
 // (Next.js) and Vite (Vitest) resolve the CJS export correctly without needing
 // ESM interop gymnastics.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+
 const Anser = require('anser') as {
-  ansiToJson(txt: string, options?: { use_classes?: boolean; remove_empty?: boolean }): AnserJsonEntry[];
+  ansiToJson(
+    txt: string,
+    options?: { use_classes?: boolean; remove_empty?: boolean }
+  ): AnserJsonEntry[];
 };
 
 // ─── URL linkification ────────────────────────────────────────────────────────

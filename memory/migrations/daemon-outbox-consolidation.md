@@ -29,15 +29,15 @@ persisted workspace sync manifest as the source of truth.
 
 ### Ownership boundaries
 
-| Concern | Owner | Location |
-| --- | --- | --- |
-| Tree path index + pending delta queue | Coordinator + sync manifest | `~/.chatroom/sync-state/{machineId}/{hash}/manifest.json` |
-| Diff → `WorkspacePendingDelta` | Coordinator | `buildPendingDeltas()` in `workspace-file-tree-coordinator.ts` |
-| Full vs delta sync strategy | Coordinator | `flushPending()`, cold start, reconcile, checkpoint cadence |
-| Delta → Convex wire format | Subscription (thin transport) | `toDeltaOperations()` in `file-tree-subscription.ts` |
-| Checkpoint snapshot upload | Subscription via checkpoint outbox | `publishCheckpoint()` |
-| Delta Convex mutation | Subscription via delta outbox | `applyFileTreeDeltaBatch` |
-| Delivery scheduling / retry / rate limit | Outbox adapters | `daemon/infrastructure/outbox/` |
+| Concern                                  | Owner                              | Location                                                       |
+| ---------------------------------------- | ---------------------------------- | -------------------------------------------------------------- |
+| Tree path index + pending delta queue    | Coordinator + sync manifest        | `~/.chatroom/sync-state/{machineId}/{hash}/manifest.json`      |
+| Diff → `WorkspacePendingDelta`           | Coordinator                        | `buildPendingDeltas()` in `workspace-file-tree-coordinator.ts` |
+| Full vs delta sync strategy              | Coordinator                        | `flushPending()`, cold start, reconcile, checkpoint cadence    |
+| Delta → Convex wire format               | Subscription (thin transport)      | `toDeltaOperations()` in `file-tree-subscription.ts`           |
+| Checkpoint snapshot upload               | Subscription via checkpoint outbox | `publishCheckpoint()`                                          |
+| Delta Convex mutation                    | Subscription via delta outbox      | `applyFileTreeDeltaBatch`                                      |
+| Delivery scheduling / retry / rate limit | Outbox adapters                    | `daemon/infrastructure/outbox/`                                |
 
 The outbox owns delivery scheduling only. It does not store tree state, compute
 diffs, or decide whether to checkpoint versus delta.
@@ -49,26 +49,26 @@ instance. They share the keyed-registry pattern and delivery key:
 `normalizedWorkingDir`. File-tree Convex tables are workspace-scoped
 (`machineId + workingDir`), not chatroom-scoped.
 
-| | Checkpoint outbox | Delta outbox |
-| --- | --- | --- |
-| Semantics | Latest-state coalescing | FIFO ordered delivery |
-| Supersede pending? | Yes — newer checkpoint replaces older | No — each delta is distinct |
-| Idempotency | Revision + snapshot identity | Per-delta `operationId` |
-| Rate limit | 5s (`WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MIN_INTERVAL_MS`) | Backoff on conflict/error (500ms–5s exponential); batch size 5 |
-| Status | ✅ Implemented | ✅ Implemented |
+|                    | Checkpoint outbox                                            | Delta outbox                                                   |
+| ------------------ | ------------------------------------------------------------ | -------------------------------------------------------------- |
+| Semantics          | Latest-state coalescing                                      | FIFO ordered delivery                                          |
+| Supersede pending? | Yes — newer checkpoint replaces older                        | No — each delta is distinct                                    |
+| Idempotency        | Revision + snapshot identity                                 | Per-delta `operationId`                                        |
+| Rate limit         | 5s (`WORKSPACE_FILE_TREE_CHECKPOINT_OUTBOX_MIN_INTERVAL_MS`) | Backoff on conflict/error (500ms–5s exponential); batch size 5 |
+| Status             | ✅ Implemented                                               | ✅ Implemented                                                 |
 
 Coalescing deltas would silently drop intermediate `operationId` operations.
 
 ### Full sync vs delta — coordinator decides
 
-| Trigger | Strategy | Callback |
-| --- | --- | --- |
-| Cold start / no local manifest | Full checkpoint | `onCheckpoint` after initial scan |
-| Backend has no checkpoint | Full checkpoint | `coordinator.checkpoint()` |
-| Normal filesystem changes | Delta | `onDelta` via `flushPending()` |
-| Every N revisions (default 100) | Full checkpoint | `publishCheckpoint()` inside `flushPending()` |
-| Periodic reconcile / force request | Rescan → deltas and/or checkpoint | `reconcileNow()` / `forceReconcile` |
-| Backend `resync-required` | Adjust revision, retry | conflict retry in delta FIFO outbox (updates baseRevision, exponential backoff) |
+| Trigger                            | Strategy                          | Callback                                                                        |
+| ---------------------------------- | --------------------------------- | ------------------------------------------------------------------------------- |
+| Cold start / no local manifest     | Full checkpoint                   | `onCheckpoint` after initial scan                                               |
+| Backend has no checkpoint          | Full checkpoint                   | `coordinator.checkpoint()`                                                      |
+| Normal filesystem changes          | Delta                             | `onDelta` via `flushPending()`                                                  |
+| Every N revisions (default 100)    | Full checkpoint                   | `publishCheckpoint()` inside `flushPending()`                                   |
+| Periodic reconcile / force request | Rescan → deltas and/or checkpoint | `reconcileNow()` / `forceReconcile`                                             |
+| Backend `resync-required`          | Adjust revision, retry            | conflict retry in delta FIFO outbox (updates baseRevision, exponential backoff) |
 
 “Full sync” is a V2 blob or V3 sharded snapshot plus
 `publishFileTreeCheckpoint`; “delta sync” is `applyFileTreeDeltaBatch`.
@@ -126,22 +126,22 @@ Checkpoint and delta outboxes do not share an in-flight mutex.
 
 ## Progress tracker
 
-| Item | Status | Evidence / next location |
-| --- | --- | --- |
-| Coalescing-state outbox primitive | ✅ Done | `outbox/lib/coalescing-state-outbox.ts` |
-| Keyed coalescing registry | ✅ Done | `outbox/lib/keyed-coalescing-state-outbox-registry.ts` |
-| Checkpoint outbox adapter + wiring | ✅ Done | adapter and `file-tree-subscription.ts` |
-| Checkpoint outbox tests | ✅ Done | primitive, registry, adapter, subscription tests |
-| Release-path coordinator map cleanup | ✅ Done | `0bc97b2bf` |
-| System design recorded in memory | ✅ Done | this document |
-| FIFO ordered delta outbox primitive | ✅ Done | `outbox/lib/fifo-batched-outbox.ts`, `outbox/lib/durable-fifo-queue-store.ts` |
-| Delta outbox adapter + wiring | ✅ Done | `workspace-file-tree-delta-outbox.ts`, `file-tree-subscription.ts` |
-| Delta delivery policy | ✅ Done | conflict retry in `outbox/lib/fifo-batched-outbox.ts` via `classifyOutcome`; `c0038b039` |
-| Durable SQLite outbox drain | ✅ Done | checkpoint + delta stores; `68ab4b670`, `outbox-db-path.ts` |
-| Outbox durability + retry tests | ✅ Done | `01fb1f70f` |
-| Buffered journal migration | ⬜ Pending | `infrastructure/repos/journal-factory.ts` |
-| Workspace request queue consolidation | ⬜ Pending | `workspace-sync-queue.ts` |
-| Outbox metrics and diagnostics | ⬜ Pending | pending-state, retry, and coalescing visibility |
+| Item                                  | Status     | Evidence / next location                                                                 |
+| ------------------------------------- | ---------- | ---------------------------------------------------------------------------------------- |
+| Coalescing-state outbox primitive     | ✅ Done    | `outbox/lib/coalescing-state-outbox.ts`                                                  |
+| Keyed coalescing registry             | ✅ Done    | `outbox/lib/keyed-coalescing-state-outbox-registry.ts`                                   |
+| Checkpoint outbox adapter + wiring    | ✅ Done    | adapter and `file-tree-subscription.ts`                                                  |
+| Checkpoint outbox tests               | ✅ Done    | primitive, registry, adapter, subscription tests                                         |
+| Release-path coordinator map cleanup  | ✅ Done    | `0bc97b2bf`                                                                              |
+| System design recorded in memory      | ✅ Done    | this document                                                                            |
+| FIFO ordered delta outbox primitive   | ✅ Done    | `outbox/lib/fifo-batched-outbox.ts`, `outbox/lib/durable-fifo-queue-store.ts`            |
+| Delta outbox adapter + wiring         | ✅ Done    | `workspace-file-tree-delta-outbox.ts`, `file-tree-subscription.ts`                       |
+| Delta delivery policy                 | ✅ Done    | conflict retry in `outbox/lib/fifo-batched-outbox.ts` via `classifyOutcome`; `c0038b039` |
+| Durable SQLite outbox drain           | ✅ Done    | checkpoint + delta stores; `68ab4b670`, `outbox-db-path.ts`                              |
+| Outbox durability + retry tests       | ✅ Done    | `01fb1f70f`                                                                              |
+| Buffered journal migration            | ⬜ Pending | `infrastructure/repos/journal-factory.ts`                                                |
+| Workspace request queue consolidation | ⬜ Pending | `workspace-sync-queue.ts`                                                                |
+| Outbox metrics and diagnostics        | ⬜ Pending | pending-state, retry, and coalescing visibility                                          |
 
 ## Policy boundaries
 

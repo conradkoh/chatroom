@@ -1,3 +1,25 @@
 import { describe, expect, it } from 'vitest';
+
 import { getGeneralKnowledgeSections } from './general-knowledge';
-describe('general knowledge sections', () => { it('composes glossary, history, commands, and recovery guidance', () => { const text = getGeneralKnowledgeSections({ chatroomId: 'room', role: 'builder', convexUrl: '' }).map((section) => section.content).join('\n'); expect(text).toContain('# Glossary'); expect(text).toContain('context read'); expect(text).toContain('messages download'); expect(text).toContain('truncated=true'); expect(text).toContain('get-system-prompt'); expect(text).toContain('get-role-guidance'); }); it('can omit history for wrappers', () => { expect(getGeneralKnowledgeSections({ chatroomId: 'room', role: 'enhancer', convexUrl: '' }, { includeHistory: false }).map((s) => s.id)).not.toContain('history-retrieval'); }); });
+
+describe('general knowledge sections', () => {
+  it('composes glossary, history, commands, and recovery guidance', () => {
+    const text = getGeneralKnowledgeSections({ chatroomId: 'room', role: 'builder', convexUrl: '' })
+      .map((section) => section.content)
+      .join('\n');
+    expect(text).toContain('# Glossary');
+    expect(text).toContain('context read');
+    expect(text).toContain('messages download');
+    expect(text).toContain('truncated=true');
+    expect(text).toContain('get-system-prompt');
+    expect(text).toContain('get-role-guidance');
+  });
+  it('can omit history for wrappers', () => {
+    expect(
+      getGeneralKnowledgeSections(
+        { chatroomId: 'room', role: 'enhancer', convexUrl: '' },
+        { includeHistory: false }
+      ).map((s) => s.id)
+    ).not.toContain('history-retrieval');
+  });
+});

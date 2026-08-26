@@ -126,9 +126,10 @@ export const registerAgentEffect = (
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
       })
       .pipe(
-        Effect.mapError(
-          (cause): RegisterAgentError => ({ _tag: 'RegisterFailed', cause: cause as Error })
-        )
+        Effect.mapError((cause): RegisterAgentError => ({
+          _tag: 'RegisterFailed',
+          cause: cause as Error,
+        }))
       );
 
     if (!chatroom) {
@@ -173,9 +174,10 @@ export const registerAgentEffect = (
           allowTypeChange,
         })
         .pipe(
-          Effect.mapError(
-            (cause): RegisterAgentError => ({ _tag: 'RegisterFailed', cause: cause as Error })
-          )
+          Effect.mapError((cause): RegisterAgentError => ({
+            _tag: 'RegisterFailed',
+            cause: cause as Error,
+          }))
         );
 
       // Print success

@@ -1,6 +1,7 @@
 /**
  * Command event dispatch — handles daemon command events from v2 inbound nudges.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
   AGENT_REQUEST_DEADLINE_MS,
@@ -26,6 +27,7 @@ import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event
 import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
 import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
+import { onStopScopeAgentEffect } from './events/agent/on-stop-scope-agent.js';
 import { handlePing } from './handlers/ping.js';
 import { processManager } from './handlers/process/manager.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
@@ -250,7 +252,6 @@ function handleRefreshCapabilitiesEffect(
       )
     );
     tracker.capabilitiesRefreshIds.set(eventId, Date.now());
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const batchId = 'batchId' in event ? (event as any).batchId : undefined;
     if (!batchId) return;
     const session = yield* DaemonSessionService;
@@ -286,6 +287,13 @@ const commandEventHandlers: {
   'agent.requestStart': handleRequestStartEffect,
   'agent.restart': handleRequestRestartEffect,
   'agent.requestStop': handleRequestStopEffect,
+  'agent.stopScope': (event, tracker) =>
+    Effect.gen(function* () {
+      const eventId = String((event as any).commandId ?? (event as any)._id);
+      if (tracker.commandIds.has(eventId)) return;
+      yield* onStopScopeAgentEffect(event as any);
+      tracker.commandIds.set(eventId, Date.now());
+    }),
   'daemon.ping': handlePingCommandEffect,
   'daemon.gitRefresh': handleGitRefreshCommandEffect,
   'daemon.localAction': handleLocalActionCommandEffect,

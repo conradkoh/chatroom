@@ -5,6 +5,9 @@
  * Provides a one-liner for Convex query/mutation handlers.
  */
 
+import type { Id } from '../../convex/_generated/dataModel';
+import type { QueryCtx, MutationCtx } from '../../convex/_generated/server';
+import { str } from '../../convex/utils/types';
 import {
   checkAccess as checkAccessCore,
   requireAccess as requireAccessCore,
@@ -13,9 +16,6 @@ import {
   type AccessResult,
   type Permission,
 } from '../../src/domain/usecase/auth/extensions/check-access';
-import type { Id } from '../../convex/_generated/dataModel';
-import type { QueryCtx, MutationCtx } from '../../convex/_generated/server';
-import { str } from '../../convex/utils/types';
 
 /** Convert a Convex Id to a plain string for the pure-function layer. */
 
@@ -27,7 +27,7 @@ function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckAccessDeps {
     getMachineByMachineId: async (machineId: string) => {
       const machine = await ctx.db
         .query('chatroom_machines')
-        .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
       if (!machine) return null;
       return { userId: str(machine.userId) };
@@ -43,7 +43,7 @@ function createConvexDeps(ctx: QueryCtx | MutationCtx): CheckAccessDeps {
     getWorkspacesForMachine: async (machineId: string) => {
       const workspaces = await ctx.db
         .query('chatroom_workspaces')
-        .withIndex('by_machine', (q: any) => q.eq('machineId', machineId))
+        .withIndex('by_machine', (q) => q.eq('machineId', machineId))
         .collect();
       return workspaces
         .filter((w) => !w.removedAt)

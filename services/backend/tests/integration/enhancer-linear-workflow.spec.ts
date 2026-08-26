@@ -4,30 +4,13 @@
  * Full happy path: user message → enqueue → complete → planner feedback → builder handoff.
  */
 
-import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { joinParticipant } from '../helpers/integration';
+import { joinParticipant, enableEnhancerTeamAgent } from '../helpers/integration';
 import { setupPlannerWorkspaceForSession } from './direct-harness/fixtures';
-
-async function enableEnhancer(
-  sessionId: SessionId,
-  chatroomId: Id<'chatroom_rooms'>,
-  machineId: string
-): Promise<void> {
-  await t.mutation(api.web.enhancer.index.upsertConfig, {
-    sessionId,
-    chatroomId,
-    enabled: true,
-    targetId: 'handoff:planner-to-builder',
-    agentHarness: 'opencode',
-    model: 'anthropic/claude-opus-4',
-    machineId,
-  });
-}
 
 async function createPlannerUserMessageAndTask(
   sessionId: string,
@@ -62,7 +45,7 @@ describe('enhancer delegation-loop workflow', () => {
   test('user task → enqueue → complete → planner feedback → builder handoff allowed', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-linear');
-    await enableEnhancer(sessionId, chatroomId, machineId);
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
     await joinParticipant(sessionId, chatroomId, 'builder');
 
@@ -72,41 +55,30 @@ describe('enhancer delegation-loop workflow', () => {
       'Build feature X'
     );
 
-    const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+    const enhancerHandoff = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
       content: '<request>Build feature X</request>',
     });
+    expect(enhancerHandoff.success).toBe(true);
 
-    // Planner tasks completed — no active planner work
-    const activePlanner = await t.run(async (ctx) => {
+    const enhancerTask = await t.run(async (ctx) => {
       const tasks = await ctx.db
         .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', chatroomId).eq('status', 'in_progress')
-        )
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
-      return tasks.filter((t) => t.assignedTo === 'planner');
+      return tasks.find((task) => task.assignedTo === 'enhancer');
     });
-    expect(activePlanner).toHaveLength(0);
+    expect(enhancerTask?.originUserMessageId).toBe(userMessageId);
 
-    // Job stores originUserMessageId
-    const job = await t.run(async (ctx) => ctx.db.get(jobId));
-    expect(job!.originUserMessageId).toBe(userMessageId);
-
-    // Claim and complete
-    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
-      sessionId,
-      jobId,
-      machineId,
-    });
-    await t.mutation(api.web.enhancer.index.complete, {
+    await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
-      jobId,
-      enhancedContent: '## Summary\nTighten scope',
+      senderRole: 'enhancer',
+      targetRole: 'planner',
+      content: '## Summary\nTighten scope',
     });
 
     // New planner pending task from enhancer planning input
@@ -156,7 +128,7 @@ describe('enhancer delegation-loop workflow', () => {
 
   test('second enhancer pass is rejected for the same originating user message', async () => {
     const { sessionId, chatroomId, machineId } = await setupPlannerWorkspaceForSession('enh-multi');
-    await enableEnhancer(sessionId, chatroomId, machineId);
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
 
     const userMessageId = await createPlannerUserMessageAndTask(
@@ -165,24 +137,19 @@ describe('enhancer delegation-loop workflow', () => {
       'Build multi-slice feature'
     );
 
-    const { jobId: firstJobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+    await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
       content: '<request>Build multi-slice feature</request>',
     });
-
-    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
-      sessionId,
-      jobId: firstJobId,
-      machineId,
-    });
-    await t.mutation(api.web.enhancer.index.complete, {
+    await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
-      jobId: firstJobId,
-      enhancedContent: '## Summary\nSlice 1 feedback',
+      senderRole: 'enhancer',
+      targetRole: 'planner',
+      content: '## Summary\nSlice 1 feedback',
     });
 
     // Simulate builder handback — planner has active task for slice 2
@@ -208,14 +175,14 @@ describe('enhancer delegation-loop workflow', () => {
       });
     });
 
-    await expect(
-      t.mutation(api.web.enhancer.index.enqueueHandoff, {
-        sessionId,
-        chatroomId,
-        senderRole: 'planner',
-        targetRole: 'enhancer',
-        content: '<request>Continue the user request</request>',
-      })
-    ).rejects.toThrow(/ENHANCER_ALREADY_USED/i);
+    const second = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      targetRole: 'enhancer',
+      content: '<request>Continue the user request</request>',
+    });
+    expect(second.success).toBe(false);
+    expect(second.error?.code).toBe('ENHANCER_ALREADY_USED');
   });
 });

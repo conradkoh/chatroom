@@ -15,6 +15,7 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
 import { transitionAgentStatus } from './transition-agent-status';
@@ -62,6 +63,7 @@ export interface StartAgentInput {
    * agent.requestStart event for observability.
    */
   wantResume?: boolean;
+  lifecycleRevision?: number;
 }
 
 /** Successful result of a start-agent operation. */
@@ -138,6 +140,15 @@ export async function startAgent(
       },
     });
 
+    const currentConfig = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+      .first();
+    if (currentConfig) {
+      const lifecycleRevision = await advanceAgentLifecycleRevision(ctx, currentConfig._id);
+      input.lifecycleRevision = lifecycleRevision;
+    }
+
     if (previousMachineId != null && previousMachineId !== machineId) {
     }
   }
@@ -158,6 +169,7 @@ export async function startAgent(
       workingDir,
       reason,
       wantResume: resolvedWantResume,
+      lifecycleRevision: input.lifecycleRevision,
     },
   });
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');

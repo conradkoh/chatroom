@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import { checkDuplicateSavedCommandName } from './savedCommandValidation';
-
 import type { SavedCommandScope } from '../types/savedCommand';
 
 const emptyNamesByScope: Record<SavedCommandScope, string[]> = { user: [], chatroom: [] };

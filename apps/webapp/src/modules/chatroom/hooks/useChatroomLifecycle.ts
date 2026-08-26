@@ -2,14 +2,15 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { useChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
-import type { ChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
+import type { ActivityView } from '../components/ActivityBar';
 import { useActivityView } from './persistence/useActivityView';
 import { useExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
 import type { ExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
 import { useExplorerSplitViewEnabled } from './persistence/useExplorerSplitViewEnabled';
 import { useExplorerSyncPreference } from './persistence/useExplorerSyncPreference';
 import { useHarnessSessionId } from './persistence/useHarnessSessionId';
+import type { ChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
+import { useChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
 import type { Workspace } from '../types/workspace';
 import { useFileTabs } from '../workspace/hooks/useFileTabs';
 import type { UseFileTabsReturn } from '../workspace/hooks/useFileTabs';
@@ -29,9 +30,9 @@ export interface UseChatroomLifecycleReturn {
   /** All workspaces for the chatroom (including unconnected). */
   workspaces: Workspace[];
   /** Current activity view ('messages' | 'explorer' | 'direct-harness'), persisted per chatroom. */
-  activityView: import('../components/ActivityBar').ActivityView;
+  activityView: ActivityView;
   /** Setter for the activity view. */
-  setActivityView: (view: import('../components/ActivityBar').ActivityView) => void;
+  setActivityView: (view: ActivityView) => void;
   /** Selected direct-harness session ID (null = "new session"), persisted per chatroom. */
   selectedHarnessSessionId: string | null;
   /** Setter for the selected harness session ID. */
@@ -63,8 +64,7 @@ export function useChatroomLifecycle(chatroomId: Id<'chatroom_rooms'>): UseChatr
   const [selectedHarnessSessionId, setSelectedHarnessSessionId] = useHarnessSessionId(chatroomId);
   const [explorerSplitViewEnabled, setExplorerSplitViewEnabled] =
     useExplorerSplitViewEnabled(chatroomId);
-  const [explorerSyncEnabled, setExplorerSyncEnabled] =
-    useExplorerSyncPreference(chatroomId);
+  const [explorerSyncEnabled, setExplorerSyncEnabled] = useExplorerSyncPreference(chatroomId);
 
   return {
     fileTabs,

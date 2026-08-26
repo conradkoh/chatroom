@@ -30,7 +30,11 @@ export function QueuedMessageNewSessionToggle({
           setBusy(false);
         }
       }}
-      className={startInNewSession ? 'p-1.5 text-yellow-500 dark:text-yellow-400' : 'p-1.5 text-muted-foreground'}
+      className={
+        startInNewSession
+          ? 'p-1.5 text-yellow-500 dark:text-yellow-400'
+          : 'p-1.5 text-muted-foreground'
+      }
     >
       <RotateCcw size={14} />
     </button>

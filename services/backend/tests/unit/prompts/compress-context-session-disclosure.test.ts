@@ -7,7 +7,6 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { getHandoffTemplate } from '../../../prompts/cli/handoff-templates';
 import { generateNativeTaskDeliveryOutput } from '../../../prompts/native/task-delivery';
 import { getPlannerToBuilderHandoffTemplate } from '../../../prompts/teams/duo/handoff-templates/planner-to-builder';
 import { resolveSessionAugmentationForTask } from '../../../src/domain/handoff/parse-session-augmentation';

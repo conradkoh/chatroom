@@ -5,8 +5,7 @@ import { makePromoteNextTaskDeps } from '../../../../convex/lib/promoteNextTaskD
 import { getTeamEntryPoint } from '../../entities/team';
 
 export type MaybePromoteNextQueuedTaskResult =
-  | PromoteNextTaskResult
-  | { promoted: null; reason: 'skipped_not_entry_point' };
+  PromoteNextTaskResult | { promoted: null; reason: 'skipped_not_entry_point' };
 
 export type MaybePromoteNextQueuedTaskOptions = {
   /** When set, promotion runs only if this role is the team entry point. */

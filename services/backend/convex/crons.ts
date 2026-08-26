@@ -34,6 +34,16 @@ crons.interval(
   internal.machineCommandCleanup.recoverExpiredClaims
 );
 crons.interval(
+  'expire stale agent stop commands',
+  { minutes: 1 },
+  internal.agentStopReaper.expireStaleStopCommands
+);
+crons.interval(
+  'purge terminal agent stop history',
+  { hours: 24 },
+  internal.agentStopReaper.purgeTerminalStopHistory
+);
+crons.interval(
   'cleanup expired machine commands',
   { minutes: 15 },
   internal.machineCommandCleanup.cleanupExpiredMachineCommands

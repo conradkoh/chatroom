@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+
 import { decideNotificationClickAction } from './handleNotificationClick';
 
 const makeClient = (url: string) => ({ url });

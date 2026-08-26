@@ -177,7 +177,9 @@ export class ScrollController {
     this.pinned = true;
     this.onPinnedChange(true);
     this.runProgrammaticScroll(() => {
-      this.el!.scrollTo({ top: this.el!.scrollHeight, behavior: 'smooth' });
+      const el = this.el;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     });
   }
 

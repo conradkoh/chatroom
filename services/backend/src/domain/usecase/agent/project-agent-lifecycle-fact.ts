@@ -1,13 +1,11 @@
-import type { MutationCtx } from '../../../../convex/_generated/server';
 import { agentExited as agentExitedUseCase } from './agent-exited';
-import { assertMachineBelongsToChatroom } from './assert-machine-belongs-to-chatroom';
-import { recordAgentSpawnedState } from './record-agent-spawned-state';
-import { transitionAgentStatus } from './transition-agent-status';
-import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { onAgentExited } from '../../../events/agent/on-agent-exited';
-import type { Id } from '../../../../convex/_generated/dataModel';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
+import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
+import { transitionAgentStatus } from './transition-agent-status';
+import type { Id } from '../../../../convex/_generated/dataModel';
+import type { MutationCtx } from '../../../../convex/_generated/server';
+import { onAgentExited } from '../../../events/agent/on-agent-exited';
+import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 export type AgentLifecycleFactInput =
   | {
@@ -20,6 +18,7 @@ export type AgentLifecycleFactInput =
       harnessSessionId?: string;
       revisionKey: string;
       emittedAt: number;
+      lifecycleRevision?: number;
     }
   | {
       kind: 'exited';
@@ -39,7 +38,7 @@ export type AgentLifecycleFactInput =
 export async function projectAgentLifecycleFact(
   ctx: MutationCtx,
   args: { machineId: string; fact: AgentLifecycleFactInput }
-): Promise<{ success: true; skipped?: boolean; clearedCount?: number }> {
+): Promise<{ success: true; skipped?: boolean; clearedCount?: number; rejectionReason?: string }> {
   const { machineId, fact } = args;
   if (fact.kind === 'cleared_all_pids') {
     const configs = await ctx.db
@@ -70,32 +69,22 @@ export async function projectAgentLifecycleFact(
     return { success: true, clearedCount };
   }
   if (fact.kind === 'exited') {
-    await agentExitedUseCase(ctx, { ...fact, machineId });
-    await onAgentExited(ctx, fact);
-    return { success: true };
+    const result = await agentExitedUseCase(ctx, {
+      ...fact,
+      machineId,
+      revisionKey: fact.revisionKey,
+    });
+    if (result.applied) await onAgentExited(ctx, fact);
+    return { success: true, skipped: !result.applied };
   }
-  await assertMachineBelongsToChatroom(ctx, {
-    chatroomId: fact.chatroomId as Id<'chatroom_rooms'>,
+  if (fact.lifecycleRevision === undefined)
+    return { success: true, skipped: true, rejectionReason: 'stale_revision' };
+  const registration = await registerSpawnedAgentIfAuthorized(ctx, {
+    ...fact,
     machineId,
-    role: fact.role,
-    allowNewMachine: false,
+    lifecycleRevision: fact.lifecycleRevision,
   });
-  const room = await ctx.db.get(fact.chatroomId);
-  const teamId = (room as { teamId?: string } | null)?.teamId;
-  if (!teamId) return { success: true, skipped: true };
-  const config = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(fact.chatroomId, teamId, fact.role))
-    )
-    .first();
-  if (!config) return { success: true, skipped: true };
-  if (config.spawnedAgentPid === fact.pid) return { success: true, skipped: true };
-  await patchTeamAgentConfig(ctx, config._id, {
-    spawnedAgentPid: fact.pid,
-    spawnedAt: Date.now(),
-    ...(fact.model !== undefined ? { model: fact.model } : {}),
-  });
-  await recordAgentSpawnedState(ctx, { ...fact, machineId });
+  if (!registration.accepted)
+    return { success: true, skipped: true, rejectionReason: registration.reason };
   return { success: true };
 }

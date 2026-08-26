@@ -40,7 +40,24 @@ function createDeps(overrides?: Partial<AgentProcessManagerDeps>): AgentProcessM
         rolePrompt: 'You are a builder',
         initialMessage: 'Start working',
       }),
-      mutation: vi.fn().mockResolvedValue(undefined),
+      mutation: vi.fn().mockImplementation((endpoint: unknown, args?: Record<string, unknown>) => {
+        if (
+          args &&
+          'sessionId' in args &&
+          'machineId' in args &&
+          'chatroomId' in args &&
+          'role' in args &&
+          !('action' in args) &&
+          !('pid' in args) &&
+          !('fact' in args)
+        ) {
+          return Promise.resolve({
+            allowed: true,
+            lifecycleRevision: args.lifecycleRevision ?? 0,
+          });
+        }
+        return Promise.resolve(undefined);
+      }),
     },
     lifecycleOutbox: { enqueue: vi.fn().mockResolvedValue({ success: true }) },
     sessionId: 'test-session',
