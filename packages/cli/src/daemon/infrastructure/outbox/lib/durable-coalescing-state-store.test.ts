@@ -1,8 +1,11 @@
-import { describe, expect, it } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
 import { openDurableCoalescingStateStore } from './durable-coalescing-state-store.js';
+
 describe('durable coalescing state store', () => {
   it('supersedes payloads with one row per delivery key', () => {
     const store = openDurableCoalescingStateStore(

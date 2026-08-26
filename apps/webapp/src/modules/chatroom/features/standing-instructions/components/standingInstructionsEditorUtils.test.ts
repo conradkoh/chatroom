@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+
 import { onStandingEditorKeyDown, wantsStandingConfirm } from './standingInstructionsEditorUtils';
 
 describe('wantsStandingConfirm', () => {

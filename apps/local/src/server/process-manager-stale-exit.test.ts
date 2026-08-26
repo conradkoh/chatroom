@@ -1,13 +1,14 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
-vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
-import { spawn } from 'node:child_process';
 import { ProcessManager } from './process-manager.js';
+
+vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
 
 describe('stale process exit handler', () => {
   let repoRoot: string;
@@ -30,7 +31,7 @@ describe('stale process exit handler', () => {
       shell: false,
     };
 
-    const firstExitCallbacks: Array<(code: number | null) => void> = [];
+    const firstExitCallbacks: ((code: number | null) => void)[] = [];
     const firstChild = new EventEmitter() as any;
     firstChild.pid = 100;
     firstChild.kill = vi.fn();

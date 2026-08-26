@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+
 import { readLogFiltersFromSearch, writeLogFiltersToSearch } from './log-filters-url.js';
+
 describe('log-filters-url', () => {
   it('reads filters', () =>
     expect(

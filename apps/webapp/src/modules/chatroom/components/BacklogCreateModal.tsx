@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+
 import { detailModalRichTextEditorProseClassNames } from './detail-modal';
+import { RichTextEditor } from './detail-modal-shared';
 
 import {
   FixedModal,
@@ -10,7 +12,6 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
-import { RichTextEditor } from './detail-modal-shared';
 
 interface BacklogCreateModalProps {
   isOpen: boolean;

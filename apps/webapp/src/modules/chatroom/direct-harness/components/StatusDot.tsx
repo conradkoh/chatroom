@@ -1,6 +1,6 @@
-import { cn } from '@/lib/utils';
-
 import type { HarnessSessionStatus } from '@workspace/backend/src/domain/direct-harness/types';
+
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

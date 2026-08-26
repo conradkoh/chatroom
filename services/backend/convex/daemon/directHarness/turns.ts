@@ -11,8 +11,8 @@ import {
   requireDirectHarnessWorkers,
   requireHarnessSessionOnOwnedMachine,
 } from '../../api/directHarnessHelpers';
-import { requireMachineOwner } from '../../auth/cli/machineAccess';
 import { aggregateAssistantChunks } from '../../api/harnessChunkAggregate';
+import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
 // ─── beginAssistantTurn ──────────────────────────────────────────────────────
 

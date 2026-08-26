@@ -1,7 +1,9 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+
 import { DURABLE_COALESCING_STATE_MIGRATIONS } from './durable-coalescing-state-schema.js';
+
 export type DurableCoalescingStateStore = {
   upsertPending(key: string, payloadJson: string): void;
   getPending(key: string): { payloadJson: string; attempts: number } | null;

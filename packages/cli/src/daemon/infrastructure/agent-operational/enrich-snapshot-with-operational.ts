@@ -1,6 +1,7 @@
+import { isOperationalDesiredRunning } from './agent-operational-read-model.js';
 import type { AssignedTaskSnapshotView } from '../../domain/entities/assigned-task.js';
 import { getNativeDeliverySession } from '../../entry/native-delivery/native-delivery-session-registry.js';
-import { isOperationalDesiredRunning } from './agent-operational-read-model.js';
+
 export function enrichSnapshotWithOperational(
   snapshot: AssignedTaskSnapshotView
 ): AssignedTaskSnapshotView {

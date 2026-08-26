@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo, useState } from 'react';
 
-import type { SearchConfigEntry } from '../types/searchConfig';
 import { getSearchConfigUsageStore } from '../stores/searchConfigUsageStore';
+import type { SearchConfigEntry } from '../types/searchConfig';
 
 export function useSearchConfigUsage(machineId: string | null | undefined) {
   const [revision, setRevision] = useState(0);

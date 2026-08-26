@@ -1,7 +1,7 @@
+import { emitEnhancerEvent } from './internal';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import { performHandoffFromEnhancer } from '../../messages';
-import { emitEnhancerEvent } from './internal';
 
 export interface ApplyEnhancerCompleteParams {
   jobId: Id<'chatroom_enhancerJobs'>;

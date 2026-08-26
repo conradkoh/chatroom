@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
+
 import {
   markdownSurfaceBaseProseClassNames,
   markdownSurfaceFeedProseClassNames,
   markdownSurfaceModalProseClassNames,
 } from './markdownSurfacePresets';
+
 describe('markdown surface presets', () => {
   it('composes canonical base styles', () => {
     expect(markdownSurfaceBaseProseClassNames).toContain('prose-pre:bg-chatroom-bg-secondary');

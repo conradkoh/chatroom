@@ -1,6 +1,8 @@
+import { EventTypeBadge } from './EventTypeBadge';
+
 import type { EventStreamEntry } from '@/api/types';
 import { summarizeEventPayload } from '@/domain/event-summary';
-import { EventTypeBadge } from './EventTypeBadge';
+
 export function EventStreamRow({
   entry,
   selected,

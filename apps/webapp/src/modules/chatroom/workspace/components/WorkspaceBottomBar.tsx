@@ -58,13 +58,13 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
+import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
 import { useDaemonConnected } from '@/hooks/useDaemonConnected';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import {
   useMainChatComposerFocused,
   useMainChatComposerKeyboardInset,
 } from '@/hooks/useMobileKeyboard';
-import { getMobileStickyFooterOffsetStyle } from '@/hooks/getMobileStickyFooterOffsetStyle';
 import { useSendLocalAction } from '@/hooks/useSendLocalAction';
 import { toRepoHttpsUrl } from '@/lib/git-url';
 import { cn } from '@/lib/utils';

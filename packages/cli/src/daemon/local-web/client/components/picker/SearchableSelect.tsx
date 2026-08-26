@@ -1,16 +1,19 @@
 import { ChevronDown } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
+
 import { filterPickerItems } from './filterPickerItems';
 import { PickerOptionRow } from './PickerOptionRow';
 import { PickerScrollBody } from './PickerScrollBody';
 import { PickerSearch } from './PickerSearch';
-import { usePickerSearchState } from './usePickerSearchState';
 import {
   filterSelectTriggerClassName,
   filterSelectTriggerChevronClassName,
 } from './pickerTriggerStyles';
+import { usePickerSearchState } from './usePickerSearchState';
+
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+
 export type SearchableSelectOption = { value: string; label: string };
 export interface SearchableSelectProps {
   options: SearchableSelectOption[];

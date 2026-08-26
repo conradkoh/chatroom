@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
-
 import { useRouter } from 'next/navigation';
+import { useCallback, useEffect } from 'react';
 
 /**
  * Service Worker message types we care about.

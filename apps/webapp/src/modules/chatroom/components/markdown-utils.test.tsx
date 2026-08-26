@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import Markdown from 'react-markdown';
 import { describe, expect, it } from 'vitest';
 
+import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import {
   backlogProseClassNames,
   detailModalRichTextEditorProseClassNames,
@@ -10,7 +11,6 @@ import {
   detailModalMarkdownProseClassNames,
   messageFeedProseClassNames,
 } from './markdown-utils';
-import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { WorkspaceFileLinkProvider } from '../context/WorkspaceFileLinkContext';
 import { MarkdownRenderer } from '../workspace/file-renderers/MarkdownRenderer';
 

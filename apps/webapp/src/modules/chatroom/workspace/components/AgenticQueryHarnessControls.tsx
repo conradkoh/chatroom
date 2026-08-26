@@ -3,7 +3,6 @@
 import { useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 
-import { HarnessHarnessSelect } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessHarnessSelect';
 import {
   ModelSelect,
   groupProviderOptions,
@@ -11,9 +10,10 @@ import {
   getHarnessModelLabel,
   findModelLabel,
 } from '@/modules/chatroom/components/model-selection';
+import type { ModelGroup } from '@/modules/chatroom/components/model-selection/types';
+import { HarnessHarnessSelect } from '@/modules/chatroom/direct-harness/components/harness-selectors/HarnessHarnessSelect';
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
-import type { ModelGroup } from '@/modules/chatroom/components/model-selection/types';
 
 export interface AgenticQueryHarnessControlsProps {
   harnesses: HarnessOption[];

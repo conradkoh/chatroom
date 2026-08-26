@@ -24,12 +24,12 @@ import {
   CODEX_MODEL_VARIANT_COMBINATIONS,
   type CodexReasoningLevel,
 } from './codex-sdk.model-variants';
-import { expandModelVariantCatalog } from './model-variant';
 import {
   inferCopilotModelProvider,
   prefixCatalogModels,
   prefixCatalogModelsWithInfer,
 } from './model-provider';
+import { expandModelVariantCatalog } from './model-variant';
 
 /** Harness ids with a server-curated catalog. */
 export type CatalogBackedHarness = Extract<

@@ -1,5 +1,5 @@
-import type { CommandItem } from '../components/CommandPalette/types';
 import { getCommandBlacklistKey } from './commandBlacklistKey';
+import type { CommandItem } from '../components/CommandPalette/types';
 
 export function partitionCommandsByBlacklist(
   commands: CommandItem[],

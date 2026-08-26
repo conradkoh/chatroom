@@ -1,4 +1,5 @@
 import type { EventClassification } from './event-classification';
+
 export type EventTypeMeta = { label: string; classification: EventClassification };
 const EVENT_TYPE_ROWS: Record<string, readonly [string, EventClassification]> = {
   'agent.started': ['Agent Started', 'success'],

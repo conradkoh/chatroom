@@ -1,8 +1,8 @@
+import { getHistoryRetrievalGuidance } from '../cli/history-retrieval/guidance';
 import {
   messagesAnchorCommand,
   messagesDownloadSinceCommand,
 } from '../utils/proof-of-verification';
-import { getHistoryRetrievalGuidance } from '../cli/history-retrieval/guidance';
 
 export interface EnhancerHistoryRetrievalParams {
   chatroomId: string;

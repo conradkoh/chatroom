@@ -1,4 +1,5 @@
 import { Activity } from 'lucide-react';
+
 export function EventStreamEmptyState({ hasChatroom }: { hasChatroom: boolean }) {
   return (
     <div

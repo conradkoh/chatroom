@@ -1,6 +1,5 @@
-import type { Message } from '../types/message';
-
 import type { TimelineEvent } from './types';
+import type { Message } from '../types/message';
 
 /**
  * Maps a feed {@link Message} to a linear timeline event.

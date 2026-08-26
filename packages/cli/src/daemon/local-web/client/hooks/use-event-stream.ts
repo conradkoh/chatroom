@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 
 import type { EventStreamEntry } from '../api/types';
-import { fetchEventStreamHistory, subscribeEventStream } from '../lib/socket';
 import type { EventStreamFilterValues } from '../lib/event-stream-filters-url';
 import { resolveTimeRange } from '../lib/log-time-range';
+import { fetchEventStreamHistory, subscribeEventStream } from '../lib/socket';
 
 export function useEventStream(filters: EventStreamFilterValues) {
   const chatroomId = filters.chatroomId;

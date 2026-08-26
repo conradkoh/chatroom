@@ -4,19 +4,21 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { useHarnessTurnStore } from './useHarnessTurnStore';
+
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
 const mockQuery = vi.fn();
 let olderQueryCallCount = 0;
 let tailQueryCallCount = 0;
-let mockChunkData: Array<{
+let mockChunkData: {
   _id: string;
   _creationTime: number;
   content: string;
   partType?: 'text' | 'reasoning';
-}> = [];
+}[] = [];
 /** Configurable return value for the getTurnsSince (tail subscription) mock. */
-let mockTailData: Array<Record<string, unknown>> = [];
+let mockTailData: Record<string, unknown>[] = [];
 /** Last args received by the getStreamingTurnChunks mock. */
 let lastChunkQueryArgs: Record<string, unknown> | null = null;
 
@@ -85,8 +87,6 @@ beforeEach(() => {
   mockTailData = [];
   lastChunkQueryArgs = null;
 });
-
-import { useHarnessTurnStore } from './useHarnessTurnStore';
 
 describe('useHarnessTurnStore — initial load', () => {
   it('initializes with turns from getLatestTurns', async () => {
@@ -284,9 +284,10 @@ describe('useHarnessTurnStore — streaming cursor (afterCreationTime)', () => {
     mockChunkData = [{ _id: 'd1', _creationTime: 100, content: 'new', partType: 'text' }];
     // makeStreamingTurn for turn2 (note: turn1 becomes complete)
     const turn2 = makeStreamingTurn('t-c2', 2, 'msg-new');
-    mockTailData = [{ ...turn1, status: 'complete' }, turn2] as unknown as Array<
-      Record<string, unknown>
-    >;
+    mockTailData = [{ ...turn1, status: 'complete' }, turn2] as unknown as Record<
+      string,
+      unknown
+    >[];
     rerender();
 
     // The cursor should now reference msg-new and be < 2000

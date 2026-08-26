@@ -2,14 +2,14 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { useChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
-import type { ChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
 import { useActivityView } from './persistence/useActivityView';
 import { useExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
 import type { ExplorerSplitPanelMode } from './persistence/useExplorerSplitPanelMode';
 import { useExplorerSplitViewEnabled } from './persistence/useExplorerSplitViewEnabled';
 import { useExplorerSyncPreference } from './persistence/useExplorerSyncPreference';
 import { useHarnessSessionId } from './persistence/useHarnessSessionId';
+import type { ChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
+import { useChatroomActiveWorkspace } from './useChatroomActiveWorkspace';
 import type { Workspace } from '../types/workspace';
 import { useFileTabs } from '../workspace/hooks/useFileTabs';
 import type { UseFileTabsReturn } from '../workspace/hooks/useFileTabs';

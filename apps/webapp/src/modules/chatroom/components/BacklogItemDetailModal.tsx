@@ -17,12 +17,12 @@ import Markdown from 'react-markdown';
 
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
-import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
-import { modalMarkdownComponents } from './markdown-utils';
 import {
   DetailModalMarkdownSurface,
   detailModalRichTextEditorProseClassNames,
 } from './detail-modal';
+import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
+import { modalMarkdownComponents } from './markdown-utils';
 import { useAttachments } from '../attachments';
 import {
   AlertDialog,
@@ -42,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 
+import { reserializeMarkdownBlankLines } from '@/components/markdown-editor/utils/reserializeMarkdownBlankLines';
 import {
   FixedModal,
   FixedModalContent,
@@ -49,7 +50,6 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
-import { reserializeMarkdownBlankLines } from '@/components/markdown-editor/utils/reserializeMarkdownBlankLines';
 
 interface BacklogItemDetailModalProps {
   isOpen: boolean;

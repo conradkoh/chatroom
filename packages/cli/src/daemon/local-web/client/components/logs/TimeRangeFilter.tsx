@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useEffect, useState } from 'react';
+
 import { PickerOptionRow } from '@/components/picker/PickerOptionRow';
 import {
   filterSelectTriggerClassName,
   filterSelectTriggerChevronClassName,
 } from '@/components/picker/pickerTriggerStyles';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   DEFAULT_LOG_TIME_PRESET,
   fromDatetimeLocalValue,
@@ -17,6 +18,7 @@ import {
   toDatetimeLocalValue,
 } from '@/lib/log-time-range';
 import { cn } from '@/lib/utils';
+
 const PRESETS: Exclude<LogTimePreset, 'custom'>[] = ['1h', '3h', '1d'];
 type Props = {
   value: LogTimeFilterValues;
@@ -24,9 +26,9 @@ type Props = {
   disabled?: boolean;
 };
 export function TimeRangeFilter({ value, onChange, disabled }: Props) {
-  const [open, setOpen] = useState(false),
-    [from, setFrom] = useState(''),
-    [to, setTo] = useState('');
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const p = value.timeRange ?? DEFAULT_LOG_TIME_PRESET;
   useEffect(() => {
     if (p === 'custom' && value.fromMs !== undefined && value.toMs !== undefined) {
@@ -35,16 +37,16 @@ export function TimeRangeFilter({ value, onChange, disabled }: Props) {
     }
   }, [p, value.fromMs, value.toMs]);
   const startCustom = () => {
-    const now = Date.now(),
-      f = value.fromMs ?? now - LOG_TIME_PRESET_MS['1h'],
-      t = value.toMs ?? now;
+    const now = Date.now();
+    const f = value.fromMs ?? now - LOG_TIME_PRESET_MS['1h'];
+    const t = value.toMs ?? now;
     setFrom(toDatetimeLocalValue(f));
     setTo(toDatetimeLocalValue(t));
     onChange({ timeRange: 'custom', fromMs: f, toMs: t });
   };
   const apply = () => {
-    const f = fromDatetimeLocalValue(from),
-      t = fromDatetimeLocalValue(to);
+    const f = fromDatetimeLocalValue(from);
+    const t = fromDatetimeLocalValue(to);
     if (f === undefined || t === undefined || f > t) return;
     onChange({ timeRange: 'custom', fromMs: f, toMs: t });
     setOpen(false);

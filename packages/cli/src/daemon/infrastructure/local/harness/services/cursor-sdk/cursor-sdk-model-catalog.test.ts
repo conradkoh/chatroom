@@ -1,6 +1,6 @@
 import type { ModelListItem } from '@cursor/sdk';
-import { describe, expect, it } from 'vitest';
 import { prefixCatalogModels } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
+import { describe, expect, it } from 'vitest';
 
 import {
   cursorCatalogBaseId,

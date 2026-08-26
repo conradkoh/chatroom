@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+
 import {
   htmlToMarkdown,
   looksLikeHtml,
   normalizeMarkdownContent,
   withMarkdownContent,
 } from './markdown-content';
+
 describe('markdown content normalization', () => {
   it('converts legacy HTML and excludes structured/fenced content', () => {
     expect(looksLikeHtml('<p>Hello</p>')).toBe(true);

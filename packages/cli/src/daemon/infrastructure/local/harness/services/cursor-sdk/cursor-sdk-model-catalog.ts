@@ -1,6 +1,6 @@
 import type { ModelListItem } from '@cursor/sdk';
-import { encodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant.js';
 import { prefixCatalogModels } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
+import { encodeModelVariant } from '@workspace/backend/src/domain/entities/harness/model-variant.js';
 
 import { importBundledCursorSdk } from './cursor-sdk-package.js';
 

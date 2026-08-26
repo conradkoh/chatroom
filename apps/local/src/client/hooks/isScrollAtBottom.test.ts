@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { isScrollAtBottom } from './isScrollAtBottom';
 
 function mockElement(

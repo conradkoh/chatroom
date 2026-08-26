@@ -1,7 +1,8 @@
 import { forwardRef } from 'react';
+
+import { AnsiText } from './AnsiText';
 import type { CommandRun } from '../types/run';
 import { isActiveRun } from '../utils/run-status';
-import { AnsiText } from './AnsiText';
 
 interface TerminalViewProps {
   output: string;

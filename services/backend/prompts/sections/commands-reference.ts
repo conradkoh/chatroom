@@ -1,13 +1,14 @@
+import {
+  getGeneralCommandsReferenceContent,
+  type GeneralKnowledgeParams,
+} from './general-knowledge';
 import { getNextTaskCommand } from '../cli/get-next-task/command';
 import { getNextTaskReminder } from '../cli/get-next-task/reminder';
 import { handoffCommand } from '../cli/handoff/command';
 import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';
-import {
-  getGeneralCommandsReferenceContent,
-  type GeneralKnowledgeParams,
-} from './general-knowledge';
+
 const HANDOFF_BODY_GUIDANCE = `Fill in the message using the matching template from \`<handoff-templates>\` in your task delivery output. Replace \`[Your message here]\` with that template content. The closing line must be exactly \`CHATROOM_HANDOFF_END\` (not \`EOF\`).`;
 export interface CommandsReferenceParams extends GeneralKnowledgeParams {}
 function handoffContent(params: CommandsReferenceParams, native: boolean): string {

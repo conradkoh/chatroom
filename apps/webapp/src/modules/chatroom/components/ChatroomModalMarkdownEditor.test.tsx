@@ -1,5 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+
+import { ChatroomModalMarkdownEditor } from './ChatroomModalMarkdownEditor';
+
 vi.mock('@/components/markdown-editor', () => ({
   MarkdownEditor: (props: { proseClassName: string; normalizeContent?: (s: string) => string }) => (
     <div
@@ -9,7 +12,6 @@ vi.mock('@/components/markdown-editor', () => ({
     />
   ),
 }));
-import { ChatroomModalMarkdownEditor } from './ChatroomModalMarkdownEditor';
 describe('ChatroomModalMarkdownEditor', () => {
   it('forwards prose classes', () => {
     render(

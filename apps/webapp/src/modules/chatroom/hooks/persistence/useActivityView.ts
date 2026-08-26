@@ -2,8 +2,8 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import { usePersistedState } from '../usePersistedState';
 import type { ActivityView } from '../../components/ActivityBar';
+import { usePersistedState } from '../usePersistedState';
 
 const STORAGE_KEY = (chatroomId: string) => `chatroom:${chatroomId}:activityView`;
 

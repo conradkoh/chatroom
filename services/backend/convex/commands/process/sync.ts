@@ -1,4 +1,5 @@
 import { ConvexError } from 'convex/values';
+
 import type { MutationCtx } from '../../_generated/server';
 import { MAX_COMMANDS_PER_SYNC } from '../types';
 
@@ -7,12 +8,12 @@ export async function syncCommands(
   args: {
     machineId: string;
     workingDir: string;
-    commands: Array<{
+    commands: {
       name: string;
       script: string;
       source: 'package.json' | 'turbo.json' | 'deno.json' | 'Makefile';
       subWorkspace?: { type: string; path: string; name: string };
-    }>;
+    }[];
   }
 ) {
   if (args.commands.length > MAX_COMMANDS_PER_SYNC) {

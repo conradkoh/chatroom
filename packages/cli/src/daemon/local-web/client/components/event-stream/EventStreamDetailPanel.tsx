@@ -1,7 +1,10 @@
 import { X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import type { EventStreamEntry } from '@/api/types';
+
 import { EventTypeBadge } from './EventTypeBadge';
+
+import type { EventStreamEntry } from '@/api/types';
+import { Button } from '@/components/ui/button';
+
 export function EventStreamDetailPanel({
   entry,
   onClose,

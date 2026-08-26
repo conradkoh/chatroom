@@ -1,4 +1,5 @@
 import { DEFAULT_LOG_TIME_PRESET, type LogTimePreset } from './log-time-range';
+
 export type EventStreamFilterValues = {
   chatroomId?: string;
   timeRange?: LogTimePreset;
@@ -8,12 +9,12 @@ export type EventStreamFilterValues = {
 const validTimeRange = (v: string | null): LogTimePreset | undefined =>
   v && (['1h', '3h', '1d', 'custom'] as string[]).includes(v) ? (v as LogTimePreset) : undefined;
 export function readEventStreamFiltersFromSearch(search: string): EventStreamFilterValues {
-  const sp = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search),
-    timeRange = validTimeRange(sp.get('timeRange')),
-    from = sp.get('from'),
-    to = sp.get('to');
-  const fromMs = Number(from),
-    toMs = Number(to);
+  const sp = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  const timeRange = validTimeRange(sp.get('timeRange'));
+  const from = sp.get('from');
+  const to = sp.get('to');
+  const fromMs = Number(from);
+  const toMs = Number(to);
   return {
     ...(sp.get('chatroomId') ? { chatroomId: sp.get('chatroomId')! } : {}),
     ...(timeRange ? { timeRange } : {}),

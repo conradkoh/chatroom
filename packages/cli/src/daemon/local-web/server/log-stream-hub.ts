@@ -1,4 +1,5 @@
 import type { LogEntry } from '../../../infrastructure/log-server/log-store.js';
+
 export type LogStreamEvent = LogEntry;
 export type LogStreamHub = {
   publish(event: LogStreamEvent): void;

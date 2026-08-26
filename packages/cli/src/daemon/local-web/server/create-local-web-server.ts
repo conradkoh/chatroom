@@ -3,8 +3,8 @@ import type { AddressInfo } from 'node:net';
 
 import { Server as SocketIOServer } from 'socket.io';
 
-import type { LogStreamHub } from './log-stream-hub.js';
 import type { EventStreamHub } from './event-stream-hub.js';
+import type { LogStreamHub } from './log-stream-hub.js';
 import { routeRequest } from './routes.js';
 import { resolveClientDistDir, tryServeStatic } from './serve-static.js';
 import { createStreamHub, type StreamHub } from './stream-hub.js';

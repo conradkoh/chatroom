@@ -7,6 +7,10 @@ import { stat } from 'node:fs/promises';
 import type { ConvexHttpClient } from 'convex/browser';
 import { Cause, Effect, Ref, Schedule, Duration } from 'effect';
 
+import {
+  createAgentLifecycleOutboxForSession,
+  enqueueAgentLifecycleFact,
+} from './agent-lifecycle-outbox-runtime.js';
 import { harnessCapabilitiesFingerprint } from './capabilities-snapshot.js';
 import type { DaemonDeps } from './daemon-deps.js';
 import { daemonSessionToLayers } from './daemon-layers.js';
@@ -23,8 +27,6 @@ import {
 import { logStartupEffect } from './handlers/daemon-startup-log.js';
 import { reapOrphanedProcessGroupsEffect } from './handlers/orphan-tracker.js';
 import { cleanOrphanTempFiles } from './handlers/process/output-store.js';
-import { createAgentLifecycleOutboxForSession } from './agent-lifecycle-outbox-runtime.js';
-import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
 import { recoverAgentStateEffect } from './handlers/state-recovery.js';
 import { acquireLockWithRetry, releaseLock } from '../../commands/machine/pid.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';

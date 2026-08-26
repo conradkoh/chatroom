@@ -8,8 +8,8 @@ import React, { useState, useCallback } from 'react';
 import Markdown from 'react-markdown';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
-import { fullMarkdownComponents } from './markdown-utils';
 import { markdownSurfaceBaseProseClassNames } from './markdown-surface';
+import { fullMarkdownComponents } from './markdown-utils';
 
 import {
   FixedModal,

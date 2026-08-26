@@ -1,5 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+
+import { useProcessesPanelState } from './useProcessesPanelState';
 import type { RunnableCommand, CommandRun } from '../types/run';
 
 // Stub useCommandFavorites so we don't need localStorage
@@ -11,8 +13,6 @@ vi.mock('./useCommandFavorites', () => ({
     version: 0,
   }),
 }));
-
-import { useProcessesPanelState } from './useProcessesPanelState';
 
 const makeCommand = (name: string, subPath = '.'): RunnableCommand => ({
   _id: `cmd-${name}` as RunnableCommand['_id'],

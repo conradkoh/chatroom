@@ -3,16 +3,17 @@
 import { Check, ChevronDown, Star } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
-import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
+import type { SearchConfigEntry } from '../types/searchConfig';
+import { formatSearchConfigLabel } from '../utils/formatSearchConfigLabel';
+
+import { cn } from '@/lib/utils';
 import {
   ResponsivePickerShell,
   PickerSearch,
   PickerScrollBody,
   usePickerSearchState,
 } from '@/modules/chatroom/components/picker';
-import { cn } from '@/lib/utils';
-import type { SearchConfigEntry } from '../types/searchConfig';
-import { formatSearchConfigLabel } from '../utils/formatSearchConfigLabel';
+import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 
 export interface SearchConfigFavoriteDropdownProps {
   favorites: SearchConfigEntry[];
@@ -43,7 +44,7 @@ export const SearchConfigFavoriteDropdown = memo(function SearchConfigFavoriteDr
     : 'Select config';
 
   const options = useMemo(() => {
-    const items: Array<{ entry: SearchConfigEntry; isFav: boolean }> = favorites.map((entry) => ({
+    const items: { entry: SearchConfigEntry; isFav: boolean }[] = favorites.map((entry) => ({
       entry,
       isFav: true,
     }));

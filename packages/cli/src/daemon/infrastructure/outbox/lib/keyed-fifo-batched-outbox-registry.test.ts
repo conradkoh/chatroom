@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
 import { openDurableFifoQueueStore } from './durable-fifo-queue-store.js';
 import { createKeyedFifoBatchedOutboxRegistry } from './keyed-fifo-batched-outbox-registry.js';
+
 describe('keyed fifo registry', () => {
   it('delivers independent keys and closes store', async () => {
     const s = openDurableFifoQueueStore(join(mkdtempSync(join(tmpdir(), 'registry-')), 'q'));

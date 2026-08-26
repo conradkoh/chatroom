@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+
 import {
   readEventStreamFiltersFromSearch,
   replaceEventStreamFiltersInUrl,
 } from './event-stream-filters-url';
+
 describe('event stream filter URL', () => {
   it('reads defaults and values', () => {
     expect(readEventStreamFiltersFromSearch('?tab=event-stream')).toEqual({});

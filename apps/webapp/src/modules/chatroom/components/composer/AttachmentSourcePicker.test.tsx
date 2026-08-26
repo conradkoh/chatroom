@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { AttachmentSourcePicker } from './AttachmentSourcePicker';
+
 const desktop = vi.fn();
 vi.mock('@/hooks/useIsDesktop', () => ({ useIsDesktop: () => desktop() }));
 vi.mock('@/hooks/useMobileKeyboard', () => ({

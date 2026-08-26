@@ -5,9 +5,9 @@ import { memo, useState } from 'react';
 
 import { AgenticQueryConfigModal } from './AgenticQueryConfigModal';
 
+import type { UseMachineModelFilterResult } from '@/modules/chatroom/components/model-selection';
 import type { ProviderOption } from '@/modules/chatroom/direct-harness/components/harness-selectors/types';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
-import type { UseMachineModelFilterResult } from '@/modules/chatroom/components/model-selection';
 import { SearchConfigFavoriteDropdown } from '@/modules/chatroom/features/search-config/components/SearchConfigFavoriteDropdown';
 import type { SearchConfigEntry } from '@/modules/chatroom/features/search-config/types/searchConfig';
 

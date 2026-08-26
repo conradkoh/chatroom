@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+
 import { createLogStreamHub } from './log-stream-hub.js';
+
 describe('createLogStreamHub', () => {
   it('publishes and unsubscribes', () => {
     const hub = createLogStreamHub();

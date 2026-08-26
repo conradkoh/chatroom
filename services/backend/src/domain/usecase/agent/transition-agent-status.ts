@@ -12,11 +12,11 @@
  * this function will also write to that field, making teamAgentConfigs the single source of truth.
  */
 
+import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
+import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
 
 const OPERATIONAL_STATUSES = new Set([
   'agent.waiting',

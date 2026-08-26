@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+
 import { SketchColorPicker } from './SketchColorPicker';
+
 describe('SketchColorPicker', () => {
   it('selects colors and marks the active swatch', async () => {
     const onChange = vi.fn();

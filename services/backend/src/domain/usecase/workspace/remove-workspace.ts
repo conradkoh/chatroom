@@ -17,10 +17,10 @@
  * Throws if the workspace document does not exist.
  */
 
+import { rebuildObservedWorkspaceView } from './project-observed-workspace-view';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
-import { rebuildObservedWorkspaceView } from './project-observed-workspace-view';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

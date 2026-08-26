@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo } from 'react';
 
-import { HarnessHarnessSelect } from './HarnessHarnessSelect';
 import { HarnessAgentSelect } from './HarnessAgentSelect';
+import { HarnessHarnessSelect } from './HarnessHarnessSelect';
 import {
   ModelSelect,
   ModelFilterButton,
@@ -12,9 +12,9 @@ import {
   getHarnessModelLabel,
   findModelLabel,
 } from '../../../components/model-selection';
-import type { HarnessOption, UseHarnessConfigResult } from '../../hooks/useHarnessConfig';
 import type { UseMachineModelFilterResult } from '../../../components/model-selection';
 import type { ModelGroup } from '../../../components/model-selection/types';
+import type { HarnessOption, UseHarnessConfigResult } from '../../hooks/useHarnessConfig';
 
 export interface HarnessSelectorBarProps {
   harnesses: HarnessOption[];

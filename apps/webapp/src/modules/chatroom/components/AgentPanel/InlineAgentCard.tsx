@@ -2,10 +2,10 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentRoleView } from '../../hooks/useAgentPanelData';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import React, { memo, useState, useMemo, useEffect, useRef } from 'react';
 
+import type { AgentRoleView } from '../../hooks/useAgentPanelData';
 import type { MachineInfo, AgentConfig, SendCommandFn, AgentHarness } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentControls';

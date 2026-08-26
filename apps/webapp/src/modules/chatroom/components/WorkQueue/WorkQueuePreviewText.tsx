@@ -4,6 +4,7 @@ import {
   getWorkQueuePreviewSegments,
   formatWorkQueuePreviewPlainText,
 } from '../../utils/getWorkQueuePreviewSegments';
+
 import { cn } from '@/lib/utils';
 
 export interface WorkQueuePreviewTextProps {

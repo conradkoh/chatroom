@@ -1,6 +1,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ScheduledPromptDetailDialog } from './ScheduledPromptDetailDialog';
+
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   listTriggeredMessages: vi.fn(),
@@ -35,8 +37,6 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 vi.mock('sonner', () => ({
   toast: { error: vi.fn() },
 }));
-
-import { ScheduledPromptDetailDialog } from './ScheduledPromptDetailDialog';
 
 const defaultPrompt = {
   _id: 'prompt-1',

@@ -1,7 +1,9 @@
-import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+
 import { DURABLE_FIFO_QUEUE_MIGRATIONS } from './durable-fifo-queue-schema.js';
+
 export type DurableFifoQueueEntry = {
   id: number;
   deliveryKey: string;

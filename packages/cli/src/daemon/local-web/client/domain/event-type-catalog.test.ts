@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { EVENT_TYPE_CATALOG, resolveEventTypeMeta } from './event-type-catalog';
+
 import { getClassificationStyle } from './event-classification';
+import { EVENT_TYPE_CATALOG, resolveEventTypeMeta } from './event-type-catalog';
+
 describe('event type catalog', () => {
   it('resolves known and unknown types', () => {
     expect(resolveEventTypeMeta('agent.exited')).toEqual({

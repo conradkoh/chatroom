@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'vitest';
+
 import { formatSearchConfigLabel } from './formatSearchConfigLabel';
+
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
 
 const mockHarnesses: HarnessOption[] = [

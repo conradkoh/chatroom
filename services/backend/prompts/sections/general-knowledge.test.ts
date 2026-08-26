@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+
 import { getGeneralKnowledgeSections } from './general-knowledge';
+
 describe('general knowledge sections', () => {
   it('composes glossary, history, commands, and recovery guidance', () => {
     const text = getGeneralKnowledgeSections({ chatroomId: 'room', role: 'builder', convexUrl: '' })

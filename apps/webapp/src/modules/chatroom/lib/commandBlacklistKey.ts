@@ -1,5 +1,5 @@
-import type { CommandItem } from '../components/CommandPalette/types';
 import { parseWorkspaceCommandBlacklistKeyFromId } from './workspaceCommandBlacklistKey';
+import type { CommandItem } from '../components/CommandPalette/types';
 
 export function getCommandBlacklistKey(command: CommandItem): string {
   if (command.blacklistKey) return command.blacklistKey;

@@ -25,12 +25,12 @@ import { randomUUID } from 'node:crypto';
 
 import type { Codex, Thread, ThreadOptions } from '@openai/codex-sdk';
 import { CODEX_MODEL_VARIANT_COMBINATIONS } from '@workspace/backend/src/domain/entities/harness/codex-sdk.model-variants.js';
+import { stripProviderPrefix } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 import {
   decodeModelVariant,
   validateModelVariantParams,
   type ValidatedModelVariant,
 } from '@workspace/backend/src/domain/entities/harness/model-variant.js';
-import { stripProviderPrefix } from '@workspace/backend/src/domain/entities/harness/model-provider.js';
 import { Effect } from 'effect';
 
 import {

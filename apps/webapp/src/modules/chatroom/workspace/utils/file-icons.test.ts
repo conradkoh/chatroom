@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+
 import { getFileIcon } from './file-icons';
 
 describe('getFileIcon', () => {

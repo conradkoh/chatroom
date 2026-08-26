@@ -1,10 +1,10 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentRoleView } from '../../hooks/useAgentPanelData';
 import { Loader2, Play } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
+import type { AgentRoleView } from '../../hooks/useAgentPanelData';
 import type { MachineInfo, AgentConfig, SendCommandFn, AgentHarness } from '../../types/machine';
 import { getMachineDisplayName } from '../../types/machine';
 import { getFailedAgentRoles } from '../../utils/agentBulkStart';

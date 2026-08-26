@@ -4,15 +4,12 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Check, Paperclip, MoreHorizontal, StopCircle, Trash2, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
-import { cn } from '@/lib/utils';
 
 import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
+import { DetailModalMarkdownSurface, detailModalMarkdownProseClassNames } from './detail-modal';
 import { RichTextEditor, isInteractiveClickTarget } from './detail-modal-shared';
 import { HandoffStructuredContent } from './HandoffStructuredContent';
-import { DetailModalMarkdownSurface, detailModalMarkdownProseClassNames } from './detail-modal';
 import { modalMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
-import { getStatusBadge } from './WorkQueue/utils';
-import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 import { useAttachments } from '../attachments';
 import {
   DropdownMenu,
@@ -21,6 +18,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { getStatusBadge } from './WorkQueue/utils';
+import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 
 import {
   FixedModal,
@@ -28,6 +27,7 @@ import {
   FixedModalContent,
   FixedModalHeader,
 } from '@/components/ui/fixed-modal';
+import { cn } from '@/lib/utils';
 
 interface Task {
   _id: Id<'chatroom_tasks'>;

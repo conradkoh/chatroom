@@ -14,7 +14,7 @@ export type NotificationClickAction =
   | { kind: 'open-window'; url: string };
 
 export function decideNotificationClickAction(
-  clients: Array<{ url: string }>,
+  clients: { url: string }[],
   chatroomId?: string
 ): NotificationClickAction {
   // 1. Exact match: an app tab already open to this chatroom

@@ -7,19 +7,19 @@ import { getSession, requireSession } from './auth/session';
 import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
 import { insertEmptyOperationalSummaryForRoom } from '../src/domain/usecase/agent/project-agent-operational-status';
-import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
-import { rebuildObservedWorkspaceViewsForChatroom } from '../src/domain/usecase/workspace/project-observed-workspace-view';
-import { ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
 import {
   getChatroomLifecycleImpacts,
   disableScheduledPromptsForArchive,
 } from '../src/domain/usecase/chatroom/lifecycle-impacts';
+import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
 import {
   clearChatroomUnread,
   markChatroomUnread,
 } from '../src/domain/usecase/chatroom/unread-status';
 import { listChatroomIdsWithActiveEnhancerWork } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
+import { ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
+import { rebuildObservedWorkspaceViewsForChatroom } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({

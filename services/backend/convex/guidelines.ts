@@ -2,13 +2,12 @@
 
 import { v } from 'convex/values';
 
-import { toLiteralValidators } from '../src/domain/entities/_shared/v-literals-of';
-
 import { query } from './_generated/server';
 import { getDesignPolicy } from '../prompts/policies/design';
 import { getPerformancePolicy } from '../prompts/policies/performance';
 import { getSecurityPolicy } from '../prompts/policies/security';
 import { getReviewGuidelines } from '../prompts/review-guidelines';
+import { toLiteralValidators } from '../src/domain/entities/_shared/v-literals-of';
 
 /**
  * Available guideline types

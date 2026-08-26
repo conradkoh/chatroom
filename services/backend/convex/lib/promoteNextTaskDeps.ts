@@ -8,8 +8,8 @@
 
 import type { PromoteNextTaskDeps } from '../../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../../src/domain/usecase/task/promote-queued-message';
-import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 /**
  * Checks that no tasks with an active status (pending, acknowledged, in_progress)

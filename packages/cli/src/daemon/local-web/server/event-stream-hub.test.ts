@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+
 import { createEventStreamHub } from './event-stream-hub.js';
+
 describe('createEventStreamHub', () => {
   it('publishes and unsubscribes', () => {
     const hub = createEventStreamHub();

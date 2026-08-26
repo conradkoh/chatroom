@@ -5,8 +5,9 @@
  * mixed ANSI+URL input, and stray control char safety.
  */
 
-import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+
 import { AnsiText } from './AnsiText';
 
 describe('AnsiText', () => {

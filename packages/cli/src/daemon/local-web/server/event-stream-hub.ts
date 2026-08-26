@@ -1,4 +1,5 @@
 import type { EventStreamEntry } from '../../../infrastructure/log-server/log-store.js';
+
 export type EventStreamHub = {
   publish(event: EventStreamEntry): void;
   subscribe(listener: (event: EventStreamEntry) => void): () => void;

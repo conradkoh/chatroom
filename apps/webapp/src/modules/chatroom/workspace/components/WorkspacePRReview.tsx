@@ -6,7 +6,6 @@ import { memo, useEffect, useCallback } from 'react';
 import { PRActionButtons } from './PRActionButtons';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
 import { usePRDiff } from '../hooks/useWorkspaceGit';
-
 import type { GitPullRequest } from '../types/git';
 
 // ─── Types ────────────────────────────────────────────────────────────────────

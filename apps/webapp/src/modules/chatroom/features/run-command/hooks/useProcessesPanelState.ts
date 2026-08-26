@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { useCommandFavorites } from './useCommandFavorites';
 import type { CommandRun, RunnableCommand } from '../types/run';
 import { groupCommandsByWorkspace, type WorkspaceGroup } from '../utils/grouping';
 import { isActiveRun } from '../utils/run-status';
-import { useCommandFavorites } from './useCommandFavorites';
 
 export interface ProcessesPanelState {
   // Search

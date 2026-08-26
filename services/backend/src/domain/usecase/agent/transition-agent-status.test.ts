@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
+
 import { transitionAgentStatus } from './transition-agent-status';
+import { getParticipantForChatroomRole } from '../machine/assigned-tasks-core';
+
 vi.mock('../machine/assigned-tasks-core', () => ({ getParticipantForChatroomRole: vi.fn() }));
 const lookup = vi.mocked(getParticipantForChatroomRole);
 function ctx(config?: { desiredState?: string }): any {

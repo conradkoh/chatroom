@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
+
 import type { EventStreamFilterValues } from '../lib/event-stream-filters-url';
 import {
   readEventStreamFiltersFromSearch,
   replaceEventStreamFiltersInUrl,
 } from '../lib/event-stream-filters-url';
+
 export function useEventStreamFiltersFromUrl() {
   const [filters, setState] = useState<EventStreamFilterValues>(() =>
     readEventStreamFiltersFromSearch(window.location.search)

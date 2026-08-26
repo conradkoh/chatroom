@@ -1,6 +1,8 @@
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
-import { cn } from '@/lib/utils';
+
 import { portaledMenuFloatingClassName } from '@/lib/menu-styles';
+import { cn } from '@/lib/utils';
+
 export function Popover({ modal = false, ...props }: PopoverPrimitive.Root.Props) {
   return <PopoverPrimitive.Root data-slot="popover" modal={modal} {...props} />;
 }

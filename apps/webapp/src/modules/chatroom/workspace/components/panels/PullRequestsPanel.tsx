@@ -12,9 +12,8 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { GitPullRequest as GitPullRequestIcon, Loader2, Star } from 'lucide-react';
+import { GitPullRequest as GitPullRequestIcon, Loader2, Star, ChevronDown } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
 
 import {
   ResponsivePickerShell,

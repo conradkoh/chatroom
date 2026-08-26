@@ -1,4 +1,5 @@
 import { ChevronRight } from 'lucide-react';
+
 import { type BacklogItem, getScoringBadge } from '../backlog';
 import { WorkQueuePreviewText } from './WorkQueuePreviewText';
 
