@@ -82,7 +82,9 @@ function TaskDetailForm({
   onDelete,
   onForceComplete,
   isProtected = false,
-}: TaskDetailModalProps) {
+}: Omit<TaskDetailModalProps, 'task'> & {
+  task: NonNullable<TaskDetailModalProps['task']>;
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(task.content);
   const [initialClickCoords, setInitialClickCoords] = useState<{

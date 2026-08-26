@@ -60,15 +60,10 @@ export interface MessageInputProps {
 // ── Touch detection ──────────────────────────────────────────────────────────
 
 function useIsTouchDevice(): boolean | undefined {
-  const [mounted, setMounted] = useState(false);
-  const [isTouch, setIsTouch] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
-    setIsTouch(isTouchDevice);
-  }, []);
-
+  const [mounted] = useState(() => typeof window !== 'undefined');
+  const [isTouch] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+  );
   return mounted ? isTouch : undefined;
 }
 
@@ -78,7 +73,12 @@ const DRAFT_KEY_PREFIX = 'chatroom-draft:';
 const MAX_DRAFTS = 10;
 
 function useEffectiveMaxTextareaHeightPx(): number {
-  const [maxHeightPx, setMaxHeightPx] = useState(MAX_TEXTAREA_HEIGHT_PX);
+  const [maxHeightPx, setMaxHeightPx] = useState(() => {
+    if (typeof window === 'undefined') return MAX_TEXTAREA_HEIGHT_PX;
+    return getEffectiveMaxTextareaHeightPx(
+      getViewportHeightPx(window.visualViewport?.height, window.innerHeight)
+    );
+  });
 
   useEffect(() => {
     const update = () => {
@@ -86,7 +86,6 @@ function useEffectiveMaxTextareaHeightPx(): number {
       setMaxHeightPx(getEffectiveMaxTextareaHeightPx(viewportHeight));
     };
 
-    update();
     window.addEventListener('resize', update);
     window.visualViewport?.addEventListener('resize', update);
     return () => {
@@ -157,7 +156,11 @@ export function MessageInput({
   onUploadComplete,
 }: MessageInputProps) {
   const { startInNewSession } = useStartInNewSessionPreference();
-  const [message, setMessage] = useState('');
+  const draftKey = `chatroom-draft:${chatroomId}`;
+  const [message, setMessage] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return parseDraft(localStorage.getItem(draftKey)) ?? '';
+  });
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sketchOpen, setSketchOpen] = useState(false);
@@ -168,11 +171,7 @@ export function MessageInput({
   const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
 
   // Register focus callback for external callers
-  useEffect(() => {
-    onRegisterFocus?.(() => {
-      textareaRef.current?.focus();
-    });
-  }, [onRegisterFocus]);
+  onRegisterFocus?.(() => textareaRef.current?.focus());
 
   // Prefill from explorer Cmd+I selection
   const { add, remove, clearAll } = useAttachments();
@@ -209,21 +208,6 @@ export function MessageInput({
   }, []);
 
   // ── Draft persistence ──────────────────────────────────────────────────────
-  const draftKey = `chatroom-draft:${chatroomId}`;
-
-  // Restore draft on mount (once per chatroomId) and auto-focus
-  useEffect(() => {
-    if (isTouchDevice === undefined) return;
-
-    const saved = parseDraft(localStorage.getItem(draftKey));
-    if (saved) setMessage(saved);
-    // Auto-focus when switching chatrooms (non-touch devices only)
-    if (isTouchDevice === false) {
-      setTimeout(() => textareaRef.current?.focus(), 0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatroomId, isTouchDevice]);
-
   // Debounced save: write 500ms after the last keystroke, clear when empty
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -403,6 +387,7 @@ export function MessageInput({
       clearAll,
       draftKey,
       onMessageSent,
+      startInNewSession,
     ]
   );
 

@@ -47,6 +47,7 @@ export function useMarkdownFileEditor({
     if (loadedContent === undefined) return undefined;
     if (loadedContent === null)
       return initialEmpty || isPendingOptimisticNewFile(filePath) ? '' : null;
+    if (isTransientNewFileReadError(loadedContent.content, filePath)) return '';
     if (isWorkspaceNotRegisteredError(loadedContent.content)) return null;
     if (isFileNotFoundError(loadedContent.content)) return null;
     return loadedContent.content;
@@ -88,7 +89,7 @@ export function useMarkdownFileEditor({
         filePath,
       }).catch(() => {});
       if (contentRef.current === snapshotAtStart) {
-        setIsDirty(false);
+        setDraft(null);
       }
     } finally {
       saveInFlightRef.current = false;
