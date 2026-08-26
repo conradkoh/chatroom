@@ -116,7 +116,7 @@ async function persistRestartAndEmit(
     ? await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, chatroom.teamId!, input.role))
+          q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, chatroom.teamId, input.role))
         )
         .first()
     : null;

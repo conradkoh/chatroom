@@ -31,11 +31,12 @@ export async function deriveRoleStopState(
     .order('desc')
     .first();
   const room = latest ? await ctx.db.get('chatroom_rooms', chatroomId) : null;
-  const config = room?.teamId
+  const teamId = room?.teamId;
+  const config = teamId
     ? await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) =>
-          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, room.teamId!, role))
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, teamId, role))
         )
         .first()
     : null;

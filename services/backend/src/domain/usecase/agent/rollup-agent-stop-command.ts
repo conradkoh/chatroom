@@ -40,12 +40,13 @@ export async function rollupAgentStopCommandStatus(
   });
   if (!failed && command.postStopDesiredState) {
     const room = await ctx.db.get('chatroom_rooms', command.chatroomId);
-    if (room?.teamId)
+    if (room?.teamId) {
+      const teamId = room.teamId;
       for (const role of [...new Set(targets.map((target) => target.role))]) {
         const config = await ctx.db
           .query('chatroom_teamAgentConfigs')
           .withIndex('by_teamRoleKey', (q) =>
-            q.eq('teamRoleKey', buildTeamRoleKey(command.chatroomId, room.teamId!, role))
+            q.eq('teamRoleKey', buildTeamRoleKey(command.chatroomId, teamId, role))
           )
           .first();
         if (config && config.desiredState !== command.postStopDesiredState)
@@ -56,6 +57,7 @@ export async function rollupAgentStopCommandStatus(
             { projectScope: 'chatroom' }
           );
       }
+    }
   }
   for (const role of [...new Set(targets.map((target) => target.role))])
     await projectAgentStopStateForRole(ctx, command.chatroomId, role);

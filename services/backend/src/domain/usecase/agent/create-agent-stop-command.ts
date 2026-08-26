@@ -61,19 +61,20 @@ export async function createAgentStopCommand(
     );
   }
   for (const target of input.selectedConfigs) {
+    if (target.machineId === undefined || target.spawnedAgentPid === undefined) continue;
     const targetKey = buildAgentStopTargetKey({
-      machineId: target.machineId!,
+      machineId: target.machineId,
       role: target.role,
-      pid: target.spawnedAgentPid!,
+      pid: target.spawnedAgentPid,
     });
     await ctx.db.insert('chatroom_agentStopTargets', {
       stopCommandId,
       chatroomId: input.chatroomId,
       agentConfigId: target._id,
       agentHarness: target.agentHarness,
-      machineId: target.machineId!,
+      machineId: target.machineId,
       role: normalizeAgentStopRole(target.role),
-      pid: target.spawnedAgentPid!,
+      pid: target.spawnedAgentPid,
       targetKey,
       revisionKey: buildAgentStopRevisionKey({ stopCommandId, targetKey }),
       status: 'pending',
