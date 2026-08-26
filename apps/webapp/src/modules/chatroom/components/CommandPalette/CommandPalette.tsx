@@ -42,6 +42,35 @@ interface CommandPaletteProps {
   inlineCommand: CommandPaletteOutputState;
 }
 
+function areCommandPaletteRowsEqual(
+  previous: CommandPaletteRow[] | null,
+  next: CommandPaletteRow[]
+): boolean {
+  if (!previous || previous.length !== next.length) return false;
+
+  return next.every((row, index) => {
+    const previousRow = previous[index];
+    if (!previousRow || previousRow.type !== row.type || previousRow.id !== row.id) return false;
+    if (row.type === 'heading' && previousRow.type === 'heading') {
+      return previousRow.label === row.label;
+    }
+    if (row.type !== 'item' || previousRow.type !== 'item') return false;
+
+    const previousCommand = previousRow.command;
+    const command = row.command;
+    return (
+      previousCommand.id === command.id &&
+      previousCommand.label === command.label &&
+      previousCommand.detail === command.detail &&
+      previousCommand.icon === command.icon &&
+      previousCommand.shortcut === command.shortcut &&
+      previousCommand.category === command.category &&
+      previousCommand.showOutputInline === command.showOutputInline &&
+      previousCommand.script === command.script
+    );
+  });
+}
+
 /**
  * Cmd+Shift+P command palette with partition-scoped Legend State preload.
  *
@@ -71,6 +100,7 @@ export function CommandPalette({
 
   const [partitionState$, setPartitionState$] =
     useState<Observable<CommandPalettePartitionState> | null>(null);
+  const preloadedRowsRef = useRef<CommandPaletteRow[] | null>(null);
 
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);
@@ -125,8 +155,20 @@ export function CommandPalette({
     if (!chatroomId) return;
 
     const state$ = acquireCommandPalettePartition(chatroomId, workspaceId);
+    preloadedRowsRef.current = null;
     setPartitionState$(state$);
-    const generation = beginCommandPalettePreload(state$);
+
+    return () => {
+      releaseCommandPalettePartition(chatroomId, workspaceId);
+      preloadedRowsRef.current = null;
+      setPartitionState$(null);
+    };
+  }, [chatroomId, workspaceId]);
+
+  useEffect(() => {
+    // This effect intentionally synchronizes the derived browse cache with reactive command data.
+    // eslint-disable-next-line react-you-might-not-need-an-effect/no-event-handler
+    if (!partitionState$ || !chatroomId) return;
 
     const rows = buildCommandPaletteRows({
       commands,
@@ -138,15 +180,14 @@ export function CommandPalette({
       frecencyScores,
       blacklistedKeys,
     });
-    commitCommandPalettePreload(state$, generation, rows);
+    if (areCommandPaletteRowsEqual(preloadedRowsRef.current, rows)) return;
 
-    return () => {
-      releaseCommandPalettePartition(chatroomId, workspaceId);
-      setPartitionState$(null);
-    };
+    const generation = beginCommandPalettePreload(partitionState$);
+    commitCommandPalettePreload(partitionState$, generation, rows);
+    preloadedRowsRef.current = rows;
   }, [
+    partitionState$,
     chatroomId,
-    workspaceId,
     commands,
     rankedFilter,
     recentCommands,
@@ -168,9 +209,17 @@ export function CommandPalette({
     };
   });
 
+  const commandsById = useMemo(
+    () => new Map(commands.map((command) => [command.id, command])),
+    [commands]
+  );
+
   const rows = useMemo(() => {
     if (!isSearching && partitionStatus === 'ready' && browseRowsFromStore.length > 0) {
-      return browseRowsFromStore;
+      return browseRowsFromStore.map((row) => {
+        if (row.type !== 'item') return row;
+        return { ...row, command: commandsById.get(row.command.id) ?? row.command };
+      });
     }
     return buildCommandPaletteRows({
       commands,
@@ -186,6 +235,7 @@ export function CommandPalette({
     isSearching,
     partitionStatus,
     browseRowsFromStore,
+    commandsById,
     commands,
     searchValue,
     rankedFilter,
