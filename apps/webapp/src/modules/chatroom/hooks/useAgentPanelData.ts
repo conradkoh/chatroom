@@ -24,7 +24,7 @@ export interface AgentPanelData {
   connectedMachines: MachineInfo[];
   machineConfigs: AgentConfig[];
   isLoading: boolean;
-  hasActiveEnhancerWork: boolean;
+  remoteAgentStatus: 'running' | 'stopped' | 'none' | undefined;
   sendCommand: ReturnType<typeof useSessionMutation>;
   teamId?: string;
   lifecycle: {
@@ -49,6 +49,9 @@ export function useAgentPanelData(
   options?: { loadConfigs?: boolean }
 ): AgentPanelData {
   const statusResult = useSessionQuery(api.machines.getAgentViewStatus, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+  const agentOverview = useSessionQuery(api.machines.getAgentOverviewForChatroom, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
 
@@ -110,7 +113,7 @@ export function useAgentPanelData(
     connectedMachines,
     machineConfigs,
     isLoading,
-    hasActiveEnhancerWork: statusResult?.hasActiveEnhancerWork ?? false,
+    remoteAgentStatus: agentOverview?.agentStatus,
     sendCommand,
     teamId: statusResult?.teamId,
     lifecycle,

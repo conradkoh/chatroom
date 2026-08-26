@@ -1471,11 +1471,8 @@ export function ChatroomDashboard({
   const isAnyAgentRestartInProgress = isRestartingAllAgents || restartingAgentRole !== null;
 
   const hasRunningRemoteAgents = useMemo(
-    () =>
-      isRestartingAllAgents ||
-      agentPanelData.hasActiveEnhancerWork ||
-      agentPanelData.agents.some((a) => a.state === 'running' || a.state === 'starting'),
-    [agentPanelData.agents, agentPanelData.hasActiveEnhancerWork, isRestartingAllAgents]
+    () => agentPanelData.remoteAgentStatus === 'running',
+    [agentPanelData.remoteAgentStatus]
   );
 
   useEffect(() => {
@@ -2063,9 +2060,10 @@ export function ChatroomDashboard({
                         onStartAllRemoteAgents={handleStartAllRemoteAgents}
                         onStopAllRemoteAgents={handleStopAllRemoteAgents}
                         onRestartAllRemoteAgents={handleRestartAllRemoteAgents}
-                        isRestartingAgents={isAnyAgentRestartInProgress || isRestartingAllAgents}
                         isStoppingAgents={isStoppingAgents}
-                        isStartingAllAgents={isStartingAllAgents}
+                        isStartingAllAgents={
+                          isStartingAllAgents || agentPanelData.remoteAgentStatus === undefined
+                        }
                       />
                       <WorkQueue
                         chatroomId={chatroomId as Id<'chatroom_rooms'>}
