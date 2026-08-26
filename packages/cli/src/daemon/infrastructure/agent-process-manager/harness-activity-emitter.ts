@@ -3,7 +3,8 @@ export type TokenActivityKind = (typeof TOKEN_ACTIVITY_KINDS)[number];
 
 /**
  * Emitter for harness activity events used by token-activity wiring.
- * Subscribed by `wireThrottledTokenActivityOnOutput` when available.
+ * Producers MUST emit at most once per agent turn (first meaningful activity).
+ * Subscribed by `wireTokenActivityReporting` when available.
  */
 export interface HarnessActivityEmitter {
   onActivity: (cb: (kind: TokenActivityKind) => void) => void;

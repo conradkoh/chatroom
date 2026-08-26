@@ -6,7 +6,6 @@ import { api } from '../../../../../api.js';
 import type { BackendOps } from '../../../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../../../infrastructure/machine/types.js';
 import { isTeamAgentRole } from '../../../../domain/entities/execution-kind.js';
-import { TOKEN_ACTIVITY_KINDS } from '../../../agent-process-manager/harness-activity-emitter.js';
 import type { HarnessActivityEmitter } from '../../../agent-process-manager/harness-activity-emitter.js';
 
 export const NATIVE_TOKEN_ACTIVITY_THROTTLE_MS = 30_000;
@@ -18,12 +17,12 @@ export interface NativeSpawnPresenceContext {
   role: string;
 }
 
-export interface WireThrottledTokenActivityOpts extends NativeSpawnPresenceContext {
+export interface WireTokenActivityReportingOpts extends NativeSpawnPresenceContext {
   spawnResult: Pick<SpawnResult, 'onOutput'>;
   /** Defaults to Date.now — APM passes clock.now for testability */
   now?: () => number;
   throttleMs?: number;
-  /** Optional typed activity emitter. When present, subscribes to TOKEN_ACTIVITY_KINDS instead of raw onOutput. */
+  /** Optional typed activity emitter. When present, uses one unthrottled subscription instead of raw onOutput. */
   activityEmitter?: HarnessActivityEmitter;
 }
 
@@ -83,29 +82,25 @@ function fireTokenActivity(
   }
 }
 
-export function wireThrottledTokenActivityOnOutput(opts: WireThrottledTokenActivityOpts): void {
+export function wireTokenActivityReporting(opts: WireTokenActivityReportingOpts): void {
   if (!isTeamAgentRole(opts.role)) return;
-  const now = opts.now ?? (() => Date.now());
-  const throttleMs = opts.throttleMs ?? NATIVE_TOKEN_ACTIVITY_THROTTLE_MS;
-  const lastReportedTokenAt = { value: 0 };
 
   if (opts.activityEmitter) {
-    for (const _kind of TOKEN_ACTIVITY_KINDS) {
-      opts.activityEmitter.onActivity(() => {
-        fireTokenActivity(
-          opts.backend,
-          opts.sessionId,
-          opts.chatroomId,
-          opts.role,
-          now,
-          lastReportedTokenAt,
-          throttleMs
-        );
-      });
-    }
+    opts.activityEmitter.onActivity(() => {
+      void opts.backend
+        .mutation(api.participants.updateTokenActivity, {
+          sessionId: opts.sessionId,
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+        })
+        .catch(() => {});
+    });
     return;
   }
 
+  const now = opts.now ?? (() => Date.now());
+  const throttleMs = opts.throttleMs ?? NATIVE_TOKEN_ACTIVITY_THROTTLE_MS;
+  const lastReportedTokenAt = { value: 0 };
   const register = opts.spawnResult.onOutput;
   if (!register) return;
 
@@ -121,3 +116,6 @@ export function wireThrottledTokenActivityOnOutput(opts: WireThrottledTokenActiv
     );
   });
 }
+
+/** @deprecated Use wireTokenActivityReporting. */
+export const wireThrottledTokenActivityOnOutput = wireTokenActivityReporting;

@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   emitNativeWaitingAfterSpawn,
-  wireThrottledTokenActivityOnOutput,
+  wireTokenActivityReporting,
 } from './native-spawn-presence.js';
+import { createHarnessActivityEmitter } from '../../../agent-process-manager/harness-activity-emitter.js';
 
 function mockSpawnResult() {
   const callbacks: (() => void)[] = [];
@@ -71,7 +72,7 @@ describe('emitNativeWaitingAfterSpawn', () => {
   });
 });
 
-describe('wireThrottledTokenActivityOnOutput', () => {
+describe('wireTokenActivityReporting', () => {
   it('fires updateTokenActivity for team agent', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
@@ -86,7 +87,7 @@ describe('wireThrottledTokenActivityOnOutput', () => {
       throttleMs: 30_000,
     };
 
-    wireThrottledTokenActivityOnOutput(ctx);
+    wireTokenActivityReporting(ctx);
     spawnResult._fireOutput();
 
     expect(mutation).toHaveBeenCalledTimes(1);
@@ -108,7 +109,7 @@ describe('wireThrottledTokenActivityOnOutput', () => {
       throttleMs: 30_000,
     };
 
-    wireThrottledTokenActivityOnOutput(ctx);
+    wireTokenActivityReporting(ctx);
     spawnResult._fireOutput();
 
     expect(mutation).toHaveBeenCalledTimes(1);
@@ -131,7 +132,7 @@ describe('wireThrottledTokenActivityOnOutput', () => {
       throttleMs: 30_000,
     };
 
-    wireThrottledTokenActivityOnOutput(ctx);
+    wireTokenActivityReporting(ctx);
     spawnResult._fireOutput(); // first — fires
     clock = 15000;
     spawnResult._fireOutput(); // within 30s — should not fire
@@ -147,7 +148,7 @@ describe('wireThrottledTokenActivityOnOutput', () => {
     const spawnResult = {} as any; // no onOutput
 
     expect(() => {
-      wireThrottledTokenActivityOnOutput({
+      wireTokenActivityReporting({
         backend: backend as any,
         sessionId: 's',
         chatroomId: 'c',
@@ -155,5 +156,56 @@ describe('wireThrottledTokenActivityOnOutput', () => {
         spawnResult,
       });
     }).not.toThrow();
+  });
+
+  it('fires exactly one mutation per emitted turn activity', () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    const emitter = createHarnessActivityEmitter();
+    wireTokenActivityReporting({
+      backend: { mutation } as any,
+      sessionId: 's',
+      chatroomId: 'c',
+      role: 'builder',
+      spawnResult: mockSpawnResult(),
+      activityEmitter: emitter,
+    });
+
+    emitter.emit('busy');
+
+    expect(mutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires a second mutation for a second emitted turn activity without throttle', () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    const emitter = createHarnessActivityEmitter();
+    wireTokenActivityReporting({
+      backend: { mutation } as any,
+      sessionId: 's',
+      chatroomId: 'c',
+      role: 'builder',
+      spawnResult: mockSpawnResult(),
+      activityEmitter: emitter,
+    });
+
+    emitter.emit('busy');
+    emitter.emit('busy');
+
+    expect(mutation).toHaveBeenCalledTimes(2);
+  });
+
+  it('subscribes to the typed emitter only once', () => {
+    const mutation = vi.fn().mockResolvedValue(undefined);
+    const emitter = createHarnessActivityEmitter();
+    const onActivity = vi.spyOn(emitter, 'onActivity');
+    wireTokenActivityReporting({
+      backend: { mutation } as any,
+      sessionId: 's',
+      chatroomId: 'c',
+      role: 'builder',
+      spawnResult: mockSpawnResult(),
+      activityEmitter: emitter,
+    });
+
+    expect(onActivity).toHaveBeenCalledTimes(1);
   });
 });

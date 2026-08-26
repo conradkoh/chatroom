@@ -111,7 +111,7 @@ import {
 import { logDaemonAuditEvent } from '../event-stream/daemon-event-emitter.js';
 import {
   emitNativeWaitingAfterSpawn,
-  wireThrottledTokenActivityOnOutput,
+  wireTokenActivityReporting,
 } from '../local/harness/services/native-spawn-presence.js';
 import type {
   AgentLogLine,
@@ -2092,13 +2092,14 @@ export class AgentProcessManager {
       });
     }
 
-    wireThrottledTokenActivityOnOutput({
+    wireTokenActivityReporting({
       backend: this.deps.backend,
       sessionId: this.deps.sessionId,
       chatroomId: opts.chatroomId,
       role: opts.role,
       spawnResult,
       now: () => this.deps.clock.now(),
+      activityEmitter: spawnResult.activityEmitter,
     });
   }
 
