@@ -4,17 +4,12 @@ import { describe, expect, test, vi } from 'vitest';
 import { runNativeInjectionEffect, type NativeInjectorDeps } from './native-task-injector.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 
-function mutationOrderLabel(args: Record<string, unknown>, order: string[]): string | null {
-  if ('action' in args) return 'join';
-  if ('mode' in args) return 'augmented-state';
-  if ('deliveryKind' in args) return 'receipt';
-  if ('taskId' in args && 'role' in args && 'sessionId' in args) {
-    return order.includes('receipt') ? 'start' : 'claim';
-  }
-  return null;
+/** Convex api is anyApi — refs are indistinguishable at runtime. Anchor on receipt args. */
+function isReceiptMutationArgs(args: Record<string, unknown>): boolean {
+  return 'deliveryKind' in args;
 }
 
-function isTaskDeliveryMutationArgs(args: Record<string, unknown>): boolean {
+function isTaskIdRoleMutationArgs(args: Record<string, unknown>): boolean {
   return (
     'taskId' in args &&
     'role' in args &&
@@ -23,6 +18,14 @@ function isTaskDeliveryMutationArgs(args: Record<string, unknown>): boolean {
     !('deliveryKind' in args) &&
     !('mode' in args)
   );
+}
+
+function classifyTaskMutation(
+  args: Record<string, unknown>,
+  receiptSeen: boolean
+): 'claim' | 'start' | null {
+  if (!isTaskIdRoleMutationArgs(args)) return null;
+  return receiptSeen ? 'start' : 'claim';
 }
 
 const HARNESS_SESSION_ID = 'sess_1';
@@ -86,6 +89,7 @@ describe('runNativeInjectionEffect', () => {
     const deps = createDeps();
     const task = makeTask();
     const order: string[] = [];
+    let receiptSeen = false;
     const auditOrder: string[] = [];
 
     (deps.logEvent as ReturnType<typeof vi.fn>).mockImplementation(async (event) => {
@@ -94,8 +98,15 @@ describe('runNativeInjectionEffect', () => {
     });
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockImplementation(
       async (_fn: unknown, args: Record<string, unknown>) => {
-        const label = mutationOrderLabel(args, order);
-        if (label) order.push(label);
+        if (isReceiptMutationArgs(args)) {
+          receiptSeen = true;
+          order.push('receipt');
+        } else if ('action' in args) order.push('join');
+        else if ('mode' in args) order.push('augmented-state');
+        else {
+          const label = classifyTaskMutation(args, receiptSeen);
+          if (label) order.push(label);
+        }
         return undefined;
       }
     );
@@ -143,14 +154,14 @@ describe('runNativeInjectionEffect', () => {
         index < receiptIndex &&
         typeof call[1] === 'object' &&
         call[1] !== null &&
-        isTaskDeliveryMutationArgs(call[1] as Record<string, unknown>)
+        isTaskIdRoleMutationArgs(call[1] as Record<string, unknown>)
     );
     const startCalls = mutationCalls.filter(
       (call, index) =>
         index > receiptIndex &&
         typeof call[1] === 'object' &&
         call[1] !== null &&
-        isTaskDeliveryMutationArgs(call[1] as Record<string, unknown>)
+        isTaskIdRoleMutationArgs(call[1] as Record<string, unknown>)
     );
     expect(claimCalls).toHaveLength(0);
     expect(startCalls).toHaveLength(1);
@@ -187,14 +198,20 @@ describe('runNativeInjectionEffect', () => {
     });
     const augmentedCalls: Record<string, unknown>[] = [];
     const order: string[] = [];
+    let receiptSeen = false;
 
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockImplementation(
       async (_fn: unknown, args: Record<string, unknown>) => {
-        if ('mode' in args) {
+        if (isReceiptMutationArgs(args)) {
+          receiptSeen = true;
+          order.push('receipt');
+        } else if ('mode' in args) {
           augmentedCalls.push(args);
           order.push('augmented');
+        } else if ('action' in args) {
+          order.push('join');
         } else {
-          const label = mutationOrderLabel(args, order);
+          const label = classifyTaskMutation(args, receiptSeen);
           if (label) order.push(label);
         }
         return undefined;
