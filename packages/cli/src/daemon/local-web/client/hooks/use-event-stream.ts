@@ -13,13 +13,8 @@ export function useEventStream(filters: EventStreamFilterValues) {
 
   useEffect(() => {
     if (!chatroomId) {
-      setEntries([]);
-      setLoading(false);
-      setError(null);
       return;
     }
-    setLoading(true);
-    setError(null);
     let active = true;
     let unsubscribe: (() => void) | undefined;
     void (async () => {
@@ -58,7 +53,11 @@ export function useEventStream(filters: EventStreamFilterValues) {
       active = false;
       unsubscribe?.();
     };
-  }, [chatroomId, filters.timeRange, filters.fromMs, filters.toMs]);
+  }, [chatroomId, filters]);
 
-  return { entries, isLoading, error };
+  return {
+    entries: chatroomId ? entries : [],
+    isLoading: chatroomId ? isLoading : false,
+    error: chatroomId ? error : null,
+  };
 }
