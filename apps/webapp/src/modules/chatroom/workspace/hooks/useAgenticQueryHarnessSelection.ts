@@ -86,6 +86,9 @@ function buildModelOptions(
 }
 
 export function useAgenticQueryHarnessSelection(workspaceId: string) {
+  void _migrateLegacyWorkspaceKey;
+  void _readPersisted;
+  void _writePersisted;
   const capabilities = useSessionQuery(
     api.web.directHarness.capabilities.listForWorkspace,
     workspaceId ? { workspaceId: workspaceId as Id<'chatroom_workspaces'> } : 'skip'

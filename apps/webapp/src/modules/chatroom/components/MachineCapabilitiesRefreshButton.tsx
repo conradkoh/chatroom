@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Check, RefreshCw } from 'lucide-react';
-import React, { memo, useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 /** Success check visibility — see docs/application/design/theme.md (industrial / restrained feedback). */
 const SUCCESS_TICK_MS = 1000;
