@@ -5,7 +5,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { parseModelKey } from '@/modules/chatroom/direct-harness/components/harness-selectors';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
@@ -28,7 +28,7 @@ function storageKey(machineId: string): string {
   return `agentic-query-harness:${machineId}`;
 }
 
-function _migrateLegacyWorkspaceKey(workspaceId: string, machineId: string): string | null {
+function migrateLegacyWorkspaceKey(workspaceId: string, machineId: string): string | null {
   const legacyKey = `agentic-query-harness:${workspaceId}`;
   try {
     const raw = localStorage.getItem(legacyKey);
@@ -42,7 +42,7 @@ function _migrateLegacyWorkspaceKey(workspaceId: string, machineId: string): str
   }
 }
 
-function _readPersisted(machineId: string): PersistedHarnessSelection | null {
+function readPersisted(machineId: string): PersistedHarnessSelection | null {
   if (typeof window === 'undefined' || !machineId) return null;
   try {
     const raw = localStorage.getItem(storageKey(machineId));
@@ -58,7 +58,7 @@ function _readPersisted(machineId: string): PersistedHarnessSelection | null {
   }
 }
 
-function _writePersisted(machineId: string, value: PersistedHarnessSelection): void {
+function writePersisted(machineId: string, value: PersistedHarnessSelection): void {
   if (typeof window === 'undefined' || !machineId) return;
   localStorage.setItem(storageKey(machineId), JSON.stringify(value));
 }
@@ -86,16 +86,13 @@ function buildModelOptions(
 }
 
 export function useAgenticQueryHarnessSelection(workspaceId: string) {
-  void _migrateLegacyWorkspaceKey;
-  void _readPersisted;
-  void _writePersisted;
   const capabilities = useSessionQuery(
     api.web.directHarness.capabilities.listForWorkspace,
     workspaceId ? { workspaceId: workspaceId as Id<'chatroom_workspaces'> } : 'skip'
   );
 
   const machineId = (capabilities as { machineId?: string } | null)?.machineId ?? null;
-  const { getLastUsed: _getLastUsed, recordUsage: _recordUsage } = useSearchConfigUsage(machineId);
+  const { getLastUsed, recordUsage } = useSearchConfigUsage(machineId);
   const {
     favorites,
     addFavorite,
@@ -107,6 +104,18 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
 
   const [harnessName, setHarnessName] = useState<string>('opencode-sdk');
   const [selectedModel, setSelectedModel] = useState('');
+  const initializedRef = useRef(false);
+  useMemo(() => {
+    if (initializedRef.current || !machineId) return;
+    initializedRef.current = true;
+    const legacyRaw = migrateLegacyWorkspaceKey(workspaceId, machineId);
+    const persisted = legacyRaw ? readPersisted(machineId) : readPersisted(machineId);
+    const selection = persisted ?? getLastUsed();
+    if (selection) {
+      setHarnessName(selection.harnessName);
+      setSelectedModel(selection.modelKey);
+    }
+  }, [getLastUsed, machineId, workspaceId]);
 
   const { harnesses, resolvedHarnessName, filter } = useNativeHarnessWorkspace(
     capabilities,
@@ -126,6 +135,13 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
     modelOptions.find((option) => option.value === selectedModel)?.value ??
     modelOptions[0]?.value ??
     '';
+
+  const initialized = initializedRef.current;
+  useMemo(() => {
+    if (!machineId || !initialized || !resolvedHarnessName || !resolvedModel) return;
+    writePersisted(machineId, { harnessName: resolvedHarnessName, modelKey: resolvedModel });
+    recordUsage({ harnessName: resolvedHarnessName, modelKey: resolvedModel });
+  }, [initialized, machineId, recordUsage, resolvedHarnessName, resolvedModel]);
 
   const selectionReady = !!resolvedHarnessName && (modelOptions.length === 0 || !!resolvedModel);
 
