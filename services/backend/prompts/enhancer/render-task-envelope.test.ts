@@ -11,7 +11,7 @@ describe('renderEnhancerTaskEnvelope', () => {
     outputTemplateContent: '# Independent design input',
     requestContent: '<request>Change the workflow</request>',
     cliCompleteCommand:
-      "chatroom enhancer complete --chatroom-id=room-abc --job-id=job-123 << 'CHATROOM_ENHANCER_END'",
+      "chatroom handoff --chatroom-id=room-abc --role=enhancer --next-role=planner << 'CHATROOM_ENHANCER_END'",
   };
 
   it('identifies the job, chatroom, and originating user message', () => {
@@ -52,7 +52,7 @@ describe('renderEnhancerTaskEnvelope', () => {
     expect(result).toContain('<handoff-frontend-design>');
     expect(result).toContain('<handoff-data-design>');
     expect(result).toContain('**Files touched (index)** must be last');
-    expect(result).toContain('<cli-complete-command>');
+    expect(result).toContain('<cli-handoff-command>');
     expect(result).not.toContain('optional **UX** section');
     expect(result).not.toContain('optional **Defragmentation** section');
   });

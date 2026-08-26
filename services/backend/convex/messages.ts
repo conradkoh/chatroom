@@ -612,10 +612,14 @@ export async function runHandoffHandler(
 
   // Validate senderRole
   const normalizedSenderRole = args.senderRole.toLowerCase();
+  const normalizedTargetRole = args.targetRole.toLowerCase();
   const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
   const enhancerEntryPointRole = getEnhancerEntryPointRole(chatroom);
   const normalizedEnhancerEntryPointRole = enhancerEntryPointRole?.toLowerCase();
   const isEnhancerDelivery = normalizedSenderRole === 'enhancer';
+  if (isEnhancerDelivery && normalizedTargetRole !== (enhancerEntryPointRole ?? '').toLowerCase()) {
+    return { success: false, error: { code: 'INVALID_TARGET_ROLE', message: 'Enhancer must hand off to the team entry point' }, messageId: null, completedTaskIds: [], newTaskId: null, promotedTaskId: null };
+  }
   if (!isEnhancerDelivery && !normalizedTeamRoles.includes(normalizedSenderRole)) {
     return {
       success: false,
@@ -630,7 +634,6 @@ export async function runHandoffHandler(
     };
   }
 
-  const normalizedTargetRole = args.targetRole.toLowerCase();
   const isHandoffToUser = normalizedTargetRole === 'user';
   const isHandoffToEnhancer = normalizedTargetRole === 'enhancer';
   let enhancerConfig: Awaited<ReturnType<typeof getEnhancerTeamAgentConfig>> = null;
@@ -786,6 +789,11 @@ export async function runHandoffHandler(
   // Step 1: Complete ALL in_progress and acknowledged tasks
   const tasksToComplete = await collectActiveTasks(ctx, args.chatroomId);
 
+  if (isEnhancerDelivery) {
+    const enhancerTasks = await ctx.db.query('chatroom_tasks').withIndex('by_chatroom_status_assignedTo', (q) => q.eq('chatroomId', args.chatroomId).eq('status', 'pending').eq('assignedTo', 'enhancer')).collect();
+    tasksToComplete.push(...enhancerTasks);
+  }
+
   if (isEnhancerDelivery && args.enhancerJobId) {
     const job = await ctx.db.get('chatroom_enhancerJobs', args.enhancerJobId);
     if (job?.taskId) {
@@ -872,6 +880,7 @@ export async function runHandoffHandler(
     ...(args.attachedArtifactIds &&
       args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
     ...(args.enhancerJobId && { enhancerJobId: args.enhancerJobId }),
+    ...(isEnhancerDelivery ? { visibleInAllTabOnly: true } : {}),
     ...(args.visibleInAllTabOnly && { visibleInAllTabOnly: true }),
     ...(taskOriginMessageId && { taskOriginMessageId }),
   });
@@ -955,6 +964,10 @@ export async function runHandoffHandler(
     }
   }
 
+  if (isEnhancerDelivery) {
+    await transitionEnhancerEntryPointToWaiting(ctx, args.chatroomId, enhancerEntryPointRole ?? args.targetRole);
+  }
+
   // Step 5: Attached backlog items remain in their current status on handoff.
   // Agents should explicitly use `chatroom backlog mark-for-review` to transition
   // items they worked on to pending_user_review. Auto-transitioning all attached
@@ -1003,6 +1016,7 @@ export async function runHandoffHandler(
     newTaskId,
     promotedTaskId,
     enhancerJobId,
+    enhancerRequestQueued: isHandoffToEnhancer && newTaskId != null,
     supportsNativeIntegration,
   };
 }
