@@ -1,5 +1,6 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { TeamStructure } from '@workspace/shared/domain/team-presets';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useMemo } from 'react';
 
@@ -25,6 +26,7 @@ export interface AgentPanelData {
   machineConfigs: AgentConfig[];
   isLoading: boolean;
   remoteAgentStatus: 'running' | 'stopped' | 'none' | undefined;
+  teamStructure: TeamStructure | null | undefined;
   sendCommand: ReturnType<typeof useSessionMutation>;
   teamId?: string;
   lifecycle: {
@@ -52,6 +54,9 @@ export function useAgentPanelData(
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
   const agentOverview = useSessionQuery(api.machines.getAgentOverviewForChatroom, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+  const teamStructure = useSessionQuery(api.chatrooms.getTeamStructureForChatroom, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
 
@@ -114,6 +119,7 @@ export function useAgentPanelData(
     machineConfigs,
     isLoading,
     remoteAgentStatus: agentOverview?.agentStatus,
+    teamStructure,
     sendCommand,
     teamId: statusResult?.teamId,
     lifecycle,

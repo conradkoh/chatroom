@@ -2047,7 +2047,7 @@ export function ChatroomDashboard({
                     >
                       <AgentPanel
                         chatroomId={chatroomId}
-                        teamRoles={teamRoles}
+                        teamStructure={agentPanelData.teamStructure}
                         lifecycle={lifecycle}
                         teamName={chatroom.teamName}
                         teamId={chatroom.teamId}

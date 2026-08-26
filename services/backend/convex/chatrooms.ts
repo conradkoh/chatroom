@@ -6,6 +6,7 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
 import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
+import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { insertEmptyOperationalSummaryForRoom } from '../src/domain/usecase/agent/project-agent-operational-status';
 import {
   getChatroomLifecycleImpacts,
@@ -70,6 +71,24 @@ export const get = query({
     // Validate session and check chatroom access - returns chatroom directly
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     return chatroom;
+  },
+});
+
+/** Returns static team structure separately from runtime agent state. */
+export const getTeamStructureForChatroom = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    if (!chatroom.teamId) return null;
+    return getTeamStructure({
+      teamId: chatroom.teamId,
+      teamName: chatroom.teamName,
+      persistedRoles: chatroom.teamRoles,
+      persistedEntryPoint: chatroom.teamEntryPoint,
+    });
   },
 });
 

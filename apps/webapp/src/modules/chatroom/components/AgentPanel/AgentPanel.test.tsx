@@ -26,6 +26,35 @@ const lifecycle = {
   hasHistory: false,
 };
 
+const duoStructure = {
+  teamId: 'duo',
+  teamName: 'Duo',
+  entryPoint: 'planner',
+  roles: [
+    { role: 'planner', lifecycle: 'permanent' as const, optional: false },
+    { role: 'enhancer', lifecycle: 'ephemeral' as const, optional: true },
+    { role: 'builder', lifecycle: 'permanent' as const, optional: false },
+  ],
+};
+
+const panelProps = {
+  chatroomId: 'room1',
+  lifecycle,
+  teamName: undefined,
+  teamId: undefined,
+  defaultTeamId: undefined,
+  teams: undefined,
+  onTeamChange: undefined,
+  agentConfigs: [],
+  onOpenAgents: undefined,
+  hasRunningRemoteAgents: false,
+  onStartAllRemoteAgents: undefined,
+  onStopAllRemoteAgents: undefined,
+  onRestartAllRemoteAgents: undefined,
+  isStoppingAgents: false,
+  isStartingAllAgents: false,
+};
+
 beforeEach(() => {
   mockUseAgentStatuses.mockReturnValue({
     agents: ['planner', 'enhancer', 'builder'].map((role) => ({
@@ -43,18 +72,7 @@ beforeEach(() => {
 
 describe('AgentPanel', () => {
   it('renders permanent agents before the ephemeral section', () => {
-    render(
-      <AgentPanel
-        chatroomId="room1"
-        teamRoles={['planner', 'enhancer', 'builder']}
-        lifecycle={lifecycle}
-        teamName="Duo"
-        teamId="duo"
-        defaultTeamId="duo"
-        teams={[]}
-        onTeamChange={vi.fn()}
-      />
-    );
+    render(<AgentPanel {...panelProps} teamStructure={duoStructure} />);
 
     expect(screen.getByText('Ephemeral')).toBeInTheDocument();
     const planner = screen.getByLabelText(/planner:/i);
@@ -71,9 +89,12 @@ describe('AgentPanel', () => {
   it('omits the ephemeral section when no ephemeral roles exist', () => {
     render(
       <AgentPanel
-        chatroomId="room1"
-        teamRoles={['planner', 'builder']}
+        {...panelProps}
         lifecycle={{ ...lifecycle, expectedRoles: ['planner', 'builder'] }}
+        teamStructure={{
+          ...duoStructure,
+          roles: duoStructure.roles.filter(({ role }) => role !== 'enhancer'),
+        }}
       />
     );
 
