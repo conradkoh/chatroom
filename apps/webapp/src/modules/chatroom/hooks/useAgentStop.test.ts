@@ -1,6 +1,8 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 
+import { isActiveAgentStopState, useAgentStop } from './useAgentStop';
+
 const requestAgent = vi.fn().mockResolvedValue({ stopCommandId: 'agent-stop' });
 const requestChatroom = vi.fn().mockResolvedValue({ stopCommandId: 'chatroom-stop' });
 
@@ -11,8 +13,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: { agentStops: { requestAgent: 'agent', requestChatroom: 'chatroom' } },
 }));
-
-import { isActiveAgentStopState, useAgentStop } from './useAgentStop';
 
 describe('useAgentStop', () => {
   test('requests one agent aggregate stop', async () => {

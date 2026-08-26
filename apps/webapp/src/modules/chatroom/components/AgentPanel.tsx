@@ -1,9 +1,9 @@
 'use client';
 
 import { ChevronRight } from 'lucide-react';
-import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
 import { useState, useMemo, useCallback, memo } from 'react';
 
+import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
 import type { TeamConfigEntry } from '../hooks/use-team-configs';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';

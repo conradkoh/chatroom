@@ -5,7 +5,7 @@ import { supersedeInflightAgentStopCommands } from './supersede-inflight-agent-s
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { AgentStopReason , AgentPostStopDesiredState } from '../../entities/agent';
+import type { AgentStopReason, AgentPostStopDesiredState } from '../../entities/agent';
 import {
   agentStopScopeKey,
   buildAgentStopRevisionKey,

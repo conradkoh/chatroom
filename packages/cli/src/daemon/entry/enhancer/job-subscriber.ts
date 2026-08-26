@@ -1,21 +1,21 @@
 import type { ConvexClient } from 'convex/browser';
 
 import { ENHANCER_AGENT_ROLE } from './constants.js';
+import {
+  clearEnhancerDrainHandlerForTests,
+  setEnhancerDrainHandler,
+} from './enhancer-drain-registry.js';
 import { createEnhancerLogWriter, type EnhancerLogWriter } from './enhancer-log.js';
-import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
-import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
 import {
   registerEnhancerSpawn,
   unregisterEnhancerSpawn,
   type EnhancerSpawnHandle,
 } from './enhancer-spawn-registry.js';
-import {
-  clearEnhancerDrainHandlerForTests,
-  setEnhancerDrainHandler,
-} from './enhancer-drain-registry.js';
+import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
 import { api, type Id } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
+import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
 import type { RemoteAgentService } from '../../infrastructure/local/harness/services/remote-agent-service.js';
 import { createSpawnPrompt } from '../../infrastructure/local/harness/services/spawn-prompt.js';
 import {
