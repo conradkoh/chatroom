@@ -2243,6 +2243,7 @@ export const subscribeMachineAgentOperationalStatus = query({
       daemonConnected: row.daemonConnected,
       projectedAt: row.projectedAt,
       revisionKey: row.revisionKey,
+      stopState: row.stopState,
     }));
   },
 });
