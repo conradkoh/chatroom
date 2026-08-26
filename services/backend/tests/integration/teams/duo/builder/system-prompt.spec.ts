@@ -199,7 +199,7 @@ describe('Duo Team > Builder > System Prompt', () => {
 
       ### Task delivery and activity
 
-      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. This task is marked \`in_progress\` when delivered by the CLI — run \`chatroom task read\` only if you need backlog/context details not shown in the delivery.
 
       ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -232,7 +232,7 @@ describe('Duo Team > Builder > System Prompt', () => {
 
       ### Start Working
 
-      The task body contains your work description. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      The task body contains your work description. Begin working from the task content above. This task is marked \`in_progress\` when delivered by the CLI — run \`chatroom task read\` only if you need backlog/context details not shown in the delivery.
 
 
        **Duo Team Context:**

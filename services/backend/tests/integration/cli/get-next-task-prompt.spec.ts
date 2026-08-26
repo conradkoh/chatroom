@@ -294,7 +294,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ### Task delivery and activity
 
-      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      When \`get-next-task\` delivers a chatroom task, the **full task content is included in the output**. Begin working from the task content above. This task is marked \`in_progress\` when delivered by the CLI — run \`chatroom task read\` only if you need backlog/context details not shown in the delivery.
 
       ⚠️ Remember your two-level model: completing a **chatroom task** (Level B) does NOT end your **session** (Level A). After every handoff, you must run \`get-next-task\` again to continue the session.
 
@@ -327,7 +327,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ### Start working
 
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      Begin working from the task content above. This task is marked \`in_progress\` when delivered by the CLI — run \`chatroom task read\` only if you need backlog/context details not shown in the delivery.
 
       **Context Rule:** Set a new context for every user message by default — skip ONLY when the message is clearly a follow-up of the current chatroom task. **Before running context new, run:**
       \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="000000000000010002chatroom_rooms" --role="builder"\`
@@ -461,7 +461,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       </message-content>
       </message>
       <intake-note>
-      Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task \`in_progress\` automatically — **do not run \`task read\`** unless you need backlog items or context details not shown in the delivery.
+      Begin working from the task content above. This task is marked \`in_progress\` when delivered by the CLI — run \`chatroom task read\` only if you need backlog/context details not shown in the delivery.
       </intake-note>
       </task>
 
@@ -599,7 +599,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // Should have task intake section
     expect(initPrompt?.prompt).toContain('### Start working');
-    expect(initPrompt?.prompt).toContain('harness output (stdout tokens)');
+    expect(initPrompt?.prompt).toContain('marked \`in_progress\` when delivered');
 
     // Should have builder operating model instructions
     expect(initPrompt?.prompt).toContain('## Builder Operating Model');
