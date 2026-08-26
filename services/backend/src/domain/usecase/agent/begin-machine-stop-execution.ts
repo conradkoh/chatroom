@@ -21,7 +21,7 @@ export async function beginMachineStopExecution(
     reason: command.reason,
     chatroomId: command.chatroomId,
     targets: [] as AgentStopTargetDescriptor[],
-    pendingTargets: [] as any[],
+    pendingTargets: [],
   };
   if (
     (command.deadlineAt != null &&
@@ -49,21 +49,22 @@ export async function beginMachineStopExecution(
       .collect()
   ).filter((t) => t.status === 'pending' || t.status === 'processing');
   if (execution.status === 'pending')
-    await ctx.db.patch("chatroom_agentStopMachineExecutions", execution._id, {
+    await ctx.db.patch('chatroom_agentStopMachineExecutions', execution._id, {
       status: 'processing',
       claimedAt: Date.now(),
       inboxCommandId: args.inboxCommandId,
     });
-  if (command.status === 'pending') await ctx.db.patch("chatroom_agentStopCommands", command._id, { status: 'processing' });
+  if (command.status === 'pending')
+    await ctx.db.patch('chatroom_agentStopCommands', command._id, { status: 'processing' });
   const targets = pendingTargets
     .filter((t) => t.agentConfigId && t.agentHarness)
     .map((t) => ({
-      agentConfigId: t.agentConfigId!,
+      agentConfigId: t.agentConfigId,
       chatroomId: t.chatroomId,
       machineId: t.machineId,
       role: t.role,
       pid: t.pid,
-      agentHarness: t.agentHarness!,
+      agentHarness: t.agentHarness,
       targetKey: t.targetKey,
     }));
   return {

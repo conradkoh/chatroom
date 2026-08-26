@@ -31,6 +31,7 @@ import {
 } from './cursor-sdk-package.js';
 import { closeCursorAgentOnFailure } from './cursor-sdk-session-cleanup.js';
 import { CursorSdkStreamAdapter } from './cursor-sdk-stream-adapter.js';
+import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { buildAgentLogPrefix, formatAgentLogLine } from '../agent-log-format.js';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import { DetectionResult } from '../detection-result.js';
@@ -45,7 +46,6 @@ import type {
 } from '../remote-agent-service.js';
 import { tapProcessStreamWrites } from '../tap-process-stream-writes.js';
 import { wireNativeStreamAdapter } from '../wire-native-stream-adapter.js';
-import { createHarnessActivityEmitter } from '../../../../agent-process-manager/harness-activity-emitter.js';
 import { withTimeout } from '../with-timeout.js';
 
 type Run = CursorSdkModule.Run;

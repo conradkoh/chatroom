@@ -12,10 +12,12 @@ export function validateEnhancerHandoff(args: {
 }): EnhancerHandoffValidation {
   const snapshot = args.taskEnhancerEnabledAtEnqueue ?? args.taskPlannerEnhancerEnabled;
   if (snapshot === false) return { allowed: false, code: 'ENHANCER_NOT_ENABLED' };
-  if (snapshot === true)
+  if (snapshot === true) {
+    if (!args.config) return { allowed: false, code: 'ENHANCER_CONFIG_INCOMPLETE' };
     return isCompleteRemoteEnhancerConfig(args.config)
-      ? { allowed: true, config: args.config! }
+      ? { allowed: true, config: args.config }
       : { allowed: false, code: 'ENHANCER_CONFIG_INCOMPLETE' };
+  }
   if (!args.config?.enabled) return { allowed: false, code: 'ENHANCER_NOT_ENABLED' };
   return isCompleteRemoteEnhancerConfig(args.config)
     ? { allowed: true, config: args.config }

@@ -1,4 +1,5 @@
 // fallow-ignore-file complexity
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * AgentProcessManager — single authority for agent lifecycle management.
  *
@@ -24,9 +25,9 @@ import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/h
 import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
+import { isChatroomStopScopeActive } from './execute-stop-targets-adapter.js';
 import { buildStopTargetDescriptor, runConfirmedStop } from './stop-agent-confirmed-adapter.js';
 import type { ConfirmedStopAdapterDeps } from './stop-agent-confirmed-adapter.js';
-import { isChatroomStopScopeActive } from './execute-stop-targets-adapter.js';
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
@@ -1432,7 +1433,7 @@ export class AgentProcessManager {
   }
 
   public async syncSlotsAfterScopedStop(result: {
-    targets: Array<{ target: { chatroomId: string; role: string; pid: number } }>;
+    targets: { target: { chatroomId: string; role: string; pid: number } }[];
   }): Promise<void> {
     for (const { target } of result.targets) {
       const slot = this.slots.get(agentKey(target.chatroomId, target.role));

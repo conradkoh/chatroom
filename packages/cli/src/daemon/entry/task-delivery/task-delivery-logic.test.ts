@@ -1,18 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  createChatroomScopeBarrier,
-  resetChatroomScopeBarrierForTests,
-} from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
-import {
-  operationalRow,
-  registerTestNativeDeliverySession,
-} from '../../infrastructure/agent-operational/test-support.js';
-import { unregisterNativeDeliverySession } from '../native-delivery/native-delivery-session-registry.js';
+
 import {
   listNativePendingTasksNeedingWake,
   listNativeTasksNeedingRevive,
   RecoveryCooldown,
 } from './task-delivery-logic.js';
+import {
+  operationalRow,
+  registerTestNativeDeliverySession,
+} from '../../infrastructure/agent-operational/test-support.js';
+import {
+  createChatroomScopeBarrier,
+  resetChatroomScopeBarrierForTests,
+} from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
+import { unregisterNativeDeliverySession } from '../native-delivery/native-delivery-session-registry.js';
 
 const pendingPlannerTask = {
   taskId: 'task-1',
