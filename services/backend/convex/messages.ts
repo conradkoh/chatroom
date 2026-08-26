@@ -1723,6 +1723,7 @@ export const getTaskDeliveryPrompt = query({
       sourceAttachments,
       standingInstructions,
       plannerEnhancerEnabled,
+      entryPointRole: getTeamEntryPoint(chatroom) ?? undefined,
     });
 
     return {

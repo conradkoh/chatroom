@@ -46,6 +46,7 @@ export const assignedTaskAgentConfigSchema = z.object({
   spawnedAgentPid: z.number().optional(),
   desiredState: agentDesiredStateSchema.optional(),
   circuitState: agentCircuitStateSchema.optional(),
+  configLifecycleRevision: z.number().optional(),
 });
 
 export const assignedTaskParticipantSchema = z.object({

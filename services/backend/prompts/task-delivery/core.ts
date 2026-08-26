@@ -33,6 +33,7 @@ export interface TaskDeliveryParams {
   /** When true, entry-point task delivery includes handoff-enhancer guidance. */
   plannerEnhancerEnabled?: boolean;
   originUserMessageId?: string;
+  entryPointRole?: string;
 }
 
 function appendPlannerEnhancerGuidanceForMessage(
@@ -63,6 +64,7 @@ function appendEnabledEnhancerGuidance(
     | 'plannerEnhancerEnabled'
     | 'originUserMessageId'
     | 'teamId'
+    | 'entryPointRole'
     | 'message'
     | 'task'
     | 'isEntryPoint'
@@ -164,6 +166,7 @@ function appendTaskDeliveryNextSteps(
     | 'isEntryPoint'
     | 'plannerEnhancerEnabled'
     | 'originUserMessageId'
+    | 'entryPointRole'
     | 'teamId'
   >
 ): void {
@@ -179,7 +182,7 @@ function appendTaskDeliveryNextSteps(
   } = params;
   const senderRole = getTaskSenderRole(message);
   if (role.toLowerCase() === 'enhancer') {
-    appendEnhancerRoleTaskDeliveryGuidance(lines, { chatroomId, role, cliEnvPrefix, entryPointRole: teamId?.toLowerCase() === 'solo' ? 'solo' : 'planner', originUserMessageId: params.originUserMessageId });
+    appendEnhancerRoleTaskDeliveryGuidance(lines, { chatroomId, role, cliEnvPrefix, entryPointRole: params.entryPointRole ?? (teamId?.toLowerCase() === 'solo' ? 'solo' : 'planner'), originUserMessageId: params.originUserMessageId });
     lines.push('', '</next-steps>');
     return;
   }
