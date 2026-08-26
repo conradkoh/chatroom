@@ -48,6 +48,10 @@ vi.mock('convex-helpers/react/sessions', () => ({
 
 vi.mock('@workspace/backend/convex/_generated/api', () => ({
   api: {
+    agentStops: {
+      requestAgent: 'agentStops:requestAgent',
+      requestChatroom: 'agentStops:requestChatroom',
+    },
     machineConfigFavorites: {
       getMachineConfigFavorites: 'machineConfigFavorites:getMachineConfigFavorites',
       setMachineConfigFavorites: 'machineConfigFavorites:setMachineConfigFavorites',
