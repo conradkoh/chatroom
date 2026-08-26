@@ -109,8 +109,12 @@ export async function transitionTask(
   const transitionedTask = await ctx.db.get('chatroom_tasks', taskId);
   if (transitionedTask) {
     await writeTimelineTaskStatusSignal(ctx, transitionedTask);
-    if (transitionedTask.sourceMessageId) await syncMessageReadModel(ctx, transitionedTask.sourceMessageId);
-    const linked = await ctx.db.query('chatroom_messages').withIndex('by_taskId', (q) => q.eq('taskId', taskId)).collect();
+    if (transitionedTask.sourceMessageId)
+      await syncMessageReadModel(ctx, transitionedTask.sourceMessageId);
+    const linked = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_taskId', (q) => q.eq('taskId', taskId))
+      .collect();
     for (const message of linked) await syncMessageReadModel(ctx, message._id);
   }
 

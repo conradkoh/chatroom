@@ -77,8 +77,14 @@ export async function projectAgentLifecycleFact(
     if (result.applied) await onAgentExited(ctx, fact);
     return { success: true, skipped: !result.applied };
   }
-  if (fact.lifecycleRevision === undefined) return { success: true, skipped: true, rejectionReason: 'stale_revision' };
-  const registration = await registerSpawnedAgentIfAuthorized(ctx, { ...fact, machineId, lifecycleRevision: fact.lifecycleRevision });
-  if (!registration.accepted) return { success: true, skipped: true, rejectionReason: registration.reason };
+  if (fact.lifecycleRevision === undefined)
+    return { success: true, skipped: true, rejectionReason: 'stale_revision' };
+  const registration = await registerSpawnedAgentIfAuthorized(ctx, {
+    ...fact,
+    machineId,
+    lifecycleRevision: fact.lifecycleRevision,
+  });
+  if (!registration.accepted)
+    return { success: true, skipped: true, rejectionReason: registration.reason };
   return { success: true };
 }

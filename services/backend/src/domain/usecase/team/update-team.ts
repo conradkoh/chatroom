@@ -64,10 +64,23 @@ export async function updateTeam(
   let restoredCount = 0;
   let seededCount = 0;
 
-  const outgoingConfigs = existingTeamConfigs.filter((c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId));
-  const outgoingStoppable = outgoingConfigs.filter((c): c is AgentStopSelectedConfig => c.type === 'remote' && c.machineId != null && c.spawnedAgentPid != null && c.agentHarness != null);
+  const outgoingConfigs = existingTeamConfigs.filter(
+    (c) => !oldTeamId || teamRoleKeyMatchesTeam(c.teamRoleKey, chatroomId, oldTeamId)
+  );
+  const outgoingStoppable = outgoingConfigs.filter(
+    (c): c is AgentStopSelectedConfig =>
+      c.type === 'remote' &&
+      c.machineId != null &&
+      c.spawnedAgentPid != null &&
+      c.agentHarness != null
+  );
   if (outgoingStoppable.length > 0) {
-    await createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'chatroom' }, reason: 'platform.team_switch', selectedConfigs: outgoingStoppable });
+    await createAgentStopCommand(ctx, {
+      chatroomId,
+      scope: { kind: 'chatroom' },
+      reason: 'platform.team_switch',
+      selectedConfigs: outgoingStoppable,
+    });
     stoppedAgentCount = outgoingStoppable.length;
   }
 

@@ -182,7 +182,14 @@ function appendTaskDeliveryNextSteps(
   } = params;
   const senderRole = getTaskSenderRole(message);
   if (role.toLowerCase() === 'enhancer') {
-    appendEnhancerRoleTaskDeliveryGuidance(lines, { chatroomId, role, cliEnvPrefix, entryPointRole: params.entryPointRole ?? (teamId?.toLowerCase() === 'solo' ? 'solo' : 'planner'), originUserMessageId: params.originUserMessageId });
+    appendEnhancerRoleTaskDeliveryGuidance(lines, {
+      chatroomId,
+      role,
+      cliEnvPrefix,
+      entryPointRole:
+        params.entryPointRole ?? (teamId?.toLowerCase() === 'solo' ? 'solo' : 'planner'),
+      originUserMessageId: params.originUserMessageId,
+    });
     lines.push('', '</next-steps>');
     return;
   }

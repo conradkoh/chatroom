@@ -56,7 +56,8 @@ async function insertTeamConfig(
       agentHarness: type === 'remote' ? ('opencode' as const) : undefined,
       createdAt: now,
       updatedAt: now,
-      spawnedAgentPid: type === 'remote' ? 1000 + machineId.charCodeAt(machineId.length - 1) : undefined,
+      spawnedAgentPid:
+        type === 'remote' ? 1000 + machineId.charCodeAt(machineId.length - 1) : undefined,
       desiredState: type === 'remote' ? 'running' : undefined,
     });
   });
@@ -95,7 +96,9 @@ describe('ensureOnlyAgentForRole', () => {
     });
 
     const rows = await getInboxCommandsForChatroom(chatroomId, 'agent.stopScope');
-    expect(rows.map((r) => r.machineId)).toEqual(expect.arrayContaining(['machine-a', 'machine-b']));
+    expect(rows.map((r) => r.machineId)).toEqual(
+      expect.arrayContaining(['machine-a', 'machine-b'])
+    );
   });
 
   test('skips the excluded machine when excludeMachineId is provided', async () => {

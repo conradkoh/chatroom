@@ -65,7 +65,11 @@ export function getBaseRoleGuidanceFromContext(ctx: SelectorContext): string {
   if (normalizedRole === 'solo') {
     return getSoloGuidanceFromContext(ctx);
   }
-  if (normalizedRole === 'enhancer') return getEnhancerGuidance({ ...toPlannerParams(ctx), entryPointRole: ctx.teamConfig?.entryPoint });
+  if (normalizedRole === 'enhancer')
+    return getEnhancerGuidance({
+      ...toPlannerParams(ctx),
+      entryPointRole: ctx.teamConfig?.entryPoint,
+    });
 
   return '';
 }

@@ -1,5 +1,46 @@
 import { internalMutation } from './_generated/server';
-import { AGENT_STOP_EXPIRY_LEASE_GRACE_MS, AGENT_STOP_TERMINAL_RETENTION_MS } from '../config/reliability';
+import {
+  AGENT_STOP_EXPIRY_LEASE_GRACE_MS,
+  AGENT_STOP_TERMINAL_RETENTION_MS,
+} from '../config/reliability';
 import { terminalizeExpiredStopCommand } from '../src/domain/usecase/agent/terminalize-expired-stop-command';
-export const expireStaleStopCommands = internalMutation({ args: {}, handler: async (ctx) => { const cutoff = Date.now() - AGENT_STOP_EXPIRY_LEASE_GRACE_MS; for (const status of ['pending','processing'] as const) { const rows = await ctx.db.query('chatroom_agentStopCommands').withIndex('by_status_deadlineAt', q => q.eq('status', status)).filter(q => q.lt(q.field('deadlineAt'), cutoff)).take(100); for (const row of rows) await terminalizeExpiredStopCommand(ctx, row._id); } } });
-export const purgeTerminalStopHistory = internalMutation({ args: {}, handler: async (ctx) => { const cutoff = Date.now() - AGENT_STOP_TERMINAL_RETENTION_MS; for (const status of ['completed','failed','superseded'] as const) { const rows = await ctx.db.query('chatroom_agentStopCommands').withIndex('by_status_completedAt', q => q.eq('status', status)).filter(q => q.lt(q.field('completedAt'), cutoff)).take(100); for (const row of rows) { for (const t of await ctx.db.query('chatroom_agentStopTargets').withIndex('by_stopCommandId', q => q.eq('stopCommandId', row._id)).collect()) await ctx.db.delete(t._id); for (const e of await ctx.db.query('chatroom_agentStopMachineExecutions').withIndex('by_stopCommandId', q => q.eq('stopCommandId', row._id)).collect()) await ctx.db.delete(e._id); await ctx.db.delete(row._id); } } } });
+export const expireStaleStopCommands = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - AGENT_STOP_EXPIRY_LEASE_GRACE_MS;
+    for (const status of ['pending', 'processing'] as const) {
+      const rows = await ctx.db
+        .query('chatroom_agentStopCommands')
+        .withIndex('by_status_deadlineAt', (q) => q.eq('status', status))
+        .filter((q) => q.lt(q.field('deadlineAt'), cutoff))
+        .take(100);
+      for (const row of rows) await terminalizeExpiredStopCommand(ctx, row._id);
+    }
+  },
+});
+export const purgeTerminalStopHistory = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - AGENT_STOP_TERMINAL_RETENTION_MS;
+    for (const status of ['completed', 'failed', 'superseded'] as const) {
+      const rows = await ctx.db
+        .query('chatroom_agentStopCommands')
+        .withIndex('by_status_completedAt', (q) => q.eq('status', status))
+        .filter((q) => q.lt(q.field('completedAt'), cutoff))
+        .take(100);
+      for (const row of rows) {
+        for (const t of await ctx.db
+          .query('chatroom_agentStopTargets')
+          .withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', row._id))
+          .collect())
+          await ctx.db.delete(t._id);
+        for (const e of await ctx.db
+          .query('chatroom_agentStopMachineExecutions')
+          .withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', row._id))
+          .collect())
+          await ctx.db.delete(e._id);
+        await ctx.db.delete(row._id);
+      }
+    }
+  },
+});

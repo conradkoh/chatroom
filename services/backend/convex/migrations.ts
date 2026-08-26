@@ -19,7 +19,10 @@ import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-mac
 import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
 import { rebuildObservedWorkspaceView } from '../src/domain/usecase/workspace/project-observed-workspace-view';
 import { isActiveWorkspace } from '../src/domain/entities/workspace';
-import { upsertMessageReadModel, ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
+import {
+  upsertMessageReadModel,
+  ensureMessageReadModelState,
+} from '../src/domain/usecase/message/message-read-model';
 import {
   mergeCanonicalEnhancerIntoTeamRoles,
   migrateEnhancerConfigRow,
@@ -362,7 +365,9 @@ export const backfillMachineAssignedTaskSnapshotLifecycleRevision = migrations.d
 export const backfillAgentStopCommandPostStopDesiredState = migrations.define({
   table: 'chatroom_agentStopCommands',
   migrateOne: async (_ctx, row) =>
-    row.postStopDesiredState === undefined ? { postStopDesiredState: 'stopped' as const } : undefined,
+    row.postStopDesiredState === undefined
+      ? { postStopDesiredState: 'stopped' as const }
+      : undefined,
 });
 
 // Enhancer unified runtime: cold-path migration from legacy enhancer records.
@@ -397,14 +402,17 @@ export const migrateEnhancerJobOriginToTask = migrations.define({
     if (!job.taskId || !job.originUserMessageId) return;
     const task = await ctx.db.get('chatroom_tasks', job.taskId);
     if (!task || task.originUserMessageId) return;
-    await ctx.db.patch('chatroom_tasks', job.taskId, { originUserMessageId: job.originUserMessageId });
+    await ctx.db.patch('chatroom_tasks', job.taskId, {
+      originUserMessageId: job.originUserMessageId,
+    });
   },
 });
 
 export const migrateTaskEnhancerEnabledSnapshot = migrations.define({
   table: 'chatroom_tasks',
   migrateOne: async (_ctx, task) => {
-    if (task.enhancerEnabledAtEnqueue !== undefined || task.plannerEnhancerEnabled === undefined) return;
+    if (task.enhancerEnabledAtEnqueue !== undefined || task.plannerEnhancerEnabled === undefined)
+      return;
     return { enhancerEnabledAtEnqueue: task.plannerEnhancerEnabled };
   },
 });
@@ -649,30 +657,61 @@ export const backfillAgentOverviewSummaries = migrations.define({
 
 export const backfillMachineIdentities = migrations.define({
   table: 'chatroom_machines',
-  migrateOne: async (ctx, machine) => upsertMachineIdentity(ctx, { machineId: machine.machineId, userId: machine.userId, hostname: machine.hostname }),
+  migrateOne: async (ctx, machine) =>
+    upsertMachineIdentity(ctx, {
+      machineId: machine.machineId,
+      userId: machine.userId,
+      hostname: machine.hostname,
+    }),
 });
 
 export const backfillAgentViewMetadata = migrations.define({
   table: 'chatroom_rooms',
   migrateOne: async (ctx, room) => {
     if (!room.teamId || !room.teamRoles?.length) return;
-    const firstUserMessage = await ctx.db.query('chatroom_messages').withIndex('by_chatroom_senderRole_type_createdAt', (q) => q.eq('chatroomId', room._id).eq('senderRole', 'user').eq('type', 'message')).first();
-    await upsertAgentViewMetadata(ctx, { chatroomId: room._id, ownerId: room.ownerId, teamId: room.teamId, teamName: room.teamName ?? room.teamId, teamRoles: room.teamRoles, hasHistory: firstUserMessage !== null });
+    const firstUserMessage = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', room._id).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .first();
+    await upsertAgentViewMetadata(ctx, {
+      chatroomId: room._id,
+      ownerId: room.ownerId,
+      teamId: room.teamId,
+      teamName: room.teamName ?? room.teamId,
+      teamRoles: room.teamRoles,
+      hasHistory: firstUserMessage !== null,
+    });
   },
 });
 
 export const backfillMachineTaskStatusSignalHeads = migrations.define({
   table: 'chatroom_machines',
   migrateOne: async (ctx, machine) => {
-    const existing = await ctx.db.query('chatroom_machineTaskStatusSignalHeads').withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId)).first();
+    const existing = await ctx.db
+      .query('chatroom_machineTaskStatusSignalHeads')
+      .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
+      .first();
     if (existing) return;
-    const signals = await ctx.db.query('chatroom_machineTaskStatusSignals').withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machine.machineId)).order('desc').take(2);
+    const signals = await ctx.db
+      .query('chatroom_machineTaskStatusSignals')
+      .withIndex('by_machineId_signalKey', (q) => q.eq('machineId', machine.machineId))
+      .order('desc')
+      .take(2);
     if (signals.length === 0) return;
     const [latest, previous] = signals;
     await ctx.db.insert('chatroom_machineTaskStatusSignalHeads', {
       machineId: machine.machineId,
       ...(previous ? { previousSignalKey: previous.signalKey } : {}),
-      latestSignal: { chatroomId: latest.chatroomId, taskId: latest.taskId, targetRole: latest.targetRole, taskStatus: latest.taskStatus, signalKey: latest.signalKey, taskUpdatedAt: latest.taskUpdatedAt },
+      latestSignal: {
+        chatroomId: latest.chatroomId,
+        taskId: latest.taskId,
+        targetRole: latest.targetRole,
+        taskStatus: latest.taskStatus,
+        signalKey: latest.signalKey,
+        taskUpdatedAt: latest.taskUpdatedAt,
+      },
     });
   },
 });
@@ -680,20 +719,32 @@ export const backfillMachineTaskStatusSignalHeads = migrations.define({
 export const backfillMachineObservedWorkspaceViews = migrations.define({
   table: 'chatroom_machines',
   migrateOne: async (ctx, machine) => {
-    const workspaces = await ctx.db.query('chatroom_workspaces').withIndex('by_machine', (q) => q.eq('machineId', machine.machineId)).collect();
-    const chatroomIds = [...new Set(workspaces.filter((ws) => isActiveWorkspace(ws.removedAt)).map((ws) => ws.chatroomId))];
-    for (const chatroomId of chatroomIds) await rebuildObservedWorkspaceView(ctx, machine.machineId, chatroomId);
+    const workspaces = await ctx.db
+      .query('chatroom_workspaces')
+      .withIndex('by_machine', (q) => q.eq('machineId', machine.machineId))
+      .collect();
+    const chatroomIds = [
+      ...new Set(
+        workspaces.filter((ws) => isActiveWorkspace(ws.removedAt)).map((ws) => ws.chatroomId)
+      ),
+    ];
+    for (const chatroomId of chatroomIds)
+      await rebuildObservedWorkspaceView(ctx, machine.machineId, chatroomId);
   },
 });
 
 export const backfillMessageReadModels = migrations.define({
   table: 'chatroom_messages',
-  migrateOne: async (ctx, message) => { await upsertMessageReadModel(ctx, message); },
+  migrateOne: async (ctx, message) => {
+    await upsertMessageReadModel(ctx, message);
+  },
 });
 
 export const backfillMessageReadModelState = migrations.define({
   table: 'chatroom_rooms',
-  migrateOne: async (ctx, room) => { await ensureMessageReadModelState(ctx, room._id); },
+  migrateOne: async (ctx, room) => {
+    await ensureMessageReadModelState(ctx, room._id);
+  },
 });
 
 // ========================================

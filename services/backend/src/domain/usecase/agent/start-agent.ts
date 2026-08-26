@@ -140,7 +140,10 @@ export async function startAgent(
       },
     });
 
-    const currentConfig = await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey)).first();
+    const currentConfig = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+      .first();
     if (currentConfig) {
       const lifecycleRevision = await advanceAgentLifecycleRevision(ctx, currentConfig._id);
       input.lifecycleRevision = lifecycleRevision;

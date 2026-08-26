@@ -26,9 +26,21 @@ export function renderEnhancerSystemPrompt(params: RenderEnhancerSystemPromptPar
     { messageMarker: HANDOFF_MESSAGE_MARKER }
   );
 
-  const generalKnowledge = shouldIncludeGeneralKnowledge('enhancer') && params.convexUrl !== undefined
-    ? composeSections(getGeneralKnowledgeSections({ chatroomId: params.chatroomId, role: 'enhancer', convexUrl: params.convexUrl, compactSkills: true, nativeIntegration: true }, { includeHistory: false }))
-    : '';
+  const generalKnowledge =
+    shouldIncludeGeneralKnowledge('enhancer') && params.convexUrl !== undefined
+      ? composeSections(
+          getGeneralKnowledgeSections(
+            {
+              chatroomId: params.chatroomId,
+              role: 'enhancer',
+              convexUrl: params.convexUrl,
+              compactSkills: true,
+              nativeIntegration: true,
+            },
+            { includeHistory: false }
+          )
+        )
+      : '';
   return [
     generalKnowledge,
     'You are a single-turn, memoryless **design advisor**. Produce a high-intelligence first design for the user request; you are not an implementer.',

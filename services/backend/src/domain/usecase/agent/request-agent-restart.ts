@@ -112,8 +112,17 @@ async function persistRestartAndEmit(
       },
     });
   }
-  const lifecycleConfig = chatroom?.teamId ? await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, chatroom.teamId!, input.role))).first() : null;
-  const lifecycleRevision = lifecycleConfig ? await advanceAgentLifecycleRevision(ctx, lifecycleConfig._id) : 0;
+  const lifecycleConfig = chatroom?.teamId
+    ? await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, chatroom.teamId!, input.role))
+        )
+        .first()
+    : null;
+  const lifecycleRevision = lifecycleConfig
+    ? await advanceAgentLifecycleRevision(ctx, lifecycleConfig._id)
+    : 0;
   await enqueueMachineCommand(ctx, {
     machineId: resolved.machineId,
     now,

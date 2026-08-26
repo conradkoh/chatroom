@@ -48,9 +48,20 @@ export async function ensureOnlyAgentForRole(
 
   const affectedMachineIds = new Set<string>();
 
-  const stoppable = conflicting.filter((config): config is AgentStopSelectedConfig => config.type === 'remote' && config.machineId != null && config.spawnedAgentPid != null && config.agentHarness != null);
+  const stoppable = conflicting.filter(
+    (config): config is AgentStopSelectedConfig =>
+      config.type === 'remote' &&
+      config.machineId != null &&
+      config.spawnedAgentPid != null &&
+      config.agentHarness != null
+  );
   if (stoppable.length > 0) {
-    await createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'agent', role }, reason: 'platform.dedup', selectedConfigs: stoppable });
+    await createAgentStopCommand(ctx, {
+      chatroomId,
+      scope: { kind: 'agent', role },
+      reason: 'platform.dedup',
+      selectedConfigs: stoppable,
+    });
   }
   for (const config of stoppable) {
     if (config.machineId) {

@@ -1261,7 +1261,8 @@ export const updateSpawnedAgent = mutation({
     }
     await getOwnedMachine(ctx, args.machineId, auth.userId);
 
-    if (args.pid !== undefined && args.lifecycleRevision === undefined) return { success: true, accepted: false, reason: 'stale_revision' as const };
+    if (args.pid !== undefined && args.lifecycleRevision === undefined)
+      return { success: true, accepted: false, reason: 'stale_revision' as const };
     const spawnChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!spawnChatroom?.teamId) {
       throw new Error('Chatroom has no teamId — cannot look up agent config');
@@ -1285,15 +1286,37 @@ export const updateSpawnedAgent = mutation({
     }
 
     if (args.pid === undefined) {
-      await patchTeamAgentConfig(ctx, config._id, { spawnedAgentPid: undefined, spawnedAt: undefined });
+      await patchTeamAgentConfig(ctx, config._id, {
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+      });
       return { success: true, accepted: true };
     }
-    return { success: true, ...(await registerSpawnedAgentIfAuthorized(ctx, { chatroomId: args.chatroomId, role: args.role, machineId: args.machineId, pid: args.pid, lifecycleRevision: args.lifecycleRevision!, model: args.model, harnessSessionId: args.harnessSessionId, reason: args.reason })) };
+    return {
+      success: true,
+      ...(await registerSpawnedAgentIfAuthorized(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        machineId: args.machineId,
+        pid: args.pid,
+        lifecycleRevision: args.lifecycleRevision!,
+        model: args.model,
+        harnessSessionId: args.harnessSessionId,
+        reason: args.reason,
+      })),
+    };
   },
 });
 
 export const authorizeAgentStart = mutation({
-  args: { ...SessionIdArg, machineId: v.string(), chatroomId: v.id('chatroom_rooms'), role: v.string(), lifecycleRevision: v.optional(v.number()), taskId: v.optional(v.id('chatroom_tasks')) },
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    lifecycleRevision: v.optional(v.number()),
+    taskId: v.optional(v.id('chatroom_tasks')),
+  },
   handler: async (ctx, args) => {
     await requireMachineOwner(ctx, args.sessionId, args.machineId);
     return authorizeAgentStartUseCase(ctx, args);

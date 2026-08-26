@@ -26,7 +26,13 @@ const localActionValidator = v.union(
   ).map(v.literal)
 );
 export const machineCommandPayloadValidator = v.union(
-  v.object({ type: v.literal('agent.stopScope'), stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), scope: agentStopScopeValidator, reason: agentStopReasonValidator }),
+  v.object({
+    type: v.literal('agent.stopScope'),
+    stopCommandId: v.id('chatroom_agentStopCommands'),
+    chatroomId: v.id('chatroom_rooms'),
+    scope: agentStopScopeValidator,
+    reason: agentStopReasonValidator,
+  }),
   v.object({
     type: v.literal('agent.requestStart'),
     chatroomId: v.id('chatroom_rooms'),
