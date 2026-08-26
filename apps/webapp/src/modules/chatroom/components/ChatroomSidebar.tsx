@@ -68,25 +68,25 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const markAsUnread = useSessionMutation(api.chatrooms.markAsUnread);
 
   const handleStop = useCallback((e: React.MouseEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
-      setStopConfirmOpen(true);
+    e.stopPropagation();
+    e.preventDefault();
+    setStopConfirmOpen(true);
   }, []);
 
   const confirmStop = useCallback(async () => {
-      setIsSubmittingStop(true);
-      const [agentStop, commandStop] = await Promise.allSettled([
-        requestChatroomStop(chatroom._id as Id<'chatroom_rooms'>),
-        stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> }),
-      ]);
-      // Independent branches: one failure must not skip the other.
-      const failures = [
-        agentStop.status === 'rejected' ? `Agents: ${String(agentStop.reason)}` : null,
-        commandStop.status === 'rejected' ? `Command runs: ${String(commandStop.reason)}` : null,
-      ].filter(Boolean);
-      if (failures.length > 0) toast.error(failures.join('; '));
-      setIsSubmittingStop(false);
-      setStopConfirmOpen(false);
+    setIsSubmittingStop(true);
+    const [agentStop, commandStop] = await Promise.allSettled([
+      requestChatroomStop(chatroom._id as Id<'chatroom_rooms'>),
+      stopAllCommandRuns({ chatroomId: chatroom._id as Id<'chatroom_rooms'> }),
+    ]);
+    // Independent branches: one failure must not skip the other.
+    const failures = [
+      agentStop.status === 'rejected' ? `Agents: ${String(agentStop.reason)}` : null,
+      commandStop.status === 'rejected' ? `Command runs: ${String(commandStop.reason)}` : null,
+    ].filter(Boolean);
+    if (failures.length > 0) toast.error(failures.join('; '));
+    setIsSubmittingStop(false);
+    setStopConfirmOpen(false);
   }, [chatroom._id, requestChatroomStop, stopAllCommandRuns]);
 
   const handleStart = useCallback(
@@ -257,7 +257,13 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSubmittingStop}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={(event) => { event.preventDefault(); void confirmStop(); }} disabled={isSubmittingStop}>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmStop();
+              }}
+              disabled={isSubmittingStop}
+            >
               {isSubmittingStop ? 'Stopping…' : 'Stop all'}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -1105,7 +1105,9 @@ export function ChatroomDashboard({
   const agentPanelData = useAgentPanelData(chatroomId, { loadConfigs: true });
   const { requestChatroomStop } = useAgentStop();
   const [isRequestingStop, setIsRequestingStop] = useState(false);
-  const projectedStopActive = agentPanelData.agents.some((a) => isActiveAgentStopState(a.stopState));
+  const projectedStopActive = agentPanelData.agents.some((a) =>
+    isActiveAgentStopState(a.stopState)
+  );
   const isStoppingAgents = isRequestingStop || projectedStopActive;
   const lifecycle = agentPanelData.lifecycle;
 

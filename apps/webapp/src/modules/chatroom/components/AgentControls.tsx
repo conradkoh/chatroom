@@ -1279,11 +1279,17 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 
           <div className="min-h-4 text-[10px]" aria-live="polite">
             {controls.error ? (
-              <p role="alert" className="text-chatroom-status-error">{controls.error}</p>
+              <p role="alert" className="text-chatroom-status-error">
+                {controls.error}
+              </p>
             ) : stopFailed ? (
-              <p role="alert" className="text-chatroom-status-error">Stop failed. Try again.</p>
+              <p role="alert" className="text-chatroom-status-error">
+                Stop failed. Try again.
+              </p>
             ) : isStopping ? (
-              <p role="status" className="text-chatroom-text-secondary">Stopping…</p>
+              <p role="status" className="text-chatroom-text-secondary">
+                Stopping…
+              </p>
             ) : null}
           </div>
 
