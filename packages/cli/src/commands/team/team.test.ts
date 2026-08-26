@@ -16,8 +16,10 @@ describe('team commands', () => {
   test('lists supported presets', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     await listTeamPresets();
-    expect(log.mock.calls.join('\n')).toContain('duo — Duo (planner, builder) entry: planner');
-    expect(log.mock.calls.join('\n')).toContain('solo — Solo (solo) entry: solo');
+    expect(log.mock.calls.join('\n')).toContain(
+      'duo — Duo (planner, enhancer, builder) entry: planner'
+    );
+    expect(log.mock.calls.join('\n')).toContain('solo — Solo (solo, enhancer) entry: solo');
     log.mockRestore();
   });
 
@@ -45,7 +47,7 @@ describe('team commands', () => {
       expect.objectContaining({
         chatroomId: 'room_1',
         teamId: 'solo',
-        teamRoles: ['solo'],
+        teamRoles: ['solo', 'enhancer'],
         teamEntryPoint: 'solo',
       })
     );

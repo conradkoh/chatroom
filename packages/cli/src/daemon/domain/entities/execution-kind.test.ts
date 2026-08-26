@@ -3,10 +3,10 @@ import { describe, expect, test } from 'vitest';
 import { getExecutionKindForRole, isTeamAgentRole, isDaemonWorkerRole } from './execution-kind.js';
 
 describe('execution-kind', () => {
-  test('enhancer is daemon_worker', () => {
-    expect(getExecutionKindForRole('enhancer')).toBe('daemon_worker');
-    expect(isTeamAgentRole('enhancer')).toBe(false);
-    expect(isDaemonWorkerRole('enhancer')).toBe(true);
+  test('enhancer is team_agent (ephemeral team role)', () => {
+    expect(getExecutionKindForRole('enhancer')).toBe('team_agent');
+    expect(isTeamAgentRole('enhancer')).toBe(true);
+    expect(isDaemonWorkerRole('enhancer')).toBe(false);
   });
 
   test('planner is team_agent', () => {
@@ -28,7 +28,7 @@ describe('execution-kind', () => {
   });
 
   test('case-insensitive role matching', () => {
-    expect(getExecutionKindForRole('ENHANCER')).toBe('daemon_worker');
-    expect(getExecutionKindForRole('Enhancer')).toBe('daemon_worker');
+    expect(getExecutionKindForRole('ENHANCER')).toBe('team_agent');
+    expect(getExecutionKindForRole('Enhancer')).toBe('team_agent');
   });
 });
