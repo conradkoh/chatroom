@@ -1,10 +1,10 @@
 import { agentExited as agentExitedUseCase } from './agent-exited';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
+import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
 import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { onAgentExited } from '../../../events/agent/on-agent-exited';
-import { registerSpawnedAgentIfAuthorized } from './register-spawned-agent';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 export type AgentLifecycleFactInput =

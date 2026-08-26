@@ -1,3 +1,5 @@
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+
 import {
   applyRoleToSummary,
   deriveAgentOperationalState,
@@ -9,14 +11,13 @@ import {
   operationalSummariesEqual,
   type ChatroomOperationalSummary,
 } from './derive-agent-operational-state';
+import { deriveRoleStopState } from './derive-agent-stop-state';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import {
   buildTeamRoleKey,
   filterTeamAgentConfigsForTeam,
 } from '../../../../convex/utils/teamRoleKey';
-import { deriveRoleStopState } from './derive-agent-stop-state';
-import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
 type RebuildOptions = { pruneStale?: boolean };
 

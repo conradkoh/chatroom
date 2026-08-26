@@ -1,7 +1,7 @@
+import { transitionEnhancerEntryPointToWaiting } from './enhancer-entry-point-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { releaseTasksOnAgentExit } from '../task/release-tasks-on-agent-exit';
-import { transitionEnhancerEntryPointToWaiting } from './enhancer-entry-point-status';
 
 /** Silently interrupt enhancer work without delivering a planning handoff. */
 export async function interruptEnhancerJobsOnChatroomStop(

@@ -1,8 +1,7 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
-import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { QueryCtx } from '../../../../convex/_generated/server';
-import { normalizeAgentStopRole } from '../../entities/agent-stop-command';
+import type { MutationCtx , QueryCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { normalizeAgentStopRole } from '../../entities/agent-stop-command';
 
 export type RoleStopState = 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed';
 

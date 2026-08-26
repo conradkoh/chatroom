@@ -3,8 +3,8 @@
  */
 
 import { getBuilderGuidance } from './builder';
-import { getPlannerGuidance } from './planner';
 import { getEnhancerGuidance } from './enhancer';
+import { getPlannerGuidance } from './planner';
 import { getSoloGuidance } from '../../teams/solo/prompts/solo';
 import type { BuilderGuidanceParams, PlannerGuidanceParams } from '../../types/cli';
 import type { SelectorContext } from '../../types/sections';

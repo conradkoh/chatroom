@@ -13,8 +13,8 @@ import { startTargetTeamAgentsOnSwitch } from './start-target-team-agents-on-swi
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey, teamRoleKeyMatchesTeam } from '../../../../convex/utils/teamRoleKey';
-import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
 import { createAgentStopCommand } from '../agent/create-agent-stop-command';
+import { rebuildAgentOperationalStatusForChatroom } from '../agent/project-agent-operational-status';
 import type { AgentStopSelectedConfig } from '../agent/select-agent-stop-configs';
 import { upsertAgentViewMetadata } from '../chatroom/project-agent-view-metadata';
 import { projectAssignedTaskSnapshotsForMachines } from '../machine/patch-team-agent-config';

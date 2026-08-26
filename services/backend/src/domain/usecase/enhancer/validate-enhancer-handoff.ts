@@ -1,5 +1,5 @@
-import type { Doc } from '../../../../convex/_generated/dataModel';
 import { isCompleteRemoteEnhancerConfig } from './get-enhancer-team-agent-config';
+import type { Doc } from '../../../../convex/_generated/dataModel';
 
 export type EnhancerHandoffValidation =
   | { allowed: true; config: Doc<'chatroom_teamAgentConfigs'> }

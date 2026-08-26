@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { t } from '../../../../test.setup';
+
 import { deriveRoleStopState } from './derive-agent-stop-state';
+import { t } from '../../../../test.setup';
 
 describe('deriveRoleStopState', () => {
   test('returns idle without stop commands', async () => {

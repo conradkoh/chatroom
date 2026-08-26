@@ -1,7 +1,7 @@
-import type { MutationCtx } from '../../../../convex/_generated/server';
 import { createAgentStopCommand } from './create-agent-stop-command';
-import type { Id } from '../../../../convex/_generated/dataModel';
 import type { AgentStopSelectedConfig } from './select-agent-stop-configs';
+import type { Id } from '../../../../convex/_generated/dataModel';
+import type { MutationCtx } from '../../../../convex/_generated/server';
 
 export async function deleteStaleTeamAgentConfigs(
   ctx: MutationCtx,

@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { api } from '../../../../convex/_generated/api';
-import { t } from '../../../../test.setup';
+
 import { createAgentStopCommand } from './create-agent-stop-command';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { selectConfigsForAgentStop } from './select-agent-stop-configs';
+import { api } from '../../../../convex/_generated/api';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { t } from '../../../../test.setup';
 
 async function setup(id: string) {
   const login = await t.mutation(api.auth.loginAnon, { sessionId: id as any });

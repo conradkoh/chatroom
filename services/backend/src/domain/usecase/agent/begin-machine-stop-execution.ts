@@ -1,8 +1,10 @@
+import type { AgentStopTargetDescriptor } from '@workspace/shared/domain/agent-stop-command';
+
+import { terminalizeExpiredStopCommand } from './terminalize-expired-stop-command';
+import { AGENT_STOP_EXPIRY_LEASE_GRACE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { AgentStopTargetDescriptor } from '@workspace/shared/domain/agent-stop-command';
-import { AGENT_STOP_EXPIRY_LEASE_GRACE_MS } from '../../../../config/reliability';
-import { terminalizeExpiredStopCommand } from './terminalize-expired-stop-command';
+
 export async function beginMachineStopExecution(
   ctx: MutationCtx,
   args: {
@@ -47,12 +49,12 @@ export async function beginMachineStopExecution(
       .collect()
   ).filter((t) => t.status === 'pending' || t.status === 'processing');
   if (execution.status === 'pending')
-    await ctx.db.patch(execution._id, {
+    await ctx.db.patch("chatroom_agentStopMachineExecutions", execution._id, {
       status: 'processing',
       claimedAt: Date.now(),
       inboxCommandId: args.inboxCommandId,
     });
-  if (command.status === 'pending') await ctx.db.patch(command._id, { status: 'processing' });
+  if (command.status === 'pending') await ctx.db.patch("chatroom_agentStopCommands", command._id, { status: 'processing' });
   const targets = pendingTargets
     .filter((t) => t.agentConfigId && t.agentHarness)
     .map((t) => ({

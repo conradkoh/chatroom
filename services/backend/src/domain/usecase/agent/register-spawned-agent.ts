@@ -1,9 +1,9 @@
+import { authorizeAgentStart } from './authorize-agent-start';
+import { recordAgentSpawnedState } from './record-agent-spawned-state';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
-import { authorizeAgentStart } from './authorize-agent-start';
-import { recordAgentSpawnedState } from './record-agent-spawned-state';
 
 export type RegisterSpawnedAgentArgs = {
   chatroomId: Id<'chatroom_rooms'>;

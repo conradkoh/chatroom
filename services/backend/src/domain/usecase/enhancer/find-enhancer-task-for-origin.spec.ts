@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { t } from '../../../../test.setup';
+
 import { findEnhancerTaskForOrigin } from './find-enhancer-task-for-origin';
+import { t } from '../../../../test.setup';
 
 describe('findEnhancerTaskForOrigin', () => {
   test('finds only the enhancer task for the requested origin', async () => {

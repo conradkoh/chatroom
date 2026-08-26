@@ -1,6 +1,6 @@
+import { projectAgentStopStateForRole } from './project-agent-operational-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { projectAgentStopStateForRole } from './project-agent-operational-status';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 

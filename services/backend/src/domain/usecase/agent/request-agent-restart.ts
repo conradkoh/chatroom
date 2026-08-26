@@ -1,3 +1,4 @@
+import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 import { getAgentConfig } from './get-agent-config';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
@@ -16,7 +17,6 @@ import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
 import { releaseTasksOnAgentExit } from '../task/release-tasks-on-agent-exit';
-import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 
 export async function requestAgentRestart(
   ctx: MutationCtx,

@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'vitest';
+
+import { agentStopReasonValidator } from './agent';
 import {
   agentStopScopeKey,
   buildAgentStopTargetKey,
   buildAgentStopRevisionKey,
 } from './agent-stop-command';
-import { agentStopReasonValidator } from './agent';
 
 describe('agent stop command entity', () => {
   test('normalizes role scope keys for coalescing', () => {

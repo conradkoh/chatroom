@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { api } from '../../../../convex/_generated/api';
-import { t } from '../../../../test.setup';
+
 import { rollupAgentStopCommandStatus } from './rollup-agent-stop-command';
+import { api } from '../../../../convex/_generated/api';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { t } from '../../../../test.setup';
 
 describe('rollupAgentStopCommandStatus', () => {
   test('rolls terminal execution and target to completed', async () => {

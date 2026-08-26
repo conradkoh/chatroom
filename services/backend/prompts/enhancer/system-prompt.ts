@@ -4,10 +4,10 @@ import {
   HANDOFF_MESSAGE_MARKER,
   formatStdinHeredocCommand,
 } from '../cli/stdin-heredoc.js';
-import { getFrontendDesignUxTriggerDescription } from '../utils/frontend-design-ux-checklist';
+import { shouldIncludeGeneralKnowledge } from '../config/agent-general-knowledge';
 import { getGeneralKnowledgeSections } from '../sections/general-knowledge';
 import { composeSections } from '../types/sections';
-import { shouldIncludeGeneralKnowledge } from '../config/agent-general-knowledge';
+import { getFrontendDesignUxTriggerDescription } from '../utils/frontend-design-ux-checklist';
 
 export interface RenderEnhancerSystemPromptParams {
   chatroomId: string;

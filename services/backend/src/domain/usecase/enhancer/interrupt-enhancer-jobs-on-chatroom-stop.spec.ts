@@ -1,10 +1,10 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
+import { interruptEnhancerJobsOnChatroomStop } from './interrupt-enhancer-jobs-on-chatroom-stop';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
-import { interruptEnhancerJobsOnChatroomStop } from './interrupt-enhancer-jobs-on-chatroom-stop';
 
 describe('interruptEnhancerJobsOnChatroomStop', () => {
   test('resets running enhancer jobs and releases their task', async () => {

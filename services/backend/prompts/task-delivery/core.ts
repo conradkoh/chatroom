@@ -13,11 +13,11 @@ import {
   appendTaskDeliveryEnhancerInputGuidance,
   isPlanningReviewOutcomeContent,
 } from './enhancer-guidance.js';
+import { appendEnhancerRoleTaskDeliveryGuidance } from './enhancer-role-guidance';
 import type { PrimaryDeliveryAttachments } from '../../src/domain/entities/message-attachments.js';
 import { inferPrimaryHandoffTarget } from '../../src/domain/handoff/infer-primary-handoff-target';
 import { handoffCommand } from '../cli/handoff/command';
 import { appendNativeDeliveryHandoffTemplates as appendTaskDeliveryHandoffTemplates } from '../native/delivery-handoff-templates.js';
-import { appendEnhancerRoleTaskDeliveryGuidance } from './enhancer-role-guidance';
 
 export interface TaskDeliveryParams {
   chatroomId: string;

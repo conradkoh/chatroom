@@ -30,14 +30,14 @@
 import { maybePromoteNextQueuedTask } from './maybe-promote-next-queued-task';
 import { adjustTaskCountsForTransition } from './task-counts';
 import { writeTimelineTaskStatusSignal } from './write-timeline-task-status-signal';
-import { syncMessageReadModel } from '../message/message-read-model';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 import { TERMINAL_TASK_STATUSES } from '../../entities/task';
-import { projectAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-assigned-task-snapshot-sync';
 import { requestEphemeralAgentRelease } from '../agent/request-ephemeral-agent-release';
+import { projectAssignedTaskSnapshotsAfterTaskChange } from '../machine/machine-assigned-task-snapshot-sync';
+import { syncMessageReadModel } from '../message/message-read-model';
 
 // ============================================================================
 // TYPES

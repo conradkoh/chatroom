@@ -1,7 +1,8 @@
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
 export type AuthorizeAgentStartArgs = {
   chatroomId: Id<'chatroom_rooms'>;

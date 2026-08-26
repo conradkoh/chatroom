@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'vitest';
+
+import { authorizeAgentStart } from './authorize-agent-start';
 import { api } from '../../../../convex/_generated/api';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
-import { authorizeAgentStart } from './authorize-agent-start';
 
 async function setup(id: string) {
   await t.mutation(api.auth.loginAnon, { sessionId: id as any });

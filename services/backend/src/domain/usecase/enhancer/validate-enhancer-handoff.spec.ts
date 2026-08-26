@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { validateEnhancerHandoff } from './validate-enhancer-handoff';
 
 const config = {

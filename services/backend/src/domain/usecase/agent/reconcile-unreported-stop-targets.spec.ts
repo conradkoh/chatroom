@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
+
+import { reconcileUnreportedStopTargets } from './reconcile-unreported-stop-targets';
 import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
-import { reconcileUnreportedStopTargets } from './reconcile-unreported-stop-targets';
 
 describe('reconcileUnreportedStopTargets', () => {
   test('does not fabricate already_stopped for unreported targets', async () => {

@@ -4,6 +4,7 @@ import {
   AGENT_STOP_TERMINAL_RETENTION_MS,
 } from '../config/reliability';
 import { terminalizeExpiredStopCommand } from '../src/domain/usecase/agent/terminalize-expired-stop-command';
+
 export const expireStaleStopCommands = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -33,13 +34,13 @@ export const purgeTerminalStopHistory = internalMutation({
           .query('chatroom_agentStopTargets')
           .withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', row._id))
           .collect())
-          await ctx.db.delete(t._id);
+          await ctx.db.delete("chatroom_agentStopTargets", t._id);
         for (const e of await ctx.db
           .query('chatroom_agentStopMachineExecutions')
           .withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', row._id))
           .collect())
-          await ctx.db.delete(e._id);
-        await ctx.db.delete(row._id);
+          await ctx.db.delete("chatroom_agentStopMachineExecutions", e._id);
+        await ctx.db.delete("chatroom_agentStopCommands", row._id);
       }
     }
   },

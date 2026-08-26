@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { api } from '../../../../convex/_generated/api';
-import { t } from '../../../../test.setup';
+
 import { createAgentStopCommand } from './create-agent-stop-command';
 import { selectConfigsForAgentStop } from './select-agent-stop-configs';
+import { api } from '../../../../convex/_generated/api';
+import { t } from '../../../../test.setup';
 
 describe('supersedeInflightAgentStopCommands', () => {
   test('terminalizes prior command targets', async () => {

@@ -38,14 +38,14 @@ import {
 } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
 import { resolveEnhancerHandoffContent } from '../src/domain/usecase/enhancer/enhancer-handoff-content';
 import { findEnhancerTaskForOrigin } from '../src/domain/usecase/enhancer/find-enhancer-task-for-origin';
-import { getEnhancerTeamAgentConfig } from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
-import { validateEnhancerHandoff } from '../src/domain/usecase/enhancer/validate-enhancer-handoff';
 import { getEnhancerConfigForUser } from '../src/domain/usecase/enhancer/get-enhancer-config-for-user';
+import { getEnhancerTeamAgentConfig } from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
 import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import {
   resolvePlannerEnhancerEnabledFromConfig,
   resolveTaskPlannerEnhancerEnabled,
 } from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
+import { validateEnhancerHandoff } from '../src/domain/usecase/enhancer/validate-enhancer-handoff';
 import {
   insertChatroomMessage,
   isMessageReadModelComplete,
@@ -974,7 +974,7 @@ export async function runHandoffHandler(
     await linkMessageToTask(ctx, messageId, newTaskId);
   }
 
-  let enhancerJobId: Id<'chatroom_enhancerJobs'> | null = null;
+  const enhancerJobId: Id<'chatroom_enhancerJobs'> | null = null;
   if (isHandoffToEnhancer && newTaskId) {
     if (!enhancerEntryPointRole) {
       throw new ConvexError({

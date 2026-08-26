@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'vitest';
+
+import { requestEphemeralAgentRelease } from './request-ephemeral-agent-release';
 import { api } from '../../../../convex/_generated/api';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
-import { requestEphemeralAgentRelease } from './request-ephemeral-agent-release';
 
 describe('requestEphemeralAgentRelease', () => {
   test('creates a running-capacity release for an enhancer task', async () => {

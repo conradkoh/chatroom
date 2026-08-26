@@ -9,15 +9,14 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
+import { str } from './utils/types';
+import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
+import { validateWorkingDir } from './workspacePathSecurity';
+import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
-import { deleteStaleTeamAgentConfigs } from '../src/domain/usecase/agent/delete-stale-team-agent-configs';
-import { str } from './utils/types';
-import { validateWorkingDir } from './workspacePathSecurity';
-import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
-import { agentLifecycleFactValidator } from './validators/agent_lifecycle_fact';
 import {
   agentStopReasonValidator,
   agentTypeValidator,
@@ -25,6 +24,8 @@ import {
 } from '../src/domain/entities/agent';
 import { agentExited as agentExitedUseCase } from '../src/domain/usecase/agent/agent-exited';
 import { assertMachineBelongsToChatroom } from '../src/domain/usecase/agent/assert-machine-belongs-to-chatroom';
+import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
+import { deleteStaleTeamAgentConfigs } from '../src/domain/usecase/agent/delete-stale-team-agent-configs';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import {
@@ -37,6 +38,7 @@ import {
   projectAgentOperationalStatusForRole,
   rebuildAgentOperationalStatusForMachine,
 } from '../src/domain/usecase/agent/project-agent-operational-status';
+import { registerSpawnedAgentIfAuthorized } from '../src/domain/usecase/agent/register-spawned-agent';
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
 import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
@@ -54,8 +56,6 @@ import {
 import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
-import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
-import { registerSpawnedAgentIfAuthorized } from '../src/domain/usecase/agent/register-spawned-agent';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
