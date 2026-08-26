@@ -9,7 +9,8 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { createTestSession, joinParticipant } from '../helpers/integration';
+import { insertLegacyEnhancerJob } from '../helpers/enhancer-legacy-job';
+import { createTestSession, joinParticipant, addEnhancerToTeamRoles } from '../helpers/integration';
 import { setupPlannerWorkspaceForSession } from './direct-harness/fixtures';
 
 describe('daemon.enhancer.index unauthorized access', () => {
@@ -40,8 +41,10 @@ describe('daemon.enhancer.index unauthorized access', () => {
       machineId,
     });
 
+    await addEnhancerToTeamRoles(chatroomId);
+
     await joinParticipant(sessionId, chatroomId, 'planner');
-    await t.run(async (ctx) => {
+    const originUserMessageId = await t.run(async (ctx) => {
       const msgId = await ctx.db.insert('chatroom_messages', {
         chatroomId,
         senderRole: 'user',
@@ -60,14 +63,15 @@ describe('daemon.enhancer.index unauthorized access', () => {
         updatedAt: Date.now(),
         queuePosition: 1,
       });
+      return msgId;
     });
 
-    const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
-      sessionId,
+    const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
+    const { jobId } = await insertLegacyEnhancerJob({
       chatroomId,
-      senderRole: 'planner',
-      targetRole: 'enhancer',
-      content: 'Draft',
+      userId,
+      machineId,
+      originUserMessageId,
     });
 
     await expect(
@@ -94,8 +98,10 @@ describe('daemon.enhancer.index unauthorized access', () => {
       machineId,
     });
 
+    await addEnhancerToTeamRoles(chatroomId);
+
     await joinParticipant(sessionId, chatroomId, 'planner');
-    await t.run(async (ctx) => {
+    const originUserMessageId = await t.run(async (ctx) => {
       const msgId = await ctx.db.insert('chatroom_messages', {
         chatroomId,
         senderRole: 'user',
@@ -114,14 +120,16 @@ describe('daemon.enhancer.index unauthorized access', () => {
         updatedAt: Date.now(),
         queuePosition: 1,
       });
+      return msgId;
     });
 
-    const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
-      sessionId,
+    const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
+    const { jobId } = await insertLegacyEnhancerJob({
       chatroomId,
-      senderRole: 'planner',
-      targetRole: 'enhancer',
-      content: 'Draft content',
+      userId,
+      machineId,
+      originUserMessageId,
+      draftContent: 'Draft content',
     });
 
     await t.mutation(api.daemon.enhancer.index.claimForSpawn, {

@@ -9,8 +9,10 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
+import { insertLegacyEnhancerJob } from '../helpers/enhancer-legacy-job';
 import {
-  assertDuoTeamOnly,
+  addEnhancerToTeamRoles,
+  enableEnhancerTeamAgent,
   createTestSession,
   createDuoTeamChatroom,
   joinParticipant,
@@ -48,33 +50,44 @@ async function createPlannerUserMessageAndTask(
 }
 
 describe('daemon.enhancer.index', () => {
-  test('enqueueHandoff creates job with status pending', async () => {
+  test('request-first handoff creates enhancer task without legacy job', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-pending');
 
-    await t.mutation(api.web.enhancer.index.upsertConfig, {
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
+
+    const originUserMessageId = await createPlannerUserMessageAndTask(
       sessionId,
       chatroomId,
-      enabled: true,
-      targetId: 'handoff:planner-to-builder',
-      agentHarness: 'opencode',
-      model: 'anthropic/claude-opus-4',
-      machineId,
-    });
+      'Spawn test message'
+    );
 
-    await createPlannerUserMessageAndTask(sessionId, chatroomId, 'Spawn test message');
-
-    const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+    const handoff = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
       content: 'Draft content',
     });
+    expect(handoff.success).toBe(true);
 
-    const job = await t.run(async (ctx) => ctx.db.get(jobId as Id<'chatroom_enhancerJobs'>));
-    expect(job!.status).toBe('pending');
-    expect(job!.runningSince).toBeUndefined();
+    const enhancerTask = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('assignedTo'), 'enhancer'))
+        .first()
+    );
+    expect(enhancerTask?.status).toBe('pending');
+    expect(enhancerTask?.originUserMessageId).toBe(originUserMessageId);
+    expect(
+      await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_enhancerJobs')
+          .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId))
+          .collect()
+      )
+    ).toHaveLength(0);
   });
 
   test('participants.join rejects enhancer role', async () => {
@@ -92,8 +105,8 @@ describe('daemon.enhancer.index', () => {
 
   test('claimForSpawn transitions pending to running; second claim returns false', async () => {
     const { sessionId, chatroomId, machineId } = await setupPlannerWorkspaceForSession('enh-claim');
+    await addEnhancerToTeamRoles(chatroomId);
 
-    await assertDuoTeamOnly(chatroomId);
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
       chatroomId,
@@ -104,14 +117,17 @@ describe('daemon.enhancer.index', () => {
       machineId,
     });
 
-    await createPlannerUserMessageAndTask(sessionId, chatroomId, 'Claim test message');
-
-    const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
+    const originUserMessageId = await createPlannerUserMessageAndTask(
       sessionId,
       chatroomId,
-      senderRole: 'planner',
-      targetRole: 'enhancer',
-      content: 'Draft',
+      'Claim test message'
+    );
+    const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
+    const { jobId } = await insertLegacyEnhancerJob({
+      chatroomId,
+      userId,
+      machineId,
+      originUserMessageId,
     });
 
     // First claim succeeds
@@ -145,6 +161,7 @@ describe('daemon.enhancer.index', () => {
   test('getSpawnPayload returns prompt and envelope for running job', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-payload');
+    await addEnhancerToTeamRoles(chatroomId);
 
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
@@ -161,13 +178,13 @@ describe('daemon.enhancer.index', () => {
       chatroomId,
       'Payload test message'
     );
-
-    const { jobId } = await t.mutation(api.web.enhancer.index.enqueueHandoff, {
-      sessionId,
+    const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
+    const { jobId } = await insertLegacyEnhancerJob({
       chatroomId,
-      senderRole: 'planner',
-      targetRole: 'enhancer',
-      content: '<request>Payload test message</request>',
+      userId,
+      machineId,
+      originUserMessageId,
+      draftContent: '<request>Payload test message</request>',
     });
 
     await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
@@ -183,8 +200,8 @@ describe('daemon.enhancer.index', () => {
 
     expect(payload.agentHarness).toBe('opencode');
     expect(payload.workingDir).toBeDefined();
-    expect(payload.systemPrompt).toContain('enhancer complete');
-    expect(payload.systemPrompt).toContain(jobId);
+    expect(payload.systemPrompt).toContain('chatroom handoff');
+    expect(payload.jobId).toBe(jobId);
     expect(payload.systemPrompt).toContain('messages download');
     expect(payload.systemPrompt).toContain(`--since-message-id="${originUserMessageId}"`);
     expect(payload.systemPrompt).toContain('single-turn, memoryless **design advisor**');
@@ -192,15 +209,15 @@ describe('daemon.enhancer.index', () => {
     expect(payload.systemPrompt).not.toContain('planner→user');
     expect(payload.taskEnvelope).toContain(`origin-user-message-id="${originUserMessageId}"`);
     expect(payload.taskEnvelope).toContain('<output-template>');
-    expect(payload.taskEnvelope).toContain('Design Input (Enhancer → Planner)');
+    expect(payload.taskEnvelope).toContain('# Template');
     expect(payload.taskEnvelope).toContain('<forwarded-request>');
     expect(payload.taskEnvelope).toContain('&lt;request&gt;Payload test message&lt;/request&gt;');
     expect(payload.taskEnvelope).not.toContain('<handoff-templates>');
     expect(payload.taskEnvelope).not.toContain('<references>');
     expect(payload.taskEnvelope).not.toContain('<planner-check-in>');
-    expect(payload.taskEnvelope).toContain('&lt;handoff-frontend-design&gt;');
-    expect(payload.taskEnvelope).toContain('&lt;handoff-data-design&gt;');
+    expect(payload.taskEnvelope).toContain('<requirements>');
     expect(payload.taskEnvelope).toContain('one complete recommended design');
+    expect(payload.taskEnvelope).toContain('<cli-handoff-command>');
   });
 
   test('pendingForMachine respects nextRetryAt filter', async () => {

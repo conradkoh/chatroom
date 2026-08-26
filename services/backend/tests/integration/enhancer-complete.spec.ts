@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { createTestSession, createDuoTeamChatroom } from '../helpers/integration';
+import { createPlannerBuilderDuoChatroom, createTestSession } from '../helpers/integration';
 
 async function getChatroomOwnerId(chatroomId: Id<'chatroom_rooms'>): Promise<Id<'users'>> {
   const chatroom = await t.run(async (ctx) => ctx.db.get(chatroomId));
@@ -42,7 +42,7 @@ async function insertJob(
       maxAttempts: 3,
       createdAt: Date.now(),
       pendingHandoffArgs: {
-        senderRole: 'planner',
+        senderRole: 'enhancer',
         targetRole: 'planner',
       },
     });
@@ -52,7 +52,7 @@ async function insertJob(
 describe('web.enhancer.index.complete', () => {
   test('completes a running job with enhanced content', async () => {
     const { sessionId } = await createTestSession('enhancer-complete-happy');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
     const jobId = await insertJob(chatroomId);
 
     const result = await t.mutation(api.web.enhancer.index.complete, {
@@ -72,7 +72,7 @@ describe('web.enhancer.index.complete', () => {
 
   test('rejects empty content', async () => {
     const { sessionId } = await createTestSession('enhancer-complete-empty');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
     const jobId = await insertJob(chatroomId);
 
     await expect(
@@ -87,7 +87,7 @@ describe('web.enhancer.index.complete', () => {
 
   test('rejects complete on pending job', async () => {
     const { sessionId } = await createTestSession('enhancer-complete-wrong-status');
-    const chatroomId = await createDuoTeamChatroom(sessionId);
+    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
     const jobId = await insertJob(chatroomId, { status: 'pending' });
 
     await expect(
@@ -102,8 +102,8 @@ describe('web.enhancer.index.complete', () => {
 
   test('rejects when job chatroomId does not match', async () => {
     const { sessionId } = await createTestSession('enhancer-complete-wrong-room');
-    const chatroomA = await createDuoTeamChatroom(sessionId);
-    const chatroomB = await createDuoTeamChatroom(sessionId);
+    const chatroomA = await createPlannerBuilderDuoChatroom(sessionId);
+    const chatroomB = await createPlannerBuilderDuoChatroom(sessionId);
     const jobId = await insertJob(chatroomA);
 
     await expect(
