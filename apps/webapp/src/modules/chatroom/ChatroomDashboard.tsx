@@ -126,16 +126,6 @@ import type { FileLocation } from './workspace/utils/fileLocation';
 import { pendingHighlightForLocation } from './workspace/utils/openFileLocation';
 import { resolveWorkspaceFileLinkOpenTarget } from './workspace/utils/workspaceFileLink';
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { PromptsProvider } from '@/contexts/PromptsContext';
@@ -1414,17 +1404,8 @@ export function ChatroomDashboard({
     }
   }, [agentPanelData, roleConfigMap, chatroomId, getConfiguredAgentRoles]);
 
-  // Stop all remote agents confirmation dialog state
-  const [stopAllConfirmOpen, setStopAllConfirmOpen] = useState(false);
-
-  // Stop all remote agents handler - shows confirmation dialog first
-  const handleStopAllRemoteAgents = useCallback(() => {
-    setStopAllConfirmOpen(true);
-  }, []);
-
-  // Actual stop action after confirmation
-  const executeStopAllRemoteAgents = useCallback(async () => {
-    setStopAllConfirmOpen(false);
+  // Stop all remote agents immediately from the quick-action button.
+  const handleStopAllRemoteAgents = useCallback(async () => {
     setIsRequestingStop(true);
     try {
       await requestChatroomStop(chatroomId as Id<'chatroom_rooms'>);
@@ -2197,35 +2178,6 @@ export function ChatroomDashboard({
                     }
                   }}
                 />
-
-                {/* Stop All Agents Confirmation Dialog */}
-                <AlertDialog open={stopAllConfirmOpen} onOpenChange={setStopAllConfirmOpen}>
-                  <AlertDialogContent className="bg-chatroom-bg-primary border-chatroom-border-strong">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle className="text-chatroom-text-primary">
-                        Stop all remote agents?
-                      </AlertDialogTitle>
-                      <AlertDialogDescription className="text-chatroom-text-secondary">
-                        This will terminate all running agents in this chatroom.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="border-t border-chatroom-border pt-4">
-                      <AlertDialogCancel
-                        onClick={() => setStopAllConfirmOpen(false)}
-                        className="bg-chatroom-bg-tertiary border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary"
-                      >
-                        Cancel
-                      </AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={executeStopAllRemoteAgents}
-                        disabled={isRequestingStop}
-                        className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0"
-                      >
-                        {isRequestingStop ? 'Requesting…' : 'Stop All Agents'}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
               </>
             </WorkspaceFileLinkProvider>
           </PendingFileHighlightProvider>
