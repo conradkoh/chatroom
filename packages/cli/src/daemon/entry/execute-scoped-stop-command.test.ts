@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { executeScopedStopForCommand } from './execute-scoped-stop-command.js';
+import { api } from '../../api.js';
+
 const runExactTargetsStop = vi.fn();
 const finalizeScopedStopExecution = vi.fn();
 
@@ -9,9 +12,6 @@ vi.mock('../infrastructure/agent-process-manager/execute-stop-targets-adapter.js
 vi.mock('./finalize-scoped-stop-execution.js', () => ({
   finalizeScopedStopExecution,
 }));
-
-import { api } from '../../api.js';
-import { executeScopedStopForCommand } from './execute-scoped-stop-command.js';
 
 function setup() {
   const backend = { mutation: vi.fn() };

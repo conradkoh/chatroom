@@ -1,6 +1,8 @@
 // fallow-ignore-file unused-file unused-export unused-type
-import type { AgentHarness } from './harness-shared-types.js';
 import type { AgentStopScope } from '@workspace/shared/domain/agent-stop-command';
+
+import type { AgentHarness } from './harness-shared-types.js';
+
 export type AgentStopReason =
   | 'user.stop'
   | 'daemon.shutdown'

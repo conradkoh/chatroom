@@ -13,13 +13,15 @@ import { Context, Effect, Layer, Ref } from 'effect';
 import { enqueueAgentLifecycleFact } from './agent-lifecycle-outbox-runtime.js';
 import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
 import type { ConvexClient, SessionId, WorkspaceForSync } from './daemon-types.js';
+import type { AgentRequestStopEventPayload } from './events/agent/on-request-stop-agent.js';
 import type { DaemonEventBus } from './events/event-bus.js';
+import { executeScopedStopForCommand } from './execute-scoped-stop-command.js';
 import { isAgentStopReason } from '../../../../../services/backend/src/domain/entities/agent.js';
-import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
 import type { AgentHarness, MachineConfig } from '../../infrastructure/machine/types.js';
 import type { TryConsumeResult } from '../../infrastructure/services/harness-spawning/index.js';
 import type { AgentLifecycleFact } from '../domain/entities/agent-lifecycle-fact.js';
+import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type {
   AgentProcessManager,
   AgentSlot,
@@ -28,8 +30,6 @@ import type {
   OperationResult,
   StopOpts,
 } from '../infrastructure/agent-process-manager/agent-process-manager.js';
-import type { AgentRequestStopEventPayload } from './events/agent/on-request-stop-agent.js';
-import { executeScopedStopForCommand } from './execute-scoped-stop-command.js';
 import type { RemoteAgentService } from '../infrastructure/local/harness/services/remote-agent-service.js';
 import type {
   AgentLifecycleOutboxRegistry,

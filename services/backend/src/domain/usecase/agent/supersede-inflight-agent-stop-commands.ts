@@ -27,7 +27,7 @@ export async function supersedeInflightAgentStopCommands(
         .collect();
       for (const target of targets)
         if (target.status === 'pending' || target.status === 'processing')
-          await ctx.db.patch("chatroom_agentStopTargets", target._id, {
+          await ctx.db.patch('chatroom_agentStopTargets', target._id, {
             status: 'superseded',
             errorMessage: 'superseded',
             completedAt: Date.now(),
@@ -38,7 +38,7 @@ export async function supersedeInflightAgentStopCommands(
         .collect();
       for (const execution of executions) {
         if (execution.status === 'pending' || execution.status === 'processing')
-          await ctx.db.patch("chatroom_agentStopMachineExecutions", execution._id, {
+          await ctx.db.patch('chatroom_agentStopMachineExecutions', execution._id, {
             status: 'superseded',
             errorMessage: 'superseded',
             completedAt: Date.now(),
@@ -49,7 +49,7 @@ export async function supersedeInflightAgentStopCommands(
             await ctx.db.delete('chatroom_machineCommandInbox', execution.inboxCommandId);
         }
       }
-      await ctx.db.patch("chatroom_agentStopCommands", command._id, {
+      await ctx.db.patch('chatroom_agentStopCommands', command._id, {
         status: 'superseded',
         errorCode: 'superseded',
         errorMessage: 'superseded',

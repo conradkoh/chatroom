@@ -28,12 +28,6 @@ import { partitionChatroomListing, RECENCY_SECTIONS } from '../utils/partitionCh
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -43,6 +37,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 
 interface ChatroomSidebarItemProps {
   chatroom: ChatroomWithStatus;

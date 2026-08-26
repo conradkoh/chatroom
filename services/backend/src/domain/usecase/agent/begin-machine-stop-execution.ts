@@ -49,12 +49,13 @@ export async function beginMachineStopExecution(
       .collect()
   ).filter((t) => t.status === 'pending' || t.status === 'processing');
   if (execution.status === 'pending')
-    await ctx.db.patch("chatroom_agentStopMachineExecutions", execution._id, {
+    await ctx.db.patch('chatroom_agentStopMachineExecutions', execution._id, {
       status: 'processing',
       claimedAt: Date.now(),
       inboxCommandId: args.inboxCommandId,
     });
-  if (command.status === 'pending') await ctx.db.patch("chatroom_agentStopCommands", command._id, { status: 'processing' });
+  if (command.status === 'pending')
+    await ctx.db.patch('chatroom_agentStopCommands', command._id, { status: 'processing' });
   const targets = pendingTargets
     .filter((t) => t.agentConfigId && t.agentHarness)
     .map((t) => ({
