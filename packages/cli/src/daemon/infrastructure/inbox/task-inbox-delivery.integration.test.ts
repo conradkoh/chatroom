@@ -280,7 +280,7 @@ describe('task inbox delivery integration', () => {
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
-      operationalRows: [operationalRow('room-1', 'builder', 'running')],
+      operationalRows: [operationalRow('room-1', 'builder', 'stopped')],
     });
     await handleTaskInboxUpdate(
       { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
