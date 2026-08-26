@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'vitest';
-import { api } from '../../../../convex/_generated/api';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { t } from '../../../../test.setup';
+
 import {
   mergeCanonicalEnhancerIntoTeamRoles,
   migrateEnhancerConfigRow,
 } from './migrate-legacy-enhancer-config';
+import { api } from '../../../../convex/_generated/api';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { t } from '../../../../test.setup';
 
 describe('legacy enhancer migration helpers', () => {
   test('adds enhancer to legacy duo and solo presets', () => {
