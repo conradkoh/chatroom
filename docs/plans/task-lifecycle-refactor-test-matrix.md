@@ -2,13 +2,12 @@
 
 ## Automated suites
 
-| Area                 | Command                                                                                                                           |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Slice 1 CLI          | `pnpm --filter chatroom-cli test execution-kind native-spawn-presence`                                                            |
-| Receipt domain       | `pnpm --filter @workspace/backend test record-task-delivery task-delivery-receipt`                                                |
-| Token activity rules | `pnpm --filter @workspace/backend test start-task-from-token-activity`                                                            |
-| Integration matrix   | `pnpm --filter @workspace/backend test task-transition-matrix task-delivery-receipt enhancer-spawn resume-session-token-activity` |
-| Harness emitter      | `pnpm --filter chatroom-cli test harness-activity-emitter session-event-forwarder`                                                |
+| Area               | Command                                                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Slice 1 CLI        | `pnpm --filter chatroom-cli test execution-kind native-spawn-presence`                                                            |
+| Receipt domain     | `pnpm --filter @workspace/backend test record-task-delivery task-delivery-receipt`                                                |
+| Integration matrix | `pnpm --filter @workspace/backend test task-transition-matrix task-delivery-receipt enhancer-spawn resume-session-token-activity` |
+| Harness emitter    | `pnpm --filter chatroom-cli test harness-activity-emitter session-event-forwarder`                                                |
 
 ## Manual QA (production-like)
 
