@@ -248,7 +248,13 @@ export async function transitionBacklogItem(
   }
 
   // Apply first matching transition rule
-  const rule = validTransitions[0]!;
+  const rule = validTransitions[0];
+  if (!rule)
+    throw new InvalidBacklogTransitionError({
+      code: 'BACKLOG_INVALID_TRANSITION',
+      message: `No valid transition from ${currentStatus} to ${newStatus}`,
+      variables: { backlogItemId, currentStatus, attemptedStatus: newStatus },
+    });
 
   // Custom validation
   if (rule.validate && !rule.validate(item)) {

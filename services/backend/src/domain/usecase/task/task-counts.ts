@@ -59,7 +59,9 @@ async function getOrCreateCounts(ctx: MutationCtx, chatroomId: Id<'chatroom_room
     ...DEFAULT_COUNTS,
   });
 
-  return (await ctx.db.get('chatroom_taskCounts', id))!;
+  const inserted = await ctx.db.get('chatroom_taskCounts', id);
+  if (!inserted) throw new Error('Task counts row was not created');
+  return inserted;
 }
 
 /**

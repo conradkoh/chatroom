@@ -3,6 +3,7 @@ import {
   type CoalescingStateOutbox,
   type CoalescingStateOutboxOptions,
 } from './coalescing-state-outbox.js';
+import type { DurableCoalescingStateStore } from './durable-coalescing-state-store.js';
 
 export type KeyedCoalescingStateOutboxRegistry<TState, TResult> = {
   enqueue(key: string, state: TState): Promise<TResult>;
@@ -16,7 +17,7 @@ export type KeyedCoalescingStateOutboxRegistryOptions<TState, TResult> = {
   retryDelayMs?: number;
   maxRetryDelayMs?: number;
   onError?: (key: string, error: unknown) => void;
-  store?: import('./durable-coalescing-state-store.js').DurableCoalescingStateStore;
+  store?: DurableCoalescingStateStore;
   serialize?: (state: TState) => string;
   deserialize?: (json: string) => TState;
 };

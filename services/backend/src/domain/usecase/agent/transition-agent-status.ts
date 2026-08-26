@@ -38,10 +38,11 @@ async function resolveLastDesiredState(
   if (explicit !== undefined || !OPERATIONAL_STATUSES.has(lastStatus)) return explicit;
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   if (!chatroom?.teamId) return undefined;
+  const teamId = chatroom.teamId;
   const config = await ctx.db
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(chatroom._id, chatroom.teamId!, role))
+      q.eq('teamRoleKey', buildTeamRoleKey(chatroom._id, teamId, role))
     )
     .first();
   return config?.desiredState;

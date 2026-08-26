@@ -15,6 +15,7 @@ import type { MachineStateOps, SpawningOps } from './daemon-deps.js';
 import type { ConvexClient, SessionId, WorkspaceForSync } from './daemon-types.js';
 import type { AgentRequestStopEventPayload } from './events/agent/on-request-stop-agent.js';
 import type { DaemonEventBus } from './events/event-bus.js';
+import type { ScopedStopExecutionSummary } from './execute-scoped-stop-command.js';
 import { executeScopedStopForCommand } from './execute-scoped-stop-command.js';
 import { isAgentStopReason } from '../../../../../services/backend/src/domain/entities/agent.js';
 import type { BackendOps, FsOps } from '../../infrastructure/deps/index.js';
@@ -121,7 +122,7 @@ export interface DaemonAgentProcessManagerServiceShape {
     scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
     reason: any;
     inboxCommandId: string;
-  }) => Effect.Effect<import('./execute-scoped-stop-command.js').ScopedStopExecutionSummary>;
+  }) => Effect.Effect<ScopedStopExecutionSummary>;
   runInboxRoleScopedStop?: (event: AgentRequestStopEventPayload) => Effect.Effect<void>;
   runInboxScopedStop?: (event: {
     commandId?: string;

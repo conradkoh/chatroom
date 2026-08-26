@@ -15,8 +15,9 @@ export function readEventStreamFiltersFromSearch(search: string): EventStreamFil
   const to = sp.get('to');
   const fromMs = Number(from);
   const toMs = Number(to);
+  const chatroomId = sp.get('chatroomId');
   return {
-    ...(sp.get('chatroomId') ? { chatroomId: sp.get('chatroomId')! } : {}),
+    ...(chatroomId ? { chatroomId } : {}),
     ...(timeRange ? { timeRange } : {}),
     ...(Number.isFinite(fromMs) && from ? { fromMs } : {}),
     ...(Number.isFinite(toMs) && to ? { toMs } : {}),
