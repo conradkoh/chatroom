@@ -2,35 +2,19 @@
  * Enhancer disabled — handoff behaviour should be normal.
  */
 
-import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import {
   joinParticipant,
   createTestSession,
   createPlannerBuilderDuoChatroom,
   registerMachineWithDaemon,
+  addEnhancerToTeamRoles,
+  enableEnhancerTeamAgent,
 } from '../helpers/integration';
 import { setupPlannerWorkspaceForSession } from './direct-harness/fixtures';
-
-async function enableEnhancer(
-  sessionId: SessionId,
-  chatroomId: Id<'chatroom_rooms'>,
-  machineId: string
-): Promise<void> {
-  await t.mutation(api.web.enhancer.index.upsertConfig, {
-    sessionId,
-    chatroomId,
-    enabled: true,
-    targetId: 'handoff:planner-to-builder',
-    agentHarness: 'opencode',
-    model: 'anthropic/claude-opus-4',
-    machineId,
-  });
-}
 
 async function setupPlannerEntryWorkspace(prefix: string) {
   const { sessionId } = await createTestSession(`${prefix}-session`);
@@ -55,6 +39,7 @@ async function setupPlannerEntryWorkspace(prefix: string) {
 describe('enhancer disabled handoff', () => {
   test('planner handoff to enhancer rejected when enhancer disabled', async () => {
     const { sessionId, chatroomId } = await setupPlannerWorkspaceForSession('enh-off-reject');
+    await addEnhancerToTeamRoles(chatroomId);
     await joinParticipant(sessionId, chatroomId, 'planner');
     await joinParticipant(sessionId, chatroomId, 'builder');
 
@@ -93,7 +78,7 @@ describe('enhancer disabled handoff', () => {
   test('delivery omits enhancer and includes disabled guidance after disableConfig', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-disabled-delivery');
-    await enableEnhancer(sessionId, chatroomId, machineId);
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
       chatroomId,
@@ -138,7 +123,7 @@ describe('enhancer disabled handoff', () => {
   test('role prompt omits enhancer workflow when config disabled', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-disabled-roleprompt');
-    await enableEnhancer(sessionId, chatroomId, machineId);
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
     await t.mutation(api.web.enhancer.index.upsertConfig, {
       sessionId,
       chatroomId,
@@ -161,7 +146,7 @@ describe('enhancer disabled handoff', () => {
   test('preserves enhancer snapshot when enabled at send then disabled globally', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerEntryWorkspace('enh-snapshot-preserve');
-    await enableEnhancer(sessionId, chatroomId, machineId);
+    await enableEnhancerTeamAgent(sessionId, chatroomId, machineId);
     await joinParticipant(sessionId, chatroomId, 'planner');
     await joinParticipant(sessionId, chatroomId, 'builder');
 

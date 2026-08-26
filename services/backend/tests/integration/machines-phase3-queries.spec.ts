@@ -15,6 +15,7 @@ import {
   createTestSession,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
+  updateSpawnedAgentInTest,
 } from '../helpers/integration';
 import { TEST_MODEL_OPENCODE_LEGACY } from '../helpers/test-models';
 
@@ -45,13 +46,7 @@ describe('machines.getAgentOverviewForChatroom', () => {
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
-    await t.mutation(api.machines.updateSpawnedAgent, {
-      sessionId: sessionId as any,
-      machineId,
-      chatroomId,
-      role: 'builder',
-      pid: 62001,
-    });
+    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 62001);
     const result = await t.query(api.machines.getAgentOverviewForChatroom, {
       sessionId: sessionId as any,
       chatroomId,
@@ -121,13 +116,7 @@ describe('machines.getAgentViewStatus', () => {
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
-    await t.mutation(api.machines.updateSpawnedAgent, {
-      sessionId: sessionId as any,
-      machineId,
-      chatroomId,
-      role: 'builder',
-      pid: 55555,
-    });
+    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 55555);
 
     const result = await t.query(api.machines.getAgentViewStatus, {
       sessionId: sessionId as any,
@@ -236,13 +225,7 @@ describe('machines.listAgentOverview', () => {
     const chatroomId = await createDuoTeamChatroom(sessionId as any);
 
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
-    await t.mutation(api.machines.updateSpawnedAgent, {
-      sessionId: sessionId as any,
-      machineId,
-      chatroomId,
-      role: 'builder',
-      pid: 77777,
-    });
+    await updateSpawnedAgentInTest(sessionId as any, machineId, chatroomId, 'builder', 77777);
 
     const results = await t.query(api.machines.listAgentOverview, {
       sessionId: sessionId as any,
