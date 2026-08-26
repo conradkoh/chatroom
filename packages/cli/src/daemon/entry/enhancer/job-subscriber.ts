@@ -3,6 +3,9 @@ import type { ConvexClient } from 'convex/browser';
 import { ENHANCER_AGENT_ROLE } from './constants.js';
 import { createEnhancerLogWriter, type EnhancerLogWriter } from './enhancer-log.js';
 import { waitForEnhancerJobResolution } from './wait-for-enhancer-job.js';
+import { isChatroomStopScopeActive } from '../../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
+import { registerEnhancerSpawn, unregisterEnhancerSpawn, type EnhancerSpawnHandle } from './enhancer-spawn-registry.js';
+import { clearEnhancerDrainHandlerForTests, setEnhancerDrainHandler } from './enhancer-drain-registry.js';
 import { api, type Id } from '../../../api.js';
 import type { BackendOps } from '../../../infrastructure/deps/index.js';
 import type { AgentLogSink } from '../../../infrastructure/log-server/index.js';
@@ -35,6 +38,7 @@ async function processEnhancerJobForSpawn(
   logSink?: AgentLogSink
 ): Promise<void> {
   if (inFlight.has(job.jobId)) return;
+  if (isChatroomStopScopeActive(job.chatroomId)) return;
   inFlight.add(job.jobId);
 
   let claimed = false;
@@ -42,6 +46,8 @@ async function processEnhancerJobForSpawn(
   let jobId = job.jobId;
   let spawnResult: Awaited<ReturnType<RemoteAgentService['spawn']>> | null = null;
   let service: RemoteAgentService | null = null;
+  let abortController: AbortController | null = null;
+  let spawnHandle: EnhancerSpawnHandle | null = null;
   let log: EnhancerLogWriter = createEnhancerLogWriter(logSink, {
     chatroomId: job.chatroomId,
     harness: 'unknown',
@@ -105,6 +111,16 @@ async function processEnhancerJobForSpawn(
       resolvedConvexUrl: convexUrl,
     });
     spawnResult = spawned;
+    abortController = new AbortController();
+    spawnHandle = {
+      jobId: payload.jobId,
+      chatroomId: payload.chatroomId,
+      abort: () => abortController?.abort(),
+      stopProcess: async () => {
+        await service?.stop(spawned.pid);
+      },
+    };
+    registerEnhancerSpawn(spawnHandle);
     log = createEnhancerLogWriter(logSink, {
       chatroomId: payload.chatroomId,
       harness: payload.agentHarness,
@@ -141,9 +157,10 @@ async function processEnhancerJobForSpawn(
           ...(forceTerminal ? { forceTerminal: true } : {}),
         });
       },
+      signal: abortController.signal,
     });
 
-    log.write(`completed job=${jobId}`);
+    if (!abortController.signal.aborted) log.write(`completed job=${jobId}`);
   } catch (err) {
     log.write(`error: ${err instanceof Error ? err.message : String(err)}`);
     if (claimed) {
@@ -156,6 +173,7 @@ async function processEnhancerJobForSpawn(
     }
   } finally {
     inFlight.delete(job.jobId);
+    if (spawnHandle) unregisterEnhancerSpawn(spawnHandle);
     if (spawnResult && service) {
       try {
         await service.stop(spawnResult.pid);
@@ -244,10 +262,23 @@ export function startEnhancerJobSubscriber(
       logSink
     );
   });
+  setEnhancerDrainHandler(() =>
+    drainPendingEnhancerJobs(
+      sessionId,
+      machineId,
+      convexUrl,
+      wsClient,
+      backend,
+      agentServices,
+      inFlight,
+      logSink
+    )
+  );
 
   return {
     stop: () => {
       unregisterEnhancerInboundHandler();
+      clearEnhancerDrainHandlerForTests();
     },
     drainPendingEnhancerJobs: () =>
       drainPendingEnhancerJobs(

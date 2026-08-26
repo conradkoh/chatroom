@@ -154,7 +154,6 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
     shutdownWatchdog.unref?.();
 
     if (heartbeatTimer) clearInterval(heartbeatTimer);
-    await deps.agentLifecycleOutbox?.stopAll().catch(() => undefined);
     stopWorkers();
 
     await withTimeout(
@@ -168,6 +167,10 @@ export function createDaemonRuntime(deps: DaemonRuntimeDeps): DaemonRuntimeHandl
       ),
       PROCESS_KILL_TIMEOUT_MS
     );
+
+    // Shutdown stops enqueue lifecycle facts; keep the outbox alive until that
+    // effect has completed so confirmed exits are not silently discarded.
+    await deps.agentLifecycleOutbox?.stopAll().catch(() => undefined);
 
     if (directHarnessWorkerHandle) {
       await withTimeout(

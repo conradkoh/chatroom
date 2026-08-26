@@ -77,6 +77,7 @@ import { isValidTwoPaneLayout } from './hooks/twoPaneLayout';
 import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
+import { isActiveAgentStopState, useAgentStop } from './hooks/useAgentStop';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
@@ -1102,6 +1103,10 @@ export function ChatroomDashboard({
 
   // Agent panel data (for Start All Remote Agents command)
   const agentPanelData = useAgentPanelData(chatroomId, { loadConfigs: true });
+  const { requestChatroomStop } = useAgentStop();
+  const [isRequestingStop, setIsRequestingStop] = useState(false);
+  const projectedStopActive = agentPanelData.agents.some((a) => isActiveAgentStopState(a.stopState));
+  const isStoppingAgents = isRequestingStop || projectedStopActive;
   const lifecycle = agentPanelData.lifecycle;
 
   // Per-role "last used" config derived from the persisted teamAgentConfigs
@@ -1415,54 +1420,17 @@ export function ChatroomDashboard({
   }, []);
 
   // Actual stop action after confirmation
-  const [isStoppingAllAgents, setIsStoppingAllAgents] = useState(false);
   const executeStopAllRemoteAgents = useCallback(async () => {
     setStopAllConfirmOpen(false);
-    setIsStoppingAllAgents(true);
-    const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
-    const stoppableAgents = agentPanelData.agents.filter(
-      (a) => (a.state === 'running' || a.state === 'starting') && a.machineId
-    );
-
-    if (stoppableAgents.length === 0) {
-      setIsStoppingAllAgents(false);
-      toast.success('No running agents to stop');
-      return;
+    setIsRequestingStop(true);
+    try {
+      await requestChatroomStop(chatroomId as Id<'chatroom_rooms'>);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to stop agents');
+    } finally {
+      setIsRequestingStop(false);
     }
-
-    const results = await Promise.allSettled(
-      stoppableAgents.map((agent) => {
-        const mid = agent.machineId;
-        if (!mid) return null;
-        return agentPanelData.sendCommand({
-          machineId: mid,
-          type: 'stop-agent' as const,
-          payload: {
-            chatroomId: chatroomIdTyped,
-            role: agent.role,
-          },
-        });
-      })
-    );
-    setIsStoppingAllAgents(false);
-
-    const failed = results
-      .map((r, i) =>
-        r.status === 'rejected' ? { role: stoppableAgents[i].role, reason: r.reason } : null
-      )
-      .filter(Boolean) as { role: string; reason: unknown }[];
-    if (failed.length > 0) {
-      const failedRoles = failed.map((f) => f.role).join(', ');
-      const errorDetails = failed
-        .map((f) => `${f.role}: ${f.reason instanceof Error ? f.reason.message : String(f.reason)}`)
-        .join('; ');
-      toast.error(`Failed to stop: ${failedRoles}`, {
-        description: errorDetails,
-      });
-    } else {
-      toast.success(`Stopped ${stoppableAgents.length} agent(s)`);
-    }
-  }, [agentPanelData, chatroomId]);
+  }, [chatroomId, requestChatroomStop]);
 
   // Restart all remote agents through the atomic backend restart path.
   const [isRestartingAllAgents, setIsRestartingAllAgents] = useState(false);
@@ -1521,8 +1489,9 @@ export function ChatroomDashboard({
   const hasRunningRemoteAgents = useMemo(
     () =>
       isRestartingAllAgents ||
+      agentPanelData.hasActiveEnhancerWork ||
       agentPanelData.agents.some((a) => a.state === 'running' || a.state === 'starting'),
-    [agentPanelData.agents, isRestartingAllAgents]
+    [agentPanelData.agents, agentPanelData.hasActiveEnhancerWork, isRestartingAllAgents]
   );
 
   useEffect(() => {
@@ -1534,9 +1503,6 @@ export function ChatroomDashboard({
       setIsRestartingAllAgents(false);
     }
   }, [isRestartingAllAgents, agentPanelData.agents]);
-
-  const isAgentActionInProgress =
-    isStartingAllAgents || isStoppingAllAgents || isAnyAgentRestartInProgress;
 
   const handleRestartRemoteAgent = useCallback(
     async (role: string) => {
@@ -1697,7 +1663,7 @@ export function ChatroomDashboard({
     onStartAllRemoteAgents:
       isStartingAllAgents || isAnyAgentRestartInProgress ? null : handleStartAllRemoteAgents,
     onStopAllRemoteAgents:
-      isStoppingAllAgents || isAnyAgentRestartInProgress ? null : handleStopAllRemoteAgents,
+      isStoppingAgents || isAnyAgentRestartInProgress ? null : handleStopAllRemoteAgents,
     onRestartAllRemoteAgents: isAnyAgentRestartInProgress ? null : handleRestartAllRemoteAgents,
     restartableAgentRoles: isAnyAgentRestartInProgress ? [] : restartableAgentRoles,
     onRestartRemoteAgent: isAnyAgentRestartInProgress ? null : handleRestartRemoteAgent,
@@ -2110,9 +2076,10 @@ export function ChatroomDashboard({
                         onOpenAgents={handleOpenAgents}
                         hasRunningRemoteAgents={hasRunningRemoteAgents}
                         onStartAllRemoteAgents={handleStartAllRemoteAgents}
-                        onStopAllRemoteAgents={executeStopAllRemoteAgents}
+                        onStopAllRemoteAgents={handleStopAllRemoteAgents}
                         onRestartAllRemoteAgents={handleRestartAllRemoteAgents}
-                        isAgentActionInProgress={isAgentActionInProgress}
+                        isRestartingAgents={isAnyAgentRestartInProgress || isRestartingAllAgents}
+                        isStoppingAgents={isStoppingAgents}
                         isStartingAllAgents={isStartingAllAgents}
                       />
                       <WorkQueue
@@ -2247,9 +2214,10 @@ export function ChatroomDashboard({
                       </AlertDialogCancel>
                       <AlertDialogAction
                         onClick={executeStopAllRemoteAgents}
+                        disabled={isRequestingStop}
                         className="bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90 border-0"
                       >
-                        Stop All Agents
+                        {isRequestingStop ? 'Requesting…' : 'Stop All Agents'}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

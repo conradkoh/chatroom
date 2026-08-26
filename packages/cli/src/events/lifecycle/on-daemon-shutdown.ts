@@ -1,3 +1,4 @@
+import { SCOPE_TARGET_STOP_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
 import { Effect } from 'effect';
 
 import { api } from '../../api.js';
@@ -20,27 +21,61 @@ export const onDaemonShutdownEffect: Effect.Effect<
   yield* shutdownAllCommandsEffect;
 
   // Wait for any in-progress agent turn to end gracefully
-  yield* agentPm.whenTurnEndsIdle();
+  yield* Effect.race(
+    agentPm.whenTurnEndsIdle(),
+    Effect.sleep(SCOPE_TARGET_STOP_TIMEOUT_MS).pipe(
+      Effect.tap(() => Effect.sync(() => console.log('[shutdown] idle wait timed out, proceeding')))
+    )
+  );
 
   const activeAgents = agentPm.listActive();
 
   if (activeAgents.length > 0) {
     console.log(`[${formatTimestamp()}] Stopping ${activeAgents.length} agent(s)...`);
 
+    const chatroomIds = [...new Set(activeAgents.map(({ chatroomId }) => chatroomId))];
+    let totalStopped = 0;
+    let totalFailed = 0;
     yield* Effect.all(
-      activeAgents.map(({ chatroomId, role, slot }) => {
-        const pid = slot.pid;
-        return agentPm.stop({ chatroomId, role, reason: 'daemon.shutdown' }).pipe(
-          Effect.tap(() => Effect.sync(() => console.log(`   Stopped ${role} (PID ${pid})`))),
+      chatroomIds.map((chatroomId) =>
+        Effect.promise(async () => {
+          const result = await session.backend.mutation(api.agentStops.requestScope, {
+            sessionId: session.sessionId,
+            machineId: session.machineId,
+            chatroomId,
+            scope: { kind: 'chatroom' },
+            reason: 'daemon.shutdown',
+          });
+          if (!result.inboxCommandId) return;
+          if (!agentPm.executeScopedStopForCommand) return;
+          const summary = await Effect.runPromise(
+            agentPm.executeScopedStopForCommand({
+              stopCommandId: result.stopCommandId as string,
+              chatroomId,
+              scope: { kind: 'chatroom' },
+              reason: 'daemon.shutdown',
+              inboxCommandId: result.inboxCommandId as string,
+            })
+          );
+          totalStopped += summary.stoppedCount;
+          totalFailed += summary.failedCount;
+        }).pipe(
           Effect.catchAll((e) =>
-            Effect.sync(() => console.log(`   ⚠️  Failed to stop ${role}: ${(e as Error).message}`))
+            Effect.sync(() => {
+              totalFailed += 1;
+              console.log(`   ⚠️  Failed chatroom stop: ${(e as Error).message}`);
+            })
           )
-        );
-      }),
+        )
+      ),
       { concurrency: 'unbounded' }
     );
 
-    console.log(`[${formatTimestamp()}] All agents stopped`);
+    if (totalFailed > 0) {
+      console.log(`[${formatTimestamp()}] Shutdown stops: ${totalStopped} stopped, ${totalFailed} failed`);
+    } else if (totalStopped > 0) {
+      console.log(`[${formatTimestamp()}] Shutdown stops: ${totalStopped} stopped`);
+    }
   }
 
   // Update daemon status to disconnected (best-effort)

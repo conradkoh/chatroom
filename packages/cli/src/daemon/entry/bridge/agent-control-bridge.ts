@@ -2,18 +2,15 @@ import { Effect } from 'effect';
 
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
-import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
 import type { RecoverAgentStateDeps } from '../../domain/usecase/recover-agent-state.js';
 import type { RestartAgentDeps } from '../../domain/usecase/restart-agent.js';
 import type { StartAgentDeps } from '../../domain/usecase/start-agent.js';
-import type { StopAgentDeps } from '../../domain/usecase/stop-agent.js';
 import { logDaemonAuditEvent } from '../../infrastructure/event-stream/daemon-event-emitter.js';
 import type {
   DaemonAgentProcessManagerServiceShape,
   DaemonSessionServiceShape,
 } from '../daemon-services.js';
 import type { AgentHarness, StartAgentReason } from '../daemon-types.js';
-import { getNativeDeliverySession } from '../native-delivery/native-delivery-session-registry.js';
 import { runRestartOrchestrator } from '../restart-orchestrator.js';
 
 export function createStartAgentDeps(
@@ -77,24 +74,6 @@ export function createStartAgentDeps(
           console.warn(`[daemon] ⚠️ Failed to register workspace: ${(err as Error).message}`);
         }
       },
-    },
-  };
-}
-
-export function createStopAgentDeps(
-  agentMgr: DaemonAgentProcessManagerServiceShape
-): StopAgentDeps {
-  return {
-    agentProcessManager: {
-      stop: async (args) =>
-        Effect.runPromise(
-          agentMgr.stop({
-            chatroomId: args.chatroomId,
-            role: args.role,
-            reason: args.reason as StopReason,
-            pid: args.pid,
-          })
-        ),
     },
   };
 }

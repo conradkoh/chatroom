@@ -15,6 +15,7 @@ import {
   buildTeamRoleKey,
   filterTeamAgentConfigsForTeam,
 } from '../../../../convex/utils/teamRoleKey';
+import { deriveRoleStopState } from './derive-agent-stop-state';
 
 type RebuildOptions = { pruneStale?: boolean };
 
@@ -155,6 +156,7 @@ export async function projectAgentOperationalStatusForRole(
     ),
     projectedAt,
     revisionKey: key,
+    ...(await deriveRoleStopState(ctx, chatroomId, roleKey, { isAlive: projection.isAlive, desiredState: config.desiredState })),
   };
   const existing = await ctx.db
     .query('chatroom_agentRoleOperationalStatus')
@@ -169,6 +171,8 @@ export async function projectAgentOperationalStatusForRole(
     existing.viewState !== fields.viewState ||
     existing.machineId !== fields.machineId ||
     existing.teamId !== fields.teamId
+    || existing.stopState !== fields.stopState
+    || existing.activeStopCommandId !== fields.activeStopCommandId
   ) {
     if (existing) await ctx.db.patch('chatroom_agentRoleOperationalStatus', existing._id, fields);
     else await ctx.db.insert('chatroom_agentRoleOperationalStatus', fields);
@@ -188,6 +192,20 @@ export async function projectAgentOperationalStatusForRole(
     isNewConfig: !existing,
   });
   await writeOperationalSummary(ctx, { ...next, chatroomId, ownerId: room.ownerId });
+}
+
+export async function projectAgentStopStateForRole(
+  ctx: MutationCtx, chatroomId: Id<'chatroom_rooms'>, role: string
+): Promise<void> {
+  const room = await ctx.db.get('chatroom_rooms', chatroomId);
+  if (!room?.teamId) return;
+  const config = await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', (q) =>
+    q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, room.teamId!, role))).first();
+  const row = await ctx.db.query('chatroom_agentRoleOperationalStatus').withIndex('by_chatroom_role', (q) =>
+    q.eq('chatroomId', chatroomId).eq('role', role.toLowerCase())).first();
+  if (!config || !row) return;
+  const stop = await deriveRoleStopState(ctx, chatroomId, role, { isAlive: config.spawnedAgentPid != null, desiredState: config.desiredState });
+  await ctx.db.patch('chatroom_agentRoleOperationalStatus', row._id, stop);
 }
 
 /** HOT PATH: remove one role and update its summary without scanning configs. */

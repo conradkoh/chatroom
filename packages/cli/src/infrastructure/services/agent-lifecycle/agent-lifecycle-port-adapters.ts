@@ -88,18 +88,11 @@ export function createHarnessSpawnPort(deps: AgentLifecyclePortAdapterDeps): Har
         },
         catch: (e) => (e instanceof Error ? e : new Error(String(e))),
       }),
-    stop: (pid, opts) =>
+    stop: (pid, opts, harness) =>
       Effect.tryPromise({
         try: async () => {
-          // Find service that owns pid — delegate to APM's existing stop logic pattern
-          for (const service of deps.agentServices.values()) {
-            try {
-              await service.stop(pid, opts);
-              return;
-            } catch {
-              // try next
-            }
-          }
+          const service = harness ? deps.agentServices.get(harness) : undefined;
+          if (service) await service.stop(pid, opts);
         },
         catch: (e) => (e instanceof Error ? e : new Error(String(e))),
       }),

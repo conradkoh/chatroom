@@ -2,8 +2,7 @@
  * Daemon Handler Effect Tests
  *
  * Tests for the Effect twins of daemon handlers:
- * handlePingEffect, handleStatusEffect, executeStopAgentEffect,
- * handleStopAgentEffect, and recoverAgentStateEffect.
+ * handlePingEffect, handleStatusEffect, and recoverAgentStateEffect.
  */
 
 import { Effect, Layer } from 'effect';
@@ -12,9 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handlePingEffect } from './ping.js';
 import { recoverAgentStateEffect } from './state-recovery.js';
 import { handleStatusEffect } from './status.js';
-import { executeStopAgentEffect, handleStopAgentEffect } from './stop-agent.js';
 import { daemonSessionToLayers } from '../daemon-layers.js';
-import { DaemonAgentProcessManagerService, DaemonSessionService } from '../daemon-services.js';
+import { DaemonSessionService } from '../daemon-services.js';
 import type { DaemonSessionInit, MachineConfig, ConvexClient } from '../daemon-types.js';
 import { DaemonEventBus } from '../events/event-bus.js';
 import { createMockDaemonSessionInit } from '../testing/index.js';
@@ -153,113 +151,6 @@ describe('handleStatusEffect', () => {
     const parsed = JSON.parse(result.result);
 
     expect(parsed.availableHarnesses).toEqual([]);
-    expect(result.failed).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// executeStopAgentEffect
-// ---------------------------------------------------------------------------
-
-describe('executeStopAgentEffect', () => {
-  it('succeeds when agentProcessManager.stop returns { success: true }', async () => {
-    const stopMock = vi.fn().mockReturnValue(Effect.succeed({ success: true }));
-    const agentMgrLayer = Layer.succeed(DaemonAgentProcessManagerService, {
-      stop: stopMock,
-      ensureRunning: vi.fn(),
-      handleExit: vi.fn(),
-      recover: vi.fn(),
-      getSlot: vi.fn().mockReturnValue(undefined),
-      listActive: vi.fn().mockReturnValue([]),
-      clearStuckStoppingSlot: vi.fn().mockReturnValue(Effect.succeed(false)),
-      whenTurnEndsIdle: vi.fn(),
-      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
-    });
-
-    const effect = executeStopAgentEffect({
-      chatroomId: 'room-abc',
-      role: 'builder',
-      reason: 'user.stop',
-    });
-
-    const result = await Effect.runPromise(effect.pipe(Effect.provide(agentMgrLayer)));
-
-    expect(result.failed).toBe(false);
-    expect(result.result).toContain('builder');
-  });
-
-  it('returns { failed: true } when agentProcessManager.stop returns { success: false }', async () => {
-    const stopMock = vi.fn().mockReturnValue(Effect.succeed({ success: false }));
-    const agentMgrLayer = Layer.succeed(DaemonAgentProcessManagerService, {
-      stop: stopMock,
-      ensureRunning: vi.fn(),
-      handleExit: vi.fn(),
-      recover: vi.fn(),
-      getSlot: vi.fn().mockReturnValue(undefined),
-      listActive: vi.fn().mockReturnValue([]),
-      clearStuckStoppingSlot: vi.fn().mockReturnValue(Effect.succeed(false)),
-      whenTurnEndsIdle: vi.fn(),
-      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
-    });
-
-    const effect = executeStopAgentEffect({
-      chatroomId: 'room-abc',
-      role: 'planner',
-      reason: 'user.stop',
-    });
-
-    const result = await Effect.runPromise(effect.pipe(Effect.provide(agentMgrLayer)));
-
-    expect(result.failed).toBe(true);
-    expect(result.result).toContain('planner');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// handleStopAgentEffect
-// ---------------------------------------------------------------------------
-
-describe('handleStopAgentEffect', () => {
-  it('correctly extracts chatroomId/role/reason from StopAgentCommand', async () => {
-    const stopMock = vi.fn().mockReturnValue(Effect.succeed({ success: true }));
-    const agentMgrLayer = Layer.succeed(DaemonAgentProcessManagerService, {
-      stop: stopMock,
-      ensureRunning: vi.fn(),
-      handleExit: vi.fn(),
-      recover: vi.fn(),
-      getSlot: vi.fn().mockReturnValue(undefined),
-      listActive: vi.fn().mockReturnValue([]),
-      clearStuckStoppingSlot: vi.fn().mockReturnValue(Effect.succeed(false)),
-      whenTurnEndsIdle: vi.fn(),
-      resumeTurnForSlot: vi.fn().mockReturnValue(Effect.succeed(undefined)),
-      setLastInFlightTask: vi.fn().mockReturnValue(Effect.void),
-      clearLastInFlightTaskIfMatches: vi.fn().mockReturnValue(Effect.void),
-    });
-
-    const command = {
-      type: 'stop-agent' as const,
-      reason: 'user.stop' as const,
-      payload: {
-        chatroomId: 'room-xyz',
-        role: 'architect',
-      },
-    };
-
-    const result = await Effect.runPromise(
-      handleStopAgentEffect(command).pipe(Effect.provide(agentMgrLayer))
-    );
-
-    expect(stopMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chatroomId: 'room-xyz',
-        role: 'architect',
-        reason: 'user.stop',
-      })
-    );
     expect(result.failed).toBe(false);
   });
 });

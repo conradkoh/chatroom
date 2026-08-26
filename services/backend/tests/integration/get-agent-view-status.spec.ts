@@ -75,7 +75,7 @@ describe('getAgentViewStatus — running and stopped', () => {
     const { sessionId } = await createTestSession('view-stopped'); const machineId = 'view-stopped-machine';
     await registerMachineWithDaemon(sessionId as any, machineId); const room = await createDuoTeamChatroom(sessionId as any);
     await setupRemoteAgentConfig(sessionId as any, room, machineId, 'builder');
-    await t.mutation(api.machines.sendCommand, { sessionId: sessionId as any, machineId, type: 'stop-agent', payload: { chatroomId: room, role: 'builder' } });
+    await t.mutation(api.agentStops.request, { sessionId: sessionId as any, machineId, chatroomId: room, role: 'builder' });
     expect((await query(room))!.agents.find((a) => a.role === 'builder')?.state).toBe('stopped');
   });
 });

@@ -8,7 +8,7 @@ import { useChatroomListing } from '../context/ChatroomListingContext';
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockArchiveChatroom = vi.fn().mockResolvedValue({ success: true, disabledPromptCount: 0 });
-const mockSendCommand = vi.fn().mockResolvedValue(undefined);
+const mockRequestChatroomStop = vi.fn().mockResolvedValue({ stopCommandId: 'stop' });
 const mockStopAllCommandRuns = vi.fn().mockResolvedValue({ stoppedCount: 0 });
 const mockRestartOfflineAgents = vi.fn().mockResolvedValue({ restartedRoles: ['builder'] });
 const mockMarkAsUnread = vi.fn().mockResolvedValue(undefined);
@@ -16,6 +16,13 @@ const mockMarkAsRead = vi.fn().mockResolvedValue(undefined);
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockPush = vi.fn();
+
+vi.mock('../hooks/useAgentStop', () => ({
+  useAgentStop: () => ({
+    requestAgentStop: vi.fn(),
+    requestChatroomStop: mockRequestChatroomStop,
+  }),
+}));
 
 vi.mock('sonner', () => ({
   toast: {
@@ -64,9 +71,6 @@ vi.mock('convex-helpers/react/sessions', () => ({
       }
       if (name === 'archive') {
         return mockArchiveChatroom;
-      }
-      if (name === 'sendCommand') {
-        return mockSendCommand;
       }
       if (name === 'stopAllCommandRunsForChatroom') {
         return mockStopAllCommandRuns;
@@ -165,8 +169,8 @@ describe('ChatroomSidebar', () => {
   beforeEach(() => {
     mockArchiveChatroom.mockReset();
     mockArchiveChatroom.mockResolvedValue({ success: true, disabledPromptCount: 0 });
-    mockSendCommand.mockReset();
-    mockSendCommand.mockResolvedValue(undefined);
+    mockRequestChatroomStop.mockReset();
+    mockRequestChatroomStop.mockResolvedValue({ stopCommandId: 'stop' });
     mockStopAllCommandRuns.mockReset();
     mockStopAllCommandRuns.mockResolvedValue({ stoppedCount: 0 });
     mockRestartOfflineAgents.mockReset();
@@ -447,21 +451,18 @@ describe('ChatroomSidebar', () => {
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
-  it('stop button stops agents AND command processes for the chatroom', async () => {
+  it('confirms then stops agents and command processes separately', async () => {
     const chatroom = makeChatroom({
       remoteAgentStatus: 'running',
       runningAgentConfigs: [{ machineId: 'machine-1', role: 'builder' }],
     });
     renderSidebar([chatroom]);
 
-    fireEvent.click(screen.getByTitle('Stop agent and processes'));
+    fireEvent.click(screen.getByTitle('Stop agents and command runs'));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop all' }));
 
     await waitFor(() => {
-      expect(mockSendCommand).toHaveBeenCalledWith({
-        machineId: 'machine-1',
-        type: 'stop-agent',
-        payload: { chatroomId: chatroom._id, role: 'builder' },
-      });
+      expect(mockRequestChatroomStop).toHaveBeenCalledWith(chatroom._id);
       expect(mockStopAllCommandRuns).toHaveBeenCalledWith({
         chatroomId: chatroom._id,
       });

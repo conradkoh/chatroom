@@ -12,7 +12,8 @@ import { getSession, requireSession } from './auth/session';
 import { checkAccess, requireAccess } from '../modules/auth/accessCheck';
 import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
-import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
+import { buildTeamRoleKey } from './utils/teamRoleKey';
+import { deleteStaleTeamAgentConfigs } from '../src/domain/usecase/agent/delete-stale-team-agent-configs';
 import { str } from './utils/types';
 import { validateWorkingDir } from './workspacePathSecurity';
 import { DAEMON_LIVENESS_WRITE_INTERVAL_MS } from '../config/reliability';
@@ -39,7 +40,6 @@ import {
 import { requestAgentRestart } from '../src/domain/usecase/agent/request-agent-restart';
 import { restartOfflineAgentsOnUserMessage } from '../src/domain/usecase/agent/restart-offline-agents-on-user-message';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
-import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentViewStatus as getAgentViewStatusUseCase } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { enqueueMachineCommand } from '../src/domain/usecase/machine/enqueue-machine-command';
@@ -1227,18 +1227,6 @@ export const sendCommand = mutation({
       return {};
     }
 
-    // ── stop-agent: delegate to use case ────────────────────────────────
-    if (args.type === 'stop-agent' && args.payload?.chatroomId && args.payload?.role) {
-      await stopAgentUseCase(ctx, {
-        machineId: args.machineId,
-        chatroomId: args.payload.chatroomId,
-        role: args.payload.role,
-        userId: userId,
-        reason: args.payload.reason ?? 'user.stop',
-      });
-      return {};
-    }
-
     // ── ping / status: emit daemon.ping event to stream ───────────────
     const now = Date.now();
     const pingEventId = await enqueueMachineCommand(ctx, {
@@ -2255,6 +2243,7 @@ export const subscribeMachineAgentOperationalStatus = query({
       daemonConnected: row.daemonConnected,
       projectedAt: row.projectedAt,
       revisionKey: row.revisionKey,
+      stopState: row.stopState,
     }));
   },
 });

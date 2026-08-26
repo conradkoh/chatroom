@@ -2,7 +2,16 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { storedFileTreeDeltaOperationValidator } from './lib/fileTreeDeltaOps';
-import { agentHarnessValidator, agentTypeValidator } from '../src/domain/entities/agent';
+import {
+  agentHarnessValidator,
+  agentTypeValidator,
+  agentStopReasonValidator,
+} from '../src/domain/entities/agent';
+import {
+  agentStopScopeValidator,
+  agentStopStatusValidator,
+  agentStopTargetStatusValidator,
+} from '../src/domain/entities/agent-stop-command';
 import { machineCommandPayloadValidator } from '../src/domain/entities/machine-command';
 
 const attachedSnippetValidator = v.object({
@@ -1190,12 +1199,34 @@ export default defineSchema({
     isAlive: v.boolean(),
     isRunning: v.boolean(),
     daemonConnected: v.boolean(),
+    stopState: v.optional(v.union(v.literal('idle'), v.literal('pending'), v.literal('stopping'), v.literal('stopped'), v.literal('failed'))),
+    activeStopCommandId: v.optional(v.id('chatroom_agentStopCommands')),
     projectedAt: v.number(),
     revisionKey: v.string(),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_role', ['chatroomId', 'role'])
     .index('by_machineId', ['machineId']),
+
+  chatroom_agentStopCommands: defineTable({
+    chatroomId: v.id('chatroom_rooms'), scope: agentStopScopeValidator, scopeKey: v.string(),
+    reason: agentStopReasonValidator, requestedBy: v.optional(v.id('users')), status: agentStopStatusValidator,
+    deadlineAt: v.optional(v.number()), createdAt: v.number(), completedAt: v.optional(v.number()), errorCode: v.optional(v.string()), errorMessage: v.optional(v.string()),
+  }).index('by_chatroom_status', ['chatroomId', 'status']).index('by_status_deadlineAt', ['status', 'deadlineAt']).index('by_status_completedAt', ['status', 'completedAt']).index('by_chatroom_scopeKey_status', ['chatroomId', 'scopeKey', 'status']),
+
+  chatroom_agentStopMachineExecutions: defineTable({
+    stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), machineId: v.string(),
+    inboxCommandId: v.optional(v.id('chatroom_machineCommandInbox')), status: agentStopStatusValidator,
+    claimedAt: v.optional(v.number()), completedAt: v.optional(v.number()), errorMessage: v.optional(v.string()),
+  }).index('by_stopCommandId', ['stopCommandId']).index('by_stopCommandId_machineId', ['stopCommandId', 'machineId']).index('by_machineId_status', ['machineId', 'status']),
+
+  chatroom_agentStopTargets: defineTable({
+    stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), agentConfigId: v.optional(v.id('chatroom_teamAgentConfigs')), machineId: v.string(),
+    role: v.string(), pid: v.number(), agentHarness: v.optional(agentHarnessValidator), targetKey: v.string(), revisionKey: v.string(), status: agentStopTargetStatusValidator,
+    outcome: v.optional(v.union(v.literal('stopped'), v.literal('already_stopped'))),
+    termination: v.optional(v.union(v.literal('graceful'), v.literal('forced'), v.literal('absent'))), lifecycleWarning: v.optional(v.string()), lifecycleAppliedAt: v.optional(v.number()), errorCode: v.optional(v.string()),
+    errorMessage: v.optional(v.string()), completedAt: v.optional(v.number()),
+  }).index('by_stopCommandId', ['stopCommandId']).index('by_stopCommandId_targetKey', ['stopCommandId', 'targetKey']).index('by_stopCommandId_machineId', ['stopCommandId', 'machineId']).index('by_chatroom_role', ['chatroomId', 'role']),
 
   /**
    * Materialized per-chatroom agent overview for sidebar subscriptions.
@@ -1211,6 +1242,7 @@ export default defineSchema({
     runningRoles: v.array(v.string()),
     aliveRoles: v.array(v.string()),
     runningAgents: v.array(v.object({ role: v.string(), machineId: v.string() })),
+    stoppingRoles: v.optional(v.array(v.string())),
     projectedAt: v.number(),
   })
     .index('by_chatroom', ['chatroomId'])

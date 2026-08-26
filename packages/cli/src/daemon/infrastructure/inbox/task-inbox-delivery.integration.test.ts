@@ -280,7 +280,7 @@ describe('task inbox delivery integration', () => {
       agentMgr,
       sessionDeps,
       machineId: 'machine-1',
-      operationalRows: [operationalRow('room-1', 'builder', 'running')],
+      operationalRows: [operationalRow('room-1', 'builder', 'stopped')],
     });
     await handleTaskInboxUpdate(
       { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
@@ -290,5 +290,56 @@ describe('task inbox delivery integration', () => {
     expect(ensureRunning).toHaveBeenCalledWith(
       expect.objectContaining({ reason: 'platform.pending_task_wake' })
     );
+  });
+
+  test('does not wake when operational stopState is stopped', async () => {
+    const ensureRunning = vi.fn().mockResolvedValue({ success: true, pid: 99_002 });
+    const agentMgr = createAgentMgrMock({
+      getSlot: vi.fn().mockReturnValue(undefined),
+      ensureRunning,
+    });
+    const row = {
+      ...snapshot(),
+      agentConfig: {
+        ...snapshot().agentConfig,
+        spawnedAgentPid: undefined,
+      },
+    };
+    const full = fullTaskFromSnapshot(row as unknown as ReturnType<typeof snapshot>);
+    const sessionDeps = {
+      sessionId: 'session-1',
+      convexUrl: 'http://test',
+      machineId: 'machine-1',
+      logEvent: vi.fn(),
+      backend: {
+        mutation: vi.fn(),
+        query: vi
+          .fn()
+          .mockImplementation(async (_fn: unknown, args: Record<string, unknown>) =>
+            'taskId' in args ? full : { tasks: [row] }
+          ),
+      },
+    } as never;
+    const deps = {
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      cooldown: new RecoveryCooldown(0),
+      agentMgr,
+      sessionDeps,
+      machineId: 'machine-1',
+    };
+    registerTestNativeDeliverySession({
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      agentMgr,
+      sessionDeps,
+      machineId: 'machine-1',
+      operationalRows: [operationalRow('room-1', 'builder', 'stopped', 'stopped')],
+    });
+    await handleTaskInboxUpdate(
+      { signals: [], snapshots: [row as never], afterSignalKey: 'a', throughSignalKey: 'b' },
+      deps
+    );
+    await vi.waitFor(() => expect(ensureRunning).not.toHaveBeenCalled());
   });
 });

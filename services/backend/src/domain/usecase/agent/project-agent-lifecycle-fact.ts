@@ -1,13 +1,13 @@
-import type { MutationCtx } from '../../../../convex/_generated/server';
 import { agentExited as agentExitedUseCase } from './agent-exited';
 import { assertMachineBelongsToChatroom } from './assert-machine-belongs-to-chatroom';
+import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { recordAgentSpawnedState } from './record-agent-spawned-state';
 import { transitionAgentStatus } from './transition-agent-status';
-import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
+import type { Id } from '../../../../convex/_generated/dataModel';
+import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { onAgentExited } from '../../../events/agent/on-agent-exited';
-import type { Id } from '../../../../convex/_generated/dataModel';
-import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
+import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
 
 export type AgentLifecycleFactInput =
   | {
@@ -70,9 +70,13 @@ export async function projectAgentLifecycleFact(
     return { success: true, clearedCount };
   }
   if (fact.kind === 'exited') {
-    await agentExitedUseCase(ctx, { ...fact, machineId });
-    await onAgentExited(ctx, fact);
-    return { success: true };
+    const result = await agentExitedUseCase(ctx, {
+      ...fact,
+      machineId,
+      revisionKey: fact.revisionKey,
+    });
+    if (result.applied) await onAgentExited(ctx, fact);
+    return { success: true, skipped: !result.applied };
   }
   await assertMachineBelongsToChatroom(ctx, {
     chatroomId: fact.chatroomId as Id<'chatroom_rooms'>,
@@ -80,7 +84,7 @@ export async function projectAgentLifecycleFact(
     role: fact.role,
     allowNewMachine: false,
   });
-  const room = await ctx.db.get(fact.chatroomId);
+  const room = await ctx.db.get('chatroom_rooms', fact.chatroomId);
   const teamId = (room as { teamId?: string } | null)?.teamId;
   if (!teamId) return { success: true, skipped: true };
   const config = await ctx.db

@@ -22,14 +22,12 @@ export async function daemonStart(): Promise<void> {
 export type {
   CommandResult,
   StartAgentCommand,
-  StopAgentCommand,
   MachineCommand,
 } from '../../../daemon/entry/daemon-types.js';
 
 export type {
   DaemonDeps,
   StartAgentDeps,
-  StopAgentDeps,
   StateRecoveryDeps,
   MachineStateOps,
 } from '../../../daemon/entry/daemon-deps.js';

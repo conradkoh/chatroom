@@ -24,6 +24,9 @@ import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/h
 import { NATIVE_HANDOFF_REMINDER } from '@workspace/backend/src/domain/entities/participant.js';
 import { Effect } from 'effect';
 
+import { buildStopTargetDescriptor, runConfirmedStop } from './stop-agent-confirmed-adapter.js';
+import type { ConfirmedStopAdapterDeps } from './stop-agent-confirmed-adapter.js';
+import { isChatroomStopScopeActive } from './execute-stop-targets-adapter.js';
 import { createTurnCompletedBackend } from './turn-completed-backend.js';
 import { TurnEndQueue } from './turn-end-queue.js';
 import { api } from '../../../api.js';
@@ -50,6 +53,11 @@ import {
   type AgentExitAuditArgs,
   type AgentLifecycleFact,
 } from '../../domain/entities/agent-lifecycle-fact.js';
+import { AgentStopError } from '../../domain/entities/agent-stop.js';
+import type {
+  AgentStopTargetDescriptor,
+  AgentStopReason,
+} from '../../domain/entities/agent-stop.js';
 import { resolveResumableHarnessSessionId } from '../../domain/entities/harness-session-id-pair.js';
 import type { HarnessSessionSnapshot } from '../../domain/entities/session-snapshot.js';
 import { resolveStopReason } from '../../domain/entities/stop-reason.js';
@@ -331,6 +339,9 @@ export class AgentProcessManager {
   }
 
   async ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult> {
+    if (isChatroomStopScopeActive(opts.chatroomId)) {
+      return { success: false, error: 'stop_in_progress' };
+    }
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.getOrCreateSlot(key);
 
@@ -430,6 +441,83 @@ export class AgentProcessManager {
       await actualSlot.pendingOperation;
     }
     return { success: true };
+  }
+
+  async discoverStopTargets(chatroomId: string): Promise<AgentStopTargetDescriptor[]> {
+    const targets = new Map<string, AgentStopTargetDescriptor>();
+    for (const { chatroomId: cid, role, slot } of this.listAllSlots()) {
+      if (cid !== chatroomId || !slot.pid || slot.pid <= 0 || !slot.harness) continue;
+      const target = buildStopTargetDescriptor({
+        machineId: this.deps.machineId,
+        chatroomId: cid,
+        role,
+        pid: slot.pid,
+        agentHarness: slot.harness,
+      });
+      targets.set(target.targetKey, target);
+    }
+    try {
+      for (const { chatroomId: cid, role, entry } of await this.deps.persistence.listAgentEntries(
+        this.deps.machineId
+      )) {
+        if (cid !== chatroomId || !entry.pid || entry.pid <= 0 || !entry.harness) continue;
+        const target = buildStopTargetDescriptor({
+          machineId: this.deps.machineId,
+          chatroomId: cid,
+          role,
+          pid: entry.pid,
+          agentHarness: entry.harness,
+        });
+        targets.set(target.targetKey, target);
+      }
+    } catch (error) {
+      console.warn(`[daemon] failed to discover stop targets: ${(error as Error).message}`);
+    }
+    return [...targets.values()];
+  }
+
+  getConfirmedStopAdapterDeps(): ConfirmedStopAdapterDeps {
+    return {
+      machineId: this.deps.machineId,
+      sessionId: this.deps.sessionId,
+      agentServices: this.deps.agentServices,
+      processes: this.deps.processes,
+      lifecycleOutbox: this.deps.lifecycleOutbox,
+      logEvent: this.deps.logEvent,
+      clock: this.deps.clock,
+      killProcessWithFallback: this.killProcessWithFallback.bind(this),
+    };
+  }
+
+  async withScopedRoleStop<T>(
+    opts: StopOpts,
+    fn: (args: { preserveForResume: boolean }) => Promise<T>
+  ): Promise<{ ok: true; value: T } | { ok: false; reason: 'concurrent' | 'no_slot' }> {
+    const key = agentKey(opts.chatroomId, opts.role);
+    const slot = this.slots.get(key);
+    if (!slot || !slot.pid || slot.state === 'idle') return { ok: false, reason: 'no_slot' };
+    if (slot.state === 'stopping' || slot.pendingOperation)
+      return { ok: false, reason: 'concurrent' };
+    const service = slot.harness ? this.deps.agentServices.get(slot.harness) : undefined;
+    const preserveForResume = this.preserveOrClearHarnessSessionOnStop(
+      key,
+      slot,
+      slot.pid,
+      opts,
+      service
+    );
+    slot.state = 'stopping';
+    this.bumpStopGeneration(slot);
+    slot.stoppingSince = this.deps.clock.now();
+    try {
+      const value = await fn({ preserveForResume });
+      this.resetSlotAfterStop(slot);
+      await this.clearAgentPidQuietly(opts.chatroomId, opts.role);
+      return { ok: true, value };
+    } catch (error) {
+      slot.state = 'running';
+      throw error;
+    }
   }
 
   private async handleStopEarlyReturns(
@@ -1332,6 +1420,15 @@ export class AgentProcessManager {
       await this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
     } catch {
       // Non-critical
+    }
+  }
+
+  public async syncSlotsAfterScopedStop(result: { targets: Array<{ target: { chatroomId: string; role: string; pid: number } }> }): Promise<void> {
+    for (const { target } of result.targets) {
+      const slot = this.slots.get(agentKey(target.chatroomId, target.role));
+      if (!slot || slot.pid !== target.pid) continue;
+      this.resetSlotAfterStop(slot);
+      await this.clearAgentPidQuietly(target.chatroomId, target.role);
     }
   }
 
@@ -2250,21 +2347,6 @@ export class AgentProcessManager {
     await this.clearAgentPidQuietly(chatroomId, role);
   }
 
-  private recordStopExit(slot: AgentSlot, pid: number, opts: StopOpts): void {
-    const exitArgs = {
-      sessionId: this.deps.sessionId,
-      machineId: this.deps.machineId,
-      chatroomId: opts.chatroomId,
-      role: opts.role,
-      pid,
-      stopReason: opts.reason,
-      exitCode: undefined as number | undefined,
-      signal: undefined as string | undefined,
-      agentHarness: slot.harness,
-    };
-    this.recordAgentExit(opts.role, exitArgs, 'Failed to record agent exit event');
-  }
-
   private async doStop(
     key: string,
     slot: AgentSlot,
@@ -2283,14 +2365,38 @@ export class AgentProcessManager {
         service
       );
 
-      if (service) {
-        await service.stop(pid, { preserveForResume });
-        service.untrack(pid);
-      } else {
+      if (!harness) {
         await this.killProcessWithFallback(pid);
+        if (isProcessAlive(this.deps.processes.kill, pid)) return { success: false };
+      } else {
+        await runConfirmedStop({
+          deps: {
+            machineId: this.deps.machineId,
+            sessionId: this.deps.sessionId,
+            agentServices: this.deps.agentServices,
+            processes: this.deps.processes,
+            lifecycleOutbox: this.deps.lifecycleOutbox,
+            logEvent: this.deps.logEvent,
+            clock: this.deps.clock,
+            killProcessWithFallback: this.killProcessWithFallback.bind(this),
+          },
+          target: buildStopTargetDescriptor({
+            machineId: this.deps.machineId,
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+            pid,
+            agentHarness: harness,
+          }),
+          reason: opts.reason as AgentStopReason,
+          preserveForResume,
+        });
       }
-    } catch {
-      // Process cleanup is best-effort
+    } catch (error) {
+      if (error instanceof AgentStopError) {
+        console.log(`   ⚠️  stop failed (${error.code}): ${error.message}`);
+        return { success: false };
+      }
+      return { success: false };
     }
 
     if (slot.stopGeneration !== stopGeneration) {
@@ -2298,8 +2404,6 @@ export class AgentProcessManager {
     }
 
     this.resetSlotAfterStop(slot);
-    this.recordStopExit(slot, pid, opts);
-
     try {
       await this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
     } catch {

@@ -9,39 +9,19 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
-import { transitionAgentStatus } from './transition-agent-status';
+import { createAgentStopCommand } from './create-agent-stop-command';
+import type { AgentStopSelectedConfig } from './select-agent-stop-configs';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
-import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
-import {
-  patchTeamAgentConfig,
-  projectAssignedTaskSnapshotsForMachines,
-} from '../machine/patch-team-agent-config';
-
-// ─── Types ───────────────────────────────────────────────────────────────────
+import { projectAssignedTaskSnapshotsForMachines } from '../machine/patch-team-agent-config';
 
 export interface EnsureOnlyAgentForRoleInput {
-  /** The chatroom whose agent configs should be checked. */
   chatroomId: Id<'chatroom_rooms'>;
-  /** The role to deduplicate (e.g. "builder", "reviewer"). */
   role: string;
-  /**
-   * If provided, skip stopping this machine (used when a remote agent is
-   * registering itself — we don't want to stop the machine that just registered).
-   */
   excludeMachineId?: string;
 }
 
-// ─── Use Case ────────────────────────────────────────────────────────────────
-
-/**
- * Stop all remote agents for a given role in a chatroom, except the one
- * identified by `excludeMachineId` (if provided).
- *
- * Emits an `agent.requestStop` event for every conflicting remote config found.
- * The daemon's stream subscription handles these events directly.
- */
 // fallow-ignore-next-line complexity
 export async function ensureOnlyAgentForRole(
   ctx: MutationCtx,
@@ -66,39 +46,16 @@ export async function ensureOnlyAgentForRole(
       config.type === 'remote' && config.machineId != null && config.machineId !== excludeMachineId
   );
 
-  const now = Date.now();
   const affectedMachineIds = new Set<string>();
 
-  for (const config of conflicting) {
-    await enqueueMachineCommand(ctx, {
-      machineId: config.machineId as string,
-      now,
-      command: {
-        type: 'agent.requestStop',
-        chatroomId,
-        role,
-        reason: 'platform.dedup',
-        pid: config.spawnedAgentPid ?? undefined,
-      },
-    });
-
-    // Eagerly clear spawn state and mark as stopped so the UI reflects the
-    // stop immediately rather than waiting for the daemon to confirm.
-    await patchTeamAgentConfig(
-      ctx,
-      config._id,
-      {
-        desiredState: 'stopped',
-        spawnedAgentPid: undefined,
-        spawnedAt: undefined,
-      },
-      { skipProject: true }
-    );
+  const stoppable = conflicting.filter((config): config is AgentStopSelectedConfig => config.type === 'remote' && config.machineId != null && config.spawnedAgentPid != null && config.agentHarness != null);
+  if (stoppable.length > 0) {
+    await createAgentStopCommand(ctx, { chatroomId, scope: { kind: 'agent', role }, reason: 'platform.dedup', selectedConfigs: stoppable });
+  }
+  for (const config of stoppable) {
     if (config.machineId) {
       affectedMachineIds.add(config.machineId);
     }
-
-    await transitionAgentStatus(ctx, chatroomId, role, 'agent.exited', 'stopped');
   }
 
   if (affectedMachineIds.size > 0) {

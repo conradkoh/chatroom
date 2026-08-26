@@ -1,6 +1,8 @@
 import { v } from 'convex/values';
 
 import { agentHarnessValidator } from './agent';
+import { agentStopReasonValidator } from './agent';
+import { agentStopScopeValidator } from './agent-stop-command';
 import {
   AGENT_REQUEST_DEADLINE_MS,
   MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
@@ -24,6 +26,7 @@ const localActionValidator = v.union(
   ).map(v.literal)
 );
 export const machineCommandPayloadValidator = v.union(
+  v.object({ type: v.literal('agent.stopScope'), stopCommandId: v.id('chatroom_agentStopCommands'), chatroomId: v.id('chatroom_rooms'), scope: agentStopScopeValidator, reason: agentStopReasonValidator }),
   v.object({
     type: v.literal('agent.requestStart'),
     chatroomId: v.id('chatroom_rooms'),
@@ -71,6 +74,7 @@ export const machineCommandPayloadValidator = v.union(
 export type MachineCommandPayload = typeof machineCommandPayloadValidator.type;
 export type MachineCommandType = MachineCommandPayload['type'];
 export const MACHINE_COMMAND_TTL_MS: Record<MachineCommandType, number> = {
+  'agent.stopScope': AGENT_REQUEST_DEADLINE_MS,
   'agent.requestStart': AGENT_REQUEST_DEADLINE_MS,
   'agent.restart': AGENT_REQUEST_DEADLINE_MS,
   'agent.requestStop': AGENT_REQUEST_DEADLINE_MS,

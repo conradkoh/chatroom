@@ -26,6 +26,7 @@ import { logDaemonAuditEvent } from '../infrastructure/event-stream/daemon-event
 import { onRequestRestartAgentEffect } from './events/agent/on-request-restart-agent.js';
 import { onRequestStartAgentEffect } from './events/agent/on-request-start-agent.js';
 import { onRequestStopAgentEffect } from './events/agent/on-request-stop-agent.js';
+import { onStopScopeAgentEffect } from './events/agent/on-stop-scope-agent.js';
 import { handlePing } from './handlers/ping.js';
 import { processManager } from './handlers/process/manager.js';
 import { capabilitiesOutcomeToStatus } from './refresh-models-outcome.js';
@@ -286,6 +287,7 @@ const commandEventHandlers: {
   'agent.requestStart': handleRequestStartEffect,
   'agent.restart': handleRequestRestartEffect,
   'agent.requestStop': handleRequestStopEffect,
+  'agent.stopScope': (event, tracker) => Effect.gen(function* () { const eventId = String((event as any).commandId ?? (event as any)._id); if (tracker.commandIds.has(eventId)) return; yield* onStopScopeAgentEffect(event as any); tracker.commandIds.set(eventId, Date.now()); }),
   'daemon.ping': handlePingCommandEffect,
   'daemon.gitRefresh': handleGitRefreshCommandEffect,
   'daemon.localAction': handleLocalActionCommandEffect,

@@ -1,6 +1,4 @@
-import { enqueueMachineCommand } from '../../src/domain/usecase/machine/enqueue-machine-command';
 import type { Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
 
 export { filterTeamAgentConfigsForTeam, teamRoleKeyMatchesTeam } from './teamRoleKeyFilter';
 
@@ -22,37 +20,4 @@ export function buildTeamRoleKey(
   role: string
 ): string {
   return `chatroom_${chatroomId}#team_${teamId.toLowerCase()}#role_${role.toLowerCase()}`;
-}
-
-/**
- * Removes stale chatroom_teamAgentConfigs rows with the given teamRoleKey.
- * For configs with a running process, emits stop + removal events instead of
- * deleting directly, so the process lifecycle is respected.
- */
-export async function deleteStaleTeamAgentConfigs(
-  ctx: MutationCtx,
-  teamRoleKey: string
-): Promise<void> {
-  const stale = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-    .collect();
-  const now = Date.now();
-  for (const row of stale) {
-    if (row.spawnedAgentPid != null && row.machineId) {
-      await enqueueMachineCommand(ctx, {
-        machineId: row.machineId,
-        now,
-        command: {
-          type: 'agent.requestStop',
-          chatroomId: row.chatroomId,
-          role: row.role,
-          reason: 'platform.dedup',
-        },
-      });
-      await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
-    } else {
-      await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
-    }
-  }
 }
