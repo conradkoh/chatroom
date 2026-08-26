@@ -8,6 +8,15 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { AGENT_STOP_REASONS, isAgentStopReason } from './agent';
+
+describe('agent stop reasons', () => {
+  test('includes platform.ephemeral_task_complete', () => {
+    expect(AGENT_STOP_REASONS).toContain('platform.ephemeral_task_complete');
+    expect(isAgentStopReason('platform.ephemeral_task_complete')).toBe(true);
+  });
+});
+
 import {
   AGENT_HARNESSES,
   AgentHarnessEnum,

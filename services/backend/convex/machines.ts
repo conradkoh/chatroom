@@ -1720,6 +1720,8 @@ export const setWantResume = mutation({
         role: args.role,
         type: 'remote',
         wantResume: args.wantResume,
+        enabled: true,
+        lifecycleRevision: 0,
         createdAt: now,
         updatedAt: now,
       });

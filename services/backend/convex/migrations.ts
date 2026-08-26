@@ -336,6 +336,31 @@ export const setDuoBuilderWantResumeFalse = migrations.define({
   },
 });
 
+/** Backfill additive lifecycle defaults on existing team agent configs. */
+export const backfillTeamAgentConfigLifecycleDefaults = migrations.define({
+  table: 'chatroom_teamAgentConfigs',
+  migrateOne: async (_ctx, config) => {
+    const patch: { enabled?: boolean; lifecycleRevision?: number } = {};
+    if (config.enabled === undefined) patch.enabled = true;
+    if (config.lifecycleRevision === undefined) patch.lifecycleRevision = 0;
+    return Object.keys(patch).length > 0 ? patch : undefined;
+  },
+});
+
+/** Backfill snapshot lifecycle revisions; safe to rerun. */
+export const backfillMachineAssignedTaskSnapshotLifecycleRevision = migrations.define({
+  table: 'chatroom_machineAssignedTaskSnapshots',
+  migrateOne: async (_ctx, row) =>
+    row.configLifecycleRevision === undefined ? { configLifecycleRevision: 0 } : undefined,
+});
+
+/** Existing stop commands are operator stops and therefore restore stopped state. */
+export const backfillAgentStopCommandPostStopDesiredState = migrations.define({
+  table: 'chatroom_agentStopCommands',
+  migrateOne: async (_ctx, row) =>
+    row.postStopDesiredState === undefined ? { postStopDesiredState: 'stopped' as const } : undefined,
+});
+
 /**
  * TEMPORARY local cleanup: delete pre-teamRoleKey machine config favorites.
  * Legacy rows stored favorites per (userId, machineId) only and block schema push.
@@ -727,6 +752,9 @@ export const runAll = migrations.runner([
   internal.migrations.backfillSavedCommandScope,
   // Agent Config
   internal.migrations.setDuoBuilderWantResumeFalse,
+  internal.migrations.backfillTeamAgentConfigLifecycleDefaults,
+  internal.migrations.backfillMachineAssignedTaskSnapshotLifecycleRevision,
+  internal.migrations.backfillAgentStopCommandPostStopDesiredState,
   // Machine Config Favorites
   internal.migrations.migrateMachineConfigFavoritesToMachineScope,
   // Standing Instructions History
