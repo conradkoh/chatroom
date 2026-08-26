@@ -84,7 +84,7 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
     terminalHandledRef.current = false;
   }, [activeBatchId]);
 
-  useEffect(() => {
+  useMemo(() => {
     if (!activeBatchId) return;
     if (batchSnapshot === undefined) return;
     if (batchSnapshot === null) {
@@ -94,7 +94,7 @@ export const MachineCapabilitiesRefreshButton = memo(function MachineCapabilitie
     }
   }, [activeBatchId, batchSnapshot, clearHintSoon]);
 
-  useEffect(() => {
+  useMemo(() => {
     if (!activeBatchId || batchSnapshot === undefined || batchSnapshot === null) return;
     if (batchSnapshot.batch.aggregateStatus === 'pending') return;
     if (terminalHandledRef.current) return;

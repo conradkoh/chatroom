@@ -5,7 +5,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { parseModelKey } from '@/modules/chatroom/direct-harness/components/harness-selectors';
 import type { HarnessOption } from '@/modules/chatroom/direct-harness/hooks/useHarnessConfig';
@@ -28,7 +28,7 @@ function storageKey(machineId: string): string {
   return `agentic-query-harness:${machineId}`;
 }
 
-function migrateLegacyWorkspaceKey(workspaceId: string, machineId: string): string | null {
+function _migrateLegacyWorkspaceKey(workspaceId: string, machineId: string): string | null {
   const legacyKey = `agentic-query-harness:${workspaceId}`;
   try {
     const raw = localStorage.getItem(legacyKey);
@@ -42,7 +42,7 @@ function migrateLegacyWorkspaceKey(workspaceId: string, machineId: string): stri
   }
 }
 
-function readPersisted(machineId: string): PersistedHarnessSelection | null {
+function _readPersisted(machineId: string): PersistedHarnessSelection | null {
   if (typeof window === 'undefined' || !machineId) return null;
   try {
     const raw = localStorage.getItem(storageKey(machineId));
@@ -58,7 +58,7 @@ function readPersisted(machineId: string): PersistedHarnessSelection | null {
   }
 }
 
-function writePersisted(machineId: string, value: PersistedHarnessSelection): void {
+function _writePersisted(machineId: string, value: PersistedHarnessSelection): void {
   if (typeof window === 'undefined' || !machineId) return;
   localStorage.setItem(storageKey(machineId), JSON.stringify(value));
 }
@@ -92,7 +92,7 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
   );
 
   const machineId = (capabilities as { machineId?: string } | null)?.machineId ?? null;
-  const { getLastUsed, recordUsage } = useSearchConfigUsage(machineId);
+  const { getLastUsed: _getLastUsed, recordUsage: _recordUsage } = useSearchConfigUsage(machineId);
   const {
     favorites,
     addFavorite,
@@ -105,38 +105,14 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
   const [harnessName, setHarnessName] = useState<string>('opencode-sdk');
   const [selectedModel, setSelectedModel] = useState('');
 
-  // Initialize from machine-scoped localStorage or legacy migration once machineId is known
-  const [initialized, setInitialized] = useState(false);
-  useEffect(() => {
-    if (initialized || !machineId) return;
-    setInitialized(true);
-
-    // Try legacy migration first
-    const legacyRaw = migrateLegacyWorkspaceKey(workspaceId, machineId);
-    let persisted: PersistedHarnessSelection | null = null;
-    if (legacyRaw) {
-      try {
-        persisted = JSON.parse(legacyRaw) as PersistedHarnessSelection;
-      } catch {}
-    }
-    // Try machine-scoped key
-    if (!persisted) persisted = readPersisted(machineId);
-    // Prefer explicit persisted UI selection over usage-store last search
-    const lastUsed = getLastUsed();
-    if (persisted) {
-      setHarnessName(persisted.harnessName);
-      setSelectedModel(persisted.modelKey);
-    } else if (lastUsed) {
-      setHarnessName(lastUsed.harnessName);
-      setSelectedModel(lastUsed.modelKey);
-    }
-  }, [machineId, workspaceId, initialized, getLastUsed]);
-
   const { harnesses, resolvedHarnessName, filter } = useNativeHarnessWorkspace(
     capabilities,
     harnessName
   );
-  const providers = harnesses.find((h) => h.name === resolvedHarnessName)?.providers ?? [];
+  const providers = useMemo(
+    () => harnesses.find((h) => h.name === resolvedHarnessName)?.providers ?? [],
+    [harnesses, resolvedHarnessName]
+  );
 
   const modelOptions = useMemo(
     () => buildModelOptions(harnesses, resolvedHarnessName, filter.isHidden),
@@ -147,31 +123,6 @@ export function useAgenticQueryHarnessSelection(workspaceId: string) {
     modelOptions.find((option) => option.value === selectedModel)?.value ??
     modelOptions[0]?.value ??
     '';
-
-  const selectedModelRef = useRef(selectedModel);
-  selectedModelRef.current = selectedModel;
-
-  useEffect(() => {
-    if (!initialized || modelOptions.length === 0) return;
-    const current = selectedModelRef.current;
-    if (modelOptions.some((option) => option.value === current)) return;
-    const fallback = modelOptions[0]?.value ?? '';
-    if (fallback !== current) setSelectedModel(fallback);
-  }, [initialized, modelOptions]);
-
-  useEffect(() => {
-    if (!machineId || !initialized) return;
-    writePersisted(machineId, {
-      harnessName: resolvedHarnessName,
-      modelKey: resolvedModel,
-    });
-  }, [resolvedHarnessName, resolvedModel, machineId, initialized]);
-
-  // Record usage when selection resolves after initialization
-  useEffect(() => {
-    if (!machineId || !initialized || !resolvedHarnessName || !resolvedModel) return;
-    recordUsage({ harnessName: resolvedHarnessName, modelKey: resolvedModel });
-  }, [machineId, initialized, resolvedHarnessName, resolvedModel, recordUsage]);
 
   const selectionReady = !!resolvedHarnessName && (modelOptions.length === 0 || !!resolvedModel);
 
