@@ -217,10 +217,11 @@ export async function projectAgentStopStateForRole(
 ): Promise<void> {
   const room = await ctx.db.get('chatroom_rooms', chatroomId);
   if (!room?.teamId) return;
+  const teamId = room.teamId;
   const config = await ctx.db
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, room.teamId!, role))
+      q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, teamId, role))
     )
     .first();
   const row = await ctx.db

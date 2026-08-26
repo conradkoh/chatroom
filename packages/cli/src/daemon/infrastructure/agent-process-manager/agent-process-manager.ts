@@ -1,4 +1,5 @@
 // fallow-ignore-file complexity
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * AgentProcessManager — single authority for agent lifecycle management.
  *

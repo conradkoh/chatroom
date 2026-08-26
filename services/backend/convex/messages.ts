@@ -692,7 +692,8 @@ export async function runHandoffHandler(
       };
     }
 
-    enhancerConfig = await getEnhancerTeamAgentConfig(ctx, args.chatroomId, chatroom.teamId!);
+    if (!chatroom.teamId) throw new Error('Chatroom team is required for enhancer handoff');
+    enhancerConfig = await getEnhancerTeamAgentConfig(ctx, args.chatroomId, chatroom.teamId);
 
     const activeEntryPointTasks = await collectActiveTasks(ctx, args.chatroomId, {
       assignedTo: enhancerEntryPointRole,
@@ -939,7 +940,7 @@ export async function runHandoffHandler(
     try {
       const syncCount = await requestSyncOnHandoffToUser(ctx, args.chatroomId);
       if (syncCount > 0) {
-        console.log(
+        console.warn(
           `[handoff] Enqueued git refresh for ${syncCount} workspace(s) in chatroom ${args.chatroomId}`
         );
       }

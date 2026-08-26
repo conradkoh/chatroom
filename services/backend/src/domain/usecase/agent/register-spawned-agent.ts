@@ -1,4 +1,5 @@
 import { authorizeAgentStart } from './authorize-agent-start';
+import type { AuthorizeAgentStartReason } from './authorize-agent-start';
 import { recordAgentSpawnedState } from './record-agent-spawned-state';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -16,8 +17,7 @@ export type RegisterSpawnedAgentArgs = {
   reason?: string;
 };
 export type RegisterSpawnedAgentResult =
-  | { accepted: true }
-  | { accepted: false; reason: import('./authorize-agent-start').AuthorizeAgentStartReason };
+  { accepted: true } | { accepted: false; reason: AuthorizeAgentStartReason };
 
 export async function registerSpawnedAgentIfAuthorized(
   ctx: MutationCtx,
@@ -27,10 +27,11 @@ export async function registerSpawnedAgentIfAuthorized(
   if (!auth.allowed) return { accepted: false, reason: auth.reason };
   const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
   if (!room?.teamId) return { accepted: false, reason: 'not_configured' };
+  const teamId = room.teamId;
   const config = await ctx.db
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, room.teamId!, args.role))
+      q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, args.role))
     )
     .first();
   if (!config) return { accepted: false, reason: 'not_configured' };

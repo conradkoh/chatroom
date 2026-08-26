@@ -536,6 +536,9 @@ export const getCapabilitiesRefreshBatch = query({
       .withIndex('by_batchId', (q) => q.eq('batchId', args.batchId))
       .collect();
 
+    if (args.lifecycleRevision === undefined) {
+      return { success: true, accepted: false, reason: 'stale_revision' };
+    }
     return {
       batch: {
         _id: batch._id,
@@ -1299,7 +1302,7 @@ export const updateSpawnedAgent = mutation({
         role: args.role,
         machineId: args.machineId,
         pid: args.pid,
-        lifecycleRevision: args.lifecycleRevision!,
+        lifecycleRevision: args.lifecycleRevision,
         model: args.model,
         harnessSessionId: args.harnessSessionId,
         reason: args.reason,
@@ -1840,7 +1843,7 @@ export const upsertMachineModelFilters = mutation({
 
     const existing = await ctx.db
       .query('chatroom_machineModelFilters')
-      .withIndex('by_machine_harness', (q: any) =>
+      .withIndex('by_machine_harness', (q) =>
         q.eq('machineId', args.machineId).eq('agentHarness', args.agentHarness)
       )
       .unique();
