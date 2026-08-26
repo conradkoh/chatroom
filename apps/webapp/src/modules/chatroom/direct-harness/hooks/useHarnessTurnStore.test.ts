@@ -10,7 +10,7 @@ import { useHarnessTurnStore } from './useHarnessTurnStore';
 
 const mockQuery = vi.fn();
 let olderQueryCallCount = 0;
-let tailQueryCallCount = 0;
+let _tailQueryCallCount = 0;
 let mockChunkData: {
   _id: string;
   _creationTime: number;
@@ -40,7 +40,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
       return mockChunkData;
     }
     // getTurnsSince — tail subscription (configurable for tests)
-    tailQueryCallCount++;
+    _tailQueryCallCount++;
     return mockTailData;
   },
   useSessionId: () => ['session-1'] as const,
@@ -82,7 +82,7 @@ const HARNESS_SESSION_ID = 'hs1' as never;
 beforeEach(() => {
   vi.clearAllMocks();
   olderQueryCallCount = 0;
-  tailQueryCallCount = 0;
+  _tailQueryCallCount = 0;
   mockChunkData = [];
   mockTailData = [];
   lastChunkQueryArgs = null;

@@ -6,7 +6,6 @@
 
 import { describe, expect, test } from 'vitest';
 
-import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { setupWorkspaceForSession } from './direct-harness/fixtures';
 import { completeActiveTasksForRole } from '../../src/domain/usecase/task/complete-active-tasks';
