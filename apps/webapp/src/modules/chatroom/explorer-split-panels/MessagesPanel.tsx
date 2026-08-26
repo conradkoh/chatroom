@@ -59,6 +59,7 @@ export function MessagesPanel({
         footer={
           <div className="shrink-0 border-t-2 border-chatroom-border-strong">
             <MessageInput
+              key={chatroomId}
               chatroomId={chatroomId}
               onRegisterFocus={onRegisterSendFormFocus}
               onMessageSent={onMessageSent}

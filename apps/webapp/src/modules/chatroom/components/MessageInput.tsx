@@ -119,6 +119,15 @@ function saveDraft(key: string, content: string) {
   cleanupOldDrafts(key);
 }
 
+function getDraftUpdatedAt(raw: string): number {
+  try {
+    const parsed = JSON.parse(raw) as StoredDraft;
+    return parsed && typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0;
+  } catch {
+    return 0;
+  }
+}
+
 function cleanupOldDrafts(currentKey: string) {
   const entries: { key: string; updatedAt: number }[] = [];
   for (let i = 0; i < localStorage.length; i++) {
@@ -126,19 +135,98 @@ function cleanupOldDrafts(currentKey: string) {
     if (!key?.startsWith(DRAFT_KEY_PREFIX)) continue;
     const raw = localStorage.getItem(key);
     if (!raw) continue;
-    let updatedAt = 0;
-    try {
-      const parsed = JSON.parse(raw) as StoredDraft;
-      if (parsed && typeof parsed.updatedAt === 'number') updatedAt = parsed.updatedAt;
-    } catch {
-      // Legacy string — treat as oldest
-    }
-    entries.push({ key, updatedAt });
+    entries.push({ key, updatedAt: getDraftUpdatedAt(raw) });
   }
   if (entries.length <= MAX_DRAFTS) return;
   entries.sort((a, b) => b.updatedAt - a.updatedAt);
   for (const entry of entries.slice(MAX_DRAFTS)) {
     if (entry.key !== currentKey) localStorage.removeItem(entry.key);
+  }
+}
+
+interface SendFlowArgs {
+  text: string;
+  sending: boolean;
+  chatroomId: string;
+  startInNewSession: boolean;
+  snippetAttachments: { id: string; fileSource: string; selectedContent: string }[];
+  attachedTasks: { id: string }[];
+  attachedBacklogItems: { id: string }[];
+  attachedMessages: { id: string }[];
+  sendMessage: (args: Record<string, unknown>) => Promise<unknown>;
+  setSending: (value: boolean) => void;
+  setMessage: (value: string) => void;
+  setSendError: (value: string | null) => void;
+  draftKey: string;
+  clearAll: () => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  onMessageSent?: () => void;
+}
+
+async function runSendFlow({
+  text,
+  sending,
+  chatroomId,
+  startInNewSession,
+  snippetAttachments,
+  attachedTasks,
+  attachedBacklogItems,
+  attachedMessages,
+  sendMessage,
+  setSending,
+  setMessage,
+  setSendError,
+  draftKey,
+  clearAll,
+  textareaRef,
+  onMessageSent,
+}: SendFlowArgs): Promise<void> {
+  if (!text.trim() || sending) return;
+  setSending(true);
+  try {
+    const snippets = snippetAttachments.map((s) => ({
+      reference: s.id,
+      fileSource: s.fileSource,
+      selectedContent: s.selectedContent,
+    }));
+    await (sendMessage as (args: Record<string, unknown>) => Promise<unknown>)({
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      senderRole: 'user',
+      content: text.trim(),
+      startInNewSession,
+      type: 'message',
+      ...(snippets.length > 0 && { attachedSnippets: snippets }),
+      ...(attachedTasks.length > 0 && { attachedTaskIds: attachedTasks.map((task) => task.id) }),
+      ...(attachedBacklogItems.length > 0 && {
+        attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
+      }),
+      ...(attachedMessages.length > 0 && {
+        attachedMessageIds: attachedMessages.map((msg) => msg.id),
+      }),
+    });
+    setMessage('');
+    setSendError(null);
+    localStorage.removeItem(draftKey);
+    onMessageSent?.();
+    if (
+      attachedTasks.length ||
+      attachedBacklogItems.length ||
+      attachedMessages.length ||
+      snippetAttachments.length
+    )
+      clearAll();
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    setTimeout(() => textareaRef.current?.focus(), 0);
+    onMessageSent?.();
+  } catch (error) {
+    console.error('Failed to send message:', error);
+    setSendError(
+      error instanceof Error && error.message
+        ? `Failed to send: ${error.message}`
+        : 'Failed to send message. Please try again.'
+    );
+  } finally {
+    setSending(false);
   }
 }
 
@@ -321,60 +409,24 @@ export function MessageInput({
   // ── Send logic ─────────────────────────────────────────────────────────────
   const doSend = useCallback(
     async (text: string) => {
-      if (!text.trim() || sending) return;
-      setSending(true);
-      try {
-        const snippets = snippetAttachments.map((s) => ({
-          reference: s.id,
-          fileSource: s.fileSource,
-          selectedContent: s.selectedContent,
-        }));
-
-        await sendMessage({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          senderRole: 'user',
-          content: text.trim(),
-          startInNewSession,
-          type: 'message',
-          ...(snippets.length > 0 && { attachedSnippets: snippets }),
-          ...(attachedTasks.length > 0 && {
-            attachedTaskIds: attachedTasks.map((task) => task.id),
-          }),
-          ...(attachedBacklogItems.length > 0 && {
-            attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
-          }),
-          ...(attachedMessages.length > 0 && {
-            attachedMessageIds: attachedMessages.map((msg) => msg.id),
-          }),
-        });
-        setMessage('');
-        setSendError(null);
-        localStorage.removeItem(draftKey);
-        onMessageSent?.();
-        if (
-          attachedTasks.length > 0 ||
-          attachedBacklogItems.length > 0 ||
-          attachedMessages.length > 0 ||
-          snippetAttachments.length > 0
-        ) {
-          clearAll();
-        }
-        // Reset textarea height
-        if (textareaRef.current) {
-          textareaRef.current.style.height = 'auto';
-        }
-        setTimeout(() => textareaRef.current?.focus(), 0);
-        onMessageSent?.();
-      } catch (error) {
-        console.error('Failed to send message:', error);
-        setSendError(
-          error instanceof Error && error.message
-            ? `Failed to send: ${error.message}`
-            : 'Failed to send message. Please try again.'
-        );
-      } finally {
-        setSending(false);
-      }
+      await runSendFlow({
+        text,
+        sending,
+        chatroomId,
+        startInNewSession,
+        snippetAttachments,
+        attachedTasks,
+        attachedBacklogItems,
+        attachedMessages,
+        sendMessage: sendMessage as unknown as (args: Record<string, unknown>) => Promise<unknown>,
+        setSending,
+        setMessage,
+        setSendError,
+        draftKey,
+        clearAll,
+        textareaRef,
+        onMessageSent,
+      });
     },
     [
       sending,
