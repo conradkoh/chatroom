@@ -644,7 +644,7 @@ const taskCommand = program.command('task').description('Manage tasks');
 
 taskCommand
   .command('read')
-  .description('Read task details (optional recovery; harness output marks tasks in_progress)')
+  .description('Read task details (optional recovery; delivery marks tasks in_progress)')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role in the chatroom')
   .requiredOption('--task-id <taskId>', 'Task ID to read')

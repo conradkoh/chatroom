@@ -449,6 +449,13 @@ export class GetNextTaskSession {
     // For 'acknowledged' and 'in_progress' tasks: skip claiming.
     // These are already owned by this role — the agent died mid-task and is now recovering.
 
+    await this.client.mutation(api.tasks.startTaskAtDelivery, {
+      sessionId: this.sessionId,
+      chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+      role: this.role,
+      taskId: task._id,
+    });
+
     // Mark as processed to prevent duplicate handling
     this.taskProcessed = true;
 

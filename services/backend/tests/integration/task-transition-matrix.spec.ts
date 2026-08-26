@@ -7,8 +7,8 @@
  *
  * | Role kind | Trigger | Expected result |
  * |-----------|---------|----------------|
- * | team_agent (planner) | native:task-injected + updateTokenActivity | in_progress |
- * | team_agent (planner) | agent.waiting + updateTokenActivity (token resume) | in_progress |
+ * | team_agent (planner) | startTaskAtDelivery after native inject | in_progress |
+ * | team_agent (planner) | startTaskAtDelivery after agent.waiting delivery | in_progress |
  * | daemon_worker (enhancer) | claimForSpawn | in_progress, NO participant row |
  */
 
@@ -54,70 +54,48 @@ async function seedPendingTask(
 }
 
 describe('task transition matrix', () => {
-  test('team agent + native:task-injected + updateTokenActivity -> in_progress', async () => {
-    const { sessionId: _sessionId, chatroomId } = await createSessionChatroomAndJoin(
-      'ttm-injected',
-      'planner'
-    );
+  test('team agent + startTaskAtDelivery after native inject -> in_progress', async () => {
+    const { sessionId, chatroomId } = await createSessionChatroomAndJoin('ttm-injected', 'planner');
     await assertDuoTeamOnly(chatroomId);
 
     const taskId = await seedPendingTask(chatroomId, 'planner');
 
-    // Manually acknowledge the pending task to simulate native injection
-    await t.run(async (ctx) => {
-      const task = await ctx.db.get('chatroom_tasks', taskId);
-      if (task && task.status === 'pending') {
-        await ctx.db.patch('chatroom_tasks', taskId, { status: 'acknowledged' });
-      }
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
     });
-    expect(await t.run(async (ctx) => (await ctx.db.get('chatroom_tasks', taskId))?.status)).toBe(
-      'acknowledged'
-    );
 
-    // Simulate token activity after native injection
-    const { startTaskFromTokenActivity } =
-      await import('../../src/domain/usecase/participant/start-task-from-token-activity');
-    await t.run(async (ctx) => {
-      await startTaskFromTokenActivity(
-        ctx,
-        { chatroomId, role: 'planner' },
-        {
-          lastSeenAction: 'native:task-injected',
-        }
-      );
+    await t.mutation(api.tasks.startTaskAtDelivery, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
     });
 
     const status = await t.run(async (ctx) => (await ctx.db.get('chatroom_tasks', taskId))?.status);
     expect(status).toBe('in_progress');
   });
 
-  test('team agent + agent.waiting + updateTokenActivity (token resume) -> in_progress', async () => {
-    const { sessionId: _sessionId, chatroomId } = await createSessionChatroomAndJoin(
-      'ttm-waiting',
-      'planner'
-    );
+  test('team agent + startTaskAtDelivery after agent.waiting delivery -> in_progress', async () => {
+    const { sessionId, chatroomId } = await createSessionChatroomAndJoin('ttm-waiting', 'planner');
     await assertDuoTeamOnly(chatroomId);
 
     const taskId = await seedPendingTask(chatroomId, 'planner');
 
-    // Manually acknowledge the pending task
-    await t.run(async (ctx) => {
-      const task = await ctx.db.get('chatroom_tasks', taskId);
-      if (task && task.status === 'pending') {
-        await ctx.db.patch('chatroom_tasks', taskId, { status: 'acknowledged' });
-      }
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
     });
 
-    const { startTaskFromTokenActivity } =
-      await import('../../src/domain/usecase/participant/start-task-from-token-activity');
-    await t.run(async (ctx) => {
-      await startTaskFromTokenActivity(
-        ctx,
-        { chatroomId, role: 'planner' },
-        {
-          lastStatus: 'agent.waiting',
-        }
-      );
+    await t.mutation(api.tasks.startTaskAtDelivery, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
     });
 
     const status = await t.run(async (ctx) => (await ctx.db.get('chatroom_tasks', taskId))?.status);

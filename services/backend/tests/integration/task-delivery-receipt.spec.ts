@@ -1,8 +1,8 @@
 /**
  * Task delivery receipt integration tests.
  *
- * Proves receipt rule starts task on updateTokenActivity,
- * and legacy path without receipt still works.
+ * Proves explicit delivery start via startTaskAtDelivery,
+ * and that updateTokenActivity no longer transitions tasks.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -34,15 +34,14 @@ async function seedAcknowledgedTask(
   });
 }
 
-describe('task delivery receipt — receipt rule', () => {
-  test('receipt + updateTokenActivity starts acknowledged task', async () => {
+describe('task delivery receipt — explicit delivery start', () => {
+  test('receipt + startTaskAtDelivery starts acknowledged task', async () => {
     const { sessionId } = await createTestSession('tdr-receipt');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
     const taskId = await seedAcknowledgedTask(chatroomId, 'builder');
 
-    // Insert open receipt
     await t.run(async (ctx) => {
       await recordTaskDelivery(ctx, {
         chatroomId,
@@ -53,25 +52,42 @@ describe('task delivery receipt — receipt rule', () => {
       });
     });
 
-    // Call startTaskFromTokenActivity via updateTokenActivity mutation
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.tasks.startTaskAtDelivery, {
       sessionId,
       chatroomId,
       role: 'builder',
+      taskId,
     });
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
     expect(task!.status).toBe('in_progress');
   });
 
-  test('legacy: acknowledged + native:task-injected without receipt -> in_progress', async () => {
-    const { sessionId } = await createTestSession('tdr-legacy');
+  test('startTaskAtDelivery starts acknowledged task without receipt', async () => {
+    const { sessionId } = await createTestSession('tdr-no-receipt');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     await joinParticipant(sessionId, chatroomId, 'builder');
 
     const taskId = await seedAcknowledgedTask(chatroomId, 'builder');
 
-    // Join with native:task-injected to set participant state
+    await t.mutation(api.tasks.startTaskAtDelivery, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId,
+    });
+
+    const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
+    expect(task!.status).toBe('in_progress');
+  });
+
+  test('updateTokenActivity does not start acknowledged task', async () => {
+    const { sessionId } = await createTestSession('tdr-token-liveness');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    const taskId = await seedAcknowledgedTask(chatroomId, 'builder');
+
     await t.mutation(api.participants.join, {
       sessionId,
       chatroomId,
@@ -80,7 +96,6 @@ describe('task delivery receipt — receipt rule', () => {
       taskId,
     });
 
-    // updateTokenActivity should start the task via legacy acknowledged-native rule
     await t.mutation(api.participants.updateTokenActivity, {
       sessionId,
       chatroomId,
@@ -88,6 +103,6 @@ describe('task delivery receipt — receipt rule', () => {
     });
 
     const task = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', taskId));
-    expect(task!.status).toBe('in_progress');
+    expect(task!.status).toBe('acknowledged');
   });
 });

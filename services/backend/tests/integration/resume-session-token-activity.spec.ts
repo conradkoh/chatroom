@@ -1,8 +1,8 @@
 /**
- * Resume session token activity — Integration Tests
+ * Resume session delivery — Integration Tests
  *
- * Verifies updateTokenActivity restarts work when a resumed native agent is
- * agent.waiting and harness tokens resume.
+ * Verifies explicit delivery (startTaskAtDelivery) restarts work after resume;
+ * updateTokenActivity updates liveness only.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -91,10 +91,11 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'native:waiting',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.tasks.startTaskAtDelivery, {
       sessionId,
       chatroomId,
       role: 'builder',
+      taskId,
     });
 
     const status = await getParticipantStatus(chatroomId, 'builder');
@@ -141,10 +142,18 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'native:waiting',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.tasks.claimTask, {
       sessionId,
       chatroomId,
       role: 'planner',
+      taskId,
+    });
+
+    await t.mutation(api.tasks.startTaskAtDelivery, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId,
     });
 
     const status = await getParticipantStatus(chatroomId, 'planner');
@@ -175,7 +184,7 @@ describe('Resume session token activity', () => {
     expect(status.lastStatus).toBe('agent.waiting');
   });
 
-  test('native harness resumes released pending task on token activity after agent exit', async () => {
+  test('native harness resumes released pending task on explicit delivery after agent exit', async () => {
     const { sessionId } = await createTestSession('test-native-resume-released-pending');
     const machineId = 'machine-native-resume-released';
 
@@ -263,10 +272,18 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'native:waiting',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.tasks.claimTask, {
       sessionId,
       chatroomId,
       role: 'builder',
+      taskId: claimResult.taskId,
+    });
+
+    await t.mutation(api.tasks.startTaskAtDelivery, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: claimResult.taskId,
     });
 
     const status = await getParticipantStatus(chatroomId, 'builder');
@@ -276,7 +293,7 @@ describe('Resume session token activity', () => {
     expect(task?.status).toBe('in_progress');
   });
 
-  test('native harness resumes released pending task after manual restart (exited → token activity)', async () => {
+  test('native harness resumes released pending task after manual restart (exited → explicit delivery)', async () => {
     const { sessionId } = await createTestSession('test-native-resume-released-exited');
     const machineId = 'machine-native-resume-released-exited';
 
@@ -355,10 +372,18 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'exited',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.tasks.claimTask, {
       sessionId,
       chatroomId,
       role: 'planner',
+      taskId: claimResult.taskId,
+    });
+
+    await t.mutation(api.tasks.startTaskAtDelivery, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId: claimResult.taskId,
     });
 
     const status = await getParticipantStatus(chatroomId, 'planner');
@@ -442,10 +467,18 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'native:waiting',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.tasks.claimTask, {
       sessionId,
       chatroomId,
       role: 'builder',
+      taskId: claimResult.taskId,
+    });
+
+    await t.mutation(api.tasks.startTaskAtDelivery, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: claimResult.taskId,
     });
 
     const status = await getParticipantStatus(chatroomId, 'builder');
@@ -534,10 +567,18 @@ describe('Resume session token activity', () => {
       lastSeenAction: 'exited',
     });
 
-    await t.mutation(api.participants.updateTokenActivity, {
+    await t.mutation(api.tasks.claimTask, {
       sessionId,
       chatroomId,
       role: 'planner',
+      taskId: claimResult.taskId,
+    });
+
+    await t.mutation(api.tasks.startTaskAtDelivery, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId: claimResult.taskId,
     });
 
     const status = await getParticipantStatus(chatroomId, 'planner');

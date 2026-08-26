@@ -111,7 +111,7 @@ describe('generateFullCliOutput — task content is inline', () => {
     const output = generateFullCliOutput(params);
 
     expect(output).toContain(params.task.content);
-    expect(output).toContain('harness output (stdout tokens)');
+    expect(output).toContain('marked `in_progress` when delivered');
     expect(output).not.toMatch(/task read --chatroom-id/i);
   });
 
@@ -120,6 +120,6 @@ describe('generateFullCliOutput — task content is inline', () => {
     const output = generateFullCliOutput(params);
 
     expect(output).toContain('1. Work on the task above.');
-    expect(output).not.toContain('chatroom task read');
+    expect(output).toContain('chatroom task read');
   });
 });

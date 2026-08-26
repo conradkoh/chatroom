@@ -1,12 +1,10 @@
-/**
- * Shared note: harness stdout/token activity marks tasks in_progress.
- */
+/** Shared note: token activity reports liveness; explicit delivery starts work. */
 
 export function getTokenActivityInProgressNote(): string {
-  return 'Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task `in_progress` automatically — **do not run `task read`** unless you need backlog items or context details not shown in the delivery.';
+  return 'Begin working from the task content above. This task is marked `in_progress` when delivered by the CLI — run `chatroom task read` only if you need backlog/context details not shown in the delivery.';
 }
 
 /** Native harnesses never use the task read CLI — omit recovery wording. */
 export function getNativeTokenActivityInProgressNote(): string {
-  return 'Begin working from the task content above. The daemon detects harness output (stdout tokens) and marks the task `in_progress` automatically.';
+  return 'Begin working from the task content above. This task is marked `in_progress` when the daemon delivers it.';
 }

@@ -4,6 +4,30 @@ import { describe, expect, test, vi } from 'vitest';
 import { runNativeInjectionEffect, type NativeInjectorDeps } from './native-task-injector.js';
 import type { AssignedTaskWithContent } from '../../../daemon/domain/entities/assigned-task.js';
 
+/** Convex api is anyApi — refs are indistinguishable at runtime. Anchor on receipt args. */
+function isReceiptMutationArgs(args: Record<string, unknown>): boolean {
+  return 'deliveryKind' in args;
+}
+
+function isTaskIdRoleMutationArgs(args: Record<string, unknown>): boolean {
+  return (
+    'taskId' in args &&
+    'role' in args &&
+    'sessionId' in args &&
+    !('action' in args) &&
+    !('deliveryKind' in args) &&
+    !('mode' in args)
+  );
+}
+
+function classifyTaskMutation(
+  args: Record<string, unknown>,
+  receiptSeen: boolean
+): 'claim' | 'start' | null {
+  if (!isTaskIdRoleMutationArgs(args)) return null;
+  return receiptSeen ? 'start' : 'claim';
+}
+
 const HARNESS_SESSION_ID = 'sess_1';
 
 function makeTask(overrides: Partial<AssignedTaskWithContent> = {}): AssignedTaskWithContent {
@@ -65,6 +89,7 @@ describe('runNativeInjectionEffect', () => {
     const deps = createDeps();
     const task = makeTask();
     const order: string[] = [];
+    let receiptSeen = false;
     const auditOrder: string[] = [];
 
     (deps.logEvent as ReturnType<typeof vi.fn>).mockImplementation(async (event) => {
@@ -73,10 +98,15 @@ describe('runNativeInjectionEffect', () => {
     });
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockImplementation(
       async (_fn: unknown, args: Record<string, unknown>) => {
-        if ('action' in args) order.push('join');
+        if (isReceiptMutationArgs(args)) {
+          receiptSeen = true;
+          order.push('receipt');
+        } else if ('action' in args) order.push('join');
         else if ('mode' in args) order.push('augmented-state');
-        else if ('deliveryKind' in args) order.push('receipt');
-        else if ('taskId' in args && 'role' in args) order.push('claim');
+        else {
+          const label = classifyTaskMutation(args, receiptSeen);
+          if (label) order.push(label);
+        }
         return undefined;
       }
     );
@@ -90,7 +120,15 @@ describe('runNativeInjectionEffect', () => {
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
 
-    expect(order).toEqual(['claim', 'query', 'join', 'receipt', 'augmented-state', 'resume']);
+    expect(order).toEqual([
+      'claim',
+      'query',
+      'join',
+      'receipt',
+      'start',
+      'augmented-state',
+      'resume',
+    ]);
     expect(auditOrder).toEqual(['augmented', 'delivered']);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
   });
@@ -104,16 +142,29 @@ describe('runNativeInjectionEffect', () => {
 
     await Effect.runPromise(runNativeInjectionEffect(task, HARNESS_SESSION_ID, deps));
 
-    const claimCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
+    const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
+    const receiptIndex = mutationCalls.findIndex(
       (call) =>
         typeof call[1] === 'object' &&
         call[1] !== null &&
-        'taskId' in call[1] &&
-        !('action' in call[1]) &&
-        !('machineId' in call[1]) &&
-        !('deliveryKind' in call[1])
+        'deliveryKind' in (call[1] as Record<string, unknown>)
+    );
+    const claimCalls = mutationCalls.filter(
+      (call, index) =>
+        index < receiptIndex &&
+        typeof call[1] === 'object' &&
+        call[1] !== null &&
+        isTaskIdRoleMutationArgs(call[1] as Record<string, unknown>)
+    );
+    const startCalls = mutationCalls.filter(
+      (call, index) =>
+        index > receiptIndex &&
+        typeof call[1] === 'object' &&
+        call[1] !== null &&
+        isTaskIdRoleMutationArgs(call[1] as Record<string, unknown>)
     );
     expect(claimCalls).toHaveLength(0);
+    expect(startCalls).toHaveLength(1);
     expect(deps.agentMgr.resumeTurnForSlot).toHaveBeenCalled();
   });
 
@@ -147,17 +198,22 @@ describe('runNativeInjectionEffect', () => {
     });
     const augmentedCalls: Record<string, unknown>[] = [];
     const order: string[] = [];
+    let receiptSeen = false;
 
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockImplementation(
       async (_fn: unknown, args: Record<string, unknown>) => {
-        if ('mode' in args) {
+        if (isReceiptMutationArgs(args)) {
+          receiptSeen = true;
+          order.push('receipt');
+        } else if ('mode' in args) {
           augmentedCalls.push(args);
           order.push('augmented');
-        } else if ('action' in args) order.push('join');
-        else if ('deliveryKind' in args) order.push('receipt');
-        else if ('machineId' in args && 'taskId' in args && !('error' in args))
-          order.push('delivered');
-        else if ('taskId' in args && 'role' in args) order.push('claim');
+        } else if ('action' in args) {
+          order.push('join');
+        } else {
+          const label = classifyTaskMutation(args, receiptSeen);
+          if (label) order.push(label);
+        }
         return undefined;
       }
     );

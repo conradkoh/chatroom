@@ -31,9 +31,9 @@ Some harnesses use **native integration**: the chatroom daemon injects tasks dir
 
 - **CLI harnesses:** `get-next-task:started` → WAITING; `get-next-task:stopped` when a task is delivered → ACKNOWLEDGED (`task.acknowledged`)
 - **Native harnesses:** `native:waiting` → WAITING; `native:task-injected` when a task is injected → ACKNOWLEDGED (`task.acknowledged`)
-- **All harnesses:** first stdout/stderr token via `updateTokenActivity` when the task is `acknowledged` → `readTask()` → `task.inProgress` / UI **WORKING**
+- **All harnesses:** `updateTokenActivity` reports liveness only; explicit CLI delivery transitions acknowledged work to `task.inProgress` / UI **WORKING**
 
-Native SDK harnesses with a typed activity emitter report once per turn via `wireTokenActivityReporting`; legacy CLI harnesses fall back to `spawnResult.onOutput()` with a 30s throttle. Used by `AgentProcessManager` (multi-agent team roles only). The enhancer daemon is a one-off worker — it does **not** call `participants.join` or `updateTokenActivity`; task `pending → in_progress` happens in `claimForSpawn` via `startEnhancerJobWork`. Team agents do **not** need to run `task read` to mark work as in progress — producing harness output is the signal.
+Native SDK harnesses with a typed activity emitter report once per turn via `wireTokenActivityReporting`; legacy CLI harnesses fall back to `spawnResult.onOutput()` with a 30s throttle. Used by `AgentProcessManager` (multi-agent team roles only). The enhancer daemon is a one-off worker — it does **not** call `participants.join` or `updateTokenActivity`; task `pending → in_progress` happens in `claimForSpawn` via `startEnhancerJobWork`. Team agents do **not** need to run `task read` to mark delivered work as in progress — delivery is the signal.
 
 `task read` remains available as an optional recovery command (e.g. backlog attachments not shown in delivery).
 

@@ -171,7 +171,7 @@ describe('Task intake prompt', () => {
     });
 
     expect(prompt).toContain('### Start working');
-    expect(prompt).toContain('harness output (stdout tokens)');
+    expect(prompt).toContain('marked `in_progress` when delivered');
     expect(prompt).not.toContain('chatroom classify');
     expect(prompt).not.toMatch(/task read --chatroom-id/i);
   });
@@ -185,7 +185,7 @@ describe('Task intake prompt', () => {
     });
 
     expect(prompt).toContain('task body contains your work description');
-    expect(prompt).toContain('harness output (stdout tokens)');
+    expect(prompt).toContain('marked `in_progress` when delivered');
   });
 });
 
