@@ -120,7 +120,7 @@ export interface DaemonAgentProcessManagerServiceShape {
     stopCommandId: string;
     chatroomId: string;
     scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
-    reason: any;
+    reason: AgentStopReason;
     inboxCommandId: string;
   }) => Effect.Effect<ScopedStopExecutionSummary>;
   runInboxRoleScopedStop?: (event: AgentRequestStopEventPayload) => Effect.Effect<void>;
@@ -193,13 +193,13 @@ export const DaemonAgentProcessManagerServiceLive = (
           confirmedDeps: mgr.getConfirmedStopAdapterDeps(),
           chatroomId: event.chatroomId as string,
           role: event.role,
-          reason: reason as any,
+          reason: reason as AgentStopReason,
         });
         if (result.targets.length === 0 && result.failures.length === 0 && event.pid)
           await mgr.stop({
             chatroomId: event.chatroomId as string,
             role: event.role,
-            reason: reason as any,
+            reason: reason as never,
             pid: event.pid,
           });
         for (const failure of result.failures)

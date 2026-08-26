@@ -41,7 +41,7 @@ function buildCommandKey(machineId: string, workingDir: string, commandName: str
 
 const reportRunFailedEffect = (
   session: Pick<DaemonSessionServiceShape, 'sessionId' | 'machineId' | 'backend'>,
-  runId: any,
+  runId: string,
   reason: string
 ): Effect.Effect<void, never, never> =>
   Effect.catchAll(
@@ -68,7 +68,7 @@ export const onCommandRunEffect = (event: {
   workingDir: string;
   commandName: string;
   script: string;
-  runId: any;
+  runId: string;
 }): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
@@ -194,7 +194,7 @@ export const onCommandRunEffect = (event: {
 
 /** Effect twin for onCommandStop — yields DaemonSessionService; DaemonSessionServiceShape satisfies CommandRunnerDeps. */
 export const onCommandStopEffect = (event: {
-  runId: any;
+  runId: string;
 }): Effect.Effect<void, never, DaemonSessionService> =>
   Effect.gen(function* () {
     const session = yield* DaemonSessionService;
@@ -253,7 +253,7 @@ export const runOnCommandRun = (
     workingDir: string;
     commandName: string;
     script: string;
-    runId: any;
+    runId: string;
   }
 ): Promise<void> =>
   Effect.runPromise(
@@ -264,7 +264,10 @@ export const runOnCommandRun = (
 
 /** Test helper — run onCommandStopEffect with flat deps (not a Core twin). */
 // fallow-ignore-next-line unused-export
-export const runOnCommandStop = (deps: CommandRunnerDeps, event: { runId: any }): Promise<void> =>
+export const runOnCommandStop = (
+  deps: CommandRunnerDeps,
+  event: { runId: string }
+): Promise<void> =>
   Effect.runPromise(
     onCommandStopEffect(event).pipe(
       Effect.provideService(DaemonSessionService, deps as DaemonSessionServiceShape)
@@ -318,7 +321,7 @@ export const shutdownAllCommandsEffect: Effect.Effect<void, never, DaemonSession
           .mutation(api.commands.updateRunStatus, {
             sessionId: session.sessionId as SessionId,
             machineId: session.machineId,
-            runId: tracked.runId as any,
+            runId: tracked.runId,
             status: 'killed',
             terminationReason: 'daemon-shutdown',
           })

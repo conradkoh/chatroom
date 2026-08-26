@@ -8,13 +8,15 @@
  * `messages list` and `backlog` commands automatic heartbeat coverage.
  */
 
-import { withRetry } from './retry-queue.js';
+import type { ConvexHttpClient } from 'convex/browser';
+
 import type { Id } from '../api.js';
 import { api } from '../api.js';
+import { withRetry } from './retry-queue.js';
 import { isDaemonWorkerRole } from '../daemon/domain/entities/execution-kind.js';
 
 export function sendLifecycleHeartbeat(
-  client: { mutation: (fn: any, args: any) => Promise<any> },
+  client: Pick<ConvexHttpClient, 'mutation'>,
   opts: { sessionId: string; chatroomId: string; role: string; action?: string }
 ): void {
   // Daemon workers (e.g. enhancer) are not chatroom team participants — joining
@@ -23,7 +25,7 @@ export function sendLifecycleHeartbeat(
   // Update lastSeenAt (and optionally lastSeenAction) on the participant row.
   withRetry(() =>
     client.mutation(api.participants.join, {
-      sessionId: opts.sessionId,
+      sessionId: opts.sessionId as never,
       chatroomId: opts.chatroomId as Id<'chatroom_rooms'>,
       role: opts.role,
       ...(opts.action !== undefined ? { action: opts.action } : {}),

@@ -48,7 +48,7 @@ async function flushTailV2(deps: SpawnDeps, tracked: RunningProcess, force = fal
     await deps.backend.mutation(api.daemon.commands.updateRunTail, {
       sessionId: deps.sessionId as SessionId,
       machineId: deps.machineId,
-      runId: tracked.runId as any,
+      runId: tracked.runId,
       tailOutput: {
         compression: compressed.compression,
         content: compressed.content,
@@ -68,7 +68,7 @@ async function flushTailV2(deps: SpawnDeps, tracked: RunningProcess, force = fal
 async function appendFullOutputChunks(
   deps: SpawnDeps,
   tracked: RunningProcess,
-  runId: any
+  runId: string
 ): Promise<void> {
   let fullOutput: string;
   try {
@@ -107,7 +107,7 @@ async function appendFullOutputChunks(
 async function flushFinalChunks(
   deps: SpawnDeps,
   tracked: RunningProcess,
-  runId: any
+  runId: string
 ): Promise<void> {
   await flushTailV2(deps, tracked, true); // final flush: always sync the tail, even if unobserved
 
@@ -135,7 +135,7 @@ async function flushFinalChunks(
 export async function syncFullOutputOnRequest(
   deps: SpawnDeps,
   tracked: RunningProcess,
-  runId: any
+  runId: string
 ): Promise<void> {
   if (!consumePendingFullSync(tracked.runId)) return;
 
@@ -158,7 +158,7 @@ export async function syncFullOutputOnRequest(
 export async function pollPendingFullOutputSyncs(deps: SpawnDeps): Promise<void> {
   for (const [runId, tracked] of processManager.getAll()) {
     if (consumePendingFullSync(runId)) {
-      await syncFullOutputOnRequest(deps, tracked, runId as any);
+      await syncFullOutputOnRequest(deps, tracked, runId);
     }
   }
 }
@@ -169,7 +169,7 @@ export async function spawnCommandProcess(
     workingDir: string;
     commandName: string;
     script: string;
-    runId: any;
+    runId: string;
   },
   commandKey: string
 ): Promise<RunningProcess> {

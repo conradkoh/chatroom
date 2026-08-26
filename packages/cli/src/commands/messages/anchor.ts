@@ -125,7 +125,7 @@ export const anchorMessagesEffect = (chatroomId: string, options: AnchorMessages
 export async function anchorMessages(
   chatroomId: string,
   options: AnchorMessagesOptions,
-  deps?: { backend: any; session: any }
+  deps?: Parameters<typeof commandServicesLayerFromDeps>[0]
 ): Promise<void> {
   const { getSessionId, getOtherSessionUrls } =
     await import('../../infrastructure/auth/storage.js');
@@ -133,8 +133,12 @@ export async function anchorMessages(
   const client = await getConvexClient();
   const actualDeps = deps ?? {
     backend: {
-      mutation: (ep: any, args: any) => client.mutation(ep, args),
-      query: (ep: any, args: any) => client.query(ep, args),
+      mutation: (
+        ep: Parameters<typeof client.mutation>[0],
+        args: Parameters<typeof client.mutation>[1]
+      ) => client.mutation(ep, args),
+      query: (ep: Parameters<typeof client.query>[0], args: Parameters<typeof client.query>[1]) =>
+        client.query(ep, args),
     },
     session: { getSessionId, getConvexUrl, getOtherSessionUrls },
   };
@@ -142,19 +146,20 @@ export async function anchorMessages(
 
   // Mirrors sibling messages command error handlers.
   // fallow-ignore-next-line code-duplication
-  const handler = (err: any): Effect.Effect<void> => {
+  const handler = (err: Error | MessagesError): Effect.Effect<void> => {
     return Effect.sync(() => {
-      if (err._tag === 'NotAuthenticated') {
+      const tagged = err as MessagesError;
+      if (tagged._tag === 'NotAuthenticated') {
         console.error(`❌ Not authenticated`);
         process.exit(1);
-      } else if (err._tag === 'InvalidChatroomId') {
+      } else if (tagged._tag === 'InvalidChatroomId') {
         console.error(`❌ Invalid chatroom ID`);
         process.exit(1);
-      } else if (err._tag === 'QueryFailed') {
-        console.error(`\n❌ Error fetching messages: ${err.cause.message}`);
+      } else if (tagged._tag === 'QueryFailed') {
+        console.error(`\n❌ Error fetching messages: ${tagged.cause.message}`);
         process.exit(1);
       } else {
-        console.error(`\n❌ Anchor failed: ${err.message}`);
+        console.error(`\n❌ Anchor failed: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
       }
     });

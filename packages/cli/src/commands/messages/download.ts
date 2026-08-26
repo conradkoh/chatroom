@@ -306,7 +306,7 @@ export const downloadMessagesEffect = (chatroomId: string, options: DownloadMess
 export async function downloadMessages(
   chatroomId: string,
   options: DownloadMessagesOptions,
-  deps?: { backend: any; session: any }
+  deps?: Parameters<typeof commandServicesLayerFromDeps>[0]
 ): Promise<void> {
   const { getSessionId, getOtherSessionUrls } =
     await import('../../infrastructure/auth/storage.js');
@@ -314,8 +314,12 @@ export async function downloadMessages(
   const client = await getConvexClient();
   const actualDeps = deps ?? {
     backend: {
-      mutation: (ep: any, args: any) => client.mutation(ep, args),
-      query: (ep: any, args: any) => client.query(ep, args),
+      mutation: (
+        ep: Parameters<typeof client.mutation>[0],
+        args: Parameters<typeof client.mutation>[1]
+      ) => client.mutation(ep, args),
+      query: (ep: Parameters<typeof client.query>[0], args: Parameters<typeof client.query>[1]) =>
+        client.query(ep, args),
     },
     session: { getSessionId, getConvexUrl, getOtherSessionUrls },
   };
@@ -323,25 +327,26 @@ export async function downloadMessages(
 
   // Mirrors sibling messages command error handlers.
   // fallow-ignore-next-line code-duplication
-  const handler = (err: any): Effect.Effect<void> => {
+  const handler = (err: Error | DownloadMessagesError): Effect.Effect<void> => {
     return Effect.sync(() => {
-      if (err._tag === 'NotAuthenticated') {
+      const tagged = err as DownloadMessagesError;
+      if (tagged._tag === 'NotAuthenticated') {
         console.error(`❌ Not authenticated`);
         process.exit(1);
-      } else if (err._tag === 'InvalidChatroomId') {
+      } else if (tagged._tag === 'InvalidChatroomId') {
         console.error(`❌ Invalid chatroom ID`);
         process.exit(1);
-      } else if (err._tag === 'QueryFailed') {
-        console.error(`\n❌ Error fetching messages: ${err.cause.message}`);
+      } else if (tagged._tag === 'QueryFailed') {
+        console.error(`\n❌ Error fetching messages: ${tagged.cause.message}`);
         process.exit(1);
-      } else if (err._tag === 'OutputDirError') {
-        console.error(`\n❌ Failed to create output directory: ${err.cause.message}`);
+      } else if (tagged._tag === 'OutputDirError') {
+        console.error(`\n❌ Failed to create output directory: ${tagged.cause.message}`);
         process.exit(1);
-      } else if (err._tag === 'WriteFailed') {
-        console.error(`\n❌ Failed to write ${err.path}: ${err.cause.message}`);
+      } else if (tagged._tag === 'WriteFailed') {
+        console.error(`\n❌ Failed to write ${tagged.path}: ${tagged.cause.message}`);
         process.exit(1);
       } else {
-        console.error(`\n❌ Download failed: ${err.message}`);
+        console.error(`\n❌ Download failed: ${err instanceof Error ? err.message : String(err)}`);
         process.exit(1);
       }
     });

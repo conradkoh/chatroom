@@ -19,10 +19,10 @@ export type SlotTransitionResult =
   | { readonly ok: true; readonly slot: AgentSlotSnapshot }
   | { readonly ok: false; readonly error: SlotTransitionError };
 
-function makeError(tag: string, from: AgentSlotState, event: string): SlotTransitionResult {
+function makeError(from: AgentSlotState, event: string): SlotTransitionResult {
   return {
     ok: false,
-    error: { _tag: tag as any, from, event },
+    error: { _tag: 'InvalidTransition', from, event },
   };
 }
 
@@ -47,7 +47,7 @@ function transitionFromIdle(
   if (event.type === 'process_exited') {
     return makeResult(slot);
   }
-  return makeError('InvalidTransition', slot.state, event.type);
+  return makeError(slot.state, event.type);
 }
 
 function transitionFromSpawning(
@@ -63,7 +63,7 @@ function transitionFromSpawning(
   if (event.type === 'spawn_failed' || event.type === 'process_exited') {
     return makeResult({ state: 'idle' });
   }
-  return makeError('InvalidTransition', slot.state, event.type);
+  return makeError(slot.state, event.type);
 }
 
 function transitionFromRunning(
@@ -82,7 +82,7 @@ function transitionFromRunning(
   if (event.type === 'stale_process_detected') {
     return makeResult({ state: 'idle' });
   }
-  return makeError('InvalidTransition', slot.state, event.type);
+  return makeError(slot.state, event.type);
 }
 
 function transitionFromStopping(
@@ -95,7 +95,7 @@ function transitionFromStopping(
   if (event.type === 'process_exited') {
     return { ok: false, error: { _tag: 'IgnoredDuplicateExit' } };
   }
-  return makeError('InvalidTransition', slot.state, event.type);
+  return makeError(slot.state, event.type);
 }
 
 export function transitionSlot(
