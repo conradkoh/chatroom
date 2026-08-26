@@ -6,7 +6,7 @@
 'use client';
 
 import { Terminal } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { StatusBadge } from './StatusBadge';
 import { StopRestartButtons } from './StopRestartButtons';
@@ -46,24 +46,9 @@ export function OutputPanel({
   const lineCount = fullOutput.split('\n').length;
   const showJumpToStart = !showLogHead && (lineCount > LOG_HEAD_LINE_COUNT || canLoadMore);
 
-  useEffect(() => {
-    setShowLogHead(false);
-    setPendingLogHead(false);
-  }, [run?._id]);
-
-  useEffect(() => {
-    if (!pendingLogHead || fullOutputPending) return;
-    setShowLogHead(true);
-    setPendingLogHead(false);
-    scrollRef.current?.scrollTo({ top: 0 });
-  }, [pendingLogHead, fullOutputPending, fullOutput]);
-
-  useEffect(() => {
-    if (showLogHead || !stickToBottom) return;
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [output, showLogHead, stickToBottom]);
+  if (!showLogHead && stickToBottom && scrollRef.current) {
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }
 
   const handleShowLive = useCallback(() => {
     setShowLogHead(false);
@@ -74,6 +59,9 @@ export function OutputPanel({
     if (canLoadMore && onLoadMore) {
       setPendingLogHead(true);
       await onLoadMore();
+      setShowLogHead(true);
+      setPendingLogHead(false);
+      scrollRef.current?.scrollTo({ top: 0 });
       return;
     }
     setShowLogHead(true);

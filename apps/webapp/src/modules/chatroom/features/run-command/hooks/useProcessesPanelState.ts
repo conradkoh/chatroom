@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useCommandFavorites } from './useCommandFavorites';
 import type { CommandRun, RunnableCommand } from '../types/run';
@@ -60,34 +60,32 @@ export function useProcessesPanelState({
   onConsumedInitialCommand,
 }: UseProcessesPanelStateOptions): ProcessesPanelState {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCommand, setSelectedCommand] = useState<RunnableCommand | null>(null);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceGroup | null>(null);
+  const initialCommand = useMemo(() => {
+    if (!initialSelectedCommand) return null;
+    return commands.find((command) => command.name === initialSelectedCommand) ?? null;
+  }, [commands, initialSelectedCommand]);
+  const [userSelectedCommand, setUserSelectedCommand] = useState<RunnableCommand | null>(null);
+  const selectedCommand = userSelectedCommand ?? initialCommand;
+  const [userSelectedWorkspace, setUserSelectedWorkspace] = useState<WorkspaceGroup | null>(null);
+  const selectedWorkspace = userSelectedWorkspace;
   const [previousWorkspace, setPreviousWorkspace] = useState<WorkspaceGroup | null>(null);
   const [previousCommand, setPreviousCommand] = useState<RunnableCommand | null>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
-  const [initialHandled, setInitialHandled] = useState(false);
+  const initialConsumedRef = useRef(false);
 
   const { favorites, toggle: toggleFavorite, isFavorite } = useCommandFavorites();
 
-  // Pre-select command from initialSelectedCommand
-  useEffect(() => {
-    if (initialHandled || !initialSelectedCommand || commands.length === 0) return;
-    const cmd = commands.find((c) => c.name === initialSelectedCommand);
-    if (cmd) {
-      setSelectedCommand(cmd);
-      setSelectedWorkspace(null);
-      const groups = groupCommandsByWorkspace(commands, '');
-      const ws = groups.find((g) => g.allCommands.some((c) => c.name === cmd.name));
-      if (ws) setPreviousWorkspace(ws);
-      setInitialHandled(true);
-      onConsumedInitialCommand?.();
-    }
-  }, [initialSelectedCommand, commands, onConsumedInitialCommand]);
-
-  // Reset initialHandled when initialSelectedCommand changes so next pre-select fires
-  useEffect(() => {
-    if (initialSelectedCommand) setInitialHandled(false);
-  }, [initialSelectedCommand]);
+  const setSelectedCommand = useCallback(
+    (command: RunnableCommand | null) => {
+      setUserSelectedCommand(command);
+      if (command && !initialConsumedRef.current) {
+        initialConsumedRef.current = true;
+        onConsumedInitialCommand?.();
+      }
+    },
+    [onConsumedInitialCommand]
+  );
+  const setSelectedWorkspace = setUserSelectedWorkspace;
 
   // Group commands
   const workspaceGroups = useMemo(
@@ -104,11 +102,6 @@ export function useProcessesPanelState({
     }
     return workspaceGroups.map((ws) => ({ type: 'workspace' as const, ws }));
   }, [workspaceGroups, searchQuery]);
-
-  // Reset focus on search change
-  useEffect(() => {
-    setFocusedIndex(0);
-  }, [searchQuery]);
 
   // Keyboard navigation
   const handleKeyDown = useCallback(
@@ -137,7 +130,7 @@ export function useProcessesPanelState({
         }
       }
     },
-    [selectableItems, focusedIndex, onClearRun]
+    [selectableItems, focusedIndex, onClearRun, setSelectedCommand, setSelectedWorkspace]
   );
 
   // Separate running/recent runs

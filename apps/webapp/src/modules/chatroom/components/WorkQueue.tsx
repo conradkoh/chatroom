@@ -83,7 +83,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
     statusFilter: 'backlog',
     limit: 100,
   });
-  const backlogItems = (backlogItemsRaw ?? []) as BacklogItem[];
+  const backlogItems = useMemo(() => (backlogItemsRaw ?? []) as BacklogItem[], [backlogItemsRaw]);
 
   // Query task counts
   const counts = useSessionQuery(api.tasks.getTaskCounts, {
@@ -121,12 +121,12 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
       needsPromotionTimerRef.current = setTimeout(() => setNeedsPromotion(true), 2000);
     } else {
       if (needsPromotionTimerRef.current) clearTimeout(needsPromotionTimerRef.current);
-      setNeedsPromotion(false);
     }
     return () => {
       if (needsPromotionTimerRef.current) clearTimeout(needsPromotionTimerRef.current);
     };
   }, [needsPromotionRaw]);
+  const effectiveNeedsPromotion = needsPromotionRaw && needsPromotion;
 
   // Query pending review backlog items from the dedicated chatroom_backlog table
   const pendingReviewBacklogItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {
@@ -134,7 +134,10 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
     statusFilter: 'pending_user_review',
     limit: 100,
   });
-  const pendingReviewBacklogItems = (pendingReviewBacklogItemsRaw ?? []) as BacklogItem[];
+  const pendingReviewBacklogItems = useMemo(
+    () => (pendingReviewBacklogItemsRaw ?? []) as BacklogItem[],
+    [pendingReviewBacklogItemsRaw]
+  );
 
   // Derive selectedBacklogItem from live query data to avoid stale state after edits
   const selectedBacklogItem = useMemo(() => {
@@ -158,7 +161,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
   );
   // TODO: remove once convex codegen catches up
   const completeAllPendingReview = useSessionMutation(
-    (api.backlog as any).completeAllPendingReviewBacklogItems
+    api.backlog.completeAllPendingReviewBacklogItems
   );
   const promoteNextTask = useSessionMutation(api.tasks.promoteNextTask);
   const updateUserMessageOrTask = useSessionMutation(api.messages.updateUserMessageOrTask);
@@ -272,7 +275,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
     const acknowledgedTasks = categorizedTasks.current.filter((t) => t.status === 'acknowledged');
 
     if (acknowledgedTasks.length === 0) {
-      console.log('No acknowledged tasks to close');
+      console.warn('No acknowledged tasks to close');
       return;
     }
 
@@ -286,11 +289,11 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
           })
         )
       );
-      console.log(`Closed ${acknowledgedTasks.length} acknowledged tasks`);
+      console.warn(`Closed ${acknowledgedTasks.length} acknowledged tasks`);
     } catch (error) {
       console.error('Failed to close all acknowledged tasks:', error);
     }
-  }, [categorizedTasks.current, completeTaskById]);
+  }, [categorizedTasks, completeTaskById]);
 
   const handleMarkAllReviewed = useCallback(async () => {
     try {
@@ -334,7 +337,7 @@ export function WorkQueue({ chatroomId, lifecycle, onRegisterActions }: WorkQueu
       {/* Scrollable Task List Container */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {/* Queue Health Warning - Show when promotion needed */}
-        {needsPromotion && (
+        {effectiveNeedsPromotion && (
           <div className="p-3 border-b border-chatroom-border bg-chatroom-status-warning/10">
             <div className="flex items-center justify-between">
               <span className="text-xs text-chatroom-status-warning">
