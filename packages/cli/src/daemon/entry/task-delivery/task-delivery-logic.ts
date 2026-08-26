@@ -24,7 +24,10 @@ const NUDGE_COOLDOWN_MS = 60_000;
 
 function isPendingAliveRunningTask(task: AssignedTaskSnapshotView): boolean {
   const { agentConfig, status } = task;
-  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(task.chatroomId, agentConfig.role);
+  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(
+    task.chatroomId,
+    agentConfig.role
+  );
   return (
     status === 'pending' &&
     (agentConfig.spawnedAgentPid != null || op?.isAlive === true) &&
@@ -101,7 +104,10 @@ function isNativeActiveTaskAgentDown(
   now: number
 ): boolean {
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
-  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(task.chatroomId, task.agentConfig.role);
+  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(
+    task.chatroomId,
+    task.agentConfig.role
+  );
   if (!isOperationalDesiredRunning(op)) return false;
   if (!isNativeRevivableTaskStatus(task)) return false;
   return isNativeAgentSlotDown(task, health, now);
@@ -128,7 +134,10 @@ function isNativePendingTaskNeedingWake(task: AssignedTaskSnapshotView): boolean
   if (!isNativeHarness(task.agentConfig.agentHarness)) return false;
   if (task.status !== 'pending') return false;
   if (isChatroomStopScopeActive(task.chatroomId)) return false;
-  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(task.chatroomId, task.agentConfig.role);
+  const op = getNativeDeliverySession()?.agentOperationalReadModel?.get(
+    task.chatroomId,
+    task.agentConfig.role
+  );
   if (isOperationalDesiredRunning(op)) return false;
   if (isOperationalStopIntentActive(op)) return false;
   return Boolean(task.agentConfig.workingDir);

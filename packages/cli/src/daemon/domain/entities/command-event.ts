@@ -53,8 +53,11 @@ export interface AgentRequestStopCommandEvent extends CommandEventBase {
   reason: string;
 }
 export interface AgentStopScopeCommandEvent extends CommandEventBase {
-  type: 'agent.stopScope'; stopCommandId: string; chatroomId: string;
-  scope: { kind: 'chatroom' } | { kind: 'agent'; role: string }; reason: string;
+  type: 'agent.stopScope';
+  stopCommandId: string;
+  chatroomId: string;
+  scope: { kind: 'chatroom' } | { kind: 'agent'; role: string };
+  reason: string;
 }
 
 export interface DaemonPingCommandEvent extends CommandEventBase {

@@ -69,12 +69,26 @@ export function createStopAgentConfirmedDeps(
           agentHarness: target.agentHarness,
         };
         await logDaemonAuditEvent(deps.logEvent, { type: 'agent.exited', ...exitArgs });
-        const result = await deps.lifecycleOutbox.enqueue({ kind: 'exited', chatroomId: target.chatroomId, role: target.role, pid: target.pid, stopReason: reason, agentHarness: target.agentHarness, revisionKey, emittedAt: deps.clock.now() });
+        const result = await deps.lifecycleOutbox.enqueue({
+          kind: 'exited',
+          chatroomId: target.chatroomId,
+          role: target.role,
+          pid: target.pid,
+          stopReason: reason,
+          agentHarness: target.agentHarness,
+          revisionKey,
+          emittedAt: deps.clock.now(),
+        });
         if (!result?.success)
           throw new AgentStopError('lifecycle_delivery_failed', 'Lifecycle outbox enqueue failed');
       },
     },
-    forceKill: { forceKill: async (target) => { await deps.killProcessWithFallback(target.pid); deps.agentServices.get(target.agentHarness)?.untrack(target.pid); } },
+    forceKill: {
+      forceKill: async (target) => {
+        await deps.killProcessWithFallback(target.pid);
+        deps.agentServices.get(target.agentHarness)?.untrack(target.pid);
+      },
+    },
   };
 }
 

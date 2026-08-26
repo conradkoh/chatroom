@@ -25,7 +25,8 @@ export interface WaitForEnhancerJobParams {
 export async function waitForEnhancerJobResolution(
   params: WaitForEnhancerJobParams
 ): Promise<EnhancerJobResolution> {
-  const { sessionId, chatroomId, jobId, wsClient, onFailure, onSalvageComplete, log, signal } = params;
+  const { sessionId, chatroomId, jobId, wsClient, onFailure, onSalvageComplete, log, signal } =
+    params;
   const writeLog = (message: string) => (log ? log.write(message) : writeEnhancerLog(message));
 
   let outcome: EnhancerJobResolution | null = null;

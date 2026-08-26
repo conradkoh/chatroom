@@ -287,7 +287,13 @@ const commandEventHandlers: {
   'agent.requestStart': handleRequestStartEffect,
   'agent.restart': handleRequestRestartEffect,
   'agent.requestStop': handleRequestStopEffect,
-  'agent.stopScope': (event, tracker) => Effect.gen(function* () { const eventId = String((event as any).commandId ?? (event as any)._id); if (tracker.commandIds.has(eventId)) return; yield* onStopScopeAgentEffect(event as any); tracker.commandIds.set(eventId, Date.now()); }),
+  'agent.stopScope': (event, tracker) =>
+    Effect.gen(function* () {
+      const eventId = String((event as any).commandId ?? (event as any)._id);
+      if (tracker.commandIds.has(eventId)) return;
+      yield* onStopScopeAgentEffect(event as any);
+      tracker.commandIds.set(eventId, Date.now());
+    }),
   'daemon.ping': handlePingCommandEffect,
   'daemon.gitRefresh': handleGitRefreshCommandEffect,
   'daemon.localAction': handleLocalActionCommandEffect,

@@ -96,7 +96,11 @@ export interface HarnessSpawnPort {
     },
     Error
   >;
-  stop: (pid: number, opts?: { preserveForResume?: boolean }, harness?: AgentHarness) => Effect.Effect<void, Error>;
+  stop: (
+    pid: number,
+    opts?: { preserveForResume?: boolean },
+    harness?: AgentHarness
+  ) => Effect.Effect<void, Error>;
   isAlive: (pid: number) => Effect.Effect<boolean>;
 }
 

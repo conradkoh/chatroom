@@ -38,25 +38,42 @@ describe('executeScopedStopForCommand', () => {
     runExactTargetsStop.mockRejectedValue(error);
 
     const summary = await executeScopedStopForCommand({
-      sessionId: 'session', machineId: 'machine', backend,
-      apm: apm as never, stopCommandId: 'stop', chatroomId: 'room',
-      scope: { kind: 'chatroom' }, reason: 'user.stop', inboxCommandId: 'inbox',
+      sessionId: 'session',
+      machineId: 'machine',
+      backend,
+      apm: apm as never,
+      stopCommandId: 'stop',
+      chatroomId: 'room',
+      scope: { kind: 'chatroom' },
+      reason: 'user.stop',
+      inboxCommandId: 'inbox',
     });
 
     expect(summary.failedCount).toBe(1);
-    expect(finalizeScopedStopExecution).toHaveBeenCalledWith(expect.objectContaining({ executionError: error }));
+    expect(finalizeScopedStopExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ executionError: error })
+    );
     expect(apm.syncSlotsAfterScopedStop).toHaveBeenCalledWith({ targets: [], failures: [] });
   });
 
   test('passes successful results to finalization', async () => {
     const { backend, apm } = setup();
-    const result = { targets: [{ target: { targetKey: 'target' }, outcome: { kind: 'stopped' } }], failures: [] };
+    const result = {
+      targets: [{ target: { targetKey: 'target' }, outcome: { kind: 'stopped' } }],
+      failures: [],
+    };
     runExactTargetsStop.mockResolvedValue(result);
 
     const summary = await executeScopedStopForCommand({
-      sessionId: 'session', machineId: 'machine', backend,
-      apm: apm as never, stopCommandId: 'stop', chatroomId: 'room',
-      scope: { kind: 'chatroom' }, reason: 'user.stop', inboxCommandId: 'inbox',
+      sessionId: 'session',
+      machineId: 'machine',
+      backend,
+      apm: apm as never,
+      stopCommandId: 'stop',
+      chatroomId: 'room',
+      scope: { kind: 'chatroom' },
+      reason: 'user.stop',
+      inboxCommandId: 'inbox',
     });
 
     expect(summary).toEqual({ stoppedCount: 1, failedCount: 0, executionError: undefined });
@@ -67,13 +84,24 @@ describe('executeScopedStopForCommand', () => {
     const { backend, apm } = setup();
     backend.mutation.mockResolvedValue({ shouldExecute: false, targets: [] });
 
-    await expect(executeScopedStopForCommand({
-      sessionId: 'session', machineId: 'machine', backend,
-      apm: apm as never, stopCommandId: 'stop', chatroomId: 'room',
-      scope: { kind: 'chatroom' }, reason: 'user.stop', inboxCommandId: 'inbox',
-    })).resolves.toEqual({ stoppedCount: 0, failedCount: 0 });
+    await expect(
+      executeScopedStopForCommand({
+        sessionId: 'session',
+        machineId: 'machine',
+        backend,
+        apm: apm as never,
+        stopCommandId: 'stop',
+        chatroomId: 'room',
+        scope: { kind: 'chatroom' },
+        reason: 'user.stop',
+        inboxCommandId: 'inbox',
+      })
+    ).resolves.toEqual({ stoppedCount: 0, failedCount: 0 });
     expect(runExactTargetsStop).not.toHaveBeenCalled();
     expect(finalizeScopedStopExecution).not.toHaveBeenCalled();
-    expect(backend.mutation).toHaveBeenCalledWith(api.agentStops.beginMachineExecution, expect.anything());
+    expect(backend.mutation).toHaveBeenCalledWith(
+      api.agentStops.beginMachineExecution,
+      expect.anything()
+    );
   });
 });

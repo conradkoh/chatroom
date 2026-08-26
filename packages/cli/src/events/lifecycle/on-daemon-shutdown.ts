@@ -72,7 +72,9 @@ export const onDaemonShutdownEffect: Effect.Effect<
     );
 
     if (totalFailed > 0) {
-      console.log(`[${formatTimestamp()}] Shutdown stops: ${totalStopped} stopped, ${totalFailed} failed`);
+      console.log(
+        `[${formatTimestamp()}] Shutdown stops: ${totalStopped} stopped, ${totalFailed} failed`
+      );
     } else if (totalStopped > 0) {
       console.log(`[${formatTimestamp()}] Shutdown stops: ${totalStopped} stopped`);
     }

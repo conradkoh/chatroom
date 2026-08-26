@@ -18,11 +18,11 @@ export function isOperationalDesiredRunning(row: MachineAgentOperationalRow | un
   return row?.operationalState === 'running' || row?.operationalState === 'starting';
 }
 
-export function isOperationalStopIntentActive(row: MachineAgentOperationalRow | undefined): boolean {
+export function isOperationalStopIntentActive(
+  row: MachineAgentOperationalRow | undefined
+): boolean {
   return (
-    row?.stopState === 'stopped' ||
-    row?.stopState === 'stopping' ||
-    row?.stopState === 'pending'
+    row?.stopState === 'stopped' || row?.stopState === 'stopping' || row?.stopState === 'pending'
   );
 }
 
@@ -35,7 +35,8 @@ export class AgentOperationalReadModel {
       const key = roleKey(row.chatroomId, row.role);
       nextKeys.add(key);
       const prev = this.rows.get(key);
-      if (!prev || prev.revisionKey !== row.revisionKey) changed.push({ chatroomId: row.chatroomId, role: row.role });
+      if (!prev || prev.revisionKey !== row.revisionKey)
+        changed.push({ chatroomId: row.chatroomId, role: row.role });
       this.rows.set(key, row);
     }
     for (const [key, prev] of this.rows) {

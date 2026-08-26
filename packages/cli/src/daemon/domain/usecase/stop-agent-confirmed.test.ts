@@ -68,7 +68,10 @@ describe('stopAgentConfirmed', () => {
     d.harnessStop.stop.mockReturnValue(new Promise(() => {}));
     d.liveness.isAlive.mockReturnValueOnce(true).mockReturnValue(false);
     const forceKill = vi.fn(async () => {});
-    const pending = stopAgentConfirmed({ ...d, forceKill: { forceKill } }, { target, reason: 'user.stop', revisionKey: 'r', timeoutMs: 10 });
+    const pending = stopAgentConfirmed(
+      { ...d, forceKill: { forceKill } },
+      { target, reason: 'user.stop', revisionKey: 'r', timeoutMs: 10 }
+    );
     await vi.advanceTimersByTimeAsync(10);
     await expect(pending).resolves.toMatchObject({ kind: 'stopped', termination: 'forced' });
     expect(forceKill).toHaveBeenCalledOnce();
