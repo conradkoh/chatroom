@@ -75,6 +75,16 @@ export function useProcessesPanelState({
 
   const { favorites, toggle: toggleFavorite, isFavorite } = useCommandFavorites();
 
+  if (initialCommand && !initialConsumedRef.current) {
+    initialConsumedRef.current = true;
+    onConsumedInitialCommand?.();
+  }
+
+  const handleSearchQueryChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    setFocusedIndex(0);
+  }, []);
+
   const setSelectedCommand = useCallback(
     (command: RunnableCommand | null) => {
       setUserSelectedCommand(command);
@@ -139,7 +149,7 @@ export function useProcessesPanelState({
 
   return {
     searchQuery,
-    setSearchQuery,
+    setSearchQuery: handleSearchQueryChange,
     selectedCommand,
     setSelectedCommand,
     selectedWorkspace,
