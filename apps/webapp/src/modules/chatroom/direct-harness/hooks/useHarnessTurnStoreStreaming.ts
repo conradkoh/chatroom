@@ -93,14 +93,10 @@ export function useHarnessTurnStoreStreaming<TScopeId extends string>(params: {
       ? ({
           [scopeArgKey]: scopeId,
           messageId: streamingTurn.messageId,
-          afterCreationTime: lastCreationTime,
+          afterCreationTime: 0,
         } as Record<string, unknown>)
       : 'skip'
   ) as HarnessStreamingChunk[] | undefined;
-  const lastCreationTime = useMemo(
-    () => chunksData?.reduce((max, chunk) => Math.max(max, chunk._creationTime), 0) ?? 0,
-    [chunksData]
-  );
 
   const streamingOverlay = useMemo(
     () =>

@@ -209,7 +209,7 @@ const IntegrationCard = memo(function IntegrationCard({
         setTestSuccess(false);
       }, 2000);
     } catch (err: unknown) {
-      setTestError(err?.data?.message ?? err?.message ?? 'Failed to send message');
+      setTestError(integrationErrorMessage(err));
     } finally {
       setIsSending(false);
     }
