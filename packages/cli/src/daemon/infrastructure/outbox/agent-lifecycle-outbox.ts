@@ -15,6 +15,7 @@ export type AgentLifecycleOutboxResult = {
   success: true;
   skipped?: boolean;
   clearedCount?: number;
+  rejectionReason?: string;
 };
 export type AgentLifecycleOutboxRegistry = KeyedFifoBatchedOutboxRegistry<
   AgentLifecycleFact,

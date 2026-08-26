@@ -1977,10 +1977,11 @@ export class AgentProcessManager {
   }
 
   private emitSpawnedAgentUpdate(
+    slot: AgentSlot,
     opts: EnsureRunningOpts,
     spawnResult: SpawnResult,
     pid: number
-  ): void {
+  ): Promise<void> {
     void logDaemonAuditEvent(this.deps.logEvent, {
       type: 'agent.started',
       chatroomId: opts.chatroomId,
@@ -1996,8 +1997,14 @@ export class AgentProcessManager {
       console.log(`   ⚠️  Failed to record agent.started event: ${err.message}`);
     });
 
+    const lifecycleRevision = slot.authorizedLifecycleRevision ?? opts.lifecycleRevision;
+    if (lifecycleRevision === undefined) {
+      this.deps.processes.kill(pid, 'SIGTERM');
+      this.resetSlotIdle(slot);
+      return Promise.resolve();
+    }
     const emittedAt = this.deps.clock.now();
-    void this.deps.lifecycleOutbox
+    return this.deps.lifecycleOutbox
       .enqueue({
         kind: 'spawned',
         chatroomId: opts.chatroomId,
@@ -2013,11 +2020,16 @@ export class AgentProcessManager {
           emittedAt,
         }),
         emittedAt,
-        lifecycleRevision: opts.lifecycleRevision,
+        lifecycleRevision,
       })
-      .catch((err: Error) =>
-        console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`)
-      );
+      .then((result) => {
+        if (result.rejectionReason) {
+          console.log(`   ⚠️  Spawn rejected by backend: ${result.rejectionReason}`);
+          this.deps.processes.kill(pid, 'SIGTERM');
+          this.resetSlotIdle(slot);
+        }
+      })
+      .catch((err: Error) => console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`));
   }
 
   private registerSpawnCallbacks(
@@ -2100,7 +2112,7 @@ export class AgentProcessManager {
     const { pid } = spawnResult;
 
     this.assignRunningSlotState(key, slot, opts, spawnResult, wantResume, pid);
-    this.emitSpawnedAgentUpdate(opts, spawnResult, pid);
+    await this.emitSpawnedAgentUpdate(slot, opts, spawnResult, pid);
 
     try {
       await this.deps.persistence.persistAgentPid(
