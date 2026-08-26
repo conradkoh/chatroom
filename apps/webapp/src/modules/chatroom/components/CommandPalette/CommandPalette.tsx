@@ -71,6 +71,7 @@ export function CommandPalette({
 
   const [partitionState$, setPartitionState$] =
     useState<Observable<CommandPalettePartitionState> | null>(null);
+  const partitionStateRef = useRef<Observable<CommandPalettePartitionState> | null>(null);
 
   const [searchValue, setSearchValue] = useState('');
   const searchValueRef = useRef(searchValue);
@@ -125,7 +126,19 @@ export function CommandPalette({
     if (!chatroomId) return;
 
     const state$ = acquireCommandPalettePartition(chatroomId, workspaceId);
+    partitionStateRef.current = state$;
     setPartitionState$(state$);
+    return () => {
+      releaseCommandPalettePartition(chatroomId, workspaceId);
+      partitionStateRef.current = null;
+      setPartitionState$(null);
+    };
+  }, [chatroomId, workspaceId]);
+
+  useEffect(() => {
+    const state$ = partitionStateRef.current;
+    if (!state$ || !chatroomId) return;
+
     const generation = beginCommandPalettePreload(state$);
 
     const rows = buildCommandPaletteRows({
@@ -139,14 +152,8 @@ export function CommandPalette({
       blacklistedKeys,
     });
     commitCommandPalettePreload(state$, generation, rows);
-
-    return () => {
-      releaseCommandPalettePartition(chatroomId, workspaceId);
-      setPartitionState$(null);
-    };
   }, [
     chatroomId,
-    workspaceId,
     commands,
     rankedFilter,
     recentCommands,
