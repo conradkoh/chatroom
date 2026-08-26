@@ -25,6 +25,7 @@ export interface AgentLifecycleSlot extends AgentSlotSnapshot {
   readonly workingDir?: string;
   readonly startedAt?: number;
   readonly wantResume?: boolean;
+  readonly authorizedLifecycleRevision?: number;
   readonly recentLogLines?: string[];
   readonly _stopReasonCode?: number;
   readonly _stopReasonSignal?: string | null;
@@ -50,6 +51,7 @@ export interface EnsureRunningOpts {
   readonly workingDir: string;
   readonly reason: string;
   readonly wantResume: boolean;
+  readonly lifecycleRevision?: number;
   readonly initPrompt?: string;
   readonly systemPrompt?: string;
 }

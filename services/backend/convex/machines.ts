@@ -54,6 +54,8 @@ import {
 import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
 import { consumeTaskStartInNewSession } from '../src/domain/usecase/task/consume-task-start-in-new-session';
 import { onAgentExited } from '../src/events/agent/on-agent-exited';
+import { authorizeAgentStart as authorizeAgentStartUseCase } from '../src/domain/usecase/agent/authorize-agent-start';
+import { registerSpawnedAgentIfAuthorized } from '../src/domain/usecase/agent/register-spawned-agent';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -1250,6 +1252,7 @@ export const updateSpawnedAgent = mutation({
     model: v.optional(v.string()), // Save model alongside PID for config persistence
     reason: v.optional(v.string()),
     harnessSessionId: v.optional(v.string()),
+    lifecycleRevision: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const auth = await getSession(ctx, args.sessionId);
@@ -1258,6 +1261,7 @@ export const updateSpawnedAgent = mutation({
     }
     await getOwnedMachine(ctx, args.machineId, auth.userId);
 
+    if (args.pid !== undefined && args.lifecycleRevision === undefined) return { success: true, accepted: false, reason: 'stale_revision' as const };
     const spawnChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!spawnChatroom?.teamId) {
       throw new Error('Chatroom has no teamId — cannot look up agent config');
@@ -1280,15 +1284,19 @@ export const updateSpawnedAgent = mutation({
       throw new Error('Agent config not found');
     }
 
-    const now = Date.now();
+    if (args.pid === undefined) {
+      await patchTeamAgentConfig(ctx, config._id, { spawnedAgentPid: undefined, spawnedAt: undefined });
+      return { success: true, accepted: true };
+    }
+    return { success: true, ...(await registerSpawnedAgentIfAuthorized(ctx, { chatroomId: args.chatroomId, role: args.role, machineId: args.machineId, pid: args.pid, lifecycleRevision: args.lifecycleRevision!, model: args.model, harnessSessionId: args.harnessSessionId, reason: args.reason })) };
+  },
+});
 
-    await patchTeamAgentConfig(ctx, config._id, {
-      spawnedAgentPid: args.pid,
-      spawnedAt: args.pid ? now : undefined,
-      ...(args.model !== undefined ? { model: args.model } : {}),
-    });
-
-    return { success: true };
+export const authorizeAgentStart = mutation({
+  args: { ...SessionIdArg, machineId: v.string(), chatroomId: v.id('chatroom_rooms'), role: v.string(), lifecycleRevision: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    await requireMachineOwner(ctx, args.sessionId, args.machineId);
+    return authorizeAgentStartUseCase(ctx, args);
   },
 });
 

@@ -16,6 +16,7 @@ import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
 import { releaseTasksOnAgentExit } from '../task/release-tasks-on-agent-exit';
+import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 
 export async function requestAgentRestart(
   ctx: MutationCtx,
@@ -111,6 +112,8 @@ async function persistRestartAndEmit(
       },
     });
   }
+  const lifecycleConfig = chatroom?.teamId ? await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', buildTeamRoleKey(input.chatroomId, chatroom.teamId!, input.role))).first() : null;
+  const lifecycleRevision = lifecycleConfig ? await advanceAgentLifecycleRevision(ctx, lifecycleConfig._id) : 0;
   await enqueueMachineCommand(ctx, {
     machineId: resolved.machineId,
     now,
@@ -123,6 +126,7 @@ async function persistRestartAndEmit(
       workingDir: resolved.workingDir,
       correlationId,
       wantResume: resolved.wantResume,
+      lifecycleRevision,
     },
   });
   await transitionAgentStatus(ctx, input.chatroomId, input.role, 'agent.restart', 'running');

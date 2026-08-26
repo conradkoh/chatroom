@@ -157,6 +157,7 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     presenceKey,
     revisionKey,
     signalUpdatedAt,
+    configLifecycleRevision: config.lifecycleRevision ?? 0,
   };
 }
 

@@ -36,6 +36,7 @@ export const machineCommandPayloadValidator = v.union(
     workingDir: v.string(),
     reason: v.string(),
     wantResume: v.optional(v.boolean()),
+    lifecycleRevision: v.optional(v.number()),
   }),
   v.object({
     type: v.literal('agent.restart'),
@@ -46,6 +47,7 @@ export const machineCommandPayloadValidator = v.union(
     workingDir: v.string(),
     correlationId: v.string(),
     wantResume: v.optional(v.boolean()),
+    lifecycleRevision: v.optional(v.number()),
   }),
   v.object({
     type: v.literal('agent.requestStop'),

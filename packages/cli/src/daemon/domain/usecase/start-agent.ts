@@ -10,6 +10,7 @@ export interface StartAgentInput {
   reason: string;
   deadline: number;
   wantResume?: boolean;
+  lifecycleRevision?: number;
 }
 
 export interface EnsureRunningResult {
@@ -26,6 +27,7 @@ export interface AgentProcessManagerPort {
     workingDir: string;
     reason: string;
     wantResume: boolean;
+    lifecycleRevision?: number;
   }): Promise<EnsureRunningResult>;
 }
 
@@ -66,6 +68,7 @@ export async function startAgent(deps: StartAgentDeps, input: StartAgentInput): 
     workingDir: input.workingDir,
     reason: input.reason,
     wantResume: input.wantResume ?? true,
+    lifecycleRevision: input.lifecycleRevision,
   });
   if (!result.success) {
     log(`[daemon] Agent start rejected for role=${input.role}: ${result.error ?? 'unknown'}`);

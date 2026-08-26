@@ -35,6 +35,7 @@ export interface AgentRequestStartCommandEvent extends CommandEventBase {
   workingDir: string;
   reason: string;
   wantResume?: boolean;
+  lifecycleRevision?: number;
 }
 
 export interface AgentRequestRestartCommandEvent extends CommandEventBase {
@@ -42,6 +43,7 @@ export interface AgentRequestRestartCommandEvent extends CommandEventBase {
   chatroomId: string;
   role: string;
   reason: string;
+  lifecycleRevision?: number;
 }
 
 export interface AgentRequestStopCommandEvent extends CommandEventBase {

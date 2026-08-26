@@ -167,6 +167,7 @@ export interface AgentSlot {
   recentLogLines?: string[];
   /** User's persisted reconnect-on-start preference for this run. */
   wantResume?: boolean;
+  authorizedLifecycleRevision?: number;
   /** Turn-end already emitted startFailed for a terminal provider error. */
   terminalProviderFailureHandled?: boolean;
   /** Provider-unavailable event already emitted for this spawn. */
@@ -344,6 +345,9 @@ export class AgentProcessManager {
     }
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.getOrCreateSlot(key);
+    if (slot.state !== 'idle' && opts.lifecycleRevision !== undefined && slot.authorizedLifecycleRevision !== opts.lifecycleRevision) {
+      return { success: false, error: 'stale_revision' };
+    }
 
     // Stale slot — process died without onExit; reset before kill/spawn
     if (
@@ -2009,6 +2013,7 @@ export class AgentProcessManager {
           emittedAt,
         }),
         emittedAt,
+        lifecycleRevision: opts.lifecycleRevision,
       })
       .catch((err: Error) =>
         console.log(`   ⚠️  Failed to enqueue agent spawned lifecycle fact: ${err.message}`)
@@ -2146,6 +2151,18 @@ export class AgentProcessManager {
     opts: EnsureRunningOpts
   ): Promise<OperationResult> {
     slot.state = 'spawning';
+    const authorization = await this.deps.backend.mutation(api.machines.authorizeAgentStart, {
+      sessionId: this.deps.sessionId,
+      machineId: this.deps.machineId,
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      lifecycleRevision: opts.lifecycleRevision,
+    });
+    if (!authorization.allowed) {
+      this.resetSlotIdle(slot);
+      return { success: false, error: authorization.reason };
+    }
+    slot.authorizedLifecycleRevision = authorization.lifecycleRevision;
     const wantResume = opts.wantResume;
 
     console.log(

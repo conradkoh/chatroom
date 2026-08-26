@@ -25,6 +25,7 @@ import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/a
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { refreshSnapshotDeliveryConfigForChatroomRole } from '../machine/machine-assigned-task-snapshot-sync';
 import { upsertTeamAgentConfigByTeamRoleKey } from '../machine/patch-team-agent-config';
+import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ export interface StartAgentInput {
    * agent.requestStart event for observability.
    */
   wantResume?: boolean;
+  lifecycleRevision?: number;
 }
 
 /** Successful result of a start-agent operation. */
@@ -138,6 +140,12 @@ export async function startAgent(
       },
     });
 
+    const currentConfig = await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey)).first();
+    if (currentConfig) {
+      const lifecycleRevision = await advanceAgentLifecycleRevision(ctx, currentConfig._id);
+      input.lifecycleRevision = lifecycleRevision;
+    }
+
     if (previousMachineId != null && previousMachineId !== machineId) {
     }
   }
@@ -158,6 +166,7 @@ export async function startAgent(
       workingDir,
       reason,
       wantResume: resolvedWantResume,
+      lifecycleRevision: input.lifecycleRevision,
     },
   });
   await transitionAgentStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');

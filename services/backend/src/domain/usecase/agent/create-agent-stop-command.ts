@@ -8,9 +8,11 @@ import { projectAgentStopStateForRole } from './project-agent-operational-status
 import { supersedeInflightAgentStopCommands } from './supersede-inflight-agent-stop-commands';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { AgentStopSelectedConfig } from './select-agent-stop-configs';
+import type { AgentPostStopDesiredState } from '../../entities/agent';
+import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 import { interruptEnhancerJobsOnChatroomStop } from '../enhancer/interrupt-enhancer-jobs-on-chatroom-stop';
 
-export interface CreateAgentStopCommandInput { chatroomId: Id<'chatroom_rooms'>; scope: AgentStopScope; reason: AgentStopReason; requestedBy?: Id<'users'>; selectedConfigs: AgentStopSelectedConfig[]; }
+export interface CreateAgentStopCommandInput { chatroomId: Id<'chatroom_rooms'>; scope: AgentStopScope; reason: AgentStopReason; requestedBy?: Id<'users'>; selectedConfigs: AgentStopSelectedConfig[]; postStopDesiredState?: AgentPostStopDesiredState; }
 export interface CreateAgentStopCommandResult { stopCommandId: Id<'chatroom_agentStopCommands'>; inboxCommandIdsByMachine: Record<string, Id<'chatroom_machineCommandInbox'>>; }
 
 export async function createAgentStopCommand(ctx: MutationCtx, input: CreateAgentStopCommandInput): Promise<CreateAgentStopCommandResult> {
@@ -20,8 +22,8 @@ export async function createAgentStopCommand(ctx: MutationCtx, input: CreateAgen
     await interruptEnhancerJobsOnChatroomStop(ctx, input.chatroomId);
   }
   const now = Date.now();
-  const stopCommandId = await ctx.db.insert('chatroom_agentStopCommands', { chatroomId: input.chatroomId, scope: input.scope, scopeKey, reason: input.reason, requestedBy: input.requestedBy, status: 'pending', deadlineAt: now + AGENT_REQUEST_DEADLINE_MS, createdAt: now });
-  for (const config of input.selectedConfigs) await patchTeamAgentConfig(ctx, config._id, { desiredState: 'stopped' }, { projectScope: 'chatroom' });
+  const stopCommandId = await ctx.db.insert('chatroom_agentStopCommands', { chatroomId: input.chatroomId, scope: input.scope, scopeKey, reason: input.reason, requestedBy: input.requestedBy, status: 'pending', deadlineAt: now + AGENT_REQUEST_DEADLINE_MS, createdAt: now, postStopDesiredState: input.postStopDesiredState ?? 'stopped' });
+  for (const config of input.selectedConfigs) { await advanceAgentLifecycleRevision(ctx, config._id); await patchTeamAgentConfig(ctx, config._id, { desiredState: 'stopped' }, { projectScope: 'chatroom' }); }
   for (const target of input.selectedConfigs) {
     const targetKey = buildAgentStopTargetKey({ machineId: target.machineId!, role: target.role, pid: target.spawnedAgentPid! });
     await ctx.db.insert('chatroom_agentStopTargets', { stopCommandId, chatroomId: input.chatroomId, agentConfigId: target._id, agentHarness: target.agentHarness, machineId: target.machineId!, role: normalizeAgentStopRole(target.role), pid: target.spawnedAgentPid!, targetKey, revisionKey: buildAgentStopRevisionKey({ stopCommandId, targetKey }), status: 'pending' });
