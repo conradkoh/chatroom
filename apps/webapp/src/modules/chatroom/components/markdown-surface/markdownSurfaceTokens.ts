@@ -1,7 +1,11 @@
-export const proseSelectableInlineCodeClassNames = 'prose-code:before:content-none prose-code:after:content-none';
+export const proseSelectableInlineCodeClassNames =
+  'prose-code:before:content-none prose-code:after:content-none';
 export const markdownSurfaceParagraphClassNames = 'my-2';
 export const markdownSurfaceSpacerParagraphClassNames = 'my-2 min-h-[1.5em]';
-export const markdownSurfaceInlineCodeClassNames = 'bg-chatroom-bg-tertiary px-1 text-chatroom-text-primary text-sm break-words whitespace-pre-wrap [overflow-wrap:anywhere] before:content-none after:content-none';
-export const markdownSurfaceFencedCodePreClassNames = 'bg-chatroom-bg-secondary border-2 border-chatroom-border p-4 overflow-x-hidden whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-xs text-chatroom-text-primary font-mono';
+export const markdownSurfaceInlineCodeClassNames =
+  'bg-chatroom-bg-tertiary px-1 text-chatroom-text-primary text-sm break-words whitespace-pre-wrap [overflow-wrap:anywhere] before:content-none after:content-none';
+export const markdownSurfaceFencedCodePreClassNames =
+  'bg-chatroom-bg-secondary border-2 border-chatroom-border p-4 overflow-x-hidden whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-xs text-chatroom-text-primary font-mono';
 export const markdownSurfaceFencedCodeBlockClassNames = 'relative group not-prose mb-3';
-export const markdownSurfaceProseMirrorCodeClassNames = '[&_.ProseMirror_code]:bg-chatroom-bg-tertiary [&_.ProseMirror_code]:px-1 [&_.ProseMirror_code]:text-chatroom-text-primary [&_.ProseMirror_code]:text-sm [&_.ProseMirror_code]:break-words [&_.ProseMirror_code]:whitespace-pre-wrap [&_.ProseMirror_pre]:bg-chatroom-bg-secondary [&_.ProseMirror_pre]:border-2 [&_.ProseMirror_pre]:border-chatroom-border [&_.ProseMirror_pre]:p-4 [&_.ProseMirror_pre]:my-3 [&_.ProseMirror_pre]:overflow-x-hidden [&_.ProseMirror_pre]:whitespace-pre-wrap [&_.ProseMirror_pre]:break-words [&_.ProseMirror_pre]:text-xs [&_.ProseMirror_pre]:rounded-none';
+export const markdownSurfaceProseMirrorCodeClassNames =
+  '[&_.ProseMirror_code]:bg-chatroom-bg-tertiary [&_.ProseMirror_code]:px-1 [&_.ProseMirror_code]:text-chatroom-text-primary [&_.ProseMirror_code]:text-sm [&_.ProseMirror_code]:break-words [&_.ProseMirror_code]:whitespace-pre-wrap [&_.ProseMirror_pre]:bg-chatroom-bg-secondary [&_.ProseMirror_pre]:border-2 [&_.ProseMirror_pre]:border-chatroom-border [&_.ProseMirror_pre]:p-4 [&_.ProseMirror_pre]:my-3 [&_.ProseMirror_pre]:overflow-x-hidden [&_.ProseMirror_pre]:whitespace-pre-wrap [&_.ProseMirror_pre]:break-words [&_.ProseMirror_pre]:text-xs [&_.ProseMirror_pre]:rounded-none';

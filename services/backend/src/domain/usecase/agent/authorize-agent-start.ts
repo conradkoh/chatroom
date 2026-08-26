@@ -47,10 +47,11 @@ export async function authorizeAgentStart(
 ): Promise<AuthorizeAgentStartResult> {
   const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
   if (!room?.teamId) return { allowed: false, reason: 'not_configured' };
+  const teamId = room.teamId;
   const config = await ctx.db
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) =>
-      q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, room.teamId!, args.role))
+      q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, teamId, args.role))
     )
     .first();
   if (!config || config.machineId !== args.machineId)

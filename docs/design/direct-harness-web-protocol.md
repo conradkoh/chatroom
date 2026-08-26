@@ -26,6 +26,7 @@ createSession(workspaceId, harnessName, config, firstMessage) → { sessionId }
 - No pending prompt row is created — the daemon picks up the new session via its subscription.
 
 **What the daemon does** (asynchronously, after the frontend gets back `sessionId`):
+
 1. Detects the new session via its session subscription.
 2. Boots the harness if not already running.
 3. Opens an SDK session.
@@ -47,6 +48,7 @@ sendMessage(sessionId, text) → { messageSeq }
 - The daemon, on its next poll, sees `seq > lastProcessedSeq` and processes it.
 
 **What the daemon does:**
+
 1. Detects new messages for the session via its subscription.
 2. If it doesn't have an active SDK session for this session, revives it (resumes via `session.get()`).
 3. Sends the new message(s) as prompts to the SDK.

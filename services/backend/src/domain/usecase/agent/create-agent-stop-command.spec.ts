@@ -78,7 +78,7 @@ describe('createAgentStopCommand', () => {
     expect(command?.status).toBe('superseded');
   });
   test('filters role targets', async () => {
-    const { chatroomId, machineId } = await setup('stop-command-filter');
+    const { chatroomId, machineId: _machineId } = await setup('stop-command-filter');
     const result = await t.run((ctx) =>
       createAgentStopCommand(ctx, {
         chatroomId,
@@ -96,7 +96,7 @@ describe('createAgentStopCommand', () => {
     expect(targets).toHaveLength(0);
   });
   test('completes zero-target command', async () => {
-    const { chatroomId, machineId } = await setup('stop-command-empty');
+    const { chatroomId, machineId: _machineId } = await setup('stop-command-empty');
     const result = await t.run((ctx) =>
       createAgentStopCommand(ctx, {
         chatroomId,

@@ -1,9 +1,10 @@
 import type { AgentStopScope } from '@workspace/shared/domain/agent-stop-command';
 
 import { api } from '../../api.js';
+import { abortEnhancerSpawnsForChatroom } from './enhancer/enhancer-spawn-registry.js';
 import type { AgentStopReason } from '../domain/entities/agent-stop.js';
 import type { AgentProcessManager } from '../infrastructure/agent-process-manager/agent-process-manager.js';
-import { abortEnhancerSpawnsForChatroom } from './enhancer/enhancer-spawn-registry.js';
+import type { runExactTargetsStop as runExactTargetsStopType } from '../infrastructure/agent-process-manager/execute-stop-targets-adapter.js';
 
 export interface ScopedStopExecutionSummary {
   stoppedCount: number;
@@ -30,12 +31,12 @@ export async function executeScopedStopForCommand(args: {
   const finalize = await import('./finalize-scoped-stop-execution.js');
   const begun = (await args.backend.mutation(api.agentStops.beginMachineExecution, {
     sessionId: args.sessionId,
-    stopCommandId: args.stopCommandId as any,
+    stopCommandId: args.stopCommandId,
     machineId: args.machineId,
-    inboxCommandId: args.inboxCommandId as any,
-  })) as { shouldExecute: boolean; targets: any[] };
+    inboxCommandId: args.inboxCommandId,
+  })) as { shouldExecute: boolean; targets: { targetKey: string; role: string; pid: number }[] };
   if (!begun.shouldExecute) return { stoppedCount: 0, failedCount: 0 };
-  let result: any = { targets: [], failures: [] };
+  let result: Awaited<ReturnType<typeof runExactTargetsStopType>> = { targets: [], failures: [] };
   let executionError: unknown;
   try {
     result = await runExactTargetsStop({
@@ -43,7 +44,7 @@ export async function executeScopedStopForCommand(args: {
       confirmedDeps: args.apm.getConfirmedStopAdapterDeps(),
       stopCommandId: args.stopCommandId,
       chatroomId: args.chatroomId,
-      targets: begun.targets,
+      targets: begun.targets as Parameters<typeof runExactTargetsStopType>[0]['targets'],
       reason: args.reason,
     });
   } catch (error) {

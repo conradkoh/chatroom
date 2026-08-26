@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  Z_CONFIRMATION,
-  Z_FLOATING,
-  Z_LAYOUT_CHROME,
-  Z_MODAL,
-  Z_PANEL,
-} from './overlayLayers';
+import { Z_CONFIRMATION, Z_FLOATING, Z_LAYOUT_CHROME, Z_MODAL, Z_PANEL } from './overlayLayers';
 import { JUMP_TO_NEW_MESSAGES_Z_INDEX } from '../timeline/timelineVirtualizerConfig';
 
 describe('overlayLayers', () => {

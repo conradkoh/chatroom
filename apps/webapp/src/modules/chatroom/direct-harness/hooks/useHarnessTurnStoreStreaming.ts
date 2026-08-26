@@ -2,7 +2,7 @@
 
 import type { HarnessTurnView } from '@workspace/backend/src/domain/direct-harness/types';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 
 import type {
   HarnessStreamingChunk,
@@ -10,6 +10,26 @@ import type {
   StreamingOverlay,
   StreamingTurnCandidate,
 } from '../stores/harnessTurnStoreTypes';
+
+const cursorValues = new Map<string, number>();
+const cursorListeners = new Map<string, Set<() => void>>();
+
+function subscribeToCursor(key: string, listener: () => void): () => void {
+  const listeners = cursorListeners.get(key) ?? new Set<() => void>();
+  listeners.add(listener);
+  cursorListeners.set(key, listeners);
+  return () => listeners.delete(listener);
+}
+
+function getCursor(key: string): number {
+  return cursorValues.get(key) ?? 0;
+}
+
+function setCursor(key: string, value: number): void {
+  if (value <= getCursor(key)) return;
+  cursorValues.set(key, value);
+  cursorListeners.get(key)?.forEach((listener) => listener());
+}
 
 function accumulateStreamingOverlay(params: {
   streamingTurn: StreamingTurnCandidate | undefined;
@@ -82,12 +102,16 @@ export function useHarnessTurnStoreStreaming<TScopeId extends string>(params: {
     (t) => t.role === 'assistant' && t.status === 'streaming' && t.messageId
   );
 
-  const [lastCreationTime, setLastCreationTime] = useState(0);
   const overlayTextRef = useRef('');
   const overlayReasoningRef = useRef('');
   const mergedIdsRef = useRef<Set<string>>(new Set());
   const lastMessageIdRef = useRef<string | null>(null);
-  const cursorMessageIdRef = useRef<string | null>(null);
+  const cursorKey = `${scopeId}:${streamingTurn?.messageId ?? ''}`;
+  const lastCreationTime = useSyncExternalStore(
+    (listener) => subscribeToCursor(cursorKey, listener),
+    () => getCursor(cursorKey),
+    () => 0
+  );
 
   const chunksData = useSessionQuery(
     queries.getStreamingTurnChunks,
@@ -99,6 +123,12 @@ export function useHarnessTurnStoreStreaming<TScopeId extends string>(params: {
         } as Record<string, unknown>)
       : 'skip'
   ) as HarnessStreamingChunk[] | undefined;
+
+  useEffect(() => {
+    if (!chunksData?.length) return;
+    const maxTime = chunksData.reduce((max, chunk) => Math.max(max, chunk._creationTime), 0);
+    setCursor(cursorKey, maxTime);
+  }, [chunksData, cursorKey]);
 
   const streamingOverlay = useMemo(
     () =>
@@ -112,26 +142,6 @@ export function useHarnessTurnStoreStreaming<TScopeId extends string>(params: {
       }),
     [streamingTurn, chunksData, overlayTextRef, overlayReasoningRef, mergedIdsRef, lastMessageIdRef]
   );
-
-  // Reset lastCreationTime when scopeId changes (new session/run)
-  const prevScopeRef = useRef(scopeId);
-  useEffect(() => {
-    if (prevScopeRef.current !== scopeId) {
-      prevScopeRef.current = scopeId;
-      setLastCreationTime(0);
-    }
-  }, [scopeId]);
-
-  useEffect(() => {
-    const currentMsgId = streamingTurn?.messageId ?? null;
-    if (cursorMessageIdRef.current !== currentMsgId) {
-      cursorMessageIdRef.current = currentMsgId;
-      setLastCreationTime(0);
-    }
-    if (!chunksData || chunksData.length === 0) return;
-    const maxTime = chunksData.reduce((max, c) => Math.max(max, c._creationTime), 0);
-    setLastCreationTime((prev) => (maxTime > prev ? maxTime : prev));
-  }, [chunksData, streamingTurn?.messageId]);
 
   return streamingOverlay;
 }

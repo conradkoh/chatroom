@@ -34,13 +34,13 @@ export const purgeTerminalStopHistory = internalMutation({
           .query('chatroom_agentStopTargets')
           .withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', row._id))
           .collect())
-          await ctx.db.delete("chatroom_agentStopTargets", t._id);
+          await ctx.db.delete('chatroom_agentStopTargets', t._id);
         for (const e of await ctx.db
           .query('chatroom_agentStopMachineExecutions')
           .withIndex('by_stopCommandId', (q) => q.eq('stopCommandId', row._id))
           .collect())
-          await ctx.db.delete("chatroom_agentStopMachineExecutions", e._id);
-        await ctx.db.delete("chatroom_agentStopCommands", row._id);
+          await ctx.db.delete('chatroom_agentStopMachineExecutions', e._id);
+        await ctx.db.delete('chatroom_agentStopCommands', row._id);
       }
     }
   },

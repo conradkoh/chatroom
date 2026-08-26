@@ -152,12 +152,12 @@ See also [agent operational status tech debt tracker](../development/agent-opera
 
 ## Cleanup plan
 
-| Stage                      | Cleanup                                                                                                                                                                                                                                      |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stage                      | Cleanup                                                                                                                                                                                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | After Phase 3 reader flips | Remove `IN_FLIGHT_START_STATUSES` derivation from `get-agent-view-status.ts`; remove `runningConfigs` filtering from `list-chatroom-agent-overview.ts`; remove inline `isAgentAlive(config.spawnedAgentPid)` derivation from `participants.ts`. |
-| After all readers migrate  | Keep `is-agent-alive.ts` only for daemon-local use and remove it from Convex query paths.                                                                                                                                                    |
-| After outbox stabilization | Remove direct mutations from `agent-process-manager`; PR #1475 changes are superseded.                                                                                                                                                       |
-| Final archive              | Update this tracker to `status: archived` after operational and projection parity is verified.                                                                                                                                               |
+| After all readers migrate  | Keep `is-agent-alive.ts` only for daemon-local use and remove it from Convex query paths.                                                                                                                                                       |
+| After outbox stabilization | Remove direct mutations from `agent-process-manager`; PR #1475 changes are superseded.                                                                                                                                                          |
+| Final archive              | Update this tracker to `status: archived` after operational and projection parity is verified.                                                                                                                                                  |
 
 ## Open decisions and risks
 

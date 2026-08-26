@@ -554,7 +554,11 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
         resolvedConvexUrl: 'http://test:3210',
       });
-      result.onLogLine?.((entry) => { logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message); });
+      result.onLogLine?.((entry) => {
+        logMessages.push(
+          typeof entry === 'string' ? entry : (entry as { message: string }).message
+        );
+      });
 
       child.stdout.push(
         JSON.stringify({
@@ -570,7 +574,6 @@ describe('PiAgentService', () => {
       expect(bashLine).toBeDefined();
       expect(bashLine).toContain('git status');
       expect(bashLine).toContain('[pi:builder');
-
     });
 
     it('logs shell tool calls with "running:" format', async () => {
@@ -588,7 +591,9 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'builder' },
         resolvedConvexUrl: 'http://test:3210',
       });
-      result.onLogLine?.((entry) => logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message));
+      result.onLogLine?.((entry) =>
+        logMessages.push(typeof entry === 'string' ? entry : (entry as { message: string }).message)
+      );
 
       child.stdout.push(
         JSON.stringify({
@@ -603,7 +608,6 @@ describe('PiAgentService', () => {
       const bashLine = logMessages.find((line) => line.includes('tool: bash] running:'));
       expect(bashLine).toBeDefined();
       expect(bashLine).toContain('npm run build');
-
     });
   });
 });

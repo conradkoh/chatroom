@@ -6,12 +6,13 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import { Clock, Loader2, Plus } from 'lucide-react';
 import React, { useState, useCallback, memo } from 'react';
 
+import { ScheduledPromptCard } from '../features/scheduled-prompts/components/ScheduledPromptCard';
 import {
   formatTimezoneLabel,
   localDailyTimeToUtc,
   utcDailyTimeToLocal,
 } from '../features/scheduled-prompts/utils/scheduledPromptTimezone';
-import { ScheduledPromptCard } from '../features/scheduled-prompts/components/ScheduledPromptCard';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 

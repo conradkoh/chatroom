@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 
-import { agentHarnessValidator , agentStopReasonValidator } from './agent';
+import { agentHarnessValidator, agentStopReasonValidator } from './agent';
 import { agentStopScopeValidator } from './agent-stop-command';
 import {
   AGENT_REQUEST_DEADLINE_MS,

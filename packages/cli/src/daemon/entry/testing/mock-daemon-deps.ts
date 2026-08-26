@@ -16,6 +16,7 @@
 
 import { vi } from 'vitest';
 
+import type { AgentProcessManager } from '../../infrastructure/agent-process-manager/agent-process-manager.js';
 import type { DaemonDeps } from '../daemon-deps.js';
 
 /**
@@ -61,7 +62,7 @@ export function createMockDaemonDeps(overrides?: Partial<DaemonDeps>): DaemonDep
       listActive: vi.fn().mockReturnValue([]),
       whenTurnEndsIdle: vi.fn().mockResolvedValue(undefined),
       resumeTurnForSlot: vi.fn().mockResolvedValue(undefined),
-    } as any,
+    } as unknown as AgentProcessManager,
   };
 
   return {

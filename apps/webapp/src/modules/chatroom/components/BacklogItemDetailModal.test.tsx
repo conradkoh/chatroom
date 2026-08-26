@@ -200,7 +200,13 @@ describe('BacklogItemDetailModal editor initialization', () => {
   });
 
   it('does not show Edit in Actions menu for pending_user_review status', () => {
-    render(<BacklogItemDetailModal isOpen item={makeBacklogItem('pending_user_review')} onClose={vi.fn()} />);
+    render(
+      <BacklogItemDetailModal
+        isOpen
+        item={makeBacklogItem('pending_user_review')}
+        onClose={vi.fn()}
+      />
+    );
     fireEvent.click(screen.getByText('Actions'));
     expect(screen.queryByText('Edit')).not.toBeInTheDocument();
   });
@@ -253,14 +259,9 @@ describe('BacklogItemDetailModal preview spacing', () => {
   });
 
   it('does not render spacer paragraphs for legacy whitespace-only blank lines', () => {
-    const legacyMarkdown =
-      'This is some content!\n\n   \n\n```txt\nasdasd\nasdsad\n```\n\n   \n';
+    const legacyMarkdown = 'This is some content!\n\n   \n\n```txt\nasdasd\nasdsad\n```\n\n   \n';
     render(
-      <BacklogItemDetailModal
-        isOpen
-        item={makeItemWithContent(legacyMarkdown)}
-        onClose={vi.fn()}
-      />
+      <BacklogItemDetailModal isOpen item={makeItemWithContent(legacyMarkdown)} onClose={vi.fn()} />
     );
 
     const viewBody = screen.getByTestId('backlog-detail-view-body');

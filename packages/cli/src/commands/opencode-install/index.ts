@@ -67,8 +67,14 @@ async function createDefaultDeps(): Promise<OpenCodeInstallDeps> {
   const fs = await import('fs/promises');
   return {
     backend: {
-      mutation: (endpoint: any, args: any) => client.mutation(endpoint, args),
-      query: (endpoint: any, args: any) => client.query(endpoint, args),
+      mutation: (
+        endpoint: Parameters<typeof client.mutation>[0],
+        args: Parameters<typeof client.mutation>[1]
+      ) => client.mutation(endpoint, args),
+      query: (
+        endpoint: Parameters<typeof client.query>[0],
+        args: Parameters<typeof client.query>[1]
+      ) => client.query(endpoint, args),
     },
     session: {
       getSessionId,

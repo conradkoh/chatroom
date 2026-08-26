@@ -5,6 +5,7 @@ build
 .convex
 .turbo
 .git
+.chatroom
 coverage
 .pnpm-debug.log
 # Convex codegen (glob + explicit backend path)

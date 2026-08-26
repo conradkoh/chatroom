@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import type { Message } from '../types/message';
-
 import { mapMessageToTimelineEvent } from './mapMessageToTimelineEvent';
+import type { Message } from '../types/message';
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
   return {

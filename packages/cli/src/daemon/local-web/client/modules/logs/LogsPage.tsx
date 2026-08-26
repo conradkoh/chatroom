@@ -14,7 +14,7 @@ export function LogsPage() {
   const { filters, setFilters } = useLogFiltersFromUrl();
   const [selectedLine, setSelectedLine] = useState<LogLine | null>(null);
   const chatroomsQuery = useChatrooms();
-  const chatrooms = chatroomsQuery.data ?? [];
+  const chatrooms = useMemo(() => chatroomsQuery.data ?? [], [chatroomsQuery.data]);
   const chatroomNameById = useMemo(
     () => new Map(chatrooms.map((c) => [c.id, c.displayName])),
     [chatrooms]
@@ -43,11 +43,11 @@ export function LogsPage() {
       <div className="flex min-h-0 flex-1 gap-0">
         <div className="flex min-w-0 flex-1 flex-col">
           <LogViewer
+            key={filters.chatroomId ?? filters.timeRange}
             lines={lines}
             isLoading={isLoading}
             error={error}
             hasChatroom={Boolean(filters.chatroomId)}
-            resetKey={filters.chatroomId ?? filters.timeRange}
             selectedLine={selectedLine}
             onSelectLine={setSelectedLine}
             getChatroomName={getChatroomName}

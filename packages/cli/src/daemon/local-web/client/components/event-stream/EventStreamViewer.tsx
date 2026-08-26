@@ -15,7 +15,6 @@ export function EventStreamViewer({
   hasChatroom,
   selectedEntry,
   onSelectEntry,
-  resetKey,
 }: {
   entries: EventStreamEntry[];
   isLoading: boolean;
@@ -23,11 +22,9 @@ export function EventStreamViewer({
   hasChatroom: boolean;
   selectedEntry?: EventStreamEntry | null;
   onSelectEntry?: (entry: EventStreamEntry) => void;
-  resetKey?: string;
 }) {
   const { scrollRef, isPinned, hasUnseenBelow, scrollToEnd, handleScroll } = useStickToBottomScroll(
-    entries.length,
-    resetKey
+    entries.length
   );
   useEffect(() => {
     if (isPinned && !isLoading && !error && entries.length > 0) scrollToEnd('smooth');

@@ -2,13 +2,12 @@
 
 import { v } from 'convex/values';
 
-import { toLiteralValidators } from '../src/domain/entities/_shared/v-literals-of';
-
 import { query } from './_generated/server';
 import { getDesignPolicy } from '../prompts/policies/design';
 import { getPerformancePolicy } from '../prompts/policies/performance';
 import { getSecurityPolicy } from '../prompts/policies/security';
 import { getReviewGuidelines } from '../prompts/review-guidelines';
+import { toLiteralValidators } from '../src/domain/entities/_shared/v-literals-of';
 
 /**
  * Available guideline types
@@ -17,9 +16,9 @@ export const GUIDELINE_TYPES = ['coding', 'security', 'design', 'performance', '
 export type GuidelineType = (typeof GUIDELINE_TYPES)[number];
 
 /** Enum-like object: GuidelineTypeEnum.coding === 'coding', etc. */
-export const GuidelineTypeEnum = Object.fromEntries(
-  GUIDELINE_TYPES.map((g) => [g, g])
-) as { readonly [K in GuidelineType]: K };
+export const GuidelineTypeEnum = Object.fromEntries(GUIDELINE_TYPES.map((g) => [g, g])) as {
+  readonly [K in GuidelineType]: K;
+};
 
 /** Convex validator for guideline types. */
 export const guidelineTypeValidator = v.union(...toLiteralValidators(GUIDELINE_TYPES));

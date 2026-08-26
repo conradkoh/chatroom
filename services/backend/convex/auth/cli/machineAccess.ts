@@ -15,8 +15,8 @@
 
 import { ConvexError } from 'convex/values';
 
-import type { MutationCtx, QueryCtx } from '../../_generated/server';
 import { checkAccess } from '../../../modules/auth/accessCheck';
+import type { MutationCtx, QueryCtx } from '../../_generated/server';
 import { type SessionAuth, getSession, requireSession } from '../session';
 
 /** Auth result for machine-scoped operations. */

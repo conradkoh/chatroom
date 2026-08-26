@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import { featureFlags } from '../../config/featureFlags';
 import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { createTestSession } from '../helpers/integration';
 import { setupWorkspaceForSession } from './direct-harness/fixtures';
@@ -21,8 +20,11 @@ afterEach(() => {
 
 describe('daemon directHarness machine auth', () => {
   test('listPendingCommands rejects caller without owner access to machineId', async () => {
-    const { sessionId, machineId, workspaceId } =
-      await setupWorkspaceForSession('dh-auth-list');
+    const {
+      sessionId: _sessionId,
+      machineId,
+      workspaceId,
+    } = await setupWorkspaceForSession('dh-auth-list');
 
     await t.run(async (ctx) => {
       await ctx.db.insert('chatroom_directHarnessCommands', {

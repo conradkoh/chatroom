@@ -1,18 +1,18 @@
-import { cn } from '@/lib/utils';
-
 import type { HarnessSessionStatus } from '@workspace/backend/src/domain/direct-harness/types';
+
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type SessionStatus = HarnessSessionStatus;
 
 const STATUS_STYLES: Record<SessionStatus, { color: string; label: string }> = {
-  pending:  { color: 'bg-amber-500 dark:bg-amber-400', label: 'Pending' },
+  pending: { color: 'bg-amber-500 dark:bg-amber-400', label: 'Pending' },
   spawning: { color: 'bg-amber-500 dark:bg-amber-400 animate-pulse', label: 'Spawning' },
-  active:   { color: 'bg-emerald-500 dark:bg-emerald-400', label: 'Active' },
-  idle:     { color: 'bg-amber-400 dark:bg-amber-300 animate-pulse', label: 'Reconnecting' },
-  closed:   { color: 'bg-slate-400 dark:bg-slate-600', label: 'Closed' },
-  failed:   { color: 'bg-red-500 dark:bg-red-400', label: 'Failed' },
+  active: { color: 'bg-emerald-500 dark:bg-emerald-400', label: 'Active' },
+  idle: { color: 'bg-amber-400 dark:bg-amber-300 animate-pulse', label: 'Reconnecting' },
+  closed: { color: 'bg-slate-400 dark:bg-slate-600', label: 'Closed' },
+  failed: { color: 'bg-red-500 dark:bg-red-400', label: 'Failed' },
 };
 
 // ─── StatusDot ────────────────────────────────────────────────────────────────

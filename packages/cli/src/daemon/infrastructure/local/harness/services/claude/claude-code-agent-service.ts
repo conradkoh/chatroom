@@ -84,7 +84,10 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
 
     if (model) {
       const variant = decodeClaudeVariant(model);
-      if (variant) { args.push('--model', variant.model); if (variant.effort) args.push('--effort', variant.effort); }
+      if (variant) {
+        args.push('--model', variant.model);
+        if (variant.effort) args.push('--effort', variant.effort);
+      }
     }
 
     if (systemPrompt) {
@@ -165,12 +168,20 @@ export class ClaudeCodeAgentService extends BaseCLIAgentService {
         entry.lastOutputAt = Date.now();
         const bashCmd = extractBashCommandFromToolInput(name, input);
         if (bashCmd !== null) {
-          emitFormatted(formatAgentLogLine(logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd)));
+          emitFormatted(
+            formatAgentLogLine(logPrefix, BASH_TOOL_KIND, formatBashRunningPayload(bashCmd))
+          );
           for (const cb of outputCallbacks) cb();
           return;
         }
         const inputStr = JSON.stringify(input);
-        emitFormatted(formatAgentLogLine(logPrefix, 'tool', `${name}(${inputStr.slice(0, 100)}${inputStr.length > 100 ? '...' : ''})`));
+        emitFormatted(
+          formatAgentLogLine(
+            logPrefix,
+            'tool',
+            `${name}(${inputStr.slice(0, 100)}${inputStr.length > 100 ? '...' : ''})`
+          )
+        );
         for (const cb of outputCallbacks) cb();
       });
 

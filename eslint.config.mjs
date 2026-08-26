@@ -40,6 +40,7 @@ export default [
       '**/build/**',
       '**/.convex/**',
       '**/.git/**',
+      '.chatroom/**',
       // Convex codegen (any package layout, including services/backend/convex/_generated)
       '**/convex/_generated/**',
       'services/backend/convex/_generated/**',

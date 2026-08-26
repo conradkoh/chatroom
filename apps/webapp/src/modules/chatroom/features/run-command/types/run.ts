@@ -4,7 +4,8 @@ import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
 export type RunnableCommand = Doc<'chatroom_runnableCommands'>;
 
 /** Status of a command run. */
-export type CommandRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped' | 'killed';
+export type CommandRunStatus =
+  'pending' | 'running' | 'completed' | 'failed' | 'stopped' | 'killed';
 
 /** A command run, representing a single execution of a command. */
 export interface CommandRun {

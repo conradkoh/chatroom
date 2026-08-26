@@ -1,6 +1,6 @@
+import { transitionTask } from './transition-task';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { transitionTask } from './transition-task';
 
 export interface CompleteActiveTasksOptions {
   skipAutoPromotion?: boolean;

@@ -51,7 +51,7 @@ async function countChunksForMessageId(messageId: string): Promise<number> {
   });
 }
 
-async function countAllChunks(): Promise<number> {
+async function _countAllChunks(): Promise<number> {
   return t.run(async (ctx) => {
     const chunks = await ctx.db.query('chatroom_harnessSessionMessages').collect();
     return chunks.length;

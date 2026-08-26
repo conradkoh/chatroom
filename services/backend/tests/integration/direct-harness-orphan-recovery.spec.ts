@@ -20,7 +20,6 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import { setupWorkspaceForSession, createSession } from './direct-harness/fixtures';
-import { createTestSession } from '../helpers/integration';
 
 // ─── Flag management ──────────────────────────────────────────────────────────
 
@@ -208,7 +207,7 @@ describe('turns.markOrphanTurnsFailed', () => {
       sessionId,
       harnessSessionId: rowId,
     });
-    const t2 = await t.mutation(api.daemon.directHarness.turns.beginAssistantTurn, {
+    const _t2 = await t.mutation(api.daemon.directHarness.turns.beginAssistantTurn, {
       sessionId,
       harnessSessionId: rowId,
     });
@@ -277,7 +276,7 @@ describe('turns.getMachineHarnessSessions', () => {
     // We need to check at least we get results for the workspace
     expect(Array.isArray(sessions)).toBe(true);
     // Each result should reference the correct harnessSessionId
-    const found = sessions.find((s) => s.harnessSessionId === harnessSessionId);
+    const _found = sessions.find((s) => s.harnessSessionId === harnessSessionId);
     // The session may or may not appear depending on its status ('pending' is not returned)
     // Let's patch the session to 'idle' and verify it shows
     await t.run(async (ctx) => {

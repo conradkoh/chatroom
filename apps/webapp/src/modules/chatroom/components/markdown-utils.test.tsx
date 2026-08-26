@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import Markdown from 'react-markdown';
 import { describe, expect, it } from 'vitest';
 
+import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import {
   backlogProseClassNames,
   detailModalRichTextEditorProseClassNames,
@@ -10,7 +11,6 @@ import {
   detailModalMarkdownProseClassNames,
   messageFeedProseClassNames,
 } from './markdown-utils';
-import { chatroomRemarkPlugins } from './chatroomRemarkPlugins';
 import { WorkspaceFileLinkProvider } from '../context/WorkspaceFileLinkContext';
 import { MarkdownRenderer } from '../workspace/file-renderers/MarkdownRenderer';
 
@@ -79,8 +79,7 @@ describe('backlog modal markdown prose SSOT', () => {
 
 describe('modal markdown spacing', () => {
   it('renders nbsp spacer paragraphs around code blocks in modal preview', () => {
-    const markdown =
-      'This is some content!\n\n&nbsp;\n\n```txt\nasdasd\nasdsad\n```\n\n&nbsp;\n';
+    const markdown = 'This is some content!\n\n&nbsp;\n\n```txt\nasdasd\nasdsad\n```\n\n&nbsp;\n';
     const { container } = render(
       <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
         {markdown}

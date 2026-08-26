@@ -1,5 +1,5 @@
-import type { Doc, Id } from '../../_generated/dataModel';
 import { validateAgenticQueryCompleteResult } from '../../../prompts/agentic-query/validate-complete-result';
+import type { Doc, Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
 import {
   applyAgenticQueryComplete,

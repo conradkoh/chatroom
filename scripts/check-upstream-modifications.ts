@@ -100,7 +100,7 @@ function getStagedFileChanges(): StagedChange[] {
   const parts = output.split('\0').filter(Boolean);
   const changes: StagedChange[] = [];
 
-  for (let index = 0; index < parts.length; ) {
+  for (let index = 0; index < parts.length;) {
     const status = parts[index][0];
     const parsed = parseStagedChange(parts, index + 1, status);
     changes.push(parsed.change);

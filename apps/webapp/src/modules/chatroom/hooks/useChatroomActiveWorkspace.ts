@@ -15,8 +15,8 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useMemo } from 'react';
 
-import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 import type { Workspace } from '../types/workspace';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ export function useChatroomActiveWorkspace(
   // reference each render.
   return useMemo(
     () => ({ activeWorkspace, workspaces }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeWorkspace is already memoised; workspaces is referentially stable from Convex
+
     [activeWorkspace, workspaces]
   );
 }

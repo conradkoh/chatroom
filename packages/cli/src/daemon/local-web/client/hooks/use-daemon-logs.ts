@@ -34,14 +34,8 @@ function useDaemonLogsImpl(filters: LogFilters) {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!chatroomId) {
-      setLines([]);
-      setDimensions({ roles: [], harnesses: [] });
-      setLoading(false);
-      setError(null);
       return;
     }
-    setLoading(true);
-    setError(null);
     let active = true;
     let unsub: (() => void) | undefined;
     void (async () => {
@@ -74,8 +68,13 @@ function useDaemonLogsImpl(filters: LogFilters) {
       active = false;
       unsub?.();
     };
-  }, [chatroomId, filters.role, filters.harness, filters.timeRange, filters.fromMs, filters.toMs]);
-  return { lines, dimensions, isLoading, error };
+  }, [chatroomId, filters]);
+  return {
+    lines: chatroomId ? lines : [],
+    dimensions: chatroomId ? dimensions : { roles: [], harnesses: [] },
+    isLoading: chatroomId ? isLoading : false,
+    error: chatroomId ? error : null,
+  };
 }
 export function useDaemonLogs(filters: LogFilters = {}) {
   return useDaemonLogsImpl(filters);

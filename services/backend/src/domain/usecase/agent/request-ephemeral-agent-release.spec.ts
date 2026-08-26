@@ -25,7 +25,7 @@ describe('requestEphemeralAgentRelease', () => {
       availableHarnesses: ['opencode'],
     });
     const ids = await t.run(async (ctx) => {
-      const room = await ctx.db.get(chatroomId);
+      const _room = await ctx.db.get(chatroomId);
       const configId = await ctx.db.insert('chatroom_teamAgentConfigs', {
         teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
         chatroomId,

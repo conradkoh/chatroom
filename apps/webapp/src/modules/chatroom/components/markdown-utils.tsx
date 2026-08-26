@@ -4,11 +4,6 @@ import { Check, Copy } from 'lucide-react';
 import React, { createContext, useContext, useState, useCallback, lazy, Suspense } from 'react';
 
 import { useWorkspaceFileLink } from '../context/WorkspaceFileLinkContext';
-import { fenceLangToSyntheticPath } from '../workspace/file-renderers/language-detection';
-import { SyntaxHighlighter } from '../workspace/file-renderers/SyntaxHighlighter';
-import { parseFileLocation } from '../workspace/utils/fileLocation';
-import { isWorkspaceFileLink, looksLikeWorkspacePath } from '../workspace/utils/workspaceFileLink';
-
 import {
   detailModalFencedCodeBlockClassNames,
   detailModalFencedCodePreClassNames,
@@ -17,14 +12,18 @@ import {
   detailModalProseClassNames,
   detailModalSpacerParagraphClassNames,
 } from './detail-modal/detailModalMarkdownStyles';
-
-import { isEmptyParagraphChildren } from '@/components/markdown-editor/utils/emptyParagraph';
 import {
   markdownSurfaceBaseProseClassNames,
   markdownSurfaceFeedProseClassNames,
   markdownSurfaceInlineEventProseClassNames,
   markdownSurfaceTaskOverlayProseClassNames,
 } from './markdown-surface';
+import { fenceLangToSyntheticPath } from '../workspace/file-renderers/language-detection';
+import { SyntaxHighlighter } from '../workspace/file-renderers/SyntaxHighlighter';
+import { parseFileLocation } from '../workspace/utils/fileLocation';
+import { isWorkspaceFileLink, looksLikeWorkspacePath } from '../workspace/utils/workspaceFileLink';
+
+import { isEmptyParagraphChildren } from '@/components/markdown-editor/utils/emptyParagraph';
 
 export {
   detailModalMarkdownProseClassNames,
@@ -163,11 +162,7 @@ function PlainInlineCode({
   if (className?.startsWith('language-')) {
     return <code className={className}>{children}</code>;
   }
-  return (
-    <code className={detailModalInlineCodeClassNames}>
-      {children}
-    </code>
-  );
+  return <code className={detailModalInlineCodeClassNames}>{children}</code>;
 }
 
 function PlainMarkdownLink({ children }: { children?: React.ReactNode }) {
@@ -318,9 +313,7 @@ export function CodeBlock({
         </div>
       ) : (
         <pre className={detailModalFencedCodePreClassNames}>
-          <code className={className || ''}>
-            {children}
-          </code>
+          <code className={className || ''}>{children}</code>
         </pre>
       )}
     </div>

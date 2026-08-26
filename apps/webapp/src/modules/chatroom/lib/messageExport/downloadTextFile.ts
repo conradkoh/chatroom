@@ -9,9 +9,7 @@ export type SaveFileOptions = {
 };
 
 export type SaveFileHandleResult =
-  | { kind: 'handle'; handle: FileSystemFileHandle }
-  | { kind: 'anchor' }
-  | { kind: 'cancelled' };
+  { kind: 'handle'; handle: FileSystemFileHandle } | { kind: 'anchor' } | { kind: 'cancelled' };
 
 // Minimal DOM declarations for showSaveFilePicker if not in TS libs
 type SaveFilePickerAcceptType = {
@@ -62,7 +60,9 @@ export async function saveBlobFile(
   }
 
   try {
-    const handle = await (window as SaveFilePickerWindow).showSaveFilePicker!({
+    const showSaveFilePicker = (window as SaveFilePickerWindow).showSaveFilePicker;
+    if (!showSaveFilePicker) return 'downloaded';
+    const handle = await showSaveFilePicker({
       suggestedName,
       types: [
         {
@@ -93,7 +93,9 @@ export async function promptSaveFile(
     return { kind: 'anchor' };
   }
   try {
-    const handle = await (window as SaveFilePickerWindow).showSaveFilePicker!({
+    const showSaveFilePicker = (window as SaveFilePickerWindow).showSaveFilePicker;
+    if (!showSaveFilePicker) return { kind: 'anchor' };
+    const handle = await showSaveFilePicker({
       suggestedName,
       types: [
         {

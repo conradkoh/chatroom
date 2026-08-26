@@ -15,8 +15,8 @@ import { createPersistenceStore } from '../infrastructure/persistence/index.js';
 import { createLogRepository } from '../infrastructure/repository/log-repository.js';
 import { ingestChatroomEvent } from '../local-web/client/lib/socket.js';
 import { startLocalWebServer } from '../local-web/server/create-local-web-server.js';
-import { createLogStreamHub } from '../local-web/server/log-stream-hub.js';
 import { createEventStreamHub } from '../local-web/server/event-stream-hub.js';
+import { createLogStreamHub } from '../local-web/server/log-stream-hub.js';
 
 export async function startDaemon(): Promise<void> {
   let resolveBoundPort!: (port: number) => void;

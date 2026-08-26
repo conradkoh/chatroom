@@ -5,14 +5,13 @@
  * Used by the daemon to discover which chatrooms/workspaces it manages.
  */
 
-import { WORKSPACE_RECENCY_WINDOW_MS } from '../../../../config/reliability';
-import type { QueryCtx } from '../../../../convex/_generated/server';
-
 import {
   listRecentlyObservedWorkspacesForMachine,
   type ListRecentlyObservedWorkspacesForMachineResult,
   type WorkspaceForMachineView,
 } from './list-recently-observed-workspaces-for-machine';
+import { WORKSPACE_RECENCY_WINDOW_MS } from '../../../../config/reliability';
+import type { QueryCtx } from '../../../../convex/_generated/server';
 
 export type { WorkspaceForMachineView };
 

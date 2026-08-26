@@ -35,11 +35,7 @@ export function getVisualLines(
   // Every span contains valid ProseMirror cursor positions. The final span includes blockEnd.
   // WebKit can report blockEnd on a separate terminal row; absorb that orphan unless the
   // character before blockEnd is a newline, which represents a genuine trailing blank line.
-  if (
-    lines.length > 1 &&
-    blockEnd > blockStart &&
-    options?.charBeforeBlockEnd !== '\n'
-  ) {
+  if (lines.length > 1 && blockEnd > blockStart && options?.charBeforeBlockEnd !== '\n') {
     const last = lines[lines.length - 1];
     const previous = lines[lines.length - 2];
     if (last.start === last.end && last.end === blockEnd) {

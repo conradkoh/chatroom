@@ -5,8 +5,9 @@
  * mixed ANSI+URL input, and stray control char safety.
  */
 
-import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+
 import { AnsiText } from './AnsiText';
 
 describe('AnsiText', () => {
@@ -16,7 +17,7 @@ describe('AnsiText', () => {
   });
 
   it('parses red ANSI sequence and applies red color styling', () => {
-    const { container } = render(<AnsiText text={"\x1b[31mfoo\x1b[0m"} />);
+    const { container } = render(<AnsiText text={'\x1b[31mfoo\x1b[0m'} />);
     // Text content should be "foo"
     expect(container.textContent).toContain('foo');
     // The span with the styled text should have a red color
@@ -62,22 +63,20 @@ describe('AnsiText', () => {
   });
 
   it('renders bold text with fontWeight bold', () => {
-    const { container } = render(<AnsiText text={"\x1b[1mBold text\x1b[0m"} />);
+    const { container } = render(<AnsiText text={'\x1b[1mBold text\x1b[0m'} />);
     const styledSpan = container.querySelector('span[style]');
     expect(styledSpan?.getAttribute('style')).toContain('font-weight: bold');
   });
 
   it('renders underline text with text-decoration underline', () => {
-    const { container } = render(<AnsiText text={"\x1b[4mUnderlined\x1b[0m"} />);
+    const { container } = render(<AnsiText text={'\x1b[4mUnderlined\x1b[0m'} />);
     const styledSpan = container.querySelector('span[style]');
     expect(styledSpan?.getAttribute('style')).toContain('underline');
   });
 
   it('does not crash on stray control characters', () => {
     // Stray ESC without a valid sequence
-    expect(() =>
-      render(<AnsiText text={'Hello\x1b[999mWorld\x00\x07'} />)
-    ).not.toThrow();
+    expect(() => render(<AnsiText text={'Hello\x1b[999mWorld\x00\x07'} />)).not.toThrow();
   });
 
   it('renders empty string without crashing', () => {

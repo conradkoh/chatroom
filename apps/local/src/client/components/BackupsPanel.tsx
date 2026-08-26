@@ -1,8 +1,6 @@
 import type { ConvexBackupEntry, ConvexBackupStatus, RuntimeConfig } from '../../shared/protocol';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 
 function formatDate(ms: number): string {
   const d = new Date(ms);

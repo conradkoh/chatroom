@@ -69,9 +69,35 @@ export function SavedCommandModal({
   existingNamesByScope = { user: [], chatroom: [] },
   defaultScope,
 }: SavedCommandModalProps) {
+  if (!isOpen) return null;
+  return (
+    <SavedCommandForm
+      key={initial?._id ?? 'create'}
+      isOpen
+      chatroomId={chatroomId}
+      onClose={onClose}
+      onCreated={onCreated}
+      initial={initial}
+      existingNamesByScope={existingNamesByScope}
+      defaultScope={defaultScope}
+    />
+  );
+}
+
+function SavedCommandForm({
+  isOpen,
+  chatroomId,
+  onClose,
+  onCreated,
+  initial,
+  existingNamesByScope = { user: [], chatroom: [] },
+  defaultScope,
+}: SavedCommandModalProps) {
   const isEditMode = Boolean(initial);
   const [type, setType] = useState<SavedCommandType>(initial?.type ?? 'prompt');
-  const [scope, setScope] = useState<SavedCommandScope>(initial?.scope ?? 'chatroom');
+  const [scope, setScope] = useState<SavedCommandScope>(
+    initial?.scope ?? defaultScope ?? 'chatroom'
+  );
   const [name, setName] = useState(initial?.name ?? '');
   const [promptText, setPromptText] = useState(initial?.type === 'prompt' ? initial.prompt : '');
   const [nameError, setNameError] = useState('');
@@ -128,17 +154,6 @@ export function SavedCommandModal({
     document.addEventListener('keydown', handleFocusTrap);
     return () => document.removeEventListener('keydown', handleFocusTrap);
   }, [isOpen]);
-
-  // Populate fields when modal opens or reset when closed
-  useEffect(() => {
-    if (!isOpen) return;
-    setType(initial?.type ?? 'prompt');
-    setScope(initial?.scope ?? defaultScope ?? 'chatroom');
-    setName(initial?.name ?? '');
-    setPromptText(initial?.type === 'prompt' ? initial.prompt : '');
-    setIsSubmitting(false);
-    setNameError('');
-  }, [isOpen, initial]);
 
   const handleSubmit = useCallback(async () => {
     const trimmedName = name.trim();

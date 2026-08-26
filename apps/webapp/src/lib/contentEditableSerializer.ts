@@ -87,7 +87,8 @@ export function domOffsetToRawOffset(
       } else {
         // Element node — anchorOffset is the child index
         for (let i = 0; i < anchorOffset && i < node.childNodes.length; i++) {
-          accumulateLength(node.childNodes[i]!);
+          const child = node.childNodes[i];
+          if (child) accumulateLength(child);
         }
       }
       found = true;

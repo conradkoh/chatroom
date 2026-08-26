@@ -26,7 +26,7 @@ export function LogViewer({ logLines, processId }: { logLines: LogLine[]; proces
     handleScroll,
     jumpToNew,
     jumpToTop,
-  } = useStickToBottomScroll(logLines.length, processId);
+  } = useStickToBottomScroll(logLines.length);
 
   const virtualizer = useVirtualizer({
     count: logLines.length,
@@ -44,7 +44,7 @@ export function LogViewer({ logLines, processId }: { logLines: LogLine[]; proces
 
   useEffect(() => {
     if (logLines.length > 0) scrollToEnd();
-  }, [processId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [logLines.length, processId, scrollRef, scrollToEnd]);
 
   const logContainerRef = useRef<HTMLDivElement>(null);
 
@@ -65,7 +65,7 @@ export function LogViewer({ logLines, processId }: { logLines: LogLine[]; proces
     if (!container) return;
     container.addEventListener('keydown', handleKeyDown);
     return () => container.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  }, [handleKeyDown, scrollRef]);
 
   if (logLines.length === 0) {
     return (

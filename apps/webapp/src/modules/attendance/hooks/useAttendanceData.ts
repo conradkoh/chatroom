@@ -22,8 +22,7 @@ export interface UseAttendanceDataProps {
 export interface UseAttendanceDataReturn {
   // Data
   attendanceData:
-    | ReturnType<typeof useSessionQuery<typeof api.attendance.getAttendanceData>>
-    | undefined;
+    ReturnType<typeof useSessionQuery<typeof api.attendance.getAttendanceData>> | undefined;
   attendanceRecords: Doc<'attendanceRecords'>[];
   attendanceMap: Map<string, Doc<'attendanceRecords'>>;
   allNames: Set<string>;
@@ -290,8 +289,7 @@ export const useAttendanceData = ({
  */
 function _getCurrentUserResponse(
   attendanceData:
-    | ReturnType<typeof useSessionQuery<typeof api.attendance.getAttendanceData>>
-    | undefined
+    ReturnType<typeof useSessionQuery<typeof api.attendance.getAttendanceData>> | undefined
 ) {
   return attendanceData?.currentUserResponse;
 }

@@ -102,7 +102,7 @@ export const PRActionButtons = memo(function PRActionButtons({
       setLastAction(action);
       onAction(action);
     },
-    [onAction],
+    [onAction]
   );
 
   const handleClose = useCallback(() => {

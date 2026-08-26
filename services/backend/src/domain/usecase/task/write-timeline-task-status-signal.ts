@@ -1,8 +1,8 @@
+import { upsertMachineTaskStatusSignalHead } from './project-machine-task-status-signal-head';
 import type { Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 import { getTeamEntryPoint } from '../../entities/team';
-import { upsertMachineTaskStatusSignalHead } from './project-machine-task-status-signal-head';
 
 type TaskSignalRouting = {
   targetMachineId?: string;

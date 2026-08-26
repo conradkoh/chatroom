@@ -89,8 +89,12 @@ describe('CodexSdkStreamAdapter', () => {
       error: { message: 'Selected model is at capacity' },
     } as unknown as ThreadEvent);
 
-    expect(getLines(onLogLine)).toContain('[codex-sdk:builder agent_end] reason: provider_model_capacity');
-    expect(getLines(onLogLine)).toContain('[codex-sdk:builder run-error] Selected model is at capacity');
+    expect(getLines(onLogLine)).toContain(
+      '[codex-sdk:builder agent_end] reason: provider_model_capacity'
+    );
+    expect(getLines(onLogLine)).toContain(
+      '[codex-sdk:builder run-error] Selected model is at capacity'
+    );
   });
 
   it('marks a turn as failed on fatal stream error events', () => {

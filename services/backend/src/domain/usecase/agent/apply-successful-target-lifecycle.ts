@@ -23,7 +23,7 @@ export async function applySuccessfulTargetLifecycle(
     stopReason: command.reason,
   });
   if (result.applied) {
-    await ctx.db.patch("chatroom_agentStopTargets", target._id, { lifecycleAppliedAt: Date.now() });
+    await ctx.db.patch('chatroom_agentStopTargets', target._id, { lifecycleAppliedAt: Date.now() });
     await projectAgentOperationalStatusForRole(ctx, command.chatroomId, target.role);
   }
 }

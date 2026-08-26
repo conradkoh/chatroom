@@ -50,8 +50,8 @@ export function ModelFilterPanel({
   onFilterChange,
   disabled,
 }: ModelFilterPanelProps) {
-  const hiddenModels = filter?.hiddenModels ?? [];
-  const hiddenProviders = filter?.hiddenProviders ?? [];
+  const hiddenModels = useMemo(() => filter?.hiddenModels ?? [], [filter?.hiddenModels]);
+  const hiddenProviders = useMemo(() => filter?.hiddenProviders ?? [], [filter?.hiddenProviders]);
 
   const hiddenModelsSet = useMemo(() => new Set(hiddenModels), [hiddenModels]);
   const hiddenProvidersSet = useMemo(() => new Set(hiddenProviders), [hiddenProviders]);

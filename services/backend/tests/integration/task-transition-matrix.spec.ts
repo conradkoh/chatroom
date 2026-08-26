@@ -55,7 +55,10 @@ async function seedPendingTask(
 
 describe('task transition matrix', () => {
   test('team agent + native:task-injected + updateTokenActivity -> in_progress', async () => {
-    const { sessionId, chatroomId } = await createSessionChatroomAndJoin('ttm-injected', 'planner');
+    const { sessionId: _sessionId, chatroomId } = await createSessionChatroomAndJoin(
+      'ttm-injected',
+      'planner'
+    );
     await assertDuoTeamOnly(chatroomId);
 
     const taskId = await seedPendingTask(chatroomId, 'planner');
@@ -89,7 +92,10 @@ describe('task transition matrix', () => {
   });
 
   test('team agent + agent.waiting + updateTokenActivity (token resume) -> in_progress', async () => {
-    const { sessionId, chatroomId } = await createSessionChatroomAndJoin('ttm-waiting', 'planner');
+    const { sessionId: _sessionId, chatroomId } = await createSessionChatroomAndJoin(
+      'ttm-waiting',
+      'planner'
+    );
     await assertDuoTeamOnly(chatroomId);
 
     const taskId = await seedPendingTask(chatroomId, 'planner');

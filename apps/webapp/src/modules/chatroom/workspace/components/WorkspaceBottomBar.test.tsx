@@ -12,12 +12,17 @@ const mockUseKeyboardInset = vi.fn();
 const mockUseMainChatComposerFocused = vi.fn();
 
 function serializeShellHierarchy(outer: HTMLElement) {
-  const inner = outer.querySelector('[data-testid="workspace-bottom-bar-content"]') as HTMLElement | null;
+  const inner = outer.querySelector(
+    '[data-testid="workspace-bottom-bar-content"]'
+  ) as HTMLElement | null;
   return {
     outer: {
-      testId: outer.getAttribute('data-testid'), className: outer.className,
-      paddingBottom: outer.style.paddingBottom, paddingLeft: outer.style.paddingLeft,
-      paddingRight: outer.style.paddingRight, transform: outer.style.transform,
+      testId: outer.getAttribute('data-testid'),
+      className: outer.className,
+      paddingBottom: outer.style.paddingBottom,
+      paddingLeft: outer.style.paddingLeft,
+      paddingRight: outer.style.paddingRight,
+      transform: outer.style.transform,
     },
     inner: inner ? { testId: inner.getAttribute('data-testid'), className: inner.className } : null,
   };
@@ -31,7 +36,8 @@ vi.mock('@/hooks/useMobileKeyboard', async (importOriginal) => {
     ...actual,
     useMainChatComposerKeyboardInset: (enabled?: boolean) =>
       enabled && mockUseMainChatComposerFocused() ? mockUseKeyboardInset() : 0,
-    useMainChatComposerFocused: (enabled?: boolean) => enabled ? mockUseMainChatComposerFocused() : false,
+    useMainChatComposerFocused: (enabled?: boolean) =>
+      enabled ? mockUseMainChatComposerFocused() : false,
   };
 });
 
@@ -132,9 +138,18 @@ describe('runtime hierarchy snapshots', () => {
     mockUseKeyboardInset.mockReturnValue(0);
     mockUseMainChatComposerFocused.mockReturnValue(false);
   });
-  const renderSnapshot = () => render(<WorkspaceBottomBarShell><span>content</span></WorkspaceBottomBarShell>);
+  const renderSnapshot = () =>
+    render(
+      <WorkspaceBottomBarShell>
+        <span>content</span>
+      </WorkspaceBottomBarShell>
+    );
   const snapshot = () => serializeShellHierarchy(screen.getByTestId('workspace-bottom-bar'));
-  it('mobile — keyboard closed', () => { vi.useFakeTimers(); renderSnapshot(); vi.advanceTimersByTime(300); expect(snapshot()).toMatchInlineSnapshot(`
+  it('mobile — keyboard closed', () => {
+    vi.useFakeTimers();
+    renderSnapshot();
+    vi.advanceTimersByTime(300);
+    expect(snapshot()).toMatchInlineSnapshot(`
     {
       "inner": {
         "className": "flex items-center h-8 min-h-[32px] px-2",
@@ -149,8 +164,19 @@ describe('runtime hierarchy snapshots', () => {
         "transform": "",
       },
     }
-  `); vi.useRealTimers(); });
-  it('mobile — keyboard open, composer focused (lifted)', () => { vi.useFakeTimers(); mockUseKeyboardInset.mockReturnValue(300); mockUseMainChatComposerFocused.mockReturnValue(true); renderSnapshot(); vi.advanceTimersByTime(300); expect(screen.getByTestId('workspace-bottom-bar').style.transform).toContain('translateY(-300px)'); expect(snapshot()).toMatchInlineSnapshot(`
+  `);
+    vi.useRealTimers();
+  });
+  it('mobile — keyboard open, composer focused (lifted)', () => {
+    vi.useFakeTimers();
+    mockUseKeyboardInset.mockReturnValue(300);
+    mockUseMainChatComposerFocused.mockReturnValue(true);
+    renderSnapshot();
+    vi.advanceTimersByTime(300);
+    expect(screen.getByTestId('workspace-bottom-bar').style.transform).toContain(
+      'translateY(-300px)'
+    );
+    expect(snapshot()).toMatchInlineSnapshot(`
     {
       "inner": {
         "className": "flex items-center h-8 min-h-[32px] px-2",
@@ -165,8 +191,16 @@ describe('runtime hierarchy snapshots', () => {
         "transform": "translateY(-300px)",
       },
     }
-  `); vi.useRealTimers(); });
-  it('mobile — keyboard open, composer NOT focused (no lift)', () => { vi.useFakeTimers(); mockUseKeyboardInset.mockReturnValue(300); renderSnapshot(); vi.advanceTimersByTime(300); expect(screen.getByTestId('workspace-bottom-bar').style.transform).toBe(''); expect(snapshot()).toMatchInlineSnapshot(`
+  `);
+    vi.useRealTimers();
+  });
+  it('mobile — keyboard open, composer NOT focused (no lift)', () => {
+    vi.useFakeTimers();
+    mockUseKeyboardInset.mockReturnValue(300);
+    renderSnapshot();
+    vi.advanceTimersByTime(300);
+    expect(screen.getByTestId('workspace-bottom-bar').style.transform).toBe('');
+    expect(snapshot()).toMatchInlineSnapshot(`
     {
       "inner": {
         "className": "flex items-center h-8 min-h-[32px] px-2",
@@ -181,8 +215,16 @@ describe('runtime hierarchy snapshots', () => {
         "transform": "",
       },
     }
-  `); vi.useRealTimers(); });
-  it('mobile — composer focused, no inset (iOS fallback)', () => { vi.useFakeTimers(); mockUseMainChatComposerFocused.mockReturnValue(true); renderSnapshot(); vi.advanceTimersByTime(300); expect(screen.getByTestId('workspace-bottom-bar').style.transform).toBe(''); expect(snapshot()).toMatchInlineSnapshot(`
+  `);
+    vi.useRealTimers();
+  });
+  it('mobile — composer focused, no inset (iOS fallback)', () => {
+    vi.useFakeTimers();
+    mockUseMainChatComposerFocused.mockReturnValue(true);
+    renderSnapshot();
+    vi.advanceTimersByTime(300);
+    expect(screen.getByTestId('workspace-bottom-bar').style.transform).toBe('');
+    expect(snapshot()).toMatchInlineSnapshot(`
     {
       "inner": {
         "className": "flex items-center h-8 min-h-[32px] px-2",
@@ -197,8 +239,18 @@ describe('runtime hierarchy snapshots', () => {
         "transform": "",
       },
     }
-  `); vi.useRealTimers(); });
-  it('desktop — unchanged', () => { vi.useFakeTimers(); mockUseIsDesktop.mockReturnValue(true); mockUseKeyboardInset.mockReturnValue(300); mockUseMainChatComposerFocused.mockReturnValue(true); renderSnapshot(); vi.advanceTimersByTime(300); expect(screen.getByTestId('workspace-bottom-bar').style.cssText).toBe(''); expect(snapshot()).toMatchInlineSnapshot(`
+  `);
+    vi.useRealTimers();
+  });
+  it('desktop — unchanged', () => {
+    vi.useFakeTimers();
+    mockUseIsDesktop.mockReturnValue(true);
+    mockUseKeyboardInset.mockReturnValue(300);
+    mockUseMainChatComposerFocused.mockReturnValue(true);
+    renderSnapshot();
+    vi.advanceTimersByTime(300);
+    expect(screen.getByTestId('workspace-bottom-bar').style.cssText).toBe('');
+    expect(snapshot()).toMatchInlineSnapshot(`
     {
       "inner": {
         "className": "flex items-center h-8 min-h-[32px] px-2",
@@ -213,5 +265,7 @@ describe('runtime hierarchy snapshots', () => {
         "transform": "",
       },
     }
-  `); vi.useRealTimers(); });
+  `);
+    vi.useRealTimers();
+  });
 });

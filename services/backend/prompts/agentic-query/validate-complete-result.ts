@@ -12,8 +12,7 @@ export interface AgenticQueryCompleteValidationError {
 }
 
 export type AgenticQueryCompleteValidationResult =
-  | AgenticQueryCompleteValidation
-  | AgenticQueryCompleteValidationError;
+  AgenticQueryCompleteValidation | AgenticQueryCompleteValidationError;
 
 function extractSection(body: string, heading: string): string | null {
   const pattern = new RegExp(`^##\\s+${heading}\\s*$`, 'im');

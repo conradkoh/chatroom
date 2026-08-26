@@ -1,6 +1,7 @@
 /**
  * Command event dispatch — handles daemon command events from v2 inbound nudges.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
   AGENT_REQUEST_DEADLINE_MS,
@@ -251,7 +252,6 @@ function handleRefreshCapabilitiesEffect(
       )
     );
     tracker.capabilitiesRefreshIds.set(eventId, Date.now());
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const batchId = 'batchId' in event ? (event as any).batchId : undefined;
     if (!batchId) return;
     const session = yield* DaemonSessionService;

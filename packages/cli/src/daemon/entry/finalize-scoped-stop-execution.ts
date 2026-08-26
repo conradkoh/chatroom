@@ -19,8 +19,8 @@ export async function finalizeScopedStopExecution(args: {
   for (const { target, outcome, lifecycleWarning } of args.result.targets) {
     await args.backend.mutation(api.agentStops.reportTargetOutcome, {
       sessionId: args.sessionId,
-      stopCommandId: args.stopCommandId as any,
-      chatroomId: args.chatroomId as any,
+      stopCommandId: args.stopCommandId,
+      chatroomId: args.chatroomId,
       machineId: args.machineId,
       targetKey: target.targetKey,
       role: target.role,
@@ -34,8 +34,8 @@ export async function finalizeScopedStopExecution(args: {
   for (const failure of args.result.failures) {
     await args.backend.mutation(api.agentStops.reportTargetOutcome, {
       sessionId: args.sessionId,
-      stopCommandId: args.stopCommandId as any,
-      chatroomId: args.chatroomId as any,
+      stopCommandId: args.stopCommandId,
+      chatroomId: args.chatroomId,
       machineId: args.machineId,
       targetKey: failure.target.targetKey,
       role: failure.target.role,
@@ -48,7 +48,7 @@ export async function finalizeScopedStopExecution(args: {
   const failed = args.result.failures.length > 0 || args.executionError != null;
   await args.backend.mutation(api.agentStops.completeMachineExecution, {
     sessionId: args.sessionId,
-    stopCommandId: args.stopCommandId as any,
+    stopCommandId: args.stopCommandId,
     machineId: args.machineId,
     status: failed ? 'failed' : 'completed',
     errorMessage: failed

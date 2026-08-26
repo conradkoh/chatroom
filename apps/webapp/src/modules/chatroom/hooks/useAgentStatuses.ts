@@ -48,7 +48,10 @@ export interface UseAgentStatusesResult {
  * Online status is derived from `isAlive` (spawnedAgentPid via getTeamLifecycle).
  * Rich status labels (WORKING, WAITING, etc.) still use participant.lastStatus event types.
  */
-export function useAgentStatuses(roles: string[], participants: TeamLifecycle['participants'] | undefined): UseAgentStatusesResult {
+export function useAgentStatuses(
+  roles: string[],
+  participants: TeamLifecycle['participants'] | undefined
+): UseAgentStatusesResult {
   const lifecycle = participants === undefined ? undefined : ({ participants } as TeamLifecycle);
 
   const participantMap = useMemo(() => {

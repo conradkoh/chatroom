@@ -2,16 +2,13 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import type { MutableRefObject } from 'react';
 
+import { resolveEditorLoadState, resolveLoadedServerContent } from './markdownFileEditorState';
 import { useRequestWorkspaceFileContent } from './useRequestWorkspaceFileContent';
 import { useWorkspaceFileSave } from './useWorkspaceFileSave';
-import {
-  isPendingOptimisticNewFile,
-  isFileNotFoundError,
-  isTransientNewFileReadError,
-  isWorkspaceNotRegisteredError,
-} from '../utils/fileContentSentinels';
+import { isPendingOptimisticNewFile } from '../utils/fileContentSentinels';
 
 import { normalizeWorkspaceWorkingDir } from '@/lib/workspaceIdentifier';
 
@@ -23,7 +20,47 @@ interface UseMarkdownFileEditorArgs {
   initialEmpty?: boolean;
 }
 
-// fallow-ignore-next-line complexity
+async function persistEditorSave(args: {
+  saveToDisk: () => Promise<void>;
+  requestFileContent: () => Promise<unknown>;
+  contentRef: MutableRefObject<string>;
+  setDraft: (value: string | null) => void;
+  saveInFlightRef: MutableRefObject<boolean>;
+}): Promise<void> {
+  if (args.saveInFlightRef.current) return;
+  args.saveInFlightRef.current = true;
+  const snapshotAtStart = args.contentRef.current;
+  try {
+    await args.saveToDisk();
+    await args.requestFileContent().catch(() => {});
+    if (args.contentRef.current === snapshotAtStart) args.setDraft(null);
+  } finally {
+    args.saveInFlightRef.current = false;
+  }
+}
+
+function latchOptimisticEmpty(
+  ref: MutableRefObject<boolean>,
+  initialEmpty: boolean,
+  filePath: string
+): void {
+  if (initialEmpty || isPendingOptimisticNewFile(filePath)) ref.current = true;
+}
+
+function resolveEditorContent(
+  draft: string | null,
+  serverContent: string | null | undefined
+): string {
+  return draft ?? serverContent ?? '';
+}
+
+function resolveEditorError(
+  error: string | null | undefined,
+  loadError: string | null
+): string | null {
+  return error ?? loadError;
+}
+
 export function useMarkdownFileEditor({
   machineId,
   workingDir,
@@ -38,13 +75,18 @@ export function useMarkdownFileEditor({
   });
   const requestFileContent = useSessionMutation(api.workspaceFiles.requestFileContent);
 
-  const [content, setContentState] = useState('');
-  const [isDirty, setIsDirty] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const contentRef = useRef(content);
+  const [draft, setDraft] = useState<string | null>(null);
+  const contentRef = useRef('');
   const saveInFlightRef = useRef(false);
-  const loadedPathRef = useRef(filePath);
   const wasOptimisticNewRef = useRef(initialEmpty || isPendingOptimisticNewFile(filePath));
+
+  const serverContent = useMemo(
+    () => resolveLoadedServerContent(loadedContent, filePath, initialEmpty),
+    [filePath, initialEmpty, loadedContent]
+  );
+  const content = resolveEditorContent(draft, serverContent);
+  const isDirty = draft !== null;
+  contentRef.current = content;
 
   const getContent = useCallback(() => contentRef.current, []);
 
@@ -63,80 +105,30 @@ export function useMarkdownFileEditor({
 
   const setContent = useCallback((next: string) => {
     contentRef.current = next;
-    setContentState(next);
-    setIsDirty(true);
+    setDraft(next);
   }, []);
 
-  useEffect(() => {
-    if (loadedPathRef.current !== filePath) {
-      loadedPathRef.current = filePath;
-      contentRef.current = '';
-      setContentState('');
-      setIsDirty(false);
-      wasOptimisticNewRef.current = false;
-    }
-  }, [filePath]);
-
-  // fallow-ignore-next-line complexity
-  useEffect(() => {
-    if (loadedContent === undefined) return;
-    if (loadedContent === null) {
-      if (!isDirty && (initialEmpty || isPendingOptimisticNewFile(filePath))) {
-        contentRef.current = '';
-        setContentState('');
-      }
-      setLoadError(null);
-      return;
-    }
-    if (isDirty) return;
-    if (isWorkspaceNotRegisteredError(loadedContent.content)) {
-      setLoadError('Workspace is not registered on this machine.');
-      return;
-    }
-    if (isFileNotFoundError(loadedContent.content)) {
-      if (isTransientNewFileReadError(loadedContent.content, filePath)) return;
-      setLoadError('File not found.');
-      return;
-    }
-    if (isTransientNewFileReadError(loadedContent.content, filePath)) return;
-    wasOptimisticNewRef.current = false;
-    setLoadError(null);
-    contentRef.current = loadedContent.content;
-    setContentState(loadedContent.content);
-  }, [filePath, initialEmpty, isDirty, loadedContent]);
-
   const save = useCallback(async () => {
-    if (saveInFlightRef.current) return;
-    saveInFlightRef.current = true;
-    const snapshotAtStart = contentRef.current;
-
-    try {
-      await saveToDisk();
-      await requestFileContent({
-        machineId,
-        workingDir: normalizedWorkingDir,
-        filePath,
-      }).catch(() => {});
-      if (contentRef.current === snapshotAtStart) {
-        setIsDirty(false);
-      }
-    } finally {
-      saveInFlightRef.current = false;
-    }
+    await persistEditorSave({
+      saveToDisk,
+      requestFileContent: () =>
+        requestFileContent({ machineId, workingDir: normalizedWorkingDir, filePath }),
+      contentRef,
+      setDraft,
+      saveInFlightRef,
+    });
   }, [filePath, machineId, normalizedWorkingDir, requestFileContent, saveToDisk]);
 
   // Latch optimistic-empty state — once set, persists until real content arrives.
-  if (initialEmpty || isPendingOptimisticNewFile(filePath)) {
-    wasOptimisticNewRef.current = true;
-  }
+  latchOptimisticEmpty(wasOptimisticNewRef, initialEmpty, filePath);
 
   const treatAsOptimisticEmpty = wasOptimisticNewRef.current;
-  const isLoading =
-    !loadError &&
-    !treatAsOptimisticEmpty &&
-    (loadedContent === undefined ||
-      loadedContent === null ||
-      isTransientNewFileReadError(loadedContent?.content, filePath));
+  const { loadError, isLoading } = resolveEditorLoadState(
+    serverContent,
+    loadedContent,
+    filePath,
+    treatAsOptimisticEmpty
+  );
 
   const encoding = loadedContent?.encoding ?? null;
 
@@ -147,7 +139,7 @@ export function useMarkdownFileEditor({
     contentRef,
     save,
     saving,
-    error: error ?? loadError,
+    error: resolveEditorError(error, loadError),
     lastSavedAt,
     isLoading,
     encoding,

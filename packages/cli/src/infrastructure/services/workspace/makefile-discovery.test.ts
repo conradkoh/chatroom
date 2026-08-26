@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { parseMakefileTargets } from './makefile-discovery.js';
 
 describe('parseMakefileTargets', () => {

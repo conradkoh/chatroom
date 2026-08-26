@@ -42,9 +42,7 @@ export function AttachmentMarkdownModal({
           </div>
         </FixedModalHeader>
         <FixedModalBody>
-          <div
-            className={`p-4 min-w-0 overflow-x-hidden ${proseClassName}`}
-          >
+          <div className={`p-4 min-w-0 overflow-x-hidden ${proseClassName}`}>
             <Markdown remarkPlugins={chatroomRemarkPlugins} components={modalMarkdownComponents}>
               {content}
             </Markdown>

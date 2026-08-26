@@ -1,13 +1,11 @@
-import type { AgentLogLine } from './remote-agent-service.js';
-
 export function createSessionLogCallbacks() {
-  let logCb: ((entry: AgentLogLine) => void) | undefined;
+  let logCb: ((line: string) => void) | undefined;
   return {
-    onLogLine: ((cb: (entry: AgentLogLine) => void) => {
+    onLogLine: (cb: (line: string) => void) => {
       logCb = cb;
-    }) as any,
-    emit: (entry: AgentLogLine) => logCb?.(entry),
+    },
+    emit: (line: string) => logCb?.(line),
     emitFormatted: (formatted: string, stream: 'stdout' | 'stderr' = 'stdout') =>
-      logCb?.({ stream, message: formatted }),
+      logCb?.(`[${stream}] ${formatted}`),
   };
 }

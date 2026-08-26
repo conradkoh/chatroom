@@ -4,6 +4,11 @@ import { useCallback, useLayoutEffect, useRef } from 'react';
 
 import { ScheduledPromptsTab } from '../../../components/ScheduledPromptsTab';
 import {
+  isTopOverlayDismiss,
+  popOverlayDismiss,
+  pushOverlayDismiss,
+} from '../../../components/shared/overlayDismissStack';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -11,11 +16,6 @@ import {
   DialogDescription,
   DialogScrollBody,
 } from '../../../components/ui/dialog';
-import {
-  isTopOverlayDismiss,
-  popOverlayDismiss,
-  pushOverlayDismiss,
-} from '../../../components/shared/overlayDismissStack';
 
 interface ScheduledPromptsDialogProps {
   open: boolean;

@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
 import React from 'react';
+import { describe, it, expect } from 'vitest';
+
 import { linkifyGitHubRefs } from './github-refs';
 
 // Helper to extract text content from a React.ReactNode[]
@@ -16,7 +17,7 @@ function textOf(nodes: React.ReactNode[]): string {
     .join('');
 }
 
-function linksOf(nodes: React.ReactNode[]): Array<{ text: string; href: string }> {
+function linksOf(nodes: React.ReactNode[]): { text: string; href: string }[] {
   return nodes
     .filter((n): n is React.ReactElement => React.isValidElement(n))
     .map((el) => ({

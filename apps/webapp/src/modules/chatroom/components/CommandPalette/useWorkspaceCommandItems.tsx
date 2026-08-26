@@ -27,7 +27,12 @@ import { toRepoHttpsUrl } from '@/lib/git-url';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface WorkspaceCommandCallbacks {
-  sendAction: (machineId: string, action: LocalActionType, workingDir: string, options?: { chatroomId?: string }) => void;
+  sendAction: (
+    machineId: string,
+    action: LocalActionType,
+    workingDir: string,
+    options?: { chatroomId?: string }
+  ) => void;
   openExternalUrl: (url: string) => void;
   onOpenGitPanel: (tab?: string) => void;
 }
@@ -148,7 +153,8 @@ export function useWorkspaceCommandItems(
         icon: <ScrollText size={14} />,
         category: 'Actions',
         keywords: ['daemon', 'logs', 'local web', hostname, workingDirBasename],
-        action: () => sendAction(machineId, 'open-daemon-logs' as LocalActionType, workingDir, { chatroomId }),
+        action: () =>
+          sendAction(machineId, 'open-daemon-logs' as LocalActionType, workingDir, { chatroomId }),
       });
     }
 

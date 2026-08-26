@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest';
+
 import { SearchConfigUsageStore } from './searchConfigUsageStore';
 
 describe('SearchConfigUsageStore', () => {

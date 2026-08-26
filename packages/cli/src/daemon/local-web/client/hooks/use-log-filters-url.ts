@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+
 import type { LogFilterValues } from '../components/logs/LogFiltersBar';
 import { readLogFiltersFromSearch, replaceLogFiltersInUrl } from '../lib/log-filters-url';
+
 export function useLogFiltersFromUrl() {
   const [filters, setState] = useState<LogFilterValues>(() =>
     readLogFiltersFromSearch(window.location.search)

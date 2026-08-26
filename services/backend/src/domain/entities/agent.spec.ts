@@ -8,7 +8,9 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { AGENT_STOP_REASONS, isAgentStopReason ,
+import {
+  AGENT_STOP_REASONS,
+  isAgentStopReason,
   AGENT_HARNESSES,
   AgentHarnessEnum,
   agentHarnessValidator,
@@ -37,7 +39,6 @@ import { AGENT_STOP_REASONS, isAgentStopReason ,
   isModelSource,
 } from './agent';
 
-
 describe('agent stop reasons', () => {
   test('includes platform.ephemeral_task_complete', () => {
     expect(AGENT_STOP_REASONS).toContain('platform.ephemeral_task_complete');
@@ -51,7 +52,7 @@ interface DomainSpec {
   label: string;
   values: readonly string[];
   enumObj: Record<string, string>;
-   
+
   validator: any;
   guard: (value: unknown) => boolean;
 }

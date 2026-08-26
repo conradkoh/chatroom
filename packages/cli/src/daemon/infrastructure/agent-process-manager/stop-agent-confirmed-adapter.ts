@@ -1,4 +1,5 @@
 import { buildAgentStopTargetKey } from '@workspace/shared/domain/agent-stop-command';
+
 import { isProcessAlive } from '../../../infrastructure/deps/process.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import type { Signals } from '../../../infrastructure/types/signals.js';

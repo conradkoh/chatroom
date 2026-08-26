@@ -21,9 +21,6 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { ChevronDown, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { NewSessionComposer } from '../direct-harness/components/SessionComposer';
-import { SessionDetail } from '../direct-harness/components/SessionDetail';
-import { displaySessionTitle } from '../direct-harness/components/SessionList';
 import {
   ResponsivePickerShell,
   PickerSearch,
@@ -32,6 +29,9 @@ import {
   usePickerSearchState,
   filterPickerItems,
 } from '../components/picker';
+import { NewSessionComposer } from '../direct-harness/components/SessionComposer';
+import { SessionDetail } from '../direct-harness/components/SessionDetail';
+import { displaySessionTitle } from '../direct-harness/components/SessionList';
 import { useRefreshCapabilities } from '../direct-harness/hooks/useRefreshCapabilities';
 import { useChatroomActiveWorkspace } from '../hooks/useChatroomActiveWorkspace';
 

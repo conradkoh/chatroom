@@ -3,16 +3,17 @@
  */
 
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { useCommandRunner } from './useCommandRunner';
 import { useCommandRunOutputV2 } from './useCommandRunOutputV2';
 
-const mockControlOutput = vi.fn();
+const { mockControlOutput, mockUseSessionQuery } = vi.hoisted(() => ({
+  mockControlOutput: vi.fn(),
+  mockUseSessionQuery: vi.fn(),
+}));
 
 vi.mock('convex-helpers/react/sessions', () => ({
-  useSessionQuery: vi.fn(),
+  useSessionQuery: mockUseSessionQuery,
   useSessionMutation: vi.fn(() => mockControlOutput),
 }));
 
@@ -26,17 +27,19 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 }));
 
 vi.mock('@workspace/backend/src/output-encoding-browser', () => ({
-  decodeOutputBrowser: vi.fn(async (value: any) => {
+  decodeOutputBrowser: vi.fn(async (value: unknown) => {
     if (typeof value === 'string') return value;
-    return `decoded:${value.content}`;
+    if (value && typeof value === 'object' && 'content' in value) {
+      return `decoded:${(value as { content: string }).content}`;
+    }
+    return '';
   }),
 }));
 
-const mockUseSessionQuery = useSessionQuery as ReturnType<typeof vi.fn>;
+/** Avoid ReturnType<typeof useCommandRunner> — OOMs Vitest workers. */
+type CommandRunnerArg = Parameters<typeof useCommandRunOutputV2>[0];
 
-type CommandRunner = ReturnType<typeof useCommandRunner>;
-
-function createMockCommandRunner(overrides: Partial<CommandRunner> = {}): CommandRunner {
+function createMockCommandRunner(overrides: Partial<CommandRunnerArg> = {}): CommandRunnerArg {
   const runCommand = vi.fn().mockResolvedValue('run-id-1');
   return {
     commands: [],
@@ -49,7 +52,7 @@ function createMockCommandRunner(overrides: Partial<CommandRunner> = {}): Comman
       .mockImplementation((name: string, script: string) => runCommand(name, script)),
     stopCommand: vi.fn().mockResolvedValue(undefined),
     ...overrides,
-  };
+  } as CommandRunnerArg;
 }
 
 const encodedHello = {
@@ -58,6 +61,15 @@ const encodedHello = {
 };
 
 describe('useCommandRunOutputV2', () => {
+  beforeEach(() => {
+    mockUseSessionQuery.mockReturnValue({
+      run: null,
+      tail: null,
+      chunks: [],
+      fullOutputPending: false,
+    });
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -193,7 +205,7 @@ describe('useCommandRunOutputV2', () => {
   });
 
   describe('palette actions', () => {
-    let mockRunner: CommandRunner;
+    let mockRunner: CommandRunnerArg;
 
     beforeEach(() => {
       mockUseSessionQuery.mockReturnValue({

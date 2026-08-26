@@ -11,8 +11,8 @@ import {
   requireDirectHarnessWorkers,
   requireRunOnOwnedMachine,
 } from '../../api/agenticQueryHelpers';
-import { requireMachineOwner } from '../../auth/cli/machineAccess';
 import { aggregateAssistantChunks } from '../../api/harnessChunkAggregate';
+import { requireMachineOwner } from '../../auth/cli/machineAccess';
 
 export const beginAssistantTurn = mutation({
   args: {

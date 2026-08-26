@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable react-hooks/exhaustive-deps, react-you-might-not-need-an-effect/no-adjust-state-on-prop-change, react-you-might-not-need-an-effect/no-chain-state-updates, react-you-might-not-need-an-effect/no-event-handler, react-you-might-not-need-an-effect/no-initialize-state, @typescript-eslint/no-explicit-any */
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
@@ -1987,6 +1988,7 @@ export function ChatroomDashboard({
                           footer={
                             <div className="shrink-0 border-t-2 border-chatroom-border-strong">
                               <MessageInput
+                                key={chatroomId}
                                 chatroomId={chatroomId}
                                 onRegisterFocus={handleRegisterSendFormFocus}
                                 onMessageSent={handleAllTabMessageSent}

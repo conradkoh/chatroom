@@ -6,7 +6,6 @@ import { memo, useEffect, useCallback } from 'react';
 import { PRActionButtons } from './PRActionButtons';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
 import { usePRDiff } from '../hooks/useWorkspaceGit';
-
 import type { GitPullRequest } from '../types/git';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -44,7 +43,7 @@ export const WorkspacePRReview = memo(function WorkspacePRReview({
   prActionLoading,
   prActionError,
 }: WorkspacePRReviewProps) {
-  const prNumber = activePR.prNumber!;
+  const prNumber = activePR.prNumber ?? 0;
   const { state: prDiffState, request: requestPRDiff } = usePRDiff(machineId, workingDir, prNumber);
 
   // Always request a fresh diff when the selected PR changes (cached rows may be stale).

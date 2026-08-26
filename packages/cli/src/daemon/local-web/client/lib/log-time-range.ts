@@ -23,8 +23,8 @@ export function getTimeRangeLabel(v: LogTimeFilterValues) {
   return 'Custom range';
 }
 export const toDatetimeLocalValue = (ms: number) => {
-  const d = new Date(ms),
-    p = (n: number) => String(n).padStart(2, '0');
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 export const fromDatetimeLocalValue = (v: string) => {

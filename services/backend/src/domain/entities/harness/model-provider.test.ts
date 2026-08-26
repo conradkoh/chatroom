@@ -11,8 +11,12 @@ import {
 
 describe('model provider helpers', () => {
   it('prefixes bare ids and preserves variants idempotently', () => {
-    expect(prefixModelWithProvider('openai', 'gpt-5[reasoning=high]')).toBe('openai/gpt-5[reasoning=high]');
-    expect(prefixModelWithProvider('openai', 'openai/gpt-5[reasoning=high]')).toBe('openai/gpt-5[reasoning=high]');
+    expect(prefixModelWithProvider('openai', 'gpt-5[reasoning=high]')).toBe(
+      'openai/gpt-5[reasoning=high]'
+    );
+    expect(prefixModelWithProvider('openai', 'openai/gpt-5[reasoning=high]')).toBe(
+      'openai/gpt-5[reasoning=high]'
+    );
   });
   it('strips only the requested provider prefix', () => {
     expect(stripProviderPrefix('openai', 'openai/gpt-5')).toBe('gpt-5');
@@ -29,6 +33,8 @@ describe('model provider helpers', () => {
   });
   it('prefixes catalog collections', () => {
     expect(prefixCatalogModels('cursor', ['a', 'b[x=y]'])).toEqual(['cursor/a', 'cursor/b[x=y]']);
-    expect(prefixCatalogModelsWithInfer(inferCopilotModelProvider, ['gpt-4o'])).toEqual(['openai/gpt-4o']);
+    expect(prefixCatalogModelsWithInfer(inferCopilotModelProvider, ['gpt-4o'])).toEqual([
+      'openai/gpt-4o',
+    ]);
   });
 });

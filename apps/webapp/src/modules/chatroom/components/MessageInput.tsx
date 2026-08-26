@@ -60,15 +60,10 @@ export interface MessageInputProps {
 // ── Touch detection ──────────────────────────────────────────────────────────
 
 function useIsTouchDevice(): boolean | undefined {
-  const [mounted, setMounted] = useState(false);
-  const [isTouch, setIsTouch] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
-    setIsTouch(isTouchDevice);
-  }, []);
-
+  const [mounted] = useState(() => typeof window !== 'undefined');
+  const [isTouch] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+  );
   return mounted ? isTouch : undefined;
 }
 
@@ -78,7 +73,12 @@ const DRAFT_KEY_PREFIX = 'chatroom-draft:';
 const MAX_DRAFTS = 10;
 
 function useEffectiveMaxTextareaHeightPx(): number {
-  const [maxHeightPx, setMaxHeightPx] = useState(MAX_TEXTAREA_HEIGHT_PX);
+  const [maxHeightPx, setMaxHeightPx] = useState(() => {
+    if (typeof window === 'undefined') return MAX_TEXTAREA_HEIGHT_PX;
+    return getEffectiveMaxTextareaHeightPx(
+      getViewportHeightPx(window.visualViewport?.height, window.innerHeight)
+    );
+  });
 
   useEffect(() => {
     const update = () => {
@@ -86,7 +86,6 @@ function useEffectiveMaxTextareaHeightPx(): number {
       setMaxHeightPx(getEffectiveMaxTextareaHeightPx(viewportHeight));
     };
 
-    update();
     window.addEventListener('resize', update);
     window.visualViewport?.addEventListener('resize', update);
     return () => {
@@ -120,6 +119,15 @@ function saveDraft(key: string, content: string) {
   cleanupOldDrafts(key);
 }
 
+function getDraftUpdatedAt(raw: string): number {
+  try {
+    const parsed = JSON.parse(raw) as StoredDraft;
+    return parsed && typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0;
+  } catch {
+    return 0;
+  }
+}
+
 function cleanupOldDrafts(currentKey: string) {
   const entries: { key: string; updatedAt: number }[] = [];
   for (let i = 0; i < localStorage.length; i++) {
@@ -127,19 +135,98 @@ function cleanupOldDrafts(currentKey: string) {
     if (!key?.startsWith(DRAFT_KEY_PREFIX)) continue;
     const raw = localStorage.getItem(key);
     if (!raw) continue;
-    let updatedAt = 0;
-    try {
-      const parsed = JSON.parse(raw) as StoredDraft;
-      if (parsed && typeof parsed.updatedAt === 'number') updatedAt = parsed.updatedAt;
-    } catch {
-      // Legacy string — treat as oldest
-    }
-    entries.push({ key, updatedAt });
+    entries.push({ key, updatedAt: getDraftUpdatedAt(raw) });
   }
   if (entries.length <= MAX_DRAFTS) return;
   entries.sort((a, b) => b.updatedAt - a.updatedAt);
   for (const entry of entries.slice(MAX_DRAFTS)) {
     if (entry.key !== currentKey) localStorage.removeItem(entry.key);
+  }
+}
+
+interface SendFlowArgs {
+  text: string;
+  sending: boolean;
+  chatroomId: string;
+  startInNewSession: boolean;
+  snippetAttachments: { id: string; fileSource: string; selectedContent: string }[];
+  attachedTasks: { id: string }[];
+  attachedBacklogItems: { id: string }[];
+  attachedMessages: { id: string }[];
+  sendMessage: (args: Record<string, unknown>) => Promise<unknown>;
+  setSending: (value: boolean) => void;
+  setMessage: (value: string) => void;
+  setSendError: (value: string | null) => void;
+  draftKey: string;
+  clearAll: () => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  onMessageSent?: () => void;
+}
+
+async function runSendFlow({
+  text,
+  sending,
+  chatroomId,
+  startInNewSession,
+  snippetAttachments,
+  attachedTasks,
+  attachedBacklogItems,
+  attachedMessages,
+  sendMessage,
+  setSending,
+  setMessage,
+  setSendError,
+  draftKey,
+  clearAll,
+  textareaRef,
+  onMessageSent,
+}: SendFlowArgs): Promise<void> {
+  if (!text.trim() || sending) return;
+  setSending(true);
+  try {
+    const snippets = snippetAttachments.map((s) => ({
+      reference: s.id,
+      fileSource: s.fileSource,
+      selectedContent: s.selectedContent,
+    }));
+    await (sendMessage as (args: Record<string, unknown>) => Promise<unknown>)({
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      senderRole: 'user',
+      content: text.trim(),
+      startInNewSession,
+      type: 'message',
+      ...(snippets.length > 0 && { attachedSnippets: snippets }),
+      ...(attachedTasks.length > 0 && { attachedTaskIds: attachedTasks.map((task) => task.id) }),
+      ...(attachedBacklogItems.length > 0 && {
+        attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
+      }),
+      ...(attachedMessages.length > 0 && {
+        attachedMessageIds: attachedMessages.map((msg) => msg.id),
+      }),
+    });
+    setMessage('');
+    setSendError(null);
+    localStorage.removeItem(draftKey);
+    onMessageSent?.();
+    if (
+      attachedTasks.length ||
+      attachedBacklogItems.length ||
+      attachedMessages.length ||
+      snippetAttachments.length
+    )
+      clearAll();
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    setTimeout(() => textareaRef.current?.focus(), 0);
+    onMessageSent?.();
+  } catch (error) {
+    console.error('Failed to send message:', error);
+    setSendError(
+      error instanceof Error && error.message
+        ? `Failed to send: ${error.message}`
+        : 'Failed to send message. Please try again.'
+    );
+  } finally {
+    setSending(false);
   }
 }
 
@@ -157,7 +244,11 @@ export function MessageInput({
   onUploadComplete,
 }: MessageInputProps) {
   const { startInNewSession } = useStartInNewSessionPreference();
-  const [message, setMessage] = useState('');
+  const draftKey = `chatroom-draft:${chatroomId}`;
+  const [message, setMessage] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return parseDraft(localStorage.getItem(draftKey)) ?? '';
+  });
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sketchOpen, setSketchOpen] = useState(false);
@@ -168,11 +259,7 @@ export function MessageInput({
   const effectiveMaxTextareaHeightPx = useEffectiveMaxTextareaHeightPx();
 
   // Register focus callback for external callers
-  useEffect(() => {
-    onRegisterFocus?.(() => {
-      textareaRef.current?.focus();
-    });
-  }, [onRegisterFocus]);
+  onRegisterFocus?.(() => textareaRef.current?.focus());
 
   // Prefill from explorer Cmd+I selection
   const { add, remove, clearAll } = useAttachments();
@@ -209,21 +296,6 @@ export function MessageInput({
   }, []);
 
   // ── Draft persistence ──────────────────────────────────────────────────────
-  const draftKey = `chatroom-draft:${chatroomId}`;
-
-  // Restore draft on mount (once per chatroomId) and auto-focus
-  useEffect(() => {
-    if (isTouchDevice === undefined) return;
-
-    const saved = parseDraft(localStorage.getItem(draftKey));
-    if (saved) setMessage(saved);
-    // Auto-focus when switching chatrooms (non-touch devices only)
-    if (isTouchDevice === false) {
-      setTimeout(() => textareaRef.current?.focus(), 0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatroomId, isTouchDevice]);
-
   // Debounced save: write 500ms after the last keystroke, clear when empty
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -337,60 +409,24 @@ export function MessageInput({
   // ── Send logic ─────────────────────────────────────────────────────────────
   const doSend = useCallback(
     async (text: string) => {
-      if (!text.trim() || sending) return;
-      setSending(true);
-      try {
-        const snippets = snippetAttachments.map((s) => ({
-          reference: s.id,
-          fileSource: s.fileSource,
-          selectedContent: s.selectedContent,
-        }));
-
-        await sendMessage({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          senderRole: 'user',
-          content: text.trim(),
-          startInNewSession,
-          type: 'message',
-          ...(snippets.length > 0 && { attachedSnippets: snippets }),
-          ...(attachedTasks.length > 0 && {
-            attachedTaskIds: attachedTasks.map((task) => task.id),
-          }),
-          ...(attachedBacklogItems.length > 0 && {
-            attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
-          }),
-          ...(attachedMessages.length > 0 && {
-            attachedMessageIds: attachedMessages.map((msg) => msg.id),
-          }),
-        });
-        setMessage('');
-        setSendError(null);
-        localStorage.removeItem(draftKey);
-        onMessageSent?.();
-        if (
-          attachedTasks.length > 0 ||
-          attachedBacklogItems.length > 0 ||
-          attachedMessages.length > 0 ||
-          snippetAttachments.length > 0
-        ) {
-          clearAll();
-        }
-        // Reset textarea height
-        if (textareaRef.current) {
-          textareaRef.current.style.height = 'auto';
-        }
-        setTimeout(() => textareaRef.current?.focus(), 0);
-        onMessageSent?.();
-      } catch (error) {
-        console.error('Failed to send message:', error);
-        setSendError(
-          error instanceof Error && error.message
-            ? `Failed to send: ${error.message}`
-            : 'Failed to send message. Please try again.'
-        );
-      } finally {
-        setSending(false);
-      }
+      await runSendFlow({
+        text,
+        sending,
+        chatroomId,
+        startInNewSession,
+        snippetAttachments,
+        attachedTasks,
+        attachedBacklogItems,
+        attachedMessages,
+        sendMessage: sendMessage as unknown as (args: Record<string, unknown>) => Promise<unknown>,
+        setSending,
+        setMessage,
+        setSendError,
+        draftKey,
+        clearAll,
+        textareaRef,
+        onMessageSent,
+      });
     },
     [
       sending,
@@ -403,6 +439,7 @@ export function MessageInput({
       clearAll,
       draftKey,
       onMessageSent,
+      startInNewSession,
     ]
   );
 

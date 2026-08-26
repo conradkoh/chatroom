@@ -1,15 +1,15 @@
 import { Effect, Layer } from 'effect';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-vi.mock('../../daemon/entry/handlers/command-runner.js', () => ({
-  shutdownAllCommandsEffect: Effect.succeed(undefined),
-}));
-
+import { onDaemonShutdownEffect } from './on-daemon-shutdown.js';
 import {
   DaemonAgentProcessManagerService,
   DaemonSessionService,
 } from '../../daemon/entry/daemon-services.js';
-import { onDaemonShutdownEffect } from './on-daemon-shutdown.js';
+
+vi.mock('../../daemon/entry/handlers/command-runner.js', () => ({
+  shutdownAllCommandsEffect: Effect.succeed(undefined),
+}));
 
 function runShutdown({
   summaries,

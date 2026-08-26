@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { formatSchedule } from './scheduledPromptFormat';
 
 describe('formatSchedule', () => {

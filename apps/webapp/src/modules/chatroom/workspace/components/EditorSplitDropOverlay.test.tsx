@@ -1,9 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { WORKSPACE_TAB_DRAG_MIME } from '../constants/workspaceTabDrag';
-
 import { EditorSplitDropOverlay } from './EditorSplitDropOverlay';
+import { WORKSPACE_TAB_DRAG_MIME } from '../constants/workspaceTabDrag';
 
 function makeDataTransfer(types: string[], data: Record<string, string> = {}) {
   return {

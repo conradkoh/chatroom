@@ -43,16 +43,12 @@ describe('ConvexOutputRepository', () => {
   it('forwards chunks without messageId/partType as-is (legacy path)', async () => {
     const { repo, backend } = createRepo();
 
-    await repo.appendChunks('row-1', [
-      { content: 'legacy', timestamp: 100 },
-    ]);
+    await repo.appendChunks('row-1', [{ content: 'legacy', timestamp: 100 }]);
 
     expect(backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        chunks: [
-          { content: 'legacy', timestamp: 100, messageId: undefined, partType: undefined },
-        ],
+        chunks: [{ content: 'legacy', timestamp: 100, messageId: undefined, partType: undefined }],
       })
     );
   });
@@ -64,5 +60,4 @@ describe('ConvexOutputRepository', () => {
 
     expect(backend.mutation).not.toHaveBeenCalled();
   });
-
 });

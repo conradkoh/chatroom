@@ -19,7 +19,7 @@ export async function terminalizeExpiredStopCommand(
   const now = Date.now();
   for (const t of targets)
     if (t.status === 'pending' || t.status === 'processing')
-      await ctx.db.patch("chatroom_agentStopTargets", t._id, {
+      await ctx.db.patch('chatroom_agentStopTargets', t._id, {
         status: 'failed',
         errorCode: 'EXPIRED',
         errorMessage: 'stop command expired',
@@ -27,12 +27,12 @@ export async function terminalizeExpiredStopCommand(
       });
   for (const e of executions)
     if (e.status === 'pending' || e.status === 'processing')
-      await ctx.db.patch("chatroom_agentStopMachineExecutions", e._id, {
+      await ctx.db.patch('chatroom_agentStopMachineExecutions', e._id, {
         status: 'failed',
         errorMessage: 'stop command expired',
         completedAt: now,
       });
-  await ctx.db.patch("chatroom_agentStopCommands", command._id, {
+  await ctx.db.patch('chatroom_agentStopCommands', command._id, {
     status: 'failed',
     errorCode: 'EXPIRED',
     errorMessage: 'stop command expired',

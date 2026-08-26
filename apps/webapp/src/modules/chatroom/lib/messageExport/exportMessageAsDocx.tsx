@@ -8,13 +8,13 @@ import {
   writeBlobToSaveTarget,
   type SaveFileResult,
 } from './downloadTextFile';
+import { exportMarkdownComponents } from './exportMarkdownComponents';
 import {
   MERMAID_EXPORT_PLACEHOLDER_PREFIX,
   replaceMermaidFencesWithSvg,
 } from './replaceMermaidFencesWithSvg';
-import { exportMarkdownComponents } from './exportMarkdownComponents';
-import { messageFeedProseClassNames } from '../../components/markdown-utils';
 import { chatroomRemarkPlugins } from '../../components/chatroomRemarkPlugins';
+import { messageFeedProseClassNames } from '../../components/markdown-utils';
 import type { Message } from '../../types/message';
 
 /** Light :root tokens from globals.css — Word is a white-page medium. */
