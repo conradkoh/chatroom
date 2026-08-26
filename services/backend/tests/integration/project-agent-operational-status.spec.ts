@@ -9,11 +9,11 @@ import {
   setupRemoteAgentConfig,
 } from '../helpers/integration';
 
-async function projectionFor(chatroomId: any) {
+async function projectionFor(chatroomId: any, role = 'builder') {
   return t.run(async (ctx) => ({
     role: await ctx.db
       .query('chatroom_agentRoleOperationalStatus')
-      .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+      .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
       .first(),
     summary: await ctx.db
       .query('chatroom_agentOperationalSummary')
@@ -36,6 +36,26 @@ async function configIdFor(chatroomId: any) {
 }
 
 describe('agent operational status projection', () => {
+  test('projects an armed ephemeral enhancer with no PID as idle and accepting tasks', async () => {
+    const { sessionId } = await createTestSession('operational-enhancer-idle');
+    const machineId = 'operational-machine-enhancer';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createDuoTeamChatroom(sessionId as any);
+    await t.run(async (ctx) => {
+      const room = await ctx.db.get(chatroomId);
+      await ctx.db.patch(chatroomId, { teamRoles: ['planner', 'enhancer', 'builder'] });
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey: buildTeamRoleKey(chatroomId, room!.teamId!, 'enhancer'), chatroomId, role: 'enhancer', type: 'remote', machineId,
+        agentHarness: 'opencode', model: 'test', workingDir: '/workspace', enabled: true, desiredState: 'running', lifecycleRevision: 0, createdAt: Date.now(), updatedAt: Date.now(),
+      });
+    });
+    await t.mutation(api.machines.backfillAgentOperationalStatusForMachine, { sessionId: sessionId as any, machineId });
+    const projection = await projectionFor(chatroomId, 'enhancer');
+    expect(projection.role?.acceptsTasks).toBe(true);
+    expect(projection.role?.viewState).toBe('idle');
+    expect(projection.role?.isAlive).toBe(false);
+  });
+
   test('backfill projects a running config with no PID as starting', async () => {
     const { sessionId } = await createTestSession('operational-starting');
     const machineId = 'operational-machine-starting';
