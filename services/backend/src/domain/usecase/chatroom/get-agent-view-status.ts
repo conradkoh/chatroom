@@ -1,11 +1,11 @@
 import { getTeamRolesFromChatroom } from './get-team-roles';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
-import type { AgentType } from '../../entities/agent';
 import {
   deriveAgentRoleViewState,
   type OperationalState,
 } from '../agent/derive-agent-operational-state';
+import type { AgentType } from '../../entities/agent';
 import { hasActiveEnhancerWork } from '../enhancer/enhancer-entry-point-status';
 
 export interface AgentViewRole {

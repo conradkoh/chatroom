@@ -1,7 +1,6 @@
-import { rollupAgentStopCommandStatus } from './rollup-agent-stop-command';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-
+import { rollupAgentStopCommandStatus } from './rollup-agent-stop-command';
 export async function completeMachineStopExecution(
   ctx: MutationCtx,
   args: {
@@ -26,14 +25,14 @@ export async function completeMachineStopExecution(
       )
       .collect())
       if (target.status === 'pending' || target.status === 'processing')
-        await ctx.db.patch("chatroom_agentStopTargets", target._id, {
+        await ctx.db.patch(target._id, {
           status: 'failed',
           errorCode: 'EXECUTION_FAILED',
           errorMessage: args.errorMessage ?? 'Machine execution failed',
           completedAt: Date.now(),
         });
   if (execution.status !== 'completed' && execution.status !== 'failed')
-    await ctx.db.patch("chatroom_agentStopMachineExecutions", execution._id, {
+    await ctx.db.patch(execution._id, {
       status: args.status,
       completedAt: Date.now(),
       errorMessage: args.errorMessage,

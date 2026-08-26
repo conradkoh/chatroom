@@ -2,7 +2,6 @@
 import { v } from 'convex/values';
 
 import { agentStopReasonValidator, type AgentStopReason } from './agent';
-
 export {
   agentStopScopeKey,
   buildAgentStopRevisionKey,

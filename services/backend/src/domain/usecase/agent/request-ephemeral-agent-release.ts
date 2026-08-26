@@ -1,10 +1,8 @@
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
-
-import { createAgentStopCommand } from './create-agent-stop-command';
-import { selectConfigsForAgentStop } from './select-agent-stop-configs';
 import type { Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-
+import { createAgentStopCommand } from './create-agent-stop-command';
+import { selectConfigsForAgentStop } from './select-agent-stop-configs';
 export async function requestEphemeralAgentRelease(
   ctx: MutationCtx,
   task: Doc<'chatroom_tasks'>

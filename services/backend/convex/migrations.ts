@@ -11,22 +11,22 @@ import {
   isLegacyMachineFavoriteScopeKey,
   normalizeMachineFavoriteScopeKey,
 } from './utils/machineFavoriteScopeKey';
-import { isActiveWorkspace } from '../src/domain/entities/workspace';
 import {
   rebuildAgentOperationalStatusForChatroom,
   insertEmptyOperationalSummaryForRoom,
 } from '../src/domain/usecase/agent/project-agent-operational-status';
-import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
-import {
-  mergeCanonicalEnhancerIntoTeamRoles,
-  migrateEnhancerConfigRow,
-} from '../src/domain/usecase/enhancer/migrate-legacy-enhancer-config';
 import { upsertMachineIdentity } from '../src/domain/usecase/machine/project-machine-identity';
+import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
+import { rebuildObservedWorkspaceView } from '../src/domain/usecase/workspace/project-observed-workspace-view';
+import { isActiveWorkspace } from '../src/domain/entities/workspace';
 import {
   upsertMessageReadModel,
   ensureMessageReadModelState,
 } from '../src/domain/usecase/message/message-read-model';
-import { rebuildObservedWorkspaceView } from '../src/domain/usecase/workspace/project-observed-workspace-view';
+import {
+  mergeCanonicalEnhancerIntoTeamRoles,
+  migrateEnhancerConfigRow,
+} from '../src/domain/usecase/enhancer/migrate-legacy-enhancer-config';
 
 type FavoriteEntry = Doc<'chatroom_machineConfigFavorites'>['favorites'][number];
 

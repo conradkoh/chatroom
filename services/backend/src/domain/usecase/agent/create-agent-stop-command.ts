@@ -1,11 +1,6 @@
-import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
-import { projectAgentStopStateForRole } from './project-agent-operational-status';
-import type { AgentStopSelectedConfig } from './select-agent-stop-configs';
-import { supersedeInflightAgentStopCommands } from './supersede-inflight-agent-stop-commands';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { AgentStopReason , AgentPostStopDesiredState } from '../../entities/agent';
+import type { AgentStopReason } from '../../entities/agent';
 import {
   agentStopScopeKey,
   buildAgentStopRevisionKey,
@@ -13,9 +8,15 @@ import {
   normalizeAgentStopRole,
   type AgentStopScope,
 } from '../../entities/agent-stop-command';
-import { interruptEnhancerJobsOnChatroomStop } from '../enhancer/interrupt-enhancer-jobs-on-chatroom-stop';
 import { enqueueMachineCommand } from '../machine/enqueue-machine-command';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
+import { projectAgentStopStateForRole } from './project-agent-operational-status';
+import { supersedeInflightAgentStopCommands } from './supersede-inflight-agent-stop-commands';
+import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
+import type { AgentStopSelectedConfig } from './select-agent-stop-configs';
+import type { AgentPostStopDesiredState } from '../../entities/agent';
+import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
+import { interruptEnhancerJobsOnChatroomStop } from '../enhancer/interrupt-enhancer-jobs-on-chatroom-stop';
 
 export interface CreateAgentStopCommandInput {
   chatroomId: Id<'chatroom_rooms'>;

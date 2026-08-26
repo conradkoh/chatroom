@@ -6,14 +6,14 @@
  * those happen only after the daemon confirms harness termination.
  */
 
+import type { Id } from '../../../../convex/_generated/dataModel';
+import type { MutationCtx } from '../../../../convex/_generated/server';
+import type { AgentStopReason } from '../../entities/agent';
 import { createAgentStopCommand } from './create-agent-stop-command';
 import {
   selectConfigsForAgentStop,
   type AgentStopSelectedConfig,
 } from './select-agent-stop-configs';
-import type { Id } from '../../../../convex/_generated/dataModel';
-import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { AgentStopReason } from '../../entities/agent';
 
 export interface RequestAgentStopInput {
   machineId: string;

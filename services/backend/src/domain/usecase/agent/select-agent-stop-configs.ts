@@ -2,7 +2,6 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { filterTeamAgentConfigsForTeam } from '../../../../convex/utils/teamRoleKey';
 import { normalizeAgentStopRole, type AgentStopScope } from '../../entities/agent-stop-command';
-
 export type AgentStopSelectedConfig = Doc<'chatroom_teamAgentConfigs'> & {
   machineId: string;
   spawnedAgentPid: number;
