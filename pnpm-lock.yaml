@@ -384,9 +384,6 @@ importers:
       '@opencode-ai/sdk':
         specifier: ^1.14.22
         version: 1.18.18
-      '@workspace/shared':
-        specifier: workspace:*
-        version: link:../shared
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
@@ -442,6 +439,9 @@ importers:
       '@workspace/backend':
         specifier: workspace:*
         version: link:../../services/backend
+      '@workspace/shared':
+        specifier: workspace:*
+        version: link:../shared
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

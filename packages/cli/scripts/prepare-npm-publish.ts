@@ -55,6 +55,16 @@ function run(cmd: string, opts: ExecSyncOptions = {}): void {
   execSync(cmd, { stdio: 'inherit', ...opts });
 }
 
+function stripWorkspaceProtocolDeps(
+  dependencies: Record<string, string> | undefined
+): Record<string, string> | undefined {
+  if (!dependencies) return dependencies;
+  const filtered = Object.fromEntries(
+    Object.entries(dependencies).filter(([, version]) => !version.startsWith('workspace:'))
+  );
+  return Object.keys(filtered).length > 0 ? filtered : undefined;
+}
+
 function readPublishManifest(): PublishPackageJson {
   const source = JSON.parse(
     readFileSync(join(cliRoot, 'package.json'), 'utf8')
@@ -62,6 +72,7 @@ function readPublishManifest(): PublishPackageJson {
   return {
     ...source,
     // Published tarball must not ship dev tooling or workspace protocol deps.
+    dependencies: stripWorkspaceProtocolDeps(source.dependencies),
     scripts: {},
     devDependencies: undefined,
     bundledDependencies: undefined,
