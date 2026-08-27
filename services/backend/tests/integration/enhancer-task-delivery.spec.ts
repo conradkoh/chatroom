@@ -11,7 +11,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { insertLegacyEnhancerJob } from '../helpers/enhancer-legacy-job';
+import { insertEnhancerJob } from '../helpers/enhancer-job';
 import { addEnhancerToTeamRoles, joinParticipant } from '../helpers/integration';
 import {
   setupPlannerWorkspaceForSession,
@@ -228,7 +228,7 @@ describe('getTaskDeliveryPrompt — enhancer enabled vs disabled', () => {
     });
 
     const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
-    const { jobId } = await insertLegacyEnhancerJob({
+    const { jobId } = await insertEnhancerJob({
       chatroomId,
       userId,
       machineId,

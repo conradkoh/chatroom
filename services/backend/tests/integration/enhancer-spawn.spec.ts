@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { insertLegacyEnhancerJob } from '../helpers/enhancer-legacy-job';
+import { insertEnhancerJob } from '../helpers/enhancer-job';
 import {
   addEnhancerToTeamRoles,
   enableEnhancerTeamAgent,
@@ -122,7 +122,7 @@ describe('daemon.enhancer.index', () => {
       'Claim test message'
     );
     const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
-    const { jobId } = await insertLegacyEnhancerJob({
+    const { jobId } = await insertEnhancerJob({
       chatroomId,
       userId,
       machineId,
@@ -188,7 +188,7 @@ describe('daemon.enhancer.index', () => {
       'Payload test message'
     );
     const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
-    const { jobId } = await insertLegacyEnhancerJob({
+    const { jobId } = await insertEnhancerJob({
       chatroomId,
       userId,
       machineId,

@@ -36,6 +36,15 @@ export async function executeScopedStopForCommand(args: {
     inboxCommandId: args.inboxCommandId,
   })) as { shouldExecute: boolean; targets: { targetKey: string; role: string; pid: number }[] };
   if (!begun.shouldExecute) return { stoppedCount: 0, failedCount: 0 };
+  for (const target of begun.targets) {
+    args.apm.bindStopTarget?.({
+      chatroomId: target.chatroomId,
+      role: target.role,
+      pid: target.pid,
+      stopCommandId: args.stopCommandId,
+      targetKey: target.targetKey,
+    });
+  }
   let result: Awaited<ReturnType<typeof runExactTargetsStopType>> = { targets: [], failures: [] };
   let executionError: unknown;
   try {

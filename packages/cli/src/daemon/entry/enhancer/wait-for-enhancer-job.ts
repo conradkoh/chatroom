@@ -2,7 +2,6 @@ import type { ConvexClient } from 'convex/browser';
 
 import { ENHANCER_AGENT_END_GRACE_MS } from './constants.js';
 import type { EnhancerLogWriter } from './enhancer-log.js';
-import { writeEnhancerLog } from './enhancer-log.js';
 import { subscribeToEnhancerJobOutcome } from './job-outcome-subscription.js';
 
 export type EnhancerJobResolution = 'complete' | 'failed' | 'aborted';
@@ -27,7 +26,7 @@ export async function waitForEnhancerJobResolution(
 ): Promise<EnhancerJobResolution> {
   const { sessionId, chatroomId, jobId, wsClient, onFailure, onSalvageComplete, log, signal } =
     params;
-  const writeLog = (message: string) => (log ? log.write(message) : writeEnhancerLog(message));
+  const writeLog = (message: string) => log?.write(message);
 
   let outcome: EnhancerJobResolution | null = null;
   let salvagedText = '';

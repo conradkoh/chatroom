@@ -182,6 +182,9 @@ export interface AgentSlot {
   stoppingSince?: number;
   /** Monotonic token for the current stop attempt — bumped on stop claim and force-clear. */
   stopGeneration?: number;
+  /** Backend stop command/target currently responsible for this stopping slot. */
+  stopCommandId?: string;
+  stopTargetKey?: string;
 }
 
 export interface AgentProcessManagerDeps {
@@ -332,6 +335,8 @@ export class AgentProcessManager {
     slot.startedAt = undefined;
     slot.pendingOperation = undefined;
     slot.stoppingSince = undefined;
+    slot.stopCommandId = undefined;
+    slot.stopTargetKey = undefined;
     slot.nativeTurnPhase = undefined;
   }
 
@@ -496,6 +501,20 @@ export class AgentProcessManager {
       clock: this.deps.clock,
       killProcessWithFallback: this.killProcessWithFallback.bind(this),
     };
+  }
+
+  /** Associate a local stopping slot with the durable stop target being executed. */
+  bindStopTarget(args: {
+    chatroomId: string;
+    role: string;
+    pid: number;
+    stopCommandId: string;
+    targetKey: string;
+  }): void {
+    const slot = this.slots.get(agentKey(args.chatroomId, args.role));
+    if (!slot || slot.pid !== args.pid || slot.state !== 'stopping') return;
+    slot.stopCommandId = args.stopCommandId;
+    slot.stopTargetKey = args.targetKey;
   }
 
   async withScopedRoleStop<T>(
@@ -2347,6 +2366,8 @@ export class AgentProcessManager {
   ): Promise<void> {
     const pid = slot.pid;
     const harness = slot.harness;
+    const stopCommandId = slot.stopCommandId;
+    const stopTargetKey = slot.stopTargetKey;
     const durationMs = slot.stoppingSince
       ? this.deps.clock.now() - slot.stoppingSince
       : STOPPING_TIMEOUT_MS;
@@ -2383,6 +2404,34 @@ export class AgentProcessManager {
         agentHarness: harness,
       };
       this.recordAgentExit(role, exitArgs, 'Failed to record stop-timeout exit');
+    }
+    if (pid && stopCommandId && stopTargetKey) {
+      try {
+        await this.deps.backend.mutation(api.agentStops.reportTargetOutcome, {
+          sessionId: this.deps.sessionId,
+          stopCommandId,
+          chatroomId,
+          machineId: this.deps.machineId,
+          targetKey: stopTargetKey,
+          role,
+          pid,
+          status: 'failed',
+          outcome: 'failed',
+          termination: 'forced',
+          errorMessage: 'Daemon force-cleared a timed-out stop operation',
+        });
+        await this.deps.backend.mutation(api.agentStops.completeMachineExecution, {
+          sessionId: this.deps.sessionId,
+          stopCommandId,
+          machineId: this.deps.machineId,
+          status: 'failed',
+          errorMessage: 'Daemon force-cleared a timed-out stop operation',
+        });
+      } catch (error) {
+        console.log(
+          `   ⚠️  Failed to finalize timed-out stop for ${role}@${chatroomId}: ${(error as Error).message}`
+        );
+      }
     }
     await this.clearAgentPidQuietly(chatroomId, role);
   }
