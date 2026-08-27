@@ -1,16 +1,11 @@
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+import type { ChatroomAgentActivityStatusValue } from '@workspace/shared/domain/chatroom-agent-activity-status';
 
 import type { Id, Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
-export type AgentRoleStatusReadModelStatus =
-  | 'offline'
-  | 'starting'
-  | 'waiting'
-  | 'working'
-  | 'stopping'
-  | 'error';
+export type AgentRoleStatusReadModelStatus = ChatroomAgentActivityStatusValue;
 
 type StatusEvent = {
   status: AgentRoleStatusReadModelStatus;

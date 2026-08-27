@@ -7,7 +7,6 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
-import { getTeamStructure } from '../src/domain/entities/team-presets';
 import {
   PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS,
   CONNECTION_CLOSE_REQUEST_TTL_MS,
@@ -18,6 +17,7 @@ import {
   PARTICIPANT_EXITED_ACTION,
   isActiveParticipant,
 } from '../src/domain/entities/participant';
+import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
@@ -411,7 +411,7 @@ export const getConnectionId = query({
 
 // ─── Team Lifecycle (lastSeenAt-based) ──────────────────────────────────────
 
-/** Returns raw participant state (lastSeenAt, lastSeenAction, agentType) for all team roles. */
+/** Returns participant presence state for all team roles. */
 export const getTeamLifecycle = query({
   args: {
     ...SessionIdArg,
@@ -431,10 +431,6 @@ export const getTeamLifecycle = query({
         role: a.role,
         lastSeenAt: a.lastSeenAt,
         lastSeenAction: a.lastSeenAction,
-        agentType: a.agentType,
-        lastStatus: a.lastStatus,
-        lastDesiredState: a.lastDesiredState,
-        isAlive: a.isAlive,
       })),
       hasHistory: view.hasHistory,
     };

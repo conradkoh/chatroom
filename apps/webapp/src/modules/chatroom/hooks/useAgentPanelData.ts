@@ -37,10 +37,6 @@ export interface AgentPanelData {
       role: string;
       lastSeenAt: number | null;
       lastSeenAction: string | null;
-      agentType: 'remote' | 'custom';
-      lastStatus: string | null;
-      lastDesiredState: string | null;
-      isAlive: boolean;
     }[];
     hasHistory: boolean;
   } | null;
@@ -119,10 +115,6 @@ export function useAgentPanelData(
           role: a.role,
           lastSeenAt: a.lastSeenAt,
           lastSeenAction: a.lastSeenAction,
-          agentType: a.agentType,
-          lastStatus: a.lastStatus,
-          lastDesiredState: a.lastDesiredState,
-          isAlive: a.isAlive,
         })),
         hasHistory: statusResult.hasHistory,
       }
