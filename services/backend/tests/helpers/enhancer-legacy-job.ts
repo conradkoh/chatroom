@@ -27,7 +27,7 @@ export async function insertLegacyEnhancerJob(args: {
       userId: args.userId,
       targetId: 'handoff:planner-to-builder',
       fromRole: 'planner',
-      toRole: 'builder',
+      toRole: 'enhancer',
       status: args.status ?? 'pending',
       draftContent: args.draftContent ?? 'Draft',
       templateSnapshot: '# Template\n## Goal',

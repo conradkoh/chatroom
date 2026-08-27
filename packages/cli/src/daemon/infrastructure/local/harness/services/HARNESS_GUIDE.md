@@ -33,7 +33,7 @@ Some harnesses use **native integration**: the chatroom daemon injects tasks dir
 - **Native harnesses:** `native:waiting` → WAITING; `native:task-injected` when a task is injected → ACKNOWLEDGED (`task.acknowledged`)
 - **All harnesses:** first stdout/stderr token via `updateTokenActivity` when the task is `acknowledged` → `readTask()` → `task.inProgress` / UI **WORKING**
 
-Native SDK harnesses with a typed activity emitter report once per turn via `wireTokenActivityReporting`; legacy CLI harnesses fall back to `spawnResult.onOutput()` with a 30s throttle. Used by `AgentProcessManager` (multi-agent team roles only). The enhancer daemon is a one-off worker — it does **not** call `participants.join` or `updateTokenActivity`; task `pending → in_progress` happens in `claimForSpawn` via `startEnhancerJobWork`. Team agents do **not** need to run `task read` to mark work as in progress — producing harness output is the signal.
+Native SDK harnesses with a typed activity emitter report once per turn via `wireTokenActivityReporting`; legacy CLI harnesses fall back to `spawnResult.onOutput()` with a 30s throttle. Used by `AgentProcessManager` (multi-agent team roles only). The enhancer daemon is a one-off worker. It registers an ephemeral `enhancer` participant when `claimForSpawn` starts the job, then task `pending → in_progress` happens through the same task lifecycle use cases as team agents. Team agents do **not** need to run `task read` to mark work as in progress — producing harness output is the signal.
 
 `task read` remains available as an optional recovery command (e.g. backlog attachments not shown in delivery).
 
@@ -457,7 +457,7 @@ Roles are split into two execution kinds, defined in `src/domain/execution-kind.
 
 | Kind            | Roles                                  | `participants.join` / `updateTokenActivity` | Example                |
 | --------------- | -------------------------------------- | ------------------------------------------- | ---------------------- |
-| `team_agent`    | planner, builder (default for unknown) | Yes — standard native presence wiring       | Duo chatroom agents    |
-| `daemon_worker` | enhancer                               | No — guarded by `isTeamAgentRole`           | Daemon-managed workers |
+| `team_agent`    | planner, builder, enhancer (default for unknown) | Yes — standard native presence wiring       | Persistent and ephemeral team roles |
+| `daemon_worker` | (none currently)                       | N/A                                         | Reserved for non-participant workers |
 
-Daemon workers (`enhancer`) are spawned outside `AgentProcessManager` and must NOT call team-agent `participants.join` or `updateTokenActivity`. The `native-spawn-presence.ts` helpers gate on `isTeamAgentRole` before attempting any mutation.
+The enhancer is an ephemeral team role. Its participant row is registered by the backend when an enhancer job is claimed, while native harness presence helpers may report subsequent activity using the same participant lifecycle. The enhancer job subscriber does not duplicate that registration or run long-lived token activity.

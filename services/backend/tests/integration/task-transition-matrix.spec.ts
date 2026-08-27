@@ -1,7 +1,7 @@
 /**
  * Task Transition Matrix — Integration Tests
  *
- * Verifies task lifecycle transitions for team agent vs daemon worker roles.
+ * Verifies task lifecycle transitions for persistent and ephemeral team roles.
  *
  * DAEMON_WORKER_ROLES must match packages/cli/src/domain/execution-kind.ts
  *
@@ -9,7 +9,7 @@
  * |-----------|---------|----------------|
  * | team_agent (planner) | native:task-injected + updateTokenActivity | in_progress |
  * | team_agent (planner) | agent.waiting + updateTokenActivity (token resume) | in_progress |
- * | daemon_worker (enhancer) | claimForSpawn | in_progress, NO participant row |
+ * | ephemeral (enhancer) | claimForSpawn | in_progress + participant row |
  */
 
 import { describe, expect, test } from 'vitest';
@@ -124,7 +124,7 @@ describe('task transition matrix', () => {
     expect(status).toBe('in_progress');
   });
 
-  test('daemon worker + claimForSpawn -> in_progress, no enhancer participant', async () => {
+  test('ephemeral role + claimForSpawn -> in_progress and registers participant', async () => {
     const { sessionId } = await createTestSession('ttm-worker');
     const cId = await createDuoTeamChatroom(sessionId);
     await assertDuoTeamOnly(cId);
@@ -177,13 +177,17 @@ describe('task transition matrix', () => {
     expect(task).toBeDefined();
     expect(task!.status).toBe('in_progress');
 
-    // No participant row for enhancer role
+    // The active enhancer invocation is visible as a participant.
     const enhancerParticipant = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_participants')
         .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', cId).eq('role', 'enhancer'))
         .first();
     });
-    expect(enhancerParticipant).toBeNull();
+    expect(enhancerParticipant).toMatchObject({
+      role: 'enhancer',
+      agentType: 'remote',
+      lastSeenAction: 'enhancer:started',
+    });
   });
 });

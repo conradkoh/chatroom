@@ -264,7 +264,7 @@ describe('startEnhancerJobSubscriber', () => {
     vi.useRealTimers();
   });
 
-  it('does not call participants.join or updateTokenActivity (enhancer is a worker, not a team agent)', async () => {
+  it('does not use the long-lived participant heartbeat or token activity path', async () => {
     vi.useFakeTimers();
 
     let outputCallback: (() => void) | undefined;

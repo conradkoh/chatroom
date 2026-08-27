@@ -7,6 +7,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server';
 import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getRolePriority } from './lib/hierarchy';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
+import { getTeamStructure } from '../src/domain/entities/team-presets';
 import {
   PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS,
   CONNECTION_CLOSE_REQUEST_TTL_MS,
@@ -69,9 +70,20 @@ export const join = mutation({
 
     // Validate role is in team configuration
     const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
+    const structuralRoles = chatroom.teamId
+      ? getTeamStructure({
+          teamId: chatroom.teamId,
+          teamName: chatroom.teamName,
+          persistedRoles: teamRoles,
+          persistedEntryPoint: chatroom.teamEntryPoint,
+        }).roles.map(({ role }) => role.toLowerCase())
+      : [];
     if (teamRoles.length > 0) {
       const normalizedRole = args.role.toLowerCase();
-      if (!normalizedTeamRoles.includes(normalizedRole)) {
+      if (
+        !normalizedTeamRoles.includes(normalizedRole) &&
+        !structuralRoles.includes(normalizedRole)
+      ) {
         throw new Error(
           `Invalid role: "${args.role}" is not in team configuration. Allowed roles: ${teamRoles.join(', ')}`
         );

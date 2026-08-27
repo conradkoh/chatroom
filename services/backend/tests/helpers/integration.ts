@@ -276,7 +276,7 @@ export async function addEnhancerToTeamRoles(chatroomId: Id<'chatroom_rooms'>): 
  */
 /**
  * Assert chatroom has only duo team roles (planner, builder).
- * Used in task-transition-matrix tests to verify team agent vs daemon worker invariants.
+ * Used in task-transition-matrix tests to verify persistent vs ephemeral role invariants.
  */
 export async function assertDuoTeamOnly(chatroomId: Id<'chatroom_rooms'>): Promise<void> {
   await t.run(async (ctx) => {

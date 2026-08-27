@@ -1,20 +1,31 @@
 import type { Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 import { acknowledgePendingTask } from '../task/acknowledge-pending-task';
 import { readTask } from '../task/read-task';
 import { recordTaskDelivery } from '../task/record-task-delivery';
+import { registerEphemeralParticipant } from '../participant/register-ephemeral-participant';
 
 /**
- * Transition the enhancer job's linked task to in_progress when the daemon claims the job.
- *
- * Enhancer is an ephemeral daemon worker — not a chatroom team participant — so this
- * must not go through participants.join / updateTokenActivity.
+ * Transition an enhancer job's linked task to in_progress when the daemon claims it.
+ * The job remains enhancer-specific, but its active presence follows the shared
+ * ephemeral-role lifecycle.
  */
 // fallow-ignore-next-line complexity
 export async function startEnhancerJobWork(
   ctx: MutationCtx,
   job: Doc<'chatroom_enhancerJobs'>
 ): Promise<void> {
+  if (isEphemeralAgentRole(job.toRole)) {
+    await registerEphemeralParticipant(ctx, {
+      chatroomId: job.chatroomId,
+      role: job.toRole,
+      machineId: job.machineId,
+      connectionId: job._id.toString(),
+      action: `${job.toRole}:started`,
+    });
+  }
+
   if (!job.taskId) return;
 
   let task = await ctx.db.get('chatroom_tasks', job.taskId);

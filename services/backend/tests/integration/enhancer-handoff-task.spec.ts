@@ -14,35 +14,38 @@ async function setup(id: string) {
   const chatroomId = await createDuoTeamChatroom(sessionId);
   const machineId = `enhancer-task-${id}`;
   await registerMachineWithDaemon(sessionId, machineId);
+  await t.mutation(api.workspaces.registerWorkspace, {
+    sessionId,
+    chatroomId,
+    machineId,
+    workingDir: '/workspace',
+    hostname: 'test-host',
+    registeredBy: 'planner',
+  });
   await t.run(async (ctx) => {
     const room = await ctx.db.get(chatroomId);
     await ctx.db.patch(chatroomId, {
       teamRoles: ['planner', 'enhancer', 'builder'],
       teamEntryPoint: 'planner',
     });
-    await ctx.db.insert('chatroom_teamAgentConfigs', {
-      teamRoleKey: buildTeamRoleKey(chatroomId, 'duo', 'enhancer'),
+    await ctx.db.insert('chatroom_enhancerConfigs', {
       chatroomId,
-      role: 'enhancer',
-      type: 'remote',
+      userId: room!.ownerId,
+      enabled: true,
+      targetId: 'handoff:planner-to-builder',
       machineId,
       agentHarness: 'opencode',
       model: 'test-model',
-      workingDir: '/workspace',
-      enabled: true,
-      desiredState: 'stopped',
-      lifecycleRevision: 0,
-      createdAt: Date.now(),
       updatedAt: Date.now(),
     });
     return room;
   });
-  return { sessionId, chatroomId };
+  return { sessionId, chatroomId, machineId };
 }
 
 describe('request-first enhancer handoff', () => {
-  test('creates one enhancer task per origin and no legacy job', async () => {
-    const { sessionId, chatroomId } = await setup('handoff-task');
+  test('creates one enhancer task and linked job per origin', async () => {
+    const { sessionId, chatroomId, machineId } = await setup('handoff-task');
     const origin = await t.mutation(api.messages.sendMessage, {
       sessionId,
       chatroomId,
@@ -81,14 +84,29 @@ describe('request-first enhancer handoff', () => {
     );
     expect(tasks.filter((task) => task.assignedTo === 'enhancer')).toHaveLength(1);
     expect(tasks.find((task) => task.assignedTo === 'enhancer')?.originUserMessageId).toBe(origin);
+    const jobs = await t.run((ctx) =>
+      ctx.db
+        .query('chatroom_enhancerJobs')
+        .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].taskId).toBe(tasks.find((task) => task.assignedTo === 'enhancer')?._id);
     expect(
       await t.run((ctx) =>
         ctx.db
-          .query('chatroom_enhancerJobs')
-          .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId))
-          .collect()
+          .query('chatroom_teamAgentConfigs')
+          .withIndex('by_teamRoleKey', (q) =>
+            q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'enhancer'))
+          )
+          .first()
       )
-    ).toHaveLength(0);
+    ).toMatchObject({
+      role: 'enhancer',
+      machineId,
+      model: 'test-model',
+      workingDir: '/workspace',
+    });
     const second = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,

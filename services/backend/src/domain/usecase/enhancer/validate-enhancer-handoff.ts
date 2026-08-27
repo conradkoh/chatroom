@@ -1,4 +1,7 @@
-import { isCompleteRemoteEnhancerConfig } from './get-enhancer-team-agent-config';
+import {
+  hasRemoteEnhancerConfigFields,
+  isCompleteRemoteEnhancerConfig,
+} from './get-enhancer-team-agent-config';
 import type { Doc } from '../../../../convex/_generated/dataModel';
 
 export type EnhancerHandoffValidation =
@@ -14,7 +17,7 @@ export function validateEnhancerHandoff(args: {
   if (snapshot === false) return { allowed: false, code: 'ENHANCER_NOT_ENABLED' };
   if (snapshot === true) {
     if (!args.config) return { allowed: false, code: 'ENHANCER_CONFIG_INCOMPLETE' };
-    return isCompleteRemoteEnhancerConfig(args.config)
+    return hasRemoteEnhancerConfigFields(args.config)
       ? { allowed: true, config: args.config }
       : { allowed: false, code: 'ENHANCER_CONFIG_INCOMPLETE' };
   }
