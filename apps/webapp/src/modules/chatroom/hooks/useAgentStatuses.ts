@@ -1,16 +1,20 @@
 'use client';
 
+import {
+  deriveChatroomAgentActivityVariant,
+  isChatroomAgentActivityOnline,
+} from '@workspace/shared/domain/chatroom-agent-activity-status';
+import type { ChatroomAgentActivityVariant } from '@workspace/shared/domain/chatroom-agent-activity-status';
 import { useMemo } from 'react';
 
 import type { AgentRoleStatusReadModel } from './useAgentPanelData';
-import type { StatusVariant } from '../utils/agentStatusLabel';
 
 export interface AgentStatus {
   role: string;
   online: boolean;
   lastSeenAt: number | null;
   statusLabel: string;
-  statusVariant: StatusVariant;
+  statusVariant: ChatroomAgentActivityVariant;
   isWorking: boolean;
 }
 
@@ -39,18 +43,15 @@ export function useAgentStatuses(
   const agents = useMemo((): AgentStatus[] => {
     return roles.map((role) => {
       const readModel = statusReadModelMap.get(role.toLowerCase());
-      const status = resolveReadModelStatus(readModel?.status ?? 'offline');
-      const online =
-        readModel?.status !== undefined &&
-        readModel.status !== 'offline' &&
-        readModel.status !== 'error';
+      const statusValue = readModel?.status ?? 'offline';
+      const statusVariant = deriveChatroomAgentActivityVariant(statusValue);
       return {
         role,
-        online,
+        online: readModel ? isChatroomAgentActivityOnline(statusValue) : false,
         lastSeenAt: readModel?.lastSeenAt ?? null,
-        statusLabel: status.label,
-        statusVariant: status.variant,
-        isWorking: status.variant === 'working',
+      statusLabel: statusLabelForStatus(statusValue),
+        statusVariant,
+        isWorking: statusVariant === 'working',
       };
     });
   }, [roles, statusReadModelMap]);
@@ -72,22 +73,19 @@ export function useAgentStatuses(
   };
 }
 
-function resolveReadModelStatus(status: AgentRoleStatusReadModel['status']): {
-  label: string;
-  variant: StatusVariant;
-} {
+function statusLabelForStatus(status: AgentRoleStatusReadModel['status']): string {
   switch (status) {
     case 'starting':
-      return { label: 'STARTING', variant: 'transitioning' };
+      return 'STARTING';
     case 'waiting':
-      return { label: 'WAITING', variant: 'ready' };
+      return 'WAITING';
     case 'working':
-      return { label: 'WORKING', variant: 'working' };
+      return 'WORKING';
     case 'stopping':
-      return { label: 'STOPPING', variant: 'transitioning' };
+      return 'STOPPING';
     case 'error':
-      return { label: 'OFFLINE (ERROR)', variant: 'error' };
+      return 'OFFLINE (ERROR)';
     case 'offline':
-      return { label: 'OFFLINE', variant: 'offline' };
+      return 'OFFLINE';
   }
 }

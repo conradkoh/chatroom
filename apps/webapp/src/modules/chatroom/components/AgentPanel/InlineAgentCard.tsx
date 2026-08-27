@@ -2,6 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { ChatroomAgentActivityVariant } from '@workspace/shared/domain/chatroom-agent-activity-status';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import React, { memo, useState, useMemo, useEffect, useRef } from 'react';
 
@@ -12,7 +13,6 @@ import { useAgentControls } from '../AgentControls';
 import { AgentControlsSection } from './AgentControlsSection';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { AgentStatusRow, getLabelColorClass, formatLastSeen } from './AgentStatusRow';
-import type { StatusVariant } from '../../utils/agentStatusLabel';
 import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
 
 import { getDaemonStartCommand } from '@/lib/environment';
@@ -41,7 +41,7 @@ export interface InlineAgentCardProps {
   online: boolean;
   lastSeenAt?: number | null;
   statusLabel: string;
-  statusVariant: StatusVariant;
+  statusVariant: ChatroomAgentActivityVariant;
   prompt: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
