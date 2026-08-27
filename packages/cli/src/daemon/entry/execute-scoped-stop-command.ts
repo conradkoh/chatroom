@@ -23,6 +23,9 @@ export async function executeScopedStopForCommand(args: {
   reason: AgentStopReason;
   inboxCommandId: string;
 }): Promise<ScopedStopExecutionSummary> {
+  // Claim daemon-local stop intent before any backend/network await. This
+  // invalidates already-running crash/session-reopen recovery immediately.
+  args.apm.markChatroomStopIntent(args.chatroomId, args.reason);
   if (args.scope.kind === 'chatroom') {
     await abortEnhancerSpawnsForChatroom(args.chatroomId);
   }
@@ -37,6 +40,7 @@ export async function executeScopedStopForCommand(args: {
   })) as { shouldExecute: boolean; targets: { targetKey: string; role: string; pid: number }[] };
   if (!begun.shouldExecute) return { stoppedCount: 0, failedCount: 0 };
   for (const target of begun.targets) {
+    args.apm.markStopIntent(args.chatroomId, target.role, args.reason, target.pid);
     args.apm.bindStopTarget?.({
       chatroomId: args.chatroomId,
       role: target.role,
