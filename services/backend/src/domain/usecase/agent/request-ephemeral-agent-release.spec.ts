@@ -64,7 +64,7 @@ describe('requestEphemeralAgentRelease', () => {
         .first()
     );
     expect(command?.reason).toBe('platform.ephemeral_task_complete');
-    expect(command?.postStopDesiredState).toBe('running');
+    expect(command?.postStopDesiredState).toBe('stopped');
     expect(ids.configId).toBeDefined();
   });
 });

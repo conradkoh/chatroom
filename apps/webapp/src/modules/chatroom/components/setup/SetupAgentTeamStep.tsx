@@ -1,6 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { Loader2, Play } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -62,12 +63,14 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     [connectedMachines, machineId]
   );
 
+  const persistentTeamRoles = useMemo(() => getPermanentRoleNames(teamRoles), [teamRoles]);
+
   const joinedCount = useMemo(
-    () => countJoinedRoles(teamRoles, participants),
-    [teamRoles, participants]
+    () => countJoinedRoles(persistentTeamRoles, participants),
+    [persistentTeamRoles, participants]
   );
 
-  const allJoined = joinedCount === teamRoles.length && teamRoles.length > 0;
+  const allJoined = joinedCount === persistentTeamRoles.length && persistentTeamRoles.length > 0;
 
   useEffect(() => {
     if (allJoined) onAllAgentsStarted();
@@ -96,7 +99,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
   );
 
   const handleStartAll = useCallback(async () => {
-    const missing = teamRoles.filter((role) => !roleConfigs.has(role.toLowerCase()));
+    const missing = persistentTeamRoles.filter((role) => !roleConfigs.has(role.toLowerCase()));
     if (missing.length > 0) {
       setStartError(`Select harness and model for: ${missing.join(', ')}`);
       return;
@@ -107,7 +110,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     const chatroomIdTyped = chatroomId as Id<'chatroom_rooms'>;
 
     const results = await startAgentsBatch(
-      teamRoles,
+      persistentTeamRoles,
       (role) => {
         const config = roleConfigs.get(role.toLowerCase());
         if (!config) return null;
@@ -128,11 +131,19 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
     );
 
     setIsStartingAll(false);
-    const failed = getFailedAgentRoles(results, teamRoles);
+    const failed = getFailedAgentRoles(results, persistentTeamRoles);
     if (failed.length > 0) {
       setStartError(`Failed to start: ${failed.join(', ')}`);
     }
-  }, [teamRoles, roleConfigs, agentRoleViewMap, sendCommand, machineId, workingDir, chatroomId]);
+  }, [
+    persistentTeamRoles,
+    roleConfigs,
+    agentRoleViewMap,
+    sendCommand,
+    machineId,
+    workingDir,
+    chatroomId,
+  ]);
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
@@ -162,11 +173,11 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
             Agents
           </h3>
           <span className="text-xs text-chatroom-text-muted">
-            {joinedCount} of {teamRoles.length} ready
+            {joinedCount} of {persistentTeamRoles.length} ready
           </span>
         </div>
         <div className="border border-chatroom-border">
-          {teamRoles.map((role) => {
+          {persistentTeamRoles.map((role) => {
             const participant = participants.find(
               (p) => p.role.toLowerCase() === role.toLowerCase()
             );
@@ -174,7 +185,7 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
               <InlineAgentCard
                 key={role}
                 role={role}
-                allRoles={teamRoles}
+                allRoles={persistentTeamRoles}
                 lastSeenAt={participant?.lastSeenAt ?? null}
                 statusLabel="OFFLINE"
                 statusVariant="offline"

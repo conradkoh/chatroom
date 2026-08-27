@@ -4,6 +4,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
+import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ArrowLeft,
@@ -1375,7 +1376,7 @@ export function ChatroomDashboard({
   // Start all remote agents handler
   const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
   const getConfiguredAgentRoles = useCallback((): string[] | null => {
-    const agentRoles = teamRoles.filter((r) => r !== 'user');
+    const agentRoles = getPermanentRoleNames(teamRoles.filter((r) => r !== 'user'));
     if (
       !ensureAgentRolesConfigured(agentRoles, roleConfigMap, () => handleCmdOpenSettings('agents'))
     ) {

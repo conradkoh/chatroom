@@ -1,3 +1,5 @@
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+
 /**
  * Restart offline remote agents when a user sends a message.
  * Loads config from chatroom_teamAgentConfigs — no caller-supplied harness/model/workingDir.
@@ -65,6 +67,7 @@ export async function restartOfflineAgentsOnUserMessage(
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<{ restartedRoles: string[] }> {
   const configs = await listTeamAgentConfigsForChatroom(ctx, chatroomId);
+  // fallow-ignore-next-line code-duplication
   const participants = await ctx.db
     .query('chatroom_participants')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
@@ -74,6 +77,7 @@ export async function restartOfflineAgentsOnUserMessage(
   const restartedRoles: string[] = [];
 
   for (const config of configs) {
+    if (isEphemeralAgentRole(config.role)) continue;
     if (!isRunnableRemoteConfig(config)) continue;
 
     const participant = participantByRole.get(config.role.toLowerCase());
