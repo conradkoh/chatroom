@@ -40,7 +40,7 @@ export function MarkdownToolbar({
     } catch (error) {
       console.error('Failed to copy markdown:', error);
     }
-  }, [editor]);
+  }, [editor, normalizeContent]);
   if (!editor) return null;
   const addLink = () => {
     const previousUrl = editor.getAttributes('link').href;

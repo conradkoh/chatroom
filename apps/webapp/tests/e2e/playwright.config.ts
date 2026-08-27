@@ -47,7 +47,8 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'pnpm dev',
+    // CI already supplies a deployed Convex URL, so only start Next.js there.
+    command: process.env.CI ? 'pnpm --filter @workspace/webapp dev' : 'pnpm dev',
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     cwd: '../../..', // repo root — turbo starts webapp + Convex

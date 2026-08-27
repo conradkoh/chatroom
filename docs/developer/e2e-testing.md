@@ -29,16 +29,18 @@ cd apps/webapp && pnpm e2e:downstream
 
 Filter by tag: `--grep @upstream`, `--grep @markdown`, etc.
 
-## Pre-push suite selection
+## When E2E runs
 
-`.husky/pre-push` **always** runs e2e via `scripts/run-pre-push-e2e.ts` — there is no skip branch.
+`.husky/pre-push` runs e2e only when a pushed ref targets `master`, which protects direct pushes to `master` before they leave the machine. Pushes to other branches skip the local E2E run because their pull requests are tested by GitHub Actions.
 
 - Template push destination → `@upstream` suite
 - Fork or non-template destination → `@downstream` suite
 
 The destination URL git passes as `$2` is resolved by `scripts/resolve-e2e-suite.ts` using `isTemplateRemote` from `scripts/template-repo.ts`. Tag constants are imported from `apps/webapp/tests/e2e/support/tags.ts`.
 
-If Playwright finds zero matching tests (e.g. a fork with no `@downstream` specs yet), the push **fails** — add at least one downstream spec in `specs/downstream/` before your first push to a fork remote.
+Pull requests targeting `master` run the full unfiltered suite in `.github/workflows/e2e.yml`. Configure the `E2E_CONVEX_URL` repository variable (or secret) with a non-production Convex deployment that has E2E seeding enabled.
+
+If Playwright finds zero matching tests (e.g. a fork with no `@downstream` specs yet), the direct `master` push **fails** — add at least one downstream spec in `specs/downstream/` before pushing to a fork remote.
 
 `pnpm e2e` runs the full unfiltered suite for manual and CI runs on any checkout.
 

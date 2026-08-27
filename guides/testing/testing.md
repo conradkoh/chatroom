@@ -83,7 +83,7 @@ Upstream template flows live in `apps/webapp/tests/e2e/specs/upstream/` and are 
 
 ### Pre-Push Hook
 
-The `.husky/pre-push` hook runs `pnpm run test` → `pnpm run typecheck` → `pnpm run e2e`. Because e2e now includes admin specs, pushing requires the Convex deployment to have `E2E_SEEDING_ENABLED` set — see [apps/webapp/tests/e2e/README.md](../../apps/webapp/tests/e2e/README.md#e2e-admin-seeding) for the mandatory setup.
+The `.husky/pre-push` hook runs `pnpm run test` → `pnpm run typecheck` and runs the destination-filtered E2E suite only for direct pushes to `master`. Pull requests targeting `master` run the full suite through `.github/workflows/e2e.yml`. Because e2e includes admin specs, the configured non-production Convex deployment must have `E2E_SEEDING_ENABLED` set — see [apps/webapp/tests/e2e/README.md](../../apps/webapp/tests/e2e/README.md#e2e-admin-seeding) for the mandatory setup.
 
 ### Policy
 

@@ -6,6 +6,9 @@ build
 .turbo
 .git
 .chatroom
+
+# Next.js auto-generated (also gitignored in apps/webapp/.gitignore)
+**/next-env.d.ts
 coverage
 .pnpm-debug.log
 # Convex codegen (glob + explicit backend path)

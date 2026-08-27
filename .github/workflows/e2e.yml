@@ -1,0 +1,37 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Repository variables are available to pull requests from forks. The fallback
+      # keeps a secret-based setup working for repositories that prefer that option.
+      NEXT_PUBLIC_CONVEX_URL: ${{ vars.E2E_CONVEX_URL || secrets.E2E_CONVEX_URL }}
+      PORT: 3000
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @workspace/webapp exec playwright install --with-deps
+
+      - name: Run E2E tests
+        run: pnpm --filter @workspace/webapp e2e
