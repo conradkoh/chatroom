@@ -1301,6 +1301,51 @@ describe('AgentProcessManager', () => {
     });
   });
 
+  describe('stop intent fencing', () => {
+    test('markStopIntent blocks ensureRunning for non-explicit start reasons', async () => {
+      await manager.ensureRunning(createOpts());
+      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', PID);
+
+      const result = await manager.ensureRunning(
+        createOpts({ reason: 'platform.cursor_sdk_session_reopen' })
+      );
+
+      expect(result).toEqual({ success: false, error: 'stop_requested' });
+    });
+
+    test('explicit user.start clears stop intent and allows ensureRunning', async () => {
+      await manager.ensureRunning(createOpts());
+      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', PID);
+
+      const result = await manager.ensureRunning(createOpts({ reason: 'user.start' }));
+
+      expect(result.success).toBe(true);
+    });
+
+    test('markStopIntent prevents dispatchRestartAfterExit from spawning', async () => {
+      await manager.ensureRunning(createOpts());
+      const service = deps.agentServices.get('opencode')!;
+      (service.spawn as ReturnType<typeof vi.fn>).mockClear();
+      manager.markStopIntent(CHATROOM_ID, ROLE, 'user.stop', PID);
+
+      manager.handleExit({ chatroomId: CHATROOM_ID, role: ROLE, pid: PID, code: 0, signal: null });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(service.spawn).not.toHaveBeenCalled();
+    });
+
+    test('markChatroomStopIntent marks idle slots (post-recovery reset)', async () => {
+      await manager.ensureRunning(createOpts());
+      const slot = manager.getSlot(CHATROOM_ID, ROLE)!;
+      slot.state = 'idle';
+      slot.pid = undefined;
+
+      manager.markChatroomStopIntent(CHATROOM_ID, 'user.stop');
+
+      expect(manager.isStopRequested(CHATROOM_ID, ROLE)).toBe(true);
+    });
+  });
+
   // ── stop ──────────────────────────────────────────────────────────────
 
   describe('stop', () => {
