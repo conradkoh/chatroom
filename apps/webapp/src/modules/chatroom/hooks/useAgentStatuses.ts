@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 
+import type { AgentRoleStatusReadModel } from './useAgentPanelData';
 import type { TeamLifecycle } from '../types/readiness';
 import {
   isWorkingVariant,
@@ -50,7 +51,8 @@ export interface UseAgentStatusesResult {
  */
 export function useAgentStatuses(
   roles: string[],
-  participants: TeamLifecycle['participants'] | undefined
+  participants: TeamLifecycle['participants'] | undefined,
+  statusReadModel: AgentRoleStatusReadModel[] | undefined
 ): UseAgentStatusesResult {
   const lifecycle = participants === undefined ? undefined : ({ participants } as TeamLifecycle);
 
@@ -60,9 +62,28 @@ export function useAgentStatuses(
     return new Map(participants.map((p) => [p.role.toLowerCase(), p]));
   }, [participants]);
 
+  const statusReadModelMap = useMemo(
+    () => new Map((statusReadModel ?? []).map((row) => [row.role.toLowerCase(), row])),
+    [statusReadModel]
+  );
+
   const agents = useMemo((): AgentStatus[] => {
     return roles.map((role) => {
       const participant = participantMap.get(role.toLowerCase());
+      const readModel = statusReadModelMap.get(role.toLowerCase());
+      if (readModel) {
+        const status = resolveReadModelStatus(readModel.status);
+        const online = readModel.status !== 'offline' && readModel.status !== 'error';
+        return {
+          role,
+          online,
+          lastSeenAt: readModel.lastSeenAt ?? null,
+          statusLabel: status.label,
+          statusVariant: status.variant,
+          isWorking: status.variant === 'working',
+          latestEventType: null,
+        };
+      }
       const lastSeenAt = participant?.lastSeenAt ?? null;
       const latestEventType = participant?.lastStatus ?? null;
       const desiredState = participant?.lastDesiredState ?? null;
@@ -83,7 +104,7 @@ export function useAgentStatuses(
         latestEventType,
       };
     });
-  }, [roles, participantMap]);
+  }, [roles, participantMap, statusReadModelMap]);
 
   const aggregateStatus = useMemo((): AggregateStatus => {
     const nonUserAgents = agents.filter((a) => a.role.toLowerCase() !== 'user');
@@ -101,4 +122,24 @@ export function useAgentStatuses(
     lifecycle,
     isLoading: lifecycle === undefined,
   };
+}
+
+function resolveReadModelStatus(status: AgentRoleStatusReadModel['status']): {
+  label: string;
+  variant: StatusVariant;
+} {
+  switch (status) {
+    case 'starting':
+      return { label: 'STARTING', variant: 'transitioning' };
+    case 'waiting':
+      return { label: 'WAITING', variant: 'ready' };
+    case 'working':
+      return { label: 'WORKING', variant: 'working' };
+    case 'stopping':
+      return { label: 'STOPPING', variant: 'transitioning' };
+    case 'error':
+      return { label: 'OFFLINE (ERROR)', variant: 'error' };
+    case 'offline':
+      return { label: 'OFFLINE', variant: 'offline' };
+  }
 }

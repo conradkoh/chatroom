@@ -7,6 +7,7 @@ import { useState, useMemo, useCallback, memo } from 'react';
 
 import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
 import type { TeamConfigEntry } from '../hooks/use-team-configs';
+import type { AgentRoleStatusReadModel } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { useRelativeTime } from '../hooks/useRelativeTime';
@@ -26,6 +27,7 @@ interface AgentPanelProps {
   chatroomId: string;
   teamStructure: TeamStructure | null | undefined;
   lifecycle: TeamLifecycle | null | undefined;
+  statusReadModel: AgentRoleStatusReadModel[] | undefined;
   teamName: string | undefined;
   teamId: string | undefined;
   defaultTeamId: string | undefined;
@@ -154,6 +156,7 @@ export const AgentPanel = memo(function AgentPanel({
   chatroomId,
   teamStructure,
   lifecycle,
+  statusReadModel,
   teamName,
   teamId,
   defaultTeamId,
@@ -187,7 +190,8 @@ export const AgentPanel = memo(function AgentPanel({
   // Use hook to get derived agent statuses (lifecycle + event stream)
   const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(
     rolesToShow,
-    lifecycle?.participants
+    lifecycle?.participants,
+    statusReadModel
   );
 
   // Open agent list — if onOpenAgents is provided, open settings to agents tab;

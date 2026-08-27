@@ -40,6 +40,7 @@ const duoStructure = {
 const panelProps = {
   chatroomId: 'room1',
   lifecycle,
+  statusReadModel: undefined,
   teamName: undefined,
   teamId: undefined,
   defaultTeamId: undefined,

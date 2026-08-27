@@ -1,6 +1,9 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
+import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
+import { deriveChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
+import type { ChatroomStatus } from '@workspace/shared/domain/chatroom-status';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
@@ -8,8 +11,6 @@ import {
   type ChatroomPresenceEntry,
   usePresenceForChatrooms,
 } from '../hooks/usePresenceForChatrooms';
-import { deriveChatStatus } from '../utils/deriveChatStatus';
-import type { ChatStatus } from '../utils/deriveChatStatus';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ export type Agent = Omit<ChatroomPresenceEntry, 'chatroomId'> & {
 export interface ChatroomWithStatus {
   _id: string;
   _creationTime: number;
-  status: 'active' | 'completed';
+  status: ChatroomStatus;
   name?: string;
   teamId?: string;
   teamName?: string;
@@ -36,7 +37,7 @@ export interface ChatroomWithStatus {
   teamEntryPoint?: string;
   lastActivityAt?: number;
   agents: Agent[];
-  chatStatus: 'working' | 'active' | 'transitioning' | 'idle' | 'completed';
+  chatStatus: ChatroomActivityStatus;
   isFavorite: boolean;
   hasUnread: boolean;
   hasUnreadHandoff: boolean;
@@ -92,7 +93,7 @@ function buildAgentsForChatroom(
  * 3. `listFavoriteIds`               — favorited chatroom IDs
  * 4. `listUnreadStatus`              — per-chatroom unread indicator
  * 5. `listAgentOverview`             — remote agent running state per chatroom
- * 6. `listActiveEnhancerWork`        — active enhancer job/task per chatroom
+ * 6. `listAgentRoleStatusReadModel`  — projected role activity per chatroom
  *
  * Splitting into six subscription groups means a participant heartbeat (every 30s)
  * only re-runs presence for that chatroom, not the entire listing.
@@ -118,8 +119,8 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
   // 5. Remote agent running status — re-fires when any machine spawnedAgentPid changes
   const remoteAgentStatusData = useSessionQuery(api.machines.listAgentOverview);
 
-  // 6. Active enhancer work — re-fires when enhancer jobs or tasks transition
-  const enhancerWorkStatus = useSessionQuery(api.chatrooms.listActiveEnhancerWork);
+  // 6. Projected role activity — the source for chatroom activity status
+  const agentActivityStatusData = useSessionQuery(api.machines.listAgentRoleStatusReadModel);
 
   // Merge the six subscriptions into a single ChatroomWithStatus[] for consumers
   const chatrooms = useMemo<ChatroomWithStatus[] | undefined>(() => {
@@ -130,7 +131,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
       favoriteIds === undefined ||
       unreadStatus === undefined ||
       remoteAgentStatusData === undefined ||
-      enhancerWorkStatus === undefined
+      agentActivityStatusData === undefined
     ) {
       return undefined;
     }
@@ -143,9 +144,12 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
     const remoteAgentStatusMap = new Map(
       remoteAgentStatusData.map((entry) => [entry.chatroomId as string, entry])
     );
-    const enhancerWorkMap = new Map(
-      enhancerWorkStatus.map((e) => [e.chatroomId, e.hasActiveEnhancerWork])
-    );
+    const agentActivityStatusMap = new Map<string, typeof agentActivityStatusData>();
+    for (const status of agentActivityStatusData) {
+      const chatroomStatuses = agentActivityStatusMap.get(status.chatroomId) ?? [];
+      chatroomStatuses.push(status);
+      agentActivityStatusMap.set(status.chatroomId, chatroomStatuses);
+    }
 
     // Index presence by (chatroomId, role) so agents built from teamRoles can
     // pick up their presence fields (lastSeenAt, lastStatus, ...) when present.
@@ -158,9 +162,10 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
       const aliveRoles = remoteAgentStatusMap.get(chatroom._id)?.aliveRoles ?? [];
       const agents = buildAgentsForChatroom(chatroom, presenceByRoomRole, aliveRoles);
 
-      const chatStatus = deriveChatStatus(chatroom.status, agents, {
-        hasActiveEnhancerWork: enhancerWorkMap.get(chatroom._id) ?? false,
-      });
+      const chatStatus = deriveChatroomActivityStatus(
+        chatroom.status,
+        agentActivityStatusMap.get(chatroom._id) ?? []
+      );
 
       return {
         ...chatroom,
@@ -181,7 +186,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
     favoriteIds,
     unreadStatus,
     remoteAgentStatusData,
-    enhancerWorkStatus,
+    agentActivityStatusData,
   ]);
 
   const value = useMemo(
@@ -213,23 +218,4 @@ export function useChatroomListing() {
     throw new Error('useChatroomListing must be used within ChatroomListingProvider');
   }
   return context;
-}
-
-/** Lookup pre-computed chatStatus from listing context (SSOT — includes enhancer work). Exported for unit tests. */
-// fallow-ignore-next-line unused-export
-export function selectChatroomChatStatus(
-  chatrooms: ChatroomWithStatus[] | undefined,
-  chatroomId: string
-): ChatStatus {
-  return chatrooms?.find((c) => c._id === chatroomId)?.chatStatus ?? 'idle';
-}
-
-/**
- * Returns the chatroom-level status indicator value for a single room.
- * Must be used within ChatroomListingProvider.
- * Same value as listing page, sidebar, and switcher.
- */
-export function useChatroomChatStatus(chatroomId: string): ChatStatus {
-  const { chatrooms } = useChatroomListing();
-  return useMemo(() => selectChatroomChatStatus(chatrooms, chatroomId), [chatrooms, chatroomId]);
 }

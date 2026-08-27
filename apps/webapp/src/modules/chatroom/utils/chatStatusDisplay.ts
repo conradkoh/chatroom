@@ -1,4 +1,4 @@
-import type { ChatStatus } from './deriveChatStatus';
+import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 
 /**
  * Shared chatroom-level status display utilities.
@@ -6,7 +6,7 @@ import type { ChatStatus } from './deriveChatStatus';
  */
 
 const CHAT_STATUS_DISPLAY: Record<
-  ChatStatus,
+  ChatroomActivityStatus,
   { indicatorClass: string; label: string; description: string }
 > = {
   working: {
@@ -39,16 +39,16 @@ const CHAT_STATUS_DISPLAY: Record<
 const INDICATOR_BASE = 'w-1.5 h-1.5 flex-shrink-0';
 
 /** Tailwind classes for the status square indicator (theme: square dots). */
-export function getChatStatusIndicatorClasses(chatStatus: ChatStatus): string {
+export function getChatStatusIndicatorClasses(chatStatus: ChatroomActivityStatus): string {
   return `${INDICATOR_BASE} ${CHAT_STATUS_DISPLAY[chatStatus].indicatorClass}`;
 }
 
 /** Short label for compact UI (listing cards, table rows). */
-export function getChatStatusLabel(chatStatus: ChatStatus): string {
+export function getChatStatusLabel(chatStatus: ChatroomActivityStatus): string {
   return CHAT_STATUS_DISPLAY[chatStatus].label;
 }
 
 /** Accessible description of what the status means for the user. */
-export function getChatStatusDescription(chatStatus: ChatStatus): string {
+export function getChatStatusDescription(chatStatus: ChatroomActivityStatus): string {
   return CHAT_STATUS_DISPLAY[chatStatus].description;
 }

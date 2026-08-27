@@ -12,11 +12,11 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       listByUser: { name: 'chatrooms:listByUser' },
       listFavoriteIds: { name: 'chatrooms:listFavoriteIds' },
       listUnreadStatus: { name: 'chatrooms:listUnreadStatus' },
-      listActiveEnhancerWork: { name: 'chatrooms:listActiveEnhancerWork' },
       getPresenceForChatroom: { name: 'chatrooms:getPresenceForChatroom' },
     },
     machines: {
       listAgentOverview: { name: 'machines:listAgentOverview' },
+      listAgentRoleStatusReadModel: { name: 'machines:listAgentRoleStatusReadModel' },
     },
   },
 }));
@@ -79,7 +79,7 @@ describe('ChatroomListingProvider agent/status derivation', () => {
     sessionQueryMocks['chatrooms:listByUser'] = baseChatrooms();
     sessionQueryMocks['chatrooms:listFavoriteIds'] = [];
     sessionQueryMocks['chatrooms:listUnreadStatus'] = [];
-    sessionQueryMocks['chatrooms:listActiveEnhancerWork'] = [];
+    sessionQueryMocks['machines:listAgentRoleStatusReadModel'] = [];
     sessionQueryMocks['machines:listAgentOverview'] = [];
   });
 
@@ -105,7 +105,15 @@ describe('ChatroomListingProvider agent/status derivation', () => {
         runningAgents: [],
       },
     ];
-
+    sessionQueryMocks['machines:listAgentRoleStatusReadModel'] = [
+      {
+        chatroomId: CHATROOM_ID,
+        role: 'builder',
+        roleKind: 'persistent',
+        status: 'working',
+        projectedAt: 100,
+      },
+    ];
     render(
       <ChatroomListingProvider>
         <ListingProbe />
@@ -126,7 +134,6 @@ describe('ChatroomListingProvider agent/status derivation', () => {
         runningAgents: [],
       },
     ];
-
     render(
       <ChatroomListingProvider>
         <ListingProbe />
@@ -155,6 +162,15 @@ describe('ChatroomListingProvider agent/status derivation', () => {
         runningRoles: ['builder'],
         aliveRoles: ['builder'],
         runningAgents: [{ role: 'builder', machineId: 'machine-1' }],
+      },
+    ];
+    sessionQueryMocks['machines:listAgentRoleStatusReadModel'] = [
+      {
+        chatroomId: CHATROOM_ID,
+        role: 'builder',
+        roleKind: 'persistent',
+        status: 'working',
+        projectedAt: 100,
       },
     ];
 

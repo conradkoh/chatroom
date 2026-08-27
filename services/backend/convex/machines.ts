@@ -2170,6 +2170,43 @@ export const getAgentViewStatus = query({
   },
 });
 
+/** Returns the materialized per-role status read model for one chatroom. */
+export const getAgentRoleStatusReadModel = query({
+  args: { ...SessionIdArg, chatroomId: v.id('chatroom_rooms') },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return ctx.db
+      .query('chatroom_agentRoleStatusReadModel')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+  },
+});
+
+/** Returns projected per-role statuses for all chatrooms owned by the user. */
+export const listAgentRoleStatusReadModel = query({
+  args: { ...SessionIdArg },
+  handler: async (ctx, args) => {
+    const auth = await getSession(ctx, args.sessionId);
+    if (!auth) return [];
+
+    const chatrooms = await ctx.db
+      .query('chatroom_rooms')
+      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.userId))
+      .collect();
+
+    const rows = await Promise.all(
+      chatrooms.map((chatroom) =>
+        ctx.db
+          .query('chatroom_agentRoleStatusReadModel')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+          .collect()
+      )
+    );
+
+    return rows.flat();
+  },
+});
+
 /** Returns the data needed to populate the "Start Agent" form for a specific role. */
 /** Returns the data needed to populate the "Start Agent" form for a specific role. */
 export const getAgentStartConfig = query({

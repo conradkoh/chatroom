@@ -61,7 +61,6 @@ import { Z_LAYOUT_CHROME, Z_PANEL } from './components/shared/overlayLayers';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
 import { WorkQueue } from './components/WorkQueue';
-import { useChatroomChatStatus } from './context/ChatroomListingContext';
 import { useCommandDialogActions } from './context/CommandDialogContext';
 import {
   getCommandPaletteRunsActive,
@@ -79,6 +78,7 @@ import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
 import { isActiveAgentStopState, useAgentStop } from './hooks/useAgentStop';
+import { useChatroomActivityStatus } from './hooks/useChatroomActivityStatus';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
@@ -1151,7 +1151,7 @@ export function ChatroomDashboard({
     [teamRoles, participants]
   );
 
-  const chatStatus = useChatroomChatStatus(chatroomId);
+  const chatStatus = useChatroomActivityStatus(chatroomId);
 
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
@@ -2049,6 +2049,7 @@ export function ChatroomDashboard({
                         chatroomId={chatroomId}
                         teamStructure={agentPanelData.teamStructure}
                         lifecycle={lifecycle}
+                        statusReadModel={agentPanelData.statusReadModel}
                         teamName={chatroom.teamName}
                         teamId={chatroom.teamId}
                         defaultTeamId={defaultTeamId}

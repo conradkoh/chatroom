@@ -17,7 +17,6 @@ import {
   clearChatroomUnread,
   markChatroomUnread,
 } from '../src/domain/usecase/chatroom/unread-status';
-import { listChatroomIdsWithActiveEnhancerWork } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
 import { ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 import { rebuildObservedWorkspaceViewsForChatroom } from '../src/domain/usecase/workspace/project-observed-workspace-view';
@@ -560,24 +559,6 @@ export const listUnreadStatus = query({
     );
 
     return unreadStatus;
-  },
-});
-
-/** Returns chatrooms with active enhancer work for the authenticated user. */
-export const listActiveEnhancerWork = query({
-  args: {
-    ...SessionIdArg,
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return [];
-
-    const chatroomIds = await listChatroomIdsWithActiveEnhancerWork(ctx, auth.userId);
-
-    return chatroomIds.map((chatroomId) => ({
-      chatroomId: chatroomId as string,
-      hasActiveEnhancerWork: true as const,
-    }));
   },
 });
 

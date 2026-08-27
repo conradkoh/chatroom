@@ -1,5 +1,5 @@
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TeamStructure } from '@workspace/shared/domain/team-presets';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useMemo } from 'react';
@@ -44,13 +44,29 @@ export interface AgentPanelData {
     }[];
     hasHistory: boolean;
   } | null;
+  statusReadModel: AgentRoleStatusReadModel[] | undefined;
 }
+
+export type AgentRoleStatusReadModel = Pick<
+  Doc<'chatroom_agentRoleStatusReadModel'>,
+  | 'role'
+  | 'roleKind'
+  | 'status'
+  | 'machineId'
+  | 'lastSeenAt'
+  | 'activeWork'
+  | 'error'
+  | 'projectedAt'
+>;
 
 export function useAgentPanelData(
   chatroomId: string,
   options?: { loadConfigs?: boolean }
 ): AgentPanelData {
   const statusResult = useSessionQuery(api.machines.getAgentViewStatus, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+  const statusReadModelResult = useSessionQuery(api.machines.getAgentRoleStatusReadModel, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
   const agentOverview = useSessionQuery(api.machines.getAgentOverviewForChatroom, {
@@ -123,5 +139,6 @@ export function useAgentPanelData(
     sendCommand,
     teamId: statusResult?.teamId,
     lifecycle,
+    statusReadModel: statusReadModelResult,
   };
 }

@@ -1270,6 +1270,52 @@ export default defineSchema({
     .index('by_chatroom_role', ['chatroomId', 'role'])
     .index('by_machineId', ['machineId']),
 
+  /**
+   * Consumer-facing per-role status read model.
+   *
+   * This is a derived projection for frontend subscriptions. Domain decisions
+   * must continue to use team config, lifecycle facts, tasks, and jobs.
+   */
+  chatroom_agentRoleStatusReadModel: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    roleKind: v.union(v.literal('persistent'), v.literal('ephemeral')),
+    status: v.union(
+      v.literal('offline'),
+      v.literal('starting'),
+      v.literal('waiting'),
+      v.literal('working'),
+      v.literal('stopping'),
+      v.literal('error')
+    ),
+    machineId: v.optional(v.string()),
+    lastSeenAt: v.optional(v.number()),
+    activeWork: v.optional(
+      v.union(
+        v.object({ kind: v.literal('task'), id: v.string() }),
+        v.object({ kind: v.literal('enhancer_job'), id: v.string() })
+      )
+    ),
+    error: v.optional(
+      v.object({
+        source: v.union(
+          v.literal('configuration'),
+          v.literal('runtime'),
+          v.literal('task'),
+          v.literal('enhancer'),
+          v.literal('stop')
+        ),
+        code: v.string(),
+        message: v.string(),
+        occurredAt: v.number(),
+      })
+    ),
+    projectedAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_role', ['chatroomId', 'role'])
+    .index('by_machineId', ['machineId']),
+
   chatroom_agentStopCommands: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     scope: agentStopScopeValidator,
