@@ -18,6 +18,8 @@ function setup() {
   const apm = {
     getConfirmedStopAdapterDeps: vi.fn(() => ({})),
     syncSlotsAfterScopedStop: vi.fn(),
+    markChatroomStopIntent: vi.fn(),
+    markStopIntent: vi.fn(),
   };
   backend.mutation.mockResolvedValue({
     shouldExecute: true,
