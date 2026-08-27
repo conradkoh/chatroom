@@ -182,6 +182,11 @@ export interface AgentSlot {
   stoppingSince?: number;
   /** Monotonic token for the current stop attempt — bumped on stop claim and force-clear. */
   stopGeneration?: number;
+  /** Stop intent remains set after the process is gone until an explicit start clears it. */
+  stopRequested?: boolean;
+  /** Expected process exit metadata for distinguishing intentional termination. */
+  expectedStopReason?: string;
+  expectedStopPid?: number;
   /** Backend stop command/target currently responsible for this stopping slot. */
   stopCommandId?: string;
   stopTargetKey?: string;
@@ -345,12 +350,66 @@ export class AgentProcessManager {
     return slot.stopGeneration;
   }
 
+  /** Claim stop intent before asynchronous termination begins. */
+  public markStopIntent(chatroomId: string, role: string, reason: string, pid?: number): number {
+    const slot = this.getOrCreateSlot(agentKey(chatroomId, role));
+    if (slot.stopRequested) return slot.stopGeneration ?? 0;
+    const generation = this.bumpStopGeneration(slot);
+    slot.stopRequested = true;
+    slot.expectedStopReason = reason;
+    slot.expectedStopPid = pid;
+    return generation;
+  }
+
+  /** Claim stop intent for all currently known agents in a chatroom. */
+  public markChatroomStopIntent(chatroomId: string, reason: string): void {
+    for (const { chatroomId: cid, role, slot } of this.listAllSlots()) {
+      // Recovery resets a slot to idle before its async restart begins, so
+      // idle slots must also receive the stop intent.
+      if (cid === chatroomId) {
+        this.markStopIntent(chatroomId, role, reason, slot.pid);
+      }
+    }
+  }
+
+  public isStopRequested(chatroomId: string, role: string, generation?: number): boolean {
+    const slot = this.slots.get(agentKey(chatroomId, role));
+    if (!slot) return false;
+    if (generation !== undefined && slot.stopGeneration !== generation) return true;
+    return slot.stopRequested === true;
+  }
+
+  private clearStopIntent(slot: AgentSlot): void {
+    slot.stopRequested = false;
+    slot.expectedStopReason = undefined;
+    slot.expectedStopPid = undefined;
+  }
+
+  private isExplicitStartReason(reason: string): boolean {
+    return (
+      reason === 'user.start' ||
+      reason === 'user.manual_spawn' ||
+      reason === 'user.restart' ||
+      // These platform flows intentionally stop and immediately start a fresh
+      // process/session, so their start must replace the prior stop intent.
+      reason === 'platform.task_monitor_nudge' ||
+      reason === 'platform.task_start_in_new_session' ||
+      reason === 'daemon.respawn'
+    );
+  }
+
   async ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult> {
     if (isChatroomStopScopeActive(opts.chatroomId)) {
       return { success: false, error: 'stop_in_progress' };
     }
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.getOrCreateSlot(key);
+    if (this.isExplicitStartReason(opts.reason)) {
+      this.bumpStopGeneration(slot);
+      this.clearStopIntent(slot);
+    } else if (slot.stopRequested) {
+      return { success: false, error: 'stop_requested' };
+    }
     if (
       slot.state !== 'idle' &&
       opts.lifecycleRevision !== undefined &&
@@ -443,6 +502,8 @@ export class AgentProcessManager {
     const key = agentKey(opts.chatroomId, opts.role);
     const slot = this.slots.get(key);
 
+    this.markStopIntent(opts.chatroomId, opts.role, opts.reason, opts.pid ?? slot?.pid);
+
     const earlyResult = await this.handleStopEarlyReturns(slot, opts, key);
     if (earlyResult) {
       return earlyResult;
@@ -534,8 +595,8 @@ export class AgentProcessManager {
       opts,
       service
     );
+    this.markStopIntent(opts.chatroomId, opts.role, opts.reason, slot.pid);
     slot.state = 'stopping';
-    this.bumpStopGeneration(slot);
     slot.stoppingSince = this.deps.clock.now();
     try {
       const value = await fn({ preserveForResume });
@@ -572,7 +633,7 @@ export class AgentProcessManager {
     // CRITICAL: claim stopping synchronously, then start doStop and store the promise
     // so concurrent callers can await the same operation instead of spawning their own.
     slot.state = 'stopping';
-    const stopGeneration = this.bumpStopGeneration(slot);
+    const stopGeneration = slot.stopGeneration ?? 0;
     slot.stoppingSince = this.deps.clock.now();
     const operation = this.doStop(key, slot, pid, opts, stopGeneration);
     slot.pendingOperation = operation;
@@ -746,6 +807,10 @@ export class AgentProcessManager {
       return;
     }
 
+    if (slot.stopRequested && slot.expectedStopPid === opts.pid) {
+      return;
+    }
+
     const stopReason: StopReason = resolveStopReason(opts.code, opts.signal);
 
     const ctx = this.captureExitContext(slot, opts, stopReason);
@@ -888,6 +953,9 @@ export class AgentProcessManager {
   }
 
   private dispatchRestartAfterExit(opts: HandleExitOpts, ctx: ExitContext, _key: string): void {
+    if (this.isStopRequested(opts.chatroomId, opts.role)) {
+      return;
+    }
     const stopReasonForRestart = resolveStopReason(opts.code, opts.signal);
 
     if (!shouldAutoRestartAfterProcessExit(stopReasonForRestart)) {
@@ -1090,6 +1158,7 @@ export class AgentProcessManager {
       return;
     }
     this.sessionReopenRetryInFlight.add(key);
+    const generation = this.slots.get(key)?.stopGeneration;
 
     const harness = ctx.harness as AgentHarness;
     const model = ctx.model;
@@ -1098,6 +1167,7 @@ export class AgentProcessManager {
 
     try {
       for (let attempt = 1; attempt <= CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS; attempt++) {
+        if (this.isStopRequested(opts.chatroomId, opts.role, generation)) return;
         if (hadRunError && attempt === CURSOR_SDK_SESSION_RESUME_FIRST_ATTEMPTS + 1) {
           this.clearHarnessSessionAfterResumePhaseFailure(key, opts);
         }
@@ -1114,6 +1184,8 @@ export class AgentProcessManager {
           storedSessionId
         );
 
+        if (this.isStopRequested(opts.chatroomId, opts.role, generation)) return;
+
         const result = await this.ensureRunning({
           chatroomId: opts.chatroomId,
           role: opts.role,
@@ -1128,10 +1200,13 @@ export class AgentProcessManager {
           return;
         }
 
+        if (this.isStopRequested(opts.chatroomId, opts.role, generation)) return;
+
         lastError = result.error ?? 'unknown';
 
         if (attempt < CURSOR_SDK_SESSION_REOPEN_MAX_ATTEMPTS) {
           await this.deps.clock.delay(CURSOR_SDK_SESSION_REOPEN_INTERVAL_MS);
+          if (this.isStopRequested(opts.chatroomId, opts.role, generation)) return;
         }
       }
 
