@@ -38,7 +38,7 @@ export async function executeScopedStopForCommand(args: {
   if (!begun.shouldExecute) return { stoppedCount: 0, failedCount: 0 };
   for (const target of begun.targets) {
     args.apm.bindStopTarget?.({
-      chatroomId: target.chatroomId,
+      chatroomId: args.chatroomId,
       role: target.role,
       pid: target.pid,
       stopCommandId: args.stopCommandId,
