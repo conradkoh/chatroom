@@ -90,7 +90,6 @@ function UnstableCallbackHarness({ onConfigChange }: { onConfigChange: (calls: n
     <InlineAgentCard
       role="builder"
       allRoles={['builder']}
-      online={false}
       statusLabel="OFFLINE"
       statusVariant="offline"
       prompt=""

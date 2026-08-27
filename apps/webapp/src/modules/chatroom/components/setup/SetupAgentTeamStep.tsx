@@ -170,13 +170,11 @@ export const SetupAgentTeamStep = memo(function SetupAgentTeamStep({
             const participant = participants.find(
               (p) => p.role.toLowerCase() === role.toLowerCase()
             );
-            const online = participant?.lastSeenAt != null;
             return (
               <InlineAgentCard
                 key={role}
                 role={role}
                 allRoles={teamRoles}
-                online={online}
                 lastSeenAt={participant?.lastSeenAt ?? null}
                 statusLabel="OFFLINE"
                 statusVariant="offline"

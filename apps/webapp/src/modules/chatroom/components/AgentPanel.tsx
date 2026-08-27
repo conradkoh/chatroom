@@ -104,13 +104,12 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
   isLoadingStatuses,
   onOpen,
 }: AgentSidebarRowProps) {
-  const online_ = agentStatus?.online ?? false;
   const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
   const lastSeenAt = agentStatus?.lastSeenAt ?? null;
-  const statusVariant = agentStatus?.statusVariant;
+  const statusVariant = agentStatus?.statusVariant ?? 'offline';
   const lastSeenLabel = useRelativeTime(lastSeenAt);
-  const indicatorClass = getIndicatorClass(statusVariant, online_);
-  const labelColorClass = getLabelColorClass(statusVariant, online_);
+  const indicatorClass = getIndicatorClass(statusVariant);
+  const labelColorClass = getLabelColorClass(statusVariant);
 
   return (
     <div className="border-b border-chatroom-border last:border-b-0">

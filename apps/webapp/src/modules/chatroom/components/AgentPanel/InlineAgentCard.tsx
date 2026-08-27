@@ -38,7 +38,6 @@ export interface InlineAgentCardProps {
   role: string;
   /** All agent roles in the workspace (for shared restart stats modal). */
   allRoles: string[];
-  online: boolean;
   lastSeenAt?: number | null;
   statusLabel: string;
   statusVariant: ChatroomAgentActivityVariant;
@@ -127,7 +126,6 @@ const AgentCardRestartSection = memo(function AgentCardRestartSection({
 export const InlineAgentCard = memo(function InlineAgentCard({
   role,
   allRoles,
-  online,
   lastSeenAt,
   statusLabel,
   statusVariant,
@@ -217,12 +215,12 @@ export const InlineAgentCard = memo(function InlineAgentCard({
         {/* Card header: role + status + last seen */}
         <div className="mb-2 min-w-0">
           <div className="flex items-center justify-between gap-3 min-w-0">
-            <AgentStatusRow role={role} online={online} variant={statusVariant} />
+            <AgentStatusRow role={role} variant={statusVariant} />
             <div className="flex items-center flex-shrink-0 min-w-0">
               <span
                 className={
                   'text-[10px] font-bold uppercase tracking-wide truncate ' +
-                  getLabelColorClass(statusVariant, online)
+                  getLabelColorClass(statusVariant)
                 }
               >
                 {statusLabel}
