@@ -24,3 +24,5 @@ package-lock.json
 .pnpm-store/
 # CLI local-web Vite build output (built by packages/cli build:local-web)
 packages/cli/src/daemon/local-web/client/build/
+# CLI npm publish staging (built by packages/cli publish:prepare)
+packages/cli/.npm-publish/
