@@ -13,6 +13,10 @@
  */
 
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
+import {
+  projectAgentRoleStatusReadModel,
+  statusEventForAgentEvent,
+} from './project-agent-role-status-read-model';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
@@ -87,4 +91,9 @@ export async function transitionAgentStatus(
   // Future: 2. Update chatroom_teamAgentConfigs.status field when schema is updated
   // This would make teamAgentConfigs the single source of truth for agent status.
   await projectAgentOperationalStatusForRole(ctx, chatroomId, role, undefined, { lastStatus });
+  await projectAgentRoleStatusReadModel(ctx, {
+    chatroomId,
+    role,
+    event: statusEventForAgentEvent(lastStatus),
+  });
 }

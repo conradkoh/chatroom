@@ -1,5 +1,6 @@
 import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 import { projectAgentStopStateForRole } from './project-agent-operational-status';
+import { projectAgentRoleStatusReadModel } from './project-agent-role-status-read-model';
 import type { AgentStopSelectedConfig } from './select-agent-stop-configs';
 import { supersedeInflightAgentStopCommands } from './supersede-inflight-agent-stop-commands';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
@@ -109,5 +110,11 @@ export async function createAgentStopCommand(
     });
   for (const role of [...new Set(input.selectedConfigs.map((config) => config.role))])
     await projectAgentStopStateForRole(ctx, input.chatroomId, role);
+  for (const role of [...new Set(input.selectedConfigs.map((config) => config.role))])
+    await projectAgentRoleStatusReadModel(ctx, {
+      chatroomId: input.chatroomId,
+      role,
+      event: { status: 'stopping' },
+    });
   return { stopCommandId, inboxCommandIdsByMachine };
 }
