@@ -30,7 +30,12 @@ function InlineAgentCardList({
 }) {
   return agentStatusList.map((agent) => {
     const status = statusMap.get(agent.role.toLowerCase());
-    const { online = false, lastSeenAt, latestEventType, statusVariant = 'offline' } = status ?? {};
+    const {
+      online = false,
+      lastSeenAt,
+      statusLabel = 'OFFLINE',
+      statusVariant = 'offline',
+    } = status ?? {};
     return (
       <InlineAgentCard
         key={`${teamId}-${agent.role}`}
@@ -38,7 +43,7 @@ function InlineAgentCardList({
         allRoles={teamRoles}
         online={online}
         lastSeenAt={lastSeenAt}
-        latestEventType={latestEventType}
+        statusLabel={statusLabel}
         statusVariant={statusVariant}
         prompt={generatePrompt(agent.role)}
         chatroomId={chatroomId}

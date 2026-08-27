@@ -12,7 +12,7 @@ import { useAgentControls } from '../AgentControls';
 import { AgentControlsSection } from './AgentControlsSection';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { AgentStatusRow, getLabelColorClass, formatLastSeen } from './AgentStatusRow';
-import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusLabel';
+import type { StatusVariant } from '../../utils/agentStatusLabel';
 import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
 
 import { getDaemonStartCommand } from '@/lib/environment';
@@ -40,11 +40,8 @@ export interface InlineAgentCardProps {
   allRoles: string[];
   online: boolean;
   lastSeenAt?: number | null;
-  latestEventType?: string | null;
-  /** Desired lifecycle state from teamAgentConfigs (e.g. 'running' | 'stopped'). */
-  desiredState?: string | null;
-  /** Pre-resolved status variant; if provided, skips local resolveAgentStatus call. */
-  statusVariant?: StatusVariant;
+  statusLabel: string;
+  statusVariant: StatusVariant;
   prompt: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
@@ -132,9 +129,8 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   allRoles,
   online,
   lastSeenAt,
-  latestEventType,
-  desiredState,
-  statusVariant: statusVariantProp,
+  statusLabel,
+  statusVariant,
   prompt,
   chatroomId,
   connectedMachines,
@@ -165,7 +161,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     teamWantResume: roleConfig?.wantResume,
     chatroomWorkspaces,
     chatroomWorkspacesLoading,
-    latestEventType,
     agentRoleView,
     lockedMachineId,
     lockedWorkingDir,
@@ -189,15 +184,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   }, [chatroomWorkspaces]);
 
   const daemonStartCommand = getDaemonStartCommand();
-
-  // Resolve status label and variant using the shared utility.
-  // If a pre-resolved statusVariant is passed in, use it; otherwise compute locally.
-  const { label: statusLabel, variant: statusVariant } = resolveAgentStatus(
-    latestEventType ?? null,
-    desiredState ?? null,
-    online
-  );
-  const resolvedVariant = statusVariantProp ?? statusVariant;
 
   // Resolve machineId from agentConfigs for restart stats query (used for machine-specific stats modal)
   const statsMachineId = useMemo(() => {
@@ -231,12 +217,12 @@ export const InlineAgentCard = memo(function InlineAgentCard({
         {/* Card header: role + status + last seen */}
         <div className="mb-2 min-w-0">
           <div className="flex items-center justify-between gap-3 min-w-0">
-            <AgentStatusRow role={role} online={online} variant={resolvedVariant} />
+            <AgentStatusRow role={role} online={online} variant={statusVariant} />
             <div className="flex items-center flex-shrink-0 min-w-0">
               <span
                 className={
                   'text-[10px] font-bold uppercase tracking-wide truncate ' +
-                  getLabelColorClass(resolvedVariant, online)
+                  getLabelColorClass(statusVariant, online)
                 }
               >
                 {statusLabel}

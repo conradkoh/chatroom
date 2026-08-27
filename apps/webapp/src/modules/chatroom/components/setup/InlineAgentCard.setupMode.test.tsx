@@ -91,6 +91,8 @@ function UnstableCallbackHarness({ onConfigChange }: { onConfigChange: (calls: n
       role="builder"
       allRoles={['builder']}
       online={false}
+      statusLabel="OFFLINE"
+      statusVariant="offline"
       prompt=""
       chatroomId={CHATROOM_ID}
       connectedMachines={[mkMachine()]}

@@ -65,7 +65,6 @@ beforeEach(() => {
       statusVariant: 'offline',
       lastSeenAt: null,
       isWorking: false,
-      latestEventType: null,
     })),
     isLoading: false,
   });

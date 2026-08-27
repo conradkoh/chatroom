@@ -12,7 +12,6 @@ export interface AgentStatus {
   statusLabel: string;
   statusVariant: StatusVariant;
   isWorking: boolean;
-  latestEventType: string | null;
 }
 
 export type AggregateStatus = 'working' | 'ready' | 'partial' | 'none';
@@ -52,7 +51,6 @@ export function useAgentStatuses(
         statusLabel: status.label,
         statusVariant: status.variant,
         isWorking: status.variant === 'working',
-        latestEventType: null,
       };
     });
   }, [roles, statusReadModelMap]);
