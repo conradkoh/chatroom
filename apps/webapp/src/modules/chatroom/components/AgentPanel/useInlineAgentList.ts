@@ -17,12 +17,10 @@ export function useInlineAgentList(chatroomId: string) {
     isLoading: isPanelLoading,
     sendCommand,
     teamId,
-    lifecycle,
     statusReadModel,
   } = useAgentPanelData(chatroomId, { loadConfigs: true });
   const { agents: agentStatusList } = useAgentStatuses(
     teamRoles,
-    lifecycle?.participants,
     statusReadModel
   );
   const promptsContext = useContext(PromptsContext);

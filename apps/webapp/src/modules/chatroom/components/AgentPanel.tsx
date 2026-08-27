@@ -190,7 +190,6 @@ export const AgentPanel = memo(function AgentPanel({
   // Use hook to get derived agent statuses (lifecycle + event stream)
   const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(
     rolesToShow,
-    lifecycle?.participants,
     statusReadModel
   );
 

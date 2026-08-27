@@ -16,6 +16,10 @@ import {
   rebuildAgentOperationalStatusForChatroom,
   insertEmptyOperationalSummaryForRoom,
 } from '../src/domain/usecase/agent/project-agent-operational-status';
+import {
+  projectAgentRoleStatusReadModel,
+  statusEventForAgentEvent,
+} from '../src/domain/usecase/agent/project-agent-role-status-read-model';
 import { upsertAgentViewMetadata } from '../src/domain/usecase/chatroom/project-agent-view-metadata';
 import {
   mergeCanonicalEnhancerIntoTeamRoles,
@@ -766,6 +770,52 @@ export const backfillAgentOperationalStatus = migrations.define({
   },
 });
 
+/** Seed the frontend-facing role activity projection from existing state. */
+export const backfillAgentRoleStatusReadModel = migrations.define({
+  table: 'chatroom_rooms',
+  migrateOne: async (ctx, room) => {
+    const configs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+      .collect();
+    const participants = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+      .collect();
+    const roles = new Set([
+      ...(room.teamRoles ?? []),
+      ...configs.map((config) => config.role),
+      ...participants.map((participant) => participant.role),
+    ]);
+
+    for (const role of roles) {
+      const normalizedRole = role.trim().toLowerCase();
+      if (normalizedRole === 'user') continue;
+      const existing = await ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', room._id).eq('role', normalizedRole)
+        )
+        .first();
+      if (existing) continue;
+
+      const participant = participants.find((entry) => entry.role.toLowerCase() === normalizedRole);
+      const config = configs.find((entry) => entry.role.toLowerCase() === normalizedRole);
+      const event = participant?.lastStatus
+        ? statusEventForAgentEvent(participant.lastStatus)
+        : config?.spawnedAgentPid != null
+          ? statusEventForAgentEvent('agent.started')
+          : statusEventForAgentEvent('agent.exited');
+      await projectAgentRoleStatusReadModel(ctx, {
+        chatroomId: room._id,
+        role: normalizedRole,
+        event,
+        config,
+      });
+    }
+  },
+});
+
 export const migrateMachineTaskStatusSignals = migrations.define({
   table: 'chatroom_timelineTaskStatusSignals',
   migrateOne: async (ctx, row) => {
@@ -870,6 +920,7 @@ export const runAll = migrations.runner([
   internal.migrations.backfillUserRoleNames,
   internal.migrations.stripManagerRoleNames,
   internal.migrations.backfillAgentOverviewSummaries,
+  internal.migrations.backfillAgentRoleStatusReadModel,
   internal.migrations.backfillMachineIdentities,
   internal.migrations.backfillAgentViewMetadata,
   internal.migrations.backfillMachineTaskStatusSignalHeads,
