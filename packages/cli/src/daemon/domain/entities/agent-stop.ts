@@ -3,16 +3,7 @@ import type { AgentStopScope } from '@workspace/shared/domain/agent-stop-command
 
 import type { AgentHarness } from './harness-shared-types.js';
 
-export type AgentStopReason =
-  | 'user.stop'
-  | 'daemon.shutdown'
-  | 'platform.dedup'
-  | 'platform.team_switch'
-  | 'platform.crash_recovery'
-  | 'platform.resume_storm'
-  | 'platform.task_start_in_new_session'
-  | 'daemon.respawn'
-  | 'user.restart';
+export type { AgentStopReason } from '@workspace/backend/src/domain/entities/agent.js';
 
 export type AgentStopTermination = 'graceful' | 'forced' | 'absent';
 export type AgentStopOutcome =
