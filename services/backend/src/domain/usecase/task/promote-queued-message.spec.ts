@@ -12,7 +12,14 @@ import { describe, expect, test } from 'vitest';
 import { promoteQueuedMessage } from './promote-queued-message';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 import { t } from '../../../../test.setup';
+import {
+  createPlannerBuilderDuoChatroom,
+  registerMachineWithDaemon,
+  setupRemoteAgentConfig,
+} from '../../../../tests/helpers/integration';
+import { getInboxCommandsForChatroom } from '../../../../tests/helpers/machine-command-inbox';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -58,6 +65,51 @@ async function createQueueRecord(
 // ---------------------------------------------------------------------------
 
 describe('promoteQueuedMessage', () => {
+  test('restarts offline agent when queued message is promoted', async () => {
+    const { sessionId } = await createTestSession('promote-offline-restart');
+    const chatroomId = await createPlannerBuilderDuoChatroom(sessionId);
+    const machineId = 'machine-promote-offline-restart';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'duo', 'builder'))
+        )
+        .first();
+      expect(config).toBeDefined();
+      if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
+
+      const participant = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .first();
+      if (participant) {
+        await ctx.db.patch(participant._id, { lastStatus: 'agent.exited' });
+      } else {
+        await ctx.db.insert('chatroom_participants', {
+          chatroomId,
+          role: 'builder',
+          agentType: 'remote',
+          lastStatus: 'agent.exited',
+          lastDesiredState: 'running',
+        });
+      }
+    });
+
+    const queuedMessageId = await createQueueRecord(chatroomId);
+    await t.run((ctx) => promoteQueuedMessage(ctx, queuedMessageId));
+
+    const restartCommands = await getInboxCommandsForChatroom(chatroomId, 'agent.restart');
+    expect(restartCommands).toHaveLength(1);
+    expect(restartCommands[0].machineId).toBe(machineId);
+    expect(restartCommands[0].command).toMatchObject({ type: 'agent.restart', role: 'builder' });
+  });
+
   test('creates a chatroom_messages record from queue data', async () => {
     const { sessionId } = await createTestSession('promote-msg-1');
     const chatroomId = await createChatroom(sessionId);
