@@ -165,6 +165,21 @@ export const agentStartReasonValidator = v.union(...toLiteralValidators(AGENT_ST
 export const isAgentStartReason = (value: unknown): value is AgentStartReason =>
   (AGENT_START_REASONS as readonly string[]).includes(value as string);
 
+/** User-initiated starts that supersede inflight stop commands (backend). */
+export const USER_EXPLICIT_START_REASONS = [AgentStartReasonEnum['user.start'], AgentStartReasonEnum['user.restart']] as const;
+export type UserExplicitStartReason = (typeof USER_EXPLICIT_START_REASONS)[number];
+export const isUserExplicitStart = (reason: string): reason is UserExplicitStartReason =>
+  (USER_EXPLICIT_START_REASONS as readonly string[]).includes(reason);
+
+/** Daemon start reasons that clear local stop intent before spawning. */
+export const EXPLICIT_DAEMON_START_REASONS = [
+  ...USER_EXPLICIT_START_REASONS, 'user.manual_spawn', 'platform.task_monitor_nudge',
+  'platform.task_start_in_new_session', 'daemon.respawn',
+] as const;
+export type ExplicitDaemonStartReason = (typeof EXPLICIT_DAEMON_START_REASONS)[number];
+export const isExplicitDaemonStart = (reason: string): reason is ExplicitDaemonStartReason =>
+  (EXPLICIT_DAEMON_START_REASONS as readonly string[]).includes(reason);
+
 /**
  * Why an agent was stopped. Used in `agent.requestStop` events and
  * `agent.exited` stopReason field. Same type flows from request through

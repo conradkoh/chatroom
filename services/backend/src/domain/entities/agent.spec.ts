@@ -31,6 +31,8 @@ import {
   AgentStartReasonEnum,
   agentStartReasonValidator,
   isAgentStartReason,
+  isUserExplicitStart,
+  isExplicitDaemonStart,
   AgentStopReasonEnum,
   agentStopReasonValidator,
   MODEL_SOURCES,
@@ -38,6 +40,22 @@ import {
   modelSourceValidator,
   isModelSource,
 } from './agent';
+
+describe('agent reason predicates', () => {
+  test('isUserExplicitStart accepts user.start and user.restart only', () => {
+    expect(isUserExplicitStart('user.start')).toBe(true);
+    expect(isUserExplicitStart('user.restart')).toBe(true);
+    expect(isUserExplicitStart('platform.crash_recovery')).toBe(false);
+    expect(isUserExplicitStart('user.manual_spawn')).toBe(false);
+  });
+
+  test('isExplicitDaemonStart accepts daemon nudge/wake reasons', () => {
+    expect(isExplicitDaemonStart('user.start')).toBe(true);
+    expect(isExplicitDaemonStart('platform.task_monitor_nudge')).toBe(true);
+    expect(isExplicitDaemonStart('daemon.respawn')).toBe(true);
+    expect(isExplicitDaemonStart('platform.crash_recovery')).toBe(false);
+  });
+});
 
 describe('agent stop reasons', () => {
   test('includes platform.ephemeral_task_complete', () => {
