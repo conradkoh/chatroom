@@ -2251,6 +2251,7 @@ export class AgentProcessManager {
         sessionId: this.deps.sessionId,
         chatroomId,
         role,
+        lifecycleOutbox: this.deps.lifecycleOutbox,
       },
       harness,
       {

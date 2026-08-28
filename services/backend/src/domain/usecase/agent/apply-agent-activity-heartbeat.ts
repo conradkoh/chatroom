@@ -4,12 +4,16 @@ import { NATIVE_TASK_INJECTED_ACTION, NATIVE_WAITING_ACTION } from '../../entiti
 import { hasActiveEntryPointEnhancerJob } from '../enhancer/enhancer-entry-point-status';
 import { transitionAgentStatus } from './transition-agent-status';
 import { findActiveAssignedTaskForRole, findAcknowledgedTaskForRole } from '../task/find-acknowledged-task-for-role';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
 export async function applyAgentActivityHeartbeat(ctx: MutationCtx, args: {
   chatroomId: Id<'chatroom_rooms'>; role: string; action: string; taskId?: Id<'chatroom_tasks'>;
   participantId?: Id<'chatroom_participants'>; emittedAt?: number;
 }): Promise<void> {
-  const config = await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_chatroom', q => q.eq('chatroomId', args.chatroomId)).filter(q => q.eq(q.field('role'), args.role)).first();
+  const room = await ctx.db.get('chatroom_rooms', args.chatroomId);
+  const config = room?.teamId
+    ? await ctx.db.query('chatroom_teamAgentConfigs').withIndex('by_teamRoleKey', q => q.eq('teamRoleKey', buildTeamRoleKey(args.chatroomId, room.teamId!, args.role))).first()
+    : null;
   const stopped = config?.desiredState === 'stopped';
   if (args.action === 'get-next-task:started' && !stopped) {
     const enhancing = await hasActiveEntryPointEnhancerJob(ctx, args.chatroomId, args.role);
