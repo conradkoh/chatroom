@@ -427,7 +427,7 @@ const ChatroomCard = memo(function ChatroomCard({
     setArchiveDialogOpen(true);
   }, []);
 
-  // Use computed chatStatus from context (single source of truth via deriveChatStatus)
+  // Use projection-backed chatStatus from context.
   const { chatStatus } = chatroom;
 
   // Filter based on active tab using chatStatus

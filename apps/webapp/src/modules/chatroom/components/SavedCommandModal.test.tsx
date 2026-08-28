@@ -356,8 +356,10 @@ describe('SavedCommandModal component', () => {
       />
     );
 
-    await user.type(screen.getByLabelText(/^name$/i), 'Test Cmd');
-    await user.type(screen.getByLabelText(/^prompt$/i), 'Test prompt');
+    // Use change events so the modal's delayed auto-focus cannot steal focus
+    // between typing the name and prompt fields.
+    fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: 'Test Cmd' } });
+    fireEvent.change(screen.getByLabelText(/^prompt$/i), { target: { value: 'Test prompt' } });
 
     await user.click(screen.getByRole('button', { name: /save command/i }));
 

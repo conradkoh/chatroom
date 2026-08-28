@@ -10,11 +10,19 @@ import {
 } from '../helpers/integration';
 
 describe('enhancer normal handoff completion', () => {
-  test('delivery prompt uses standard handoff and creates no legacy job', async () => {
+  test('delivery prompt uses standard handoff and creates a linked job', async () => {
     const { sessionId } = await createTestSession('enhancer-normal-handoff');
     const chatroomId = await createDuoTeamChatroom(sessionId);
     const machineId = 'enhancer-normal-machine';
     await registerMachineWithDaemon(sessionId, machineId);
+    await t.mutation(api.workspaces.registerWorkspace, {
+      sessionId,
+      chatroomId,
+      machineId,
+      workingDir: '/workspace',
+      hostname: 'test-host',
+      registeredBy: 'planner',
+    });
     await t.run(async (ctx) => {
       await ctx.db.patch(chatroomId, {
         teamRoles: ['planner', 'enhancer', 'builder'],
@@ -91,6 +99,6 @@ describe('enhancer normal handoff completion', () => {
           .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId))
           .collect()
       )
-    ).toHaveLength(0);
+    ).toHaveLength(1);
   });
 });

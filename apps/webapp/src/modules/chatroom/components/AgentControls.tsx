@@ -243,7 +243,6 @@ export function useAgentControls({
   teamWantResume,
   chatroomWorkspaces,
   chatroomWorkspacesLoading,
-  latestEventType,
   agentRoleView,
   lockedMachineId,
   lockedWorkingDir,
@@ -269,7 +268,6 @@ export function useAgentControls({
   chatroomWorkspaces?: Workspace[];
   /** When true, init defers until workspaces load if working dir may come from the registry */
   chatroomWorkspacesLoading?: boolean;
-  latestEventType?: string | null;
   agentRoleView?: AgentRoleView;
   /** Setup wizard: lock machine and working directory. */
   lockedMachineId?: string;
@@ -335,29 +333,7 @@ export function useAgentControls({
     );
   }, [roleConfigs, connectedMachines]);
 
-  const isRestartInProgress =
-    latestEventType === 'agent.restart' ||
-    latestEventType === 'agent.restartPhase' ||
-    latestEventType === 'agent.restartCompleted';
-  const displayAgentConfig = useMemo(() => {
-    if (runningAgentConfig) return runningAgentConfig;
-    if (!isRestartInProgress || !agentRoleView?.machineId) {
-      return undefined;
-    }
-    const fallback = roleConfigs[0];
-    if (!fallback) return undefined;
-    return {
-      machineId: agentRoleView.machineId,
-      hostname: '',
-      role,
-      agentType: fallback.agentType,
-      workingDir: fallback.workingDir,
-      model: fallback.model,
-      availableHarnesses: [],
-      updatedAt: 0,
-      wantResume: fallback.wantResume,
-    } satisfies AgentConfig;
-  }, [runningAgentConfig, isRestartInProgress, agentRoleView, role]);
+  const displayAgentConfig = runningAgentConfig;
 
   // Get available harnesses for selected machine
   const availableHarnessesForMachine = useMemo(() => {

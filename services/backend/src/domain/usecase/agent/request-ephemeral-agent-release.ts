@@ -1,6 +1,7 @@
 import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
 
-import { createAgentStopCommand } from './create-agent-stop-command';
+import { applyAgentStopCommand } from './apply-agent-stop-command';
+import { releaseEphemeralAgentRole } from './release-ephemeral-agent-role';
 import { selectConfigsForAgentStop } from './select-agent-stop-configs';
 import type { Doc } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -15,12 +16,15 @@ export async function requestEphemeralAgentRelease(
     chatroomId: task.chatroomId,
     scope: { kind: 'agent', role },
   });
-  if (selectedConfigs.length)
-    await createAgentStopCommand(ctx, {
+  if (selectedConfigs.length) {
+    await applyAgentStopCommand(ctx, {
       chatroomId: task.chatroomId,
       scope: { kind: 'agent', role },
       reason: 'platform.ephemeral_task_complete',
       selectedConfigs,
-      postStopDesiredState: 'running',
+      postStopDesiredState: 'stopped',
     });
+    return;
+  }
+  await releaseEphemeralAgentRole(ctx, { chatroomId: task.chatroomId, role });
 }

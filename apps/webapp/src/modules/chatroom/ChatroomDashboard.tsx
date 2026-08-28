@@ -4,6 +4,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
+import { getPermanentRoleNames } from '@workspace/shared/domain/agent-role';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ArrowLeft,
@@ -61,7 +62,6 @@ import { Z_LAYOUT_CHROME, Z_PANEL } from './components/shared/overlayLayers';
 import { TerminalOutputPanel } from './components/TerminalOutputPanel';
 import { ChatroomMessagesPanel } from './components/timeline/ChatroomMessagesPanel';
 import { WorkQueue } from './components/WorkQueue';
-import { useChatroomChatStatus } from './context/ChatroomListingContext';
 import { useCommandDialogActions } from './context/CommandDialogContext';
 import {
   getCommandPaletteRunsActive,
@@ -79,6 +79,7 @@ import { useTeamConfigs, type TeamConfigEntry } from './hooks/use-team-configs';
 import { useAgentPanelData } from './hooks/useAgentPanelData';
 import { useAgentSidebarOpen } from './hooks/useAgentSidebarOpen';
 import { isActiveAgentStopState, useAgentStop } from './hooks/useAgentStop';
+import { useChatroomActivityStatus } from './hooks/useChatroomActivityStatus';
 import { useChatroomLifecycle } from './hooks/useChatroomLifecycle';
 import { useCommandRunner } from './hooks/useCommandRunner';
 import { useCommandRunOutputV2 } from './hooks/useCommandRunOutputV2';
@@ -1151,7 +1152,7 @@ export function ChatroomDashboard({
     [teamRoles, participants]
   );
 
-  const chatStatus = useChatroomChatStatus(chatroomId);
+  const chatStatus = useChatroomActivityStatus(chatroomId);
 
   // File selector (Cmd+P)
   const fileSelector = useFileSelector({
@@ -1375,7 +1376,7 @@ export function ChatroomDashboard({
   // Start all remote agents handler
   const [isStartingAllAgents, setIsStartingAllAgents] = useState(false);
   const getConfiguredAgentRoles = useCallback((): string[] | null => {
-    const agentRoles = teamRoles.filter((r) => r !== 'user');
+    const agentRoles = getPermanentRoleNames(teamRoles.filter((r) => r !== 'user'));
     if (
       !ensureAgentRolesConfigured(agentRoles, roleConfigMap, () => handleCmdOpenSettings('agents'))
     ) {
@@ -1471,11 +1472,8 @@ export function ChatroomDashboard({
   const isAnyAgentRestartInProgress = isRestartingAllAgents || restartingAgentRole !== null;
 
   const hasRunningRemoteAgents = useMemo(
-    () =>
-      isRestartingAllAgents ||
-      agentPanelData.hasActiveEnhancerWork ||
-      agentPanelData.agents.some((a) => a.state === 'running' || a.state === 'starting'),
-    [agentPanelData.agents, agentPanelData.hasActiveEnhancerWork, isRestartingAllAgents]
+    () => agentPanelData.remoteAgentStatus === 'running',
+    [agentPanelData.remoteAgentStatus]
   );
 
   useEffect(() => {
@@ -2050,8 +2048,9 @@ export function ChatroomDashboard({
                     >
                       <AgentPanel
                         chatroomId={chatroomId}
-                        teamRoles={teamRoles}
+                        teamStructure={agentPanelData.teamStructure}
                         lifecycle={lifecycle}
+                        statusReadModel={agentPanelData.statusReadModel}
                         teamName={chatroom.teamName}
                         teamId={chatroom.teamId}
                         defaultTeamId={defaultTeamId}
@@ -2063,9 +2062,10 @@ export function ChatroomDashboard({
                         onStartAllRemoteAgents={handleStartAllRemoteAgents}
                         onStopAllRemoteAgents={handleStopAllRemoteAgents}
                         onRestartAllRemoteAgents={handleRestartAllRemoteAgents}
-                        isRestartingAgents={isAnyAgentRestartInProgress || isRestartingAllAgents}
                         isStoppingAgents={isStoppingAgents}
-                        isStartingAllAgents={isStartingAllAgents}
+                        isStartingAllAgents={
+                          isStartingAllAgents || agentPanelData.remoteAgentStatus === undefined
+                        }
                       />
                       <WorkQueue
                         chatroomId={chatroomId as Id<'chatroom_rooms'>}

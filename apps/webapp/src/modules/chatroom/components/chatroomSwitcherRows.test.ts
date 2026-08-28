@@ -18,7 +18,6 @@ function makeChatroom(
     teamId: 'team-1',
     teamName: 'Team',
     teamRoles: [],
-    agents: [],
     isFavorite: false,
     hasUnread: false,
     hasUnreadHandoff: false,

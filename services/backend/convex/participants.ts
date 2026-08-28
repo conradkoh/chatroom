@@ -17,6 +17,7 @@ import {
   PARTICIPANT_EXITED_ACTION,
   isActiveParticipant,
 } from '../src/domain/entities/participant';
+import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
@@ -69,9 +70,20 @@ export const join = mutation({
 
     // Validate role is in team configuration
     const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
+    const structuralRoles = chatroom.teamId
+      ? getTeamStructure({
+          teamId: chatroom.teamId,
+          teamName: chatroom.teamName,
+          persistedRoles: teamRoles,
+          persistedEntryPoint: chatroom.teamEntryPoint,
+        }).roles.map(({ role }) => role.toLowerCase())
+      : [];
     if (teamRoles.length > 0) {
       const normalizedRole = args.role.toLowerCase();
-      if (!normalizedTeamRoles.includes(normalizedRole)) {
+      if (
+        !normalizedTeamRoles.includes(normalizedRole) &&
+        !structuralRoles.includes(normalizedRole)
+      ) {
         throw new Error(
           `Invalid role: "${args.role}" is not in team configuration. Allowed roles: ${teamRoles.join(', ')}`
         );
@@ -399,7 +411,7 @@ export const getConnectionId = query({
 
 // ─── Team Lifecycle (lastSeenAt-based) ──────────────────────────────────────
 
-/** Returns raw participant state (lastSeenAt, lastSeenAction, agentType) for all team roles. */
+/** Returns participant presence state for all team roles. */
 export const getTeamLifecycle = query({
   args: {
     ...SessionIdArg,
@@ -419,10 +431,6 @@ export const getTeamLifecycle = query({
         role: a.role,
         lastSeenAt: a.lastSeenAt,
         lastSeenAction: a.lastSeenAction,
-        agentType: a.agentType,
-        lastStatus: a.lastStatus,
-        lastDesiredState: a.lastDesiredState,
-        isAlive: a.isAlive,
       })),
       hasHistory: view.hasHistory,
     };

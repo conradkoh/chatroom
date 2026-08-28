@@ -68,6 +68,9 @@ export async function runRoleScopedStop(args: {
   role: string;
   reason: AgentStopReason;
 }) {
+  // Claim stop intent before discovering targets (which performs async I/O),
+  // so recovery cannot win the race while the stop command is being prepared.
+  args.apm.markStopIntent(args.chatroomId, args.role, args.reason);
   const deps = createStopAgentTargetsDeps(args);
   const discovered = await args.apm.discoverStopTargets(args.chatroomId);
   const targets = discovered.filter(

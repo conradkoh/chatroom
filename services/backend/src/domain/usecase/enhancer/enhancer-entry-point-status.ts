@@ -51,58 +51,6 @@ export async function hasActiveEntryPointEnhancerJob(
   return active !== null;
 }
 
-const ACTIVE_ENHANCER_JOB_STATUSES = ['pending', 'running'] as const;
-
-async function listActiveJobChatroomIds(
-  ctx: QueryCtx,
-  userId: Id<'users'>
-): Promise<Id<'chatroom_rooms'>[]> {
-  const jobBatches = await Promise.all(
-    ACTIVE_ENHANCER_JOB_STATUSES.map((status) =>
-      ctx.db
-        .query('chatroom_enhancerJobs')
-        .withIndex('by_userId_status', (q) => q.eq('userId', userId).eq('status', status))
-        .collect()
-    )
-  );
-  return jobBatches
-    .flat()
-    .filter((job) => job.toRole === 'enhancer')
-    .map((job) => job.chatroomId);
-}
-
-async function listActiveTaskChatroomIds(ctx: QueryCtx): Promise<Id<'chatroom_rooms'>[]> {
-  const taskBatches = await Promise.all(
-    ACTIVE_TASK_STATUSES.map((status) =>
-      ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_assignedTo_status', (q) =>
-          q.eq('assignedTo', 'enhancer').eq('status', status)
-        )
-        .collect()
-    )
-  );
-  return taskBatches.flat().map((task) => task.chatroomId);
-}
-
-/** Chatroom IDs with active enhancer jobs or enhancer-assigned tasks owned by the user. */
-export async function listChatroomIdsWithActiveEnhancerWork(
-  ctx: QueryCtx,
-  userId: Id<'users'>
-): Promise<Id<'chatroom_rooms'>[]> {
-  const chatroomIds = new Set(await listActiveJobChatroomIds(ctx, userId));
-  const taskChatroomIds = new Set(await listActiveTaskChatroomIds(ctx));
-
-  for (const chatroomId of taskChatroomIds) {
-    const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-    if (chatroom?.ownerId === userId) {
-      chatroomIds.add(chatroomId);
-    }
-  }
-
-  return [...chatroomIds];
-}
-
 /** True while an enhancer job or enhancer task row is in flight. */
 export async function hasActiveEnhancerWork(
   ctx: QueryCtx | MutationCtx,

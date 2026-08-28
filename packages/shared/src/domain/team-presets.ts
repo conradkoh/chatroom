@@ -1,10 +1,23 @@
-import { getPermanentRoleNames } from './agent-role';
+import { getAgentRoleTags, getPermanentRoleNames, type AgentRoleLifecycleTag } from './agent-role';
 
 export interface TeamPreset {
   name: string;
   description: string;
   roles: readonly string[];
   entryPoint: string;
+}
+
+export interface TeamStructureRole {
+  role: string;
+  lifecycle: AgentRoleLifecycleTag;
+  optional: boolean;
+}
+
+export interface TeamStructure {
+  teamId: string;
+  teamName: string;
+  entryPoint: string;
+  roles: TeamStructureRole[];
 }
 
 export const TEAM_PRESET_IDS = ['duo', 'solo'] as const;
@@ -38,4 +51,27 @@ export function listTeamPresetIds(): TeamPresetId[] {
 
 export function getPermanentRolesForPreset(teamId: TeamPresetId): readonly string[] {
   return getPermanentRoleNames(TEAM_PRESETS[teamId].roles);
+}
+
+/** Resolves the static structure of a team, independent of runtime agent state. */
+// fallow-ignore-next-line complexity
+export function getTeamStructure(input: {
+  teamId: string;
+  teamName?: string | null;
+  persistedRoles?: readonly string[] | null;
+  persistedEntryPoint?: string | null;
+}): TeamStructure {
+  const preset = getTeamPreset(input.teamId);
+  const roles = preset ? [...preset.roles] : [...(input.persistedRoles ?? [])];
+  const entryPoint = preset?.entryPoint ?? input.persistedEntryPoint ?? roles[0] ?? '';
+
+  return {
+    teamId: input.teamId,
+    teamName: input.teamName ?? preset?.name ?? input.teamId,
+    entryPoint,
+    roles: roles.map((role) => {
+      const lifecycle = getAgentRoleTags(role)[0];
+      return { role, lifecycle, optional: lifecycle === 'ephemeral' };
+    }),
+  };
 }

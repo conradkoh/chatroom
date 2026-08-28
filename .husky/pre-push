@@ -1,8 +1,26 @@
 #!/usr/bin/env sh
 
-# The runner is invoked by scripts/pre-push-checks.sh:
-# bun scripts/run-pre-push-e2e.ts "$1" "$2"
-# pnpm run test is included in the affected-package checks.
-# bun run test:scripts runs before affected-package checks.
+# Capture Git's ref-update input before running checks that inherit stdin.
+# Git provides one ref-update line per pushed ref:
+# <local ref> <local sha> <remote ref> <remote sha>
+PUSHES_TO_MASTER=false
+while IFS=' ' read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
+  if [ "$REMOTE_REF" = "refs/heads/master" ]; then
+    PUSHES_TO_MASTER=true
+  fi
+done
+
+# Run script unit tests (bun)
+bun run test:scripts
+
+# pnpm run test is included in the affected-package checks below.
 # pnpm run typecheck remains part of the pre-push contract.
 bash scripts/pre-push-checks.sh "${1:-origin}" "${2:-}"
+
+# Run e2e before pushing directly to master. Pull-request branches are covered by GitHub Actions.
+if [ "$PUSHES_TO_MASTER" = true ]; then
+  # Suite is selected by push destination (@upstream for template, @downstream for forks).
+  bun scripts/run-pre-push-e2e.ts "$1" "$2"
+else
+  echo "[pre-push] e2e: skipping (push does not target master; covered by GitHub Actions for PRs targeting master)"
+fi

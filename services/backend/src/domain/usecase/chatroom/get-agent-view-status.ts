@@ -16,10 +16,6 @@ export interface AgentViewRole {
   machineName?: string;
   lastSeenAt: number | null;
   lastSeenAction: string | null;
-  lastStatus: string | null;
-  lastDesiredState: string | null;
-  agentType: 'remote' | 'custom';
-  isAlive: boolean;
   stopState?: 'idle' | 'pending' | 'stopping' | 'stopped' | 'failed';
   activeStopCommandId?: string;
 }
@@ -95,10 +91,6 @@ async function getAgentViewStatusLegacy(
       machineName: row?.machineId ? machineNames.get(row.machineId) : undefined,
       lastSeenAt: participant?.lastSeenAt ?? null,
       lastSeenAction: participant?.lastSeenAction ?? null,
-      lastStatus,
-      lastDesiredState: participant?.lastDesiredState ?? null,
-      agentType: participant?.agentType ?? 'remote',
-      isAlive: row?.isAlive ?? false,
       stopState: row?.stopState,
       activeStopCommandId: row?.activeStopCommandId,
     };
@@ -175,10 +167,6 @@ export async function getAgentViewStatus(
       machineName: row?.machineId ? machineNames.get(row.machineId) : undefined,
       lastSeenAt: participant?.lastSeenAt ?? null,
       lastSeenAction: participant?.lastSeenAction ?? null,
-      lastStatus,
-      lastDesiredState: participant?.lastDesiredState ?? null,
-      agentType: participant?.agentType ?? 'remote',
-      isAlive: row?.isAlive ?? false,
       stopState: row?.stopState,
       activeStopCommandId: row?.activeStopCommandId,
     };

@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import { insertLegacyEnhancerJob } from '../helpers/enhancer-legacy-job';
+import { insertEnhancerJob } from '../helpers/enhancer-job';
 import {
   addEnhancerToTeamRoles,
   enableEnhancerTeamAgent,
@@ -50,7 +50,7 @@ async function createPlannerUserMessageAndTask(
 }
 
 describe('daemon.enhancer.index', () => {
-  test('request-first handoff creates enhancer task without legacy job', async () => {
+  test('request-first handoff creates enhancer task and job', async () => {
     const { sessionId, chatroomId, machineId } =
       await setupPlannerWorkspaceForSession('enh-pending');
 
@@ -87,20 +87,19 @@ describe('daemon.enhancer.index', () => {
           .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId))
           .collect()
       )
-    ).toHaveLength(0);
+    ).toHaveLength(1);
   });
 
-  test('participants.join rejects enhancer role', async () => {
+  test('participants.join accepts enhancer role from static team structure', async () => {
     const { sessionId } = await createTestSession('enh-join-fail');
     const chatroomId = await createDuoTeamChatroom(sessionId);
-    await expect(
-      t.mutation(api.participants.join, {
-        sessionId,
-        chatroomId,
-        role: 'enhancer',
-        action: 'native:waiting',
-      })
-    ).rejects.toThrow(/Invalid role/i);
+    const participantId = await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'enhancer',
+      action: 'enhancer:started',
+    });
+    expect(participantId).toBeDefined();
   });
 
   test('claimForSpawn transitions pending to running; second claim returns false', async () => {
@@ -123,7 +122,7 @@ describe('daemon.enhancer.index', () => {
       'Claim test message'
     );
     const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
-    const { jobId } = await insertLegacyEnhancerJob({
+    const { jobId } = await insertEnhancerJob({
       chatroomId,
       userId,
       machineId,
@@ -148,6 +147,16 @@ describe('daemon.enhancer.index', () => {
     });
     expect(enhancerTask?.status).toBe('in_progress');
     expect(enhancerTask?.assignedTo).toBe('enhancer');
+    expect(
+      await t.run(async (ctx) =>
+        ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom_and_role', (q) =>
+            q.eq('chatroomId', chatroomId).eq('role', 'enhancer')
+          )
+          .first()
+      )
+    ).toMatchObject({ agentType: 'remote', lastSeenAction: 'enhancer:started' });
 
     // Second claim returns false
     const claim2 = await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
@@ -179,7 +188,7 @@ describe('daemon.enhancer.index', () => {
       'Payload test message'
     );
     const userId = await t.run(async (ctx) => (await ctx.db.get(chatroomId))!.ownerId);
-    const { jobId } = await insertLegacyEnhancerJob({
+    const { jobId } = await insertEnhancerJob({
       chatroomId,
       userId,
       machineId,

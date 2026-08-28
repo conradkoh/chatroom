@@ -12,11 +12,10 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
       listByUser: { name: 'chatrooms:listByUser' },
       listFavoriteIds: { name: 'chatrooms:listFavoriteIds' },
       listUnreadStatus: { name: 'chatrooms:listUnreadStatus' },
-      listActiveEnhancerWork: { name: 'chatrooms:listActiveEnhancerWork' },
-      getPresenceForChatroom: { name: 'chatrooms:getPresenceForChatroom' },
     },
     machines: {
       listAgentOverview: { name: 'machines:listAgentOverview' },
+      listAgentRoleStatusReadModel: { name: 'machines:listAgentRoleStatusReadModel' },
     },
   },
 }));
@@ -30,12 +29,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
   useSessionMutation: () => vi.fn(),
 }));
 
-vi.mock('../hooks/usePresenceForChatrooms', () => ({
-  usePresenceForChatrooms: () => presenceMock,
-}));
-
 const sessionQueryMocks: Record<string, unknown> = {};
-let presenceMock: unknown[] = [];
 
 // ── Consumer ──────────────────────────────────────────────────────────────────
 
@@ -46,8 +40,7 @@ function ListingProbe() {
     <ul>
       {chatrooms.map((c) => (
         <li key={c._id} data-testid="room">
-          {c._id}:{c.chatStatus}:
-          {c.agents.map((a) => `${a.role}:${a.isAlive ? 'alive' : 'dead'}`).join(',')}
+          {c._id}:{c.chatStatus}
         </li>
       ))}
     </ul>
@@ -75,27 +68,14 @@ function baseChatrooms() {
 
 describe('ChatroomListingProvider agent/status derivation', () => {
   beforeEach(() => {
-    presenceMock = [];
     sessionQueryMocks['chatrooms:listByUser'] = baseChatrooms();
     sessionQueryMocks['chatrooms:listFavoriteIds'] = [];
     sessionQueryMocks['chatrooms:listUnreadStatus'] = [];
-    sessionQueryMocks['chatrooms:listActiveEnhancerWork'] = [];
+    sessionQueryMocks['machines:listAgentRoleStatusReadModel'] = [];
     sessionQueryMocks['machines:listAgentOverview'] = [];
   });
 
-  it('shows working chatStatus when a spawned agent has task.inProgress but daemon is disconnected (empty runningRoles)', () => {
-    // Agent is spawned (alive via aliveRoles) but its daemon is disconnected, so
-    // runningRoles is empty. Presence carries the task.inProgress working signal.
-    presenceMock = [
-      {
-        chatroomId: CHATROOM_ID,
-        role: 'builder',
-        lastSeenAt: 100,
-        lastSeenAction: null,
-        lastStatus: 'task.inProgress',
-        lastDesiredState: 'running',
-      },
-    ];
+  it('shows working chatStatus from the projected role status', () => {
     sessionQueryMocks['machines:listAgentOverview'] = [
       {
         chatroomId: CHATROOM_ID,
@@ -105,7 +85,15 @@ describe('ChatroomListingProvider agent/status derivation', () => {
         runningAgents: [],
       },
     ];
-
+    sessionQueryMocks['machines:listAgentRoleStatusReadModel'] = [
+      {
+        chatroomId: CHATROOM_ID,
+        role: 'builder',
+        roleKind: 'persistent',
+        status: 'working',
+        projectedAt: 100,
+      },
+    ];
     render(
       <ChatroomListingProvider>
         <ListingProbe />
@@ -113,7 +101,7 @@ describe('ChatroomListingProvider agent/status derivation', () => {
     );
 
     const room = screen.getByTestId('room');
-    expect(room.textContent).toBe(`${CHATROOM_ID}:working:planner:dead,builder:alive`);
+    expect(room.textContent).toBe(`${CHATROOM_ID}:working`);
   });
 
   it('shows idle when no agent is alive', () => {
@@ -126,7 +114,6 @@ describe('ChatroomListingProvider agent/status derivation', () => {
         runningAgents: [],
       },
     ];
-
     render(
       <ChatroomListingProvider>
         <ListingProbe />
@@ -134,20 +121,10 @@ describe('ChatroomListingProvider agent/status derivation', () => {
     );
 
     const room = screen.getByTestId('room');
-    expect(room.textContent).toBe(`${CHATROOM_ID}:idle:planner:dead,builder:dead`);
+    expect(room.textContent).toBe(`${CHATROOM_ID}:idle`);
   });
 
   it('shows working when both aliveRoles and runningRoles agree the agent is running', () => {
-    presenceMock = [
-      {
-        chatroomId: CHATROOM_ID,
-        role: 'builder',
-        lastSeenAt: 100,
-        lastSeenAction: null,
-        lastStatus: 'task.inProgress',
-        lastDesiredState: 'running',
-      },
-    ];
     sessionQueryMocks['machines:listAgentOverview'] = [
       {
         chatroomId: CHATROOM_ID,
@@ -157,6 +134,15 @@ describe('ChatroomListingProvider agent/status derivation', () => {
         runningAgents: [{ role: 'builder', machineId: 'machine-1' }],
       },
     ];
+    sessionQueryMocks['machines:listAgentRoleStatusReadModel'] = [
+      {
+        chatroomId: CHATROOM_ID,
+        role: 'builder',
+        roleKind: 'persistent',
+        status: 'working',
+        projectedAt: 100,
+      },
+    ];
 
     render(
       <ChatroomListingProvider>
@@ -165,6 +151,6 @@ describe('ChatroomListingProvider agent/status derivation', () => {
     );
 
     const room = screen.getByTestId('room');
-    expect(room.textContent).toBe(`${CHATROOM_ID}:working:planner:dead,builder:alive`);
+    expect(room.textContent).toBe(`${CHATROOM_ID}:working`);
   });
 });

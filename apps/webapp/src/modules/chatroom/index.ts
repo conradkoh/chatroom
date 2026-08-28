@@ -23,5 +23,4 @@ export {
   ChatroomListingProvider,
   useChatroomListing,
   type ChatroomWithStatus,
-  type Agent,
 } from './context/ChatroomListingContext';

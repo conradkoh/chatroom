@@ -73,6 +73,11 @@ function fileExistsInUpstream(upstreamRef: string, filePath: string): boolean {
   return tryGit(`cat-file -e ${upstreamRef}:${filePath}`) !== null;
 }
 
+function isUpstreamTrackedModificationFile(upstreamRef: string, filePath: string): boolean {
+  const GENERATED_PATH = /(?:^|\/)convex\/_generated\//;
+  return fileExistsInUpstream(upstreamRef, filePath) && !GENERATED_PATH.test(filePath);
+}
+
 function parseStagedChange(
   parts: string[],
   index: number,
@@ -121,7 +126,7 @@ function collectUpstreamModifiedFiles(
           return [];
         }
 
-        return paths.filter((filePath) => fileExistsInUpstream(upstreamRef, filePath));
+        return paths.filter((filePath) => isUpstreamTrackedModificationFile(upstreamRef, filePath));
       })
     ),
   ];

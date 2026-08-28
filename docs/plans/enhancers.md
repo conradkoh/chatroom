@@ -110,7 +110,7 @@ flowchart TD
     P2 --> X[Verified user handoff]
 ```
 
-The enhancer is a daemon worker, not a persistent chatroom team role. It runs one turn, completes through the CLI, and is disposed. Retries and terminal failure use the same enhancer job lifecycle for both teams; no entry-point draft is available as a fallback.
+The enhancer is an ephemeral chatroom team role rather than part of the persistent team roster. It runs one turn, completes through the CLI, and is disposed. Active invocations are visible through the normal participant/status surface, while retries and terminal failure use the enhancer job lifecycle for both teams; no entry-point draft is available as a fallback.
 
 ## Key modules
 

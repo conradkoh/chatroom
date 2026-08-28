@@ -1,5 +1,5 @@
 /**
- * Unit tests for startEnhancerJobWork — enhancer daemon worker task lifecycle.
+ * Unit tests for startEnhancerJobWork — enhancer ephemeral role task lifecycle.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';

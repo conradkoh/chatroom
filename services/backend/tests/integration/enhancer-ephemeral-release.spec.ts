@@ -49,7 +49,7 @@ describe('ephemeral enhancer release', () => {
           .collect()
       )
       .then((rows) => rows.find((row) => row.reason === 'platform.ephemeral_task_complete'));
-    expect(command?.postStopDesiredState).toBe('running');
+    expect(command?.postStopDesiredState).toBe('stopped');
     const target = await t.run((ctx) =>
       ctx.db
         .query('chatroom_agentStopTargets')

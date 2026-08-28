@@ -1,8 +1,8 @@
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 
-/** Insert a legacy enhancer job row for daemon API integration tests. */
-export async function insertLegacyEnhancerJob(args: {
+/** Insert an enhancer job row for daemon API integration tests. */
+export async function insertEnhancerJob(args: {
   chatroomId: Id<'chatroom_rooms'>;
   userId: Id<'users'>;
   machineId: string;
@@ -14,7 +14,7 @@ export async function insertLegacyEnhancerJob(args: {
     const taskId = await ctx.db.insert('chatroom_tasks', {
       chatroomId: args.chatroomId,
       createdBy: 'user',
-      content: args.draftContent ?? 'Legacy enhancer task',
+      content: args.draftContent ?? 'Enhancer task',
       status: 'in_progress',
       assignedTo: 'enhancer',
       sourceMessageId: args.originUserMessageId,
@@ -27,7 +27,7 @@ export async function insertLegacyEnhancerJob(args: {
       userId: args.userId,
       targetId: 'handoff:planner-to-builder',
       fromRole: 'planner',
-      toRole: 'builder',
+      toRole: 'enhancer',
       status: args.status ?? 'pending',
       draftContent: args.draftContent ?? 'Draft',
       templateSnapshot: '# Template\n## Goal',

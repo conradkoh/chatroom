@@ -6,6 +6,7 @@ import { requireChatroomAccess } from './auth/chatroomAccess';
 import { getSession, requireSession } from './auth/session';
 import { OBSERVATION_HEARTBEAT_MIN_INTERVAL_MS } from '../config/reliability';
 import { isActiveParticipant, toParticipantPresence } from '../src/domain/entities/participant';
+import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { insertEmptyOperationalSummaryForRoom } from '../src/domain/usecase/agent/project-agent-operational-status';
 import {
   getChatroomLifecycleImpacts,
@@ -16,7 +17,6 @@ import {
   clearChatroomUnread,
   markChatroomUnread,
 } from '../src/domain/usecase/chatroom/unread-status';
-import { listChatroomIdsWithActiveEnhancerWork } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
 import { ensureMessageReadModelState } from '../src/domain/usecase/message/message-read-model';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 import { rebuildObservedWorkspaceViewsForChatroom } from '../src/domain/usecase/workspace/project-observed-workspace-view';
@@ -70,6 +70,24 @@ export const get = query({
     // Validate session and check chatroom access - returns chatroom directly
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     return chatroom;
+  },
+});
+
+/** Returns static team structure separately from runtime agent state. */
+export const getTeamStructureForChatroom = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    if (!chatroom.teamId) return null;
+    return getTeamStructure({
+      teamId: chatroom.teamId,
+      teamName: chatroom.teamName,
+      persistedRoles: chatroom.teamRoles,
+      persistedEntryPoint: chatroom.teamEntryPoint,
+    });
   },
 });
 
@@ -541,24 +559,6 @@ export const listUnreadStatus = query({
     );
 
     return unreadStatus;
-  },
-});
-
-/** Returns chatrooms with active enhancer work for the authenticated user. */
-export const listActiveEnhancerWork = query({
-  args: {
-    ...SessionIdArg,
-  },
-  handler: async (ctx, args) => {
-    const auth = await getSession(ctx, args.sessionId);
-    if (!auth) return [];
-
-    const chatroomIds = await listChatroomIdsWithActiveEnhancerWork(ctx, auth.userId);
-
-    return chatroomIds.map((chatroomId) => ({
-      chatroomId: chatroomId as string,
-      hasActiveEnhancerWork: true as const,
-    }));
   },
 });
 

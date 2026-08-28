@@ -126,7 +126,6 @@ describe('machines.getAgentViewStatus', () => {
     const builder = result!.agents.find((a) => a.role === 'builder');
     expect(builder).toBeDefined();
     expect(builder!.state).toBe('running');
-    expect(builder!.isAlive).toBe(true);
   });
 });
 

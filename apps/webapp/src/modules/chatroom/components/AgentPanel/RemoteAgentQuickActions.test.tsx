@@ -34,20 +34,19 @@ describe('RemoteAgentQuickActions', () => {
     expect(screen.getByTitle('Restart agents')).toBeDisabled();
   });
 
-  test('during restart: stop and restart stay enabled while start is disabled', () => {
+  test('uses the backend running state even during a restart', () => {
     render(
       <RemoteAgentQuickActions
         hasRunningAgents={false}
-        isRestarting
         onStart={vi.fn()}
         onStop={vi.fn()}
         onRestart={vi.fn()}
       />
     );
 
-    expect(screen.getByTitle('Start agents')).toBeDisabled();
-    expect(screen.getByTitle('Stop agents')).not.toBeDisabled();
-    expect(screen.getByTitle('Restart agents')).not.toBeDisabled();
+    expect(screen.getByTitle('Start agents')).not.toBeDisabled();
+    expect(screen.getByTitle('Stop agents')).toBeDisabled();
+    expect(screen.getByTitle('Restart agents')).toBeDisabled();
   });
 
   test('renders all three buttons even without handlers (all disabled)', () => {

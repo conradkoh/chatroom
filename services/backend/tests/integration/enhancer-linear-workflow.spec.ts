@@ -63,6 +63,18 @@ describe('enhancer delegation-loop workflow', () => {
       content: '<request>Build feature X</request>',
     });
     expect(enhancerHandoff.success).toBe(true);
+    const enhancerJob = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_enhancerJobs')
+        .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId))
+        .first()
+    );
+    expect(enhancerJob).toBeDefined();
+    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId: enhancerJob!._id,
+      machineId,
+    });
 
     const enhancerTask = await t.run(async (ctx) => {
       const tasks = await ctx.db
@@ -73,12 +85,11 @@ describe('enhancer delegation-loop workflow', () => {
     });
     expect(enhancerTask?.originUserMessageId).toBe(userMessageId);
 
-    await t.mutation(api.messages.handoff, {
+    await t.mutation(api.web.enhancer.mutations.complete, {
       sessionId,
       chatroomId,
-      senderRole: 'enhancer',
-      targetRole: 'planner',
-      content: '## Summary\nTighten scope',
+      jobId: enhancerJob!._id,
+      enhancedContent: '## Summary\nTighten scope',
     });
 
     // New planner pending task from enhancer planning input
@@ -137,12 +148,29 @@ describe('enhancer delegation-loop workflow', () => {
       'Build multi-slice feature'
     );
 
-    await t.mutation(api.messages.handoff, {
+    const enhancerHandoff = await t.mutation(api.messages.handoff, {
       sessionId,
       chatroomId,
       senderRole: 'planner',
       targetRole: 'enhancer',
       content: '<request>Build multi-slice feature</request>',
+    });
+    const enhancerJob = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_enhancerJobs')
+        .withIndex('by_chatroom_status', (q) => q.eq('chatroomId', chatroomId))
+        .first()
+    );
+    await t.mutation(api.daemon.enhancer.index.claimForSpawn, {
+      sessionId,
+      jobId: enhancerJob!._id,
+      machineId,
+    });
+    await t.mutation(api.web.enhancer.mutations.complete, {
+      sessionId,
+      chatroomId,
+      jobId: enhancerJob!._id,
+      enhancedContent: '## Summary\nSlice 1 feedback',
     });
     await t.mutation(api.messages.handoff, {
       sessionId,

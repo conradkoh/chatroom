@@ -1,5 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
+import { getTeamPreset } from '@workspace/shared/domain/team-presets';
 
 import { applyEnhancerComplete } from './completeLogic';
 import { deliverPendingHandoffFromJob } from './delivery';
@@ -8,6 +9,10 @@ import { computeEnhancerBackoffMs, emitEnhancerEvent } from './internal';
 import { assertEnhancerJobOwner } from './jobHelpers';
 import { buildPlanningReviewOutcomeContent } from '../../../src/domain/usecase/enhancer/build-planning-review-outcome';
 import { transitionEnhancerEntryPointToWaiting } from '../../../src/domain/usecase/enhancer/enhancer-entry-point-status';
+import {
+  getEnhancerTeamAgentConfig,
+  syncEnhancerTeamAgentConfig,
+} from '../../../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
 import { mutation } from '../../_generated/server';
 import { requireChatroomAccess } from '../../auth/chatroomAccess';
 import { agentHarnessValidator } from '../../schema';
@@ -25,7 +30,13 @@ export const upsertConfig = mutation({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { session, chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    if (!chatroom.teamId || !getTeamPreset(chatroom.teamId)) {
+      throw new ConvexError({
+        code: 'INVALID_TEAM',
+        message: 'Enhancer configuration requires a Solo or Duo team',
+      });
+    }
     if (!args.model.trim()) {
       throw new ConvexError({ code: 'INVALID_MODEL', message: 'model must not be empty' });
     }
@@ -52,11 +63,25 @@ export const upsertConfig = mutation({
       updatedAt: now,
     };
 
+    let configId;
     if (existing) {
       await ctx.db.patch('chatroom_enhancerConfigs', existing._id, doc);
-      return { configId: existing._id };
+      configId = existing._id;
+    } else {
+      configId = await ctx.db.insert('chatroom_enhancerConfigs', doc);
     }
-    const configId = await ctx.db.insert('chatroom_enhancerConfigs', doc);
+    const legacyConfig = await ctx.db.get('chatroom_enhancerConfigs', configId);
+    if (!legacyConfig) {
+      throw new ConvexError({
+        code: 'CONFIG_SYNC_FAILED',
+        message: 'Failed to synchronize enhancer configuration',
+      });
+    }
+    await syncEnhancerTeamAgentConfig(ctx, {
+      chatroomId: args.chatroomId,
+      teamId: chatroom.teamId,
+      legacyConfig,
+    });
     return { configId };
   },
 });
@@ -68,7 +93,7 @@ export const disableConfig = mutation({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { session, chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     const existing = await ctx.db
       .query('chatroom_enhancerConfigs')
       .withIndex('by_chatroom_user', (q) =>
@@ -80,6 +105,11 @@ export const disableConfig = mutation({
       enabled: false,
       updatedAt: Date.now(),
     });
+    if (chatroom.teamId) {
+      const teamConfig = await getEnhancerTeamAgentConfig(ctx, args.chatroomId, chatroom.teamId);
+      if (teamConfig)
+        await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, { enabled: false });
+    }
     return { disabled: true as const };
   },
 });

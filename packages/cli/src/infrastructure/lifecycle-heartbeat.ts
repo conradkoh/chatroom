@@ -19,8 +19,8 @@ export function sendLifecycleHeartbeat(
   client: Pick<ConvexHttpClient, 'mutation'>,
   opts: { sessionId: string; chatroomId: string; role: string; action?: string }
 ): void {
-  // Daemon workers (e.g. enhancer) are not chatroom team participants — joining
-  // them is invalid and only produces Convex "Invalid role" errors + retries.
+  // Enhancer presence is registered by the backend when its job is claimed;
+  // it does not use the long-lived CLI heartbeat path.
   if (isDaemonWorkerRole(opts.role)) return;
   // Update lastSeenAt (and optionally lastSeenAction) on the participant row.
   withRetry(() =>

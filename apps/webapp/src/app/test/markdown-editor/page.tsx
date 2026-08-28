@@ -8,7 +8,6 @@ import {
   EditableMarkdown,
   defaultMarkdownEditorProseClassNames,
 } from '@/components/markdown-editor';
-import { markdownSurfaceModalProseClassNames } from '@/modules/chatroom/components/markdown-surface/markdownSurfacePresets';
 
 const SAMPLE_MARKDOWN = `# Markdown WYSIWYG Demo
 
@@ -73,7 +72,7 @@ export default function MarkdownEditorTestPage() {
             defaultMarkdown={SAMPLE_MARKDOWN}
             onChange={setContent}
             placeholder="Start writing markdown..."
-            proseClassName={`${defaultMarkdownEditorProseClassNames} ${markdownSurfaceModalProseClassNames}`}
+            proseClassName={defaultMarkdownEditorProseClassNames}
           />
         </section>
 

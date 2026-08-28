@@ -32,11 +32,11 @@ All items from `consolidate.md` §Open decisions are resolved here. No further u
 
 **Rationale:** Command path is CLI UX surface (`machine daemon start`). `daemon/` is runtime module. Mixing them breaks command discovery conventions.
 
-### 3. `enhancer-legacy/` naming → **Rename in Phase 7b**
+### 3. Enhancer entry-point naming → **Completed**
 
-**Decision:** After Phase 7a moves `daemon-start/` root files, rename `daemon/entry/enhancer-legacy/` → `daemon/entry/enhancer/` (5 implementation files + tests). Update imports in `daemon-runtime.ts`, `init-daemon.ts`, and tests. No merge with deleted `daemon-start/enhancer/` shims (already removed in Phase 0).
+**Decision:** The enhancer implementation lives under `daemon/entry/enhancer/`. The former compatibility shims and legacy directory name were removed during the completed consolidation.
 
-**Rationale:** Shims gone; `-legacy` suffix is misleading. Rename is low-risk once enhancer code lives exclusively under `daemon/entry/`.
+**Rationale:** The current path describes the active entry point and avoids carrying migration history in the runtime module name.
 
 ### 4. `agent-lifecycle/` coupling → **Defer — keep as shared infrastructure**
 
@@ -56,7 +56,7 @@ All items from `consolidate.md` §Open decisions are resolved here. No further u
 | ----------------------------------------------------------------- | --------------------------------------- | ------------ |
 | ~9.8k LOC in `daemon-start/` handlers, subscriptions, drains      | medium                                  | Phases 5–7   |
 | `daemon-runtime.ts` imports 12 `daemon-start/` modules directly   | medium                                  | Phase 7      |
-| `enhancer-legacy/` misleading name                                | low                                     | Phase 7b     |
+| Enhancer entry-point naming                                       | ✅                                      | Phase 7b     |
 | `remote-agents/` (99 files) outside daemon module                 | medium                                  | Phase 8      |
 | `infrastructure/harnesses/` re-export shims (6 files)             | low                                     | Phase 8c     |
 | `daemon-services.ts` / `types.ts` imported via old paths in tests | ✅ Deleted (post-consolidation slice 2) |
@@ -217,25 +217,25 @@ All 12 `daemon-start/` imports must point to `daemon/entry/` after this phase.
 
 ---
 
-## Phase 7b — Rename `enhancer-legacy/` → `enhancer/`
+## Phase 7b — Rename enhancer entry point (completed)
 
-**Commit message:** `refactor(daemon): rename enhancer-legacy to enhancer`
+**Commit message:** `refactor(daemon): rename enhancer entry point`
 
 ### Scope
 
-Rename directory `daemon/entry/enhancer-legacy/` → `daemon/entry/enhancer/` (8 files).
+The enhancer entry point was renamed to `daemon/entry/enhancer/` (8 files).
 
 ### Import sweep
 
 ```bash
-rg -l 'enhancer-legacy' packages/cli/src
+rg -l 'daemon/entry/enhancer' packages/cli/src
 ```
 
 **Known importers:** `daemon-runtime.ts`, `init-daemon.ts`, tests.
 
 ### Verification
 
-- Zero `enhancer-legacy` path references
+- Enhancer imports resolve from the current `daemon/entry/enhancer/` path
 - Tests pass
 
 ---

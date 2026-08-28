@@ -52,8 +52,8 @@
 | `native-task-delivery-coordinator.ts` | —      | delete-shim | Re-exports `daemon/entry/native-delivery/native-task-delivery-coordinator.ts` |
 | `native-turn-phase.ts`                | —      | delete-shim | Re-exports `daemon/entry/native-delivery/native-turn-phase.ts`                |
 | `command-loop.ts`                     | —      | delete-shim | Re-exports `daemon/entry/command-dispatch.ts`                                 |
-| `enhancer/job-subscriber.ts`          | —      | delete-shim | Re-exports `daemon/entry/enhancer-legacy/job-subscriber.ts`                   |
-| `enhancer/start-subscriptions.ts`     | —      | delete-shim | Re-exports `daemon/entry/enhancer-legacy/start-subscriptions.ts`              |
+| `enhancer/job-subscriber.ts`          | —      | delete-shim | Re-exports the consolidated `daemon/entry/enhancer/job-subscriber.ts`         |
+| `enhancer/start-subscriptions.ts`     | —      | delete-shim | Re-exports the consolidated `daemon/entry/enhancer/start-subscriptions.ts`    |
 
 ---
 
@@ -106,12 +106,12 @@
 | `agentic-query/start-subscriptions.ts` | `daemon/entry/agentic-query/start-subscriptions.ts` | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
 | `agentic-query/types.ts`               | `daemon/entry/agentic-query/types.ts`               | consolidate | Daemon-runtime / daemon-start consumers only (`grep -rl` shows no harness-status/detection imports) |
 
-### 2d. `enhancer/` (overlap with `daemon/entry/enhancer-legacy/`)
+### 2d. `enhancer/` compatibility shims
 
-| Current                  | Target | Verdict     | Rationale                                                                                        |
-| ------------------------ | ------ | ----------- | ------------------------------------------------------------------------------------------------ |
-| `job-subscriber.ts`      | —      | delete-shim | Thin re-export of `daemon/entry/enhancer-legacy/job-subscriber.ts` (real impl already in daemon) |
-| `start-subscriptions.ts` | —      | delete-shim | Thin re-export of `daemon/entry/enhancer-legacy/start-subscriptions.ts`                          |
+| Current                  | Target | Verdict     | Rationale                                                                                 |
+| ------------------------ | ------ | ----------- | ----------------------------------------------------------------------------------------- |
+| `job-subscriber.ts`      | —      | delete-shim | Thin re-export of `daemon/entry/enhancer/job-subscriber.ts` (real impl already in daemon) |
+| `start-subscriptions.ts` | —      | delete-shim | Thin re-export of `daemon/entry/enhancer/start-subscriptions.ts`                          |
 
 ### 2e. `file-*` subscriptions and fulfillment
 
@@ -322,11 +322,11 @@
 
 ## 11. Deferred consolidation candidates
 
-| Path                                             | Target                                              | Verdict | Rationale                                                                     |
-| ------------------------------------------------ | --------------------------------------------------- | ------- | ----------------------------------------------------------------------------- |
-| `daemon/entry/enhancer-legacy/*` (5 `.ts` files) | `daemon/entry/enhancer/`                            | defer   | Already in daemon; rename after `daemon-start/enhancer/` shims deleted        |
-| `infrastructure/services/workspace/*`            | —                                                   | defer   | File-tree/workspace I/O shared beyond daemon; file subscriptions depend on it |
-| `infrastructure/services/agent-lifecycle/*`      | `daemon/infrastructure/agent-lifecycle/` (optional) | defer   | Coupled to agent-process-manager + remote-agents; needs boundary decision     |
+| Path                                        | Target                                              | Verdict | Rationale                                                                     |
+| ------------------------------------------- | --------------------------------------------------- | ------- | ----------------------------------------------------------------------------- |
+| `daemon/entry/enhancer/*` (5 `.ts` files)   | —                                                   | ✅      | Consolidated enhancer entry point                                             |
+| `infrastructure/services/workspace/*`       | —                                                   | defer   | File-tree/workspace I/O shared beyond daemon; file subscriptions depend on it |
+| `infrastructure/services/agent-lifecycle/*` | `daemon/infrastructure/agent-lifecycle/` (optional) | defer   | Coupled to agent-process-manager + remote-agents; needs boundary decision     |
 
 ---
 
@@ -336,5 +336,5 @@
 >
 > - `remote-agents/`: moved to `daemon/infrastructure/local/harness/services/`; shim re-exports deleted (post-consolidation slice 1)
 > - `daemon-start/index.ts`: keep at `commands/machine/daemon-start/` (CLI entry)
-> - `enhancer-legacy/`: rename to `enhancer/` in Phase 7b
+> - Enhancer entry point: consolidated under `daemon/entry/enhancer/`
 > - `agent-lifecycle/`: defer — keep shared infrastructure

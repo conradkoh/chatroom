@@ -43,8 +43,3 @@ export function createEnhancerLogWriter(
     },
   };
 }
-
-/** @deprecated Prefer createEnhancerLogWriter for daemon log viewer support. */
-export function writeEnhancerLog(message: string): void {
-  void message;
-}

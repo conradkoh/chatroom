@@ -1,11 +1,13 @@
 'use client';
 
 import { getPermanentRoleNames, isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+import type { TeamStructure } from '@workspace/shared/domain/team-presets';
 import { ChevronRight } from 'lucide-react';
 import { useState, useMemo, useCallback, memo } from 'react';
 
 import { RemoteAgentQuickActions } from './AgentPanel/RemoteAgentQuickActions';
 import type { TeamConfigEntry } from '../hooks/use-team-configs';
+import type { AgentRoleStatusReadModel } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { useRelativeTime } from '../hooks/useRelativeTime';
@@ -23,23 +25,23 @@ import { ChatroomLoader } from '@/components/ui/chatroom-loader';
 
 interface AgentPanelProps {
   chatroomId: string;
-  teamRoles?: string[];
+  teamStructure: TeamStructure | null | undefined;
   lifecycle: TeamLifecycle | null | undefined;
-  teamName?: string;
-  teamId?: string;
-  defaultTeamId?: string;
-  teams?: readonly TeamConfigEntry[];
-  onTeamChange?: (team: TeamConfigEntry) => Promise<void>;
-  agentConfigs?: AgentConfig[];
+  statusReadModel: AgentRoleStatusReadModel[] | undefined;
+  teamName: string | undefined;
+  teamId: string | undefined;
+  defaultTeamId: string | undefined;
+  teams: readonly TeamConfigEntry[] | undefined;
+  onTeamChange: ((team: TeamConfigEntry) => Promise<void>) | undefined;
+  agentConfigs: AgentConfig[];
   /** Called when user clicks an agent row — opens settings to agents tab */
-  onOpenAgents?: () => void;
-  hasRunningRemoteAgents?: boolean;
-  onStartAllRemoteAgents?: () => void;
-  onStopAllRemoteAgents?: () => void;
-  onRestartAllRemoteAgents?: () => void;
-  isRestartingAgents?: boolean;
-  isStoppingAgents?: boolean;
-  isStartingAllAgents?: boolean;
+  onOpenAgents: (() => void) | undefined;
+  hasRunningRemoteAgents: boolean;
+  onStartAllRemoteAgents: (() => void) | undefined;
+  onStopAllRemoteAgents: (() => void) | undefined;
+  onRestartAllRemoteAgents: (() => void) | undefined;
+  isStoppingAgents: boolean;
+  isStartingAllAgents: boolean;
 }
 
 // ─── AgentSidebarRow ─────────────────────────────────────────────────────────
@@ -102,13 +104,12 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
   isLoadingStatuses,
   onOpen,
 }: AgentSidebarRowProps) {
-  const online_ = agentStatus?.online ?? false;
   const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
   const lastSeenAt = agentStatus?.lastSeenAt ?? null;
-  const statusVariant = agentStatus?.statusVariant;
+  const statusVariant = agentStatus?.statusVariant ?? 'offline';
   const lastSeenLabel = useRelativeTime(lastSeenAt);
-  const indicatorClass = getIndicatorClass(statusVariant, online_);
-  const labelColorClass = getLabelColorClass(statusVariant, online_);
+  const indicatorClass = getIndicatorClass(statusVariant);
+  const labelColorClass = getLabelColorClass(statusVariant);
 
   return (
     <div className="border-b border-chatroom-border last:border-b-0">
@@ -152,29 +153,29 @@ const AgentSidebarRow = memo(function AgentSidebarRow({
 
 export const AgentPanel = memo(function AgentPanel({
   chatroomId,
-  teamRoles = [],
+  teamStructure,
   lifecycle,
+  statusReadModel,
   teamName,
   teamId,
   defaultTeamId,
   teams,
   onTeamChange,
-  agentConfigs = [],
+  agentConfigs,
   onOpenAgents,
   hasRunningRemoteAgents,
   onStartAllRemoteAgents,
   onStopAllRemoteAgents,
   onRestartAllRemoteAgents,
-  isRestartingAgents,
   isStoppingAgents,
   isStartingAllAgents,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
 
   const displayRoles = useMemo(() => {
-    const base = teamRoles.length > 0 ? teamRoles : lifecycle?.expectedRoles || [];
+    const base = teamStructure?.roles.map(({ role }) => role) ?? [];
     return base.filter((role) => role !== 'user');
-  }, [teamRoles, lifecycle?.expectedRoles]);
+  }, [teamStructure?.roles]);
   const permanentRoles = useMemo(() => getPermanentRoleNames(displayRoles), [displayRoles]);
   const ephemeralRoles = useMemo(
     () => displayRoles.filter((role) => isEphemeralAgentRole(role)),
@@ -188,7 +189,7 @@ export const AgentPanel = memo(function AgentPanel({
   // Use hook to get derived agent statuses (lifecycle + event stream)
   const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(
     rolesToShow,
-    lifecycle?.participants
+    statusReadModel
   );
 
   // Open agent list — if onOpenAgents is provided, open settings to agents tab;
@@ -219,7 +220,7 @@ export const AgentPanel = memo(function AgentPanel({
     ));
 
   // Loading state
-  if (lifecycle === undefined) {
+  if (lifecycle === undefined || teamStructure === undefined) {
     return (
       <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
@@ -265,8 +266,7 @@ export const AgentPanel = memo(function AgentPanel({
             />
           </div>
           <RemoteAgentQuickActions
-            hasRunningAgents={hasRunningRemoteAgents ?? false}
-            isRestarting={isRestartingAgents}
+            hasRunningAgents={hasRunningRemoteAgents}
             isStopping={isStoppingAgents}
             onStart={onStartAllRemoteAgents}
             onStop={onStopAllRemoteAgents}

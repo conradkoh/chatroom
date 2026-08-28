@@ -12,16 +12,16 @@ pnpm e2e
 cd apps/webapp && pnpm e2e
 ```
 
-`pnpm e2e` is also wired into the git **pre-push** hook (alongside `test` and `typecheck`). Pre-push **always** runs e2e with suite selection by push destination — see [Pre-Push Suite Selection](#pre-push-suite-selection). Admin specs require the Convex env setup below before pushing.
+`pnpm e2e` is also wired into the git **pre-push** hook (alongside `test` and `typecheck`) for direct pushes to `master`. Pull requests targeting `master` run the full suite in GitHub Actions. Admin specs require the Convex env setup below before pushing or configuring CI.
 
 ## Pre-Push Suite Selection
 
-The pre-push hook always invokes `scripts/run-pre-push-e2e.ts`, which runs a single Playwright invocation filtered by tag:
+When a pushed ref targets `master`, the pre-push hook invokes `scripts/run-pre-push-e2e.ts`, which runs a single Playwright invocation filtered by tag:
 
 - **Template destination** (`conradkoh/next-convex-starter-app` on `github.com`) → `@upstream` specs
 - **Fork or non-template destination** → `@downstream` specs only
 
-This does not disable the full suite: `pnpm e2e` remains available for explicit local and CI runs on every checkout.
+Pushes to other branches skip the local pre-push E2E run; pull requests targeting `master` run the full suite in GitHub Actions. `pnpm e2e` remains available for explicit local runs on every checkout.
 
 Convenience scripts (values match `support/tags.ts`):
 

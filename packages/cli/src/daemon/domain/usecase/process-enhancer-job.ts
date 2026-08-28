@@ -10,6 +10,3 @@ export async function processEnhancerJobInbound(
 ): Promise<void> {
   await deps.dispatchInbound(event);
 }
-
-/** @deprecated use processEnhancerJobInbound */
-export const processEnhancerJob = processEnhancerJobInbound;

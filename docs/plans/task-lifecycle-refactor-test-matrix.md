@@ -12,15 +12,15 @@
 
 ## Manual QA (production-like)
 
-| #   | Scenario                    | Steps                                                                  | Expected                                                           |
-| --- | --------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| 1   | Native inject → in_progress | Duo + opencode-sdk builder; user message creates task; daemon delivers | Receipt in DB; task in_progress on first output/busy; no errors    |
-| 2   | busy before thinking        | Watch daemon logs during inject                                        | updateTokenActivity on busy event                                  |
-| 3   | Enhancer check-in           | Planner → enhancer handoff                                             | Task in_progress on claim; no enhancer participant; no join errors |
-| 4   | get-next-task               | Non-native harness blocking get-next-task                              | cli_get_next_task receipt; acknowledged → in_progress on activity  |
-| 5   | Legacy no receipt           | Pre-migration or test chatroom without receipts                        | Acknowledged + native:task-injected + token activity still works   |
-| 6   | Pending resume after exit   | Agent exit with queued pending                                         | recovered-pending rule still fires                                 |
-| 7   | Slice 1 regression          | Open enhancer task in TaskDetailModal                                  | Structured sections (unrelated but verify no daemon regression)    |
+| #   | Scenario                    | Steps                                                                  | Expected                                                                          |
+| --- | --------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| 1   | Native inject → in_progress | Duo + opencode-sdk builder; user message creates task; daemon delivers | Receipt in DB; task in_progress on first output/busy; no errors                   |
+| 2   | busy before thinking        | Watch daemon logs during inject                                        | updateTokenActivity on busy event                                                 |
+| 3   | Enhancer check-in           | Planner → enhancer handoff                                             | Task in_progress on claim; ephemeral enhancer participant visible; no join errors |
+| 4   | get-next-task               | Non-native harness blocking get-next-task                              | cli_get_next_task receipt; acknowledged → in_progress on activity                 |
+| 5   | Legacy no receipt           | Pre-migration or test chatroom without receipts                        | Acknowledged + native:task-injected + token activity still works                  |
+| 6   | Pending resume after exit   | Agent exit with queued pending                                         | recovered-pending rule still fires                                                |
+| 7   | Slice 1 regression          | Open enhancer task in TaskDetailModal                                  | Structured sections (unrelated but verify no daemon regression)                   |
 
 ## Receipt lifecycle
 

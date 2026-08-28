@@ -15,6 +15,8 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { isEphemeralAgentRole } from '@workspace/shared/domain/agent-role';
+
 import { advanceAgentLifecycleRevision } from './advance-agent-lifecycle-revision';
 import { projectAgentOperationalStatusForRole } from './project-agent-operational-status';
 import { resolveDefaultWantResume } from './resolve-default-want-resume';
@@ -101,6 +103,12 @@ export async function startAgent(
 ): Promise<StartAgentResult> {
   const { machineId, chatroomId, role, model, agentHarness, workingDir, reason, wantResume } =
     input;
+
+  if (isEphemeralAgentRole(role)) {
+    throw new Error(
+      `Cannot start ephemeral role "${role}" directly. It runs on demand when work is assigned.`
+    );
+  }
 
   // ── Step 1: Verify harness is available on the machine ────────────────
 

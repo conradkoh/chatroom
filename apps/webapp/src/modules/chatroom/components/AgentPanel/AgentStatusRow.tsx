@@ -1,13 +1,11 @@
 'use client';
 
+import type { ChatroomAgentActivityVariant } from '@workspace/shared/domain/chatroom-agent-activity-status';
 import { memo } from 'react';
-
-import type { StatusVariant } from '../../utils/agentStatusLabel';
 
 interface AgentStatusRowProps {
   role: string;
-  online: boolean;
-  variant?: StatusVariant;
+  variant: ChatroomAgentActivityVariant;
 }
 
 /** Formats a lastSeenAt unix-ms timestamp into a human-readable "X ago" string. */
@@ -19,10 +17,7 @@ export function formatLastSeen(lastSeenAt: number | null | undefined): string {
   return Math.floor(diff / 3600) + 'h ago';
 }
 
-export function getIndicatorClass(variant: StatusVariant | undefined, online: boolean): string {
-  if (!variant) {
-    return online ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
-  }
+export function getIndicatorClass(variant: ChatroomAgentActivityVariant): string {
   switch (variant) {
     case 'offline':
       return 'bg-chatroom-text-muted';
@@ -37,10 +32,7 @@ export function getIndicatorClass(variant: StatusVariant | undefined, online: bo
   }
 }
 
-export function getLabelColorClass(variant: StatusVariant | undefined, online: boolean): string {
-  if (!variant) {
-    return online ? 'text-chatroom-status-success' : 'text-chatroom-text-muted';
-  }
+export function getLabelColorClass(variant: ChatroomAgentActivityVariant): string {
   switch (variant) {
     case 'offline':
       return 'text-chatroom-text-muted';
@@ -56,22 +48,18 @@ export function getLabelColorClass(variant: StatusVariant | undefined, online: b
 }
 
 /** Row background highlight for actively working agents. */
-export function getRowHighlightClass(variant: StatusVariant | undefined): string {
+export function getRowHighlightClass(variant: ChatroomAgentActivityVariant): string {
   return variant === 'working' ? 'bg-chatroom-status-info/5' : '';
 }
 
 /** Renders the status indicator dot and role name. */
-export const AgentStatusRow = memo(function AgentStatusRow({
-  role,
-  online,
-  variant,
-}: AgentStatusRowProps) {
+export const AgentStatusRow = memo(function AgentStatusRow({ role, variant }: AgentStatusRowProps) {
   return (
     <div
       className="flex items-center gap-2 min-w-0 overflow-hidden"
       style={{ transform: 'translateZ(0)' }}
     >
-      <div className={'w-2.5 h-2.5 flex-shrink-0 ' + getIndicatorClass(variant, online)} />
+      <div className={'w-2.5 h-2.5 flex-shrink-0 ' + getIndicatorClass(variant)} />
       <span className="text-base font-bold uppercase tracking-wider text-chatroom-text-primary truncate flex-shrink-0">
         {role}
       </span>

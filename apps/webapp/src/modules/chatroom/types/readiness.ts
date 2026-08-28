@@ -8,18 +8,12 @@
 /**
  * Participant info from the backend readiness query.
  * Presence is derived from lastSeenAt; action context from lastSeenAction.
- *
- * Note: AgentPanel derives status from lastStatus (denormalized from event stream).
- * lastSeenAction is still used by ChatroomListingContext, WorkQueue, and ChatroomDashboard.
+ * lastSeenAction is used by WorkQueue and lastSeenAt by ChatroomDashboard.
  */
 export interface ParticipantInfo {
   role: string;
-  agentType?: 'remote' | 'custom';
   lastSeenAt?: number | null;
   lastSeenAction?: string | null;
-  lastStatus?: string | null;
-  lastDesiredState?: string | null;
-  isAlive?: boolean;
 }
 
 /**

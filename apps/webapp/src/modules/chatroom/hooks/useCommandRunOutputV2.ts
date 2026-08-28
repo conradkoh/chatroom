@@ -104,6 +104,8 @@ export function useCommandRunOutputV2(
   ) as FunctionReturnType<typeof api.commands.getRunOutputV2> | undefined;
 
   const result = raw ?? { run: null, tail: null, chunks: [], fullOutputPending: false };
+  const resultRef = useRef(result);
+  resultRef.current = result;
 
   const [decodedChunks, setDecodedChunks] = useState<DecodedChunk[]>([]);
   const decodeIdRef = useRef(0);
@@ -125,8 +127,9 @@ export function useCommandRunOutputV2(
 
     (async () => {
       const decoded: DecodedChunk[] = [];
+      const latestResult = resultRef.current;
 
-      const rc = result.chunks as RawChunk[];
+      const rc = latestResult.chunks as RawChunk[];
       if (rc.length > 0) {
         for (const c of rc) {
           try {
@@ -138,7 +141,7 @@ export function useCommandRunOutputV2(
           }
         }
       } else {
-        const t = result.tail as RawTail | null;
+        const t = latestResult.tail as RawTail | null;
         if (t) {
           try {
             const text = await decodeOutputBrowser(t);
@@ -157,7 +160,7 @@ export function useCommandRunOutputV2(
     return () => {
       cancelled = true;
     };
-  }, [decodeKey, result.chunks, result.tail]);
+  }, [decodeKey]);
 
   const isActive = result.run?.status === 'running' || result.run?.status === 'pending';
 

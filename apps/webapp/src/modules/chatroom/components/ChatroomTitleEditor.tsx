@@ -1,5 +1,6 @@
 'use client';
 
+import type { ChatroomActivityStatus } from '@workspace/shared/domain/chatroom-activity-status';
 import {
   ArrowRightLeft,
   ChevronDown,
@@ -36,7 +37,6 @@ import {
   getChatStatusDescription,
   getChatStatusIndicatorClasses,
 } from '@/modules/chatroom/utils/chatStatusDisplay';
-import type { ChatStatus } from '@/modules/chatroom/utils/deriveChatStatus';
 
 const chatroomTitleDisplayClassName = cn(inlineEditableTitleDisplayClassName, 'text-sm');
 const chatroomTitleInputClassName = cn(inlineEditableTitleInputClassName, 'text-sm');
@@ -44,7 +44,7 @@ const chatroomTitleInputClassName = cn(inlineEditableTitleInputClassName, 'text-
 export interface ChatroomTitleEditorProps {
   displayName: string;
   chatroomId: string;
-  chatStatus: ChatStatus;
+  chatStatus: ChatroomActivityStatus;
   isDesktop?: boolean;
   onOpenSettings?: () => void;
   onSwitchChatrooms?: () => void;

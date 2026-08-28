@@ -1,5 +1,6 @@
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { TeamStructure } from '@workspace/shared/domain/team-presets';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useMemo } from 'react';
 
@@ -24,7 +25,8 @@ export interface AgentPanelData {
   connectedMachines: MachineInfo[];
   machineConfigs: AgentConfig[];
   isLoading: boolean;
-  hasActiveEnhancerWork: boolean;
+  remoteAgentStatus: 'running' | 'stopped' | 'none' | undefined;
+  teamStructure: TeamStructure | null | undefined;
   sendCommand: ReturnType<typeof useSessionMutation>;
   teamId?: string;
   lifecycle: {
@@ -35,20 +37,38 @@ export interface AgentPanelData {
       role: string;
       lastSeenAt: number | null;
       lastSeenAction: string | null;
-      agentType: 'remote' | 'custom';
-      lastStatus: string | null;
-      lastDesiredState: string | null;
-      isAlive: boolean;
     }[];
     hasHistory: boolean;
   } | null;
+  statusReadModel: AgentRoleStatusReadModel[] | undefined;
 }
+
+export type AgentRoleStatusReadModel = Pick<
+  Doc<'chatroom_agentRoleStatusReadModel'>,
+  | 'role'
+  | 'roleKind'
+  | 'status'
+  | 'machineId'
+  | 'lastSeenAt'
+  | 'activeWork'
+  | 'error'
+  | 'projectedAt'
+>;
 
 export function useAgentPanelData(
   chatroomId: string,
   options?: { loadConfigs?: boolean }
 ): AgentPanelData {
   const statusResult = useSessionQuery(api.machines.getAgentViewStatus, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+  const statusReadModelResult = useSessionQuery(api.machines.getAgentRoleStatusReadModel, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+  const agentOverview = useSessionQuery(api.machines.getAgentOverviewForChatroom, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+  const teamStructure = useSessionQuery(api.chatrooms.getTeamStructureForChatroom, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
 
@@ -95,10 +115,6 @@ export function useAgentPanelData(
           role: a.role,
           lastSeenAt: a.lastSeenAt,
           lastSeenAction: a.lastSeenAction,
-          agentType: a.agentType,
-          lastStatus: a.lastStatus,
-          lastDesiredState: a.lastDesiredState,
-          isAlive: a.isAlive,
         })),
         hasHistory: statusResult.hasHistory,
       }
@@ -110,9 +126,11 @@ export function useAgentPanelData(
     connectedMachines,
     machineConfigs,
     isLoading,
-    hasActiveEnhancerWork: statusResult?.hasActiveEnhancerWork ?? false,
+    remoteAgentStatus: agentOverview?.agentStatus,
+    teamStructure,
     sendCommand,
     teamId: statusResult?.teamId,
     lifecycle,
+    statusReadModel: statusReadModelResult,
   };
 }

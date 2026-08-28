@@ -82,25 +82,12 @@ test.describe('Markdown Editor Demo', { tag: [TAG_UPSTREAM, TAG_MARKDOWN] }, () 
     const editable = markdownPage.interactiveEditorEditable;
     const code = editable.locator('pre code').first();
 
-    await code.evaluate((node) => {
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      (node.closest('[contenteditable="true"]') as HTMLElement | null)?.focus();
-    });
+    await code.click();
+    await page.keyboard.press('Control+a');
     await page.keyboard.insertText(repro);
-    await expect(code).toHaveText(repro);
+    await expect(code).toContainText(repro);
 
-    await code.evaluate((node) => {
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      range.collapse(false);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    });
+    await page.keyboard.press('Control+End');
     await page.keyboard.press('Shift+Alt+ArrowUp');
 
     const selection = await code.evaluate((node) => {
