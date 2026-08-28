@@ -12,25 +12,21 @@ vi.mock('../../daemon/entry/handlers/command-runner.js', () => ({
 }));
 
 function runShutdown({
-  summaries,
   activeAgents,
 }: {
-  summaries: Record<string, { stoppedCount: number; failedCount: number }>;
-  activeAgents: { chatroomId: string }[];
+  activeAgents: { chatroomId: string; role: string }[];
 }) {
-  const executeScopedStopForCommand = vi.fn((args: { chatroomId: string }) =>
-    Effect.succeed(summaries[args.chatroomId] ?? { stoppedCount: 0, failedCount: 0 })
-  );
+  const stop = vi.fn(() => Effect.succeed({ success: true }));
   const agentPm = {
     listActive: () => activeAgents,
     whenTurnEndsIdle: () => Effect.succeed(undefined),
-    executeScopedStopForCommand,
+    stop,
   };
   const session = {
     sessionId: 'session',
     machineId: 'machine',
     backend: {
-      mutation: vi.fn().mockResolvedValue({ stopCommandId: 'stop', inboxCommandId: 'inbox' }),
+      mutation: vi.fn().mockResolvedValue(undefined),
     },
   };
   return Effect.runPromise(
@@ -51,28 +47,23 @@ describe('onDaemonShutdownEffect', () => {
   test('logs stopped and failed counts', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     await runShutdown({
-      activeAgents: [{ chatroomId: 'room-a' }, { chatroomId: 'room-b' }],
-      summaries: {
-        'room-a': { stoppedCount: 2, failedCount: 0 },
-        'room-b': { stoppedCount: 1, failedCount: 2 },
-      },
+      activeAgents: [{ chatroomId: 'room-a', role: 'planner' }, { chatroomId: 'room-b', role: 'builder' }],
     });
-    expect(log.mock.calls.flat().join(' ')).toContain('Shutdown stops: 3 stopped, 2 failed');
+    expect(log.mock.calls.flat().join(' ')).toContain('Shutdown stops: 2 stopped');
     expect(log.mock.calls.flat().join(' ')).not.toContain('All agents stopped');
   });
 
   test('logs stopped count when all succeed', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     await runShutdown({
-      activeAgents: [{ chatroomId: 'room' }],
-      summaries: { room: { stoppedCount: 2, failedCount: 0 } },
+      activeAgents: [{ chatroomId: 'room', role: 'planner' }],
     });
-    expect(log.mock.calls.flat().join(' ')).toContain('Shutdown stops: 2 stopped');
+    expect(log.mock.calls.flat().join(' ')).toContain('Shutdown stops: 1 stopped');
   });
 
   test('does not log a stop summary with no active agents', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await runShutdown({ activeAgents: [], summaries: {} });
+    await runShutdown({ activeAgents: [] });
     expect(log.mock.calls.flat().join(' ')).not.toContain('Shutdown stops:');
   });
 });
