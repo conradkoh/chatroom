@@ -20,32 +20,30 @@ function mockSpawnResult() {
 }
 
 describe('emitNativeWaitingAfterSpawn', () => {
-  it('calls participants.join for team agent with native harness', async () => {
+  it('enqueues native:waiting activity for team agent with native harness', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
-    const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'builder' };
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'builder', lifecycleOutbox: { enqueue } };
 
     const result = await emitNativeWaitingAfterSpawn(ctx, 'opencode-sdk');
 
     expect(result).toBe(true);
-    expect(mutation).toHaveBeenCalledTimes(1);
-    const args = mutation.mock.calls[0][1] as Record<string, unknown>;
-    expect(args.role).toBe('builder');
-    expect(args.action).toBe('native:waiting');
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ kind: 'activity', action: 'native:waiting', role: 'builder' }));
+    expect(mutation).not.toHaveBeenCalled();
   });
 
-  it('calls participants.join for enhancer on native harness', async () => {
+  it('enqueues native:waiting activity for enhancer on native harness', async () => {
     const mutation = vi.fn().mockResolvedValue(undefined);
     const backend = { mutation };
-    const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'enhancer' };
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const ctx = { backend: backend as any, sessionId: 's', chatroomId: 'c', role: 'enhancer', lifecycleOutbox: { enqueue } };
 
     const result = await emitNativeWaitingAfterSpawn(ctx, 'opencode-sdk');
 
     expect(result).toBe(true);
-    expect(mutation).toHaveBeenCalledTimes(1);
-    const args = mutation.mock.calls[0][1] as Record<string, unknown>;
-    expect(args.role).toBe('enhancer');
-    expect(args.action).toBe('native:waiting');
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ kind: 'activity', action: 'native:waiting', role: 'enhancer' }));
+    expect(mutation).not.toHaveBeenCalled();
   });
 
   it('does not call participants.join for non-native harness', async () => {
