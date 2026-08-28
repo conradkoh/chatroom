@@ -6,5 +6,5 @@
 - [Task inbox machine-level migration](task-inbox-machine-level-migration.md) — machine-scoped task signals; implementation complete (PR #1471); four-stage post-migration cleanup tracker
 - [Agent operational status projection](agent-operational-status-projection.md) — daemon-authoritative agent operational state via outbox + materialized Convex projection tables; phased migration tracker
 - [Agent operational status daemon integration](development/agent-operational-status-daemon-integration.md) — plan to replace task-snapshot desiredState workaround with operational projection SSOT
-- [Participant decoupling stack](participant-decoupling-stack.md) — five-PR series; PR1–3 + enhancer stack raised; PR4/PR5 pending
+- [Participant decoupling stack](participant-decoupling-stack.md) — PR1–6 stack; PR4–6 complete (#1530–#1532); remaining readers tracker (PR7+)
 - [Enhancer handoff-only stack](enhancer-handoff-only-stack.md) — handoff completion, task-pipeline delivery, ephemeral release fix (#1527–#1529)
