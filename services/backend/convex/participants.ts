@@ -22,7 +22,6 @@ import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-ag
 import { getAgentViewStatus } from '../src/domain/usecase/chatroom/get-agent-view-status';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { hasActiveEntryPointEnhancerJob } from '../src/domain/usecase/enhancer/enhancer-entry-point-status';
-import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { handleNativeAgentEnd as handleNativeAgentEndUsecase } from '../src/domain/usecase/participant/handle-native-agent-end';
 import { startTaskFromTokenActivity } from '../src/domain/usecase/participant/start-task-from-token-activity';
@@ -100,7 +99,6 @@ export const join = mutation({
 
     let participantId;
     const now = Date.now();
-    let actionChangedForPresence = false;
 
     if (existing) {
       // connectionId is only updated when explicitly provided — never cleared by heartbeats
@@ -112,7 +110,6 @@ export const join = mutation({
       const agentTypeChanged =
         args.agentType !== undefined && args.agentType !== existing.agentType;
       const actionChanged = args.action !== undefined && args.action !== existing.lastSeenAction;
-      actionChangedForPresence = actionChanged;
       const lastSeenAtStale =
         existing.lastSeenAt === undefined ||
         now - existing.lastSeenAt >= PARTICIPANT_HEARTBEAT_MIN_INTERVAL_MS;
@@ -154,7 +151,6 @@ export const join = mutation({
       participantId = existing._id;
     } else {
       // Create new participant
-      actionChangedForPresence = args.action !== undefined;
       participantId = await ctx.db.insert('chatroom_participants', {
         chatroomId: args.chatroomId,
         role: args.role,
@@ -224,9 +220,6 @@ export const join = mutation({
       });
       // Do not downgrade while agent has claimed work (awaiting tokens or actively working).
       if (activeTask?.status === 'acknowledged' || activeTask?.status === 'in_progress') {
-        await syncParticipantPresenceOnSnapshots(ctx, args.chatroomId, args.role, {
-          actionChanged: actionChangedForPresence,
-        });
         return participantId;
       }
 
@@ -253,10 +246,6 @@ export const join = mutation({
         });
       }
     }
-
-    await syncParticipantPresenceOnSnapshots(ctx, args.chatroomId, args.role, {
-      actionChanged: actionChangedForPresence,
-    });
 
     return participantId;
   },
