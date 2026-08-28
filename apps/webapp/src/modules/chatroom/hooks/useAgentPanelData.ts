@@ -111,11 +111,14 @@ export function useAgentPanelData(
         teamId: statusResult.teamId,
         teamName: statusResult.teamName,
         expectedRoles: statusResult.teamRoles,
-        participants: statusResult.agents.map((a) => ({
-          role: a.role,
-          lastSeenAt: a.lastSeenAt,
-          lastSeenAction: a.lastSeenAction,
-        })),
+        participants: statusResult.teamRoles
+          .filter((role) => role.toLowerCase() !== 'user')
+          .map((role) => {
+            const row = statusReadModelResult?.find(
+              (status) => status.role.toLowerCase() === role.toLowerCase()
+            );
+            return { role, lastSeenAt: row?.lastSeenAt ?? null, lastSeenAction: null };
+          }),
         hasHistory: statusResult.hasHistory,
       }
     : null;

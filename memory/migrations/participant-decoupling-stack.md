@@ -14,14 +14,14 @@ Task snapshots and daemon delivery previously denormalized participant presence 
 
 ## Stack (merge bottom-up)
 
-| PR      | Branch                                         | Status          | Scope                                                                        |
-| ------- | ---------------------------------------------- | --------------- | ---------------------------------------------------------------------------- |
-| 1 #1524 | `feat/snapshot-remove-participant-presence`    | Open            | Remove participant fields from task snapshot projection                      |
-| 2 #1525 | `feat/daemon-local-stale-turn`                 | Open            | Stale-turn from local slot + pending task only                               |
-| 3 #1526 | `feat/heartbeat-lifecycle-outbox`              | Open            | Native activity via lifecycle outbox + backend heartbeat                     |
-| —       | `fix/enhancer-job-complete-on-handoff` → #1529 | Open            | Enhancer stack (see enhancer-handoff-only-stack.md)                          |
-| 4       | `feat/role-status-without-participant`         | **Not started** | Decouple `projectAgentRoleStatusReadModel` from participant reads            |
-| 5       | `feat/presence-from-role-status`               | **Not started** | AgentPanel lastSeen from read model; drop participant lifecycle reads for UI |
+| PR      | Branch                                         | Status               | Scope                                                                        |
+| ------- | ---------------------------------------------- | -------------------- | ---------------------------------------------------------------------------- |
+| 1 #1524 | `feat/snapshot-remove-participant-presence`    | Open                 | Remove participant fields from task snapshot projection                      |
+| 2 #1525 | `feat/daemon-local-stale-turn`                 | Open                 | Stale-turn from local slot + pending task only                               |
+| 3 #1526 | `feat/heartbeat-lifecycle-outbox`              | Open                 | Native activity via lifecycle outbox + backend heartbeat                     |
+| —       | `fix/enhancer-job-complete-on-handoff` → #1529 | Open                 | Enhancer stack (see enhancer-handoff-only-stack.md)                          |
+| 4       | `feat/role-status-without-participant`         | **Complete (#1530)** | Decouple `projectAgentRoleStatusReadModel` from participant reads            |
+| 5       | `feat/presence-from-role-status`               | **Complete (#1531)** | AgentPanel lastSeen from read model; drop participant lifecycle reads for UI |
 
 PR4 stacks on `feat/enhancer-task-delivery` (current tip). PR5 stacks on PR4.
 
