@@ -1,7 +1,7 @@
 ---
 type: decision-log
 title: Participant decoupling stack
-description: Five-PR series removing participant presence from snapshots and daemon delivery, routing activity through lifecycle outbox, and projecting UI status from role-status read model.
+description: Multi-PR series removing participant presence from snapshots, daemon delivery, UI read models, and operational projection; remaining readers tracked PR7+.
 tags: [participants, projection, daemon, migration, agents]
 status: active
 ---
@@ -24,7 +24,7 @@ Task snapshots and daemon delivery previously denormalized participant presence 
 | 5       | `feat/presence-from-role-status`                         | **Complete (#1531)** | AgentPanel lastSeen from read model; drop participant lifecycle reads for UI                                            |
 | 6       | `feat/operational-status-without-participant-laststatus` | **Complete (#1532)** | Remove participant `lastStatus` reads from operational projection rebuild/connectivity + `getAgentViewStatus` inference |
 
-PR4 stacks on `feat/enhancer-task-delivery` (current tip). PR5 stacks on PR4.
+PR4 stacks on `feat/enhancer-task-delivery`. PR5 stacks on PR4. PR6 stacks on PR5. **PR7 stacks on PR6** (`feat/operational-status-without-participant-laststatus`, tip #1532).
 
 ## PR4 scope
 
@@ -40,21 +40,38 @@ PR4 stacks on `feat/enhancer-task-delivery` (current tip). PR5 stacks on PR4.
 - Remove or narrow `getTeamLifecycle` participant presence for UI consumers that now use read model
 - Chat list already uses `listAgentRoleStatusReadModel` — verify no remaining participant presence joins for activity dots
 
+## PR6 scope
+
+`projectAgentOperationalStatus` rebuild/connectivity and `getAgentViewStatus` must not infer operational state from participant `lastStatus`:
+
+- `project-agent-operational-status.ts`: remove participant queries from `projectAgentOperationalStatusForChatroom` rebuild and `projectAgentOperationalStatusOnDaemonConnectivity`; default `viewState` to config-derived `operationalState` (ephemeral idle override preserved)
+- `get-agent-view-status.ts`: read `viewState` from `chatroom_agentRoleOperationalStatus` only; remove `IN_FLIGHT_START_STATUSES` participant fallback
+- Participant reads in `getAgentViewStatus` remain for `agentType`, `lastSeenAt`, `lastSeenAction` (PR9)
+
+## PR7 scope
+
+Remove dead `toParticipantView` export from `assigned-tasks-core.ts`:
+
+- Delete `toParticipantView` function (lines ~63–80) and its `@deprecated` comment
+- Grep confirms zero callers outside the definition
+- No snapshot projection changes — PR1 already removed participant fields from snapshot contract
+- Stacks on PR6 (`feat/operational-status-without-participant-laststatus`)
+
 ## Remaining readers (complexity order)
 
 Ordered simplest → hardest. Each row is a proposed future slice (PR7+). Status `Pending` until a branch is opened.
 
-| PR  | Slice                                              | Status    | Complexity | Production readers removed                                                                 |
-| --- | -------------------------------------------------- | --------- | ---------- | ------------------------------------------------------------------------------------------ |
-| 7   | Dead `toParticipantView` helper                    | Pending   | Trivial    | `assigned-tasks-core.ts` — deprecated helper unused after PR1                              |
-| 8   | Legacy presence API removal                        | Pending   | Low        | `chatrooms.ts` (`listByUserWithStatus`, `listParticipantPresence`, `getPresenceForChatroom`); `participants.ts` (`getTeamLifecycle`) — no current webapp/CLI consumers |
-| 9   | `getAgentViewStatus` presence narrowing            | Pending   | Low–Med    | `get-agent-view-status.ts` — stop reading `agentType`, `lastSeenAt`, `lastSeenAction`; source from team config + `chatroom_agentRoleStatusReadModel` |
-| 10  | Restart-offline from operational projection        | Pending   | Medium     | `restart-offline-agents-on-user-message.ts` — replace `lastStatus`/`lastSeenAction` reads with operational projection + read model |
-| 11  | Queue promotion gate without `lastSeenAction`      | Pending   | Medium     | `convex/lib/chatroomUtils.ts` (`areAllAgentsWaiting`); `convex/tasks.ts` caller — needs alternate "all agents waiting" signal |
-| 12  | Handoff routing decoupling                         | Pending   | High       | `convex/messages.ts` (5 participant query sites for `availableRoles`/delivery prompts + post-handoff cleanup); `convex/daemon/enhancer/taskDeliveryForJob.ts`; `participants.ts` (`getHighestPriorityWaitingRole`) |
-| 13  | Task/native orchestration via participant lookup   | Pending   | High       | `getParticipantForChatroomRole` in `assigned-tasks-core.ts` and callers: `transition-agent-status.ts`, `release-tasks-on-agent-exit.ts`, `find-native-harness-in-progress-work.ts`, `handle-native-agent-end.ts`, `project-agent-lifecycle-fact.ts` / `apply-agent-activity-heartbeat.ts` |
-| 14  | Agent lifecycle + ephemeral cleanup                | Pending   | High       | `agent-exited.ts`, `release-ephemeral-agent-role.ts`, `register-ephemeral-participant.ts` |
-| 15  | Core session / connection supersession             | Pending   | Highest    | `convex/participants.ts` (join, getByRole, updateTokenActivity, connectionId); `convex/tasks.ts` (`connectionId` supersession in `getPendingTasksForRole`) |
+| PR  | Branch                                   | Slice                                              | Status    | Complexity | Production readers removed                                                                 |
+| --- | ---------------------------------------- | -------------------------------------------------- | --------- | ---------- | ------------------------------------------------------------------------------------------ |
+| 7   | `feat/remove-dead-to-participant-view`   | Dead `toParticipantView` helper                    | **Open**  | Trivial    | `assigned-tasks-core.ts` — deprecated helper unused after PR1                              |
+| 8   | —                                        | Legacy presence API removal                        | Pending   | Low        | `chatrooms.ts` (`listByUserWithStatus`, `listParticipantPresence`, `getPresenceForChatroom`); `participants.ts` (`getTeamLifecycle`) — no current webapp/CLI consumers |
+| 9   | —                                        | `getAgentViewStatus` presence narrowing            | Pending   | Low–Med    | `get-agent-view-status.ts` — stop reading `agentType`, `lastSeenAt`, `lastSeenAction`; source from team config + `chatroom_agentRoleStatusReadModel` |
+| 10  | —                                        | Restart-offline from operational projection        | Pending   | Medium     | `restart-offline-agents-on-user-message.ts` — replace `lastStatus`/`lastSeenAction` reads with operational projection + read model |
+| 11  | —                                        | Queue promotion gate without `lastSeenAction`      | Pending   | Medium     | `convex/lib/chatroomUtils.ts` (`areAllAgentsWaiting`); `convex/tasks.ts` caller — needs alternate "all agents waiting" signal |
+| 12  | —                                        | Handoff routing decoupling                         | Pending   | High       | `convex/messages.ts` (5 participant query sites for `availableRoles`/delivery prompts + post-handoff cleanup); `convex/daemon/enhancer/taskDeliveryForJob.ts`; `participants.ts` (`getHighestPriorityWaitingRole`) |
+| 13  | —                                        | Task/native orchestration via participant lookup   | Pending   | High       | `getParticipantForChatroomRole` in `assigned-tasks-core.ts` and callers: `transition-agent-status.ts`, `release-tasks-on-agent-exit.ts`, `find-native-harness-in-progress-work.ts`, `handle-native-agent-end.ts`, `project-agent-lifecycle-fact.ts` / `apply-agent-activity-heartbeat.ts` |
+| 14  | —                                        | Agent lifecycle + ephemeral cleanup                | Pending   | High       | `agent-exited.ts`, `release-ephemeral-agent-role.ts`, `register-ephemeral-participant.ts` |
+| 15  | —                                        | Core session / connection supersession             | Pending   | Highest    | `convex/participants.ts` (join, getByRole, updateTokenActivity, connectionId); `convex/tasks.ts` (`connectionId` supersession in `getPendingTasksForRole`) |
 
 ### Infrastructure (retain until table retirement)
 | File | Purpose |
