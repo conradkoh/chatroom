@@ -783,8 +783,11 @@ export default defineSchema({
     circuitState: v.optional(v.string()),
     configUpdatedAt: v.number(),
 
+    /** @deprecated Participant presence is no longer written to snapshots. */
     lastSeenAt: v.optional(v.number()),
+    /** @deprecated Participant presence is no longer written to snapshots. */
     lastSeenAction: v.optional(v.string()),
+    /** @deprecated Participant presence is no longer written to snapshots. */
     lastStatus: v.optional(v.string()),
     presenceUpdatedAt: v.number(),
     presenceKey: v.string(),

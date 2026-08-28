@@ -2,12 +2,7 @@
  * Write-time projection sync for machine assigned-task snapshots.
  */
 
-import type { AssignedTaskPresenceDelta } from './assigned-task-snapshot-contract';
-import {
-  getParticipantForChatroomRole,
-  loadRemoteAgentConfigsForMachine,
-  toParticipantView,
-} from './assigned-tasks-core';
+import { loadRemoteAgentConfigsForMachine } from './assigned-tasks-core';
 import {
   buildAssignedTaskPresenceKey,
   buildAssignedTaskRevisionKey,
@@ -74,8 +69,6 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
     signalType: primaryAssignedTaskSignalType(doc.taskUpdatedAt, doc.configUpdatedAt),
     revisionKey: doc.revisionKey,
     sessionAugmentation: doc.sessionAugmentation,
-    lastSeenAction: doc.lastSeenAction ?? null,
-    lastStatus: doc.lastStatus ?? null,
     machineId: doc.machineId,
     agentHarness: doc.agentHarness,
     workingDir: doc.workingDir,
@@ -84,44 +77,27 @@ export function snapshotDocToSignal(doc: SnapshotDoc): AssignedTaskSignal {
   };
 }
 
-// fallow-ignore-next-line unused-export
-export function snapshotDocToPresenceDelta(doc: SnapshotDoc): AssignedTaskPresenceDelta {
-  return { taskId: doc.taskId, role: doc.role, presenceKey: doc.presenceKey };
-}
-
 interface SnapshotRowInput {
   machineId: string;
   task: Doc<'chatroom_tasks'>;
   config: RemoteAgentConfig;
-  participant: Doc<'chatroom_participants'> | null;
   now: number;
-  presenceOnly?: boolean;
   existing?: SnapshotDoc | null;
 }
 
 // fallow-ignore-next-line complexity
 function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' | '_creationTime'> {
-  const { task, config, participant, machineId, now, existing, presenceOnly } = input;
+  const { task, config, machineId, now, existing } = input;
   const taskUpdatedAt = task.updatedAt ?? task.createdAt ?? now;
   const configUpdatedAt = config.updatedAt;
-  const participantView = toParticipantView(participant) ?? {
-    lastSeenAction: null,
-    lastSeenAt: null,
-    lastStatus: null,
-  };
   const revisionKey = buildAssignedTaskRevisionKey({
     taskUpdatedAt,
     configUpdatedAt,
-    lastSeenAction: participantView.lastSeenAction ?? '',
-    lastStatus: participantView.lastStatus ?? '',
     taskId: task._id,
     role: config.role,
   });
 
-  const presenceUpdatedAt =
-    presenceOnly && existing
-      ? now
-      : (participant?.lastSeenAt ?? existing?.presenceUpdatedAt ?? now);
+  const presenceUpdatedAt = taskUpdatedAt;
   const presenceKey = buildAssignedTaskPresenceKey({
     presenceUpdatedAt,
     taskId: task._id,
@@ -150,9 +126,6 @@ function buildSnapshotFields(input: SnapshotRowInput): Omit<SnapshotDoc, '_id' |
     model: config.model,
     workingDir: config.workingDir,
     configUpdatedAt,
-    lastSeenAt: participantView.lastSeenAt ?? undefined,
-    lastSeenAction: participantView.lastSeenAction ?? undefined,
-    lastStatus: participantView.lastStatus ?? undefined,
     presenceUpdatedAt,
     presenceKey,
     revisionKey,
@@ -247,13 +220,11 @@ export async function projectAssignedTaskSnapshotsForMachine(
       for (const config of responsibleConfigs) {
         const configMachineId = config.machineId;
         if (!configMachineId) continue;
-        const participant = await getParticipantForChatroomRole(ctx, chatroomId, config.role);
         desiredKeys.add(`${configMachineId}:${task._id}:${config.role}`);
         await upsertSnapshotRow(ctx, {
           machineId: configMachineId,
           task,
           config,
-          participant,
           now,
         });
       }
@@ -337,8 +308,6 @@ export async function refreshSnapshotDeliveryConfigForChatroomRole(
       revisionKey: buildAssignedTaskRevisionKey({
         taskUpdatedAt: row.taskUpdatedAt,
         configUpdatedAt: config.updatedAt,
-        lastSeenAction: row.lastSeenAction ?? '',
-        lastStatus: row.lastStatus ?? '',
         taskId: row.taskId,
         role: config.role,
       }),
@@ -353,57 +322,6 @@ export async function refreshSnapshotDeliveryConfigForChatroomRole(
     )
       await ctx.db.patch('chatroom_machineAssignedTaskSnapshots', row._id, patch);
   }
-}
-
-function snapshotParticipantFields(doc: Doc<'chatroom_machineAssignedTaskSnapshots'>) {
-  return {
-    lastSeenAt: doc.lastSeenAt ?? undefined,
-    lastSeenAction: doc.lastSeenAction ?? undefined,
-    lastStatus: doc.lastStatus ?? undefined,
-  };
-}
-
-// fallow-ignore-next-line complexity
-function participantFieldsFromDoc(
-  participant: Doc<'chatroom_participants'> | null
-): ReturnType<typeof snapshotParticipantFields> {
-  return {
-    lastSeenAt: participant?.lastSeenAt ?? undefined,
-    lastSeenAction: participant?.lastSeenAction ?? undefined,
-    lastStatus: participant?.lastStatus ?? undefined,
-  };
-}
-
-function participantFieldsEqual(
-  row: Doc<'chatroom_machineAssignedTaskSnapshots'>,
-  participant: Doc<'chatroom_participants'> | null
-): boolean {
-  const a = snapshotParticipantFields(row);
-  const b = participantFieldsFromDoc(participant);
-  return (
-    a.lastSeenAt === b.lastSeenAt &&
-    a.lastSeenAction === b.lastSeenAction &&
-    a.lastStatus === b.lastStatus
-  );
-}
-
-/** Pick one row per heartbeat for presenceKey bump (daemon only needs one trigger). */
-// fallow-ignore-next-line complexity
-function pickPresenceCanonicalRow(
-  rows: Doc<'chatroom_machineAssignedTaskSnapshots'>[],
-  participant: Doc<'chatroom_participants'> | null
-): Doc<'chatroom_machineAssignedTaskSnapshots'> | undefined {
-  if (rows.length === 0) return undefined;
-  const inFlightId = participant?.lastInFlightTaskId;
-  if (inFlightId) {
-    const match = rows.find((r) => r.taskId === inFlightId);
-    if (match) return match;
-  }
-  for (const status of ['in_progress', 'acknowledged', 'pending'] as const) {
-    const match = rows.find((r) => r.taskStatus === status);
-    if (match) return match;
-  }
-  return rows[0];
 }
 
 /** After task status leaves active set, drop snapshot rows. */
@@ -421,81 +339,6 @@ export async function projectAssignedTaskSnapshotsAfterTaskChange(
     return;
   }
   await projectAssignedTaskSnapshotsForChatroom(ctx, task.chatroomId);
-}
-
-// fallow-ignore-next-line complexity
-async function patchSnapshotRowPresence(
-  ctx: MutationCtx,
-  row: Doc<'chatroom_machineAssignedTaskSnapshots'>,
-  participant: Doc<'chatroom_participants'> | null,
-  now: number,
-  bumpSignal: boolean,
-  bumpPresenceKey: boolean
-): Promise<void> {
-  if (!bumpSignal && participantFieldsEqual(row, participant)) {
-    return;
-  }
-
-  const fields = participantFieldsFromDoc(participant);
-  const revisionKey = buildAssignedTaskRevisionKey({
-    taskUpdatedAt: row.taskUpdatedAt,
-    configUpdatedAt: row.configUpdatedAt,
-    lastSeenAction: fields.lastSeenAction ?? '',
-    lastStatus: fields.lastStatus ?? '',
-    taskId: row.taskId,
-    role: row.role,
-  });
-
-  const presencePatch = bumpPresenceKey
-    ? {
-        presenceUpdatedAt: now,
-        presenceKey: buildAssignedTaskPresenceKey({
-          presenceUpdatedAt: now,
-          taskId: row.taskId,
-          role: row.role,
-        }),
-      }
-    : {};
-
-  const patch = {
-    lastSeenAt: fields.lastSeenAt,
-    lastSeenAction: fields.lastSeenAction,
-    lastStatus: fields.lastStatus,
-    revisionKey,
-    ...presencePatch,
-  };
-
-  if (revisionKey !== row.revisionKey || bumpSignal) {
-    await ctx.db.patch('chatroom_machineAssignedTaskSnapshots', row._id, {
-      ...patch,
-      signalUpdatedAt: now,
-    });
-    return;
-  }
-
-  await ctx.db.patch('chatroom_machineAssignedTaskSnapshots', row._id, patch);
-}
-
-/** Patch presence fields on snapshot rows for a participant check-in. */
-// fallow-ignore-next-line complexity
-export async function syncParticipantPresenceOnSnapshots(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  role: string,
-  options?: { actionChanged?: boolean }
-): Promise<void> {
-  const participant = await getParticipantForChatroomRole(ctx, chatroomId, role);
-
-  const rows = await listSnapshotRowsForChatroomRole(ctx, chatroomId, role);
-
-  const now = Date.now();
-  const bumpSignal = options?.actionChanged ?? false;
-  const canonical = pickPresenceCanonicalRow(rows, participant);
-
-  for (const row of rows) {
-    const bumpPresenceKey = canonical !== undefined && row._id === canonical._id;
-    await patchSnapshotRowPresence(ctx, row, participant, now, bumpSignal, bumpPresenceKey);
-  }
 }
 
 export async function assertMachineSnapshotAccess(
