@@ -60,6 +60,7 @@ export interface TransitionTaskOptions {
 
   /**
    * When true, skips automatic queue promotion after terminal transitions.
+   * Ephemeral agent roles are still released on terminal transitions.
    *
    * Use this when the caller manages promotion explicitly (e.g. the handoff
    * handler has its own promotion logic in Step 6). Without this flag,
@@ -129,11 +130,13 @@ export async function transitionTask(
   //    We re-fetch the task to get its chatroomId (the transition has already
   //    committed, so the status is now `newStatus`).
   //    Skip when caller manages promotion explicitly (e.g. handoff handler).
-  if (TERMINAL_TASK_STATUSES.has(newStatus) && !options?.skipAutoPromotion) {
+  if (TERMINAL_TASK_STATUSES.has(newStatus)) {
     const task = await ctx.db.get('chatroom_tasks', taskId);
     if (task) {
       await requestEphemeralAgentRelease(ctx, task);
-      await maybePromoteNextQueuedTask(ctx, task.chatroomId);
+      if (!options?.skipAutoPromotion) {
+        await maybePromoteNextQueuedTask(ctx, task.chatroomId);
+      }
     }
   }
 
