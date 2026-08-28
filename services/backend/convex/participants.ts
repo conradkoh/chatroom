@@ -24,10 +24,9 @@ import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-tea
 import { patchTeamAgentConfig } from '../src/domain/usecase/machine/patch-team-agent-config';
 import { handleNativeAgentEnd as handleNativeAgentEndUsecase } from '../src/domain/usecase/participant/handle-native-agent-end';
 import { startTaskFromTokenActivity } from '../src/domain/usecase/participant/start-task-from-token-activity';
-import {
-  findActiveAssignedTaskForRole,
-} from '../src/domain/usecase/task/find-acknowledged-task-for-role';
+import { findActiveAssignedTaskForRole } from '../src/domain/usecase/task/find-acknowledged-task-for-role';
 import { maybePromoteNextQueuedTask } from '../src/domain/usecase/task/maybe-promote-next-queued-task';
+import { touchAgentRoleStatusLastSeen } from '../src/domain/usecase/agent/project-agent-role-status-read-model';
 
 async function getParticipantByChatroomRole(
   ctx: QueryCtx | MutationCtx,
@@ -160,6 +159,12 @@ export const join = mutation({
       });
     }
 
+    await touchAgentRoleStatusLastSeen(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      lastSeenAt: now,
+    });
+
     // Auto-promote queued tasks when the entry point role joins.
     // maybePromoteNextQueuedTask skips non-entry-point roles internally.
     const normalizedRole = args.role.toLowerCase();
@@ -194,11 +199,26 @@ export const join = mutation({
     }
 
     if (args.action === NATIVE_WAITING_ACTION) {
-      const activeTask = await findActiveAssignedTaskForRole(ctx, { chatroomId: args.chatroomId, role: args.role });
-      if (activeTask?.status === 'acknowledged' || activeTask?.status === 'in_progress') return participantId;
+      const activeTask = await findActiveAssignedTaskForRole(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+      });
+      if (activeTask?.status === 'acknowledged' || activeTask?.status === 'in_progress')
+        return participantId;
     }
-    if (args.action === 'get-next-task:started' || args.action === 'get-next-task:stopped' || args.action === NATIVE_WAITING_ACTION || args.action === NATIVE_TASK_INJECTED_ACTION) {
-      await applyAgentActivityHeartbeat(ctx, { chatroomId: args.chatroomId, role: args.role, action: args.action, taskId: args.taskId, participantId });
+    if (
+      args.action === 'get-next-task:started' ||
+      args.action === 'get-next-task:stopped' ||
+      args.action === NATIVE_WAITING_ACTION ||
+      args.action === NATIVE_TASK_INJECTED_ACTION
+    ) {
+      await applyAgentActivityHeartbeat(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        action: args.action,
+        taskId: args.taskId,
+        participantId,
+      });
     }
 
     return participantId;
