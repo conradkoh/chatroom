@@ -6,7 +6,7 @@ import { transitionAgentStatus } from './transition-agent-status';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import type { AgentType } from '../../entities/agent';
+import { AgentStartReasonEnum, type AgentType } from '../../entities/agent';
 import {
   isRunnableRemoteTeamConfig,
   type AgentRestartRequest,
@@ -55,7 +55,8 @@ function resolveRestartOverrides(
   chatroom: Doc<'chatroom_rooms'> | null,
   role: string
 ): RunnableRemoteAgentConfig {
-  const overrides = request.reason === 'user.restart' ? request.overrides : undefined;
+  const overrides =
+    request.reason === AgentStartReasonEnum['user.restart'] ? request.overrides : undefined;
   const source = Object.assign({}, base, overrides);
   return {
     machineId: source.machineId,
@@ -83,7 +84,7 @@ async function releaseRestartTasks(
   ctx: MutationCtx,
   input: { chatroomId: Id<'chatroom_rooms'>; role: string; request: AgentRestartRequest }
 ): Promise<number> {
-  if (input.request.reason !== 'user.restart') return 0;
+  if (input.request.reason !== AgentStartReasonEnum['user.restart']) return 0;
   return releaseTasksOnAgentExit(ctx, { chatroomId: input.chatroomId, role: input.role });
 }
 

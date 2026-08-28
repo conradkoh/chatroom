@@ -5,8 +5,9 @@
  * Process-level reasons are derived by resolveStopReason from exit info.
  */
 import type { AgentStopReason } from '@workspace/backend/src/domain/entities/agent.js';
-export const AGENT_PROCESS_STOP_REASONS = ['agent_process.exited_clean', 'agent_process.signal', 'agent_process.crashed'] as const;
-export type AgentProcessStopReason = (typeof AGENT_PROCESS_STOP_REASONS)[number];
+
+export type AgentProcessStopReason =
+  'agent_process.exited_clean' | 'agent_process.signal' | 'agent_process.crashed';
 export type StopReason = AgentStopReason | AgentProcessStopReason;
 
 export function resolveStopReason(code: number | null, signal: string | null): StopReason {

@@ -18,6 +18,7 @@ import { getMachineOwner, requireMachineOwner } from './auth/cli/machineAccess';
 import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import {
+  AgentStartReasonEnum,
   agentStopReasonValidator,
   agentTypeValidator,
   machineCommandTypeValidator,
@@ -1173,7 +1174,7 @@ export const sendCommand = mutation({
           model: resolvedModel,
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
-          reason: 'user.start',
+          reason: AgentStartReasonEnum['user.start'],
           wantResume: resolvedWantResume,
         },
         machine
@@ -1211,7 +1212,7 @@ export const sendCommand = mutation({
           chatroomId: args.payload.chatroomId,
           role: args.payload.role,
           request: {
-            reason: 'user.restart',
+            reason: AgentStartReasonEnum['user.restart'],
             overrides: {
               machineId: args.machineId,
               model: args.payload.model,

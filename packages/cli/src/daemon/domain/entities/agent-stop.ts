@@ -1,4 +1,4 @@
-// fallow-ignore-file unused-file unused-export unused-type
+// fallow-ignore-file unused-type
 import type { AgentStopScope } from '@workspace/shared/domain/agent-stop-command';
 
 import type { AgentHarness } from './harness-shared-types.js';

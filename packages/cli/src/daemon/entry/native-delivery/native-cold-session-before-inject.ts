@@ -1,4 +1,8 @@
 import { HARNESS_SESSION_READY_TIMEOUT_MS } from '@workspace/backend/config/reliability.js';
+import {
+  AgentStartReasonEnum,
+  AgentStopReasonEnum,
+} from '@workspace/backend/src/domain/entities/agent.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
 
 import { api } from '../../../api.js';
@@ -40,7 +44,7 @@ export async function ensureColdSessionBeforeNativeInject(
   await deps.agentMgr.stop({
     chatroomId,
     role,
-    reason: 'platform.task_start_in_new_session',
+    reason: AgentStopReasonEnum['platform.task_start_in_new_session'],
   });
 
   const spawn = await deps.agentMgr.ensureRunning({
@@ -49,7 +53,7 @@ export async function ensureColdSessionBeforeNativeInject(
     agentHarness: agentHarness as AgentHarness,
     model,
     workingDir,
-    reason: 'platform.task_start_in_new_session',
+    reason: AgentStartReasonEnum['platform.task_start_in_new_session'],
     wantResume: false,
   });
   if (!spawn.success) return null;

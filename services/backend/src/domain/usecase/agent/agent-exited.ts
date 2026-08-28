@@ -15,6 +15,7 @@ import { transitionAgentStatus } from './transition-agent-status';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { AgentStopReasonEnum } from '../../entities/agent';
 import { normalizeAgentStopRole } from '../../entities/agent-stop-command';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
 import { patchTeamAgentConfig } from '../machine/patch-team-agent-config';
@@ -103,11 +104,11 @@ export async function agentExited(
     config.machineId === machineId; // Config belongs to same machine
 
   if (shouldUpdateParticipant) {
-    const isResumeStorm = stopReason === 'platform.resume_storm';
+    const isResumeStorm = stopReason === AgentStopReasonEnum['platform.resume_storm'];
     const isOrchestratedRestart =
-      stopReason === 'platform.task_start_in_new_session' ||
-      stopReason === 'daemon.respawn' ||
-      stopReason === 'user.restart';
+      stopReason === AgentStopReasonEnum['platform.task_start_in_new_session'] ||
+      stopReason === AgentStopReasonEnum['daemon.respawn'] ||
+      stopReason === AgentStopReasonEnum['user.restart'];
     const participantStatus = isResumeStorm
       ? 'agent.resumeStormAborted'
       : isOrchestratedRestart
