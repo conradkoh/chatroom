@@ -1,6 +1,10 @@
 # Block modifications to upstream template files in derived forks unless acknowledged
 bun scripts/check-upstream-modifications.ts
 
+# Regenerate Convex bindings when convex/ inputs change (turbo-cached; no-op on cache hit).
+pnpm turbo run codegen --filter=@workspace/backend --output-logs=errors-only
+git add services/backend/convex/_generated/
+
 # Run lint-staged to only process staged files
 pnpm lint-staged
 

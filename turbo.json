@@ -15,6 +15,11 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "cache": true
     },
+    "codegen": {
+      "inputs": ["convex/**", "!convex/_generated/**", "package.json"],
+      "outputs": ["convex/_generated/**"],
+      "cache": true
+    },
     "test": {
       "dependsOn": ["^typecheck", "typecheck"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],

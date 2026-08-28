@@ -114,6 +114,8 @@ function collectUpstreamModifiedFiles(
   stagedChanges: StagedChange[],
   upstreamRef: string
 ): string[] {
+  const GENERATED_PATH = /(?:^|\/)convex\/_generated\//;
+
   return [
     ...new Set(
       stagedChanges.flatMap(({ status, paths }) => {
@@ -121,7 +123,10 @@ function collectUpstreamModifiedFiles(
           return [];
         }
 
-        return paths.filter((filePath) => fileExistsInUpstream(upstreamRef, filePath));
+        return paths.filter(
+          (filePath) =>
+            fileExistsInUpstream(upstreamRef, filePath) && !GENERATED_PATH.test(filePath)
+        );
       })
     ),
   ];
