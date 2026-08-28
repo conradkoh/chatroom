@@ -2,10 +2,7 @@ import { getTeamRolesFromChatroom } from './get-team-roles';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import type { AgentType } from '../../entities/agent';
-import {
-  deriveAgentRoleViewState,
-  type OperationalState,
-} from '../agent/derive-agent-operational-state';
+import type { OperationalState } from '../agent/derive-agent-operational-state';
 import { hasActiveEnhancerWork } from '../enhancer/enhancer-entry-point-status';
 
 export interface AgentViewRole {
@@ -65,24 +62,8 @@ async function getAgentViewStatusLegacy(
   const agents = teamRoles.map((role): AgentViewRole => {
     const row = rowByRole.get(role.toLowerCase());
     const participant = participantByRole.get(role.toLowerCase());
-    const lastStatus = participant?.lastStatus ?? null;
-    const inferred = row
-      ? deriveAgentRoleViewState(
-          {
-            desiredState: row.operationalState === 'circuit_open' ? 'stopped' : 'running',
-            circuitState: row.operationalState === 'circuit_open' ? 'open' : 'closed',
-            spawnedAgentPid: row.isAlive ? 1 : null,
-          },
-          row.daemonConnected,
-          lastStatus
-        )
-      : 'stopped';
-    // Participant transitions can race projection writes; retain the established starting signal.
     const projectedState = row?.viewState === 'idle' ? undefined : row?.viewState;
-    const state =
-      projectedState === 'stopped' && inferred === 'starting'
-        ? 'starting'
-        : (projectedState ?? inferred);
+    const state = projectedState ?? 'stopped';
     return {
       role,
       state,
@@ -142,23 +123,8 @@ export async function getAgentViewStatus(
   const agents = metadata.teamRoles.map((role): AgentViewRole => {
     const row = rowByRole.get(role.toLowerCase());
     const participant = participantByRole.get(role.toLowerCase());
-    const lastStatus = participant?.lastStatus ?? null;
-    const inferred = row
-      ? deriveAgentRoleViewState(
-          {
-            desiredState: row.operationalState === 'circuit_open' ? 'stopped' : 'running',
-            circuitState: row.operationalState === 'circuit_open' ? 'open' : 'closed',
-            spawnedAgentPid: row.isAlive ? 1 : null,
-          },
-          row.daemonConnected,
-          lastStatus
-        )
-      : 'stopped';
     const projectedState = row?.viewState === 'idle' ? undefined : row?.viewState;
-    const state =
-      projectedState === 'stopped' && inferred === 'starting'
-        ? 'starting'
-        : (projectedState ?? inferred);
+    const state = projectedState ?? 'stopped';
     return {
       role,
       state,
