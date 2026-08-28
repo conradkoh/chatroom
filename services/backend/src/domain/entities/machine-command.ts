@@ -4,6 +4,7 @@ import { agentHarnessValidator, agentStopReasonValidator } from './agent';
 import { agentStopScopeValidator } from './agent-stop-command';
 import {
   AGENT_REQUEST_DEADLINE_MS,
+  AGENT_STOP_REQUEST_DEADLINE_MS,
   MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   MACHINE_COMMAND_LOCAL_ACTION_TTL_MS,
 } from '../../../config/reliability';
@@ -81,10 +82,10 @@ export const machineCommandPayloadValidator = v.union(
 export type MachineCommandPayload = typeof machineCommandPayloadValidator.type;
 export type MachineCommandType = MachineCommandPayload['type'];
 export const MACHINE_COMMAND_TTL_MS: Record<MachineCommandType, number> = {
-  'agent.stopScope': AGENT_REQUEST_DEADLINE_MS,
+  'agent.stopScope': AGENT_STOP_REQUEST_DEADLINE_MS,
   'agent.requestStart': AGENT_REQUEST_DEADLINE_MS,
   'agent.restart': AGENT_REQUEST_DEADLINE_MS,
-  'agent.requestStop': AGENT_REQUEST_DEADLINE_MS,
+  'agent.requestStop': AGENT_STOP_REQUEST_DEADLINE_MS,
   'daemon.ping': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.gitRefresh': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
   'daemon.refreshCapabilities': MACHINE_COMMAND_DAEMON_ROUTINE_TTL_MS,
