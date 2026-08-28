@@ -62,14 +62,14 @@ After recovering history, the enhancer independently inspects the repository and
 
 ## Enhancer inputs and output
 
-The spawn payload contains only:
+The spawn payload and remote daemon delivery use the standard task-delivery pipeline (`getTaskDeliveryForJob` → `generateFullCliOutput`). They contain:
 
 - job, chatroom, and originating user-message identifiers;
-- the enhancer→entry-point output template;
+- the enhancer→entry-point output template (handoff command, not `enhancer complete`);
 - the stripped forwarded request;
-- role constraints and the mandatory `chatroom enhancer complete` command.
+- role constraints and mandatory `chatroom handoff` completion.
 
-It deliberately excludes:
+They deliberately exclude:
 
 - entry-point research, grounding, or a draft plan;
 - downstream implementation and user-delivery templates;
@@ -101,7 +101,7 @@ flowchart TD
     H -->|inspect| R[Repository]
     M --> A[Independent planning input]
     R --> A
-    A -->|chatroom enhancer complete| P2[Entry point resumes with persistent memory]
+    A -->|chatroom handoff| P2[Entry point resumes with persistent memory]
     P2 --> B{Team workflow}
     B -->|Solo| I[Implement directly]
     B -->|Duo| D2[Builder delegation loop]
@@ -121,13 +121,15 @@ The enhancer is an ephemeral chatroom team role rather than part of the persiste
 | Shared enhancer templates    | `services/backend/prompts/enhancer/handoff-templates.ts`                      | Defines request-only and advisory-input contracts               |
 | Team template routing        | `services/backend/prompts/teams/{duo,solo}/handoff-templates/index.ts`        | Maps planner/solo handoff pairs to shared contracts             |
 | Workflow policy              | `services/backend/src/domain/usecase/enhancer/enhancer-workflow.ts`           | Limits enhancer availability to the initial user task           |
-| Handoff enforcement          | `services/backend/convex/messages.ts`                                         | Authorizes entry points and rejects duplicate or early handoffs |
+| Handoff enforcement          | `services/backend/convex/messages.ts`                                         | Authorizes entry points; completes job on enhancer handoff      |
 | Entry-point status           | `services/backend/src/domain/usecase/enhancer/enhancer-entry-point-status.ts` | Tracks planner or solo while the transient enhancer is active   |
-| Spawn payload                | `services/backend/convex/daemon/enhancer/spawnPayload.ts`                     | Supplies origin, request, output contract, and prompts          |
+| Task delivery query          | `services/backend/convex/daemon/enhancer/taskDeliveryForJob.ts`               | Remote daemon prompt via standard task pipeline                 |
+| Spawn payload (deprecated)   | `services/backend/convex/daemon/enhancer/spawnPayload.ts`                     | Legacy envelope; use `getTaskDeliveryForJob`                    |
 | History guidance             | `services/backend/prompts/enhancer/history-retrieval.ts`                      | Renders anchor and origin-based download commands               |
 | Enhancer role                | `services/backend/prompts/enhancer/system-prompt.ts`                          | Defines independent, memoryless planning behavior               |
 | Task envelope                | `services/backend/prompts/enhancer/render-task-envelope.ts`                   | Excludes entry-point drafts and downstream templates            |
-| Completion                   | `packages/cli/src/commands/enhancer/complete.ts`                              | Returns planning input to the owning planner or solo task queue |
+| Ephemeral release            | `services/backend/src/domain/usecase/task/transition-task.ts`                 | Terminal transitions release ephemeral roles (incl. enhancer)   |
+| Completion (salvage)         | `services/backend/convex/web/enhancer/completeLogic.ts`                       | `@deprecated` — daemon salvage when agent exits without handoff |
 
 ## Compatibility constraints
 
@@ -145,6 +147,6 @@ Tests should prove both required behavior and forbidden context:
 - Solo and Duo both route the initial user task to the enhancer, then return input to their own entry point;
 - later handbacks cannot target enhancer;
 - history commands include the exact `originUserMessageId`;
-- spawn payload includes the request and output contract;
-- spawn payload does not include downstream handoff templates, planner grounding, or a planner draft;
-- enhancer output sections describe independent analysis rather than critique.
+- spawn/delivery output includes handoff command and output contract;
+- spawn/delivery output does not include `enhancer complete` or downstream handoff templates;
+- enhancer read model returns to `offline` after handoff (ephemeral release on terminal task transition).
