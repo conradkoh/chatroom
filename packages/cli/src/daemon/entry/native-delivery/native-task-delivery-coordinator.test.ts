@@ -11,6 +11,8 @@ import {
 } from './native-delivery-session-registry.js';
 import {
   NativeTaskDeliveryCoordinator,
+  getNativeTaskDeliveryCoordinator,
+  reconcileDeliverableWorkForRole,
   notifyNativeTurnIdle,
   type NativeTaskDeliverySessionDeps,
 } from './native-task-delivery-coordinator.js';
@@ -68,7 +70,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
   test('tryInjectNextForRole no-ops when session not registered', () => {
     unregisterNativeDeliverySession();
     const coordinator = new NativeTaskDeliveryCoordinator();
-    const spy = vi.spyOn(coordinator, 'reconcileAssignedTasks');
+    const spy = vi.spyOn(getNativeTaskDeliveryCoordinator(), 'reconcileAssignedTasks');
 
     coordinator.tryInjectNextForRole('room_1', 'builder');
 
@@ -130,7 +132,7 @@ describe('NativeTaskDeliveryCoordinator', () => {
     });
 
     const coordinator = new NativeTaskDeliveryCoordinator();
-    const spy = vi.spyOn(coordinator, 'reconcileAssignedTasks');
+    const spy = vi.spyOn(getNativeTaskDeliveryCoordinator(), 'reconcileAssignedTasks');
 
     coordinator.tryInjectNextForRole('room_1', 'builder');
 
@@ -163,13 +165,38 @@ describe('NativeTaskDeliveryCoordinator', () => {
         backend: { mutation: vi.fn(), query: vi.fn() },
       },
       machineId: 'm',
+      taskSnapshotState: new MachineTaskSnapshotState(),
     });
 
-    const coordinator = new NativeTaskDeliveryCoordinator();
+    const coordinator = getNativeTaskDeliveryCoordinator();
     const spy = vi.spyOn(coordinator, 'reconcileAssignedTasks');
+    spy.mockClear();
 
     coordinator.tryInjectNextForRole('room_1', 'builder');
 
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  test('reconcileDeliverableWorkForRole calls reconcile when inbox has pending row', async () => {
+    const row = makeRow();
+    const taskSnapshotState = new MachineTaskSnapshotState();
+    taskSnapshotState.replace([row]);
+    registerNativeDeliverySession({
+      runtime: Runtime.defaultRuntime as never,
+      effectContext: Context.empty() as never,
+      agentMgr: { getSlot: vi.fn() } as never,
+      sessionDeps: {
+        sessionId: 's',
+        machineId: 'm',
+        convexUrl: 'http://x',
+        backend: { mutation: vi.fn(), query: vi.fn() },
+      },
+      machineId: 'm',
+      taskSnapshotState,
+    });
+    const coordinator = getNativeTaskDeliveryCoordinator();
+    const spy = vi.spyOn(coordinator, 'reconcileAssignedTasks');
+    reconcileDeliverableWorkForRole('room_1', 'builder');
+    await vi.waitFor(() => expect(spy).toHaveBeenCalled());
   });
 });
