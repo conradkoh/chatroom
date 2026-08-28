@@ -1076,8 +1076,13 @@ export async function runHandoffHandler(
   // items would incorrectly mark items that were attached for context only.
 
   // Step 6: Final handoff-to-user participant cleanup. Queue promotion already
-  // ran after Step 1 for every non-enhancer handoff.
+  // ran after Step 1 for every non-enhancer handoff. Native handoffs can retain
+  // a pending sender task until delivery, so keep a guarded fallback here.
   if (isHandoffToUser) {
+    if (promotedTaskId === null) {
+      const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
+      if (promoteResult.promoted) promotedTaskId = promoteResult.promoted;
+    }
     if (participant) {
       await ctx.db.patch('chatroom_participants', participant._id, {
         lastInFlightTaskId: undefined,

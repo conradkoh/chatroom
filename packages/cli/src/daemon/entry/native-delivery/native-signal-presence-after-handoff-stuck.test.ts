@@ -90,7 +90,12 @@ function makePostHandoffPendingSnapshotDoc(
   };
 }
 
-function makeTurnInFlightSlot() {
+function makeTurnInFlightSlot(): {
+  state: 'running';
+  pid: number;
+  harnessSessionId: string;
+  nativeTurnPhase: 'turn_in_flight' | 'idle';
+} {
   return {
     state: 'running' as const,
     pid: SPAWNED_PID,
