@@ -90,8 +90,6 @@ describe('assignedTaskSignalSchema', () => {
       'createdAt',
       'agentHarness',
       'workingDir',
-      'lastSeenAction',
-      'lastStatus',
     ]);
     const schemaKeys = new Set(Object.keys(assignedTaskSignalBootstrapFields));
     for (const key of bootstrapKeys) {
@@ -101,13 +99,10 @@ describe('assignedTaskSignalSchema', () => {
     applyAssignedTaskSignal(undefined, minimalSignal());
   });
 
-  it('revisionKey participant fields are present on signal schema', () => {
-    // Keep in sync with buildAssignedTaskRevisionKey participant segments (not taskId/role/timestamps).
-    const revisionKeyParticipantFields = ['lastSeenAction', 'lastStatus'] as const;
+  it('participant fields are absent from signal schema', () => {
     const schemaKeys = new Set(Object.keys(assignedTaskSignalBootstrapFields));
-    for (const field of revisionKeyParticipantFields) {
-      expect(schemaKeys.has(field), `signal schema missing revisionKey field: ${field}`).toBe(true);
-    }
+    expect(schemaKeys.has('lastSeenAction')).toBe(false);
+    expect(schemaKeys.has('lastStatus')).toBe(false);
   });
 
   it('parses slim presence delta wire payload and expands to full signal', () => {
