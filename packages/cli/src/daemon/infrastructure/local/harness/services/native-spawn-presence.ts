@@ -16,7 +16,7 @@ export interface NativeSpawnPresenceContext {
   sessionId: string;
   chatroomId: string;
   role: string;
-  lifecycleOutbox: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
+  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
 }
 
 export interface WireTokenActivityReportingOpts extends NativeSpawnPresenceContext {
@@ -42,6 +42,7 @@ export async function emitNativeWaitingAfterSpawn(
     return false;
   }
   try {
+    if (!ctx.lifecycleOutbox) throw new Error('lifecycle outbox missing');
     await ctx.lifecycleOutbox.enqueue(buildActivityLifecycleFact({ chatroomId: ctx.chatroomId, role: ctx.role, action: NATIVE_WAITING_ACTION }));
     return true;
   } catch (err) {

@@ -186,12 +186,15 @@ export class NativeTaskDeliveryCoordinator {
           }
 
           const full = mapAssignedTaskView(backend);
+          const deliverySession = getNativeDeliverySession();
+          if (!deliverySession?.lifecycleOutbox) return;
 
           yield* runNativeInjectionEffect(full, harnessSessionId, {
             sessionId: sessionDeps.sessionId,
             machineId: sessionDeps.machineId,
             logEvent: sessionDeps.logEvent,
             backend: sessionDeps.backend,
+            lifecycleOutbox: deliverySession.lifecycleOutbox,
             agentMgr: {
               resumeTurnForSlot: (args) => Effect.runPromise(agentMgr.resumeTurnForSlot(args)),
               stop: (opts) => Effect.runPromise(agentMgr.stop(opts)),

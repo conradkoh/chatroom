@@ -322,7 +322,7 @@ function injectNativeTaskPrompt(
       try: () =>
         deps.lifecycleOutbox
           ? deps.lifecycleOutbox.enqueue(buildActivityLifecycleFact({ chatroomId, role, action: NATIVE_TASK_INJECTED_ACTION, taskId }))
-          : Promise.resolve(),
+          : Promise.reject(new Error('lifecycle outbox missing')),
       catch: (err) => err,
     });
 
