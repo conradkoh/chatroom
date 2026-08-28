@@ -589,7 +589,7 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
     expect(result.promotedTaskId).toBeNull();
   });
 
-  test('when handing off to agent (not user), queued tasks are NOT promoted', async () => {
+  test('when handing off to planner with queued user message, promotes queue before creating handoff task', async () => {
     const { sessionId } = await createTestSession('handoff-promote-3');
     const chatroomId = await createChatroom(sessionId);
 
@@ -645,16 +645,23 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
       targetRole: 'planner',
     });
 
-    // Verify NO explicit promotion (queued task stays queued)
     expect(result.success).toBe(true);
-    expect(result.promotedTaskId).toBeNull();
+    expect(result.promotedTaskId).toBeTruthy();
+    expect(result.newTaskId).toBeTruthy();
 
-    // Queued message still in queue
     const queuedAfter = await t.query(api.messages.listQueued, {
       sessionId,
       chatroomId,
     });
-    expect(queuedAfter.length).toBe(1);
+    expect(queuedAfter.length).toBe(0);
+
+    const promotedTask = await t.run(async (ctx) => ctx.db.get(result.promotedTaskId!));
+    expect(promotedTask?.status).toBe('pending');
+    expect(promotedTask?.assignedTo).toBe('planner');
+
+    const handoffTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    expect(handoffTask?.status).toBe('pending');
+    expect(handoffTask?.assignedTo).toBe('planner');
   });
 });
 

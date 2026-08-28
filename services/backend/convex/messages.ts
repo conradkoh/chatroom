@@ -902,6 +902,14 @@ export async function runHandoffHandler(
   }
 
   const completedTaskIds = await completeTasks(ctx, tasksToComplete, { skipAutoPromotion: true });
+  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
+
+  // Promote queued user messages after active work is complete and before the
+  // handoff task is created; canPromote rejects chats with any pending task.
+  if (!isEnhancerDelivery) {
+    const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
+    if (promoteResult.promoted) promotedTaskId = promoteResult.promoted;
+  }
 
   if (tasksToComplete.length > 1) {
     console.warn(
@@ -977,7 +985,6 @@ export async function runHandoffHandler(
 
   // Step 3: Create task for target agent (if not user)
   let newTaskId: Id<'chatroom_tasks'> | null = null;
-  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
   if (!isHandoffToUser) {
     // Get next queue position atomically (prevents race conditions)
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
@@ -1068,16 +1075,9 @@ export async function runHandoffHandler(
   // items they worked on to pending_user_review. Auto-transitioning all attached
   // items would incorrectly mark items that were attached for context only.
 
-  // Step 6: Explicit queue promotion on handoff-to-user
-  // When handing off to user, we need to explicitly promote the next queued task
-  // because areAllAgentsWaiting() returns false at this point (the sender is still
-  // marked as "working"). We check: no active tasks remain → promote next queued task.
+  // Step 6: Final handoff-to-user participant cleanup. Queue promotion already
+  // ran after Step 1 for every non-enhancer handoff.
   if (isHandoffToUser) {
-    const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
-    if (promoteResult.promoted) {
-      promotedTaskId = promoteResult.promoted;
-    }
-
     if (participant) {
       await ctx.db.patch('chatroom_participants', participant._id, {
         lastInFlightTaskId: undefined,
