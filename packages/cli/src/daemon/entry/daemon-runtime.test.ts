@@ -62,9 +62,13 @@ describe('createDaemonRuntime', () => {
   });
 
   it('registers inbound handlers on run and unregisters on shutdown', async () => {
-    const { Layer } = await import('effect');
-    const { DaemonSessionService, DaemonMutableStateService, DaemonAgentProcessManagerService } =
-      await import('./daemon-services.js');
+    const { Effect, Layer } = await import('effect');
+    const {
+      AgentLifecycleOutboxService,
+      DaemonSessionService,
+      DaemonMutableStateService,
+      DaemonAgentProcessManagerService,
+    } = await import('./daemon-services.js');
     const { createDaemonRuntime } = await import('./daemon-runtime.js');
 
     const session = {
@@ -80,7 +84,11 @@ describe('createDaemonRuntime', () => {
       Layer.succeed(DaemonMutableStateService, {
         lastPushedGitState: { get: vi.fn(), set: vi.fn() },
       } as never),
-      Layer.succeed(DaemonAgentProcessManagerService, {} as never)
+      Layer.succeed(DaemonAgentProcessManagerService, {} as never),
+      Layer.succeed(AgentLifecycleOutboxService, {
+        enqueue: () => Effect.succeed({ success: true }),
+        stopAll: () => Effect.void,
+      })
     );
 
     const runtime = createDaemonRuntime({
