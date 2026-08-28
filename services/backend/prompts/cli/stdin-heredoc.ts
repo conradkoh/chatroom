@@ -17,7 +17,7 @@ export const BACKLOG_STDIN_DELIMITER = 'CHATROOM_BACKLOG_END';
 /** Bash heredoc terminator for `chatroom agentic-query complete` stdin. */
 export const AGENTIC_QUERY_STDIN_DELIMITER = 'CHATROOM_AGENTIC_QUERY_END';
 
-/** Bash heredoc terminator for `chatroom enhancer complete` stdin. */
+/** Bash heredoc terminator for enhancer handoff stdin (legacy name retained). */
 export const ENHANCER_STDIN_DELIMITER = 'CHATROOM_ENHANCER_END';
 
 /** Bash heredoc terminator for structured multi-param commands (e.g. classify). */

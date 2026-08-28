@@ -17,6 +17,9 @@ export type ApplyEnhancerCompleteResult =
       message: string;
     };
 
+/**
+ * @deprecated Use `chatroom handoff` from the enhancer agent. Retained for daemon salvage only.
+ */
 export async function applyEnhancerComplete(
   ctx: MutationCtx,
   params: ApplyEnhancerCompleteParams
