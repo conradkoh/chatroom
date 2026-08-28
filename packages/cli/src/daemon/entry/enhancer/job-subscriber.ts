@@ -70,9 +70,10 @@ async function processEnhancerJobForSpawn(
     claimed = true;
     log.write(`claimed job=${job.jobId} chatroom=${job.chatroomId}`);
 
-    const payload = (await backend.query(api.daemon.enhancer.index.getSpawnPayload, {
+    const payload = (await backend.query(api.daemon.enhancer.index.getTaskDeliveryForJob, {
       sessionId,
       jobId: job.jobId,
+      convexUrl,
     })) as {
       chatroomId: Id<'chatroom_rooms'>;
       jobId: Id<'chatroom_enhancerJobs'>;
@@ -80,7 +81,7 @@ async function processEnhancerJobForSpawn(
       model: string;
       workingDir: string;
       systemPrompt: string;
-      taskEnvelope: string;
+      taskDeliveryOutput: string;
     };
     chatroomId = payload.chatroomId;
     jobId = payload.jobId;
@@ -107,7 +108,7 @@ async function processEnhancerJobForSpawn(
 
     const spawned = await service.spawn({
       workingDir: payload.workingDir,
-      prompt: createSpawnPrompt(payload.taskEnvelope),
+      prompt: createSpawnPrompt(payload.taskDeliveryOutput),
       systemPrompt: payload.systemPrompt,
       model: payload.model,
       context: {

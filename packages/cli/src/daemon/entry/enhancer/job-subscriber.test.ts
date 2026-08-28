@@ -14,7 +14,7 @@ vi.mock('../../../api.js', () => {
     current[path[path.length - 1]] = value;
   };
   setPath(api, ['daemon', 'enhancer', 'index', 'claimForSpawn'], 'claimForSpawn');
-  setPath(api, ['daemon', 'enhancer', 'index', 'getSpawnPayload'], 'getSpawnPayload');
+  setPath(api, ['daemon', 'enhancer', 'index', 'getTaskDeliveryForJob'], 'getTaskDeliveryForJob');
   setPath(api, ['web', 'enhancer', 'index', 'recordAttemptFailure'], 'recordAttemptFailure');
   setPath(api, ['web', 'enhancer', 'index', 'complete'], 'complete');
   setPath(api, ['web', 'enhancer', 'index', 'getJob'], 'getJob');
@@ -54,7 +54,7 @@ describe('startEnhancerJobSubscriber', () => {
       if (endpoint === 'pendingForMachine') {
         return [{ jobId: 'job1', chatroomId: 'room1' }];
       }
-      if (endpoint === 'getSpawnPayload') {
+      if (endpoint === 'getTaskDeliveryForJob') {
         return {
           chatroomId: 'room1',
           jobId: 'job1',
@@ -62,7 +62,7 @@ describe('startEnhancerJobSubscriber', () => {
           model: 'm',
           workingDir: '/tmp',
           systemPrompt: 'sys',
-          taskEnvelope: 'task',
+          taskDeliveryOutput: 'task',
         };
       }
       return Promise.resolve({ status: 'running' });
@@ -125,7 +125,7 @@ describe('startEnhancerJobSubscriber', () => {
       if (endpoint === 'pendingForMachine') {
         return [{ jobId: 'job1', chatroomId: 'room1' }];
       }
-      if (endpoint === 'getSpawnPayload') {
+      if (endpoint === 'getTaskDeliveryForJob') {
         return {
           chatroomId: 'room1',
           jobId: 'job1',
@@ -133,7 +133,7 @@ describe('startEnhancerJobSubscriber', () => {
           model: 'm',
           workingDir: '/tmp',
           systemPrompt: 'sys',
-          taskEnvelope: 'task',
+          taskDeliveryOutput: 'task',
         };
       }
       return Promise.resolve({ status: 'running' });
@@ -201,7 +201,7 @@ describe('startEnhancerJobSubscriber', () => {
       if (endpoint === 'pendingForMachine') {
         return [{ jobId: 'job1', chatroomId: 'room1' }];
       }
-      if (endpoint === 'getSpawnPayload') {
+      if (endpoint === 'getTaskDeliveryForJob') {
         return Promise.resolve({
           chatroomId: 'room1',
           jobId: 'job1',
@@ -209,7 +209,7 @@ describe('startEnhancerJobSubscriber', () => {
           model: 'm',
           workingDir: '/tmp',
           systemPrompt: 'sys',
-          taskEnvelope: 'task',
+          taskDeliveryOutput: 'task',
         });
       }
       return Promise.resolve(null);
@@ -280,7 +280,7 @@ describe('startEnhancerJobSubscriber', () => {
       if (endpoint === 'pendingForMachine') {
         return [{ jobId: 'job1', chatroomId: 'room1' }];
       }
-      if (endpoint === 'getSpawnPayload') {
+      if (endpoint === 'getTaskDeliveryForJob') {
         return {
           chatroomId: 'room1',
           jobId: 'job1',
@@ -288,7 +288,7 @@ describe('startEnhancerJobSubscriber', () => {
           model: 'm',
           workingDir: '/tmp',
           systemPrompt: 'sys',
-          taskEnvelope: 'task',
+          taskDeliveryOutput: 'task',
         };
       }
       return Promise.resolve({ status: 'running' });

@@ -15,6 +15,9 @@ import { query } from '../../_generated/server';
 
 const config = getConfig();
 
+/**
+ * @deprecated Use `getTaskDeliveryForJob` (task pipeline). Retained for transitional callers.
+ */
 export const getSpawnPayload = query({
   args: {
     ...SessionIdArg,
