@@ -169,7 +169,7 @@ async function enrichMessageAttachments(
  * message's attachment IDs only (on-demand DB lookups). Returns undefined when
  * the message is absent or carries no primary-delivery attachments.
  */
-async function resolveSourceAttachmentsForDelivery(
+export async function resolveSourceAttachmentsForDelivery(
   ctx: QueryCtx,
   message: {
     attachedSnippets?: { reference: string; fileSource: string; selectedContent: string }[];
@@ -1832,6 +1832,7 @@ export const getTaskDeliveryPrompt = query({
       standingInstructions,
       plannerEnhancerEnabled,
       entryPointRole: getTeamEntryPoint(chatroom) ?? undefined,
+      originUserMessageId: task.originUserMessageId ?? undefined,
     });
 
     return {

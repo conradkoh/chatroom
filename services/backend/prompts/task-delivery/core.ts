@@ -266,6 +266,8 @@ export function appendTaskDeliveryHandoffSections(
     | 'availableHandoffTargets'
     | 'isEntryPoint'
     | 'plannerEnhancerEnabled'
+    | 'originUserMessageId'
+    | 'entryPointRole'
   >
 ): void {
   appendTaskDeliveryNextSteps(lines, params);

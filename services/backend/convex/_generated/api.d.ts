@@ -72,6 +72,7 @@ import type * as daemon_enhancer_auth from "../daemon/enhancer/auth.js";
 import type * as daemon_enhancer_index from "../daemon/enhancer/index.js";
 import type * as daemon_enhancer_jobs from "../daemon/enhancer/jobs.js";
 import type * as daemon_enhancer_spawnPayload from "../daemon/enhancer/spawnPayload.js";
+import type * as daemon_enhancer_taskDeliveryForJob from "../daemon/enhancer/taskDeliveryForJob.js";
 import type * as daemon_machineCommandInbox from "../daemon/machineCommandInbox.js";
 import type * as dev from "../dev.js";
 import type * as directHarnessCleanup from "../directHarnessCleanup.js";
@@ -237,6 +238,7 @@ declare const fullApi: ApiFromModules<{
   "daemon/enhancer/index": typeof daemon_enhancer_index;
   "daemon/enhancer/jobs": typeof daemon_enhancer_jobs;
   "daemon/enhancer/spawnPayload": typeof daemon_enhancer_spawnPayload;
+  "daemon/enhancer/taskDeliveryForJob": typeof daemon_enhancer_taskDeliveryForJob;
   "daemon/machineCommandInbox": typeof daemon_machineCommandInbox;
   dev: typeof dev;
   directHarnessCleanup: typeof directHarnessCleanup;
