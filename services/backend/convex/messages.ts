@@ -28,10 +28,12 @@ import { getActiveStandingInstructions } from '../src/domain/entities/standing-i
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
+import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueue-user-message-at-front';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
+import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
 import {
   hasActiveEnhancerWork,
   transitionEnhancerEntryPointToEnhancing,
@@ -40,9 +42,10 @@ import {
 import { resolveEnhancerHandoffContent } from '../src/domain/usecase/enhancer/enhancer-handoff-content';
 import { findEnhancerTaskForOrigin } from '../src/domain/usecase/enhancer/find-enhancer-task-for-origin';
 import { getEnhancerConfigForUser } from '../src/domain/usecase/enhancer/get-enhancer-config-for-user';
-import { getEnhancerTeamAgentConfig } from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
-import { syncEnhancerTeamAgentConfig } from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
-import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
+import {
+  getEnhancerTeamAgentConfig,
+  syncEnhancerTeamAgentConfig,
+} from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
 import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import {
   resolvePlannerEnhancerEnabledFromConfig,
@@ -1038,9 +1041,10 @@ export async function runHandoffHandler(
     .unique();
 
   if (participant && !isEnhancerDelivery) {
+    await transitionAgentStatus(ctx, args.chatroomId, args.senderRole, 'agent.waiting');
     await ctx.db.patch('chatroom_participants', participant._id, {
       lastSeenAt: Date.now(),
-      ...(isHandoffToUser ? { lastInFlightTaskId: undefined } : {}),
+      lastInFlightTaskId: undefined,
     });
   }
 
