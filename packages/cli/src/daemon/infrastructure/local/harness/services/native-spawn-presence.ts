@@ -1,5 +1,6 @@
 import { getHarnessCapabilities } from '@workspace/backend/src/domain/entities/harness/types.js';
 import { NATIVE_WAITING_ACTION } from '@workspace/backend/src/domain/entities/participant.js';
+import { buildActivityLifecycleFact, type AgentLifecycleFact } from '../../../../domain/entities/agent-lifecycle-fact.js';
 
 import type { SpawnResult } from './remote-agent-service.js';
 import { api } from '../../../../../api.js';
@@ -15,6 +16,7 @@ export interface NativeSpawnPresenceContext {
   sessionId: string;
   chatroomId: string;
   role: string;
+  lifecycleOutbox?: { enqueue: (fact: AgentLifecycleFact) => Promise<unknown> };
 }
 
 export interface WireTokenActivityReportingOpts extends NativeSpawnPresenceContext {
@@ -40,12 +42,7 @@ export async function emitNativeWaitingAfterSpawn(
     return false;
   }
   try {
-    await ctx.backend.mutation(api.participants.join, {
-      sessionId: ctx.sessionId,
-      chatroomId: ctx.chatroomId,
-      role: ctx.role,
-      action: NATIVE_WAITING_ACTION,
-    });
+    if (ctx.lifecycleOutbox) await ctx.lifecycleOutbox.enqueue(buildActivityLifecycleFact({ chatroomId: ctx.chatroomId, role: ctx.role, action: NATIVE_WAITING_ACTION }));
     return true;
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));

@@ -18,7 +18,10 @@ function toConvexLifecycleFact(fact: AgentLifecycleFact): ConvexLifecycleFact {
   return {
     ...normalized,
     chatroomId: normalized.chatroomId as Id<'chatroom_rooms'>,
-  };
+    ...(normalized.kind === 'activity' && normalized.taskId
+      ? { taskId: normalized.taskId as Id<'chatroom_tasks'> }
+      : {}),
+  } as ConvexLifecycleFact;
 }
 
 export function createAgentLifecycleSend(
