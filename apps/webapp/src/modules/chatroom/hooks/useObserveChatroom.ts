@@ -7,11 +7,11 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { useCallback, useEffect, useRef } from 'react';
 
 /**
- * Page-level chatroom observation: an interval heartbeat only.
+ * Page-level chatroom observation: mount + interval heartbeats.
  *
  * Heartbeats keep the workspace-list subscription scoped to chatrooms the
- * frontend is actively viewing. Git/command pushes are no longer driven from
- * observation — they are enqueued by the backend on handoff-to-user.
+ * actively viewing. Git/command pushes are enqueued on handoff-to-user and other
+ * explicit triggers — not on regular observation heartbeats.
  */
 export function useObserveChatroom(chatroomId: string | null | undefined) {
   const recordObservation = useSessionMutation(api.chatrooms.recordChatroomObservation);
@@ -33,6 +33,8 @@ export function useObserveChatroom(chatroomId: string | null | undefined) {
 
   useEffect(() => {
     if (!chatroomId) return;
+
+    void fireHeartbeat();
 
     intervalRef.current = setInterval(() => {
       void fireHeartbeat();
