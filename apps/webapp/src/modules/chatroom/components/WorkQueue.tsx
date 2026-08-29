@@ -24,7 +24,6 @@ import { QueueFrontMessageModal } from './QueueFrontMessageModal';
 import { ReviewPanel } from './ReviewPanel';
 import { SIDEBAR_PREVIEW_LIMIT, SidebarSection } from './sidebar/SidebarSection';
 import { TaskDetailModal } from './TaskDetailModal';
-import { TaskQueueModal } from './TaskQueueModal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,7 +49,6 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
   const [isQueueFrontModalOpen, setIsQueueFrontModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
   const [isPendingReviewModalOpen, setIsPendingReviewModalOpen] = useState(false);
   const [isCurrentTasksModalOpen, setIsCurrentTasksModalOpen] = useState(false);
   const [selectedBacklogItemId, setSelectedBacklogItemId] = useState<string | null>(null);
@@ -310,32 +308,14 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
 
   if (tasks === undefined) {
     return (
-      <div className="flex flex-col min-h-0 overflow-hidden">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
-          Task Queue
-        </div>
-        <div className="p-4 text-center text-chatroom-text-muted text-xs">Loading...</div>
+      <div className="flex flex-col min-h-0 overflow-hidden p-4 text-center text-chatroom-text-muted text-xs">
+        Loading...
       </div>
     );
   }
 
   return (
     <div className="flex flex-col overflow-hidden min-h-0">
-      {/* Header */}
-      <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border flex items-center justify-between flex-shrink-0">
-        <span>Task Queue</span>
-        <button
-          type="button"
-          onClick={() => setIsQueueFrontModalOpen(true)}
-          className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
-          aria-label="Add message to front of queue"
-          title="Add message to front of queue"
-          data-testid="queue-front-add-button"
-        >
-          <Plus size={14} />
-        </button>
-      </div>
-
       {/* Scrollable Task List Container */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {/* Queue Health Warning - Show when promotion needed */}
@@ -491,18 +471,7 @@ export function WorkQueue({ chatroomId, onRegisterActions }: WorkQueueProps) {
       </div>
       {/* End of Scrollable Task List Container */}
 
-      {/* Full Task Queue Modal */}
-      <TaskQueueModal
-        isOpen={isQueueModalOpen}
-        tasks={tasks || []}
-        onClose={() => setIsQueueModalOpen(false)}
-        onTaskClick={(task) => {
-          // Keep queue modal open, detail modal will layer on top
-          handleOpenTaskDetail(task);
-        }}
-      />
-
-      {/* Task detail portals after queue so it stacks above the queue modal */}
+      {/* Task detail portal stacks above other modals. */}
       {selectedTask && (
         <TaskDetailModal
           isOpen={true}
