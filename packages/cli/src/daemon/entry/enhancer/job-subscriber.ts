@@ -1,6 +1,6 @@
 import type { ConvexClient } from 'convex/browser';
 
-import { ENHANCER_AGENT_ROLE } from './constants.js';
+import { ENHANCER_AGENT_END_GRACE_MS, ENHANCER_AGENT_ROLE } from './constants.js';
 import {
   clearEnhancerDrainHandlerForTests,
   setEnhancerDrainHandler,
@@ -55,6 +55,9 @@ async function processEnhancerJobForSpawn(
   let service: RemoteAgentService | null = null;
   let abortController: AbortController | null = null;
   let spawnHandle: EnhancerSpawnHandle | null = null;
+  let agentEndSeen = false;
+  let resolveAgentEnd: (() => void) | undefined;
+  let agentEndPromise: Promise<void> = Promise.resolve();
   let log: EnhancerLogWriter = createEnhancerLogWriter(logSink, {
     chatroomId: job.chatroomId,
     harness: 'unknown',
@@ -138,6 +141,14 @@ async function processEnhancerJobForSpawn(
     spawned.onLogLine?.((line) => {
       log.write(line);
     });
+    agentEndPromise = new Promise<void>((resolve) => {
+      resolveAgentEnd = resolve;
+    });
+    spawned.onAgentEnd?.(() => {
+      if (agentEndSeen) return;
+      agentEndSeen = true;
+      resolveAgentEnd?.();
+    });
 
     await waitForEnhancerJobResolution({
       sessionId,
@@ -183,6 +194,11 @@ async function processEnhancerJobForSpawn(
     inFlight.delete(job.jobId);
     if (spawnHandle) unregisterEnhancerSpawn(spawnHandle);
     if (spawnResult && service) {
+      if (!agentEndSeen)
+        await Promise.race([
+          agentEndPromise,
+          new Promise<void>((resolve) => setTimeout(resolve, ENHANCER_AGENT_END_GRACE_MS)),
+        ]);
       try {
         await service.stop(spawnResult.pid);
       } catch {
