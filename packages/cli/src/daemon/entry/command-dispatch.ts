@@ -10,7 +10,8 @@ import {
 import type { MachineCommandPayload } from '@workspace/backend/src/domain/entities/machine-command.js';
 import { Effect, Layer, Ref, type Context } from 'effect';
 
-import { pushSingleWorkspaceGitStateEffect } from './workspace-git/git-heartbeat.js';
+import { pushSingleWorkspaceGitStateEffect, pushGitStateEffect } from './workspace-git/git-heartbeat.js';
+import { reconcileWorkspaceList } from './workspace-git/workspace-list-subscription.js';
 import { api } from '../../api.js';
 import { createRefreshMachineCapabilitiesDeps } from './bridge/capabilities-bridge.js';
 import { isDaemonCommandEventType, type DaemonCommandEventType } from './command-event-types.js';
@@ -54,6 +55,7 @@ export interface DedupTracker {
   capabilitiesRefreshIds: Map<string, number>;
   localActionIds: Map<string, number>;
   pickFolderIds: Map<string, number>;
+  workspaceListChangedIds?: Map<string, number>;
 }
 
 /** Union of services required to dispatch any command event. */
@@ -74,6 +76,7 @@ export function evictStaleDedupEntries(tracker: DedupTracker): void {
   evictStaleEntries(tracker.capabilitiesRefreshIds, evictBefore);
   evictStaleEntries(tracker.localActionIds, evictBefore);
   evictStaleEntries(tracker.pickFolderIds, evictBefore);
+  if (tracker.workspaceListChangedIds) evictStaleEntries(tracker.workspaceListChangedIds, evictBefore);
   processManager.evictStalePendingStops();
 }
 
@@ -85,7 +88,22 @@ export function createDedupTracker(): DedupTracker {
     capabilitiesRefreshIds: new Map<string, number>(),
     localActionIds: new Map<string, number>(),
     pickFolderIds: new Map<string, number>(),
+    workspaceListChangedIds: new Map<string, number>(),
   };
+}
+
+function handleWorkspaceListChangedCommandEffect(
+  event: CommandEvent,
+  tracker: DedupTracker
+): Effect.Effect<void, never, CommandDispatchDeps> {
+  return Effect.gen(function* () {
+    const eventId = String(event._id);
+    if (tracker.workspaceListChangedIds?.has(eventId)) return;
+    const session = yield* DaemonSessionService;
+    yield* Effect.promise(() => reconcileWorkspaceList(session));
+    yield* pushGitStateEffect;
+    (tracker.workspaceListChangedIds ??= new Map()).set(eventId, Date.now());
+  });
 }
 
 function handleRequestStartEffect(
@@ -296,6 +314,7 @@ const commandEventHandlers: {
     }),
   'daemon.ping': handlePingCommandEffect,
   'daemon.gitRefresh': handleGitRefreshCommandEffect,
+  'daemon.workspaceListChanged': handleWorkspaceListChangedCommandEffect,
   'daemon.localAction': handleLocalActionCommandEffect,
   'daemon.pickFolder': handlePickFolderCommandEffect,
   'daemon.refreshCapabilities': handleRefreshCapabilitiesEffect,
