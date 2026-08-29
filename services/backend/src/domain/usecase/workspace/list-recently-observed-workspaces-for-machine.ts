@@ -9,7 +9,7 @@
  * observation set on every call.
  */
 
-import { WORKSPACE_RECENCY_WINDOW_MS } from '../../../../config/reliability';
+import { OBSERVATION_TTL_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import { isActiveWorkspace } from '../../entities/workspace';
@@ -34,7 +34,7 @@ async function listRecentlyObservedWorkspacesForMachineLegacy(
   ctx: QueryCtx,
   input: ListRecentlyObservedWorkspacesForMachineInput
 ): Promise<ListRecentlyObservedWorkspacesForMachineResult> {
-  const recencyWindowMs = input.recencyWindowMs ?? WORKSPACE_RECENCY_WINDOW_MS;
+  const recencyWindowMs = input.recencyWindowMs ?? OBSERVATION_TTL_MS;
   const cutoff = Date.now() - recencyWindowMs;
 
   const workspaces = await ctx.db
@@ -83,7 +83,7 @@ export async function listRecentlyObservedWorkspacesForMachine(
     .withIndex('by_machineId', (q) => q.eq('machineId', input.machineId))
     .collect();
   if (projected.length === 0) return listRecentlyObservedWorkspacesForMachineLegacy(ctx, input);
-  const cutoff = Date.now() - (input.recencyWindowMs ?? WORKSPACE_RECENCY_WINDOW_MS);
+  const cutoff = Date.now() - (input.recencyWindowMs ?? OBSERVATION_TTL_MS);
   const results: WorkspaceForMachineView[] = [];
   for (const row of projected) {
     if (row.lastObservedAt < cutoff) continue;
