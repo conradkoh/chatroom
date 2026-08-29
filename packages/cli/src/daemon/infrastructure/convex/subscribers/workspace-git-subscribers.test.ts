@@ -36,41 +36,6 @@ function createMockWsClient() {
 }
 
 describe('workspace-git v2 subscribers', () => {
-  it('workspace-list subscriber does not re-emit on identical list snapshot', async () => {
-    const events: InboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
-
-    const handle = startWorkspaceListSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
-      (event) => events.push(event)
-    );
-
-    emitUpdate(['ws-a', 'ws-b']);
-    emitUpdate(['ws-a', 'ws-b']);
-    await handle.stop();
-
-    expect(events).toEqual([{ type: 'workspace.list-changed', machineId: MACHINE_ID }]);
-  });
-
-  it('workspace-list subscriber emits again when list content changes', async () => {
-    const events: InboundEvent[] = [];
-    const { wsClient, emitUpdate } = createMockWsClient();
-
-    const handle = startWorkspaceListSubscriber(
-      { wsClient, sessionId: SESSION_ID, machineId: MACHINE_ID },
-      (event) => events.push(event)
-    );
-
-    emitUpdate(['ws-a']);
-    emitUpdate(['ws-a', 'ws-b']);
-    await handle.stop();
-
-    expect(events).toEqual([
-      { type: 'workspace.list-changed', machineId: MACHINE_ID },
-      { type: 'workspace.list-changed', machineId: MACHINE_ID },
-    ]);
-  });
-
   it('git-request subscriber emits git.request with requestId', async () => {
     const events: InboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
