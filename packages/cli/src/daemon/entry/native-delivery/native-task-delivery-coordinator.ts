@@ -109,7 +109,7 @@ export class NativeTaskDeliveryCoordinator {
 
     for (const row of pendingFirst) {
       const { role } = row.agentConfig;
-      const slot = agentMgr.getSlot(row.chatroomId, role);
+      let slot = agentMgr.getSlot(row.chatroomId, role);
       if (row.status === 'pending' && slot?.lastInFlightTaskId === row.taskId) {
         Effect.runSync(agentMgr.clearLastInFlightTaskIfMatches(row.chatroomId, role, row.taskId));
       }
@@ -118,9 +118,10 @@ export class NativeTaskDeliveryCoordinator {
           Effect.runSync(agentMgr.reconcileNativeTurnPhaseIdle(row.chatroomId, role));
         }
         logNativeDeliveryFallback('stale-turn-phase', role, row.chatroomId, row.taskId);
+        slot = agentMgr.getSlot(row.chatroomId, role) ?? undefined;
       }
       const blockReason = explainNativeDeliveryBlock(row, {
-        slot: agentMgr.getSlot(row.chatroomId, role),
+        slot,
       });
       if (blockReason) {
         if (isDeliverableTaskStatus(row.status)) {

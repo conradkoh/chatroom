@@ -29,6 +29,21 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   });
 }
 
+async function joinParticipants(
+  sessionId: SessionId,
+  chatroomId: Id<'chatroom_rooms'>,
+  roles: string[]
+): Promise<void> {
+  for (const role of roles) {
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role,
+      action: 'get-next-task:started',
+    });
+  }
+}
+
 async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>) {
   return await t.run(async (ctx) => {
     const now = Date.now();
@@ -383,6 +398,78 @@ describe('listQueued query', () => {
 });
 
 describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
+  test('builder→planner handoff sets sender waiting and creates pending target task', async () => {
+    const { sessionId } = await createTestSession('handoff-sender-waiting');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder']);
+
+    const builderTaskId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'planner',
+        content: 'builder work',
+        status: 'in_progress',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 0,
+        assignedTo: 'builder',
+        startedAt: now,
+        acknowledgedAt: now,
+      });
+    });
+
+    await t.run(async (ctx) => {
+      const participant = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      if (participant) {
+        await ctx.db.patch('chatroom_participants', participant._id, {
+          lastStatus: 'task.inProgress',
+          lastInFlightTaskId: builderTaskId,
+        });
+      }
+    });
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'work done',
+      targetRole: 'planner',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.newTaskId).toBeTruthy();
+    expect(result.completedTaskIds).toContain(builderTaskId);
+
+    const plannerTask = await t.run(async (ctx) => ctx.db.get('chatroom_tasks', result.newTaskId!));
+    expect(plannerTask?.status).toBe('pending');
+    expect(plannerTask?.assignedTo).toBe('planner');
+
+    const readModel = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_agentRoleStatusReadModel')
+        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+        .first()
+    );
+    expect(readModel?.status).toBe('waiting');
+
+    const participant = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique()
+    );
+    expect(participant?.lastStatus).toBe('agent.waiting');
+    expect(participant?.lastInFlightTaskId).toBeUndefined();
+  });
+
   test('when handing off to user and queued tasks exist, promotes first queued task to pending', async () => {
     const { sessionId } = await createTestSession('handoff-promote-1');
     const chatroomId = await createChatroom(sessionId);
@@ -502,7 +589,7 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
     expect(result.promotedTaskId).toBeNull();
   });
 
-  test('when handing off to agent (not user), queued tasks are NOT promoted', async () => {
+  test('when handing off to planner with queued user message, promotes queue before creating handoff task', async () => {
     const { sessionId } = await createTestSession('handoff-promote-3');
     const chatroomId = await createChatroom(sessionId);
 
@@ -558,16 +645,23 @@ describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
       targetRole: 'planner',
     });
 
-    // Verify NO explicit promotion (queued task stays queued)
     expect(result.success).toBe(true);
-    expect(result.promotedTaskId).toBeNull();
+    expect(result.promotedTaskId).toBeTruthy();
+    expect(result.newTaskId).toBeTruthy();
 
-    // Queued message still in queue
     const queuedAfter = await t.query(api.messages.listQueued, {
       sessionId,
       chatroomId,
     });
-    expect(queuedAfter.length).toBe(1);
+    expect(queuedAfter.length).toBe(0);
+
+    const promotedTask = await t.run(async (ctx) => ctx.db.get(result.promotedTaskId!));
+    expect(promotedTask?.status).toBe('pending');
+    expect(promotedTask?.assignedTo).toBe('planner');
+
+    const handoffTask = await t.run(async (ctx) => ctx.db.get(result.newTaskId!));
+    expect(handoffTask?.status).toBe('pending');
+    expect(handoffTask?.assignedTo).toBe('planner');
   });
 });
 

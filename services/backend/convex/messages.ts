@@ -28,10 +28,12 @@ import { getActiveStandingInstructions } from '../src/domain/entities/standing-i
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getTeamStructure } from '../src/domain/entities/team-presets';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
+import { transitionAgentStatus } from '../src/domain/usecase/agent/transition-agent-status';
 import { enqueueUserMessageAtFront } from '../src/domain/usecase/chatroom/enqueue-user-message-at-front';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { sendAutomatedUserMessage } from '../src/domain/usecase/chatroom/send-automated-user-message';
 import { markChatroomUnread } from '../src/domain/usecase/chatroom/unread-status';
+import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
 import {
   hasActiveEnhancerWork,
   transitionEnhancerEntryPointToEnhancing,
@@ -40,15 +42,17 @@ import {
 import { resolveEnhancerHandoffContent } from '../src/domain/usecase/enhancer/enhancer-handoff-content';
 import { findEnhancerTaskForOrigin } from '../src/domain/usecase/enhancer/find-enhancer-task-for-origin';
 import { getEnhancerConfigForUser } from '../src/domain/usecase/enhancer/get-enhancer-config-for-user';
-import { getEnhancerTeamAgentConfig } from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
-import { syncEnhancerTeamAgentConfig } from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
-import { createEnhancerJobFromHandoff } from '../src/domain/usecase/enhancer/create-enhancer-job-from-handoff';
+import {
+  getEnhancerTeamAgentConfig,
+  syncEnhancerTeamAgentConfig,
+} from '../src/domain/usecase/enhancer/get-enhancer-team-agent-config';
 import { walkToUserMessageId } from '../src/domain/usecase/enhancer/resolve-origin-user-message-id';
 import {
   resolvePlannerEnhancerEnabledFromConfig,
   resolveTaskPlannerEnhancerEnabled,
 } from '../src/domain/usecase/enhancer/resolve-planner-enhancer-enabled';
 import { validateEnhancerHandoff } from '../src/domain/usecase/enhancer/validate-enhancer-handoff';
+import { syncParticipantPresenceOnSnapshots } from '../src/domain/usecase/machine/machine-assigned-task-snapshot-sync';
 import {
   insertChatroomMessage,
   isMessageReadModelComplete,
@@ -899,6 +903,14 @@ export async function runHandoffHandler(
   }
 
   const completedTaskIds = await completeTasks(ctx, tasksToComplete, { skipAutoPromotion: true });
+  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
+
+  // Promote queued user messages after active work is complete and before the
+  // handoff task is created; canPromote rejects chats with any pending task.
+  if (!isEnhancerDelivery) {
+    const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
+    if (promoteResult.promoted) promotedTaskId = promoteResult.promoted;
+  }
 
   if (tasksToComplete.length > 1) {
     console.warn(
@@ -974,7 +986,6 @@ export async function runHandoffHandler(
 
   // Step 3: Create task for target agent (if not user)
   let newTaskId: Id<'chatroom_tasks'> | null = null;
-  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
   if (!isHandoffToUser) {
     // Get next queue position atomically (prevents race conditions)
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
@@ -1029,7 +1040,7 @@ export async function runHandoffHandler(
     await transitionEnhancerEntryPointToEnhancing(ctx, args.chatroomId, enhancerEntryPointRole);
   }
 
-  // Step 4: Update sender's participant status to waiting (before checking queue promotion)
+  // Step 4: Update sender's participant status to waiting.
   const participant = await ctx.db
     .query('chatroom_participants')
     .withIndex('by_chatroom_and_role', (q) =>
@@ -1038,10 +1049,13 @@ export async function runHandoffHandler(
     .unique();
 
   if (participant && !isEnhancerDelivery) {
+    await transitionAgentStatus(ctx, args.chatroomId, args.senderRole, 'agent.waiting');
     await ctx.db.patch('chatroom_participants', participant._id, {
       lastSeenAt: Date.now(),
-      ...(isHandoffToUser ? { lastInFlightTaskId: undefined } : {}),
+      lastInFlightTaskId: undefined,
     });
+    // Step 1.5 promotion may have projected snapshots before this transition.
+    await syncParticipantPresenceOnSnapshots(ctx, args.chatroomId, args.senderRole);
   }
 
   if (args.enhancerJobId) {
@@ -1064,16 +1078,14 @@ export async function runHandoffHandler(
   // items they worked on to pending_user_review. Auto-transitioning all attached
   // items would incorrectly mark items that were attached for context only.
 
-  // Step 6: Explicit queue promotion on handoff-to-user
-  // When handing off to user, we need to explicitly promote the next queued task
-  // because areAllAgentsWaiting() returns false at this point (the sender is still
-  // marked as "working"). We check: no active tasks remain → promote next queued task.
+  // Step 6: Final handoff-to-user participant cleanup. Queue promotion already
+  // ran after Step 1 for every non-enhancer handoff. Native handoffs can retain
+  // a pending sender task until delivery, so keep a guarded fallback here.
   if (isHandoffToUser) {
-    const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
-    if (promoteResult.promoted) {
-      promotedTaskId = promoteResult.promoted;
+    if (promotedTaskId === null) {
+      const promoteResult = await maybePromoteNextQueuedTask(ctx, args.chatroomId);
+      if (promoteResult.promoted) promotedTaskId = promoteResult.promoted;
     }
-
     if (participant) {
       await ctx.db.patch('chatroom_participants', participant._id, {
         lastInFlightTaskId: undefined,
