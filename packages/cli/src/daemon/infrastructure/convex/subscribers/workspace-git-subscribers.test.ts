@@ -54,7 +54,7 @@ describe('workspace-git v2 subscribers', () => {
     });
   });
 
-  it('registry routes workspace-git event to handler', async () => {
+  it('registry routes git.request to workspace-git handler', async () => {
     const handled: WorkspaceGitInboundEvent[] = [];
     const { wsClient, emitUpdate } = createMockWsClient();
 
@@ -76,12 +76,12 @@ describe('workspace-git v2 subscribers', () => {
       },
     });
 
-    emitUpdate(['ws-a']);
+    emitUpdate([{ _id: GIT_REQUEST_ID }]);
     await registry.stopAll();
 
     expect(handled).toContainEqual({
-      type: 'workspace.list-changed',
-      machineId: MACHINE_ID,
+      type: 'git.request',
+      requestId: GIT_REQUEST_ID,
     });
   });
 
